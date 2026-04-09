@@ -2,6 +2,17 @@
 
 Xcode project generation, SPM dependencies, library stack, project structure, Knit DI. Build this first.
 
+## Implementation Status
+
+- [x] Xcode project generation
+- [x] Dependency management: SPM
+- [x] Library stack validation
+- [x] Project structure
+- [x] App bootstrap stub
+- [x] Dependency injection: Knit
+
+Validated implementation note: under Xcode 26.3, older Knit releases can fail in `ExtractAppIntentsMetadata` while parsing Knit's generic container surface. Keep `project.yml` pinned to Knit revision `3d4afea562b95a95725f689be819b10ff93351fc` until a tagged release includes the upstream `KnitResolver` workaround.
+
 ## Xcode Project Generation: XcodeGen
 
 The Xcode project is generated from a YAML spec (`project.yml`) using **XcodeGen** (`brew install xcodegen`). This is essential for agent-driven development:
@@ -93,7 +104,7 @@ targets:
 packages:
   knit:
     url: https://github.com/cashapp/knit
-    from: "2.1.0"
+    revision: "3d4afea562b95a95725f689be819b10ff93351fc"
   textual:
     url: https://github.com/gonzalezreal/textual
     from: "0.3.1"
@@ -454,7 +465,7 @@ Knit uses **compile-time code generation via SwiftSyntax**, not runtime reflecti
 
 **Important (validated)**: `KnitBuildPlugin` is **Xcode-project-only** — it uses `XcodeProjectPlugin` and requires a `knitconfig.json` file. It `fatalError`s for pure SPM targets. The project uses `knit-cli gen` as a pre-build script phase instead of the build plugin. The CLI accepts `--assembly-input-path` (not `--config`); `knitconfig.json` is only for the build plugin. The documented pre-build script generates `Skep/DI/Generated/KnitExtensions.swift` with type-safe resolver extensions only, so do not assume generated XCTest files exist unless you add those output paths later.
 
-**Historical fallback validation (Knit 1.x)**: XcodeGen + `knit-cli gen` pipeline previously built under Xcode 26.3 / Swift 6.2. `knitconfig.json` is retained for documentation but not used by the CLI. **The plan targets Knit 2.x** (`from: "2.1.0"`, resolves to 2.1.6) which uses `Container<TargetResolver>` in `assemble()`. Knit 2.1.6 updated swift-syntax to 602.0.0 for Xcode 26 compatibility and is the primary path for implementation. See `validation.md` for the current version-specific checks.
+**Historical fallback validation (Knit 1.x)**: XcodeGen + `knit-cli gen` pipeline previously built under Xcode 26.3 / Swift 6.2. `knitconfig.json` is retained for documentation but not used by the CLI. **The current implementation stays on Knit 2.x but pins a main-branch revision** (`3d4afea562b95a95725f689be819b10ff93351fc`) because it contains the upstream `Resolver` → `KnitResolver` workaround required for Xcode 26.3's `ExtractAppIntentsMetadata` pass. Keep that pin until the next tagged Knit release includes the same fix. See `validation.md` for the current version-specific checks.
 
 ### SwiftUI Integration
 

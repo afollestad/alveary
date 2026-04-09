@@ -1,0 +1,86 @@
+name: Skep
+options:
+  bundleIdPrefix: com.afollestad
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "26.3"
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    GENERATE_INFOPLIST_FILE: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  Skep:
+    type: application
+    platform: macOS
+    sources:
+      - path: Skep
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: knit
+        product: Knit
+      - package: textual
+        product: Textual
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.skep
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Skep/Resources/Skep.entitlements
+    preBuildScripts:
+      - name: Knit Code Generation
+        script: |
+          KNIT_CLI=""
+          if command -v knit-cli &> /dev/null; then
+            KNIT_CLI="knit-cli"
+          elif [ -f "$HOME/.mint/bin/knit-cli" ]; then
+            KNIT_CLI="$HOME/.mint/bin/knit-cli"
+          fi
+          if [ -z "$KNIT_CLI" ]; then
+            echo "error: knit-cli is required for code generation. Install via 'mint install cashapp/knit knit-cli'."
+            exit 1
+          fi
+          mkdir -p "${SRCROOT}/Skep/DI/Generated"
+          "$KNIT_CLI" gen \
+            --assembly-input-path "${SRCROOT}/Skep/DI" \
+            --type-safety-extensions-output-path "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
+          chmod u+w "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
+          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Skep/DI/Generated/KnitExtensions.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
+          chmod a-w "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
+        inputFiles: []
+        outputFiles: []
+    postBuildScripts:
+      - name: SwiftLint
+        script: |
+          if command -v swiftlint &> /dev/null; then
+            swiftlint
+          fi
+  SkepTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SkepTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: Skep
+      - package: swift-snapshot-testing
+        product: SnapshotTesting
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.skep.tests
+        GENERATE_INFOPLIST_FILE: YES
+packages:
+  knit:
+    url: https://github.com/cashapp/knit
+    revision: "3d4afea562b95a95725f689be819b10ff93351fc"
+  textual:
+    url: https://github.com/gonzalezreal/textual
+    from: "0.3.1"
+  swift-snapshot-testing:
+    url: https://github.com/pointfreeco/swift-snapshot-testing
+    from: "1.17.0"

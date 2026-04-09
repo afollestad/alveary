@@ -1,0 +1,43 @@
+import Foundation
+import SwiftData
+
+@Model
+final class AgentThread {
+    var name: String
+    var branch: String?
+    var pendingCleanupBranches: [String]
+    var worktreePath: String?
+    var hasCompletedInitialSetup: Bool
+    var permissionMode: String
+    var effort: String
+    var useWorktree: Bool
+    var archivedAt: Date?
+    var project: Project?
+    @Relationship(deleteRule: .cascade, inverse: \Conversation.thread) var conversations: [Conversation]
+
+    init(
+        name: String,
+        branch: String? = nil,
+        pendingCleanupBranches: [String] = [],
+        worktreePath: String? = nil,
+        hasCompletedInitialSetup: Bool = false,
+        permissionMode: String = "default",
+        effort: String = "medium",
+        useWorktree: Bool = false,
+        archivedAt: Date? = nil,
+        project: Project? = nil,
+        conversations: [Conversation] = []
+    ) {
+        self.name = name
+        self.branch = branch
+        self.pendingCleanupBranches = pendingCleanupBranches
+        self.worktreePath = worktreePath.map(CanonicalPath.normalize)
+        self.hasCompletedInitialSetup = hasCompletedInitialSetup
+        self.permissionMode = permissionMode
+        self.effort = effort
+        self.useWorktree = useWorktree
+        self.archivedAt = archivedAt
+        self.project = project
+        self.conversations = conversations
+    }
+}
