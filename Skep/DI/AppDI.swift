@@ -4,7 +4,10 @@ import Knit
 enum AppDI {
     static let assembler = ScopedModuleAssembler<Resolver>([
         AppAssembly(),
-        DataAssembly()
+        DataAssembly(),
+        SettingsAssembly(),
+        ShellAssembly(),
+        NotificationAssembly()
     ])
 
     static let resolver = assembler.resolver

@@ -5,11 +5,11 @@ App database, state management, settings, concurrency, shell runner, and service
 ## Implementation Status
 
 - [x] App database
-- [ ] State management
-- [ ] App settings
-- [ ] Concurrency model
-- [ ] Shell runner
-- [ ] Service layer follow-through for the remaining Phase 2 infrastructure
+- [x] State management
+- [x] App settings
+- [x] Concurrency model
+- [x] Shell runner
+- [x] Service layer follow-through for the remaining Phase 2 infrastructure
 
 ## App Database
 
