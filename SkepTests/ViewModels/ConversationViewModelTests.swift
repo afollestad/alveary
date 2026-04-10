@@ -398,7 +398,22 @@ private actor MockWorktreeManager: WorktreeManager {
         return worktreeInfo
     }
 
+    func createFromBranch(
+        projectPath: String,
+        threadName: String,
+        branch: String,
+        remoteName: String?
+    ) async throws -> WorktreeInfo {
+        worktreeInfo
+    }
+
     func remove(projectPath: String, worktreePath: String, branch: String?) async throws {}
+
+    func deleteBranch(projectPath: String, branch: String) async throws {}
+
+    func list(projectPath: String) async throws -> [WorktreeInfo] {
+        []
+    }
 
     func createCalls() -> [CreateCall] {
         recordedCreateCalls

@@ -49,3 +49,12 @@ extension ShellRunner {
 enum ShellError: Error, Sendable, Equatable {
     case timeout(executable: String, timeout: Duration)
 }
+
+extension ShellError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .timeout(let executable, let timeout):
+            return "\(executable) timed out after \(timeout.components.seconds) seconds"
+        }
+    }
+}

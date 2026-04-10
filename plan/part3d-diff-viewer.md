@@ -2,6 +2,12 @@
 
 Diff viewer pane, `DiffViewerViewModel`, file watching, staging/unstaging, and agent-directed commit/PR actions. Continues from Part 3c.
 
+## Implementation Status
+
+- [x] `DiffViewerViewModel` is implemented in the repo, including repository rebinding, refresh coalescing, FSEvents/poll watcher management, staged/untracked diff loading, contextual action discovery, and rename-aware discard expansion.
+- [x] Focused regression coverage exists in `SkepTests/ViewModels/DiffViewerViewModelTests.swift` for the non-obvious refresh, diff-selection, cache, and contextual-action behaviors.
+- [ ] Manual validation gate remains for integrated watcher behavior once the real pane UI exists.
+
 ## Diff Viewer (Uncommitted Changes)
 
 The diff viewer is the **right pane**, toggleable via menu bar. It shows uncommitted changes for the selected thread's worktree so users can review what the agent changed, stage or revert specific files, and then ask the agent to commit or open a PR.

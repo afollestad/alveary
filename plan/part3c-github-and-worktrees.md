@@ -2,6 +2,12 @@
 
 GitHub integration, GitHubCLIService, GitHubService, worktrees, branching, and PR discovery. Continues from Part 3b.
 
+## Implementation Status
+
+- [x] `GitHubCLIService`, `DefaultGitHubCLIService`, `GitHubService`, `CLIGitHubService`, `WorktreeManager`, `DefaultWorktreeManager`, `GitHubAssembly`, and the expanded `AppDI` wiring are implemented in the repo.
+- [x] Focused regression coverage exists in `SkepTests/Services/GitHubCLIServiceTests.swift`, `SkepTests/Services/GitHubServiceTests.swift`, and `SkepTests/Services/WorktreeManagerTests.swift`.
+- [ ] Manual validation gate remains: verify the GitHub device-flow UX end-to-end from the app shell, including URL parsing, explicit browser launch, cancel/retry behavior, and reconnect after an auth loss.
+
 ## GitHub Integration
 
 GitHub operations use the **`gh` CLI** via Foundation `Process`.

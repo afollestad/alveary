@@ -76,6 +76,48 @@ extension AgentAssembly {
         AgentAssembly()
     }
 }
+/// Generated from ``GitHubAssembly``
+extension Resolver {
+    func gitHubCLIService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> GitHubCLIService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(GitHubCLIService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func gitHubService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> GitHubService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(GitHubService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension GitHubAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        GitHubAssembly()
+    }
+}
+/// Generated from ``GitAssembly``
+extension Resolver {
+    func gitService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> GitService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(GitService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func worktreeManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> WorktreeManager {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(WorktreeManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func fileListManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> FileListManager {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(FileListManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension GitAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        GitAssembly()
+    }
+}
 /// Generated from ``DetectionAssembly``
 extension Resolver {
     func agentRegistry(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> AgentRegistry {
