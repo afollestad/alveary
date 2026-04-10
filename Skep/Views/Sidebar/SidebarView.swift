@@ -141,31 +141,6 @@ struct SidebarView: View {
     }
 }
 
-private struct ProjectsHeaderRow: View {
-    let onAddProject: () -> Void
-
-    var body: some View {
-        HStack {
-            Text("Projects")
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .accessibilityAddTraits(.isHeader)
-
-            Spacer()
-
-            Button(action: onAddProject) {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Add Project")
-        }
-        .padding(.leading, 8)
-        .padding(.trailing, 12)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-    }
-}
-
 private extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
         project.threads
@@ -284,6 +259,33 @@ private extension SidebarView {
     }
 }
 
+private struct ProjectsHeaderRow: View {
+    let onAddProject: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("Projects")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer()
+
+            Button(action: onAddProject) {
+                Image(systemName: "plus.circle")
+                    .frame(width: 16)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add Project")
+            .help("Add Project")
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+}
+
 private struct ProjectRow: View {
     let project: Project
     let isExpanded: Bool
@@ -315,7 +317,7 @@ private struct ProjectRow: View {
             Spacer()
 
             Button(action: onCreateThread) {
-                Image(systemName: "plus.circle")
+                Image(systemName: "square.and.pencil")
             }
             .buttonStyle(.borderless)
             .help("New Thread")
