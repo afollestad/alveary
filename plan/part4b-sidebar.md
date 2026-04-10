@@ -2,6 +2,11 @@
 
 SidebarViewModel, SidebarView, sidebar selection binding. Continues from Part 4a.
 
+## Implementation Status
+
+- [x] `SidebarViewModel` is implemented in the repo, including project import, thread creation, archive/restore/delete actions, aggregate thread-status rules, sidebar error state, and focused unit coverage.
+- [ ] `SidebarView` and snapshot coverage remain to be implemented.
+
 ## SidebarViewModel
 
 Drives the left pane. Loads projects and threads from SwiftData, provides thread status:

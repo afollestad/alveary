@@ -27,7 +27,7 @@ final class DiffViewerViewModel {
     }
 
     private final class WatchContext {
-        let owner: DiffViewerViewModel
+        weak var owner: DiffViewerViewModel?
         let rootDirectory: String
 
         init(owner: DiffViewerViewModel, rootDirectory: String) {
@@ -171,6 +171,12 @@ final class DiffViewerViewModel {
             MainActor.assumeIsolated {
                 self?.tearDown()
             }
+        }
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            tearDown()
         }
     }
 
@@ -375,12 +381,6 @@ final class DiffViewerViewModel {
 
         stopWatching()
     }
-
-    deinit {
-        MainActor.assumeIsolated {
-            tearDown()
-        }
-    }
 }
 
 private extension DiffViewerViewModel {
@@ -497,7 +497,7 @@ private extension DiffViewerViewModel {
         }
 
         async let aheadTask = (try? await gitService.commitsAheadOfBase(
-            baseBranch: baseBranchForDirectory(directory),
+            baseBranch: baseRef,
             remoteName: remoteName,
             in: directory
         )) ?? 0
@@ -592,11 +592,6 @@ private extension DiffViewerViewModel {
         activeDirectory == directory && directoryGeneration == generation
     }
 
-    func baseBranchForDirectory(_ directory: String) -> String {
-        _ = directory
-        return baseRef
-    }
-
     func startWatching(_ directory: String) {
         stopWatching()
 
@@ -620,7 +615,11 @@ private extension DiffViewerViewModel {
                     rootDirectory: watchContext.rootDirectory
                 )
 
-                Task { @MainActor [weak owner = watchContext.owner] in
+                guard let owner = watchContext.owner else {
+                    return
+                }
+
+                Task { @MainActor [weak owner] in
                     owner?.fsEventsDidFire(changedPaths: changedPaths)
                 }
             },

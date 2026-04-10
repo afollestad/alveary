@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
+final class DefaultGitHubCLIService: GitHubCLIService {
     private static let defaultVerificationURL: URL = {
         guard let url = URL(string: "https://github.com/login/device") else {
             preconditionFailure("GitHub device login URL must be valid")
@@ -17,6 +17,7 @@ final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
     private let processFactory: @MainActor () -> Process
 
     private var authProcess: Process?
+    private var stderrDrainTask: Task<Void, Never>?
 
     init(
         shell: ShellRunner,
@@ -78,7 +79,7 @@ final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
         let stdoutHandle = stdoutPipe.fileHandleForReading
         let stderrHandle = stderrPipe.fileHandleForReading
 
-        Task.detached {
+        stderrDrainTask = Task.detached {
             do {
                 for try await _ in stderrHandle.bytes {}
             } catch {
@@ -101,9 +102,7 @@ final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
             if process.isRunning {
                 process.terminate()
             }
-            if authProcess === process {
-                authProcess = nil
-            }
+            clearAuthenticationState(ifCurrent: process)
             throw error
         }
     }
@@ -142,7 +141,7 @@ final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
         }
 
         if authProcess === process {
-            authProcess = nil
+            clearAuthenticationState(ifCurrent: process)
         }
         return didAuthenticate
     }
@@ -154,13 +153,23 @@ final class DefaultGitHubCLIService: GitHubCLIService, @unchecked Sendable {
         if process.isRunning {
             process.terminate()
         }
-        if authProcess === process {
-            authProcess = nil
-        }
+        clearAuthenticationState(ifCurrent: process)
     }
 
     func run(args: [String], in directory: String?) async throws -> ShellResult {
         try await shell.run(executable: "/usr/bin/env", args: ["gh"] + args, in: directory)
+    }
+
+    private func clearAuthenticationState(ifCurrent process: Process? = nil) {
+        if let process {
+            guard authProcess === process else {
+                return
+            }
+        }
+
+        stderrDrainTask?.cancel()
+        stderrDrainTask = nil
+        authProcess = nil
     }
 }
 

@@ -141,6 +141,21 @@ extension DetectionAssembly {
         DetectionAssembly()
     }
 }
+/// Generated from ``SkillsAssembly``
+extension Resolver {
+    func skillsService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> SkillsService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(SkillsService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension SkillsAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        SkillsAssembly()
+    }
+}
 /// Generated from ``SettingsAssembly``
 extension Resolver {
     func settingsService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> SettingsService {
@@ -195,5 +210,20 @@ extension ShellAssembly {
     }
     public static func _autoInstantiate() -> (any ModuleAssembly)? {
         ShellAssembly()
+    }
+}
+/// Generated from ``MCPAssembly``
+extension Resolver {
+    func mcpService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> MCPService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(MCPService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension MCPAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        MCPAssembly()
     }
 }

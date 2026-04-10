@@ -1,6 +1,6 @@
 import Foundation
 
-final class CLIGitService: GitService, @unchecked Sendable {
+final class CLIGitService: GitService {
     private let shell: ShellRunner
 
     init(shell: ShellRunner) {

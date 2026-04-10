@@ -123,4 +123,28 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])
         XCTAssertEqual(invocations[1].args, ["rev-list", "origin/main..HEAD", "--count"])
     }
+
+    func testLogParsesSingleCommitWithEmptySubject() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "abc123\n\nAlice\n2024-01-01T12:34:56Z",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let commits = try await service.log(in: "/tmp/project", limit: 1)
+
+        XCTAssertEqual(commits.count, 1)
+        XCTAssertEqual(commits.first?.hash, "abc123")
+        XCTAssertEqual(commits.first?.message, "")
+        XCTAssertEqual(commits.first?.author, "Alice")
+    }
 }

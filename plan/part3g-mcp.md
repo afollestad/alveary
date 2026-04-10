@@ -2,6 +2,11 @@
 
 MCP service, adapters, config I/O, MCP server management. Continues from Part 3f.
 
+## Implementation Status
+
+- [x] `MCPServer`, `MCPConfigIO`, `MCPAdapter`, `DefaultMCPService`, the bundled recommended-server data, and `MCPViewModel` are implemented in the repo, with Claude config writes serialized through `ClaudeConfigStore` and available-agent metadata derived from `ProviderDetectionService` + `AgentRegistry`.
+- [x] Focused regression coverage exists in `SkepTests/Services/MCPConfigIOTests.swift`, `SkepTests/Services/MCPAdapterTests.swift`, `SkepTests/Services/MCPServiceTests.swift`, and `SkepTests/ViewModels/MCPViewModelTests.swift`.
+
 ## MCP (Model Context Protocol)
 
 Reference: [Claude Code MCP](https://code.claude.com/docs/en/mcp)

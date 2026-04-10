@@ -144,7 +144,13 @@ Build the Git workflow layer. Each service depends on `ShellRunner`.
 **Manual validation gate**: verify the GitHub device-flow UX end-to-end from the app shell, including URL parsing, explicit browser launch, cancel/retry behavior, and reconnect after an auth loss.
 
 ### Phase 5: Feature services
-- [ ] Not complete
+- [x] Complete
+
+Phase 5 progress:
+- [x] Project import and thread lifecycle actions are implemented in `SidebarViewModel`, including remote-aware project metadata resolution, initial thread/main-conversation creation, archive/restore/delete flows, and focused view-model coverage.
+- [x] Skills support is implemented with `DefaultSkillsService`, `SkillsViewModel`, bundled catalog fallback data, GitHub-backed `SKILL.md` resolution/caching, `skills.sh` search, and registry-derived per-agent sync state.
+- [x] MCP support is implemented with `DefaultMCPService`, `MCPConfigIO`, bundled recommended servers, provider-aware availability metadata, and `MCPViewModel`.
+- [x] Focused regression coverage passed for the remaining Phase 5 surface area (`SkillsServiceTests`, `SkillsViewModelTests`, `MCPConfigIOTests`, `MCPAdapterTests`, `MCPServiceTests`, `MCPViewModelTests`).
 
 Build the remaining non-UI services.
 
@@ -165,6 +171,7 @@ Build the remaining non-UI services.
 Build all views, wiring them to the services and view models from earlier phases. **Build in this order** — shared error/empty-state components land before views that render them, `ContentView` creates `SidebarViewModel` and `DiffViewerViewModel`, and `ConversationView` also depends on `DiffViewerViewModel`, so the diff-viewer types must exist before the chat views and app layout are wired.
 
 Phase 6 progress:
+- [x] `SidebarViewModel` is implemented, including project/thread create/archive/restore/delete actions, aggregate thread-status computation, and shared sidebar error/status observation state.
 - [x] The repository-scoped `DiffViewerViewModel` foundation is implemented, including refresh coalescing, FSEvents/poll watcher management, contextual commit/PR action state, selected-diff loading, and focused regression coverage.
 
 | Section | What to build |

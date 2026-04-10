@@ -1,0 +1,16 @@
+[
+  {
+    "name": "context7",
+    "description": "Fetch up-to-date documentation and code examples.",
+    "transport": "http",
+    "url": "https://mcp.context7.com/mcp",
+    "headers": ["CONTEXT7_API_KEY"]
+  },
+  {
+    "name": "playwright",
+    "description": "Browser automation for testing.",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@anthropic/mcp-playwright"]
+  }
+]
