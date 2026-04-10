@@ -88,32 +88,29 @@ struct ChatInputField: View {
             }
 
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-
                 if text.isEmpty {
                     Text(placeholder)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
 
-                TextEditor(text: $text, selection: $textSelection)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(minHeight: 96, maxHeight: 144)
-                    .disabled(isTextEditorDisabled)
-                    .focused($isInputFocused)
-                    .onKeyPress(keys: [.upArrow, .downArrow, .tab, .escape, .return]) { keyPress in
-                        handleKeyPress(keyPress)
-                    }
+                AppTextEditor(
+                    text: $text,
+                    selection: $textSelection,
+                    minHeight: 96,
+                    maxHeight: 144,
+                    cornerRadius: 18,
+                    borderColor: autocompleteBorderColor,
+                    borderWidth: isDropTargeted ? 1.5 : 1,
+                    isDisabled: isTextEditorDisabled,
+                    focus: $isInputFocused,
+                    keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
+                    onKeyPress: handleKeyPress
+                )
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(autocompleteBorderColor, lineWidth: isDropTargeted ? 1.5 : 1)
-            )
             .dropDestination(for: URL.self) { items, _ in
                 handleDroppedFiles(items)
             } isTargeted: { isTargeted in

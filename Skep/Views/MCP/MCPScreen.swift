@@ -118,14 +118,13 @@ private extension MCPScreen {
                 .buttonStyle(.borderedProminent)
             }
 
-            TextField(
+            AppTextField(
                 "Search servers",
                 text: Binding(
                     get: { viewModel.searchQuery },
                     set: { viewModel.searchQuery = $0 }
                 )
             )
-            .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -347,7 +346,7 @@ private struct MCPServerFormSheet: View {
                 Text(draft.name.isEmpty ? "Add MCP Server" : draft.name)
                     .font(.title2.weight(.semibold))
 
-                TextField("Server name", text: $draft.name)
+                AppTextField("Server name", text: $draft.name)
 
                 Picker("Transport", selection: $draft.transport) {
                     ForEach(MCPServer.Transport.allCases, id: \.self) { transport in
@@ -356,32 +355,22 @@ private struct MCPServerFormSheet: View {
                 }
 
                 if draft.transport == .http {
-                    TextField("URL", text: $draft.url)
+                    AppTextField("URL", text: $draft.url)
                 } else {
-                    TextField("Command", text: $draft.command)
-                    TextField("Args", text: $draft.argsText)
+                    AppTextField("Command", text: $draft.command)
+                    AppTextField("Args", text: $draft.argsText)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Headers (KEY=value)")
                         .font(.headline)
-                    TextEditor(text: $draft.headersText)
-                        .frame(minHeight: 110)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
+                    AppTextEditor(text: $draft.headersText)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Environment (KEY=value)")
                         .font(.headline)
-                    TextEditor(text: $draft.envText)
-                        .frame(minHeight: 110)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
+                    AppTextEditor(text: $draft.envText)
                 }
 
                 VStack(alignment: .leading, spacing: 10) {

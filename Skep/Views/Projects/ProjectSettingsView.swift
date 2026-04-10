@@ -65,7 +65,7 @@ private extension ProjectSettingsView {
 
                 Divider()
 
-                TextField("Project name", text: Binding(
+                AppTextField("Project name", text: Binding(
                     get: { project.name },
                     set: { newValue in
                         project.name = newValue

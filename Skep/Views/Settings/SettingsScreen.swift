@@ -130,12 +130,12 @@ private extension SettingsScreen {
         Form {
             ForEach(viewModel.availableProviderIDs, id: \.self) { providerID in
                 Section(providerID.capitalized) {
-                    TextField("CLI override", text: providerConfigBinding(for: providerID, keyPath: \.cli))
-                    TextField("Resume flag", text: providerConfigBinding(for: providerID, keyPath: \.resumeFlag))
-                    TextField("Default args", text: providerConfigBinding(for: providerID, keyPath: \.defaultArgs))
-                    TextField("Auto-approve flag", text: providerConfigBinding(for: providerID, keyPath: \.autoApproveFlag))
-                    TextField("Initial prompt flag", text: providerConfigBinding(for: providerID, keyPath: \.initialPromptFlag))
-                    TextField("Extra args", text: providerConfigBinding(for: providerID, keyPath: \.extraArgs))
+                    AppTextField("CLI override", text: providerConfigBinding(for: providerID, keyPath: \.cli))
+                    AppTextField("Resume flag", text: providerConfigBinding(for: providerID, keyPath: \.resumeFlag))
+                    AppTextField("Default args", text: providerConfigBinding(for: providerID, keyPath: \.defaultArgs))
+                    AppTextField("Auto-approve flag", text: providerConfigBinding(for: providerID, keyPath: \.autoApproveFlag))
+                    AppTextField("Initial prompt flag", text: providerConfigBinding(for: providerID, keyPath: \.initialPromptFlag))
+                    AppTextField("Extra args", text: providerConfigBinding(for: providerID, keyPath: \.extraArgs))
                 }
             }
         }
@@ -145,7 +145,7 @@ private extension SettingsScreen {
     var repositoryTab: some View {
         Form {
             Section("Branching") {
-                TextField("Branch prefix", text: binding(for: \.branchPrefix))
+                AppTextField("Branch prefix", text: binding(for: \.branchPrefix))
                 Toggle("Push on create", isOn: binding(for: \.pushOnCreate))
             }
         }
@@ -161,7 +161,7 @@ private extension SettingsScreen {
                     }
                 }
 
-                TextField("Code font family", text: binding(for: \.codeFontFamily))
+                AppTextField("Code font family", text: binding(for: \.codeFontFamily))
                 Stepper(value: binding(for: \.codeFontSize), in: 10...24) {
                     Text("Code font size: \(viewModel.codeFontSize)")
                 }
