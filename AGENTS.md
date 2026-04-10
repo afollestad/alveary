@@ -31,10 +31,11 @@ The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app t
 
 - First-time local setup: `./scripts/setup.sh` installs the required CLI tools, generates `Skep.xcodeproj`, and configures the repo-local Git hooks.
 - Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
-- Build from the command line with `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build`.
-- Run the built app from the command line with `open .build/xcode/Build/Products/Debug/Skep.app`.
-- Run the full test suite with `xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test`.
-- Run a focused test class with `xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test -only-testing:SkepTests/AppDelegateTests`.
+- Build from the command line with `./scripts/build.sh`.
+- Run the full test suite with `./scripts/test.sh`.
+- Run focused tests with `./scripts/test.sh SkepTests/AppDelegateTests` or multiple identifiers as separate arguments.
+- Run the built app from the command line with `./scripts/run.sh`.
+- The wrapper scripts use the same underlying commands as `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Skep.app`.
 - For interactive development, you can also open `Skep.xcodeproj` in Xcode and run the `Skep` scheme directly.
 
 ## Linting
