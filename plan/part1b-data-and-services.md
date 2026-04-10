@@ -464,7 +464,7 @@ struct ProviderCustomConfig: Codable, Sendable {  // Skep/Services/Settings/AppS
     var defaultArgs: String?      // Override default args
     var autoApproveFlag: String?  // Override auto-approve flag
     var initialPromptFlag: String? // Override prompt flag
-    var extraArgs: String?        // Additional args appended to every invocation
+    var extraArgs: String?        // Additional args appended to every invocation; supports shell-style quoting for grouped values, but not expansion/globbing
     var env: [String: String]?    // Additional env vars for this provider
 }
 

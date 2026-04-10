@@ -30,4 +30,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
 
-Additionally, private types should always go *below* public types.
+## General Code Style Guidelines
+
+- Private types should always go *below* public types.
+- Add concise code comments where needed for human readera.

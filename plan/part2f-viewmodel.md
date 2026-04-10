@@ -4,6 +4,10 @@ ConversationViewModel lifecycle, persistence, and event handling. Setup helpers 
 
 ## ConversationViewModel
 
+## Implementation Status
+
+- [x] Phase 3 step #13 is implemented in the repo: `ConversationViewModel`, the placeholder `WorktreeManager` protocol surface used by setup/retry flows, and focused VM regression coverage.
+
 Built in Part 2 because it depends on agent-runtime types (`AgentsManager`, `TurnState`, event streaming) and bridges that runtime to the chat UI. Phase 3 uses the minimal placeholder `WorktreeManager` surface (`create(projectPath:threadName:baseRef:remoteName:)` + `remove()`); Phase 4 expands it to the full worktree API.
 
 ```swift
@@ -689,7 +693,7 @@ class ConversationViewModel {  // Skep/ViewModels/ConversationViewModel.swift
 
     deinit {
         subscriptionTask?.cancel()
-        // Ordinary VM teardown leaves the pending save alive; failed setup rollback is the exception.
+        saveTask?.cancel()
     }
 }
 ```

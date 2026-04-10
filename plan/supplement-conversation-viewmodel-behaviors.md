@@ -2,6 +2,12 @@
 
 `SetupPhase`, auto-naming helpers, staged-context UI, and outbound routing rules that support `ConversationViewModel`. Continues from [Part 2f: ViewModel](part2f-viewmodel.md).
 
+## Implementation Status
+
+- [x] The standalone `SetupPhase` runtime type used by `ConversationState` is implemented in `Skep/Utilities/SetupPhase.swift`.
+- [x] `ConversationViewModel` itself and the behavior in this supplement are implemented in the repo for Phase 3 step #13.
+- [x] The save/replay, setup rollback, queued-send, and prompt-answer rules documented here are wired in the runtime layer.
+
 **Used by**: `ConversationView` → `ChatView` (middle pane when a thread is selected).
 
 **Unit tests for ConversationViewModel** (inject `MockAgentsManager`, using that same mock as `ConversationRuntimeStore` too unless a dedicated `MockConversationRuntimeStore` is clearer, plus `MockWorktreeManager`, `MockProviderSetupService`, in-memory `ModelContext`, `InMemorySettingsService`): cover all public methods (`send`, `queueOrSend`, `setupAndStart`, `retryNextQueuedMessage`, `steer`, `cancel`, `reconfigureSession`, `startAgent`) and `handleEvent` routing. Non-obvious:
@@ -18,7 +24,7 @@
 - **Queue draining**: queued messages are re-read from `peekNext()` inside the auto-send task, tagged via `inFlightQueuedMessageID`, and removed only after a successful send; failed respawn/send keeps the entry queued at the head for explicit retry or dismiss, later composer sends append behind that stalled head instead of bypassing it, and the user cannot dismiss the already-committed head mid-send
 - **Queued completion UX**: a successful `.tokens` with a queued head does not represent a user-visible "done" state yet — the auto-send handoff suppresses plain completion notifications and later UI status derivation treats the thread as effectively busy until the next send succeeds or fails
 - **Queued-head ordering guard**: public direct-send paths that do not intentionally queue (`send()`, `answerPrompt()`) must reject while a queued head is stalled so later outbound traffic cannot leapfrog that head
-- **Subscription lifecycle**: `subscribe()` replaces `state.activeSubscriptionToken` before starting a new task, and the task re-checks that token before `handleEvent` and EOF cleanup so a canceled older subscription cannot double-persist rows or clear live UI state for the replacement stream; `deinit` does NOT cancel `saveTask` during ordinary navigation churn
+- **Subscription lifecycle**: `subscribe()` replaces `state.activeSubscriptionToken` before starting a new task, and the task re-checks that token before `handleEvent` and EOF cleanup so a canceled older subscription cannot double-persist rows or clear live UI state for the replacement stream; `deinit` cancels both `subscriptionTask` and any pending `saveTask` so ordinary navigation churn does not temporarily retain the VM through a sleeping/coalescing save
 - **Reconfigure**: rejects calls while a turn is still active or an outbound send is already reserved (UI disabling is UX, not the correctness boundary), then sets `isReconfiguringSession` for the full fork-session window; clears session-scoped grouper caches (pending tools, summary cache, sub-agents, prompt-suppression IDs) but preserves rendered history; clears `showPermissionBanner` and stale denied-tool names only after successful respawn; if Claude had to fall back to a fresh `--session-id` launch because its resumable artifact was missing, the UI must surface a visible warning that local history is still shown but provider context restarted fresh; awaits any pending coalesced save before resetting replay cursors; re-subscribes and preserves `ConversationState`; queued messages remain queued and require explicit retry after the new session is ready
 - **Session continuity notice**: `SessionLaunchDecision.continuity` updates the shared `ConversationState.sessionContinuityNotice` on ordinary spawn, respawn, and reconfigure paths; the warning is independently dismissible from the permission banner and clears again on a later continuity-preserving spawn
 - **Context isolation**: all SwiftData writes resolve models inside the VM's injected `ModelContext` before mutation

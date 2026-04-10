@@ -2,6 +2,13 @@
 
 `DefaultAgentsManager` stdin delivery, teardown, reconfigure, and process-exit handling. Continues from [Part 2d: EventBuffer and Agent Lifecycle](part2d-spawn-and-buffer.md).
 
+## Implementation Status
+
+- [x] Serialized stdin delivery, deferred write cancellation, kill/destroy flows, reconfigure teardown, and PID-scoped suppressed exits are implemented in `DefaultAgentsManager+Lifecycle.swift`.
+- [x] Destructive session cleanup (`destroyRuntime` / `finalizeSessionRemoval`) is implemented in the manager layer.
+- [x] Regression coverage exists for the spawn/send/kill path in `SkepTests/Services/AgentsManagerTests.swift`.
+- [x] `ConversationViewModel` callers that exercise these flows in user-facing setup/retry paths are implemented in the repo and covered by focused VM/runtime regression tests.
+
 ```swift
     func sendMessage(_ message: String, conversationId: String) async throws {
         guard !shutdownRequested.withLock({ $0 }),
@@ -415,7 +422,7 @@
 - Clean exit after a `.tokens` event does **not** clobber `.idle` / `.error`
 - Explicit `kill()` / `reconfigureSession()` exits do **not** publish a later `.stopped` / `.error` when the expected termination handler fires
 - Unexpected non-zero / signaled exits set `.error` status and populate `ConversationState.lastTurnError` if no more specific turn error already exists, so the chat surface gets the same inline crash banner even when no terminal `.tokens` arrived
-- Explicit `kill()` preserves the finished `EventBuffer` only for a short durability grace window (trailing coalesced saves), marks that `ManagedBuffer` as `allowsReplay = false`, and still lets `markPersisted(generation:upTo:)` evict it later; `reconfigureSession()` discards the old buffer before installing the replacement
+- Explicit `kill()` preserves the finished `EventBuffer` only for a short durability grace window (trailing coalesced saves), marks that `ManagedEventBuffer` as `allowsReplay = false`, and still lets `markPersisted(generation:upTo:)` evict it later; `reconfigureSession()` discards the old buffer before installing the replacement
 - Suppressed exits still schedule buffer cleanup, and `markPersisted(generation:upTo:)` re-arms cleanup only for the matching generation so preserved buffers are eventually evicted after durability catches up without advancing a replacement buffer
 - Live-process snapshot changes publish `.managedProcessesChanged` on both spawn and exit, including expected/suppressed exits
 - `kill()` after an already-finished crash/EOF still calls `finishAll()` on the retained buffer, so subscribed VMs do not hang forever waiting on a stream that no process will ever close

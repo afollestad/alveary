@@ -2,6 +2,10 @@
 
 Resolved validation follow-ups that shaped the plan after the primary assumptions were documented in [Validation](validation.md).
 
+### Runtime Validation Follow-Ups (Resolved, 2026-04-10)
+
+- [x] **Default full-suite `xcodebuild test` is reliable again, and the Phase 3 teardown/error-tail docs match the shipped runtime** — the remaining coverage-sensitive Phase 3 follow-up turned out to be test synchronization plus a couple of small implementation mismatches, not a new architecture change. The reconfigure regression test now waits for complete launch-log records before asserting parsed extra args, the spawn/send/kill coverage was split so stdin-delivery and raw stdout decoding are validated independently, `StderrBuffer` now overwrites the oldest line immediately when its circular tail first wraps, and `ConversationViewModel.deinit` cancels both `subscriptionTask` and any pending coalesced `saveTask` so ordinary teardown does not temporarily retain the VM. The runtime docs now also require the parent to close its unused pipe ends immediately after `process.run()` so stdout/stderr EOF and teardown ownership are deterministic. With those fixes in place, plain `xcodebuild test -project Skep.xcodeproj -scheme Skep -destination "platform=macOS,arch=arm64"` is again a trustworthy repo-level validation command; `test-without-building` remains unsuitable for authoritative signal.
+
 ### Deep Audit Corrections (Resolved, 2026-04-09)
 
 - [x] **Phase 4 chat ownership now covers the pre-history save gap and true cancel-on-navigation diff actions** — the local user-message path now patches grouped chat items immediately after a successful stdin write so the centered empty-thread hero cannot reappear before `@Query` merges, and `pendingDiffAction` consumption now re-checks the live request/selection just before `queueOrSend()` so a fast tab/sidebar switch really cancels the action.

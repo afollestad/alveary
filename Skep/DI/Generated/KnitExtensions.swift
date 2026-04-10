@@ -1,6 +1,7 @@
 // Generated using Knit
 // Do not edit directly!
 
+import Foundation
 import Knit
 import SwiftData
 
@@ -40,6 +41,64 @@ extension DataAssembly {
         DataAssembly()
     }
 }
+/// Generated from ``AgentAssembly``
+extension Resolver {
+    func agentEnvironmentBuilder(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> AgentEnvironmentBuilder {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(AgentEnvironmentBuilder.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func claudeConfigStore(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ClaudeConfigStore {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ClaudeConfigStore.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func providerSetupService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ProviderSetupService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ProviderSetupService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func defaultAgentsManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> DefaultAgentsManager {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(DefaultAgentsManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func agentsManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> AgentsManager {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(AgentsManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func conversationRuntimeStore(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ConversationRuntimeStore {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ConversationRuntimeStore.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension AgentAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        AgentAssembly()
+    }
+}
+/// Generated from ``DetectionAssembly``
+extension Resolver {
+    func agentRegistry(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> AgentRegistry {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(AgentRegistry.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func providerRegistry(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ProviderRegistry {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ProviderRegistry.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+    func providerDetectionService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ProviderDetectionService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ProviderDetectionService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension DetectionAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        DetectionAssembly()
+    }
+}
 /// Generated from ``SettingsAssembly``
 extension Resolver {
     func settingsService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> SettingsService {
@@ -53,6 +112,21 @@ extension SettingsAssembly {
     }
     public static func _autoInstantiate() -> (any ModuleAssembly)? {
         SettingsAssembly()
+    }
+}
+/// Generated from ``SessionAssembly``
+extension Resolver {
+    func sessionManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> SessionManager {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(SessionManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension SessionAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        SessionAssembly()
     }
 }
 /// Generated from ``AppAssembly``

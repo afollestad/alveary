@@ -2,6 +2,13 @@
 
 EventBuffer, spawn, subscribe, and replay bookkeeping. Runtime teardown and reconfigure handling continue in the [Agent Runtime Teardown supplement](supplement-agent-runtime-teardown.md). Continues from Part 2c.
 
+## Implementation Status
+
+- [x] `EventBuffer`, `ManagedEventBuffer`, replay subscriptions, persisted-boundary tracking, and delayed cleanup are implemented in the repo.
+- [x] Spawn-time replay publication, `markPersisted`, and buffer cleanup scheduling are implemented in `DefaultAgentsManager`.
+- [x] Regression coverage exists for replay, finish, and eviction behavior in `SkepTests/Services/EventBufferTests.swift`.
+- [x] SwiftData persistence/replay consumption from `ConversationViewModel` is implemented in the repo and covered by focused replay/VM regression tests.
+
 ## EventBuffer Contract
 
 `EventBuffer` is a short-lived replay and durability aid, not a second source of truth. Durable chat history still lives in SwiftData, while the buffer only bridges three gaps:
@@ -57,7 +64,9 @@ Two concrete examples are worth keeping in mind:
         private var isFinished: Bool = false
         /// Global-to-local index translation after eviction.
         private var baseOffset: Int = 0
-        /// Hard cap for the in-memory replay window.
+        /// Target replay-window size after a batch compaction. Because persisted prefixes
+        /// are evicted in batches, the live retained window can sit slightly above this
+        /// between evictions.
         private static let maxRetained = 5000
         /// Avoid O(n) `removeFirst` compaction on every event once the buffer is full.
         /// Instead, evict persisted prefixes in batches.
@@ -135,7 +144,10 @@ Two concrete examples are worth keeping in mind:
             lock.unlock()
         }
 
-        var count: Int {
+        /// Current in-memory replay window after any persisted-prefix eviction. This is
+        /// not the global event count, and batched eviction may leave it slightly above
+        /// `maxRetained` until the next compaction.
+        var retainedCount: Int {
             lock.lock()
             defer { lock.unlock() }
             return events.count
@@ -173,7 +185,7 @@ Two concrete examples are worth keeping in mind:
         let stream: AsyncStream<ConversationEvent>
     }
 
-    struct ManagedBuffer: Sendable {
+    struct ManagedEventBuffer: Sendable {
         let generation: UUID
         var allowsReplay: Bool
         let buffer: EventBuffer
@@ -181,24 +193,14 @@ Two concrete examples are worth keeping in mind:
 
     final class PendingStdinWrite {
         let id: UUID
-        var task: Task<Void, Error>!
-        private var writerTask: Task<Void, Error>?
+        var task: Task<Void, Error>?
 
         init(id: UUID) {
             self.id = id
         }
 
-        func installWriter(_ writerTask: Task<Void, Error>) {
-            self.writerTask = writerTask
-        }
-
-        func clearWriter() {
-            writerTask = nil
-        }
-
         func cancel() {
-            task.cancel()
-            writerTask?.cancel()
+            task?.cancel()
         }
     }
 
@@ -365,10 +367,9 @@ Two concrete examples are worth keeping in mind:
         // 6b. Apply per-provider custom config overrides (extra args and env).
         // Custom CLI path was already applied in step 2 above.
         if let extraArgs = customConfig?.extraArgs, !extraArgs.isEmpty {
-            // Simple space split — sufficient for typical CLI flags (e.g. "--bare --max-budget-usd 5").
-            // Does NOT handle quoted arguments with spaces (e.g. --foo "bar baz"). If this
-            // becomes a need, replace with a shell-style tokenizer that respects quotes.
-            args += extraArgs.split(separator: " ").map(String.init)
+            // Lightweight shell-style quoting is supported for grouped values like
+            // `--label "value with spaces"`, but we still do not perform expansion or globbing.
+            args += try parseExtraArgs(extraArgs)
         }
         var providerEnv = adapter.envOverrides(config: agentConfig)
         if let customEnv = customConfig?.env {
@@ -388,6 +389,12 @@ Two concrete examples are worth keeping in mind:
         process.standardError = stderr
         do {
             try process.run()
+            // The parent only keeps the stdin writer plus stdout/stderr readers.
+            // Close the unused ends immediately so extra parent-held descriptors do
+            // not delay EOF or make teardown/read-side ownership ambiguous.
+            stdin.fileHandleForReading.closeFile()
+            stdout.fileHandleForWriting.closeFile()
+            stderr.fileHandleForWriting.closeFile()
         } catch {
             let spawnFailure = error.localizedDescription
             // Clean up pipes and dangling session entry on spawn failure
@@ -496,7 +503,7 @@ Two concrete examples are worth keeping in mind:
         // Events are pushed to the EventBuffer, which persists independently of any
         // ConversationViewModel. VMs subscribe/unsubscribe as users navigate.
         let buffer = EventBuffer()
-        eventBuffers[id] = ManagedBuffer(
+        eventBuffers[id] = ManagedEventBuffer(
             generation: generation,
             allowsReplay: true,
             buffer: buffer
@@ -634,8 +641,8 @@ Two concrete examples are worth keeping in mind:
     /// Number of events currently buffered for a conversation (local count,
     /// subject to eviction — NOT the global event count). Not on the protocol —
     /// the VM tracks its own observed/persisted replay cursors. Useful for diagnostics.
-    func eventCount(conversationId: String) -> Int {
-        eventBuffers[conversationId]?.buffer.count ?? 0
+    func retainedEventCount(conversationId: String) -> Int {
+        eventBuffers[conversationId]?.buffer.retainedCount ?? 0
     }
 
     /// Notify the buffer that events up to `index` have been persisted to SwiftData,

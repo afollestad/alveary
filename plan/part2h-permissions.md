@@ -2,6 +2,10 @@
 
 Permission model, auto-trust, permission modes, plan mode behavior, reconfigure-session flow. Continues from Part 2g.
 
+## Implementation Status
+
+- [x] Phase 3 step #14 verification is covered in the repo: `ClaudeAdapterTests` asserts every Claude-supported permission mode plus `--effort`, `AgentsManagerTests` verifies fork-session respawn preserves the existing session identity while rebuilding args with updated mode/effort values, and `ConversationViewModelTests` covers the permission-banner state changes around successful and failed reconfigure attempts.
+
 ## Permissions and Auto-Approve
 
 The app has no permission model of its own. It delegates entirely to the agent CLI. The `permissionMode` string (e.g. `"default"`, `"bypassPermissions"`) flows from the UI through the agent spawn pipeline via `AgentSpawnConfig.permissionMode`. The adapter's `buildArgs()` appends `--permission-mode <mode>` when set. The shared UI surfaces are driven by provider metadata (`ProviderDefinition.supportedPermissionModes` and `suggestedWriteEscalationMode`) so a future provider can expose a different mode set or no escalation CTA without rewriting the chat composer:
