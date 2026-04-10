@@ -7,7 +7,10 @@ enum AppDI {
         DataAssembly(),
         SettingsAssembly(),
         ShellAssembly(),
-        NotificationAssembly()
+        NotificationAssembly(),
+        DetectionAssembly(),
+        AgentAssembly(),
+        SessionAssembly()
     ])
 
     static let resolver = assembler.resolver

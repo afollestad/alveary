@@ -2,6 +2,14 @@
 
 Turn state lifecycle, event JSON schemas, sub-agent event flow, ClaudeAdapter implementation. Continues from Parts 2c/2d.
 
+## Implementation Status
+
+- [x] `ClaudeAdapter` is implemented and wired into `DefaultAgentsManager.resolveAdapter()`.
+- [x] Session launch decisions (`--session-id`, `--resume`, `--fork-session`) and Claude session-file lookup are implemented.
+- [x] Structured JSON decoding for `system`, `assistant`, `user`, `stream_event`, and `result` payloads is implemented.
+- [x] Regression coverage exists for launch decisions, tool-result metadata decoding, and stdin JSON payload writing in `SkepTests/Services/ClaudeAdapterTests.swift`.
+- [x] Permission-mode argument coverage now verifies every Claude-supported mode and the shared `--effort` flag, while runtime fork-session verification lives in `AgentsManagerTests` and `ConversationViewModelTests`.
+
 ## Turn State and Event Lifecycle
 
 Claude emits both session-scoped metadata and per-turn events. `system/init` belongs to the session lifecycle, not to an individual turn, so turn handling must not depend on seeing a fresh init event before every result.

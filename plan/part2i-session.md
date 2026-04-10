@@ -2,6 +2,13 @@
 
 Session map, SessionManager, persisted session IDs, session lifecycle. Conceptually grouped after Part 2h in the Part 2 narrative, but build this earlier at Phase 3 step #7 before `AgentsManager` so resume state exists before process spawning begins.
 
+## Implementation Status
+
+- [x] `SessionManager`, `DefaultSessionManager`, and `InMemorySessionManager` are implemented in the repo.
+- [x] Canonical cwd normalization, resumable binding storage, and session-ID updates from runtime events are implemented.
+- [x] Regression coverage exists in `SkepTests/Services/SessionManagerTests.swift`.
+- [ ] Startup orphan cleanup and full app-lifecycle integration remain later-phase work.
+
 ### The Session Map
 
 A JSON file in the app's support directory (e.g. `~/Library/Application Support/com.afollestad.skep/session-map.json`). Claude doesn't know it exists.

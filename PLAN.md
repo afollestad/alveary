@@ -96,9 +96,17 @@ Build the types everything else depends on: settings, shell runner, event model,
 **Checkpoint**: settings persist, shell commands run, event types exist. All unit tests pass.
 
 ### Phase 3: Agent integration
-- [ ] Not complete
+- [x] Complete
 
 Build the provider system and agent process management. This is the core engine. **Build in this order** — each row depends only on rows above it.
+
+Phase 3 progress:
+- [x] Steps 1-10 and 15 are implemented in the repo: provider registry/detection, environment builder, turn/message queue, session storage, event grouping, `DefaultAgentsManager`, `EventBuffer`, `ClaudeAdapter`, and lifecycle/status plumbing.
+- [x] Focused regression coverage exists for the new runtime layer (`ClaudeAdapterTests`, `EventBufferTests`, `AgentsManagerTests`) in addition to the earlier provider/session tests.
+- [x] Step 12 (`ProviderSetupService` / `ClaudeConfigStore`) is implemented with serialized Claude config writes and focused setup/config-store coverage.
+- [x] Step 13 (`ConversationViewModel` + setup/send/replay wiring) is implemented with the placeholder `WorktreeManager`, auto-naming helpers, and focused VM coverage.
+- [x] Step 14 permission-mode and effort reconfigure verification is covered by focused adapter/runtime/VM regression tests.
+- [x] Broader targeted validation passed for the Phase 3 surface area (`AgentsManagerTests`, `EventBufferTests`, `ClaudeAdapterTests`, `ConversationViewModelTests`, `ProviderSetupServiceTests`, `ProviderDetectionServiceTests`, `ProviderRegistryTests`, `SessionManagerTests`, `ClaudeConfigStoreTests`, `ShellRunnerTests`, `ChatItemGrouperTests`, `ConversationEventTests`).
 
 | # | Section | What to build |
 |---|---|---|

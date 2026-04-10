@@ -40,6 +40,11 @@ struct AppSettings: Codable, Sendable, Equatable {
            !NotificationSettings.availableSoundNames.contains(soundName) {
             copy.notifications.soundName = NotificationSettings.defaultSoundName
         }
+        copy.providerConfigs = copy.providerConfigs.reduce(into: [:]) { partialResult, entry in
+            if let normalized = entry.value.normalized() {
+                partialResult[entry.key] = normalized
+            }
+        }
 
         return copy
     }
@@ -71,6 +76,36 @@ struct ProviderCustomConfig: Codable, Sendable, Equatable {
         self.extraArgs = extraArgs
         self.env = env
     }
+
+    func normalized() -> ProviderCustomConfig? {
+        let normalizedEnv = env?.reduce(into: [String: String]()) { partialResult, entry in
+            guard let key = entry.key.trimmedOrNil,
+                  let value = entry.value.trimmedOrNil else {
+                return
+            }
+            partialResult[key] = value
+        }
+        let normalized = ProviderCustomConfig(
+            cli: cli?.trimmedOrNil,
+            resumeFlag: resumeFlag?.trimmedOrNil,
+            defaultArgs: defaultArgs?.trimmedOrNil,
+            autoApproveFlag: autoApproveFlag?.trimmedOrNil,
+            initialPromptFlag: initialPromptFlag?.trimmedOrNil,
+            extraArgs: extraArgs?.trimmedOrNil,
+            env: normalizedEnv?.isEmpty == true ? nil : normalizedEnv
+        )
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private var isEmpty: Bool {
+        cli == nil &&
+            resumeFlag == nil &&
+            defaultArgs == nil &&
+            autoApproveFlag == nil &&
+            initialPromptFlag == nil &&
+            extraArgs == nil &&
+            (env?.isEmpty ?? true)
+    }
 }
 
 struct NotificationSettings: Codable, Sendable, Equatable {
@@ -81,4 +116,11 @@ struct NotificationSettings: Codable, Sendable, Equatable {
     var osNotifications = true
     var sound = true
     var soundName: String? = NotificationSettings.defaultSoundName
+}
+
+private extension String {
+    var trimmedOrNil: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }

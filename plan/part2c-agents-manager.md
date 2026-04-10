@@ -2,6 +2,13 @@
 
 Agent process spawning, DefaultAgentsManager actor, ConversationState, streaming pipeline. EventBuffer and agent lifecycle methods are in Part 2d. Continues from Part 2b.
 
+## Implementation Status
+
+- [x] `DefaultAgentsManager`, `AgentsManager`, `ConversationRuntimeStore`, `ConversationState`, and `SetupPhase` are implemented in the repo.
+- [x] Spawn context preparation, process publication, stream task ownership, replayable buffer installation, and session-continuity notices are implemented.
+- [x] Regression coverage exists at the runtime layer, including manager lifecycle coverage in `SkepTests/Services/AgentsManagerTests.swift`.
+- [x] `ConversationViewModel` integration described later in this document is implemented in the repo and covered by focused VM/runtime regression tests.
+
 
 ## Agent Process Spawning
 
@@ -151,13 +158,13 @@ DefaultAgentsManager (actor)
 ├── processes: [conversationId: Process]          ← live agent processes
 ├── adapters: [conversationId: AgentAdapter]      ← provider-specific decoder/sender
 ├── streamTasks: [conversationId: Task]           ← stdout reader tasks (one per process)
-├── eventBuffers: [conversationId: ManagedBuffer] ← generation-scoped buffer + replay policy
+├── eventBuffers: [conversationId: ManagedEventBuffer] ← generation-scoped buffer + replay policy
 ├── stdinWriteTails: [conversationId: PendingStdinWrite] ← serializes detached stdin writes per conversation
 ├── suppressedExitPIDs: [conversationId: Set<pid>] ← expected exits keyed to the specific runtime PID they belong to
 ├── closingConversationIds: Set<String>           ← synchronous tombstones that reject new sends before async teardown runs
 ├── pendingSessionRemovalIds: Set<String>         ← destructive teardown removes session bindings only after child exit is confirmed
 ├── pendingSessionRemovalErrors: [String: String] ← durable session-removal failures captured for `destroyRuntime()` / archive-delete callers
-│     └── ManagedBuffer (Sendable value)
+│     └── ManagedEventBuffer (Sendable value)
 │           ├── generation: UUID                  ← current runtime/buffer identity for this conversation
 │           ├── allowsReplay: Bool                ← false for kill/archive durability-grace buffers
 │           └── buffer: EventBuffer (@unchecked Sendable)
@@ -205,7 +212,7 @@ DefaultAgentsManager (actor)
 ```
 
 Ownership rules:
-- **EventBuffer** outlives the process only for replayable crash/EOF recovery or explicit durability grace. The `ManagedBuffer.generation` ties saves, status updates, and replay to the correct runtime, and `allowsReplay = false` prevents kill/archive grace buffers from masquerading as live replay state.
+- **EventBuffer** outlives the process only for replayable crash/EOF recovery or explicit durability grace. The `ManagedEventBuffer.generation` ties saves, status updates, and replay to the correct runtime, and `allowsReplay = false` prevents kill/archive grace buffers from masquerading as live replay state.
 - **ConversationState** outlives the EventBuffer within a running app session (removed by `kill()`, preserved across `reconfigureSession()`, and discarded when the app process terminates)
 - **Process** is the shortest-lived — removed on exit, kill, or reconfigure
 - **Session bindings** remain durable until destructive teardown confirms the old child is gone; `destroyRuntime(conversationId:)` is the single public owner of that sequence so archive/delete/rollback do not drift from the runtime's teardown order
@@ -325,7 +332,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {  // Skep/S
     private var processes: [String: Process] = [:]
     private var adapters: [String: AgentAdapter] = [:]
     private var streamTasks: [String: Task<Void, Never>] = [:]
-    private var eventBuffers: [String: ManagedBuffer] = [:]
+    private var eventBuffers: [String: ManagedEventBuffer] = [:]
     /// Serializes physical stdin writes per conversation.
     private var stdinWriteTails: [String: PendingStdinWrite] = [:]
     /// Expected exits keyed by runtime PID so replacement processes stay reportable.
@@ -492,6 +499,7 @@ This is resolved via Knit as a protocol, so tests can inject a `MockAgentsManage
 - `spawn()` treats `ProviderCustomConfig.cli` with a slash as an explicit path, but re-resolves named custom commands through `ProviderDetectionService` instead of passing the raw command string straight into `Process.executableURL`
 - `beginShutdown()` makes later `spawn()` calls fail fast, and a child launched in the shutdown window is torn down by the pre-publication or immediate post-publication re-check before it can be orphaned
 - A child that exits before startup finishes still triggers cleanup via the immediate post-handler `process.isRunning` reconciliation path
+- `spawn()` closes the parent's unused pipe ends immediately after `process.run()`, leaving only the stdin writer plus stdout/stderr readers open so EOF and teardown semantics are not extended by extra parent-held descriptors
 - `kill()` marks the conversation as closing immediately, so late `sendMessage()` calls fail before async teardown has removed the runtime dictionaries
 - `kill()` defers to `pendingKillIds` when a spawn is in-flight; deferred kill is honored before the spawn publishes status/buffer state or sends `initialPrompt`, and unpublished children are terminated locally before the defer cleanup runs
 - `kill()` during `reconfigureSession()` lands in the same `pendingKillIds` path, aborts the replacement spawn before it begins, and removes the session/state instead of resurrecting the conversation after archive/delete

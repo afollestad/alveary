@@ -4,6 +4,13 @@ Reactive agent status for the sidebar, stopping/interrupting agents, agent lifec
 
 Phase note: the `DefaultAgentsManager` status storage, notifications, and process snapshots in this section are implemented alongside Phase 3 step #9 because the runtime and shutdown flow depend on them there. The `SidebarViewModel` observation wiring that consumes those signals lands later in Phase 6 / Part 4b.
 
+## Implementation Status
+
+- [x] `ActivitySignal`, lock-protected status snapshots, `.agentStatusChanged`, `.managedProcessesChanged`, and live process snapshots are implemented in `DefaultAgentsManager`.
+- [x] Runtime status transitions for spawn, send, stream `.tokens` / `.error`, kill, reconfigure, and process exit are implemented.
+- [x] Manager-level lifecycle coverage exists in `SkepTests/Services/AgentsManagerTests.swift`.
+- [ ] Sidebar and diff-viewer observers that consume these notifications are still pending later UI phases.
+
 ## Reactive Agent Status for the Sidebar
 
 `ActivitySignal` is defined in Part 2a (see **Activity Classification**). This section documents how `AgentsManager` exposes status to the sidebar and how the sidebar **observes** changes.

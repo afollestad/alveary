@@ -6,6 +6,10 @@ Provider adapters, registry, detection, environment, turn state/message queue, a
 
 **Build order**: follow the **Phase 3 table** in `PLAN.md`. Part 2's file order is **not** the source of truth for implementation order anymore. Two important exceptions are built earlier than their file position suggests: `SessionManager` comes from [Part 2i](part2i-session.md) at Phase 3 step #7, and `SetupPhase` comes from the [ConversationViewModel Behaviors supplement](supplement-conversation-viewmodel-behaviors.md) at step #9 before `ConversationViewModel` itself exists. `ClaudeAdapter` is still defined after `AgentsManager` (in "Turn State and Event Lifecycle") — stub `resolveAdapter()` with `fatalError("TODO")` when building `AgentsManager` (#9), then implement the adapter at #10.
 
+## Implementation Status
+
+- [x] Phase 3 step #12 is implemented in the repo: `ClaudeConfigStore`, `DefaultClaudeConfigStore`, `ProviderSetupService`, `DefaultProviderSetupService`, and focused config/setup coverage.
+
 **Scope note for v1**: the architecture is intentionally **Claude-first** and only fully specifies **long-lived bidirectional providers**. Single-turn providers remain a future extension point, but the replacement-process ownership is already defined: adapters do **not** spawn new processes inside `sendMessage()`. When a provider needs a fresh process for the next turn, `AgentsManager` re-spawns it from the last successful `AgentSpawnConfig` and passes the turn via `initialPrompt`, so process tracking stays centralized. For bidirectional providers, that prompt is delivered immediately after spawn with the same stdin write path as `sendMessage()`; for future single-turn providers, the adapter can encode `initialPrompt` into its CLI args.
 
 ## Provider Adapters
@@ -437,7 +441,7 @@ For missing providers, show the `installCommand` from the shared `AgentRegistry`
 
 ### Custom Provider Configuration
 
-Users can override provider CLI settings via `ProviderCustomConfig` (in `Skep/Services/Settings/AppSettings.swift`). The `providerConfigs` dictionary on `AppSettings` maps provider IDs to custom configs. In the Claude-first v1 runtime, `cli`, `extraArgs`, and `env` are the active override points; the other fields remain reserved metadata for future provider-specific launchers. Empty-string values should be normalized away at settings-write time rather than treated as meaningful CLI tokens.
+Users can override provider CLI settings via `ProviderCustomConfig` (in `Skep/Services/Settings/AppSettings.swift`). The `providerConfigs` dictionary on `AppSettings` maps provider IDs to custom configs. In the Claude-first v1 runtime, `cli`, `extraArgs`, and `env` are the active override points; the other fields remain reserved metadata for future provider-specific launchers. Empty-string values should be normalized away at settings-write time rather than treated as meaningful CLI tokens. `extraArgs` is parsed with lightweight shell-style quoting so values like `--label "value with spaces"` stay grouped, but Skep still does not perform shell expansion, substitution, or globbing there.
 
 ---
 
