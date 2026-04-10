@@ -27,6 +27,17 @@ Add Knit `ModuleAssembly` files under `Skep/DI/`. If you add a new assembly or c
 
 Use the CLI-based Knit workflow documented in `project.yml`; do not switch the project over to `KnitBuildPlugin` unless the repo docs and build configuration are intentionally updated together.
 
+## Building, Testing, and Running
+
+The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
+
+- Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
+- Build from the command line with `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build`.
+- Run the built app from the command line with `open .build/xcode/Build/Products/Debug/Skep.app`.
+- Run the full test suite with `xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test`.
+- Run a focused test class with `xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test -only-testing:SkepTests/AppDelegateTests`.
+- For interactive development, you can also open `Skep.xcodeproj` in Xcode and run the `Skep` scheme directly.
+
 ## Linting
 
 The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).
