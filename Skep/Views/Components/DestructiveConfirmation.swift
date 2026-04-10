@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let destructiveActionTint = Color(red: 0.74, green: 0.18, blue: 0.17)
+
 struct DestructiveConfirmationRequest {
     let title: String
     let message: String
@@ -12,6 +14,11 @@ extension View {
         _ request: Binding<DestructiveConfirmationRequest?>
     ) -> some View {
         modifier(DestructiveConfirmationModifier(request: request))
+    }
+
+    func destructiveActionButtonStyle() -> some View {
+        buttonStyle(.borderedProminent)
+            .tint(destructiveActionTint)
     }
 }
 
