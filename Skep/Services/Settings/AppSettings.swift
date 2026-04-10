@@ -5,6 +5,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "bypassPermissions"]
     static let supportedEffortLevels = ["low", "medium", "high", "max"]
     static let supportedThemes = ["system", "light", "dark"]
+    static let supportedDiffViewerWidthRange = 320.0...640.0
 
     var defaultProvider = "claude"
     var permissionMode = "default"
@@ -16,6 +17,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var codeFontFamily = "SF Mono"
     var codeFontSize = 13
     var chatFontSize = 14
+    var diffViewerWidth = 380.0
     var notifications = NotificationSettings()
     var branchPrefix = "skep"
     var pushOnCreate = false
@@ -36,6 +38,10 @@ struct AppSettings: Codable, Sendable, Equatable {
         if !Self.supportedThemes.contains(copy.theme) {
             copy.theme = "system"
         }
+        copy.diffViewerWidth = min(
+            max(copy.diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
+            Self.supportedDiffViewerWidthRange.upperBound
+        )
         if let soundName = copy.notifications.soundName,
            !NotificationSettings.availableSoundNames.contains(soundName) {
             copy.notifications.soundName = NotificationSettings.defaultSoundName

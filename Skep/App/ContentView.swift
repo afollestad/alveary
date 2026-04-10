@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var viewModelContext: ModelContext
     @State private var sidebarViewModel: SidebarViewModel
     @State private var diffViewModel: DiffViewerViewModel
+    @State private var diffViewerWidth: CGFloat
     @State private var skillsViewModel: SkillsViewModel?
     @State private var mcpViewModel: MCPViewModel?
     @State private var settingsViewModel: SettingsViewModel?
@@ -58,6 +59,7 @@ struct ContentView: View {
 
         let viewModelContext = resolver.modelContext()
         _viewModelContext = State(initialValue: viewModelContext)
+        _diffViewerWidth = State(initialValue: CGFloat(settingsService.current.diffViewerWidth))
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             agentsManager: agentsManager,
             modelContext: viewModelContext,
@@ -105,14 +107,14 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
 
                 if appState.isRightPaneVisible {
-                    Divider()
+                    diffViewerResizeHandle
                     DiffViewerPane(
                         viewModel: diffViewModel,
                         areAgentActionsEnabled: activeDiffActionTarget() != nil,
                         onCommitRequested: requestAgentCommit,
                         onOpenPRRequested: requestAgentOpenPR
                     )
-                    .frame(minWidth: 320, idealWidth: 380, maxWidth: 520)
+                    .frame(width: diffViewerWidth)
                 }
             }
             .clipped()
@@ -178,6 +180,14 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    var diffViewerResizeHandle: some View {
+        DiffViewerResizeHandle(
+            width: $diffViewerWidth,
+            bounds: AppSettings.supportedDiffViewerWidthRange,
+            onCommit: persistDiffViewerWidth
+        )
+    }
+
     func updateDiffViewer(item: SidebarItem?) {
         let thread: AgentThread?
 
@@ -353,5 +363,79 @@ private extension ContentView {
 
     func resolveThread(id: PersistentIdentifier) -> AgentThread? {
         uiModelContext.model(for: id) as? AgentThread
+    }
+
+    func persistDiffViewerWidth(_ width: CGFloat) {
+        settingsService.update {
+            $0.diffViewerWidth = width
+        }
+    }
+}
+
+private struct DiffViewerResizeHandle: View {
+    @Binding var width: CGFloat
+    @Environment(\.displayScale) private var displayScale
+
+    let bounds: ClosedRange<Double>
+    let onCommit: (CGFloat) -> Void
+
+    @State private var dragStartWidth: CGFloat?
+    @State private var isHovering = false
+    @State private var hasPushedCursor = false
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(isHovering ? Color.accentColor : Color(nsColor: .separatorColor))
+                .frame(width: 1)
+
+            Rectangle()
+                .fill(isHovering ? Color.accentColor.opacity(0.18) : Color.clear)
+                .frame(width: 6)
+        }
+        .frame(width: 8)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering, !hasPushedCursor {
+                NSCursor.resizeLeftRight.push()
+                hasPushedCursor = true
+            } else if !hovering, hasPushedCursor {
+                NSCursor.pop()
+                hasPushedCursor = false
+            }
+        }
+        .onDisappear {
+            guard hasPushedCursor else {
+                return
+            }
+
+            NSCursor.pop()
+            hasPushedCursor = false
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    let startWidth = dragStartWidth ?? width
+                    if dragStartWidth == nil {
+                        dragStartWidth = startWidth
+                    }
+                    width = snappedWidth(startWidth - value.translation.width)
+                }
+                .onEnded { _ in
+                    let committedWidth = snappedWidth(width)
+                    width = committedWidth
+                    dragStartWidth = nil
+                    onCommit(committedWidth)
+                }
+        )
+    }
+
+    private func snappedWidth(_ candidate: CGFloat) -> CGFloat {
+        let lowerBound = CGFloat(bounds.lowerBound)
+        let upperBound = CGFloat(bounds.upperBound)
+        let clamped = min(max(candidate, lowerBound), upperBound)
+        let step = max(1 / max(displayScale, 1), 0.5)
+        return (clamped / step).rounded() * step
     }
 }
