@@ -1,6 +1,6 @@
 ## Keep AGENTS.md Up to Date
 
-**WHEN** changes to dependencies, project structure, or lint rules are made, make sure `AGENTS.md` is kept up to date.
+**WHEN** changes to dependencies, project structure, or lint rules are made, make sure `AGENTS.md` and `README.md` are kept up to date.
 **WHEN** gotchas worth documenting are found, check if they belong in `AGENTS.md` to inform future sessions.
 
 ## XCode Project Generation
@@ -31,6 +31,7 @@ Use the CLI-based Knit workflow documented in `project.yml`; do not switch the p
 
 The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
 
+- First-time local setup: `./scripts/setup.sh` installs the required CLI tools, generates `Skep.xcodeproj`, and configures the repo-local Git hooks.
 - Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
 - Build from the command line with `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build`.
 - Run the built app from the command line with `open .build/xcode/Build/Products/Debug/Skep.app`.
@@ -42,7 +43,11 @@ The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app t
 
 The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).
 
-**BEFORE** committing, run `swiftlint` from the project root to check for violations. Fix any errors before committing. Warnings are acceptable but should be minimized.
+- The repo ships a pre-commit hook at `.githooks/pre-commit` that runs `swiftlint` for commits touching Swift sources or `.swiftlint.yml`.
+- Install the repo-managed hooks once with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`. This writes a repo-local `core.hooksPath=.githooks` override and does not modify your global Git hooks setup.
+- The hook runs `swiftlint` from the project root so nested config discovery still works for `SkepTests/.swiftlint.yml`.
+- Run `swiftlint` from the project root *without* `--config`; passing an explicit config file bypasses nested config discovery and breaks the `SkepTests/.swiftlint.yml` override.
+- Run `swiftlint` manually when you want feedback before reaching the commit hook.
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
 

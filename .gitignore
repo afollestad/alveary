@@ -1,2 +1,3 @@
 Skep.xcodeproj/
 *.xcworkspace/
+.build/
