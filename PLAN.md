@@ -80,7 +80,7 @@ Generate the Xcode project, add SPM dependencies, and define the data models. No
 **Checkpoint**: application target builds with the placeholder window scene, SwiftData models, and Knit wiring. No real UI yet.
 
 ### Phase 2: Settings, utilities, and core types
-- [ ] Not complete
+- [x] Complete
 
 Build the types everything else depends on: settings, shell runner, event model, and concurrency building blocks.
 

@@ -2,6 +2,11 @@
 
 Settings screen layout, SettingsViewModel, and how each setting is applied across the app. The `SettingsService` protocol, `AppSettings` struct, `SkepProjectConfig`, and concrete implementations are in [Part 1b](part1b-data-and-services.md). Continues from Part 1b.
 
+## Implementation Status
+
+- [x] Settings types, option lists, and `SettingsViewModel` contract for Phase 2
+- [ ] Settings screen UI and snapshots for Phase 6
+
 ## How Settings Are Accessed in the UI
 
 Phase split: **Phase 2** builds the settings types, option lists, and `SettingsViewModel` contract. The actual `SettingsScreen`, Cmd+, menu wiring, middle-pane presentation, and snapshot coverage land in **Phase 6** once the app layout exists.

@@ -2,6 +2,10 @@
 
 Pure parsing utility for unified diff output. No external dependencies. Continues from Part 1c.
 
+## Implementation Status
+
+- [x] Diff parser models and parser utility
+
 ## Diff Parser
 
 A lightweight parser for unified diff output (`git diff --no-color`). Pure data models and string parsing — no external dependencies.

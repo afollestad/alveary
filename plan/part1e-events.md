@@ -2,6 +2,11 @@
 
 Universal event model, config types, error types, and notification manager. Continues from Part 1d.
 
+## Implementation Status
+
+- [x] Universal event model and supporting config/error types
+- [x] Notification manager protocol and default implementation
+
 ## Universal Event Model
 
 Each provider emits different JSON, but adapters normalize into a universal event type. Defined here because `NotificationManager` and other foundational services depend on it.
