@@ -2,6 +2,11 @@
 
 `ChatInputField`, autocomplete, queueing UI, steering, scroll behavior, and composer performance. Continues from [Part 4d: Chat Blocks and Tool Rendering](part4d-chat-blocks.md).
 
+Implementation progress:
+- [x] `ChatInputField` now uses selection-aware text editing for `@` file autocomplete and `/skill` autocomplete, including async source loading, debounced filtering, popup-local selection state, and keyboard navigation.
+- [x] Drag-and-drop file insertion is wired into the composer, and outbound draft sends now strip `@` prefixes before delivery while preserving relative project paths where possible.
+- [x] Snapshot coverage includes the queue-only busy composer state plus representative file and skill autocomplete popup presentations.
+
 ### Chat Input Field
 
 The base composer lands with the Chat View Architecture step in Phase 6. The richer input affordances in this section (`@` file autocomplete, `/skill` autocomplete, drag-and-drop attachment) are layered on in the later **Input and Message Handling** step so the build order stays incremental.

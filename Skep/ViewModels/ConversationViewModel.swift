@@ -183,6 +183,10 @@ final class ConversationViewModel {
         subscribe()
     }
 
+    func reconfigureSession() async throws {
+        try await reconfigureSession(config: makeSpawnConfig())
+    }
+
     func rebuildChatItemsIfNeeded(from events: [ConversationEventRecord], forceFullRebuild: Bool = false) {
         state.grouper.update(events: events, forceFullRebuild: forceFullRebuild)
     }

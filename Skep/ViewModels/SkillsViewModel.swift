@@ -72,6 +72,10 @@ final class SkillsViewModel {
         await reloadAfterMutation(refreshCatalog: false)
     }
 
+    func fetchSkillMarkdown(for skill: Skill) async throws -> String {
+        try await skillsService.fetchSkillMd(skill: skill)
+    }
+
     func refreshCatalog() async {
         installed = (try? await skillsService.loadInstalled()) ?? []
         catalog = (try? await skillsService.refreshCatalog()) ?? []

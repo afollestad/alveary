@@ -166,13 +166,16 @@ Build the remaining non-UI services.
 **Future-provider gate**: before adding any non-Claude provider work beyond registry placeholders, validate that provider's session and permission-mode contracts from [plan/validation.md](plan/validation.md) so shared runtime/UI abstractions do not assume Claude semantics by accident.
 
 ### Phase 6: User interface
-- [ ] Not complete
+- [x] Complete
 
 Build all views, wiring them to the services and view models from earlier phases. **Build in this order** — shared error/empty-state components land before views that render them, `ContentView` creates `SidebarViewModel` and `DiffViewerViewModel`, and `ConversationView` also depends on `DiffViewerViewModel`, so the diff-viewer types must exist before the chat views and app layout are wired.
 
 Phase 6 progress:
 - [x] `SidebarViewModel` is implemented, including project/thread create/archive/restore/delete actions, aggregate thread-status computation, and shared sidebar error/status observation state.
 - [x] The repository-scoped `DiffViewerViewModel` foundation is implemented, including refresh coalescing, FSEvents/poll watcher management, contextual commit/PR action state, selected-diff loading, and focused regression coverage.
+- [x] The chat composer input-handling slice is implemented: selection-aware `@` file autocomplete, `/skill` autocomplete, keyboard-driven suggestion selection, drag-and-drop file insertion, and send-time `@path` normalization.
+- [x] Snapshot coverage now includes higher-level Phase 6 pane surfaces (`SidebarView`, `DiffViewerPane`) in addition to the composer states, chat blocks, and secondary screens.
+- [ ] The manual diff-viewer watcher validation gate remains open in `plan/validation.md` and is tracked separately from the phase checkpoint.
 
 | Section | What to build |
 |---|---|

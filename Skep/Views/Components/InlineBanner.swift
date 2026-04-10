@@ -1,0 +1,94 @@
+import SwiftUI
+
+struct InlineBanner: View {
+    let message: String
+    let severity: Severity
+    let autoDismissAfter: Duration?
+    let onDismiss: () -> Void
+
+    @State private var dismissTask: Task<Void, Never>?
+
+    enum Severity: Sendable {
+        case warning
+        case error
+        case info
+
+        var iconName: String {
+            switch self {
+            case .warning:
+                return "exclamationmark.triangle.fill"
+            case .error:
+                return "xmark.octagon.fill"
+            case .info:
+                return "info.circle.fill"
+            }
+        }
+
+        var accentColor: Color {
+            switch self {
+            case .warning:
+                return .orange
+            case .error:
+                return .red
+            case .info:
+                return .blue
+            }
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: severity.iconName)
+                .foregroundStyle(severity.accentColor)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(severity.accentColor.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(severity.accentColor.opacity(0.3), lineWidth: 1)
+        )
+        .onAppear(perform: scheduleDismissIfNeeded)
+        .onChange(of: autoDismissAfter) { _, _ in
+            scheduleDismissIfNeeded()
+        }
+        .onDisappear {
+            dismissTask?.cancel()
+        }
+    }
+}
+
+private extension InlineBanner {
+    func scheduleDismissIfNeeded() {
+        dismissTask?.cancel()
+        guard let autoDismissAfter else {
+            dismissTask = nil
+            return
+        }
+
+        dismissTask = Task {
+            try? await Task.sleep(for: autoDismissAfter)
+            guard !Task.isCancelled else {
+                return
+            }
+            onDismiss()
+        }
+    }
+}

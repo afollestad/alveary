@@ -7,4 +7,32 @@ enum CanonicalPath {
             .standardizedFileURL
             .path
     }
+
+    static func normalizeMentionPath(_ path: String, relativeTo workingDirectory: String?) -> String {
+        let expandedPath = NSString(string: path).expandingTildeInPath
+
+        guard expandedPath.hasPrefix("/") else {
+            return path
+        }
+
+        let normalizedPath = normalize(expandedPath)
+        guard let workingDirectory else {
+            return normalizedPath
+        }
+
+        let normalizedWorkingDirectory = normalize(workingDirectory)
+        guard normalizedPath != normalizedWorkingDirectory else {
+            return normalizedPath
+        }
+
+        let directoryPrefix = normalizedWorkingDirectory.hasSuffix("/")
+            ? normalizedWorkingDirectory
+            : normalizedWorkingDirectory + "/"
+
+        guard normalizedPath.hasPrefix(directoryPrefix) else {
+            return normalizedPath
+        }
+
+        return String(normalizedPath.dropFirst(directoryPrefix.count))
+    }
 }

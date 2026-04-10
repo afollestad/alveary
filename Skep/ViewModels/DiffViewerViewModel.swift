@@ -51,6 +51,8 @@ final class DiffViewerViewModel {
     private let gitHubService: GitHubService
     private let fileListManager: FileListManager
     private let agentsManager: any AgentsManager
+    private let fsEventDebounceDuration: Duration
+    private let idlePollInterval: Duration
     private var cachedPRs: [PRInfo]?
     private var prCacheTime: Date = .distantPast
     private static let prCacheTTL: TimeInterval = 60
@@ -118,12 +120,16 @@ final class DiffViewerViewModel {
         gitService: GitService,
         gitHubService: GitHubService,
         fileListManager: FileListManager,
-        agentsManager: any AgentsManager
+        agentsManager: any AgentsManager,
+        fsEventDebounceDuration: Duration = .milliseconds(500),
+        idlePollInterval: Duration = .seconds(60)
     ) {
         self.gitService = gitService
         self.gitHubService = gitHubService
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
+        self.fsEventDebounceDuration = fsEventDebounceDuration
+        self.idlePollInterval = idlePollInterval
 
         agentStatusObserver = NotificationCenter.default.addObserver(
             forName: .agentStatusChanged,
@@ -254,6 +260,10 @@ final class DiffViewerViewModel {
         invalidatePRCache()
     }
 
+    func clearGitError() {
+        gitError = nil
+    }
+
     func refresh(in directory: String, reason: RefreshReason) async {
         await enqueueRefresh(
             RefreshRequest(
@@ -380,6 +390,10 @@ final class DiffViewerViewModel {
         }
 
         stopWatching()
+    }
+
+    func handleFSEventsForTesting(changedPaths: Set<String>) {
+        fsEventsDidFire(changedPaths: changedPaths)
     }
 }
 
@@ -641,9 +655,13 @@ private extension DiffViewerViewModel {
             watchContextRetain = nil
         }
 
-        pollTask = Task { @MainActor [weak self] in
+        let idlePollInterval = self.idlePollInterval
+        pollTask = Task { @MainActor [weak self, idlePollInterval] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: idlePollInterval)
+                guard !Task.isCancelled else {
+                    break
+                }
                 guard let self, let directory = self.activeDirectory else {
                     continue
                 }
@@ -675,7 +693,10 @@ private extension DiffViewerViewModel {
         debounceTask?.cancel()
         pendingChangedPaths.formUnion(changedPaths)
         debounceTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: fsEventDebounceDuration)
+            guard !Task.isCancelled else {
+                return
+            }
             guard let activeDirectory else {
                 return
             }
