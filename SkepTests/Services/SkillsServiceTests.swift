@@ -85,6 +85,31 @@ final class SkillsServiceTests: XCTestCase {
         XCTAssertEqual(requests.filter { $0 == treeRawURL }.count, 2)
     }
 
+    func testFetchSkillMdReadsInstalledLocalSkillWithoutRemoteSource() async throws {
+        let fixture = try SkillsServiceFixture()
+        defer { fixture.cleanup() }
+        try fixture.createSkill(id: "android-emulator", description: "Manage Android emulators")
+
+        let skill = Skill(
+            id: "android-emulator",
+            name: "android-emulator",
+            description: "Manage Android emulators",
+            version: "1.0.0",
+            source: .local,
+            isInstalled: true,
+            syncedAgentIDs: ["claude"],
+            owner: nil,
+            repo: nil,
+            sourceUrl: nil,
+            installs: nil
+        )
+
+        let markdown = try await fixture.service.fetchSkillMd(skill: skill)
+
+        XCTAssertEqual(markdown, skillMarkdown(id: "android-emulator", description: "Manage Android emulators"))
+        XCTAssertTrue(ServiceURLProtocolStub.recordedRequests().isEmpty)
+    }
+
     func testCreateRejectsInvalidNames() async throws {
         let fixture = try SkillsServiceFixture()
         defer { fixture.cleanup() }

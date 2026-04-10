@@ -138,6 +138,10 @@ actor DefaultSkillsService: SkillsService {
     }
 
     func fetchSkillMd(skill: Skill) async throws -> String {
+        if let localMarkdown = loadLocalSkillMarkdown(skillID: skill.id) {
+            return localMarkdown
+        }
+
         guard let owner = skill.owner, let repo = skill.repo else {
             throw SkillsError.noSource(skill.id)
         }
@@ -328,6 +332,26 @@ extension DefaultSkillsService {
                 installs: nil
             )
         }
+    }
+
+    func loadLocalSkillMarkdown(skillID: String) -> String? {
+        let candidateDirectories = [baseDir] + discoveryTargets.map {
+            URL(fileURLWithPath: ($0.skillsDirectory as NSString).expandingTildeInPath)
+        }
+
+        for directory in candidateDirectories {
+            let skillFile = directory
+                .appendingPathComponent(skillID, isDirectory: true)
+                .appendingPathComponent("SKILL.md")
+            guard FileManager.default.fileExists(atPath: skillFile.path),
+                  let content = try? String(contentsOf: skillFile, encoding: .utf8),
+                  !content.isEmpty else {
+                continue
+            }
+            return content
+        }
+
+        return nil
     }
 
     func syncedAgentIDs(for skillID: String) -> [String] {
