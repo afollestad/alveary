@@ -197,7 +197,12 @@ Phase 6 progress:
 **Manual validation gate**: run the integrated diff-viewer watcher pass after the real UI exists — start/stop watching, debounce around atomic writes, selected-file invalidation, idle-poll fallback, and pane teardown after the early `.appWillTerminate` notification.
 
 ### Phase 7: App lifecycle and polish
-- [ ] Not complete
+- [x] Complete
+
+Phase 7 progress:
+- [x] `AppDelegate` now owns startup warmup, wake-refresh throttling, `.appWillTerminate` emission, sudden-termination toggling, and session-map-driven orphan cleanup.
+- [x] Focused lifecycle regression coverage exists in `AppDelegateTests` for startup warmup, orphan cleanup ownership checks, wake refresh cancellation, sudden-termination transitions, and orderly shutdown persistence.
+- [ ] The signed-app notification delivery manual validation gate in `plan/validation.md` remains open.
 
 | Section | What to build |
 |---|---|
