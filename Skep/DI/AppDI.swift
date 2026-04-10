@@ -12,7 +12,9 @@ enum AppDI {
         AgentAssembly(),
         SessionAssembly(),
         GitAssembly(),
-        GitHubAssembly()
+        GitHubAssembly(),
+        SkillsAssembly(),
+        MCPAssembly()
     ])
 
     static let resolver = assembler.resolver

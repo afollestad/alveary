@@ -22,6 +22,14 @@ Add Knit `ModuleAssembly` files under `Skep/DI/`. If you add a new assembly or c
 
 Use the CLI-based Knit workflow documented in `project.yml`; do not switch the project over to `KnitBuildPlugin` unless the repo docs and build configuration are intentionally updated together.
 
+## Repository Invariants
+
+- `AgentRegistry` is the single source of truth for shared agent metadata. When adding or changing an agent, update `Skep/Services/Detection/DefaultAgentRegistry.swift` and derive provider install guidance, detection metadata, skills directories, and MCP integration metadata from that shared entry instead of introducing feature-local agent lists.
+- `ClaudeConfigStore` is the sole serialized writer for Claude-owned config files (`~/.claude.json` and `.claude/settings.local.json`). Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
+- `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
+- `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
+- Worktree roots are namespaced by canonical project path under `../worktrees/`; preserve that namespacing so sibling clones with the same repo folder name cannot collide.
+
 ## Linting
 
 The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).

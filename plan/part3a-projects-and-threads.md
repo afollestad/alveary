@@ -2,6 +2,11 @@
 
 Projects, project creation, thread creation, thread management, archiving. Depends on Parts 1-2.
 
+## Implementation Status
+
+- [x] Project import and thread lifecycle actions are implemented in `Skep/ViewModels/SidebarViewModel.swift`, including preferred-remote resolution, base-ref detection, initial thread/main-conversation creation, archive/restore/delete flows, and focused regression coverage in `SkepTests/ViewModels/SidebarViewModelTests.swift`.
+- [x] `ConversationViewModel` first-message setup already uses the real `WorktreeManager` path and persists reusable setup completion / rollback behavior for worktree-backed threads.
+
 ## Projects
 
 A project is a Git repository that contains one or more threads. It's the top-level grouping concept.

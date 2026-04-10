@@ -2,6 +2,11 @@
 
 `DefaultSkillsService` concrete implementation, `SkillsError`, and unit tests. Continues from Part 3e.
 
+## Implementation Status
+
+- [x] `DefaultSkillsService` is implemented with installed-skill discovery, bundled/disk/live catalog loading, GitHub metadata/tree caching, `skills.sh` search, and registry-derived symlink sync.
+- [x] Focused coverage exists for the concrete service behavior in `SkepTests/Services/SkillsServiceTests.swift`.
+
 ### Concrete Implementation
 
 ```swift

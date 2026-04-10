@@ -2,6 +2,11 @@
 
 Skills service, skills catalog, skills.sh integration. Continues from Part 3d.
 
+## Implementation Status
+
+- [x] `Skill`, `SkillsService`, `DefaultSkillsService`, the bundled fallback catalog, and `SkillsViewModel` are implemented in the repo with registry-derived sync targets, GitHub-backed `SKILL.md` resolution, install/uninstall/create flows, and debounced `skills.sh` search.
+- [x] Focused regression coverage exists in `SkepTests/Services/SkillsServiceTests.swift` and `SkepTests/ViewModels/SkillsViewModelTests.swift`.
+
 ## Skills
 
 Reference: [Claude Code Skills](https://code.claude.com/docs/en/skills)

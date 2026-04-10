@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-04-10T00:00:00Z",
+  "skills": [
+    {
+      "id": "code-review-general",
+      "name": "Code Review General",
+      "description": "Review pull requests and code changes for regressions, risks, and missing coverage.",
+      "source": "catalog",
+      "owner": "anthropics",
+      "repo": "skills",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/code-review-general"
+    },
+    {
+      "id": "playwright-testing",
+      "name": "Playwright Testing",
+      "description": "Browser automation for testing and debugging web apps.",
+      "source": "catalog",
+      "owner": "anthropics",
+      "repo": "skills",
+      "sourceUrl": "https://github.com/anthropics/skills/tree/main/skills/playwright-testing"
+    }
+  ]
+}
