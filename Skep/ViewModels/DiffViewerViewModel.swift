@@ -1,0 +1,713 @@
+import AppKit
+import CoreServices
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class DiffViewerViewModel {
+    private struct RefreshRequest {
+        let directory: String
+        let reason: RefreshReason
+        let invalidateFileListCache: Bool
+        let invalidatePRCache: Bool
+
+        func merged(with newer: RefreshRequest) -> RefreshRequest {
+            guard directory == newer.directory else {
+                return newer
+            }
+
+            return RefreshRequest(
+                directory: directory,
+                reason: reason.merged(with: newer.reason),
+                invalidateFileListCache: invalidateFileListCache || newer.invalidateFileListCache,
+                invalidatePRCache: invalidatePRCache || newer.invalidatePRCache
+            )
+        }
+    }
+
+    private final class WatchContext {
+        let owner: DiffViewerViewModel
+        let rootDirectory: String
+
+        init(owner: DiffViewerViewModel, rootDirectory: String) {
+            self.owner = owner
+            self.rootDirectory = rootDirectory
+        }
+    }
+
+    private(set) var files: [FileStatus] = []
+    private(set) var selectedFile: FileStatus?
+    private(set) var parsedDiff: DiffFile?
+    private(set) var rawDiffContent = ""
+    private(set) var contextualAction: ContextualAction = .none
+    private(set) var gitError: String?
+    private(set) var activeDirectory: String?
+
+    private var activeConversationIds: Set<String> = []
+    private var baseRef = "main"
+    private var remoteName: String?
+    private let gitService: GitService
+    private let gitHubService: GitHubService
+    private let fileListManager: FileListManager
+    private let agentsManager: any AgentsManager
+    private var cachedPRs: [PRInfo]?
+    private var prCacheTime: Date = .distantPast
+    private static let prCacheTTL: TimeInterval = 60
+    private var inFlightRefresh: (id: UUID, task: Task<Void, Never>)?
+    private var pendingRefresh: RefreshRequest?
+    private var directoryGeneration: UInt64 = 0
+    private var fileSelectionGeneration: UInt64 = 0
+    private var fsEventStream: FSEventStreamRef?
+    private var fsEventQueue: DispatchQueue?
+    private var watchContextRetain: Unmanaged<WatchContext>?
+    private var debounceTask: Task<Void, Never>?
+    private var pollTask: Task<Void, Never>?
+    private var watchingEnabled = false
+    private var pendingChangedPaths: Set<String> = []
+    private var agentStatusObserver: NSObjectProtocol?
+    private var appActiveObserver: NSObjectProtocol?
+    private var appWillTerminateObserver: NSObjectProtocol?
+
+    enum ContextualAction: Equatable {
+        case none
+        case commit
+        case openPR
+        case viewPR(url: String)
+    }
+
+    enum RefreshReason: Equatable {
+        case fsEvent(changedPaths: Set<String>)
+        case agentTurnCompleted
+        case appBecameActive
+        case localGitMutation
+        case manual
+        case idlePoll
+        case threadSwitch
+
+        fileprivate func merged(with newer: RefreshReason) -> RefreshReason {
+            switch (self, newer) {
+            case let (.fsEvent(existingPaths), .fsEvent(newPaths)):
+                return .fsEvent(changedPaths: existingPaths.union(newPaths))
+            default:
+                return priority >= newer.priority ? self : newer
+            }
+        }
+
+        private var priority: Int {
+            switch self {
+            case .manual:
+                return 6
+            case .localGitMutation:
+                return 5
+            case .appBecameActive:
+                return 4
+            case .threadSwitch:
+                return 3
+            case .agentTurnCompleted:
+                return 2
+            case .fsEvent:
+                return 1
+            case .idlePoll:
+                return 0
+            }
+        }
+    }
+
+    init(
+        gitService: GitService,
+        gitHubService: GitHubService,
+        fileListManager: FileListManager,
+        agentsManager: any AgentsManager
+    ) {
+        self.gitService = gitService
+        self.gitHubService = gitHubService
+        self.fileListManager = fileListManager
+        self.agentsManager = agentsManager
+
+        agentStatusObserver = NotificationCenter.default.addObserver(
+            forName: .agentStatusChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let conversationId = notification.userInfo?["conversationId"] as? String
+            Task { @MainActor in
+                guard let self, let directory = self.activeDirectory else {
+                    return
+                }
+
+                if let conversationId {
+                    guard self.activeConversationIds.contains(conversationId) else {
+                        return
+                    }
+                    if self.agentsManager.status(for: conversationId) == .busy {
+                        return
+                    }
+                }
+
+                await self.refreshAndInvalidateFileList(in: directory, reason: .agentTurnCompleted)
+            }
+        }
+
+        appActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let directory = self.activeDirectory else {
+                    return
+                }
+
+                await self.refresh(in: directory, reason: .appBecameActive)
+            }
+        }
+
+        appWillTerminateObserver = NotificationCenter.default.addObserver(
+            forName: .appWillTerminate,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.tearDown()
+            }
+        }
+    }
+
+    func switchToDirectory(
+        _ directory: String,
+        baseRef: String = "main",
+        remoteName: String?,
+        conversationIds: Set<String>
+    ) async {
+        activeConversationIds = conversationIds
+        guard directory != activeDirectory || baseRef != self.baseRef || remoteName != self.remoteName else {
+            return
+        }
+
+        let directoryChanged = directory != activeDirectory
+        directoryGeneration &+= 1
+        fileSelectionGeneration &+= 1
+        self.baseRef = baseRef
+        self.remoteName = remoteName
+        stopWatching()
+        activeDirectory = directory
+
+        if directoryChanged {
+            files = []
+            selectedFile = nil
+            parsedDiff = nil
+            rawDiffContent = ""
+            contextualAction = .none
+            gitError = nil
+        }
+
+        invalidatePRCache()
+        pendingRefresh = nil
+
+        if watchingEnabled {
+            startWatching(directory)
+        }
+
+        await refresh(in: directory, reason: .threadSwitch)
+    }
+
+    func setWatchingEnabled(_ enabled: Bool) {
+        guard watchingEnabled != enabled else {
+            return
+        }
+
+        watchingEnabled = enabled
+        guard let activeDirectory else {
+            return
+        }
+
+        if enabled {
+            startWatching(activeDirectory)
+        } else {
+            stopWatching()
+        }
+    }
+
+    func clear() {
+        directoryGeneration &+= 1
+        fileSelectionGeneration &+= 1
+        stopWatching()
+        activeDirectory = nil
+        activeConversationIds = []
+        baseRef = "main"
+        remoteName = nil
+        files = []
+        selectedFile = nil
+        parsedDiff = nil
+        rawDiffContent = ""
+        contextualAction = .none
+        gitError = nil
+        pendingChangedPaths = []
+        pendingRefresh = nil
+        invalidatePRCache()
+    }
+
+    func refresh(in directory: String, reason: RefreshReason) async {
+        await enqueueRefresh(
+            RefreshRequest(
+                directory: directory,
+                reason: reason,
+                invalidateFileListCache: false,
+                invalidatePRCache: false
+            )
+        )
+    }
+
+    func refreshAndInvalidateFileList(in directory: String, reason: RefreshReason) async {
+        await enqueueRefresh(
+            RefreshRequest(
+                directory: directory,
+                reason: reason,
+                invalidateFileListCache: true,
+                invalidatePRCache: reason != .localGitMutation
+            )
+        )
+    }
+
+    func selectFile(_ file: FileStatus, in directory: String) async {
+        selectedFile = file
+        let bindingGeneration = directoryGeneration
+        fileSelectionGeneration &+= 1
+        let selectionGeneration = fileSelectionGeneration
+
+        do {
+            let raw: String
+            if file.status == .untracked {
+                raw = try await gitService.syntheticAddedDiff(for: file.path, in: directory)
+            } else {
+                raw = try await gitService.diff(
+                    paths: diffPaths(for: file),
+                    scope: file.isStaged ? .staged : .unstaged,
+                    in: directory
+                )
+            }
+
+            guard isCurrentBinding(directory: directory, generation: bindingGeneration),
+                  fileSelectionGeneration == selectionGeneration,
+                  selectedFile?.path == file.path,
+                  selectedFile?.isStaged == file.isStaged else {
+                return
+            }
+
+            guard raw.utf8.count <= 5 * 1024 * 1024 else {
+                rawDiffContent = ""
+                parsedDiff = nil
+                gitError = "Diff preview exceeded 5MB"
+                return
+            }
+
+            let parsed = await Task.detached(priority: .utility) {
+                DiffParser.parse(raw).first
+            }.value
+
+            guard isCurrentBinding(directory: directory, generation: bindingGeneration),
+                  fileSelectionGeneration == selectionGeneration,
+                  selectedFile?.path == file.path,
+                  selectedFile?.isStaged == file.isStaged else {
+                return
+            }
+
+            rawDiffContent = raw
+            parsedDiff = parsed
+            gitError = nil
+        } catch {
+            guard isCurrentBinding(directory: directory, generation: bindingGeneration),
+                  fileSelectionGeneration == selectionGeneration,
+                  selectedFile?.path == file.path,
+                  selectedFile?.isStaged == file.isStaged else {
+                return
+            }
+
+            rawDiffContent = ""
+            parsedDiff = nil
+            gitError = "Diff failed: \(error.localizedDescription)"
+        }
+    }
+
+    func stage(files: [FileStatus], in directory: String) async throws {
+        try await stage(paths: uniquePaths(files.map(\.path)), in: directory)
+    }
+
+    func stage(paths: [String], in directory: String) async throws {
+        try await gitService.stage(paths: paths, in: directory)
+        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
+    }
+
+    func unstage(files: [FileStatus], in directory: String) async throws {
+        try await unstage(paths: uniquePaths(files.map(\.path)), in: directory)
+    }
+
+    func unstage(paths: [String], in directory: String) async throws {
+        try await gitService.unstage(paths: paths, in: directory)
+        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
+    }
+
+    func discard(files: [FileStatus], in directory: String) async throws {
+        try await discard(paths: discardPaths(for: files), in: directory)
+    }
+
+    func discard(paths: [String], in directory: String) async throws {
+        try await gitService.discard(paths: paths, in: directory)
+        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
+    }
+
+    func tearDown() {
+        if let agentStatusObserver {
+            NotificationCenter.default.removeObserver(agentStatusObserver)
+            self.agentStatusObserver = nil
+        }
+
+        if let appActiveObserver {
+            NotificationCenter.default.removeObserver(appActiveObserver)
+            self.appActiveObserver = nil
+        }
+
+        if let appWillTerminateObserver {
+            NotificationCenter.default.removeObserver(appWillTerminateObserver)
+            self.appWillTerminateObserver = nil
+        }
+
+        stopWatching()
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            tearDown()
+        }
+    }
+}
+
+private extension DiffViewerViewModel {
+    private func enqueueRefresh(_ request: RefreshRequest) async {
+        if let pendingRefresh {
+            self.pendingRefresh = pendingRefresh.merged(with: request)
+        } else {
+            pendingRefresh = request
+        }
+
+        while true {
+            if inFlightRefresh == nil, let nextRequest = pendingRefresh {
+                pendingRefresh = nil
+                let refreshID = UUID()
+                let task = Task { @MainActor [weak self] in
+                    guard let self else {
+                        return
+                    }
+                    await self.performRefresh(nextRequest)
+                }
+                inFlightRefresh = (id: refreshID, task: task)
+            }
+
+            guard let inFlightRefresh else {
+                return
+            }
+
+            let refreshID = inFlightRefresh.id
+            let task = inFlightRefresh.task
+            await task.value
+
+            if self.inFlightRefresh?.id == refreshID {
+                self.inFlightRefresh = nil
+            }
+
+            if pendingRefresh == nil {
+                return
+            }
+        }
+    }
+
+    private func performRefresh(_ request: RefreshRequest) async {
+        if request.invalidatePRCache {
+            invalidatePRCache()
+        }
+        if request.invalidateFileListCache {
+            await fileListManager.invalidateCache(for: request.directory)
+        }
+
+        let generation = directoryGeneration
+        let refreshedFiles: [FileStatus]
+        let refreshedError: String?
+
+        do {
+            refreshedFiles = try await gitService.status(in: request.directory)
+            refreshedError = nil
+        } catch {
+            refreshedFiles = []
+            refreshedError = "Git status failed: \(error.localizedDescription)"
+        }
+
+        guard isCurrentBinding(directory: request.directory, generation: generation) else {
+            return
+        }
+
+        files = refreshedFiles
+        gitError = refreshedError
+
+        if refreshedError != nil {
+            contextualAction = .none
+            return
+        }
+
+        let action = await determineAction(in: request.directory)
+        guard isCurrentBinding(directory: request.directory, generation: generation) else {
+            return
+        }
+
+        contextualAction = action
+        await refreshSelectedDiffIfNeeded(in: request.directory, generation: generation, reason: request.reason)
+    }
+
+    func diffPaths(for file: FileStatus) -> [String] {
+        if file.status == .renamed, let originalPath = file.originalPath {
+            return [originalPath, file.path]
+        }
+
+        return [file.path]
+    }
+
+    func discardPaths(for files: [FileStatus]) -> [String] {
+        var paths: [String] = []
+
+        for file in files {
+            if file.status == .renamed, let originalPath = file.originalPath {
+                paths.append(originalPath)
+                paths.append(file.path)
+            } else {
+                paths.append(file.path)
+            }
+        }
+
+        return uniquePaths(paths)
+    }
+
+    func uniquePaths(_ paths: [String]) -> [String] {
+        var seen: Set<String> = []
+        return paths.filter { seen.insert($0).inserted }
+    }
+
+    func determineAction(in directory: String) async -> ContextualAction {
+        if !files.isEmpty {
+            return .commit
+        }
+
+        async let aheadTask = (try? await gitService.commitsAheadOfBase(
+            baseBranch: baseBranchForDirectory(directory),
+            remoteName: remoteName,
+            in: directory
+        )) ?? 0
+        async let currentBranchTask = try? await gitService.currentBranch(in: directory)
+        async let prsTask = cachedListPRs(in: directory)
+
+        let ahead = await aheadTask
+        let currentBranch = await currentBranchTask
+        let prs = await prsTask
+
+        if let pullRequest = prs.first(where: { $0.state == "OPEN" && $0.headRefName == currentBranch }) {
+            return .viewPR(url: pullRequest.url)
+        }
+        if ahead > 0 {
+            return .openPR
+        }
+        return .none
+    }
+
+    func refreshSelectedDiffIfNeeded(in directory: String, generation: UInt64, reason: RefreshReason) async {
+        guard isCurrentBinding(directory: directory, generation: generation) else {
+            return
+        }
+        guard let selectedFile else {
+            return
+        }
+
+        let selectedAnchor = selectedFile.originalPath ?? selectedFile.path
+        let updatedSelection = files.first {
+            $0.path == selectedFile.path && $0.isStaged == selectedFile.isStaged
+        } ?? files.first {
+            $0.path == selectedFile.path
+        } ?? files.first {
+            ($0.originalPath ?? $0.path) == selectedAnchor && $0.isStaged == selectedFile.isStaged
+        } ?? files.first {
+            ($0.originalPath ?? $0.path) == selectedAnchor
+        }
+
+        guard let updatedSelection else {
+            self.selectedFile = nil
+            parsedDiff = nil
+            rawDiffContent = ""
+            return
+        }
+
+        let selectionChanged = updatedSelection.path != selectedFile.path
+            || updatedSelection.originalPath != selectedFile.originalPath
+            || updatedSelection.isStaged != selectedFile.isStaged
+            || updatedSelection.status != selectedFile.status
+
+        let shouldReloadDiff: Bool
+        switch reason {
+        case .manual, .appBecameActive, .localGitMutation:
+            shouldReloadDiff = true
+        case .threadSwitch, .agentTurnCompleted, .idlePoll:
+            shouldReloadDiff = selectionChanged
+        case .fsEvent(let changedPaths):
+            let selectedPaths = Set([updatedSelection.path, updatedSelection.originalPath].compactMap { $0 })
+            shouldReloadDiff = selectionChanged || !changedPaths.isDisjoint(with: selectedPaths)
+        }
+
+        guard shouldReloadDiff else {
+            self.selectedFile = updatedSelection
+            return
+        }
+
+        await selectFile(updatedSelection, in: directory)
+    }
+
+    func cachedListPRs(in directory: String) async -> [PRInfo] {
+        if let cachedPRs,
+           Date().timeIntervalSince(prCacheTime) < Self.prCacheTTL {
+            return cachedPRs
+        }
+
+        do {
+            let pullRequests = try await gitHubService.listPRs(in: directory)
+            cachedPRs = pullRequests
+            prCacheTime = Date()
+            return pullRequests
+        } catch {
+            return cachedPRs ?? []
+        }
+    }
+
+    func invalidatePRCache() {
+        cachedPRs = nil
+        prCacheTime = .distantPast
+    }
+
+    func isCurrentBinding(directory: String, generation: UInt64) -> Bool {
+        activeDirectory == directory && directoryGeneration == generation
+    }
+
+    func baseBranchForDirectory(_ directory: String) -> String {
+        _ = directory
+        return baseRef
+    }
+
+    func startWatching(_ directory: String) {
+        stopWatching()
+
+        let paths = [directory] as CFArray
+        var context = FSEventStreamContext()
+        let retainedContext = Unmanaged.passRetained(WatchContext(owner: self, rootDirectory: directory))
+        watchContextRetain = retainedContext
+        context.info = retainedContext.toOpaque()
+
+        let stream = FSEventStreamCreate(
+            nil,
+            { _, info, numEvents, eventPaths, _, _ in
+                guard let info else {
+                    return
+                }
+
+                let watchContext = Unmanaged<WatchContext>.fromOpaque(info).takeUnretainedValue()
+                let changedPaths = DiffViewerViewModel.extractChangedPaths(
+                    eventPaths: eventPaths,
+                    count: numEvents,
+                    rootDirectory: watchContext.rootDirectory
+                )
+
+                Task { @MainActor [weak owner = watchContext.owner] in
+                    owner?.fsEventsDidFire(changedPaths: changedPaths)
+                }
+            },
+            &context,
+            paths,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.5,
+            UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes)
+        )
+
+        if let stream {
+            let queue = DispatchQueue(label: "com.afollestad.skep.fsevents", qos: .utility)
+            FSEventStreamSetDispatchQueue(stream, queue)
+            FSEventStreamStart(stream)
+            fsEventStream = stream
+            fsEventQueue = queue
+        } else {
+            retainedContext.release()
+            watchContextRetain = nil
+        }
+
+        pollTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, let directory = self.activeDirectory else {
+                    continue
+                }
+                await self.refresh(in: directory, reason: .idlePoll)
+            }
+        }
+    }
+
+    func stopWatching() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        pollTask?.cancel()
+        pollTask = nil
+
+        if let stream = fsEventStream, let queue = fsEventQueue {
+            FSEventStreamStop(stream)
+            queue.sync {
+                FSEventStreamInvalidate(stream)
+            }
+            FSEventStreamRelease(stream)
+            fsEventStream = nil
+            fsEventQueue = nil
+            watchContextRetain?.release()
+            watchContextRetain = nil
+        }
+    }
+
+    func fsEventsDidFire(changedPaths: Set<String>) {
+        debounceTask?.cancel()
+        pendingChangedPaths.formUnion(changedPaths)
+        debounceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let activeDirectory else {
+                return
+            }
+
+            let changedPaths = pendingChangedPaths
+            pendingChangedPaths = []
+            await refresh(in: activeDirectory, reason: .fsEvent(changedPaths: changedPaths))
+        }
+    }
+
+    nonisolated static func extractChangedPaths(
+        eventPaths: UnsafeMutableRawPointer?,
+        count: Int,
+        rootDirectory: String?
+    ) -> Set<String> {
+        guard let rootDirectory,
+              let eventPaths else {
+            return []
+        }
+
+        let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as? [String] ?? []
+        let rootPrefix = rootDirectory.hasSuffix("/") ? rootDirectory : rootDirectory + "/"
+        return Set(paths.prefix(count).map { absolutePath in
+            guard absolutePath.hasPrefix(rootPrefix) else {
+                return absolutePath
+            }
+            return String(absolutePath.dropFirst(rootPrefix.count))
+        })
+    }
+}
+
+extension Notification.Name {
+    static let appWillTerminate = Notification.Name("appWillTerminate")
+}

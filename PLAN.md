@@ -129,7 +129,7 @@ Phase 3 progress:
 **Checkpoint**: can spawn a Claude process, stream events, persist to SwiftData, send messages, and expose stable lifecycle status to later UI consumers. All unit tests pass.
 
 ### Phase 4: Git and GitHub services
-- [ ] Not complete
+- [x] Complete
 
 Build the Git workflow layer. Each service depends on `ShellRunner`.
 
@@ -163,6 +163,9 @@ Build the remaining non-UI services.
 - [ ] Not complete
 
 Build all views, wiring them to the services and view models from earlier phases. **Build in this order** — shared error/empty-state components land before views that render them, `ContentView` creates `SidebarViewModel` and `DiffViewerViewModel`, and `ConversationView` also depends on `DiffViewerViewModel`, so the diff-viewer types must exist before the chat views and app layout are wired.
+
+Phase 6 progress:
+- [x] The repository-scoped `DiffViewerViewModel` foundation is implemented, including refresh coalescing, FSEvents/poll watcher management, contextual commit/PR action state, selected-diff loading, and focused regression coverage.
 
 | Section | What to build |
 |---|---|

@@ -1,0 +1,126 @@
+import Foundation
+import XCTest
+
+@testable import Skep
+
+final class GitServiceTests: XCTestCase {
+    func testStatusParsesOrdinaryRenameUnmergedAndUntrackedEntries() async throws {
+        let shell = MockShellRunner()
+        let statusOutput = [
+            "1 MM N... 100644 100644 100644 abc abc feature.swift",
+            "2 R. N... 100644 100644 100644 abc abc R100 renamed.swift",
+            "original.swift",
+            "u UU N... 100644 100644 100644 100644 abc abc abc conflicted.swift",
+            "? notes.txt"
+        ].joined(separator: "\0") + "\0"
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: statusOutput,
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let statuses = try await service.status(in: "/tmp/project")
+
+        XCTAssertEqual(
+            statuses,
+            [
+                FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: true),
+                FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false),
+                FileStatus(path: "renamed.swift", originalPath: "original.swift", status: .renamed, isStaged: true),
+                FileStatus(path: "conflicted.swift", originalPath: nil, status: .unmerged, isStaged: false),
+                FileStatus(path: "notes.txt", originalPath: nil, status: .untracked, isStaged: false)
+            ]
+        )
+    }
+
+    func testDiscardRestoresTrackedFilesAndDeletesUntrackedFiles() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let untrackedFile = tempDirectory.appendingPathComponent("notes.txt")
+        try "temporary".write(to: untrackedFile, atomically: true, encoding: .utf8)
+
+        let shell = MockShellRunner()
+        let statusOutput = [
+            "1 .M N... 100644 100644 100644 abc abc tracked.swift",
+            "? notes.txt"
+        ].joined(separator: "\0") + "\0"
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: statusOutput,
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        try await service.discard(paths: ["tracked.swift", "notes.txt"], in: tempDirectory.path)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: untrackedFile.path))
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.count, 2)
+        XCTAssertEqual(invocations[1].args, ["restore", "--source=HEAD", "--staged", "--worktree", "--", "tracked.swift"])
+    }
+
+    func testCommitsAheadOfBasePrefersRemoteTrackedRefWhenItExists() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "3\n",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let count = try await service.commitsAheadOfBase(baseBranch: "main", remoteName: "origin", in: "/tmp/project")
+
+        XCTAssertEqual(count, 3)
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])
+        XCTAssertEqual(invocations[1].args, ["rev-list", "origin/main..HEAD", "--count"])
+    }
+}

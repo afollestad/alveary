@@ -2,6 +2,11 @@
 
 GitService, CLIGitService, FileListManager. Continues from Part 3a.
 
+## Implementation Status
+
+- [x] `GitService`, `CLIGitService`, `FileListManager`, `GitFileListManager`, and `GitAssembly` are implemented in the repo.
+- [x] Focused regression coverage exists in `SkepTests/Services/GitServiceTests.swift` and `SkepTests/Services/FileListManagerTests.swift`.
+
 ## Git Operations
 
 All Git operations are performed by shelling out to the `git` CLI via Foundation `Process`. No Git library is used.

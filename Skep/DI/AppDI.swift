@@ -10,7 +10,9 @@ enum AppDI {
         NotificationAssembly(),
         DetectionAssembly(),
         AgentAssembly(),
-        SessionAssembly()
+        SessionAssembly(),
+        GitAssembly(),
+        GitHubAssembly()
     ])
 
     static let resolver = assembler.resolver
