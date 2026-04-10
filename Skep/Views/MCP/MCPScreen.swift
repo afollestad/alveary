@@ -119,7 +119,7 @@ private extension MCPScreen {
                 Button("Add Server") {
                     formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
             }
 
             AppTextField(
@@ -152,7 +152,7 @@ private extension MCPScreen {
                 Button("Add Server") {
                     formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
             }
         }
     }
@@ -259,7 +259,7 @@ private struct RecommendedMCPCard: View {
             Spacer()
 
             Button("Add", action: onAdd)
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
         }
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
@@ -436,7 +436,7 @@ private struct MCPServerFormSheet: View {
                     Button("Save") {
                         onSave(draft)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .primaryActionButtonStyle()
                     .disabled(
                         draft.name.isEmpty
                             || draft.selectedAgents.isEmpty

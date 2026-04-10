@@ -121,7 +121,7 @@ private extension SkillsScreen {
                 Button("+ New Skill") {
                     isCreateSheetPresented = true
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
             }
 
             AppTextField(
@@ -154,7 +154,7 @@ private extension SkillsScreen {
                 Button("+ New Skill") {
                     isCreateSheetPresented = true
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
             }
         }
     }
@@ -258,7 +258,7 @@ private struct SkillCard: View {
                         .destructiveActionButtonStyle()
                 } else {
                     Button("Install", action: onPrimaryAction)
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                 }
             }
         }
@@ -336,7 +336,7 @@ private struct SkillDetailSheet: View {
                             dismiss()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .primaryActionButtonStyle()
                 }
             }
         }
@@ -412,7 +412,7 @@ private struct CreateSkillSheet: View {
                 Button("Create") {
                     onCreate(name, description, instructions)
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryActionButtonStyle()
                 .disabled(name.isEmpty || description.isEmpty)
             }
         }

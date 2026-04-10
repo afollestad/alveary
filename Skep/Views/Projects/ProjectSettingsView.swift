@@ -131,7 +131,7 @@ private extension ProjectSettingsView {
                         Button(isGitHubAuthenticating ? "Connecting..." : "Connect GitHub") {
                             Task { await connectGitHub() }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                         .disabled(isGitHubAuthenticating)
                     }
 
@@ -271,7 +271,7 @@ private extension ProjectSettingsView {
                         Button("Create Config") {
                             Task { await createConfigAndOpen() }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                     }
 
                     Spacer()

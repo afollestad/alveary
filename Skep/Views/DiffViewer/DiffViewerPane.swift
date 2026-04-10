@@ -89,11 +89,11 @@ private extension DiffViewerPane {
                 switch viewModel.contextualAction {
                 case .commit:
                     Button("Commit", action: onCommitRequested)
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                         .disabled(!areAgentActionsEnabled)
                 case .openPR:
                     Button("Open PR", action: onOpenPRRequested)
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                         .disabled(!areAgentActionsEnabled)
                 case .viewPR(let url):
                     Button("View PR") {
@@ -101,7 +101,7 @@ private extension DiffViewerPane {
                             NSWorkspace.shared.open(url)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .primaryActionButtonStyle()
                 case .none:
                     EmptyView()
                 }
