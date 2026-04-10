@@ -66,11 +66,13 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
 
-## General Code Style Guidelines
+## General Guidelines
 
 - Private types should always go *below* public types.
 - In SwiftUI, prefer extracting visually distinct or state-wiring subviews into separate private `View` types in the same file instead of `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition.
 - Add concise code comments where needed for human readers.
+- When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
+- When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
 
 ## Repository Invariants
 

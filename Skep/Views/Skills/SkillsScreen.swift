@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Textual
 
 struct SkillsScreen: View {
     let viewModel: SkillsViewModel
@@ -304,23 +305,7 @@ private struct SkillDetailSheet: View {
                 .buttonStyle(.plain)
             }
 
-            Group {
-                if isLoading {
-                    ProgressView("Loading skill details...")
-                } else {
-                    ScrollView {
-                        if let rendered = try? AttributedString(markdown: markdown) {
-                            Text(rendered)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                        } else {
-                            Text(markdown)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
+            SkillMarkdownContent(markdown: markdown, isLoading: isLoading)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack {
@@ -366,6 +351,35 @@ private struct SkillDetailSheet: View {
                 markdown = skill.description
             }
             isLoading = false
+        }
+    }
+}
+
+private struct SkillMarkdownContent: View {
+    let markdown: String
+    let isLoading: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Group {
+                if isLoading {
+                    ProgressView("Loading skill details...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        StructuredText(markdown: markdown)
+                            .textual.structuredTextStyle(.default)
+                            .textual.textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 18)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
         }
     }
 }

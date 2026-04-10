@@ -73,7 +73,8 @@ final class SkillsViewModel {
     }
 
     func fetchSkillMarkdown(for skill: Skill) async throws -> String {
-        try await skillsService.fetchSkillMd(skill: skill)
+        let markdown = try await skillsService.fetchSkillMd(skill: skill)
+        return DefaultSkillsService.markdownBody(from: markdown)
     }
 
     func refreshCatalog() async {

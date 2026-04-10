@@ -565,9 +565,29 @@ extension DefaultSkillsService {
         }
     }
 
+    static func markdownBody(from content: String) -> String {
+        guard let frontmatter = frontmatterSections(in: content) else {
+            return content
+        }
+
+        return String(frontmatter.body.drop(while: { $0.isNewline }))
+    }
+
     static func parseFrontmatter(_ content: String) -> (name: String?, description: String?, version: String?) {
-        guard content.hasPrefix("---") else {
+        guard let frontmatter = frontmatterSections(in: content) else {
             return (nil, nil, nil)
+        }
+
+        return (
+            name: extractYamlValue(from: frontmatter.yaml, key: "name"),
+            description: extractYamlValue(from: frontmatter.yaml, key: "description"),
+            version: extractYamlValue(from: frontmatter.yaml, key: "version")
+        )
+    }
+
+    private static func frontmatterSections(in content: String) -> (yaml: String, body: Substring)? {
+        guard content.hasPrefix("---") else {
+            return nil
         }
 
         let yamlStart = content.index(content.startIndex, offsetBy: 3)
@@ -575,14 +595,12 @@ extension DefaultSkillsService {
             of: "\n---",
             range: yamlStart..<content.endIndex
         ) else {
-            return (nil, nil, nil)
+            return nil
         }
 
-        let yaml = String(content[yamlStart..<closingRange.lowerBound])
         return (
-            name: extractYamlValue(from: yaml, key: "name"),
-            description: extractYamlValue(from: yaml, key: "description"),
-            version: extractYamlValue(from: yaml, key: "version")
+            yaml: String(content[yamlStart..<closingRange.lowerBound]),
+            body: content[closingRange.upperBound..<content.endIndex]
         )
     }
 
