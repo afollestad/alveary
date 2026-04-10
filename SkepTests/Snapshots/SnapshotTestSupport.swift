@@ -26,7 +26,19 @@ func assertMacSnapshot<V: View>(
     let controller = NSHostingController(rootView: rootView)
     controller.view.frame = CGRect(origin: .zero, size: size)
     controller.view.appearance = NSAppearance(named: .aqua)
+    let window = NSWindow(
+        contentRect: CGRect(origin: .zero, size: size),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.isReleasedWhenClosed = false
+    window.backgroundColor = .windowBackgroundColor
+    window.contentViewController = controller
+    window.layoutIfNeeded()
+    window.displayIfNeeded()
     controller.view.layoutSubtreeIfNeeded()
+    controller.view.displayIfNeeded()
 
     assertSnapshot(
         of: controller,
