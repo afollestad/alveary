@@ -1,0 +1,20 @@
+included:
+  - Skep
+  - SkepTests
+excluded:
+  - Skep/DI/Generated
+line_length:
+  warning: 150
+  error: 200
+type_body_length:
+  warning: 400
+  error: 600
+file_length:
+  warning: 500
+  error: 800
+disabled_rules:
+  - trailing_whitespace
+  - opening_brace
+opt_in_rules:
+  - force_unwrapping
+  - force_cast

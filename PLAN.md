@@ -58,7 +58,13 @@ Implementation-readiness note: the plan has completed the validation/audit sweep
 
 Each phase ends at a compilable checkpoint. Build each phase's sections in order, run tests before moving to the next phase.
 
+Progress tracking rules:
+- Update the phase checkbox in this file as soon as that phase's checkpoint is actually complete in the repo.
+- Also update the matching detailed `plan/part*.md` status checklist for the work you finished so future sessions can resume from the docs instead of thread history.
+
 ### Phase 1: Project scaffolding and data layer
+- [x] Complete
+
 Generate the Xcode project, add SPM dependencies, and define the data models. No business logic yet.
 
 | Section | What to build |
@@ -74,6 +80,8 @@ Generate the Xcode project, add SPM dependencies, and define the data models. No
 **Checkpoint**: application target builds with the placeholder window scene, SwiftData models, and Knit wiring. No real UI yet.
 
 ### Phase 2: Settings, utilities, and core types
+- [ ] Not complete
+
 Build the types everything else depends on: settings, shell runner, event model, and concurrency building blocks.
 
 | Section | What to build |
@@ -88,6 +96,8 @@ Build the types everything else depends on: settings, shell runner, event model,
 **Checkpoint**: settings persist, shell commands run, event types exist. All unit tests pass.
 
 ### Phase 3: Agent integration
+- [ ] Not complete
+
 Build the provider system and agent process management. This is the core engine. **Build in this order** — each row depends only on rows above it.
 
 | # | Section | What to build |
@@ -111,6 +121,8 @@ Build the provider system and agent process management. This is the core engine.
 **Checkpoint**: can spawn a Claude process, stream events, persist to SwiftData, send messages, and expose stable lifecycle status to later UI consumers. All unit tests pass.
 
 ### Phase 4: Git and GitHub services
+- [ ] Not complete
+
 Build the Git workflow layer. Each service depends on `ShellRunner`.
 
 | Section | What to build |
@@ -124,6 +136,8 @@ Build the Git workflow layer. Each service depends on `ShellRunner`.
 **Manual validation gate**: verify the GitHub device-flow UX end-to-end from the app shell, including URL parsing, explicit browser launch, cancel/retry behavior, and reconnect after an auth loss.
 
 ### Phase 5: Feature services
+- [ ] Not complete
+
 Build the remaining non-UI services.
 
 | Section | What to build |
@@ -138,6 +152,8 @@ Build the remaining non-UI services.
 **Future-provider gate**: before adding any non-Claude provider work beyond registry placeholders, validate that provider's session and permission-mode contracts from [plan/validation.md](plan/validation.md) so shared runtime/UI abstractions do not assume Claude semantics by accident.
 
 ### Phase 6: User interface
+- [ ] Not complete
+
 Build all views, wiring them to the services and view models from earlier phases. **Build in this order** — shared error/empty-state components land before views that render them, `ContentView` creates `SidebarViewModel` and `DiffViewerViewModel`, and `ConversationView` also depends on `DiffViewerViewModel`, so the diff-viewer types must exist before the chat views and app layout are wired.
 
 | Section | What to build |
@@ -160,6 +176,8 @@ Build all views, wiring them to the services and view models from earlier phases
 **Manual validation gate**: run the integrated diff-viewer watcher pass after the real UI exists — start/stop watching, debounce around atomic writes, selected-file invalidation, idle-poll fallback, and pane teardown after the early `.appWillTerminate` notification.
 
 ### Phase 7: App lifecycle and polish
+- [ ] Not complete
+
 | Section | What to build |
 |---|---|
 | App Lifecycle | Fill in `AppDelegate` startup/shutdown sequences, owned warmup/wake-refresh task cancellation, early `.appWillTerminate` notification emission for view-model teardown, the inline main-actor shutdown hop required by that notification path, sudden-termination disable/enable windows, best-effort crash/termination cleanup, and orphan-process cleanup using `SessionManager` as the source of truth. The minimal `AppDelegate` type already exists from Phase 1 so the app remains compilable throughout. |

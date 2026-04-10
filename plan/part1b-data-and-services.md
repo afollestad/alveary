@@ -2,6 +2,15 @@
 
 App database, state management, settings, concurrency, shell runner, and service layer table. Continues from Part 1a.
 
+## Implementation Status
+
+- [x] App database
+- [ ] State management
+- [ ] App settings
+- [ ] Concurrency model
+- [ ] Shell runner
+- [ ] Service layer follow-through for the remaining Phase 2 infrastructure
+
 ## App Database
 
 Use **SwiftData** for the app's own persistent models. It provides `@Model` macros, automatic migrations, SwiftUI integration via `@Query`, and iCloud sync potential.
