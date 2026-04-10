@@ -31,11 +31,16 @@ struct SkillsScreen: View {
                     introCard
                 }
 
-                if viewModel.installed.isEmpty && viewModel.catalog.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
+                let filteredInstalled = viewModel.filteredInstalled
+                let filteredRecommended = viewModel.filteredCatalog.filter { !$0.isInstalled }
+
+                if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
                     EmptyStateView(
                         icon: "puzzlepiece.extension",
-                        heading: "No skills available",
-                        subtext: "Install or create a skill once catalog data is available.",
+                        heading: viewModel.hasActiveSearch ? "No matching skills" : "No skills available",
+                        subtext: viewModel.hasActiveSearch
+                            ? "Try a different search or create a new skill."
+                            : "Install or create a skill once catalog data is available.",
                         actions: [
                             .init(title: "+ New Skill", style: .primary) {
                                 isCreateSheetPresented = true
@@ -43,13 +48,12 @@ struct SkillsScreen: View {
                         ]
                     )
                 } else {
-                    if !viewModel.installed.isEmpty {
-                        section(title: "Installed", skills: viewModel.installed)
+                    if !filteredInstalled.isEmpty {
+                        section(title: "Installed", skills: filteredInstalled)
                     }
 
-                    let recommended = viewModel.catalog.filter { !$0.isInstalled }
-                    if !recommended.isEmpty {
-                        section(title: "Recommended", skills: recommended)
+                    if !filteredRecommended.isEmpty {
+                        section(title: "Recommended", skills: filteredRecommended)
                     }
 
                     if !viewModel.searchResults.isEmpty {

@@ -17,6 +17,18 @@ final class SkillsViewModel {
         }
     }
 
+    var filteredInstalled: [Skill] {
+        filter(skills: installed)
+    }
+
+    var filteredCatalog: [Skill] {
+        filter(skills: catalog)
+    }
+
+    var hasActiveSearch: Bool {
+        !normalizedSearchQuery.isEmpty
+    }
+
     init(skillsService: any SkillsService) {
         self.skillsService = skillsService
     }
@@ -85,8 +97,25 @@ final class SkillsViewModel {
 }
 
 private extension SkillsViewModel {
+    var normalizedSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var visibleIDs: Set<String> {
         Set(installed.map(\.id)).union(catalog.map(\.id))
+    }
+
+    func filter(skills: [Skill]) -> [Skill] {
+        let query = normalizedSearchQuery
+        guard !query.isEmpty else {
+            return skills
+        }
+
+        return skills.filter { skill in
+            skill.name.localizedCaseInsensitiveContains(query)
+                || skill.id.localizedCaseInsensitiveContains(query)
+                || skill.description.localizedCaseInsensitiveContains(query)
+        }
     }
 
     func reloadAfterMutation(refreshCatalog: Bool) async {
