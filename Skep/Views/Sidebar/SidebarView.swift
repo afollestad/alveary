@@ -47,8 +47,12 @@ struct SidebarView: View {
                         SidebarProjectRow(
                             project: project,
                             isExpanded: expandedProjects.contains(project.path),
+                            isSelected: appState.selectedSidebarItem == .project(project),
                             onToggleExpanded: {
                                 toggleExpansion(for: project.path, in: &expandedProjects)
+                            },
+                            onActivate: {
+                                activateProject(project)
                             },
                             onCreateThread: {
                                 Task { await createThread(in: project) }
@@ -108,6 +112,7 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .onKeyPress(keys: [.leftArrow, .rightArrow], action: handleSidebarKeyPress)
         }
         .onAppear {
             syncExpansionWithSelection(appState.selectedSidebarItem)
@@ -163,6 +168,32 @@ private extension SidebarView {
             set.remove(path)
         } else {
             set.insert(path)
+        }
+    }
+
+    func activateProject(_ project: Project) {
+        let item = SidebarItem.project(project)
+        if appState.selectedSidebarItem == item {
+            toggleExpansion(for: project.path, in: &expandedProjects)
+        } else {
+            appState.selectedSidebarItem = item
+        }
+    }
+
+    func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        guard case .project(let project) = appState.selectedSidebarItem else {
+            return .ignored
+        }
+
+        switch keyPress.key {
+        case .leftArrow:
+            expandedProjects.remove(project.path)
+            return .handled
+        case .rightArrow:
+            expandedProjects.insert(project.path)
+            return .handled
+        default:
+            return .ignored
         }
     }
 
