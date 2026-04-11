@@ -45,13 +45,6 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
-        .background(
-            LinearGradient(
-                colors: [Color.accentColor.opacity(0.08), Color.clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
     }
 }
 
