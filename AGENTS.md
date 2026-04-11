@@ -34,9 +34,24 @@ The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app t
 - Build from the command line with `./scripts/build.sh`.
 - Run the full test suite with `./scripts/test.sh`.
 - Run focused tests with `./scripts/test.sh SkepTests/AppDelegateTests` or multiple identifiers as separate arguments.
-- Run the built app from the command line with `./scripts/run.sh`.
+- See the "Snapshot Testing" section below for snapshot verification.
+- Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Skep.app`.
 - For interactive development, you can also open `Skep.xcodeproj` in Xcode and run the `Skep` scheme directly.
+
+## Snapshot Testing
+
+- Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests.
+- Verify snapshot tests with `./scripts/snapshots.sh verify` and record them with `./scripts/snapshots.sh record`.
+- `./scripts/snapshots.sh` defaults to `SkepTests/SnapshotTests`, and also accepts focused identifiers like `SkepTests/SnapshotTests/testSidebarViewPopulated`.
+
+Examples:
+```sh
+./scripts/snapshots.sh verify SkepTests/SnapshotTests/testSidebarViewPopulated
+./scripts/snapshots.sh record SkepTests/SnapshotTests/testSidebarViewPopulated
+```
+
+Snapshots should be verified before committing, whenever UI is modified.
 
 ## Linting
 

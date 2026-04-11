@@ -51,6 +51,23 @@ Run a focused test class:
 ./scripts/test.sh SkepTests/AppDelegateTests
 ```
 
+## Snapshot Tests
+
+Verify the full snapshot suite:
+
+```sh
+./scripts/snapshots.sh verify
+```
+
+Verify or record a focused snapshot test:
+
+```sh
+./scripts/snapshots.sh verify SkepTests/SnapshotTests/testSidebarViewPopulated
+./scripts/snapshots.sh record SkepTests/SnapshotTests/testSidebarViewPopulated
+```
+
+`./scripts/snapshots.sh` defaults to `SkepTests/SnapshotTests` when no test identifier is provided.
+
 ## Knit
 
 Skep uses `knit-cli gen` from the app target's Xcode pre-build script. That means builds already have a build hook for Knit, but the hook is CLI-based rather than `KnitBuildPlugin`-based. `project.yml` is the source of truth for that workflow, and the generated file remains `Skep/DI/Generated/KnitExtensions.swift`.
