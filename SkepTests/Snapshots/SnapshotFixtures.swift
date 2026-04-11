@@ -361,7 +361,7 @@ actor SnapshotMockGitService: GitService {
 
     func unstage(paths: [String], in directory: String) async throws {}
 
-    func discard(paths: [String], in directory: String) async throws {}
+    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {}
 
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] {
         []

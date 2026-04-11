@@ -43,7 +43,13 @@ struct DiffViewerPane: View {
             )
         ) {
             Button("Discard", role: .destructive) {
-                Task { await discardPendingFiles() }
+                let files = pendingDiscardFiles
+                let directory = viewModel.activeDirectory
+                pendingDiscardFiles = []
+
+                Task {
+                    await discardPendingFiles(files: files, in: directory)
+                }
             }
 
             Button("Cancel", role: .cancel) {
@@ -236,15 +242,12 @@ private extension DiffViewerPane {
         }
     }
 
-    func discardPendingFiles() async {
-        guard let directory = viewModel.activeDirectory,
-              !pendingDiscardFiles.isEmpty else {
-            pendingDiscardFiles = []
+    func discardPendingFiles(files: [FileStatus], in directory: String?) async {
+        guard let directory,
+              !files.isEmpty else {
             return
         }
 
-        let files = pendingDiscardFiles
-        pendingDiscardFiles = []
         try? await viewModel.discard(files: files, in: directory)
     }
 

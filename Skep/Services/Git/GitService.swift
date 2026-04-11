@@ -33,6 +33,11 @@ enum DiffScope: Sendable, Equatable {
     case unstaged
 }
 
+enum DiscardScope: Sendable, Equatable {
+    case all
+    case worktreeOnly
+}
+
 enum GitError: Error, Sendable, Equatable {
     case commandFailed(String)
     case notARepository
@@ -58,9 +63,15 @@ protocol GitService: Sendable {
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String
     func stage(paths: [String], in directory: String) async throws
     func unstage(paths: [String], in directory: String) async throws
-    func discard(paths: [String], in directory: String) async throws
+    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws
     func log(in directory: String, limit: Int) async throws -> [CommitInfo]
     func currentBranch(in directory: String) async throws -> String
     func listFiles(in directory: String) async throws -> [String]
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int
+}
+
+extension GitService {
+    func discard(paths: [String], in directory: String) async throws {
+        try await discard(paths: paths, scope: .all, in: directory)
+    }
 }

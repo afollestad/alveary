@@ -4,6 +4,32 @@ import XCTest
 @testable import Skep
 
 final class GitServiceTests: XCTestCase {
+    func testStatusRequestsExpandedUntrackedFilePaths() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        _ = try await service.status(in: "/tmp/project")
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.count, 1)
+        XCTAssertEqual(
+            invocations[0].args,
+            ["--no-optional-locks", "status", "--porcelain=v2", "-z", "--no-ahead-behind", "--untracked-files=all"]
+        )
+    }
+
     func testStatusParsesOrdinaryRenameUnmergedAndUntrackedEntries() async throws {
         let shell = MockShellRunner()
         let statusOutput = [
@@ -86,6 +112,41 @@ final class GitServiceTests: XCTestCase {
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 2)
         XCTAssertEqual(invocations[1].args, ["restore", "--source=HEAD", "--staged", "--worktree", "--", "tracked.swift"])
+    }
+
+    func testDiscardWorktreeOnlyRestoresTrackedFilesWithoutResettingIndex() async throws {
+        let shell = MockShellRunner()
+        let statusOutput = "1 .M N... 100644 100644 100644 abc abc tracked.swift\0"
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: statusOutput,
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        try await service.discard(paths: ["tracked.swift"], scope: .worktreeOnly, in: "/tmp/project")
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.count, 2)
+        XCTAssertEqual(invocations[1].args, ["restore", "--worktree", "--", "tracked.swift"])
     }
 
     func testCommitsAheadOfBasePrefersRemoteTrackedRefWhenItExists() async throws {
