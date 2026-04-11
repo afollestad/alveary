@@ -1,0 +1,47 @@
+import SwiftUI
+
+struct SidebarThreadRow: View {
+    let thread: AgentThread
+    let status: ThreadStatus
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+                .offset(x: -3)
+                .opacity(status == .stopped ? 0 : 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(thread.name)
+                    .foregroundStyle(thread.name == "New thread" ? .secondary : .primary)
+                    .lineLimit(1)
+
+                if let branch = thread.branch {
+                    Text(branch)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .busy:
+            return .green
+        case .idle:
+            return .blue
+        case .error:
+            return .red
+        case .archived:
+            return .secondary
+        case .stopped:
+            return .clear
+        }
+    }
+}
