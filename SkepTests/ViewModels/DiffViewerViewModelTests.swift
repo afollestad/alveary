@@ -5,6 +5,41 @@ import XCTest
 
 @MainActor
 final class DiffViewerViewModelTests: XCTestCase {
+    func testBackgroundWatchCallbackDispatchesRefreshToMainActor() async {
+        let fixture = TestFixture(
+            gitService: MockGitService(
+                statusResults: Array(repeating: .success([]), count: 6)
+            ),
+            fsEventDebounceDuration: .milliseconds(20),
+            idlePollInterval: .seconds(10)
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+
+        let initialStatusCalls = await fixture.gitService.statusCallCount()
+        let ownerAddress = Int(bitPattern: Unmanaged.passUnretained(fixture.viewModel).toOpaque())
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                let ownerPointer = UnsafeMutableRawPointer(bitPattern: ownerAddress)!
+                let owner = Unmanaged<DiffViewerViewModel>.fromOpaque(ownerPointer).takeUnretainedValue()
+                DiffViewerViewModel.dispatchWatchEvent(changedPaths: ["Sources/Foo.swift"], owner: owner)
+                continuation.resume()
+            }
+        }
+
+        try? await Task.sleep(for: .milliseconds(60))
+        let finalStatusCalls = await fixture.gitService.statusCallCount()
+
+        XCTAssertEqual(finalStatusCalls, initialStatusCalls + 1)
+    }
+
     func testWatchingLifecycleStartsIdlePollingAndStopsWhenDisabled() async throws {
         let fixture = TestFixture(
             gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 8)),
