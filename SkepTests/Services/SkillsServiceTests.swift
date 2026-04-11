@@ -163,6 +163,31 @@ final class SkillsServiceTests: XCTestCase {
         XCTAssertEqual(result.version, "1.0.0")
     }
 
+    func testParseFrontmatterReadsLiteralBlockDescriptions() {
+        let markdown = """
+        ---
+        name: cash
+        description: |
+          Use the Cash CLI for common Cash App iOS & Android developer tasks. Use when building,
+          testing, linting, running, or managing modules in cash-ios or cash-android repositories.
+          Auto-detects platform and shows relevant commands.
+        version: 0.4.0
+        ---
+        # Cash CLI
+        """
+
+        let result = DefaultSkillsService.parseFrontmatter(markdown)
+
+        XCTAssertEqual(result.name, "cash")
+        XCTAssertEqual(
+            result.description,
+            "Use the Cash CLI for common Cash App iOS & Android developer tasks. Use when building,\n" +
+                "testing, linting, running, or managing modules in cash-ios or cash-android repositories.\n" +
+                "Auto-detects platform and shows relevant commands."
+        )
+        XCTAssertEqual(result.version, "0.4.0")
+    }
+
     func testMarkdownBodyStripsFrontmatterAndLeadingBlankLines() {
         let markdown = """
         ---
