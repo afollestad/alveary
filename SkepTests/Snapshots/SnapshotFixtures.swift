@@ -234,8 +234,11 @@ actor SnapshotSkillsService: SkillsService {
         ]
     }
 
-    func fetchSkillMd(skill: Skill) async throws -> String {
-        "# \(skill.name)\n\n\(skill.description)"
+    func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument {
+        SkillMarkdownDocument(
+            markdown: "# \(skill.name)\n\n\(skill.description)",
+            baseURL: skill.sourceUrl.flatMap(URL.init(string:))
+        )
     }
 
     func install(_ skill: Skill) async throws {}

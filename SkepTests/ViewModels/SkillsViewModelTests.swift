@@ -101,6 +101,24 @@ final class SkillsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.installed.map(\.id), ["playwright"])
         XCTAssertTrue(viewModel.catalog.first?.isInstalled == true)
     }
+
+    func testFetchSkillMarkdownStripsFrontmatterAndPreservesBaseURL() async throws {
+        let baseURL = URL(fileURLWithPath: "/tmp/skills/example", isDirectory: true)
+        let service = SkillsMockService(
+            installed: [],
+            catalog: [],
+            fetchedMarkdownDocument: SkillMarkdownDocument(
+                markdown: "---\nname: \"example\"\ndescription: \"desc\"\n---\n\nSee [notes](references/file.md).",
+                baseURL: baseURL
+            )
+        )
+        let viewModel = SkillsViewModel(skillsService: service)
+
+        let document = try await viewModel.fetchSkillMarkdown(for: makeSkill(id: "example"))
+
+        XCTAssertEqual(document.markdown, "See [notes](references/file.md).")
+        XCTAssertEqual(document.baseURL, baseURL)
+    }
 }
 
 private actor SkillsMockService: SkillsService {
@@ -108,6 +126,7 @@ private actor SkillsMockService: SkillsService {
     private let catalog: [Skill]
     private let searchResultsByQuery: [String: [Skill]]
     private let searchDelaysByQuery: [String: Duration]
+    private let fetchedMarkdownDocument: SkillMarkdownDocument
 
     private var installedAfterMutation: [Skill]?
     private var catalogAfterMutation: [Skill]?
@@ -119,12 +138,14 @@ private actor SkillsMockService: SkillsService {
         installed: [Skill],
         catalog: [Skill],
         searchResultsByQuery: [String: [Skill]] = [:],
-        searchDelaysByQuery: [String: Duration] = [:]
+        searchDelaysByQuery: [String: Duration] = [:],
+        fetchedMarkdownDocument: SkillMarkdownDocument = SkillMarkdownDocument(markdown: "", baseURL: nil)
     ) {
         self.installed = installed
         self.catalog = catalog
         self.searchResultsByQuery = searchResultsByQuery
         self.searchDelaysByQuery = searchDelaysByQuery
+        self.fetchedMarkdownDocument = fetchedMarkdownDocument
     }
 
     func loadInstalled() async throws -> [Skill] {
@@ -148,8 +169,8 @@ private actor SkillsMockService: SkillsService {
         return searchResultsByQuery[query] ?? []
     }
 
-    func fetchSkillMd(skill: Skill) async throws -> String {
-        ""
+    func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument {
+        fetchedMarkdownDocument
     }
 
     func install(_ skill: Skill) async throws {}

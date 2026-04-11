@@ -292,6 +292,7 @@ private struct SkillDetailSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var markdown = ""
+    @State private var markdownBaseURL: URL?
     @State private var isLoading = true
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
 
@@ -317,7 +318,7 @@ private struct SkillDetailSheet: View {
                 .buttonStyle(.plain)
             }
 
-            SkillMarkdownContent(markdown: markdown, isLoading: isLoading)
+            SkillMarkdownContent(markdown: markdown, baseURL: markdownBaseURL, isLoading: isLoading)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack {
@@ -358,10 +359,13 @@ private struct SkillDetailSheet: View {
         .destructiveConfirmation($uninstallConfirmation)
         .task {
             do {
-                markdown = try await viewModel.fetchSkillMarkdown(for: skill)
+                let document = try await viewModel.fetchSkillMarkdown(for: skill)
+                markdown = document.markdown
+                markdownBaseURL = document.baseURL
             } catch {
                 onError(error)
                 markdown = skill.description
+                markdownBaseURL = nil
             }
             isLoading = false
         }
@@ -370,6 +374,7 @@ private struct SkillDetailSheet: View {
 
 private struct SkillMarkdownContent: View {
     let markdown: String
+    let baseURL: URL?
     let isLoading: Bool
 
     var body: some View {
@@ -382,9 +387,13 @@ private struct SkillMarkdownContent: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        StructuredText(markdown: markdown)
+                        StructuredText(markdown: markdown, baseURL: baseURL)
                             .textual.structuredTextStyle(.default)
                             .textual.textSelection(.enabled)
+                            .environment(\.openURL, OpenURLAction { url in
+                                UIApplicationShim.open(url: resolvedURL(for: url))
+                                return .handled
+                            })
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 18)
                     }
@@ -394,6 +403,13 @@ private struct SkillMarkdownContent: View {
 
             Divider()
         }
+    }
+
+    private func resolvedURL(for url: URL) -> URL {
+        guard url.scheme == nil, let baseURL else {
+            return url
+        }
+        return URL(string: url.relativeString, relativeTo: baseURL)?.absoluteURL ?? url
     }
 }
 
