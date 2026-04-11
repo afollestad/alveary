@@ -177,6 +177,7 @@ extension SnapshotTests {
             submittedSummary: "Which framework should we use for the new snapshots?: SnapshotTesting"
         )
     }
+
 }
 
 actor SnapshotSkillsService: SkillsService {
