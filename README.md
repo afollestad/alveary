@@ -28,25 +28,27 @@ xcodegen generate
 Build the app:
 
 ```sh
-xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build
+./scripts/build.sh
 ```
 
 Run the app:
 
 ```sh
-open .build/xcode/Build/Products/Debug/Skep.app
+./scripts/run.sh
 ```
+
+The wrapper scripts use the same underlying build output path as the longer commands below.
 
 Run the full test suite:
 
 ```sh
-xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test
+./scripts/test.sh
 ```
 
 Run a focused test class:
 
 ```sh
-xcodebuild -project Skep.xcodeproj -scheme Skep -destination 'platform=macOS' -derivedDataPath .build/xcode test -only-testing:SkepTests/AppDelegateTests
+./scripts/test.sh SkepTests/AppDelegateTests
 ```
 
 ## Knit
