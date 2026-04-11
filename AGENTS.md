@@ -44,6 +44,7 @@ The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app t
 - Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests.
 - Verify snapshot tests with `./scripts/snapshots.sh verify` and record them with `./scripts/snapshots.sh record`.
 - `./scripts/snapshots.sh` defaults to `SkepTests/SnapshotTests`, and also accepts focused identifiers like `SkepTests/SnapshotTests/testSidebarViewPopulated`.
+- Keep `assertMacSnapshot()` window-backed. macOS SwiftUI snapshots that render sidebar `List` content with custom section headers can capture as a blank background if they are hosted in a bare `NSHostingController` without an `NSWindow` display pass.
 
 Examples:
 ```sh
@@ -68,6 +69,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 ## General Code Style Guidelines
 
 - Private types should always go *below* public types.
+- In SwiftUI, prefer extracting visually distinct or state-wiring subviews into separate private `View` types in the same file instead of `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition.
 - Add concise code comments where needed for human readers.
 
 ## Repository Invariants

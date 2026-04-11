@@ -19,23 +19,6 @@ struct SidebarView: View {
         let statusVersion = viewModel.statusVersion
 
         return VStack(spacing: 0) {
-            HStack {
-                Text("Workspace")
-                    .font(.headline)
-
-                Spacer()
-
-                Button {
-                    appState.openNewProjectFlow()
-                } label: {
-                    Label("Add Project", systemImage: "plus")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-
             if let sidebarError = viewModel.sidebarError {
                 InlineBanner(message: sidebarError, severity: .error, autoDismissAfter: nil) {
                     viewModel.dismissSidebarError()
@@ -53,10 +36,11 @@ struct SidebarView: View {
                         .tag(SidebarItem.mcp)
                 }
 
-                Section("Projects") {
+                Section {
                     if projects.isEmpty {
                         Text("No projects yet")
                             .foregroundStyle(.secondary)
+                            .padding(.leading, 8)
                     }
 
                     ForEach(projects) { project in
@@ -117,6 +101,10 @@ struct SidebarView: View {
                             }
                         }
                     }
+                } header: {
+                    ProjectsHeaderRow {
+                        appState.openNewProjectFlow()
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -150,6 +138,31 @@ struct SidebarView: View {
         } message: { thread in
             Text("This permanently deletes \(thread.name) and removes its worktree and branch if present.")
         }
+    }
+}
+
+private struct ProjectsHeaderRow: View {
+    let onAddProject: () -> Void
+
+    var body: some View {
+        HStack {
+            Text("Projects")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer()
+
+            Button(action: onAddProject) {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add Project")
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 }
 
