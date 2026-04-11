@@ -254,8 +254,8 @@ private struct SkillCard: View {
                 Button("Details", action: onOpen)
                 Spacer()
                 if skill.isInstalled {
-                    Button("Uninstall", action: onPrimaryAction)
-                        .buttonStyle(.bordered)
+                    Button("Uninstall", role: .destructive, action: onPrimaryAction)
+                        .destructiveActionButtonStyle()
                 } else {
                     Button("Install", action: onPrimaryAction)
                         .buttonStyle(.borderedProminent)
@@ -320,7 +320,7 @@ private struct SkillDetailSheet: View {
                 Spacer()
 
                 if skill.isInstalled {
-                    Button("Uninstall") {
+                    Button("Uninstall", role: .destructive) {
                         uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
                             Task {
                                 await onUninstall(skill)
@@ -328,7 +328,7 @@ private struct SkillDetailSheet: View {
                             }
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .destructiveActionButtonStyle()
                 } else {
                     Button("Install") {
                         Task {

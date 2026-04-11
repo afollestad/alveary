@@ -223,6 +223,7 @@ private struct MCPServerRow: View {
 
             Button("Edit", action: onEdit)
             Button("Remove", role: .destructive, action: onRemove)
+                .destructiveActionButtonStyle()
         }
         .padding(18)
         .background(
