@@ -1,10 +1,15 @@
 import Foundation
 
+struct SkillMarkdownDocument: Sendable, Equatable {
+    let markdown: String
+    let baseURL: URL?
+}
+
 protocol SkillsService: Actor {
     func loadInstalled() async throws -> [Skill]
     func loadCatalog() async throws -> [Skill]
     func searchSkillsSh(query: String) async throws -> [Skill]
-    func fetchSkillMd(skill: Skill) async throws -> String
+    func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument
     func install(_ skill: Skill) async throws
     func uninstall(_ skill: Skill) async throws
     func create(name: String, description: String, instructions: String) async throws

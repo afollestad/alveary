@@ -90,7 +90,8 @@ final class SkillsServiceTests: XCTestCase {
         let second = try await fixture.service.fetchSkillMd(skill: skill)
         let requests = ServiceURLProtocolStub.recordedRequests()
 
-        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.markdown, second.markdown)
+        XCTAssertEqual(first.baseURL, second.baseURL)
         XCTAssertEqual(requests.filter { $0 == repoURL }.count, 1)
         XCTAssertEqual(requests.filter { $0 == treeURL }.count, 1)
         XCTAssertEqual(requests.filter { $0 == treeRawURL }.count, 2)
@@ -115,9 +116,10 @@ final class SkillsServiceTests: XCTestCase {
             installs: nil
         )
 
-        let markdown = try await fixture.service.fetchSkillMd(skill: skill)
+        let document = try await fixture.service.fetchSkillMd(skill: skill)
 
-        XCTAssertEqual(markdown, skillMarkdown(id: "android-emulator", description: "Manage Android emulators"))
+        XCTAssertEqual(document.markdown, skillMarkdown(id: "android-emulator", description: "Manage Android emulators"))
+        XCTAssertEqual(document.baseURL, fixture.baseDir.appendingPathComponent("android-emulator", isDirectory: true))
         XCTAssertTrue(ServiceURLProtocolStub.recordedRequests().isEmpty)
     }
 

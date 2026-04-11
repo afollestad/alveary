@@ -140,8 +140,8 @@ actor DefaultSkillsService: SkillsService {
         return sortSkills(skills)
     }
 
-    func fetchSkillMd(skill: Skill) async throws -> String {
-        if let localMarkdown = loadLocalSkillMarkdown(skillID: skill.id) {
+    func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument {
+        if let localMarkdown = loadLocalSkillMarkdownDocument(skillID: skill.id) {
             return localMarkdown
         }
 
@@ -167,7 +167,10 @@ actor DefaultSkillsService: SkillsService {
                httpResponse.statusCode == 200,
                let content = String(data: data, encoding: .utf8),
                !content.isEmpty {
-                return content
+                return SkillMarkdownDocument(
+                    markdown: content,
+                    baseURL: url.deletingLastPathComponent()
+                )
             }
         }
 
@@ -191,7 +194,7 @@ actor DefaultSkillsService: SkillsService {
                     continue
                 }
 
-                let frontmatter = Self.parseFrontmatter(content)
+                let frontmatter = Self.parseFrontmatter(content.markdown)
                 if frontmatter.name == skill.id || frontmatter.name == skill.name {
                     return content
                 }
@@ -203,23 +206,26 @@ actor DefaultSkillsService: SkillsService {
             }
         }
 
-        return [
-            "---",
-            "name: \(skill.id)",
-            "description: \(skill.description)",
-            "---",
-            "",
-            "# \(skill.name)",
-            "",
-            skill.description
-        ].joined(separator: "\n")
+        return SkillMarkdownDocument(
+            markdown: [
+                "---",
+                "name: \(skill.id)",
+                "description: \(skill.description)",
+                "---",
+                "",
+                "# \(skill.name)",
+                "",
+                skill.description
+            ].joined(separator: "\n"),
+            baseURL: skill.sourceUrl.flatMap(URL.init(string:))
+        )
     }
 
     func install(_ skill: Skill) async throws {
         let content = try await fetchSkillMd(skill: skill)
         let skillDirectory = baseDir.appendingPathComponent(skill.id, isDirectory: true)
         try FileManager.default.createDirectory(at: skillDirectory, withIntermediateDirectories: true, attributes: nil)
-        try content.write(to: skillDirectory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+        try content.markdown.write(to: skillDirectory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
         sync(skillID: skill.id, to: detectedAgents())
         catalogCache = nil
     }
@@ -345,7 +351,7 @@ extension DefaultSkillsService {
         }
     }
 
-    func loadLocalSkillMarkdown(skillID: String) -> String? {
+    func loadLocalSkillMarkdownDocument(skillID: String) -> SkillMarkdownDocument? {
         let candidateDirectories = [baseDir] + discoveryTargets.map {
             URL(fileURLWithPath: ($0.skillsDirectory as NSString).expandingTildeInPath)
         }
@@ -359,7 +365,10 @@ extension DefaultSkillsService {
                   !content.isEmpty else {
                 continue
             }
-            return content
+            return SkillMarkdownDocument(
+                markdown: content,
+                baseURL: skillFile.deletingLastPathComponent()
+            )
         }
 
         return nil
@@ -484,7 +493,7 @@ extension DefaultSkillsService {
         return entries
     }
 
-    func downloadRawSkillMd(owner: String, repo: String, branch: String, path: String) async throws -> String {
+    func downloadRawSkillMd(owner: String, repo: String, branch: String, path: String) async throws -> SkillMarkdownDocument {
         guard let url = Self.makeGitHubRawURL(owner: owner, repo: repo, branch: branch, path: path) else {
             throw SkillsError.noSource(path)
         }
@@ -497,7 +506,10 @@ extension DefaultSkillsService {
             throw SkillsError.noSource(path)
         }
 
-        return content
+        return SkillMarkdownDocument(
+            markdown: content,
+            baseURL: url.deletingLastPathComponent()
+        )
     }
 
     func fetchCatalogRepo(owner: String, repo: String) async throws -> [CatalogSkillEntry] {

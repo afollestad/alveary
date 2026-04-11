@@ -84,9 +84,12 @@ final class SkillsViewModel {
         await reloadAfterMutation(refreshCatalog: false)
     }
 
-    func fetchSkillMarkdown(for skill: Skill) async throws -> String {
-        let markdown = try await skillsService.fetchSkillMd(skill: skill)
-        return DefaultSkillsService.markdownBody(from: markdown)
+    func fetchSkillMarkdown(for skill: Skill) async throws -> SkillMarkdownDocument {
+        let document = try await skillsService.fetchSkillMd(skill: skill)
+        return SkillMarkdownDocument(
+            markdown: DefaultSkillsService.markdownBody(from: document.markdown),
+            baseURL: document.baseURL
+        )
     }
 
     func refreshCatalog() async {
