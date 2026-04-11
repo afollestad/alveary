@@ -20,57 +20,31 @@ final class AgentAssembly: AutoInitModuleAssembly {
         .inObjectScope(.container)
 
         container.register(ProviderSetupService.self) { resolver in
-            let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
-
             return DefaultProviderSetupService(
-                claudeConfigStore: unsafeResolver.resolve(ClaudeConfigStore.self) ?? {
-                    fatalError("ClaudeConfigStore was not registered before ProviderSetupService")
-                }()
+                claudeConfigStore: resolver.claudeConfigStore()
             )
         }
         .inObjectScope(.container)
 
         container.register(DefaultAgentsManager.self) { resolver in
-            let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
-
             return DefaultAgentsManager(
-                sessionManager: unsafeResolver.resolve(SessionManager.self) ?? {
-                    fatalError("SessionManager was not registered before DefaultAgentsManager")
-                }(),
-                providerDetection: unsafeResolver.resolve(ProviderDetectionService.self) ?? {
-                    fatalError("ProviderDetectionService was not registered before DefaultAgentsManager")
-                }(),
-                environmentBuilder: unsafeResolver.resolve(AgentEnvironmentBuilder.self) ?? {
-                    fatalError("AgentEnvironmentBuilder was not registered before DefaultAgentsManager")
-                }(),
-                providerRegistry: unsafeResolver.resolve(ProviderRegistry.self) ?? {
-                    fatalError("ProviderRegistry was not registered before DefaultAgentsManager")
-                }(),
-                settingsService: unsafeResolver.resolve(SettingsService.self) ?? {
-                    fatalError("SettingsService was not registered before DefaultAgentsManager")
-                }(),
-                notificationManager: unsafeResolver.resolve(NotificationManager.self) ?? {
-                    fatalError("NotificationManager was not registered before DefaultAgentsManager")
-                }()
+                sessionManager: resolver.sessionManager(),
+                providerDetection: resolver.providerDetectionService(),
+                environmentBuilder: resolver.agentEnvironmentBuilder(),
+                providerRegistry: resolver.providerRegistry(),
+                settingsService: resolver.settingsService(),
+                notificationManager: resolver.notificationManager()
             )
         }
         .inObjectScope(.container)
 
         container.register(AgentsManager.self) { resolver in
-            let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
-            guard let manager = unsafeResolver.resolve(DefaultAgentsManager.self) else {
-                fatalError("DefaultAgentsManager was not registered before AgentsManager")
-            }
-            return manager
+            resolver.defaultAgentsManager()
         }
         .inObjectScope(.container)
 
         container.register(ConversationRuntimeStore.self) { resolver in
-            let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
-            guard let manager = unsafeResolver.resolve(DefaultAgentsManager.self) else {
-                fatalError("DefaultAgentsManager was not registered before ConversationRuntimeStore")
-            }
-            return manager
+            resolver.defaultAgentsManager()
         }
         .inObjectScope(.container)
     }

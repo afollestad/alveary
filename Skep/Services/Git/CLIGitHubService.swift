@@ -70,31 +70,12 @@ private extension CLIGitHubService {
         var hasPending = false
 
         for check in checks {
-            if check.typeName == "StatusContext" {
-                switch check.state?.uppercased() {
-                case "FAILURE", "ERROR":
-                    return .fail
-                case "EXPECTED", "PENDING":
-                    hasPending = true
-                default:
-                    break
-                }
-                continue
-            }
-
-            switch check.conclusion?.uppercased() {
-            case "FAILURE", "ERROR":
+            switch check.aggregateCIStatus() {
+            case .fail:
                 return .fail
-            case nil, "":
+            case .pending:
                 hasPending = true
-            default:
-                break
-            }
-
-            switch check.status?.uppercased() {
-            case "QUEUED", "IN_PROGRESS", "PENDING":
-                hasPending = true
-            default:
+            case .pass, .none:
                 break
             }
         }
@@ -127,5 +108,40 @@ private struct CheckRollupPayload: Decodable {
         case conclusion
         case status
         case state
+    }
+}
+
+private extension CheckRollupPayload {
+    func aggregateCIStatus() -> CIStatus {
+        if typeName == "StatusContext" {
+            return statusContextCIStatus()
+        }
+
+        switch conclusion?.uppercased() {
+        case "FAILURE", "ERROR":
+            return .fail
+        case nil, "":
+            return .pending
+        default:
+            break
+        }
+
+        switch status?.uppercased() {
+        case "QUEUED", "IN_PROGRESS", "PENDING":
+            return .pending
+        default:
+            return .pass
+        }
+    }
+
+    private func statusContextCIStatus() -> CIStatus {
+        switch state?.uppercased() {
+        case "FAILURE", "ERROR":
+            return .fail
+        case "EXPECTED", "PENDING":
+            return .pending
+        default:
+            return .pass
+        }
     }
 }
