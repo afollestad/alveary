@@ -3,6 +3,24 @@ import CoreServices
 import Foundation
 import Observation
 
+private let diffViewerFSEventCallback: FSEventStreamCallback = { _, info, numEvents, eventPaths, _, _ in
+    DiffViewerViewModel.handleWatchEventCallback(
+        info: info,
+        count: numEvents,
+        eventPaths: eventPaths
+    )
+}
+
+private final class DiffViewerWatchContext {
+    weak var owner: DiffViewerViewModel?
+    let rootDirectory: String
+
+    init(owner: DiffViewerViewModel, rootDirectory: String) {
+        self.owner = owner
+        self.rootDirectory = rootDirectory
+    }
+}
+
 @MainActor
 @Observable
 final class DiffViewerViewModel {
@@ -23,16 +41,6 @@ final class DiffViewerViewModel {
                 invalidateFileListCache: invalidateFileListCache || newer.invalidateFileListCache,
                 invalidatePRCache: invalidatePRCache || newer.invalidatePRCache
             )
-        }
-    }
-
-    private final class WatchContext {
-        weak var owner: DiffViewerViewModel?
-        let rootDirectory: String
-
-        init(owner: DiffViewerViewModel, rootDirectory: String) {
-            self.owner = owner
-            self.rootDirectory = rootDirectory
         }
     }
 
@@ -62,7 +70,7 @@ final class DiffViewerViewModel {
     private var fileSelectionGeneration: UInt64 = 0
     private var fsEventStream: FSEventStreamRef?
     private var fsEventQueue: DispatchQueue?
-    private var watchContextRetain: Unmanaged<WatchContext>?
+    private var watchContextRetain: Unmanaged<DiffViewerWatchContext>?
     private var debounceTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
     private var watchingEnabled = false
@@ -611,32 +619,13 @@ private extension DiffViewerViewModel {
 
         let paths = [directory] as CFArray
         var context = FSEventStreamContext()
-        let retainedContext = Unmanaged.passRetained(WatchContext(owner: self, rootDirectory: directory))
+        let retainedContext = Unmanaged.passRetained(DiffViewerWatchContext(owner: self, rootDirectory: directory))
         watchContextRetain = retainedContext
         context.info = retainedContext.toOpaque()
 
         let stream = FSEventStreamCreate(
             nil,
-            { _, info, numEvents, eventPaths, _, _ in
-                guard let info else {
-                    return
-                }
-
-                let watchContext = Unmanaged<WatchContext>.fromOpaque(info).takeUnretainedValue()
-                let changedPaths = DiffViewerViewModel.extractChangedPaths(
-                    eventPaths: eventPaths,
-                    count: numEvents,
-                    rootDirectory: watchContext.rootDirectory
-                )
-
-                guard let owner = watchContext.owner else {
-                    return
-                }
-
-                Task { @MainActor [weak owner] in
-                    owner?.fsEventsDidFire(changedPaths: changedPaths)
-                }
-            },
+            diffViewerFSEventCallback,
             &context,
             paths,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
@@ -725,6 +714,37 @@ private extension DiffViewerViewModel {
             }
             return String(absolutePath.dropFirst(rootPrefix.count))
         })
+    }
+
+    nonisolated static func handleWatchEventCallback(
+        info: UnsafeMutableRawPointer?,
+        count: Int,
+        eventPaths: UnsafeMutableRawPointer?
+    ) {
+        guard let info else {
+            return
+        }
+
+        let watchContext = Unmanaged<DiffViewerWatchContext>.fromOpaque(info).takeUnretainedValue()
+        let changedPaths = extractChangedPaths(
+            eventPaths: eventPaths,
+            count: count,
+            rootDirectory: watchContext.rootDirectory
+        )
+
+        dispatchWatchEvent(changedPaths: changedPaths, owner: watchContext.owner)
+    }
+
+    nonisolated internal static func dispatchWatchEvent(changedPaths: Set<String>, owner: DiffViewerViewModel?) {
+        guard let owner else {
+            return
+        }
+
+        // FSEvents invokes its callback on a dedicated dispatch queue, so the hop back to the
+        // main actor must happen from a nonisolated boundary instead of an @MainActor closure.
+        Task { @MainActor [weak owner] in
+            owner?.fsEventsDidFire(changedPaths: changedPaths)
+        }
     }
 }
 
