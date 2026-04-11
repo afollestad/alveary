@@ -34,32 +34,24 @@ extension DefaultAgentsManager {
     }
 
     private func finishUnpublishedSpawnCancellation(
-        process: Process,
-        stdin: Pipe,
-        stdout: Pipe,
-        stderr: Pipe,
+        launched: LaunchedProcess,
         graceSeconds: TimeInterval = 5
     ) async {
-        process.terminate()
+        launched.process.terminate()
 
         let deadline = Date().addingTimeInterval(graceSeconds)
-        while process.isRunning, Date() < deadline {
+        while launched.process.isRunning, Date() < deadline {
             try? await Task.sleep(for: .milliseconds(50))
         }
 
-        if process.isRunning {
-            Darwin.kill(process.processIdentifier, SIGKILL)
-            while process.isRunning {
+        if launched.process.isRunning {
+            Darwin.kill(launched.process.processIdentifier, SIGKILL)
+            while launched.process.isRunning {
                 try? await Task.sleep(for: .milliseconds(20))
             }
         }
 
-        stdin.fileHandleForWriting.closeFile()
-        stdin.fileHandleForReading.closeFile()
-        stdout.fileHandleForWriting.closeFile()
-        stdout.fileHandleForReading.closeFile()
-        stderr.fileHandleForWriting.closeFile()
-        stderr.fileHandleForReading.closeFile()
+        launched.closeAllHandles()
     }
 
     func spawnImpl(
@@ -212,24 +204,18 @@ extension DefaultAgentsManager {
         let stdin = Pipe()
         let stdout = Pipe()
         let stderr = Pipe()
+        let launched = LaunchedProcess(process: process, stdin: stdin, stdout: stdout, stderr: stderr)
         process.standardInput = stdin
         process.standardOutput = stdout
         process.standardError = stderr
 
         do {
             try process.run()
-            stdin.fileHandleForReading.closeFile()
-            stdout.fileHandleForWriting.closeFile()
-            stderr.fileHandleForWriting.closeFile()
-            return LaunchedProcess(process: process, stdin: stdin, stdout: stdout, stderr: stderr)
+            launched.closeParentLaunchHandles()
+            return launched
         } catch {
             let spawnFailure = error.localizedDescription
-            stdin.fileHandleForWriting.closeFile()
-            stdin.fileHandleForReading.closeFile()
-            stdout.fileHandleForWriting.closeFile()
-            stdout.fileHandleForReading.closeFile()
-            stderr.fileHandleForWriting.closeFile()
-            stderr.fileHandleForReading.closeFile()
+            launched.closeAllHandles()
 
             var sessionCleanupFailure: String?
             if !prepared.isResuming {
@@ -253,20 +239,14 @@ extension DefaultAgentsManager {
     private func ensureUnpublishedLaunchStillAllowed(id: String, launched: LaunchedProcess) async throws {
         if pendingKillIds.contains(id) || closingConversationIds.contains(id) {
             await finishUnpublishedSpawnCancellation(
-                process: launched.process,
-                stdin: launched.stdin,
-                stdout: launched.stdout,
-                stderr: launched.stderr
+                launched: launched
             )
             throw AgentError.spawnFailed("Conversation was closed during spawn")
         }
 
         if shutdownRequested.withLock({ $0 }) {
             await finishUnpublishedSpawnCancellation(
-                process: launched.process,
-                stdin: launched.stdin,
-                stdout: launched.stdout,
-                stderr: launched.stderr,
+                launched: launched,
                 graceSeconds: 1.0
             )
             throw AgentError.spawnFailed("App is shutting down")
@@ -327,10 +307,8 @@ extension DefaultAgentsManager {
             id: id,
             providerId: config.providerId,
             generation: generation,
-            buffer: buffer,
             adapter: prepared.adapter,
-            stdout: launched.stdout.fileHandleForReading,
-            stderr: launched.stderr.fileHandleForReading
+            launched: launched
         )
         return PublishedRuntime(pid: pid, generation: generation)
     }
@@ -353,18 +331,20 @@ extension DefaultAgentsManager {
         id: String,
         providerId: String,
         generation: UUID,
-        buffer: EventBuffer,
         adapter: AgentAdapter,
-        stdout: FileHandle,
-        stderr: FileHandle
+        launched: LaunchedProcess
     ) {
         let manager = self
         streamTasks[id] = Task { [manager] in
-            let stream = manager.readAgentOutput(stdout: stdout, stderr: stderr, adapter: adapter)
+            let stream = manager.readAgentOutput(
+                stdout: launched.stdoutReader,
+                stderr: launched.stderrReader,
+                adapter: adapter
+            )
             for await event in stream {
                 await manager.handleStreamEvent(event, conversationId: id, generation: generation, providerId: providerId)
             }
-            await manager.finishStreamBufferIfCurrent(conversationId: id, generation: generation, buffer: buffer)
+            await manager.finishStreamBufferIfCurrent(conversationId: id, generation: generation)
         }
     }
 
@@ -453,83 +433,10 @@ extension DefaultAgentsManager {
         await notificationManager.handleEvent(event, providerName: providerName, threadName: nil)
     }
 
-    private func finishStreamBufferIfCurrent(conversationId: String, generation: UUID, buffer: EventBuffer) {
-        guard eventBuffers[conversationId]?.generation == generation else {
+    private func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {
+        guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
             return
         }
-        buffer.finishAll()
+        managedBuffer.buffer.finishAll()
     }
-}
-
-private struct PreparedSpawnContext {
-    let cliPath: String
-    let adapter: AgentAdapter
-    let customConfig: ProviderCustomConfig?
-    let isResuming: Bool
-    let sessionLaunch: SessionLaunchDecision
-    let arguments: [String]
-    let environment: [String: String]
-}
-
-// Accept shell-style quoting for custom extra args, but intentionally stop short of a
-// full shell parser: Skep does not perform expansions, substitutions, or globbing here.
-private func parseExtraArgs(_ raw: String) throws -> [String] {
-    var arguments: [String] = []
-    var current = ""
-    var activeQuote: Character?
-    var isEscaping = false
-
-    for character in raw {
-        if isEscaping {
-            current.append(character)
-            isEscaping = false
-            continue
-        }
-
-        switch character {
-        case "\\":
-            isEscaping = true
-        case "\"", "'":
-            if activeQuote == character {
-                activeQuote = nil
-            } else if activeQuote != nil {
-                current.append(character)
-            } else {
-                activeQuote = character
-            }
-        case " ", "\t", "\n":
-            if activeQuote != nil {
-                current.append(character)
-            } else if !current.isEmpty {
-                arguments.append(current)
-                current = ""
-            }
-        default:
-            current.append(character)
-        }
-    }
-
-    if isEscaping {
-        current.append("\\")
-    }
-    if let activeQuote {
-        throw AgentError.spawnFailed("Invalid provider extra args: unmatched \(activeQuote) quote")
-    }
-    if !current.isEmpty {
-        arguments.append(current)
-    }
-
-    return arguments
-}
-
-private struct LaunchedProcess {
-    let process: Process
-    let stdin: Pipe
-    let stdout: Pipe
-    let stderr: Pipe
-}
-
-private struct PublishedRuntime {
-    let pid: Int32
-    let generation: UUID
 }
