@@ -6,8 +6,8 @@ import XCTest
 @MainActor
 final class DiffViewerViewModelTests: XCTestCase {
     func testBackgroundWatchCallbackDispatchesRefreshToMainActor() async {
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: Array(repeating: .success([]), count: 6)
             ),
             fsEventDebounceDuration: .milliseconds(20),
@@ -41,8 +41,8 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 
     func testWatchingLifecycleStartsIdlePollingAndStopsWhenDisabled() async throws {
-        let fixture = TestFixture(
-            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 8)),
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(statusResults: Array(repeating: .success([]), count: 8)),
             idlePollInterval: .milliseconds(20)
         )
         defer { fixture.viewModel.tearDown() }
@@ -73,8 +73,8 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 
     func testFsEventDebounceCoalescesRapidRefreshes() async {
-        let fixture = TestFixture(
-            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 6)),
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(statusResults: Array(repeating: .success([]), count: 6)),
             fsEventDebounceDuration: .milliseconds(40),
             idlePollInterval: .seconds(10)
         )
@@ -99,8 +99,8 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 
     func testAppWillTerminateStopsWatchingBeforeIdlePollRunsAgain() async throws {
-        let fixture = TestFixture(
-            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 6)),
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(statusResults: Array(repeating: .success([]), count: 6)),
             idlePollInterval: .milliseconds(200)
         )
         defer { fixture.viewModel.tearDown() }
@@ -125,8 +125,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testSelectFileUsesSyntheticDiffForUntrackedFiles() async {
         let untrackedFile = FileStatus(path: "notes.txt", originalPath: nil, status: .untracked, isStaged: false)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([untrackedFile])],
                 syntheticDiffResults: [Self.addedDiff(path: "notes.txt", content: "hello")]
             )
@@ -151,8 +151,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testSelectFileDiffsBothPathsForRename() async {
         let renamedFile = FileStatus(path: "new.swift", originalPath: "old.swift", status: .renamed, isStaged: true)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([renamedFile])],
                 diffResults: [Self.renameDiff(from: "old.swift", to: "new.swift")]
             )
@@ -176,8 +176,8 @@ final class DiffViewerViewModelTests: XCTestCase {
     func testRefreshReconcilesSelectionAcrossRenamePathChanges() async {
         let initialSelection = FileStatus(path: "new.swift", originalPath: "old.swift", status: .renamed, isStaged: true)
         let updatedSelection = FileStatus(path: "newer.swift", originalPath: "old.swift", status: .renamed, isStaged: true)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([initialSelection]), .success([updatedSelection])],
                 diffResults: [
                     Self.renameDiff(from: "old.swift", to: "new.swift"),
@@ -206,8 +206,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testFsEventRefreshSkipsSelectedDiffReloadForUnrelatedPaths() async {
         let modifiedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([modifiedFile]), .success([modifiedFile])],
                 diffResults: [Self.modifiedDiff(path: "feature.swift")]
             )
@@ -230,8 +230,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testRefreshFailureClearsContextualActionAndSkipsSelectedDiffReload() async {
         let modifiedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([modifiedFile]), .failure(GitError.notARepository)],
                 diffResults: [Self.modifiedDiff(path: "feature.swift")]
             )
@@ -258,8 +258,8 @@ final class DiffViewerViewModelTests: XCTestCase {
     func testSelectFileCancelsSupersededDiffLoad() async {
         let slowFile = FileStatus(path: "slow.swift", originalPath: nil, status: .modified, isStaged: false)
         let fastFile = FileStatus(path: "fast.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([slowFile, fastFile])],
                 diffResults: [Self.modifiedDiff(path: "slow.swift"), Self.modifiedDiff(path: "fast.swift")],
                 diffDelays: [.milliseconds(250), .zero]
@@ -292,28 +292,21 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 
     func testDetermineActionReturnsExpectedToolbarStates() async {
-        let commitFixture = TestFixture(
-            gitService: MockGitService(
+        let commitFixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)])]
             )
         )
         defer { commitFixture.viewModel.tearDown() }
+        await assertContextualAction(.commit, in: commitFixture, baseRef: "main", remoteName: nil)
 
-        await commitFixture.viewModel.switchToDirectory(
-            commitFixture.directory,
-            baseRef: "main",
-            remoteName: nil,
-            conversationIds: []
-        )
-        XCTAssertEqual(commitFixture.viewModel.contextualAction, .commit)
-
-        let viewPRFixture = TestFixture(
-            gitService: MockGitService(
+        let viewPRFixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([])],
                 currentBranchResult: .success("feature"),
                 commitsAheadResult: .success(0)
             ),
-            gitHubService: MockGitHubService(
+            gitHubService: DiffViewerMockGitHubService(
                 listPRResults: [[
                     PRInfo(
                         number: 42,
@@ -327,41 +320,27 @@ final class DiffViewerViewModelTests: XCTestCase {
             )
         )
         defer { viewPRFixture.viewModel.tearDown() }
+        await assertContextualAction(.viewPR(url: "https://example.com/42"), in: viewPRFixture, baseRef: "main", remoteName: "origin")
 
-        await viewPRFixture.viewModel.switchToDirectory(
-            viewPRFixture.directory,
-            baseRef: "main",
-            remoteName: "origin",
-            conversationIds: []
-        )
-        XCTAssertEqual(viewPRFixture.viewModel.contextualAction, .viewPR(url: "https://example.com/42"))
-
-        let openPRFixture = TestFixture(
-            gitService: MockGitService(
+        let openPRFixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([])],
                 currentBranchResult: .success("feature"),
                 commitsAheadResult: .success(2)
             )
         )
         defer { openPRFixture.viewModel.tearDown() }
-
-        await openPRFixture.viewModel.switchToDirectory(
-            openPRFixture.directory,
-            baseRef: "main",
-            remoteName: "origin",
-            conversationIds: []
-        )
-        XCTAssertEqual(openPRFixture.viewModel.contextualAction, .openPR)
+        await assertContextualAction(.openPR, in: openPRFixture, baseRef: "main", remoteName: "origin")
     }
 
     func testRefreshAndInvalidateFileListPreservesWarmPRCacheForLocalGitMutations() async {
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([]), .success([]), .success([])],
                 currentBranchResult: .success("feature"),
                 commitsAheadResult: .success(0)
             ),
-            gitHubService: MockGitHubService(
+            gitHubService: DiffViewerMockGitHubService(
                 listPRResults: [[
                     PRInfo(
                         number: 42,
@@ -393,8 +372,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testDiscardExpandsRenameToOriginalAndCurrentPath() async throws {
         let renamedFile = FileStatus(path: "new.swift", originalPath: "old.swift", status: .renamed, isStaged: true)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([renamedFile]), .success([])],
                 currentBranchResult: .success("feature"),
                 commitsAheadResult: .success(0)
@@ -416,8 +395,8 @@ final class DiffViewerViewModelTests: XCTestCase {
 
     func testDiscardUsesWorktreeOnlyScopeForUnstagedSelection() async throws {
         let unstagedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = TestFixture(
-            gitService: MockGitService(
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
                 statusResults: [.success([unstagedFile]), .success([])],
                 currentBranchResult: .success("feature"),
                 commitsAheadResult: .success(0)
@@ -438,243 +417,23 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 }
 
-@MainActor
-private struct TestFixture {
-    let directory = "/tmp/skep-project"
-    let gitService: MockGitService
-    let gitHubService: MockGitHubService
-    let fileListManager: MockFileListManager
-    let agentsManager: MockAgentsManager
-    let viewModel: DiffViewerViewModel
-
-    init(
-        gitService: MockGitService,
-        gitHubService: MockGitHubService = MockGitHubService(),
-        fileListManager: MockFileListManager = MockFileListManager(),
-        agentsManager: MockAgentsManager = MockAgentsManager(),
-        fsEventDebounceDuration: Duration = .milliseconds(500),
-        idlePollInterval: Duration = .seconds(60)
-    ) {
-        self.gitService = gitService
-        self.gitHubService = gitHubService
-        self.fileListManager = fileListManager
-        self.agentsManager = agentsManager
-        self.viewModel = DiffViewerViewModel(
-            gitService: gitService,
-            gitHubService: gitHubService,
-            fileListManager: fileListManager,
-            agentsManager: agentsManager,
-            fsEventDebounceDuration: fsEventDebounceDuration,
-            idlePollInterval: idlePollInterval
-        )
-    }
-}
-
-private actor MockGitService: GitService {
-    struct DiffCall: Equatable {
-        let paths: [String]
-        let scope: DiffScope
-        let directory: String
-    }
-
-    struct DiscardCall: Equatable {
-        let paths: [String]
-        let scope: DiscardScope
-        let directory: String
-    }
-
-    private var statusResults: [Result<[FileStatus], Error>]
-    private var diffResults: [String]
-    private var diffDelays: [Duration]
-    private var syntheticDiffResults: [String]
-    private let currentBranchResult: Result<String, Error>
-    private let commitsAheadResult: Result<Int, Error>
-    private var recordedStatusCallCount = 0
-    private var recordedDiffCalls: [DiffCall] = []
-    private var recordedSyntheticDiffCalls: [String] = []
-    private var recordedDiscardCalls: [DiscardCall] = []
-
-    init(
-        statusResults: [Result<[FileStatus], Error>],
-        diffResults: [String] = [],
-        diffDelays: [Duration] = [],
-        syntheticDiffResults: [String] = [],
-        currentBranchResult: Result<String, Error> = .success("feature"),
-        commitsAheadResult: Result<Int, Error> = .success(0)
-    ) {
-        self.statusResults = statusResults
-        self.diffResults = diffResults
-        self.diffDelays = diffDelays
-        self.syntheticDiffResults = syntheticDiffResults
-        self.currentBranchResult = currentBranchResult
-        self.commitsAheadResult = commitsAheadResult
-    }
-
-    func status(in directory: String) async throws -> [FileStatus] {
-        recordedStatusCallCount += 1
-        guard !statusResults.isEmpty else {
-            return []
-        }
-        return try statusResults.removeFirst().get()
-    }
-
-    func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
-        recordedDiffCalls.append(DiffCall(paths: paths, scope: scope, directory: directory))
-        let result = diffResults.isEmpty ? "" : diffResults.removeFirst()
-
-        if !diffDelays.isEmpty {
-            let delay = diffDelays.removeFirst()
-            if delay > .zero {
-                try await Task.sleep(for: delay)
-            }
-        }
-
-        return result
-    }
-
-    func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {
-        recordedSyntheticDiffCalls.append(path)
-        return syntheticDiffResults.isEmpty ? "" : syntheticDiffResults.removeFirst()
-    }
-
-    func stage(paths: [String], in directory: String) async throws {}
-
-    func unstage(paths: [String], in directory: String) async throws {}
-
-    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {
-        recordedDiscardCalls.append(DiscardCall(paths: paths, scope: scope, directory: directory))
-    }
-
-    func log(in directory: String, limit: Int) async throws -> [CommitInfo] {
-        []
-    }
-
-    func currentBranch(in directory: String) async throws -> String {
-        try currentBranchResult.get()
-    }
-
-    func listFiles(in directory: String) async throws -> [String] {
-        []
-    }
-
-    func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
-        try commitsAheadResult.get()
-    }
-
-    func diffCalls() -> [DiffCall] {
-        recordedDiffCalls
-    }
-
-    func syntheticDiffCalls() -> [String] {
-        recordedSyntheticDiffCalls
-    }
-
-    func discardCalls() -> [DiscardCall] {
-        recordedDiscardCalls
-    }
-
-    func statusCallCount() -> Int {
-        recordedStatusCallCount
-    }
-}
-
-@MainActor
-private final class MockGitHubService: GitHubService, @unchecked Sendable {
-    private var listPRResults: [[PRInfo]]
-    private var recordedListPRCallCount = 0
-
-    init(listPRResults: [[PRInfo]] = [[]]) {
-        self.listPRResults = listPRResults
-    }
-
-    func listPRs(in directory: String) async throws -> [PRInfo] {
-        recordedListPRCallCount += 1
-        if !listPRResults.isEmpty {
-            return listPRResults.removeFirst()
-        }
-        return []
-    }
-
-    func checkRunStatus(prNumber: Int, in directory: String) async throws -> CIStatus {
-        .none
-    }
-
-    func checkoutPRBranch(prNumber: Int, branchName: String, in directory: String) async throws {}
-
-    func listPRCallCount() -> Int {
-        recordedListPRCallCount
-    }
-}
-
-private actor MockFileListManager: FileListManager {
-    private var recordedInvalidatedDirectories: [String] = []
-
-    func files(for projectPath: String) async -> [String] {
-        []
-    }
-
-    func invalidateCache(for projectPath: String) {
-        recordedInvalidatedDirectories.append(projectPath)
-    }
-
-    func warmCache(for projectPath: String) async {}
-
-    func invalidatedDirectories() -> [String] {
-        recordedInvalidatedDirectories
-    }
-}
-
-private actor MockAgentsManager: AgentsManager {
-    private let statuses = LockedState<[String: ActivitySignal]>([:])
-
-    func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {}
-
-    func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription? {
-        nil
-    }
-
-    func sendMessage(_ message: String, conversationId: String) async throws {}
-
-    func cancelTurn(conversationId: String) {}
-
-    func destroyRuntime(conversationId: String) async throws {}
-
-    func kill(conversationId: String) {}
-
-    func killAll() {}
-
-    func isRunning(conversationId: String) -> Bool {
-        false
-    }
-
-    func hasTrackedProcess(conversationId: String) -> Bool {
-        false
-    }
-
-    func hasInflightLifecycle(conversationId: String) -> Bool {
-        false
-    }
-
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
-
-    func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
-
-    nonisolated func status(for conversationId: String) -> ActivitySignal {
-        statuses.withLock { $0[conversationId] ?? .neutral }
-    }
-
-    nonisolated var allStatuses: [String: ActivitySignal] {
-        statuses.withLock { $0 }
-    }
-
-    nonisolated func beginShutdown() {}
-
-    nonisolated var allProcessesSnapshot: [Process] {
-        []
-    }
-}
-
 private extension DiffViewerViewModelTests {
+    func assertContextualAction(
+        _ expectedAction: DiffViewerViewModel.ContextualAction,
+        in fixture: DiffViewerTestFixture,
+        baseRef: String,
+        remoteName: String?
+    ) async {
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: baseRef,
+            remoteName: remoteName,
+            conversationIds: []
+        )
+
+        XCTAssertEqual(fixture.viewModel.contextualAction, expectedAction)
+    }
+
     static func modifiedDiff(path: String) -> String {
         """
         diff --git a/\(path) b/\(path)
