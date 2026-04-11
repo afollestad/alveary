@@ -69,6 +69,24 @@ final class SkillsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.searchResults.map(\.id), ["new"])
     }
 
+    func testFilteredCollectionsMatchLocalSearchQuery() async {
+        let service = SkillsMockService(
+            installed: [makeSkill(id: "playwright-local")],
+            catalog: [
+                makeSkill(id: "browser-automation", source: .catalog, isInstalled: false),
+                makeSkill(id: "terminal-tools", source: .catalog, isInstalled: false)
+            ]
+        )
+        let viewModel = SkillsViewModel(skillsService: service)
+
+        await viewModel.load()
+        viewModel.searchQuery = "browser"
+
+        XCTAssertTrue(viewModel.filteredInstalled.isEmpty)
+        XCTAssertEqual(viewModel.filteredCatalog.map(\.id), ["browser-automation"])
+        XCTAssertTrue(viewModel.hasActiveSearch)
+    }
+
     func testInstallReloadsState() async throws {
         let skill = makeSkill(id: "playwright", source: .catalog)
         let service = SkillsMockService(installed: [], catalog: [skill])
@@ -170,12 +188,13 @@ private actor SkillsMockService: SkillsService {
 private func makeSkill(
     id: String,
     source: Skill.Source = .local,
-    isInstalled: Bool = true
+    isInstalled: Bool = true,
+    description: String? = nil
 ) -> Skill {
     Skill(
         id: id,
         name: id,
-        description: id,
+        description: description ?? id,
         version: nil,
         source: source,
         isInstalled: isInstalled,
