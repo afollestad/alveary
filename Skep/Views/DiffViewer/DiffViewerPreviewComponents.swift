@@ -66,6 +66,7 @@ struct DiffPreviewContent: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityElement(children: .combine)
             } else if let parsedDiff {
                 StructuredDiffPreview(diff: parsedDiff, rawDiffContent: rawDiffContent)
             } else if rawDiffContent.isEmpty {
@@ -82,7 +83,7 @@ struct DiffPreviewContent: View {
                 )
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isLoading ? .center : .topLeading)
     }
 }
 
