@@ -9,7 +9,6 @@ struct ClaudeMCPServerConfig: Codable, Sendable, Equatable {
 }
 
 protocol ClaudeConfigStore: Actor {
-    func ensureLocalSettingsFile(in workingDirectory: String) async
     func upsertTrustedProject(path: String) async
     func readMCPServers() async -> [String: ClaudeMCPServerConfig]
     func writeMCPServers(_ servers: [String: ClaudeMCPServerConfig]) async
