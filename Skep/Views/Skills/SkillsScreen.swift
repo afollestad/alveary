@@ -8,6 +8,7 @@ struct SkillsScreen: View {
     @State private var screenError: String?
     @State private var isCreateSheetPresented = false
     @State private var selectedSkill: Skill?
+    @State private var uninstallConfirmation: DestructiveConfirmationRequest?
 
     private let columns = [
         GridItem(.flexible(minimum: 240), spacing: 16),
@@ -92,6 +93,7 @@ struct SkillsScreen: View {
                 }
             }
         }
+        .destructiveConfirmation($uninstallConfirmation)
     }
 }
 
@@ -169,10 +171,12 @@ private extension SkillsScreen {
                             selectedSkill = skill
                         },
                         onPrimaryAction: {
-                            Task {
-                                if skill.isInstalled {
-                                    await uninstall(skill)
-                                } else {
+                            if skill.isInstalled {
+                                uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                    Task { await uninstall(skill) }
+                                }
+                            } else {
+                                Task {
                                     await install(skill)
                                 }
                             }
@@ -276,6 +280,7 @@ private struct SkillDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var markdown = ""
     @State private var isLoading = true
+    @State private var uninstallConfirmation: DestructiveConfirmationRequest?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -331,9 +336,11 @@ private struct SkillDetailSheet: View {
 
                 if skill.isInstalled {
                     Button("Uninstall") {
-                        Task {
-                            await onUninstall(skill)
-                            dismiss()
+                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                            Task {
+                                await onUninstall(skill)
+                                dismiss()
+                            }
                         }
                     }
                     .buttonStyle(.bordered)
@@ -350,6 +357,7 @@ private struct SkillDetailSheet: View {
         }
         .padding(24)
         .frame(minWidth: 640, minHeight: 520)
+        .destructiveConfirmation($uninstallConfirmation)
         .task {
             do {
                 markdown = try await viewModel.fetchSkillMarkdown(for: skill)
@@ -397,6 +405,25 @@ private struct CreateSkillSheet: View {
         .padding(24)
         .frame(minWidth: 560, minHeight: 420)
     }
+}
+
+private func makeSkillUninstallConfirmation(
+    for skill: Skill,
+    confirm: @escaping () -> Void
+) -> DestructiveConfirmationRequest {
+    let message: String
+    if skill.syncedAgentIDs.isEmpty {
+        message = "This removes \(skill.name) from your local skills directory."
+    } else {
+        message = "This removes \(skill.name) from your local skills directory and unsyncs it from \(skill.syncedAgentIDs.joined(separator: ", "))."
+    }
+
+    return DestructiveConfirmationRequest(
+        title: "Uninstall skill?",
+        message: message,
+        confirmTitle: "Uninstall",
+        confirm: confirm
+    )
 }
 
 private enum UIApplicationShim {

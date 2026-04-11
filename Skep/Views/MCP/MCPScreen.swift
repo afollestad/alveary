@@ -6,6 +6,7 @@ struct MCPScreen: View {
     @State private var hasLoaded = false
     @State private var screenError: String?
     @State private var formDraft: MCPServerDraft?
+    @State private var removalConfirmation: DestructiveConfirmationRequest?
 
     private let columns = [
         GridItem(.flexible(minimum: 240), spacing: 16),
@@ -39,7 +40,9 @@ struct MCPScreen: View {
                                     formDraft = MCPServerDraft(server: server, availableAgents: viewModel.availableAgents)
                                 },
                                 onRemove: {
-                                    Task { await remove(server) }
+                                    removalConfirmation = makeServerRemovalConfirmation(for: server) {
+                                        Task { await remove(server) }
+                                    }
                                 }
                             )
                         }
@@ -91,6 +94,7 @@ struct MCPScreen: View {
                 }
             }
         }
+        .destructiveConfirmation($removalConfirmation)
     }
 }
 
@@ -169,6 +173,25 @@ private extension MCPScreen {
             screenError = error.localizedDescription
         }
     }
+}
+
+private func makeServerRemovalConfirmation(
+    for server: MCPServer,
+    confirm: @escaping () -> Void
+) -> DestructiveConfirmationRequest {
+    let message: String
+    if server.providers.isEmpty {
+        message = "This deletes the saved configuration for \(server.name)."
+    } else {
+        message = "This deletes the saved configuration for \(server.name) and removes it from \(server.providers.joined(separator: ", "))."
+    }
+
+    return DestructiveConfirmationRequest(
+        title: "Remove server?",
+        message: message,
+        confirmTitle: "Remove",
+        confirm: confirm
+    )
 }
 
 private struct MCPServerRow: View {
