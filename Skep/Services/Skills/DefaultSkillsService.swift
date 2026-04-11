@@ -617,13 +617,26 @@ extension DefaultSkillsService {
 
     static func extractYamlValue(from yaml: String, key: String) -> String? {
         let prefix = "\(key):"
-        for line in yaml.split(separator: "\n", omittingEmptySubsequences: true) {
+        let lines = yaml.components(separatedBy: .newlines)
+        for (index, line) in lines.enumerated() {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
             guard trimmedLine.hasPrefix(prefix) else {
                 continue
             }
 
             var value = trimmedLine.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+            if let scalarStyle = value.first, scalarStyle == "|" || scalarStyle == ">" {
+                let blockLines = yamlBlockLines(
+                    in: lines,
+                    after: index,
+                    parentIndentation: indentation(of: line)
+                )
+                let blockValue = scalarStyle == "|"
+                    ? blockLines.joined(separator: "\n")
+                    : foldedYamlBlockValue(from: blockLines)
+                return blockValue.isEmpty ? nil : blockValue
+            }
+
             if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
                 (value.hasPrefix("'") && value.hasSuffix("'")) {
                 value = String(value.dropFirst().dropLast())
@@ -632,6 +645,69 @@ extension DefaultSkillsService {
         }
 
         return nil
+    }
+
+    private static func yamlBlockLines(
+        in lines: [String],
+        after startIndex: Int,
+        parentIndentation: Int
+    ) -> [String] {
+        guard startIndex + 1 < lines.count else {
+            return []
+        }
+
+        var values: [String] = []
+        var blockIndentation: Int?
+
+        for line in lines[(startIndex + 1)...] {
+            let lineIndentation = indentation(of: line)
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmedLine.isEmpty {
+                guard blockIndentation != nil else {
+                    continue
+                }
+                values.append("")
+                continue
+            }
+
+            guard lineIndentation > parentIndentation else {
+                break
+            }
+
+            if blockIndentation == nil {
+                blockIndentation = lineIndentation
+            }
+
+            let contentIndentation = blockIndentation ?? lineIndentation
+            let trimCount = min(contentIndentation, line.count)
+            values.append(String(line.dropFirst(trimCount)))
+        }
+
+        return values
+    }
+
+    private static func foldedYamlBlockValue(from lines: [String]) -> String {
+        var result = ""
+
+        for line in lines {
+            if line.isEmpty {
+                result += result.hasSuffix("\n") || result.isEmpty ? "\n" : "\n\n"
+                continue
+            }
+
+            if result.isEmpty || result.hasSuffix("\n") {
+                result += line
+            } else {
+                result += " " + line
+            }
+        }
+
+        return result
+    }
+
+    private static func indentation(of line: String) -> Int {
+        line.prefix(while: { $0 == " " }).count
     }
 
     static func encodeGitHubPathComponent(_ component: String) -> String {
