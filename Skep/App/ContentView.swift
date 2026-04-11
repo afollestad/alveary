@@ -175,6 +175,7 @@ struct ContentView: View {
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
         }
+        .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .onAppear {
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
@@ -183,6 +184,14 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    func colorScheme(for theme: String) -> ColorScheme? {
+        switch theme {
+        case "light": .light
+        case "dark": .dark
+        default: nil
+        }
+    }
+
     var diffViewerResizeHandle: some View {
         DiffViewerResizeHandle(
             width: $diffViewerWidth,
