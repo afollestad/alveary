@@ -41,6 +41,26 @@ final class CanonicalPathTests: XCTestCase {
         )
     }
 
+    func testNormalizeMentionPathMakesWorkingDirectoryPathsRelative() {
+        let workingDirectory = "/tmp/skep/project"
+        let filePath = "/tmp/skep/project/Skep/Views/Chat/ChatView.swift"
+
+        XCTAssertEqual(
+            CanonicalPath.normalizeMentionPath(filePath, relativeTo: workingDirectory),
+            "Skep/Views/Chat/ChatView.swift"
+        )
+    }
+
+    func testNormalizeMentionPathKeepsExternalPathsAbsolute() {
+        let workingDirectory = "/tmp/skep/project"
+        let filePath = "/tmp/other/External.swift"
+
+        XCTAssertEqual(
+            CanonicalPath.normalizeMentionPath(filePath, relativeTo: workingDirectory),
+            "/tmp/other/External.swift"
+        )
+    }
+
     private func makeTempDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

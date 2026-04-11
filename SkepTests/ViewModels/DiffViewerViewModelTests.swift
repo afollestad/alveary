@@ -5,6 +5,89 @@ import XCTest
 
 @MainActor
 final class DiffViewerViewModelTests: XCTestCase {
+    func testWatchingLifecycleStartsIdlePollingAndStopsWhenDisabled() async throws {
+        let fixture = TestFixture(
+            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 8)),
+            idlePollInterval: .milliseconds(20)
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        try FileManager.default.createDirectory(atPath: fixture.directory, withIntermediateDirectories: true)
+
+        fixture.viewModel.setWatchingEnabled(true)
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+
+        let initialStatusCalls = await fixture.gitService.statusCallCount()
+        try? await Task.sleep(for: .milliseconds(70))
+        let polledStatusCalls = await fixture.gitService.statusCallCount()
+
+        XCTAssertGreaterThan(polledStatusCalls, initialStatusCalls)
+
+        fixture.viewModel.setWatchingEnabled(false)
+        let callsAfterDisable = await fixture.gitService.statusCallCount()
+
+        try? await Task.sleep(for: .milliseconds(70))
+        let finalStatusCalls = await fixture.gitService.statusCallCount()
+
+        XCTAssertEqual(finalStatusCalls, callsAfterDisable)
+    }
+
+    func testFsEventDebounceCoalescesRapidRefreshes() async {
+        let fixture = TestFixture(
+            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 6)),
+            fsEventDebounceDuration: .milliseconds(40),
+            idlePollInterval: .seconds(10)
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+
+        let initialStatusCalls = await fixture.gitService.statusCallCount()
+
+        fixture.viewModel.handleFSEventsForTesting(changedPaths: ["Sources/Foo.swift"])
+        try? await Task.sleep(for: .milliseconds(10))
+        fixture.viewModel.handleFSEventsForTesting(changedPaths: ["Sources/Bar.swift"])
+        try? await Task.sleep(for: .milliseconds(80))
+        let finalStatusCalls = await fixture.gitService.statusCallCount()
+
+        XCTAssertEqual(finalStatusCalls, initialStatusCalls + 1)
+    }
+
+    func testAppWillTerminateStopsWatchingBeforeIdlePollRunsAgain() async throws {
+        let fixture = TestFixture(
+            gitService: MockGitService(statusResults: Array(repeating: .success([]), count: 6)),
+            idlePollInterval: .milliseconds(200)
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        try FileManager.default.createDirectory(atPath: fixture.directory, withIntermediateDirectories: true)
+
+        fixture.viewModel.setWatchingEnabled(true)
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+
+        let initialStatusCalls = await fixture.gitService.statusCallCount()
+        NotificationCenter.default.post(name: .appWillTerminate, object: nil)
+        try? await Task.sleep(for: .milliseconds(260))
+        let finalStatusCalls = await fixture.gitService.statusCallCount()
+
+        XCTAssertEqual(finalStatusCalls, initialStatusCalls)
+    }
+
     func testSelectFileUsesSyntheticDiffForUntrackedFiles() async {
         let untrackedFile = FileStatus(path: "notes.txt", originalPath: nil, status: .untracked, isStaged: false)
         let fixture = TestFixture(
@@ -274,7 +357,9 @@ private struct TestFixture {
         gitService: MockGitService,
         gitHubService: MockGitHubService = MockGitHubService(),
         fileListManager: MockFileListManager = MockFileListManager(),
-        agentsManager: MockAgentsManager = MockAgentsManager()
+        agentsManager: MockAgentsManager = MockAgentsManager(),
+        fsEventDebounceDuration: Duration = .milliseconds(500),
+        idlePollInterval: Duration = .seconds(60)
     ) {
         self.gitService = gitService
         self.gitHubService = gitHubService
@@ -284,7 +369,9 @@ private struct TestFixture {
             gitService: gitService,
             gitHubService: gitHubService,
             fileListManager: fileListManager,
-            agentsManager: agentsManager
+            agentsManager: agentsManager,
+            fsEventDebounceDuration: fsEventDebounceDuration,
+            idlePollInterval: idlePollInterval
         )
     }
 }
@@ -301,6 +388,7 @@ private actor MockGitService: GitService {
     private var syntheticDiffResults: [String]
     private let currentBranchResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
+    private var recordedStatusCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
     private var recordedDiscardCalls: [[String]] = []
@@ -320,6 +408,7 @@ private actor MockGitService: GitService {
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
+        recordedStatusCallCount += 1
         guard !statusResults.isEmpty else {
             return []
         }
@@ -370,6 +459,10 @@ private actor MockGitService: GitService {
 
     func discardCalls() -> [[String]] {
         recordedDiscardCalls
+    }
+
+    func statusCallCount() -> Int {
+        recordedStatusCallCount
     }
 }
 

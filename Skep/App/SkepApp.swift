@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct SkepApp: App {
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
+    @State private var appState = AppState()
 
     init() {
         _ = AppDI.resolver
@@ -10,7 +11,28 @@ struct SkepApp: App {
 
     var body: some Scene {
         Window("Skep", id: "main") {
-            EmptyView()
+            ContentView(resolver: AppDI.resolver, appState: appState)
         }
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Thread") {
+                    appState.startNewThreadFlow()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
+                Button("New Project...") {
+                    appState.openNewProjectFlow()
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    appState.openSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+        .modelContainer(AppDI.resolver.modelContainer())
     }
 }

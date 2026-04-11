@@ -121,6 +121,14 @@ final class SidebarViewModel {
         return thread
     }
 
+    func createThread(project: Project) async throws -> AgentThread {
+        try await createThread(
+            project: project,
+            provider: settingsService.current.defaultProvider,
+            permissionMode: settingsService.current.permissionMode
+        )
+    }
+
     func presentSidebarError(_ error: Error) {
         sidebarError = error.localizedDescription
     }
