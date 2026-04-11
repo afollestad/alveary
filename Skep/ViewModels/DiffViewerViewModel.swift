@@ -373,11 +373,26 @@ final class DiffViewerViewModel {
     }
 
     func discard(files: [FileStatus], in directory: String) async throws {
-        try await discard(paths: discardPaths(for: files), in: directory)
+        let stagedFiles = files.filter(\.isStaged)
+        let stagedPaths = discardPaths(for: stagedFiles)
+        let stagedPathSet = Set(stagedPaths)
+
+        let unstagedPaths = discardPaths(for: files.filter { !$0.isStaged })
+            .filter { !stagedPathSet.contains($0) }
+
+        if !stagedPaths.isEmpty {
+            try await gitService.discard(paths: stagedPaths, scope: .all, in: directory)
+        }
+
+        if !unstagedPaths.isEmpty {
+            try await gitService.discard(paths: unstagedPaths, scope: .worktreeOnly, in: directory)
+        }
+
+        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
     }
 
     func discard(paths: [String], in directory: String) async throws {
-        try await gitService.discard(paths: paths, in: directory)
+        try await gitService.discard(paths: paths, scope: .all, in: directory)
         await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
     }
 

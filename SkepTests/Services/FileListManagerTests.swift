@@ -44,7 +44,7 @@ private actor MockGitService: GitService {
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String { "" }
     func stage(paths: [String], in directory: String) async throws {}
     func unstage(paths: [String], in directory: String) async throws {}
-    func discard(paths: [String], in directory: String) async throws {}
+    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {}
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] { [] }
     func currentBranch(in directory: String) async throws -> String { "main" }
 

@@ -10,7 +10,7 @@ final class CLIGitService: GitService {
     func status(in directory: String) async throws -> [FileStatus] {
         let result = try await shell.run(
             executable: "/usr/bin/git",
-            args: ["--no-optional-locks", "status", "--porcelain=v2", "-z", "--no-ahead-behind"],
+            args: ["--no-optional-locks", "status", "--porcelain=v2", "-z", "--no-ahead-behind", "--untracked-files=all"],
             in: directory
         )
         guard result.succeeded else {
@@ -99,7 +99,7 @@ final class CLIGitService: GitService {
         }
     }
 
-    func discard(paths: [String], in directory: String) async throws {
+    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {
         guard !paths.isEmpty else {
             return
         }
@@ -109,9 +109,17 @@ final class CLIGitService: GitService {
         let trackedPaths = paths.filter { !untrackedPaths.contains($0) }
 
         if !trackedPaths.isEmpty {
+            let restoreArgs: [String]
+            switch scope {
+            case .all:
+                restoreArgs = ["restore", "--source=HEAD", "--staged", "--worktree", "--"]
+            case .worktreeOnly:
+                restoreArgs = ["restore", "--worktree", "--"]
+            }
+
             let result = try await shell.run(
                 executable: "/usr/bin/git",
-                args: ["restore", "--source=HEAD", "--staged", "--worktree", "--"] + trackedPaths,
+                args: restoreArgs + trackedPaths,
                 in: directory
             )
             guard result.succeeded else {

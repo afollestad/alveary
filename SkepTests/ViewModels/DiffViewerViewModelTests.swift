@@ -375,7 +375,30 @@ final class DiffViewerViewModelTests: XCTestCase {
         try await fixture.viewModel.discard(files: [renamedFile], in: fixture.directory)
         let discardCalls = await fixture.gitService.discardCalls()
 
-        XCTAssertEqual(discardCalls, [["old.swift", "new.swift"]])
+        XCTAssertEqual(discardCalls, [.init(paths: ["old.swift", "new.swift"], scope: .all, directory: fixture.directory)])
+    }
+
+    func testDiscardUsesWorktreeOnlyScopeForUnstagedSelection() async throws {
+        let unstagedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
+        let fixture = TestFixture(
+            gitService: MockGitService(
+                statusResults: [.success([unstagedFile]), .success([])],
+                currentBranchResult: .success("feature"),
+                commitsAheadResult: .success(0)
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+        try await fixture.viewModel.discard(files: [unstagedFile], in: fixture.directory)
+        let discardCalls = await fixture.gitService.discardCalls()
+
+        XCTAssertEqual(discardCalls, [.init(paths: ["feature.swift"], scope: .worktreeOnly, directory: fixture.directory)])
     }
 }
 
@@ -418,6 +441,12 @@ private actor MockGitService: GitService {
         let directory: String
     }
 
+    struct DiscardCall: Equatable {
+        let paths: [String]
+        let scope: DiscardScope
+        let directory: String
+    }
+
     private var statusResults: [Result<[FileStatus], Error>]
     private var diffResults: [String]
     private var syntheticDiffResults: [String]
@@ -426,7 +455,7 @@ private actor MockGitService: GitService {
     private var recordedStatusCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
-    private var recordedDiscardCalls: [[String]] = []
+    private var recordedDiscardCalls: [DiscardCall] = []
 
     init(
         statusResults: [Result<[FileStatus], Error>],
@@ -464,8 +493,8 @@ private actor MockGitService: GitService {
 
     func unstage(paths: [String], in directory: String) async throws {}
 
-    func discard(paths: [String], in directory: String) async throws {
-        recordedDiscardCalls.append(paths)
+    func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {
+        recordedDiscardCalls.append(DiscardCall(paths: paths, scope: scope, directory: directory))
     }
 
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] {
@@ -492,7 +521,7 @@ private actor MockGitService: GitService {
         recordedSyntheticDiffCalls
     }
 
-    func discardCalls() -> [[String]] {
+    func discardCalls() -> [DiscardCall] {
         recordedDiscardCalls
     }
 
