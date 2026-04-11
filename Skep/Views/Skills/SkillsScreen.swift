@@ -121,14 +121,13 @@ private extension SkillsScreen {
                 .buttonStyle(.borderedProminent)
             }
 
-            TextField(
+            AppTextField(
                 "Search skills",
                 text: Binding(
                     get: { viewModel.searchQuery },
                     set: { viewModel.searchQuery = $0 }
                 )
             )
-            .textFieldStyle(.roundedBorder)
         }
     }
 
@@ -376,16 +375,10 @@ private struct CreateSkillSheet: View {
             Text("Create Skill")
                 .font(.title2.weight(.semibold))
 
-            TextField("Name (kebab-case)", text: $name)
-            TextField("Description", text: $description)
+            AppTextField("Name (kebab-case)", text: $name)
+            AppTextField("Description", text: $description)
 
-            TextEditor(text: $instructions)
-                .font(.body)
-                .frame(minHeight: 220)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                )
+            AppTextEditor(text: $instructions, minHeight: 220)
 
             HStack {
                 Button("Cancel") {
