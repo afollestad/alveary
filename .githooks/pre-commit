@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if ! git diff --cached --name-only --diff-filter=ACMR | rg -q '(^|/).*\.swift$|(^|/)\.swiftlint\.yml$'; then
+  exit 0
+fi
+
+if ! command -v swiftlint >/dev/null 2>&1; then
+  echo "error: swiftlint is required for commits touching Swift files. Install it with 'brew install swiftlint'." >&2
+  exit 1
+fi
+
+echo "Running swiftlint..."
+swiftlint
