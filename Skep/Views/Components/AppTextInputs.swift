@@ -2,8 +2,11 @@ import SwiftUI
 
 struct AppTextField: View {
     @Binding private var text: String
+    @FocusState private var isFocused: Bool
 
     private let title: String
+    private let showsPrompt: Bool
+    private let textAlignment: TextAlignment
     private let cornerRadius: CGFloat
     private let horizontalPadding: CGFloat
     private let verticalPadding: CGFloat
@@ -14,6 +17,8 @@ struct AppTextField: View {
     init(
         _ title: String,
         text: Binding<String>,
+        showsPrompt: Bool = true,
+        textAlignment: TextAlignment = .leading,
         cornerRadius: CGFloat = AppInputStyle.defaultCornerRadius,
         horizontalPadding: CGFloat = AppInputStyle.defaultHorizontalPadding,
         verticalPadding: CGFloat = AppInputStyle.defaultVerticalPadding,
@@ -23,6 +28,8 @@ struct AppTextField: View {
     ) {
         self._text = text
         self.title = title
+        self.showsPrompt = showsPrompt
+        self.textAlignment = textAlignment
         self.cornerRadius = cornerRadius
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
@@ -38,11 +45,30 @@ struct AppTextField: View {
             borderColor: borderColor,
             borderWidth: borderWidth
         ) {
-            TextField(title, text: $text)
+            textField
                 .textFieldStyle(.plain)
+                .accessibilityLabel(Text(title))
+                .multilineTextAlignment(textAlignment)
+                .focused($isFocused)
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isFocused = true
+        }
+    }
+}
+
+private extension AppTextField {
+    @ViewBuilder
+    var textField: some View {
+        if showsPrompt {
+            TextField(title, text: $text)
+        } else {
+            TextField("", text: $text)
         }
     }
 }

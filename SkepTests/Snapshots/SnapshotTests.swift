@@ -239,6 +239,23 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testSettingsScreenRepositoryTab() {
+        var settings = AppSettings()
+        settings.branchPrefix = "af"
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                onClose: {},
+                initialTabRawValue: "repository"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_repository"
+        )
+    }
+
     func testSidebarViewPopulated() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/skep", name: "Skep")
