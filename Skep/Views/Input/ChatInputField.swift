@@ -176,12 +176,12 @@ struct ChatInputField: View {
                     Button(action: performSubmit) {
                         Label("Send", systemImage: "arrow.up.circle.fill")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .primaryActionButtonStyle()
                     .disabled(trimmedText.isEmpty)
 
                 case .busy(let canStop):
                     Button("Queue", action: performSubmit)
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                         .disabled(trimmedText.isEmpty)
 
                     if canStop {

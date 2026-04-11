@@ -402,7 +402,7 @@ struct PromptBlock: View {
                                 await submit()
                             }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                         .disabled(!isSubmitEnabled)
                     }
                 }

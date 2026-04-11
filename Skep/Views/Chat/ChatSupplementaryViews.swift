@@ -40,7 +40,7 @@ struct EmptyThreadState: View {
                     }
 
                     Button("Retry", action: onRetry)
-                        .buttonStyle(.borderedProminent)
+                        .primaryActionButtonStyle()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(40)
@@ -265,7 +265,7 @@ struct PermissionBanner: View {
                 if canEscalate {
                     HStack(spacing: 10) {
                         Button(escalationLabel, action: onEscalate)
-                            .buttonStyle(.borderedProminent)
+                            .primaryActionButtonStyle()
                             .disabled(isActionDisabled)
 
                         Button("Dismiss", action: onDismiss)

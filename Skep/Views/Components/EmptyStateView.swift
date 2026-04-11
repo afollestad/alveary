@@ -34,7 +34,7 @@ struct EmptyStateView: View {
                     ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
                         if action.style == .primary {
                             Button(action.title, action: action.action)
-                                .buttonStyle(.borderedProminent)
+                                .primaryActionButtonStyle()
                         } else {
                             Button(action.title, action: action.action)
                                 .buttonStyle(.bordered)

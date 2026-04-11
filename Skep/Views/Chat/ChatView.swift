@@ -235,7 +235,7 @@ struct ChatView: View {
                             } label: {
                                 Label("Jump to bottom", systemImage: "arrow.down")
                             }
-                            .buttonStyle(.borderedProminent)
+                            .primaryActionButtonStyle()
                             .padding(.bottom, 12)
                         }
                     }
