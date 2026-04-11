@@ -13,8 +13,6 @@ The XCode project (`Skep.xcodeproj`) is generated from `project.yml` using Xcode
 
 **WHEN** you add a new Knit `ModuleAssembly` file, place it in `Skep/DI/` (the path configured in `knitconfig.json`). Run `xcodegen generate` to pick up the new file.
 
-**WHEN** you complete a planned phase or a substantial section inside one of the detailed `plan/part*.md` files, update the progress checkboxes in `PLAN.md` and the relevant detailed plan document before you finish. Future sessions should be able to resume from the repo docs alone.
-
 **Knit/Xcode 26.3 note**: keep the Knit dependency pinned to revision `3d4afea562b95a95725f689be819b10ff93351fc` until a tagged release includes the upstream `KnitResolver` workaround for the `ExtractAppIntentsMetadata` crash.
 
 **DO NOT** commit `Skep.xcodeproj/` — it is gitignored and regenerated from `project.yml`.
@@ -73,3 +71,11 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 - When Swift 6 strict concurrency and AppKit interop fight each other in lifecycle code, prefer small explicit seams over broad workarounds: use injected dependencies for startup/shutdown behavior, and use `@preconcurrency import AppKit` only when needed to bridge AppKit/Objective-C sendability gaps.
 - `.appWillTerminate` is an early shutdown contract, not a best-effort hint. Observers that own teardown required before process exit, such as file watchers or debounce tasks, must complete synchronously on the main actor rather than queueing follow-up cleanup behind `Task` hops.
 - Shutdown paths that must complete before process exit should not rely on queued `Task { @MainActor ... }` cleanup. Prefer synchronous main-actor teardown for observer-driven lifecycle work that must happen before blocking termination waits.
+
+## Provider and Tooling Gotchas
+
+- Claude structured streaming requires `--verbose` alongside `--output-format stream-json`; dropping `--verbose` produces no structured output.
+- Do not re-add Claude `--include-hook-events` in `-p` mode; it does not emit useful hook events there, and lifecycle state should continue to derive from the standard event stream and process lifecycle.
+- Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.
+- `gh auth login --web` does not auto-open the browser without a TTY. GitHub auth flows in the app must continue parsing the emitted URL/code and opening the browser explicitly.
+- Claude auto-denies `AskUserQuestion` in `-p --output-format stream-json` mode. Keep the app-native prompt/selection UI as the interaction path instead of expecting the CLI to pause for an answer.
