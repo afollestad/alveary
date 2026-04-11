@@ -15,5 +15,8 @@ protocol SessionManager: Actor {
     func conversationId(forSessionId sessionId: String, cwd: String, providerId: String) -> String?
     func updateSessionId(for conversationId: String, newSessionId: String) throws
     func load()
+    // Orderly shutdown bridges this async persist through a detached task while the main thread
+    // is synchronously blocked in `applicationWillTerminate`, so implementations must stay off
+    // `@MainActor`.
     func persist() throws
 }

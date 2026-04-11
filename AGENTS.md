@@ -1,3 +1,8 @@
+## Keep AGENTS.md Up to Date
+
+**WHEN** changes to dependencies, project structure, or lint rules are made, make sure `AGENTS.md` is kept up to date.
+**WHEN** gotchas worth documenting are found, check if they belong in `AGENTS.md` to inform future sessions.
+
 ## XCode Project Generation
 
 The XCode project (`Skep.xcodeproj`) is generated from `project.yml` using XcodeGen (`brew install xcodegen`). **Never edit the `.xcodeproj` directly.**
@@ -22,14 +27,6 @@ Add Knit `ModuleAssembly` files under `Skep/DI/`. If you add a new assembly or c
 
 Use the CLI-based Knit workflow documented in `project.yml`; do not switch the project over to `KnitBuildPlugin` unless the repo docs and build configuration are intentionally updated together.
 
-## Repository Invariants
-
-- `AgentRegistry` is the single source of truth for shared agent metadata. When adding or changing an agent, update `Skep/Services/Detection/DefaultAgentRegistry.swift` and derive provider install guidance, detection metadata, skills directories, and MCP integration metadata from that shared entry instead of introducing feature-local agent lists.
-- `ClaudeConfigStore` is the sole serialized writer for Claude-owned config files (`~/.claude.json` and `.claude/settings.local.json`). Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
-- `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
-- `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
-- Worktree roots are namespaced by canonical project path under `../worktrees/`; preserve that namespacing so sibling clones with the same repo folder name cannot collide.
-
 ## Linting
 
 The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).
@@ -41,4 +38,22 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 ## General Code Style Guidelines
 
 - Private types should always go *below* public types.
-- Add concise code comments where needed for human readera.
+- Add concise code comments where needed for human readers.
+
+## Repository Invariants
+
+- `AgentRegistry` is the single source of truth for shared agent metadata. When adding or changing an agent, update `Skep/Services/Detection/DefaultAgentRegistry.swift` and derive provider install guidance, detection metadata, skills directories, and MCP integration metadata from that shared entry instead of introducing feature-local agent lists.
+- `ClaudeConfigStore` is the sole serialized writer for Claude-owned config files (`~/.claude.json` and `.claude/settings.local.json`). Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
+- `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
+- `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
+- `SessionEntry`'s canonical cwd plus paired `appSessionId` / `launchSessionId` are required for Claude fork-session recovery and startup orphan cleanup. Resume/orphan flows must preserve both IDs and use canonicalized paths rather than recomputing ownership from raw process state alone.
+- `SessionManager.persist()` must remain off `@MainActor`. `AppDelegate.applicationWillTerminate(_:)` bridges the final repair-path persist through `Task.detached` while synchronously blocking the main thread on a bounded semaphore; moving session persistence onto the main actor would deadlock shutdown.
+- Worktree roots are namespaced by canonical project path under `../worktrees/`; preserve that namespacing so sibling clones with the same repo folder name cannot collide.
+- The app layout uses a two-column `NavigationSplitView` with a conditional right-pane `HStack` detail split. Do not switch the diff pane back to native three-column `NavigationSplitViewVisibility` control on macOS 26; it does not behave correctly for programmatic right-pane toggling.
+
+## macOS Lifecycle and Concurrency
+
+- Keep `NSApplicationDelegate` implementations such as `AppDelegate` on `@MainActor`.
+- When Swift 6 strict concurrency and AppKit interop fight each other in lifecycle code, prefer small explicit seams over broad workarounds: use injected dependencies for startup/shutdown behavior, and use `@preconcurrency import AppKit` only when needed to bridge AppKit/Objective-C sendability gaps.
+- `.appWillTerminate` is an early shutdown contract, not a best-effort hint. Observers that own teardown required before process exit, such as file watchers or debounce tasks, must complete synchronously on the main actor rather than queueing follow-up cleanup behind `Task` hops.
+- Shutdown paths that must complete before process exit should not rely on queued `Task { @MainActor ... }` cleanup. Prefer synchronous main-actor teardown for observer-driven lifecycle work that must happen before blocking termination waits.
