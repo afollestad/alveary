@@ -286,7 +286,9 @@ struct ChatView: View {
                     ChangedFilesStrip(
                         files: diffViewModel.files,
                         onOpenDiff: { file in
-                            appState.isRightPaneVisible = true
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                appState.isRightPaneVisible = true
+                            }
                             guard let directory = diffViewModel.activeDirectory else {
                                 return
                             }
