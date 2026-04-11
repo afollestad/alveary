@@ -98,6 +98,42 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.notifications.soundName, "Glass")
     }
 
+    func testUserDefaultsSettingsServiceUsesDefaultSplitFractionWhenStoredJSONPredatesField() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "plan",
+            "effort": "high",
+            "autoGenerateNames": false,
+            "autoTrustWorktrees": true,
+            "createWorktreeByDefault": false,
+            "theme": "dark",
+            "codeFontFamily": "Monaco",
+            "codeFontSize": 16,
+            "chatFontSize": 18,
+            "diffViewerWidth": 520,
+            "notifications": [
+                "enabled": true,
+                "osNotifications": true,
+                "sound": true,
+                "soundName": "Glass"
+            ],
+            "branchPrefix": "feature",
+            "pushOnCreate": false,
+            "providerConfigs": [:]
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.permissionMode, "plan")
+        XCTAssertEqual(service.current.diffViewerWidth, 520)
+        XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
+    }
+
     func testServicesNormalizeInvalidValuesDuringUpdate() throws {
         let defaults = try makeDefaults()
         let userDefaultsService = UserDefaultsSettingsService(defaults: defaults)
