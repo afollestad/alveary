@@ -151,6 +151,24 @@ final class SkillsServiceTests: XCTestCase {
         XCTAssertEqual(result.description, "Testing")
         XCTAssertEqual(result.version, "1.0.0")
     }
+
+    func testMarkdownBodyStripsFrontmatterAndLeadingBlankLines() {
+        let markdown = """
+        ---
+        name: "my-skill"
+        description: "Testing"
+        version: 1.0.0
+        ---
+
+        # Body
+
+        Use this skill.
+        """
+
+        let result = DefaultSkillsService.markdownBody(from: markdown)
+
+        XCTAssertEqual(result, "# Body\n\nUse this skill.")
+    }
 }
 
 private struct SkillsServiceFixture {
