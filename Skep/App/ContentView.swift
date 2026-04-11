@@ -25,9 +25,9 @@ struct ContentView: View {
     @State private var sidebarViewModel: SidebarViewModel
     @State private var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
-    @State private var skillsViewModel: SkillsViewModel?
-    @State private var mcpViewModel: MCPViewModel?
-    @State private var settingsViewModel: SettingsViewModel?
+    @State private var skillsViewModel: SkillsViewModel
+    @State private var mcpViewModel: MCPViewModel
+    @State private var settingsViewModel: SettingsViewModel
 
     init(resolver: Resolver, appState: AppState) {
         self.appState = appState
@@ -74,36 +74,39 @@ struct ContentView: View {
             fileListManager: fileListManager,
             agentsManager: agentsManager
         ))
+        _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: skillsService))
+        _mcpViewModel = State(initialValue: MCPViewModel(mcpService: mcpService))
+        _settingsViewModel = State(initialValue: SettingsViewModel(settingsService: settingsService))
     }
 
     var body: some View {
+        let middlePane = MiddlePane(
+            appState: appState,
+            modelContext: viewModelContext,
+            gitHubCLI: gitHubCLI,
+            providerDetection: providerDetection,
+            agentRegistry: agentRegistry,
+            agentsManager: agentsManager,
+            runtimeStore: runtimeStore,
+            settingsService: settingsService,
+            providerRegistry: providerRegistry,
+            worktreeManager: worktreeManager,
+            providerSetup: providerSetup,
+            fileListManager: fileListManager,
+            loadInstalledSkills: {
+                (try? await skillsService.loadInstalled()) ?? []
+            },
+            diffViewModel: diffViewModel,
+            skillsViewModel: skillsViewModel,
+            mcpViewModel: mcpViewModel,
+            settingsViewModel: settingsViewModel
+        )
+
         NavigationSplitView(columnVisibility: $splitVisibility) {
             SidebarView(viewModel: sidebarViewModel, appState: appState)
         } detail: {
             HStack(spacing: 0) {
-                MiddlePane(
-                    appState: appState,
-                    modelContext: viewModelContext,
-                    gitHubCLI: gitHubCLI,
-                    providerDetection: providerDetection,
-                    agentRegistry: agentRegistry,
-                    agentsManager: agentsManager,
-                    runtimeStore: runtimeStore,
-                    settingsService: settingsService,
-                    providerRegistry: providerRegistry,
-                    worktreeManager: worktreeManager,
-                    providerSetup: providerSetup,
-                    fileListManager: fileListManager,
-                    skillsService: skillsService,
-                    mcpService: mcpService,
-                    loadInstalledSkills: {
-                        (try? await skillsService.loadInstalled()) ?? []
-                    },
-                    diffViewModel: diffViewModel,
-                    skillsViewModel: $skillsViewModel,
-                    mcpViewModel: $mcpViewModel,
-                    settingsViewModel: $settingsViewModel
-                )
+                middlePane
                 .frame(maxWidth: .infinity)
 
                 if appState.isRightPaneVisible {

@@ -14,14 +14,11 @@ struct MiddlePane: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
-    let skillsService: SkillsService
-    let mcpService: MCPService
     let loadInstalledSkills: () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
-
-    @Binding var skillsViewModel: SkillsViewModel?
-    @Binding var mcpViewModel: MCPViewModel?
-    @Binding var settingsViewModel: SettingsViewModel?
+    let skillsViewModel: SkillsViewModel
+    let mcpViewModel: MCPViewModel
+    let settingsViewModel: SettingsViewModel
 
     @Environment(\.modelContext) private var uiModelContext
     @Query private var projects: [Project]
@@ -29,9 +26,9 @@ struct MiddlePane: View {
     var body: some View {
         switch appState.selectedSidebarItem {
         case .skills:
-            SkillsScreen(viewModel: resolveSkillsViewModel())
+            SkillsScreen(viewModel: skillsViewModel)
         case .mcp:
-            MCPScreen(viewModel: resolveMCPViewModel())
+            MCPScreen(viewModel: mcpViewModel)
         case .project(let project):
             ProjectSettingsView(
                 project: project,
@@ -57,7 +54,7 @@ struct MiddlePane: View {
             )
                 .id(thread.persistentModelID)
         case .settings:
-            SettingsScreen(viewModel: resolveSettingsViewModel()) {
+            SettingsScreen(viewModel: settingsViewModel) {
                 appState.selectedSidebarItem = appState.previousSelection.flatMap(resolveSidebarBookmark(_:))
             }
         case nil:
@@ -85,36 +82,6 @@ struct MiddlePane: View {
 }
 
 private extension MiddlePane {
-    func resolveSkillsViewModel() -> SkillsViewModel {
-        if let skillsViewModel {
-            return skillsViewModel
-        }
-
-        let created = SkillsViewModel(skillsService: skillsService)
-        skillsViewModel = created
-        return created
-    }
-
-    func resolveMCPViewModel() -> MCPViewModel {
-        if let mcpViewModel {
-            return mcpViewModel
-        }
-
-        let created = MCPViewModel(mcpService: mcpService)
-        mcpViewModel = created
-        return created
-    }
-
-    func resolveSettingsViewModel() -> SettingsViewModel {
-        if let settingsViewModel {
-            return settingsViewModel
-        }
-
-        let created = SettingsViewModel(settingsService: settingsService)
-        settingsViewModel = created
-        return created
-    }
-
     func resolveSidebarBookmark(_ bookmark: AppState.SidebarBookmark) -> SidebarItem? {
         switch bookmark {
         case .skills:
