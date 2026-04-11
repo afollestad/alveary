@@ -1,42 +1,6 @@
 import Foundation
 
 actor DefaultSkillsService: SkillsService {
-    struct CatalogIndex: Codable, Equatable {
-        let version: Int
-        let lastUpdated: String
-        let skills: [CatalogSkillEntry]
-    }
-
-    struct CatalogSkillEntry: Codable, Equatable {
-        let id: String
-        let name: String
-        let description: String
-        let source: String
-        let owner: String?
-        let repo: String?
-        let sourceUrl: String?
-    }
-
-    struct GitTreeEntry: Decodable, Equatable {
-        let path: String
-        let type: String
-    }
-
-    private struct GitTreeResponse: Decodable {
-        let tree: [GitTreeEntry]
-    }
-
-    private struct SkillsShResponse: Decodable {
-        let skills: [SkillsShEntry]
-    }
-
-    private struct SkillsShEntry: Decodable {
-        let skillId: String
-        let name: String
-        let source: String
-        let installs: Int
-    }
-
     private let baseDir: URL
     private let cacheDir: URL
     private let session: URLSession
@@ -49,8 +13,6 @@ actor DefaultSkillsService: SkillsService {
 
     private static let catalogVersion = 1
     private static let repoCacheTTL: TimeInterval = 600
-    private static let gitHubPathComponentAllowed = CharacterSet.urlPathAllowed
-        .subtracting(CharacterSet(charactersIn: "/"))
 
     init(
         baseDir: URL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".agentskills"),
@@ -150,75 +112,26 @@ actor DefaultSkillsService: SkillsService {
         }
 
         let branch = try await defaultBranch(owner: owner, repo: repo)
-        let fallbackPaths = [
-            "skills/\(skill.id)/SKILL.md",
-            "SKILL.md",
-            "\(skill.id)/SKILL.md",
-            ".claude/skills/\(skill.id)/SKILL.md"
-        ]
-
-        for path in fallbackPaths {
-            guard let url = Self.makeGitHubRawURL(owner: owner, repo: repo, branch: branch, path: path) else {
-                continue
-            }
-
-            if let (data, response) = try? await session.data(from: url),
-               let httpResponse = response as? HTTPURLResponse,
-               httpResponse.statusCode == 200,
-               let content = String(data: data, encoding: .utf8),
-               !content.isEmpty {
-                return SkillMarkdownDocument(
-                    markdown: content,
-                    baseURL: url.deletingLastPathComponent()
-                )
-            }
+        if let fallbackMarkdown = try await Self.fetchFallbackSkillMarkdown(
+            owner: owner,
+            repo: repo,
+            branch: branch,
+            skillID: skill.id,
+            session: session
+        ) {
+            return fallbackMarkdown
         }
 
-        if let treeEntries = try? await fetchGitHubTree(owner: owner, repo: repo, branch: branch) {
-            let skillPaths = treeEntries
-                .filter { $0.type == "blob" && $0.path.hasSuffix("SKILL.md") }
-                .map(\.path)
-
-            if skillPaths.count == 1,
-               let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: skillPaths[0]) {
-                return content
-            }
-
-            if let directoryMatch = skillPaths.first(where: { $0.contains("/\(skill.id)/") }),
-               let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: directoryMatch) {
-                return content
-            }
-
-            for path in skillPaths {
-                guard let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: path) else {
-                    continue
-                }
-
-                let frontmatter = Self.parseFrontmatter(content.markdown)
-                if frontmatter.name == skill.id || frontmatter.name == skill.name {
-                    return content
-                }
-            }
-
-            if let firstPath = skillPaths.first,
-               let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: firstPath) {
-                return content
-            }
+        if let discoveredMarkdown = try await fetchTreeDiscoveredSkillMarkdown(
+            owner: owner,
+            repo: repo,
+            branch: branch,
+            skill: skill
+        ) {
+            return discoveredMarkdown
         }
 
-        return SkillMarkdownDocument(
-            markdown: [
-                "---",
-                "name: \(skill.id)",
-                "description: \(skill.description)",
-                "---",
-                "",
-                "# \(skill.name)",
-                "",
-                skill.description
-            ].joined(separator: "\n"),
-            baseURL: skill.sourceUrl.flatMap(URL.init(string:))
-        )
+        return Self.defaultMarkdownDocument(for: skill)
     }
 
     func install(_ skill: Skill) async throws {
@@ -515,69 +428,14 @@ extension DefaultSkillsService {
     func fetchCatalogRepo(owner: String, repo: String) async throws -> [CatalogSkillEntry] {
         let branch = try await defaultBranch(owner: owner, repo: repo)
         let treeEntries = try await fetchGitHubTree(owner: owner, repo: repo, branch: branch)
-        let rawSession = session
-        let skillEntries = treeEntries.filter { $0.type == "blob" && $0.path.hasSuffix("SKILL.md") }
-
-        let fetchedEntries = try await withThrowingTaskGroup(of: CatalogSkillEntry?.self) { group in
-            var results: [CatalogSkillEntry] = []
-            var enqueuedCount = 0
-            let maxConcurrent = 8
-
-            for entry in skillEntries {
-                if enqueuedCount >= maxConcurrent,
-                   let result = try await group.next(),
-                   let result {
-                    results.append(result)
-                }
-
-                enqueuedCount += 1
-                group.addTask {
-                    guard let url = Self.makeGitHubRawURL(owner: owner, repo: repo, branch: branch, path: entry.path) else {
-                        return nil
-                    }
-
-                    let (data, _) = try await rawSession.data(from: url)
-                    guard let content = String(data: data, encoding: .utf8) else {
-                        return nil
-                    }
-
-                    let frontmatter = Self.parseFrontmatter(content)
-                    let pathComponents = entry.path.split(separator: "/")
-                    let skillID = pathComponents.dropLast().last.map(String.init) ?? entry.path
-                    let directoryPath = pathComponents.dropLast().joined(separator: "/")
-                    return CatalogSkillEntry(
-                        id: skillID,
-                        name: frontmatter.name ?? skillID,
-                        description: frontmatter.description ?? "",
-                        source: "catalog",
-                        owner: owner,
-                        repo: repo,
-                        sourceUrl: Self.makeGitHubTreeBrowserURL(
-                            owner: owner,
-                            repo: repo,
-                            branch: branch,
-                            path: directoryPath
-                        )?.absoluteString
-                    )
-                }
-            }
-
-            for try await result in group {
-                if let result {
-                    results.append(result)
-                }
-            }
-
-            return results
-        }
-
-        var seenIDs: Set<String> = []
-        let deduped = fetchedEntries.filter { seenIDs.insert($0.id).inserted }
-        return deduped.sorted {
-            let lhsKey = $0.name.lowercased()
-            let rhsKey = $1.name.lowercased()
-            return lhsKey == rhsKey ? $0.id < $1.id : lhsKey < rhsKey
-        }
+        let fetchedEntries = try await Self.fetchCatalogEntries(
+            owner: owner,
+            repo: repo,
+            branch: branch,
+            treeEntries: treeEntries,
+            session: session
+        )
+        return Self.deduplicateCatalogEntries(fetchedEntries)
     }
 
     func sortSkills(_ skills: [Skill]) -> [Skill] {
@@ -587,182 +445,49 @@ extension DefaultSkillsService {
             return lhsKey == rhsKey ? $0.id < $1.id : lhsKey < rhsKey
         }
     }
+}
 
-    static func markdownBody(from content: String) -> String {
-        guard let frontmatter = frontmatterSections(in: content) else {
+private extension DefaultSkillsService {
+    func fetchTreeDiscoveredSkillMarkdown(
+        owner: String,
+        repo: String,
+        branch: String,
+        skill: Skill
+    ) async throws -> SkillMarkdownDocument? {
+        guard let treeEntries = try? await fetchGitHubTree(owner: owner, repo: repo, branch: branch) else {
+            return nil
+        }
+
+        let skillPaths = treeEntries
+            .filter { $0.type == "blob" && $0.path.hasSuffix("SKILL.md") }
+            .map(\.path)
+
+        if skillPaths.count == 1,
+           let directMatch = skillPaths.first,
+           let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: directMatch) {
             return content
         }
 
-        return String(frontmatter.body.drop(while: { $0.isNewline }))
-    }
-
-    static func parseFrontmatter(_ content: String) -> (name: String?, description: String?, version: String?) {
-        guard let frontmatter = frontmatterSections(in: content) else {
-            return (nil, nil, nil)
+        if let directoryMatch = skillPaths.first(where: { $0.contains("/\(skill.id)/") }),
+           let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: directoryMatch) {
+            return content
         }
 
-        return (
-            name: extractYamlValue(from: frontmatter.yaml, key: "name"),
-            description: extractYamlValue(from: frontmatter.yaml, key: "description"),
-            version: extractYamlValue(from: frontmatter.yaml, key: "version")
-        )
-    }
+        for path in skillPaths {
+            guard let content = try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: path) else {
+                continue
+            }
 
-    private static func frontmatterSections(in content: String) -> (yaml: String, body: Substring)? {
-        guard content.hasPrefix("---") else {
+            let frontmatter = Self.parseFrontmatter(content.markdown)
+            if frontmatter.name == skill.id || frontmatter.name == skill.name {
+                return content
+            }
+        }
+
+        guard let fallbackPath = skillPaths.first else {
             return nil
         }
 
-        let yamlStart = content.index(content.startIndex, offsetBy: 3)
-        guard let closingRange = content.range(
-            of: "\n---",
-            range: yamlStart..<content.endIndex
-        ) else {
-            return nil
-        }
-
-        return (
-            yaml: String(content[yamlStart..<closingRange.lowerBound]),
-            body: content[closingRange.upperBound..<content.endIndex]
-        )
-    }
-
-    static func extractYamlValue(from yaml: String, key: String) -> String? {
-        let prefix = "\(key):"
-        let lines = yaml.components(separatedBy: .newlines)
-        for (index, line) in lines.enumerated() {
-            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-            guard trimmedLine.hasPrefix(prefix) else {
-                continue
-            }
-
-            var value = trimmedLine.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
-            if let scalarStyle = value.first, scalarStyle == "|" || scalarStyle == ">" {
-                let blockLines = yamlBlockLines(
-                    in: lines,
-                    after: index,
-                    parentIndentation: indentation(of: line)
-                )
-                let blockValue = scalarStyle == "|"
-                    ? blockLines.joined(separator: "\n")
-                    : foldedYamlBlockValue(from: blockLines)
-                return blockValue.isEmpty ? nil : blockValue
-            }
-
-            if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-                (value.hasPrefix("'") && value.hasSuffix("'")) {
-                value = String(value.dropFirst().dropLast())
-            }
-            return value.isEmpty ? nil : value
-        }
-
-        return nil
-    }
-
-    private static func yamlBlockLines(
-        in lines: [String],
-        after startIndex: Int,
-        parentIndentation: Int
-    ) -> [String] {
-        guard startIndex + 1 < lines.count else {
-            return []
-        }
-
-        var values: [String] = []
-        var blockIndentation: Int?
-
-        for line in lines[(startIndex + 1)...] {
-            let lineIndentation = indentation(of: line)
-            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-
-            if trimmedLine.isEmpty {
-                guard blockIndentation != nil else {
-                    continue
-                }
-                values.append("")
-                continue
-            }
-
-            guard lineIndentation > parentIndentation else {
-                break
-            }
-
-            if blockIndentation == nil {
-                blockIndentation = lineIndentation
-            }
-
-            let contentIndentation = blockIndentation ?? lineIndentation
-            let trimCount = min(contentIndentation, line.count)
-            values.append(String(line.dropFirst(trimCount)))
-        }
-
-        return values
-    }
-
-    private static func foldedYamlBlockValue(from lines: [String]) -> String {
-        var result = ""
-
-        for line in lines {
-            if line.isEmpty {
-                result += result.hasSuffix("\n") || result.isEmpty ? "\n" : "\n\n"
-                continue
-            }
-
-            if result.isEmpty || result.hasSuffix("\n") {
-                result += line
-            } else {
-                result += " " + line
-            }
-        }
-
-        return result
-    }
-
-    private static func indentation(of line: String) -> Int {
-        line.prefix(while: { $0 == " " }).count
-    }
-
-    static func encodeGitHubPathComponent(_ component: String) -> String {
-        component.addingPercentEncoding(withAllowedCharacters: gitHubPathComponentAllowed) ?? component
-    }
-
-    static func encodeGitHubRelativePath(_ path: String) -> String {
-        path.split(separator: "/", omittingEmptySubsequences: false)
-            .map { encodeGitHubPathComponent(String($0)) }
-            .joined(separator: "/")
-    }
-
-    static func makeGitHubRepoAPIURL(owner: String, repo: String) -> URL? {
-        let encodedOwner = encodeGitHubPathComponent(owner)
-        let encodedRepo = encodeGitHubPathComponent(repo)
-        return URL(string: "https://api.github.com/repos/\(encodedOwner)/\(encodedRepo)")
-    }
-
-    static func makeGitHubRawURL(owner: String, repo: String, branch: String, path: String) -> URL? {
-        let encodedOwner = encodeGitHubPathComponent(owner)
-        let encodedRepo = encodeGitHubPathComponent(repo)
-        let encodedBranch = encodeGitHubPathComponent(branch)
-        let encodedPath = encodeGitHubRelativePath(path)
-        return URL(
-            string: "https://raw.githubusercontent.com/\(encodedOwner)/\(encodedRepo)/\(encodedBranch)/\(encodedPath)"
-        )
-    }
-
-    static func makeGitHubTreeAPIURL(owner: String, repo: String, branch: String) -> URL? {
-        let encodedOwner = encodeGitHubPathComponent(owner)
-        let encodedRepo = encodeGitHubPathComponent(repo)
-        let encodedBranch = encodeGitHubPathComponent(branch)
-        return URL(
-            string: "https://api.github.com/repos/\(encodedOwner)/\(encodedRepo)/git/trees/\(encodedBranch)?recursive=1"
-        )
-    }
-
-    static func makeGitHubTreeBrowserURL(owner: String, repo: String, branch: String, path: String) -> URL? {
-        let encodedBranch = encodeGitHubPathComponent(branch)
-        let encodedPath = encodeGitHubRelativePath(path)
-        let suffix = encodedPath.isEmpty ? "" : "/\(encodedPath)"
-        return URL(
-            string: "https://github.com/\(encodeGitHubPathComponent(owner))/\(encodeGitHubPathComponent(repo))/tree/\(encodedBranch)\(suffix)"
-        )
+        return try? await downloadRawSkillMd(owner: owner, repo: repo, branch: branch, path: fallbackPath)
     }
 }
