@@ -186,8 +186,8 @@ struct QueuedMessageBubble: View {
                 }
 
                 Text(text)
+                    .multilineTextAlignment(.trailing)
                     .padding(14)
-                    .frame(maxWidth: 520, alignment: .trailing)
                     .foregroundStyle(.primary)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -207,6 +207,7 @@ struct QueuedMessageBubble: View {
                     .disabled(isDismissDisabled)
                 }
             }
+            .frame(maxWidth: 640, alignment: .trailing)
             .opacity(0.86)
         }
     }
