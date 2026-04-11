@@ -63,6 +63,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 - The hook runs `swiftlint` from the project root so nested config discovery still works for `SkepTests/.swiftlint.yml`.
 - Run `swiftlint` from the project root *without* `--config`; passing an explicit config file bypasses nested config discovery and breaks the `SkepTests/.swiftlint.yml` override.
 - Run `swiftlint` manually when you want feedback before reaching the commit hook.
+- *If a change introduces new lint warnings and/or errors, inform the user before following through with a commit.*
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
 

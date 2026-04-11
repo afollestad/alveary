@@ -119,38 +119,9 @@ actor DefaultWorktreeManager: WorktreeManager {
             throw GitError.commandFailed("Refusing to remove: \(worktreePath) is not a removable worktree")
         }
 
-        let config = await SkepProjectConfig(projectPath: projectPath)
-        if let teardownScript = config.teardownScript {
-            _ = try? await shell.run(
-                executable: "/bin/sh",
-                args: ["-c", teardownScript],
-                in: worktreePath,
-                environment: buildLifecycleScriptEnvironment(
-                    projectPath: projectPath,
-                    worktreePath: worktreePath,
-                    threadName: URL(fileURLWithPath: worktreePath).lastPathComponent,
-                    branch: branch
-                ),
-                timeout: .seconds(60)
-            )
-        }
+        await runTeardownScriptIfNeeded(projectPath: projectPath, worktreePath: worktreePath, branch: branch)
 
-        var removeResult = try await shell.run(
-            executable: "/usr/bin/git",
-            args: ["worktree", "remove", "--force", worktreePath],
-            in: projectPath
-        )
-
-        if !removeResult.succeeded,
-           removeResult.stderr.localizedCaseInsensitiveContains("permission") {
-            _ = try? await shell.run(executable: "/bin/chmod", args: ["-R", "+w", worktreePath])
-            removeResult = try await shell.run(
-                executable: "/usr/bin/git",
-                args: ["worktree", "remove", "--force", worktreePath],
-                in: projectPath
-            )
-        }
-
+        let removeResult = try await removeWorktree(projectPath: projectPath, worktreePath: worktreePath)
         guard removeResult.succeeded else {
             throw Self.makeGitError(from: removeResult)
         }
@@ -290,21 +261,61 @@ private extension DefaultWorktreeManager {
         return "\(slugify(projectName))-\(hash)"
     }
 
-    func postCreateSetup(
+    func runTeardownScriptIfNeeded(
+        projectPath: String,
+        worktreePath: String,
+        branch: String?
+    ) async {
+        let config = await SkepProjectConfig(projectPath: projectPath)
+        guard let teardownScript = config.teardownScript else {
+            return
+        }
+
+        _ = try? await shell.run(
+            executable: "/bin/sh",
+            args: ["-c", teardownScript],
+            in: worktreePath,
+            environment: buildLifecycleScriptEnvironment(
+                projectPath: projectPath,
+                worktreePath: worktreePath,
+                threadName: URL(fileURLWithPath: worktreePath).lastPathComponent,
+                branch: branch
+            ),
+            timeout: .seconds(60)
+        )
+    }
+
+    func removeWorktree(projectPath: String, worktreePath: String) async throws -> ShellResult {
+        var removeResult = try await shell.run(
+            executable: "/usr/bin/git",
+            args: ["worktree", "remove", "--force", worktreePath],
+            in: projectPath
+        )
+
+        if !removeResult.succeeded,
+           removeResult.stderr.localizedCaseInsensitiveContains("permission") {
+            _ = try? await shell.run(executable: "/bin/chmod", args: ["-R", "+w", worktreePath])
+            removeResult = try await shell.run(
+                executable: "/usr/bin/git",
+                args: ["worktree", "remove", "--force", worktreePath],
+                in: projectPath
+            )
+        }
+
+        return removeResult
+    }
+
+    func runSetupScript(
         projectPath: String,
         worktreePath: String,
         threadName: String,
         branch: String,
-        rollbackBranch: String?
-    ) async throws {
-        let config = await SkepProjectConfig(projectPath: projectPath)
-        try preserveFiles(from: projectPath, to: worktreePath, patterns: config.preservePatterns)
-
+        config: SkepProjectConfig
+    ) async -> String? {
         guard let setupScript = config.setupScript else {
-            return
+            return nil
         }
 
-        let failureMessage: String?
         do {
             let result = try await shell.run(
                 executable: "/bin/sh",
@@ -318,44 +329,68 @@ private extension DefaultWorktreeManager {
                 ),
                 timeout: .seconds(config.setupTimeoutSeconds ?? 300)
             )
-            failureMessage = result.succeeded
+            return result.succeeded
                 ? nil
                 : result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
-            failureMessage = error.localizedDescription
+            return error.localizedDescription
+        }
+    }
+
+    func cleanupFailedSetup(
+        projectPath: String,
+        worktreePath: String,
+        rollbackBranch: String?
+    ) async throws -> Bool {
+        let removeResult = try? await removeWorktree(projectPath: projectPath, worktreePath: worktreePath)
+        let rollbackBranchDeleteFailed = try await rollbackBranchDeleteFailed(
+            projectPath: projectPath,
+            rollbackBranch: rollbackBranch
+        )
+        return removeResult?.succeeded != true || rollbackBranchDeleteFailed
+    }
+
+    func rollbackBranchDeleteFailed(projectPath: String, rollbackBranch: String?) async throws -> Bool {
+        guard let rollbackBranch else {
+            return false
         }
 
+        let deleteResult = try? await shell.run(
+            executable: "/usr/bin/git",
+            args: ["branch", "-D", rollbackBranch],
+            in: projectPath
+        )
+        return deleteResult?.succeeded == false
+    }
+
+    func postCreateSetup(
+        projectPath: String,
+        worktreePath: String,
+        threadName: String,
+        branch: String,
+        rollbackBranch: String?
+    ) async throws {
+        let config = await SkepProjectConfig(projectPath: projectPath)
+        try preserveFiles(from: projectPath, to: worktreePath, patterns: config.preservePatterns)
+
+        guard config.setupScript != nil else { return }
+
+        let failureMessage = await runSetupScript(
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            threadName: threadName,
+            branch: branch,
+            config: config
+        )
         guard let failureMessage else {
             return
         }
 
-        var removeResult = try? await shell.run(
-            executable: "/usr/bin/git",
-            args: ["worktree", "remove", "--force", worktreePath],
-            in: projectPath
-        )
-
-        if removeResult?.succeeded != true,
-           removeResult?.stderr.localizedCaseInsensitiveContains("permission") == true {
-            _ = try? await shell.run(executable: "/bin/chmod", args: ["-R", "+w", worktreePath])
-            removeResult = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["worktree", "remove", "--force", worktreePath],
-                in: projectPath
-            )
-        }
-
-        var rollbackBranchDeleteFailed = false
-        if let rollbackBranch {
-            let deleteResult = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["branch", "-D", rollbackBranch],
-                in: projectPath
-            )
-            rollbackBranchDeleteFailed = deleteResult?.succeeded == false
-        }
-
-        if removeResult?.succeeded != true || rollbackBranchDeleteFailed {
+        if try await cleanupFailedSetup(
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            rollbackBranch: rollbackBranch
+        ) {
             throw GitError.commandFailed(
                 "Setup script failed: \(failureMessage). Cleanup also failed for worktree \(worktreePath)."
             )
