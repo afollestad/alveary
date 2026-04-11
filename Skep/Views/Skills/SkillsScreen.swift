@@ -42,7 +42,7 @@ struct SkillsScreen: View {
                             ? "Try a different search or create a new skill."
                             : "Install or create a skill once catalog data is available.",
                         actions: [
-                            .init(title: "+ New Skill", style: .primary) {
+                            .init(title: "New Skill", systemImage: "plus", style: .primary) {
                                 isCreateSheetPresented = true
                             }
                         ]
@@ -116,14 +116,19 @@ private extension SkillsScreen {
 
                 Spacer()
 
-                Button("Refresh") {
+                Button {
                     Task {
                         await viewModel.refreshCatalog()
                     }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .secondaryActionButtonStyle()
 
-                Button("+ New Skill") {
+                Button {
                     isCreateSheetPresented = true
+                } label: {
+                    Label("New Skill", systemImage: "plus")
                 }
                 .primaryActionButtonStyle()
             }
@@ -155,8 +160,10 @@ private extension SkillsScreen {
 
                 Spacer()
 
-                Button("+ New Skill") {
+                Button {
                     isCreateSheetPresented = true
+                } label: {
+                    Label("New Skill", systemImage: "plus")
                 }
                 .primaryActionButtonStyle()
             }
@@ -256,6 +263,7 @@ private struct SkillCard: View {
 
             HStack {
                 Button("Details", action: onOpen)
+                    .secondaryActionButtonStyle()
                 Spacer()
                 if skill.isInstalled {
                     Button("Uninstall", role: .destructive, action: onPrimaryAction)
@@ -319,6 +327,7 @@ private struct SkillDetailSheet: View {
                     Button("View on GitHub") {
                         UIApplicationShim.open(url: url)
                     }
+                    .secondaryActionButtonStyle()
                 }
 
                 Spacer()
@@ -410,6 +419,7 @@ private struct CreateSkillSheet: View {
                 Button("Cancel") {
                     dismiss()
                 }
+                .secondaryActionButtonStyle()
 
                 Spacer()
 

@@ -116,17 +116,20 @@ private extension DiffViewerPane {
                                 try? await viewModel.unstage(files: [selectedFile], in: directory)
                             }
                         }
+                        .secondaryActionButtonStyle()
                     } else {
                         Button("Stage") {
                             Task {
                                 try? await viewModel.stage(files: [selectedFile], in: directory)
                             }
                         }
+                        .secondaryActionButtonStyle()
                     }
 
                     Button("Discard", role: .destructive) {
                         pendingDiscardFiles = [selectedFile]
                     }
+                    .destructiveActionButtonStyle()
                 }
             }
         }

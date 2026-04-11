@@ -1,6 +1,7 @@
 import SwiftUI
 
 private let destructiveActionTint = Color(red: 0.74, green: 0.18, blue: 0.17)
+private let secondaryActionTint = Color.primary.opacity(0.12)
 
 struct DestructiveConfirmationRequest {
     let title: String
@@ -17,31 +18,72 @@ extension View {
     }
 
     func primaryActionButtonStyle() -> some View {
-        buttonStyle(ProminentActionButtonStyle(fillColor: .accentColor))
+        buttonStyle(ProminentActionButtonStyle(fillColor: .accentColor, foregroundColor: .white))
+    }
+
+    func secondaryActionButtonStyle() -> some View {
+        buttonStyle(
+            ProminentActionButtonStyle(
+                fillColor: secondaryActionTint,
+                foregroundColor: .primary,
+                borderColor: .primary
+            )
+        )
     }
 
     func destructiveActionButtonStyle() -> some View {
-        buttonStyle(ProminentActionButtonStyle(fillColor: destructiveActionTint))
+        buttonStyle(ProminentActionButtonStyle(fillColor: destructiveActionTint, foregroundColor: .white))
     }
 }
 
 private struct ProminentActionButtonStyle: ButtonStyle {
     let fillColor: Color
+    let foregroundColor: Color
+    let borderColor: Color?
+
+    init(fillColor: Color, foregroundColor: Color, borderColor: Color? = nil) {
+        self.fillColor = fillColor
+        self.foregroundColor = foregroundColor
+        self.borderColor = borderColor
+    }
 
     @Environment(\.controlSize) private var controlSize
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.78))
+            .font(.body.weight(.semibold))
+            .foregroundStyle(foregroundColor.opacity(isEnabled ? 1 : 0.78))
+            .imageScale(.small)
+            .lineLimit(1)
             .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
+            .frame(height: controlHeight)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(resolvedBorderColor.opacity(borderOpacity), lineWidth: borderWidth)
+            )
             .opacity(configuration.isPressed && isEnabled ? 0.94 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    private var resolvedBorderColor: Color {
+        borderColor ?? fillColor
+    }
+
+    private var borderOpacity: Double {
+        guard borderColor != nil else {
+            return 0
+        }
+
+        return isEnabled ? 0.12 : 0.06
+    }
+
+    private var borderWidth: CGFloat {
+        borderColor == nil ? 0 : 1
     }
 
     private var horizontalPadding: CGFloat {
@@ -52,6 +94,8 @@ private struct ProminentActionButtonStyle: ButtonStyle {
             return 10
         case .regular:
             return 12
+        case .extraLarge:
+            return 16
         case .large:
             return 14
         @unknown default:
@@ -59,18 +103,20 @@ private struct ProminentActionButtonStyle: ButtonStyle {
         }
     }
 
-    private var verticalPadding: CGFloat {
+    private var controlHeight: CGFloat {
         switch controlSize {
         case .mini:
-            return 4
+            return 22
         case .small:
-            return 5
+            return 24
         case .regular:
-            return 6
+            return 30
+        case .extraLarge:
+            return 38
         case .large:
-            return 8
+            return 34
         @unknown default:
-            return 6
+            return 30
         }
     }
 
@@ -82,6 +128,8 @@ private struct ProminentActionButtonStyle: ButtonStyle {
             return 9
         case .regular:
             return 10
+        case .extraLarge:
+            return 14
         case .large:
             return 12
         @unknown default:

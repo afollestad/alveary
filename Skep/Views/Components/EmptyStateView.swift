@@ -8,8 +8,21 @@ struct EmptyStateView: View {
 
     struct EmptyStateAction {
         let title: String
+        let systemImage: String?
         let style: EmptyStateActionStyle
         let action: () -> Void
+
+        init(
+            title: String,
+            systemImage: String? = nil,
+            style: EmptyStateActionStyle,
+            action: @escaping () -> Void
+        ) {
+            self.title = title
+            self.systemImage = systemImage
+            self.style = style
+            self.action = action
+        }
     }
 
     var body: some View {
@@ -32,12 +45,22 @@ struct EmptyStateView: View {
             if !actions.isEmpty {
                 HStack(spacing: 12) {
                     ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                        let button = Group {
+                            if let systemImage = action.systemImage {
+                                Button(action: action.action) {
+                                    Label(action.title, systemImage: systemImage)
+                                }
+                            } else {
+                                Button(action.title, action: action.action)
+                            }
+                        }
+
                         if action.style == .primary {
-                            Button(action.title, action: action.action)
+                            button
                                 .primaryActionButtonStyle()
                         } else {
-                            Button(action.title, action: action.action)
-                                .buttonStyle(.bordered)
+                            button
+                                .secondaryActionButtonStyle()
                         }
                     }
                 }

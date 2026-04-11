@@ -69,10 +69,11 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 ## General Guidelines
 
 - Private types should always go *below* public types.
-- In SwiftUI, prefer extracting visually distinct or state-wiring subviews into separate private `View` types in the same file instead of `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition.
 - Add concise code comments where needed for human readers.
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
+- In SwiftUI, prefer extracting visually distinct or state-wiring subviews into separate private `View` types in the same file instead of `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition.
+- For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Skep/Views/Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
 
 ## Repository Invariants
 
