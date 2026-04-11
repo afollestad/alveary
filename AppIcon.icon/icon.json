@@ -1,0 +1,35 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.96863,0.52941,0.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "main.png",
+          "name" : "main",
+          "position" : {
+            "scale" : 1.2,
+            "translation-in-points" : [
+              0,
+              -54
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
