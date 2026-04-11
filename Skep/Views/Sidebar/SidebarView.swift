@@ -60,7 +60,7 @@ struct SidebarView: View {
                             ForEach(activeThreads(for: project)) { thread in
                                 ThreadRow(thread: thread, status: viewModel.threadStatus(for: thread))
                                     .tag(SidebarItem.thread(thread))
-                                    .padding(.leading, 18)
+                                    .padding(.leading, 14)
                                     .contextMenu {
                                         Button("Archive") {
                                             Task { await archive(thread) }
@@ -80,12 +80,12 @@ struct SidebarView: View {
                                         toggleExpansion(for: project.path, in: &expandedArchivedProjects)
                                     }
                                 )
-                                .padding(.leading, 18)
+                                .padding(.leading, 14)
 
                                 if expandedArchivedProjects.contains(project.path) {
                                     ForEach(archivedThreads) { thread in
                                         ThreadRow(thread: thread, status: .archived)
-                                            .padding(.leading, 18)
+                                            .padding(.leading, 14)
                                             .opacity(0.75)
                                             .contextMenu {
                                                 Button("Restore") {
@@ -273,14 +273,15 @@ private struct ProjectsHeaderRow: View {
 
             Button(action: onAddProject) {
                 Image(systemName: "plus.circle")
-                    .frame(width: 16)
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Add Project")
             .help("Add Project")
         }
         .padding(.leading, 8)
-        .padding(.trailing, 14)
+        .padding(.trailing, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
     }
@@ -292,17 +293,18 @@ private struct ProjectRow: View {
     let onToggleExpanded: () -> Void
     let onCreateThread: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         HStack(spacing: 10) {
             Button(action: onToggleExpanded) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 12)
+                Image(systemName: leadingSymbolName)
+                    .font(leadingSymbolFont)
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 16, height: 16, alignment: .leading)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
-
-            Image(systemName: "folder")
-                .foregroundStyle(Color.accentColor)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.name)
@@ -320,9 +322,25 @@ private struct ProjectRow: View {
                 Image(systemName: "square.and.pencil")
             }
             .buttonStyle(.borderless)
+            .opacity(isHovering ? 1 : 0)
+            .allowsHitTesting(isHovering)
+            .animation(.easeInOut(duration: 0.12), value: isHovering)
             .help("New Thread")
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onToggleExpanded)
+        .onHover { isHovering = $0 }
+        .animation(.easeInOut(duration: 0.12), value: isHovering)
+    }
+
+    private var leadingSymbolName: String {
+        isHovering ? (isExpanded ? "chevron.down" : "chevron.right") : "folder"
+    }
+
+    private var leadingSymbolFont: Font {
+        isHovering ? .caption.weight(.semibold) : .body
     }
 }
 
@@ -335,10 +353,12 @@ private struct ThreadRow: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
+                .offset(x: -3)
                 .opacity(status == .stopped ? 0 : 1)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(thread.name)
+                    .foregroundStyle(thread.name == "New thread" ? .secondary : .primary)
                     .lineLimit(1)
 
                 if let branch = thread.branch {
