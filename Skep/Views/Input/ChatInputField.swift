@@ -190,7 +190,7 @@ struct ChatInputField: View {
                         } label: {
                             Label("Stop", systemImage: "stop.fill")
                         }
-                        .buttonStyle(.bordered)
+                        .destructiveActionButtonStyle()
                     } else {
                         ProgressView()
                             .controlSize(.small)

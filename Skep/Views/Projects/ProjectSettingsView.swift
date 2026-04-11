@@ -110,6 +110,7 @@ private extension ProjectSettingsView {
                         Button("Open Browser") {
                             NSWorkspace.shared.open(gitHubDeviceCode.verificationURL)
                         }
+                        .secondaryActionButtonStyle()
                     }
                 } else if project.githubConnected {
                     Label("Connected for PR and CI workflows.", systemImage: "checkmark.circle.fill")
@@ -202,6 +203,7 @@ private extension ProjectSettingsView {
                 Button("Refresh") {
                     Task { await refreshProviderStatuses() }
                 }
+                .secondaryActionButtonStyle()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
@@ -267,6 +269,7 @@ private extension ProjectSettingsView {
                         Button("Edit Local Environment") {
                             openConfigFile()
                         }
+                        .secondaryActionButtonStyle()
                     } else {
                         Button("Create Config") {
                             Task { await createConfigAndOpen() }

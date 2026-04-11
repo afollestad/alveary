@@ -197,13 +197,13 @@ struct QueuedMessageBubble: View {
                 HStack(spacing: 10) {
                     if showsRetry, let onRetry {
                         Button("Retry", action: onRetry)
-                            .buttonStyle(.bordered)
+                            .secondaryActionButtonStyle()
                     }
 
                     Button(role: .destructive, action: onDismiss) {
                         Label("Dismiss", systemImage: "trash")
                     }
-                    .buttonStyle(.bordered)
+                    .destructiveActionButtonStyle()
                     .disabled(isDismissDisabled)
                 }
             }
@@ -269,11 +269,11 @@ struct PermissionBanner: View {
                             .disabled(isActionDisabled)
 
                         Button("Dismiss", action: onDismiss)
-                            .buttonStyle(.bordered)
+                            .secondaryActionButtonStyle()
                     }
                 } else {
                     Button("Dismiss", action: onDismiss)
-                        .buttonStyle(.bordered)
+                        .secondaryActionButtonStyle()
                 }
             }
 

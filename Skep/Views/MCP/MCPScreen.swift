@@ -70,7 +70,7 @@ struct MCPScreen: View {
                         heading: "No MCP servers available",
                         subtext: "Recommended servers are unavailable right now, but you can still add a custom one.",
                         actions: [
-                            .init(title: "Add Server", style: .primary) {
+                            .init(title: "Add Server", systemImage: "plus", style: .primary) {
                                 formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
                             }
                         ]
@@ -112,12 +112,17 @@ private extension MCPScreen {
 
                 Spacer()
 
-                Button("Refresh") {
+                Button {
                     Task { await viewModel.refreshProviders() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .secondaryActionButtonStyle()
 
-                Button("Add Server") {
+                Button {
                     formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+                } label: {
+                    Label("Add Server", systemImage: "plus")
                 }
                 .primaryActionButtonStyle()
             }
@@ -149,8 +154,10 @@ private extension MCPScreen {
 
                 Spacer()
 
-                Button("Add Server") {
+                Button {
                     formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+                } label: {
+                    Label("Add Server", systemImage: "plus")
                 }
                 .primaryActionButtonStyle()
             }
@@ -222,6 +229,7 @@ private struct MCPServerRow: View {
             Spacer()
 
             Button("Edit", action: onEdit)
+                .secondaryActionButtonStyle()
             Button("Remove", role: .destructive, action: onRemove)
                 .destructiveActionButtonStyle()
         }
@@ -430,6 +438,7 @@ private struct MCPServerFormSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .secondaryActionButtonStyle()
 
                     Spacer()
 

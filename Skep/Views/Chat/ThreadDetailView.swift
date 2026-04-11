@@ -209,7 +209,7 @@ private struct ConversationTabs: View {
             } label: {
                 Label("New Conversation", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
+            .secondaryActionButtonStyle()
             .keyboardShortcut("t", modifiers: .command)
         }
         .padding(.horizontal, 20)
