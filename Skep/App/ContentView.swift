@@ -426,7 +426,9 @@ private struct DiffViewerResizeHandle: View {
             hasPushedCursor = false
         }
         .gesture(
-            DragGesture(minimumDistance: 0)
+            // Keep drag deltas in global coordinates so they stay stable while the
+            // resize handle itself shifts as the diff pane width changes.
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
                     let startWidth = dragStartWidth ?? width
                     if dragStartWidth == nil {
@@ -434,8 +436,9 @@ private struct DiffViewerResizeHandle: View {
                     }
                     width = snappedWidth(startWidth - value.translation.width)
                 }
-                .onEnded { _ in
-                    let committedWidth = snappedWidth(width)
+                .onEnded { value in
+                    let startWidth = dragStartWidth ?? width
+                    let committedWidth = snappedWidth(startWidth - value.translation.width)
                     width = committedWidth
                     dragStartWidth = nil
                     onCommit(committedWidth)

@@ -124,14 +124,14 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(userDefaultsService.current.permissionMode, "default")
         XCTAssertEqual(userDefaultsService.current.effort, "medium")
         XCTAssertEqual(userDefaultsService.current.theme, "system")
-        XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 640)
+        XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 960)
         XCTAssertEqual(userDefaultsService.current.notifications.soundName, "Glass")
 
         XCTAssertEqual(inMemoryService.current.defaultProvider, "claude")
         XCTAssertEqual(inMemoryService.current.permissionMode, "default")
         XCTAssertEqual(inMemoryService.current.effort, "medium")
         XCTAssertEqual(inMemoryService.current.theme, "system")
-        XCTAssertEqual(inMemoryService.current.diffViewerWidth, 640)
+        XCTAssertEqual(inMemoryService.current.diffViewerWidth, 960)
         XCTAssertEqual(inMemoryService.current.notifications.soundName, "Glass")
     }
 

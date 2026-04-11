@@ -5,7 +5,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "bypassPermissions"]
     static let supportedEffortLevels = ["low", "medium", "high", "max"]
     static let supportedThemes = ["system", "light", "dark"]
-    static let supportedDiffViewerWidthRange = 320.0...640.0
+    static let supportedDiffViewerWidthRange = 320.0...960.0
 
     var defaultProvider = "claude"
     var permissionMode = "default"

@@ -88,4 +88,41 @@ final class ShellRunnerTests: XCTestCase {
             XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
         }
     }
+
+    func testCancellationWhileStreamingOutputDoesNotCrash() async throws {
+        let runner = DefaultShellRunner()
+        let clock = ContinuousClock()
+        let start = clock.now
+        let script = #"""
+        $SIG{TERM}=sub{};
+        $|=1;
+        select STDERR;
+        $|=1;
+        select STDOUT;
+        while (1) {
+            print 'A' x 1024;
+            print STDERR 'B' x 1024;
+            select undef, undef, undef, 0.01;
+        }
+        """#
+
+        let task = Task {
+            try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", script],
+                stdoutLimitBytes: 4096,
+                stderrLimitBytes: 4096
+            )
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
+        }
+    }
 }

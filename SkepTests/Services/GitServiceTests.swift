@@ -114,6 +114,36 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(invocations[1].args, ["restore", "--source=HEAD", "--staged", "--worktree", "--", "tracked.swift"])
     }
 
+    func testSyntheticAddedDiffMarksBinaryFilesAsBinary() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let imagePath = "Snapshots/example.png"
+        let imageURL = tempDirectory
+            .appendingPathComponent("Snapshots", isDirectory: true)
+            .appendingPathComponent("example.png")
+        try FileManager.default.createDirectory(at: imageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let pngHeader = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D])
+        try pngHeader.write(to: imageURL)
+
+        let service = CLIGitService(shell: MockShellRunner())
+
+        let diff = try await service.syntheticAddedDiff(for: imagePath, in: tempDirectory.path)
+
+        XCTAssertEqual(
+            diff,
+            """
+            diff --git a/Snapshots/example.png b/Snapshots/example.png
+            new file mode 100644
+            Binary files /dev/null and b/Snapshots/example.png differ
+            """
+        )
+        XCTAssertEqual(DiffParser.parse(diff).first?.isBinary, true)
+        XCTAssertNil(DiffParser.parse(diff).first?.oldPath)
+        XCTAssertEqual(DiffParser.parse(diff).first?.newPath, imagePath)
+    }
+
     func testDiscardWorktreeOnlyRestoresTrackedFilesWithoutResettingIndex() async throws {
         let shell = MockShellRunner()
         let statusOutput = "1 .M N... 100644 100644 100644 abc abc tracked.swift\0"
