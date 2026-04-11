@@ -42,6 +42,7 @@ actor DefaultSkillsService: SkillsService {
     private let session: URLSession
     private let bundle: Bundle
     private let agentRegistry: AgentRegistry
+    private let sharedSkillsDirectories: [String]
     private var catalogCache: CatalogIndex?
     private var defaultBranchCache: [String: (branch: String, fetchedAt: Date)] = [:]
     private var treeCache: [String: (entries: [GitTreeEntry], fetchedAt: Date)] = [:]
@@ -55,12 +56,14 @@ actor DefaultSkillsService: SkillsService {
         baseDir: URL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".agentskills"),
         session: URLSession = .shared,
         bundle: Bundle = .main,
+        sharedSkillsDirectories: [String] = ["~/.agents/skills"],
         agentRegistry: AgentRegistry
     ) {
         self.baseDir = baseDir
         self.cacheDir = baseDir.appendingPathComponent(".skep")
         self.session = session
         self.bundle = bundle
+        self.sharedSkillsDirectories = sharedSkillsDirectories
         self.agentRegistry = agentRegistry
     }
 
@@ -289,6 +292,12 @@ extension DefaultSkillsService {
         let skillsDirectory: String
     }
 
+    private var sharedDiscoveryTargets: [SkillTarget] {
+        sharedSkillsDirectories.map { directory in
+            SkillTarget(id: "shared-agent-skills", skillsDirectory: directory)
+        }
+    }
+
     var syncTargets: [SkillTarget] {
         agentRegistry.agents.compactMap { agent in
             guard let skillsDirectory = agent.skillsDirectory else {
@@ -299,7 +308,9 @@ extension DefaultSkillsService {
     }
 
     var discoveryTargets: [SkillTarget] {
-        syncTargets + [SkillTarget(id: "legacy-agent", skillsDirectory: "~/.agent/skills")]
+        sharedDiscoveryTargets
+            + syncTargets
+            + [SkillTarget(id: "legacy-agent", skillsDirectory: "~/.agent/skills")]
     }
 
     func scanDirectory(_ directory: URL, seenIDs: inout Set<String>) -> [Skill] {

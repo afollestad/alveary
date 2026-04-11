@@ -23,6 +23,17 @@ final class SkillsServiceTests: XCTestCase {
         XCTAssertTrue(installed.first?.isInstalled == true)
     }
 
+    func testLoadInstalledFindsSharedAgentSkillsWithoutClaudeSymlink() async throws {
+        let fixture = try SkillsServiceFixture()
+        defer { fixture.cleanup() }
+        try fixture.createSharedSkill(id: "go-link", description: "Resolve internal go links")
+
+        let installed = try await fixture.service.loadInstalled()
+
+        XCTAssertEqual(installed.map(\.id), ["go-link"])
+        XCTAssertTrue(installed.first?.isInstalled == true)
+    }
+
     func testLoadCatalogFallsBackToBundledSnapshotWhenLiveFetchFails() async throws {
         let fixture = try SkillsServiceFixture()
         defer { fixture.cleanup() }
@@ -174,6 +185,7 @@ final class SkillsServiceTests: XCTestCase {
 private struct SkillsServiceFixture {
     let rootDirectory: URL
     let baseDir: URL
+    let sharedSkillsDirectory: URL
     let claudeSkillsDirectory: URL
     let ampSkillsDirectory: URL
     let service: DefaultSkillsService
@@ -181,9 +193,11 @@ private struct SkillsServiceFixture {
     init(createAmpParent: Bool = true) throws {
         rootDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         baseDir = rootDirectory.appendingPathComponent("agentskills", isDirectory: true)
+        sharedSkillsDirectory = rootDirectory.appendingPathComponent(".agents/skills", isDirectory: true)
         claudeSkillsDirectory = rootDirectory.appendingPathComponent(".claude/skills", isDirectory: true)
         ampSkillsDirectory = rootDirectory.appendingPathComponent(".amp/skills", isDirectory: true)
         try FileManager.default.createDirectory(at: baseDir, withIntermediateDirectories: true, attributes: nil)
+        try FileManager.default.createDirectory(at: sharedSkillsDirectory, withIntermediateDirectories: true, attributes: nil)
         try FileManager.default.createDirectory(
             at: claudeSkillsDirectory.deletingLastPathComponent(),
             withIntermediateDirectories: true,
@@ -224,6 +238,7 @@ private struct SkillsServiceFixture {
             baseDir: baseDir,
             session: ServiceURLProtocolStub.makeSession(),
             bundle: Bundle(for: SkillsServiceTests.self),
+            sharedSkillsDirectories: [sharedSkillsDirectory.path],
             agentRegistry: agentRegistry
         )
     }
@@ -234,6 +249,16 @@ private struct SkillsServiceFixture {
 
     func createSkill(id: String, description: String) throws {
         let directory = baseDir.appendingPathComponent(id, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        try skillMarkdown(id: id, description: description).write(
+            to: directory.appendingPathComponent("SKILL.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+    }
+
+    func createSharedSkill(id: String, description: String) throws {
+        let directory = sharedSkillsDirectory.appendingPathComponent(id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
         try skillMarkdown(id: id, description: description).write(
             to: directory.appendingPathComponent("SKILL.md"),
