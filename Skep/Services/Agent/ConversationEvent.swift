@@ -38,96 +38,181 @@ enum ConversationEvent: Sendable, Equatable {
 
     @MainActor
     func toRecord(conversation: Conversation) -> ConversationEventRecord? {
-        let record: ConversationEventRecord
-
         switch self {
-        case .message(let role, let content, let parentToolUseId):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "message",
-                role: role,
-                content: content,
-                conversation: conversation
-            )
-            record.parentToolUseId = parentToolUseId
-        case .toolCall(let id, let name, let input, let parentToolUseId, let callerAgent):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "tool_call",
-                toolId: id,
-                toolName: name,
-                toolInput: input,
-                conversation: conversation
-            )
-            record.parentToolUseId = parentToolUseId
-            record.callerAgent = callerAgent
-        case .toolResult(let id, let output, let isError, let parentToolUseId, let metadata):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "tool_result",
-                toolId: id,
-                toolOutput: output,
-                toolOutputStderr: metadata?.stderr,
-                toolOutputInterrupted: metadata?.interrupted ?? false,
-                toolOutputIsImage: metadata?.isImage ?? false,
-                toolOutputNoOutputExpected: metadata?.noOutputExpected ?? false,
-                isError: isError,
-                conversation: conversation
-            )
-            record.parentToolUseId = parentToolUseId
-        case .thinking(let content, let parentToolUseId):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "thinking",
-                content: content,
-                conversation: conversation
-            )
-            record.parentToolUseId = parentToolUseId
-        case .tokens(let input, let output, let cacheRead, let isError, let stopReason, let durationMs, let costUsd, _):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "tokens",
-                isError: isError,
-                tokenInput: input,
-                tokenOutput: output,
-                tokenCacheRead: cacheRead,
-                durationMs: durationMs,
-                costUsd: costUsd,
-                conversation: conversation
-            )
-            record.stopReason = stopReason
-        case .notification(let type, let message):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "notification",
-                content: message,
-                notificationType: type,
-                conversation: conversation
-            )
-        case .stop(let message):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "stop",
-                content: message,
-                conversation: conversation
-            )
-        case .sessionInit(let sessionId):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "session_init",
-                content: sessionId,
-                conversation: conversation
-            )
-        case .error(let message):
-            record = ConversationEventRecord(
-                conversationId: conversation.id,
-                type: "error",
-                content: message,
-                conversation: conversation
-            )
+        case .message:
+            return messageRecord(conversation: conversation)
+        case .toolCall:
+            return toolCallRecord(conversation: conversation)
+        case .toolResult:
+            return toolResultRecord(conversation: conversation)
+        case .thinking:
+            return thinkingRecord(conversation: conversation)
+        case .tokens:
+            return tokensRecord(conversation: conversation)
+        case .notification:
+            return notificationRecord(conversation: conversation)
+        case .stop:
+            return stopRecord(conversation: conversation)
+        case .sessionInit:
+            return sessionInitRecord(conversation: conversation)
+        case .error:
+            return errorRecord(conversation: conversation)
         case .messageChunk, .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             return nil
         }
+    }
+}
+
+private extension ConversationEvent {
+    @MainActor
+    func messageRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .message(role, content, parentToolUseId) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        let record = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "message",
+            role: role,
+            content: content,
+            conversation: conversation
+        )
+        record.parentToolUseId = parentToolUseId
         return record
+    }
+
+    @MainActor
+    func toolCallRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .toolCall(id, name, input, parentToolUseId, callerAgent) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        let record = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_call",
+            toolId: id,
+            toolName: name,
+            toolInput: input,
+            conversation: conversation
+        )
+        record.parentToolUseId = parentToolUseId
+        record.callerAgent = callerAgent
+        return record
+    }
+
+    @MainActor
+    func toolResultRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .toolResult(id, output, isError, parentToolUseId, metadata) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        let record = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_result",
+            toolId: id,
+            toolOutput: output,
+            toolOutputStderr: metadata?.stderr,
+            toolOutputInterrupted: metadata?.interrupted ?? false,
+            toolOutputIsImage: metadata?.isImage ?? false,
+            toolOutputNoOutputExpected: metadata?.noOutputExpected ?? false,
+            isError: isError,
+            conversation: conversation
+        )
+        record.parentToolUseId = parentToolUseId
+        return record
+    }
+
+    @MainActor
+    func thinkingRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .thinking(content, parentToolUseId) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        let record = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "thinking",
+            content: content,
+            conversation: conversation
+        )
+        record.parentToolUseId = parentToolUseId
+        return record
+    }
+
+    @MainActor
+    func tokensRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .tokens(input, output, cacheRead, isError, stopReason, durationMs, costUsd, _) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        let record = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tokens",
+            isError: isError,
+            tokenInput: input,
+            tokenOutput: output,
+            tokenCacheRead: cacheRead,
+            durationMs: durationMs,
+            costUsd: costUsd,
+            conversation: conversation
+        )
+        record.stopReason = stopReason
+        return record
+    }
+
+    @MainActor
+    func notificationRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .notification(type, message) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "notification",
+            content: message,
+            notificationType: type,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func stopRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .stop(message) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "stop",
+            content: message,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func sessionInitRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .sessionInit(sessionId) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "session_init",
+            content: sessionId,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func errorRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .error(message) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "error",
+            content: message,
+            conversation: conversation
+        )
     }
 }
