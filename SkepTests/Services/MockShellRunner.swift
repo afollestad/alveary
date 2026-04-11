@@ -44,20 +44,17 @@ actor MockShellRunner: ShellRunner {
         executable: String,
         args: [String],
         in directory: String?,
-        environment: [String: String]?,
-        timeout: Duration?,
-        stdoutLimitBytes: Int?,
-        stderrLimitBytes: Int?
+        options: ShellRunOptions
     ) async throws -> ShellResult {
         invocations.append(
             Invocation(
                 executable: executable,
                 args: args,
                 directory: directory,
-                environment: environment,
-                timeout: timeout,
-                stdoutLimitBytes: stdoutLimitBytes,
-                stderrLimitBytes: stderrLimitBytes
+                environment: options.environment,
+                timeout: options.timeout,
+                stdoutLimitBytes: options.stdoutLimitBytes,
+                stderrLimitBytes: options.stderrLimitBytes
             )
         )
 

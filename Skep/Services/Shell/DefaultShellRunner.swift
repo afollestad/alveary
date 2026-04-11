@@ -6,10 +6,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         executable: String,
         args: [String],
         in directory: String?,
-        environment: [String: String]? = nil,
-        timeout: Duration? = nil,
-        stdoutLimitBytes: Int? = nil,
-        stderrLimitBytes: Int? = nil
+        options: ShellRunOptions = ShellRunOptions()
     ) async throws -> ShellResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -19,7 +16,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             process.currentDirectoryURL = URL(fileURLWithPath: directory)
         }
 
-        if let environment {
+        if let environment = options.environment {
             process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, newValue in
                 newValue
             }
@@ -36,19 +33,19 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
 
             async let stdoutCapture = readBoundedOutput(
                 from: stdoutPipe.fileHandleForReading,
-                maxBytes: stdoutLimitBytes
+                maxBytes: options.stdoutLimitBytes
             )
             async let stderrCapture = readBoundedOutput(
                 from: stderrPipe.fileHandleForReading,
-                maxBytes: stderrLimitBytes
+                maxBytes: options.stderrLimitBytes
             )
-            let didFinish = await waitForExit(of: process, timeout: timeout, terminationController: terminationController)
+            let didFinish = await waitForExit(of: process, timeout: options.timeout, terminationController: terminationController)
             let (stdout, stdoutWasTruncated) = await stdoutCapture
             let (stderr, stderrWasTruncated) = await stderrCapture
 
             try Task.checkCancellation()
 
-            if !didFinish, let timeout {
+            if !didFinish, let timeout = options.timeout {
                 throw ShellError.timeout(executable: executable, timeout: timeout)
             }
 

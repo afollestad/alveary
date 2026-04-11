@@ -12,19 +12,49 @@ struct ShellResult: Sendable, Equatable {
     }
 }
 
+struct ShellRunOptions: Sendable, Equatable {
+    let environment: [String: String]?
+    let timeout: Duration?
+    let stdoutLimitBytes: Int?
+    let stderrLimitBytes: Int?
+
+    init(
+        environment: [String: String]? = nil,
+        timeout: Duration? = nil,
+        stdoutLimitBytes: Int? = nil,
+        stderrLimitBytes: Int? = nil
+    ) {
+        self.environment = environment
+        self.timeout = timeout
+        self.stdoutLimitBytes = stdoutLimitBytes
+        self.stderrLimitBytes = stderrLimitBytes
+    }
+}
+
 protocol ShellRunner: Sendable {
     func run(
         executable: String,
         args: [String],
         in directory: String?,
-        environment: [String: String]?,
-        timeout: Duration?,
-        stdoutLimitBytes: Int?,
-        stderrLimitBytes: Int?
+        options: ShellRunOptions
     ) async throws -> ShellResult
 }
 
 extension ShellRunner {
+    func run(
+        executable: String,
+        args: [String],
+        in directory: String? = nil,
+        options: ShellRunOptions = ShellRunOptions()
+    ) async throws -> ShellResult {
+        try await run(
+            executable: executable,
+            args: args,
+            in: directory,
+            options: options
+        )
+    }
+
     func run(
         executable: String,
         args: [String],
@@ -38,10 +68,12 @@ extension ShellRunner {
             executable: executable,
             args: args,
             in: directory,
-            environment: environment,
-            timeout: timeout,
-            stdoutLimitBytes: stdoutLimitBytes,
-            stderrLimitBytes: stderrLimitBytes
+            options: ShellRunOptions(
+                environment: environment,
+                timeout: timeout,
+                stdoutLimitBytes: stdoutLimitBytes,
+                stderrLimitBytes: stderrLimitBytes
+            )
         )
     }
 }
