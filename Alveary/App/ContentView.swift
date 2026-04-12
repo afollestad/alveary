@@ -106,6 +106,7 @@ struct ContentView: View {
 
         NavigationSplitView(columnVisibility: $splitVisibility) {
             SidebarView(viewModel: sidebarViewModel, appState: appState)
+                .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
         } detail: {
             HStack(spacing: 0) {
                 middlePane

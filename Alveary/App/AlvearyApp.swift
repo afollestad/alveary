@@ -13,6 +13,7 @@ struct AlvearyApp: App {
         Window("Alveary", id: "main") {
             ContentView(resolver: AppDI.resolver, appState: appState)
         }
+        .defaultSize(width: 1440, height: 920)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Thread") {
