@@ -30,15 +30,6 @@ final class AgentAssembly: AutoInitModuleAssembly {
         }
         .inObjectScope(.container)
 
-        registerDefaultAgentsManager(in: container)
-        registerAgentsManager(in: container)
-        registerConversationRuntimeStore(in: container)
-    }
-}
-
-private extension AgentAssembly {
-    @MainActor
-    func registerDefaultAgentsManager(in container: Container<Resolver>) {
         container.register(DefaultAgentsManager.self) { resolver in
             let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
 
@@ -64,10 +55,7 @@ private extension AgentAssembly {
             )
         }
         .inObjectScope(.container)
-    }
 
-    @MainActor
-    func registerAgentsManager(in container: Container<Resolver>) {
         container.register(AgentsManager.self) { resolver in
             let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
             guard let manager = unsafeResolver.resolve(DefaultAgentsManager.self) else {
@@ -76,10 +64,7 @@ private extension AgentAssembly {
             return manager
         }
         .inObjectScope(.container)
-    }
 
-    @MainActor
-    func registerConversationRuntimeStore(in container: Container<Resolver>) {
         container.register(ConversationRuntimeStore.self) { resolver in
             let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
             guard let manager = unsafeResolver.resolve(DefaultAgentsManager.self) else {
