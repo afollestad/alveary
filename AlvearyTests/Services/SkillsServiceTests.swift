@@ -42,6 +42,49 @@ final class SkillsServiceTests: XCTestCase {
 
         XCTAssertEqual(catalog.map(\.id), ["code-review-general", "playwright-testing"])
         XCTAssertTrue(catalog.allSatisfy { $0.source == .catalog })
+        XCTAssertEqual(
+            catalog.first?.githubURL,
+            URL(string: "https://github.com/anthropics/skills/blob/main/skills/code-review-general/SKILL.md")
+        )
+    }
+
+    func testSkillGitHubURLPrefersSourceURLOverRepoRoot() {
+        let skill = Skill(
+            id: "code-review-general",
+            name: "code-review-general",
+            description: "Review code",
+            version: nil,
+            source: .catalog,
+            isInstalled: false,
+            syncedAgentIDs: [],
+            owner: "anthropics",
+            repo: "skills",
+            sourceUrl: "https://github.com/anthropics/skills/tree/main/skills/code-review-general",
+            installs: nil
+        )
+
+        XCTAssertEqual(
+            skill.githubURL,
+            URL(string: "https://github.com/anthropics/skills/tree/main/skills/code-review-general")
+        )
+    }
+
+    func testSkillGitHubURLFallsBackToRepoRootWithoutSourceURL() {
+        let skill = Skill(
+            id: "playwright-cli",
+            name: "playwright-cli",
+            description: "Browser automation",
+            version: nil,
+            source: .skillsSh,
+            isInstalled: false,
+            syncedAgentIDs: [],
+            owner: "example",
+            repo: "community-skills",
+            sourceUrl: nil,
+            installs: nil
+        )
+
+        XCTAssertEqual(skill.githubURL, URL(string: "https://github.com/example/community-skills"))
     }
 
     func testFetchSkillMdUsesDefaultBranchAndCachesTreeLookup() async throws {
@@ -92,6 +135,10 @@ final class SkillsServiceTests: XCTestCase {
 
         XCTAssertEqual(first.markdown, second.markdown)
         XCTAssertEqual(first.baseURL, second.baseURL)
+        XCTAssertEqual(
+            first.browserURL,
+            URL(string: "https://github.com/example/community-skills/blob/release%2Fv1/tools/browser/SKILL.md")
+        )
         XCTAssertEqual(requests.filter { $0 == repoURL }.count, 1)
         XCTAssertEqual(requests.filter { $0 == treeURL }.count, 1)
         XCTAssertEqual(requests.filter { $0 == treeRawURL }.count, 2)
@@ -120,6 +167,7 @@ final class SkillsServiceTests: XCTestCase {
 
         XCTAssertEqual(document.markdown, skillMarkdown(id: "android-emulator", description: "Manage Android emulators"))
         XCTAssertEqual(document.baseURL, fixture.baseDir.appendingPathComponent("android-emulator", isDirectory: true))
+        XCTAssertNil(document.browserURL)
         XCTAssertTrue(ServiceURLProtocolStub.recordedRequests().isEmpty)
     }
 

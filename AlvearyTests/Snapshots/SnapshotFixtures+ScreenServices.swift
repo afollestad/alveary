@@ -60,7 +60,8 @@ actor SnapshotSkillsService: SkillsService {
     func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument {
         SkillMarkdownDocument(
             markdown: "# \(skill.name)\n\n\(skill.description)",
-            baseURL: skill.sourceUrl.flatMap(URL.init(string:))
+            baseURL: skill.sourceUrl.flatMap(URL.init(string:)),
+            browserURL: skill.githubURL
         )
     }
 

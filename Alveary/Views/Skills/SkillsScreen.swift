@@ -199,6 +199,7 @@ private struct SkillDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var markdown = ""
     @State private var markdownBaseURL: URL?
+    @State private var resolvedGitHubURL: URL?
     @State private var isLoading = true
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
 
@@ -228,9 +229,7 @@ private struct SkillDetailSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack {
-                if let owner = skill.owner,
-                   let repo = skill.repo,
-                   let url = URL(string: "https://github.com/\(owner)/\(repo)") {
+                if let url = resolvedGitHubURL ?? skill.githubURL {
                     Button("View on GitHub") {
                         UIApplicationShim.open(url: url)
                     }
@@ -268,10 +267,12 @@ private struct SkillDetailSheet: View {
                 let document = try await viewModel.fetchSkillMarkdown(for: skill)
                 markdown = document.markdown
                 markdownBaseURL = document.baseURL
+                resolvedGitHubURL = document.browserURL ?? skill.githubURL
             } catch {
                 onError(error)
                 markdown = skill.description
                 markdownBaseURL = nil
+                resolvedGitHubURL = skill.githubURL
             }
             isLoading = false
         }

@@ -3,6 +3,7 @@ import Foundation
 struct SkillMarkdownDocument: Sendable, Equatable {
     let markdown: String
     let baseURL: URL?
+    let browserURL: URL?
 }
 
 protocol SkillsService: Actor {

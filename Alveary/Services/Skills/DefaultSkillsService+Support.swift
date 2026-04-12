@@ -73,12 +73,12 @@ extension DefaultSkillsService {
         )
     }
 
-    static func makeGitHubTreeBrowserURL(owner: String, repo: String, branch: String, path: String) -> URL? {
+    static func makeGitHubBlobBrowserURL(owner: String, repo: String, branch: String, path: String) -> URL? {
         let encodedBranch = encodeGitHubPathComponent(branch)
         let encodedPath = encodeGitHubRelativePath(path)
         let suffix = encodedPath.isEmpty ? "" : "/\(encodedPath)"
         return URL(
-            string: "https://github.com/\(encodeGitHubPathComponent(owner))/\(encodeGitHubPathComponent(repo))/tree/\(encodedBranch)\(suffix)"
+            string: "https://github.com/\(encodeGitHubPathComponent(owner))/\(encodeGitHubPathComponent(repo))/blob/\(encodedBranch)\(suffix)"
         )
     }
 
@@ -137,7 +137,9 @@ extension DefaultSkillsService {
                 continue
             }
 
-            if let markdown = try await fetchMarkdownDocumentIfAvailable(at: url, session: session) {
+            let browserURL = makeGitHubBlobBrowserURL(owner: owner, repo: repo, branch: branch, path: path)
+
+            if let markdown = try await fetchMarkdownDocumentIfAvailable(at: url, browserURL: browserURL, session: session) {
                 return markdown
             }
         }
@@ -167,7 +169,8 @@ extension DefaultSkillsService {
                 "",
                 skill.description
             ].joined(separator: "\n"),
-            baseURL: skill.sourceUrl.flatMap(URL.init(string:))
+            baseURL: skill.sourceUrl.flatMap(URL.init(string:)),
+            browserURL: skill.githubURL
         )
     }
 }
@@ -190,7 +193,11 @@ extension DefaultSkillsService {
 }
 
 private extension DefaultSkillsService {
-    static func fetchMarkdownDocumentIfAvailable(at url: URL, session: URLSession) async throws -> SkillMarkdownDocument? {
+    static func fetchMarkdownDocumentIfAvailable(
+        at url: URL,
+        browserURL: URL?,
+        session: URLSession
+    ) async throws -> SkillMarkdownDocument? {
         let (data, response) = try await session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
@@ -199,7 +206,11 @@ private extension DefaultSkillsService {
             return nil
         }
 
-        return SkillMarkdownDocument(markdown: content, baseURL: url.deletingLastPathComponent())
+        return SkillMarkdownDocument(
+            markdown: content,
+            baseURL: url.deletingLastPathComponent(),
+            browserURL: browserURL
+        )
     }
 
     static func fallbackSkillMarkdownPaths(for skillID: String) -> [String] {
@@ -230,7 +241,6 @@ private extension DefaultSkillsService {
         let frontmatter = parseFrontmatter(content)
         let pathComponents = entry.path.split(separator: "/")
         let skillID = pathComponents.dropLast().last.map(String.init) ?? entry.path
-        let directoryPath = pathComponents.dropLast().joined(separator: "/")
         return CatalogSkillEntry(
             id: skillID,
             name: frontmatter.name ?? skillID,
@@ -238,11 +248,11 @@ private extension DefaultSkillsService {
             source: "catalog",
             owner: owner,
             repo: repo,
-            sourceUrl: makeGitHubTreeBrowserURL(
+            sourceUrl: makeGitHubBlobBrowserURL(
                 owner: owner,
                 repo: repo,
                 branch: branch,
-                path: directoryPath
+                path: entry.path
             )?.absoluteString
         )
     }

@@ -109,7 +109,8 @@ final class SkillsViewModelTests: XCTestCase {
             catalog: [],
             fetchedMarkdownDocument: SkillMarkdownDocument(
                 markdown: "---\nname: \"example\"\ndescription: \"desc\"\n---\n\nSee [notes](references/file.md).",
-                baseURL: baseURL
+                baseURL: baseURL,
+                browserURL: URL(string: "https://github.com/example/skills/blob/main/example/SKILL.md")
             )
         )
         let viewModel = SkillsViewModel(skillsService: service)
@@ -118,6 +119,7 @@ final class SkillsViewModelTests: XCTestCase {
 
         XCTAssertEqual(document.markdown, "See [notes](references/file.md).")
         XCTAssertEqual(document.baseURL, baseURL)
+        XCTAssertEqual(document.browserURL, URL(string: "https://github.com/example/skills/blob/main/example/SKILL.md"))
     }
 }
 
@@ -139,7 +141,7 @@ private actor SkillsMockService: SkillsService {
         catalog: [Skill],
         searchResultsByQuery: [String: [Skill]] = [:],
         searchDelaysByQuery: [String: Duration] = [:],
-        fetchedMarkdownDocument: SkillMarkdownDocument = SkillMarkdownDocument(markdown: "", baseURL: nil)
+        fetchedMarkdownDocument: SkillMarkdownDocument = SkillMarkdownDocument(markdown: "", baseURL: nil, browserURL: nil)
     ) {
         self.installed = installed
         self.catalog = catalog

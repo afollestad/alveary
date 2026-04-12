@@ -280,7 +280,8 @@ extension DefaultSkillsService {
             }
             return SkillMarkdownDocument(
                 markdown: content,
-                baseURL: skillFile.deletingLastPathComponent()
+                baseURL: skillFile.deletingLastPathComponent(),
+                browserURL: nil
             )
         }
 
@@ -411,6 +412,8 @@ extension DefaultSkillsService {
             throw SkillsError.noSource(path)
         }
 
+        let browserURL = Self.makeGitHubBlobBrowserURL(owner: owner, repo: repo, branch: branch, path: path)
+
         let (data, response) = try await session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
@@ -421,7 +424,8 @@ extension DefaultSkillsService {
 
         return SkillMarkdownDocument(
             markdown: content,
-            baseURL: url.deletingLastPathComponent()
+            baseURL: url.deletingLastPathComponent(),
+            browserURL: browserURL
         )
     }
 

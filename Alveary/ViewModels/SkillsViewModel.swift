@@ -88,7 +88,8 @@ final class SkillsViewModel {
         let document = try await skillsService.fetchSkillMd(skill: skill)
         return SkillMarkdownDocument(
             markdown: DefaultSkillsService.markdownBody(from: document.markdown),
-            baseURL: document.baseURL
+            baseURL: document.baseURL,
+            browserURL: document.browserURL
         )
     }
 
