@@ -38,16 +38,22 @@ struct DiffViewerPaneHeader: View {
             HStack(spacing: 8) {
                 switch contextualAction {
                 case .commit:
-                    Button("Commit", action: onCommitRequested)
+                    Button(action: onCommitRequested) {
+                        Label("Commit", systemImage: "checkmark.circle")
+                    }
                         .primaryActionButtonStyle()
                         .disabled(!areAgentActionsEnabled)
                 case .openPR:
-                    Button("Open PR", action: onOpenPRRequested)
+                    Button(action: onOpenPRRequested) {
+                        Label("Open PR", systemImage: "arrow.triangle.branch")
+                    }
                         .primaryActionButtonStyle()
                         .disabled(!areAgentActionsEnabled)
                 case .viewPR(let url):
-                    Button("View PR") {
+                    Button {
                         onViewPRRequested(url)
+                    } label: {
+                        Label("View PR", systemImage: "arrow.up.right.square")
                     }
                     .primaryActionButtonStyle()
                 case .none:
