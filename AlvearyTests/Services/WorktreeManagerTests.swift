@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import XCTest
 
@@ -151,6 +152,72 @@ final class WorktreeManagerTests: XCTestCase {
         }
     }
 
+    func testRemoveAllDeletesRegisteredWorktreesAndProjectNamespaceDirectory() async throws {
+        let projectURL = try makeTemporaryProject()
+        let worktreeURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees/demo/worktree")
+        let namespaceDirectory = namespacedWorktreesDirectory(for: projectURL)
+        try FileManager.default.createDirectory(at: namespaceDirectory, withIntermediateDirectories: true)
+
+        let listOutput = """
+        worktree \(projectURL.path)
+        HEAD abc123
+        branch refs/heads/main
+
+        worktree \(worktreeURL.path)
+        HEAD def456
+        branch refs/heads/alveary/demo
+        """
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: listOutput,
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(.success(Self.emptyShellResult()))
+        await shell.enqueue(.success(Self.emptyShellResult()))
+        await shell.enqueue(.success(Self.emptyShellResult()))
+
+        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+
+        try await manager.removeAll(projectPath: projectURL.path)
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.map(\.args), [
+            ["worktree", "list", "--porcelain"],
+            ["worktree", "remove", "--force", worktreeURL.path],
+            ["show-ref", "--verify", "--quiet", "refs/heads/alveary/demo"],
+            ["branch", "-D", "alveary/demo"]
+        ])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: projectURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: namespaceDirectory.path))
+    }
+
+    func testRemoveAllRemovesNamespacedWorktreesWhenProjectFolderIsAlreadyGone() async throws {
+        let parentURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let missingProjectURL = parentURL.appendingPathComponent("missing-project")
+        let namespaceDirectory = namespacedWorktreesDirectory(for: missingProjectURL)
+
+        try FileManager.default.createDirectory(at: namespaceDirectory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: parentURL) }
+
+        let shell = MockShellRunner()
+        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+
+        try await manager.removeAll(projectPath: missingProjectURL.path)
+
+        let invocations = await shell.invocations
+        XCTAssertTrue(invocations.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missingProjectURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: namespaceDirectory.path))
+    }
+
     private func makeTemporaryProject() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -168,5 +235,29 @@ final class WorktreeManagerTests: XCTestCase {
 
     private static func failingShellResult() -> ShellResult {
         ShellResult(stdout: "", stderr: "", exitCode: 1, stdoutWasTruncated: false, stderrWasTruncated: false)
+    }
+
+    private func namespacedWorktreesDirectory(for projectURL: URL) -> URL {
+        let canonicalProjectPath = projectURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let projectName = URL(fileURLWithPath: canonicalProjectPath).lastPathComponent
+        let digest = SHA256.hash(data: Data(canonicalProjectPath.utf8))
+        let hash = digest.prefix(3).map { String(format: "%02x", $0) }.joined()
+        let namespace = "\(slugify(projectName))-\(hash)"
+
+        return projectURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("worktrees")
+            .appendingPathComponent(namespace)
+    }
+
+    private func slugify(_ value: String) -> String {
+        let slug = value.lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+
+        guard !slug.isEmpty else {
+            return "thread"
+        }
+        return String(slug.prefix(50))
     }
 }

@@ -28,6 +28,7 @@ protocol WorktreeManager: Actor {
         branch: String?
     ) async throws
 
+    func removeAll(projectPath: String) async throws
     func deleteBranch(projectPath: String, branch: String) async throws
     func list(projectPath: String) async throws -> [WorktreeInfo]
 }

@@ -200,6 +200,7 @@ actor SidebarMockAgentsManager: AgentsManager {
 actor SidebarMockWorktreeManager: WorktreeManager {
     enum MockError: Error, Sendable, Equatable {
         case removeFailed
+        case removeAllFailed
     }
 
     struct DeleteBranchCall: Sendable, Equatable {
@@ -215,10 +216,16 @@ actor SidebarMockWorktreeManager: WorktreeManager {
 
     private var recordedDeleteBranchCalls: [DeleteBranchCall] = []
     private var recordedRemoveCalls: [RemoveCall] = []
+    private var recordedRemoveAllCalls: [String] = []
     private var removeError: MockError?
+    private var removeAllError: MockError?
 
     func setRemoveError(_ error: MockError?) {
         removeError = error
+    }
+
+    func setRemoveAllError(_ error: MockError?) {
+        removeAllError = error
     }
 
     func create(
@@ -248,6 +255,13 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         }
     }
 
+    func removeAll(projectPath: String) async throws {
+        recordedRemoveAllCalls.append(projectPath)
+        if let removeAllError {
+            throw removeAllError
+        }
+    }
+
     func deleteBranch(projectPath: String, branch: String) async throws {
         recordedDeleteBranchCalls.append(
             DeleteBranchCall(projectPath: projectPath, branch: branch)
@@ -264,6 +278,10 @@ actor SidebarMockWorktreeManager: WorktreeManager {
 
     func removeCalls() -> [RemoveCall] {
         recordedRemoveCalls
+    }
+
+    func removeAllCalls() -> [String] {
+        recordedRemoveAllCalls
     }
 }
 

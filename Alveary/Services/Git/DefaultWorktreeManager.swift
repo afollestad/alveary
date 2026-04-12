@@ -164,7 +164,7 @@ actor DefaultWorktreeManager: WorktreeManager {
     }
 }
 
-private extension DefaultWorktreeManager {
+extension DefaultWorktreeManager {
     static func makeGitError(from result: ShellResult) -> GitError {
         let message = [result.stderr, result.stdout]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -241,10 +241,7 @@ private extension DefaultWorktreeManager {
     func makeCandidateBase(projectPath: String, threadName: String) -> (baseName: String, worktreesDirectory: URL) {
         let slug = slugify(threadName)
         let hash = shortHash(threadName)
-        let worktreesDirectory = URL(fileURLWithPath: projectPath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("worktrees")
-            .appendingPathComponent(projectNamespace(for: projectPath))
+        let worktreesDirectory = projectWorktreesDirectory(for: projectPath)
 
         return (baseName: "\(slug)-\(hash)", worktreesDirectory: worktreesDirectory)
     }

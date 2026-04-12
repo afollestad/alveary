@@ -152,24 +152,58 @@ final class SidebarViewModel {
 
     func deleteThread(_ thread: AgentThread) async throws {
         let dbThread = try requireThread(thread)
-        try await quiesceThreadConversations(dbThread)
-
         guard let projectPath = dbThread.project?.path else {
             throw SidebarViewModelError.threadMissingParentProject
         }
 
-        for pendingCleanupBranch in dbThread.pendingCleanupBranches
-        where pendingCleanupBranch != dbThread.branch {
+        try await cleanupThreadResources(dbThread, projectPath: projectPath)
+
+        modelContext.delete(dbThread)
+        try modelContext.save()
+    }
+
+    func deleteProject(_ project: Project) async throws {
+        let dbProject = try requireProject(project)
+        let threads = Array(dbProject.threads)
+        let projectDirectoryExists = directoryExists(at: dbProject.path)
+
+        for thread in threads {
+            try await cleanupThreadResources(
+                thread,
+                projectPath: dbProject.path,
+                skipGitCleanupWhenProjectMissing: !projectDirectoryExists
+            )
+        }
+
+        try await worktreeManager.removeAll(projectPath: dbProject.path)
+
+        modelContext.delete(dbProject)
+        try modelContext.save()
+    }
+
+    func cleanupThreadResources(
+        _ thread: AgentThread,
+        projectPath: String,
+        skipGitCleanupWhenProjectMissing: Bool = false
+    ) async throws {
+        try await quiesceThreadConversations(thread)
+
+        if skipGitCleanupWhenProjectMissing, !directoryExists(at: projectPath) {
+            return
+        }
+
+        for pendingCleanupBranch in thread.pendingCleanupBranches
+        where pendingCleanupBranch != thread.branch {
             try await worktreeManager.deleteBranch(
                 projectPath: projectPath,
                 branch: pendingCleanupBranch
             )
         }
 
-        let requiresCompletedWorktreeCleanup = dbThread.useWorktree && dbThread.hasCompletedInitialSetup
+        let requiresCompletedWorktreeCleanup = thread.useWorktree && thread.hasCompletedInitialSetup
         if requiresCompletedWorktreeCleanup {
-            guard let worktreePath = dbThread.worktreePath,
-                  let branch = dbThread.branch else {
+            guard let worktreePath = thread.worktreePath,
+                  let branch = thread.branch else {
                 throw SidebarViewModelError.threadMissingDeletionMetadata
             }
             try await worktreeManager.remove(
@@ -177,18 +211,15 @@ final class SidebarViewModel {
                 worktreePath: worktreePath,
                 branch: branch
             )
-        } else if let worktreePath = dbThread.worktreePath {
+        } else if let worktreePath = thread.worktreePath {
             try await worktreeManager.remove(
                 projectPath: projectPath,
                 worktreePath: worktreePath,
-                branch: dbThread.branch
+                branch: thread.branch
             )
-        } else if dbThread.branch != nil {
+        } else if thread.branch != nil {
             throw SidebarViewModelError.threadMissingDeletionMetadata
         }
-
-        modelContext.delete(dbThread)
-        try modelContext.save()
     }
 
     func threadStatus(for thread: AgentThread) -> ThreadStatus {
@@ -404,6 +435,15 @@ private extension SidebarViewModel {
             return nil
         }
         return "\(owner)/\(repo)"
+    }
+
+    func directoryExists(at path: String) -> Bool {
+        var isDirectory = ObjCBool(false)
+        let exists = FileManager.default.fileExists(
+            atPath: path,
+            isDirectory: &isDirectory
+        )
+        return exists && isDirectory.boolValue
     }
 }
 

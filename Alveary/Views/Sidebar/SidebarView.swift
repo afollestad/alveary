@@ -10,6 +10,7 @@ struct SidebarView: View {
     @State private var expandedProjects: Set<String> = []
     @State private var expandedArchivedProjects: Set<String> = []
     @State private var pendingDeleteThread: AgentThread?
+    @State private var pendingDeleteProject: Project?
 
     private var projects: [Project] {
         queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -65,6 +66,15 @@ struct SidebarView: View {
                             }
                         )
                         .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .project(project))
+                        .contextMenu {
+                            Button("New Thread") {
+                                Task { await createThread(in: project) }
+                            }
+
+                            Button("Remove Project...", role: .destructive) {
+                                pendingDeleteProject = project
+                            }
+                        }
 
                         if expandedProjects.contains(project.path) {
                             ForEach(activeThreads(for: project)) { thread in
@@ -155,7 +165,7 @@ struct SidebarView: View {
             presenting: pendingDeleteThread
         ) { thread in
             Button("Delete", role: .destructive) {
-                Task { await confirmDelete(thread) }
+                Task { await confirmDeleteThread(thread) }
             }
 
             Button("Cancel", role: .cancel) {
@@ -163,6 +173,31 @@ struct SidebarView: View {
             }
         } message: { thread in
             Text("This permanently deletes \(thread.name) and removes its worktree and branch if present.")
+        }
+        .alert(
+            "Remove project?",
+            isPresented: Binding(
+                get: { pendingDeleteProject != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteProject = nil
+                    }
+                }
+            ),
+            presenting: pendingDeleteProject
+        ) { project in
+            Button("Remove Project", role: .destructive) {
+                Task { await confirmDeleteProject(project) }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingDeleteProject = nil
+            }
+        } message: { project in
+            Text(
+                "Remove \(project.name) from Alveary, and delete its threads and worktrees? " +
+                    "The main project folder will not be touched."
+            )
         }
     }
 }
@@ -296,7 +331,7 @@ private extension SidebarView {
         }
     }
 
-    func confirmDelete(_ thread: AgentThread) async {
+    func confirmDeleteThread(_ thread: AgentThread) async {
         pendingDeleteThread = nil
 
         let previousSelectedItem = appState.selectedSidebarItem
@@ -319,6 +354,57 @@ private extension SidebarView {
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
+            viewModel.presentSidebarError(error)
+        }
+    }
+
+    func confirmDeleteProject(_ project: Project) async {
+        pendingDeleteProject = nil
+
+        let previousSelectedItem = appState.selectedSidebarItem
+        let previousBookmark = appState.previousSelection
+        let previousConversationIDs = appState.selectedConversationIDs
+        let previousDiffAction = appState.pendingDiffAction
+
+        let threadIDs = Set(project.threads.map(\.persistentModelID))
+        let conversationIDs = Set(project.threads.flatMap(\.conversations).map(\.persistentModelID))
+
+        switch appState.selectedSidebarItem {
+        case .project(let selectedProject) where selectedProject.path == project.path:
+            appState.selectedSidebarItem = nil
+        case .thread(let selectedThread) where threadIDs.contains(selectedThread.persistentModelID):
+            appState.selectedSidebarItem = nil
+        default:
+            break
+        }
+
+        switch appState.previousSelection {
+        case .projectPath(let projectPath) where projectPath == project.path:
+            appState.previousSelection = nil
+        case .threadId(let threadID) where threadIDs.contains(threadID):
+            appState.previousSelection = nil
+        default:
+            break
+        }
+
+        for threadID in threadIDs {
+            appState.selectedConversationIDs.removeValue(forKey: threadID)
+        }
+
+        if let pendingDiffAction = appState.pendingDiffAction,
+           conversationIDs.contains(pendingDiffAction.conversationID) {
+            appState.pendingDiffAction = nil
+        }
+
+        do {
+            try await viewModel.deleteProject(project)
+            expandedProjects.remove(project.path)
+            expandedArchivedProjects.remove(project.path)
+        } catch {
+            appState.selectedSidebarItem = previousSelectedItem
+            appState.previousSelection = previousBookmark
+            appState.selectedConversationIDs = previousConversationIDs
+            appState.pendingDiffAction = previousDiffAction
             viewModel.presentSidebarError(error)
         }
     }

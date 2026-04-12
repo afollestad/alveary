@@ -192,6 +192,114 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertTrue(try fixture.threadExists(thread))
     }
 
+    func testDeleteProjectDeletesChildThreadsAndRemainingWorktreesBeforeDeletingModel() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let primaryThread = AgentThread(
+            name: "Primary",
+            branch: "alveary/live",
+            pendingCleanupBranches: ["alveary/stale", "alveary/live"],
+            worktreePath: "/tmp/alveary-worktree",
+            hasCompletedInitialSetup: true,
+            useWorktree: true,
+            project: project
+        )
+        primaryThread.conversations = [
+            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: primaryThread),
+            Conversation(id: "side", title: "Side", provider: "claude", isMain: false, displayOrder: 1, thread: primaryThread)
+        ]
+
+        let secondaryThread = AgentThread(name: "Secondary", project: project)
+        secondaryThread.conversations = [
+            Conversation(id: "archived", title: "Archived", provider: "claude", isMain: true, displayOrder: 0, thread: secondaryThread)
+        ]
+
+        project.threads = [primaryThread, secondaryThread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        try await fixture.viewModel.deleteProject(project)
+
+        let destroyCalls = await fixture.agentsManager.destroyCalls().sorted()
+        let deleteBranchCalls = await fixture.worktreeManager.deleteBranchCalls()
+        let removeCalls = await fixture.worktreeManager.removeCalls()
+        let removeAllCalls = await fixture.worktreeManager.removeAllCalls()
+
+        XCTAssertEqual(destroyCalls, ["archived", "main", "side"])
+        XCTAssertEqual(deleteBranchCalls, [
+            .init(projectPath: "/tmp/alveary-project", branch: "alveary/stale")
+        ])
+        XCTAssertEqual(removeCalls, [
+            .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
+        ])
+        XCTAssertEqual(removeAllCalls, ["/tmp/alveary-project"])
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 0)
+    }
+
+    func testDeleteProjectPreservesModelWhenFinalWorktreeSweepFails() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let thread = AgentThread(name: "Primary", project: project)
+        thread.conversations = [
+            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+        ]
+
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+        await fixture.worktreeManager.setRemoveAllError(.removeAllFailed)
+
+        do {
+            try await fixture.viewModel.deleteProject(project)
+            XCTFail("Expected delete to throw")
+        } catch let error as SidebarMockWorktreeManager.MockError {
+            XCTAssertEqual(error, .removeAllFailed)
+        }
+
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 1)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 1)
+    }
+
+    func testDeleteProjectSucceedsWhenProjectFolderIsAlreadyMissing() async throws {
+        let fixture = try SidebarTestFixture()
+        let parentURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let missingProjectURL = parentURL.appendingPathComponent("missing-project")
+        let project = Project(path: missingProjectURL.path, name: "Missing")
+        let thread = AgentThread(
+            name: "Primary",
+            branch: "alveary/live",
+            pendingCleanupBranches: ["alveary/stale"],
+            worktreePath: "/tmp/alveary-worktree",
+            hasCompletedInitialSetup: true,
+            useWorktree: true,
+            project: project
+        )
+        thread.conversations = [
+            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+        ]
+
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+        addTeardownBlock { try? FileManager.default.removeItem(at: parentURL) }
+
+        try await fixture.viewModel.deleteProject(project)
+
+        let destroyCalls = await fixture.agentsManager.destroyCalls()
+        let deleteBranchCalls = await fixture.worktreeManager.deleteBranchCalls()
+        let removeCalls = await fixture.worktreeManager.removeCalls()
+        let removeAllCalls = await fixture.worktreeManager.removeAllCalls()
+
+        XCTAssertEqual(destroyCalls, ["main"])
+        XCTAssertTrue(deleteBranchCalls.isEmpty)
+        XCTAssertTrue(removeCalls.isEmpty)
+        XCTAssertEqual(removeAllCalls, [missingProjectURL.path])
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
+    }
+
     func testThreadStatusUsesDocumentedPriorityAndArchivedOverride() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
