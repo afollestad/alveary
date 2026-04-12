@@ -54,7 +54,15 @@ final class CLIGitService: GitService {
         }
 
         let data = try Data(contentsOf: fileURL)
-        let content = String(bytes: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        guard !isLikelyBinary(data),
+              let content = String(bytes: data, encoding: .utf8) else {
+            return """
+            diff --git a/\(path) b/\(path)
+            new file mode 100644
+            Binary files /dev/null and b/\(path) differ
+            """
+        }
+
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
         let lineCount = max(lines.count, 1)
         let body = lines.map { "+\($0)" }.joined(separator: "\n")
@@ -201,6 +209,18 @@ final class CLIGitService: GitService {
 }
 
 private extension CLIGitService {
+    func isLikelyBinary(_ data: Data) -> Bool {
+        guard !data.isEmpty else {
+            return false
+        }
+
+        if data.contains(0) {
+            return true
+        }
+
+        return false
+    }
+
     static func makeError(from result: ShellResult) -> GitError {
         let combined = [result.stderr, result.stdout]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

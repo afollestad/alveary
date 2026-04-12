@@ -44,10 +44,13 @@ final class DiffViewerViewModel {
         }
     }
 
+    private typealias DiffLoadResult = (raw: String, parsed: DiffFile?)
+
     private(set) var files: [FileStatus] = []
     private(set) var selectedFile: FileStatus?
     private(set) var parsedDiff: DiffFile?
     private(set) var rawDiffContent = ""
+    private(set) var isLoadingSelectedDiff = false
     private(set) var contextualAction: ContextualAction = .none
     private(set) var gitError: String?
     private(set) var activeDirectory: String?
@@ -65,6 +68,7 @@ final class DiffViewerViewModel {
     private var prCacheTime: Date = .distantPast
     private static let prCacheTTL: TimeInterval = 60
     private var inFlightRefresh: (id: UUID, task: Task<Void, Never>)?
+    private var inFlightDiffLoad: (id: UUID, task: Task<DiffLoadResult, Error>)?
     private var pendingRefresh: RefreshRequest?
     private var directoryGeneration: UInt64 = 0
     private var fileSelectionGeneration: UInt64 = 0
@@ -188,11 +192,7 @@ final class DiffViewerViewModel {
         }
     }
 
-    deinit {
-        MainActor.assumeIsolated {
-            tearDown()
-        }
-    }
+    deinit { MainActor.assumeIsolated { tearDown() } }
 
     func switchToDirectory(
         _ directory: String,
@@ -208,6 +208,8 @@ final class DiffViewerViewModel {
         let directoryChanged = directory != activeDirectory
         directoryGeneration &+= 1
         fileSelectionGeneration &+= 1
+        inFlightDiffLoad?.task.cancel()
+        inFlightDiffLoad = nil
         self.baseRef = baseRef
         self.remoteName = remoteName
         stopWatching()
@@ -218,6 +220,7 @@ final class DiffViewerViewModel {
             selectedFile = nil
             parsedDiff = nil
             rawDiffContent = ""
+            isLoadingSelectedDiff = false
             contextualAction = .none
             gitError = nil
         }
@@ -252,6 +255,8 @@ final class DiffViewerViewModel {
     func clear() {
         directoryGeneration &+= 1
         fileSelectionGeneration &+= 1
+        inFlightDiffLoad?.task.cancel()
+        inFlightDiffLoad = nil
         stopWatching()
         activeDirectory = nil
         activeConversationIds = []
@@ -261,6 +266,7 @@ final class DiffViewerViewModel {
         selectedFile = nil
         parsedDiff = nil
         rawDiffContent = ""
+        isLoadingSelectedDiff = false
         contextualAction = .none
         gitError = nil
         pendingChangedPaths = []
@@ -268,9 +274,9 @@ final class DiffViewerViewModel {
         invalidatePRCache()
     }
 
-    func clearGitError() {
-        gitError = nil
-    }
+    func clearGitError() { gitError = nil }
+
+    func presentGitError(_ message: String) { gitError = message }
 
     func refresh(in directory: String, reason: RefreshReason) async {
         await enqueueRefresh(
@@ -299,8 +305,17 @@ final class DiffViewerViewModel {
         let bindingGeneration = directoryGeneration
         fileSelectionGeneration &+= 1
         let selectionGeneration = fileSelectionGeneration
+        let diffLoadID = UUID()
 
-        do {
+        inFlightDiffLoad?.task.cancel()
+        inFlightDiffLoad = nil
+        rawDiffContent = ""
+        parsedDiff = nil
+        gitError = nil
+        isLoadingSelectedDiff = true
+
+        let gitService = self.gitService
+        let task = Task(priority: .userInitiated) { () throws -> DiffLoadResult in
             let raw: String
             if file.status == .untracked {
                 raw = try await gitService.syntheticAddedDiff(for: file.path, in: directory)
@@ -312,45 +327,55 @@ final class DiffViewerViewModel {
                 )
             }
 
-            guard isCurrentBinding(directory: directory, generation: bindingGeneration),
-                  fileSelectionGeneration == selectionGeneration,
-                  selectedFile?.path == file.path,
-                  selectedFile?.isStaged == file.isStaged else {
-                return
-            }
+            try Task.checkCancellation()
 
             guard raw.utf8.count <= 5 * 1024 * 1024 else {
-                rawDiffContent = ""
-                parsedDiff = nil
-                gitError = "Diff preview exceeded 5MB"
-                return
+                throw GitError.outputTooLarge("Diff preview exceeded 5MB")
             }
 
-            let parsed = await Task.detached(priority: .utility) {
-                DiffParser.parse(raw).first
+            let parsed = try await Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                return DiffParser.parse(raw).first
             }.value
+
+            try Task.checkCancellation()
+            return DiffLoadResult(raw: raw, parsed: parsed)
+        }
+        inFlightDiffLoad = (id: diffLoadID, task: task)
+
+        do {
+            let result = try await task.value
 
             guard isCurrentBinding(directory: directory, generation: bindingGeneration),
                   fileSelectionGeneration == selectionGeneration,
                   selectedFile?.path == file.path,
-                  selectedFile?.isStaged == file.isStaged else {
+                  selectedFile?.isStaged == file.isStaged,
+                  inFlightDiffLoad?.id == diffLoadID else {
                 return
             }
 
-            rawDiffContent = raw
-            parsedDiff = parsed
+            rawDiffContent = result.raw
+            parsedDiff = result.parsed
             gitError = nil
+        } catch is CancellationError {
+            // A newer selection superseded this load.
         } catch {
             guard isCurrentBinding(directory: directory, generation: bindingGeneration),
                   fileSelectionGeneration == selectionGeneration,
                   selectedFile?.path == file.path,
-                  selectedFile?.isStaged == file.isStaged else {
+                  selectedFile?.isStaged == file.isStaged,
+                  inFlightDiffLoad?.id == diffLoadID else {
                 return
             }
 
             rawDiffContent = ""
             parsedDiff = nil
             gitError = "Diff failed: \(error.localizedDescription)"
+        }
+
+        if inFlightDiffLoad?.id == diffLoadID {
+            inFlightDiffLoad = nil
+            isLoadingSelectedDiff = false
         }
     }
 
@@ -574,9 +599,12 @@ private extension DiffViewerViewModel {
         }
 
         guard let updatedSelection else {
+            inFlightDiffLoad?.task.cancel()
+            inFlightDiffLoad = nil
             self.selectedFile = nil
             parsedDiff = nil
             rawDiffContent = ""
+            isLoadingSelectedDiff = false
             return
         }
 

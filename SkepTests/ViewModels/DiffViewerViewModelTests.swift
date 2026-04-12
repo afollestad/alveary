@@ -255,6 +255,42 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertEqual(listPRCallCount, 0)
     }
 
+    func testSelectFileCancelsSupersededDiffLoad() async {
+        let slowFile = FileStatus(path: "slow.swift", originalPath: nil, status: .modified, isStaged: false)
+        let fastFile = FileStatus(path: "fast.swift", originalPath: nil, status: .modified, isStaged: false)
+        let fixture = TestFixture(
+            gitService: MockGitService(
+                statusResults: [.success([slowFile, fastFile])],
+                diffResults: [Self.modifiedDiff(path: "slow.swift"), Self.modifiedDiff(path: "fast.swift")],
+                diffDelays: [.milliseconds(250), .zero]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: nil,
+            conversationIds: []
+        )
+
+        let slowSelectionTask = Task {
+            await fixture.viewModel.selectFile(slowFile, in: fixture.directory)
+        }
+        try? await Task.sleep(for: .milliseconds(40))
+
+        XCTAssertEqual(fixture.viewModel.selectedFile?.path, "slow.swift")
+        XCTAssertTrue(fixture.viewModel.isLoadingSelectedDiff)
+
+        await fixture.viewModel.selectFile(fastFile, in: fixture.directory)
+        await slowSelectionTask.value
+
+        XCTAssertEqual(fixture.viewModel.selectedFile?.path, "fast.swift")
+        XCTAssertEqual(fixture.viewModel.parsedDiff?.path, "fast.swift")
+        XCTAssertFalse(fixture.viewModel.isLoadingSelectedDiff)
+        XCTAssertEqual(fixture.viewModel.gitError, nil)
+    }
+
     func testDetermineActionReturnsExpectedToolbarStates() async {
         let commitFixture = TestFixture(
             gitService: MockGitService(
@@ -449,6 +485,7 @@ private actor MockGitService: GitService {
 
     private var statusResults: [Result<[FileStatus], Error>]
     private var diffResults: [String]
+    private var diffDelays: [Duration]
     private var syntheticDiffResults: [String]
     private let currentBranchResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
@@ -460,12 +497,14 @@ private actor MockGitService: GitService {
     init(
         statusResults: [Result<[FileStatus], Error>],
         diffResults: [String] = [],
+        diffDelays: [Duration] = [],
         syntheticDiffResults: [String] = [],
         currentBranchResult: Result<String, Error> = .success("feature"),
         commitsAheadResult: Result<Int, Error> = .success(0)
     ) {
         self.statusResults = statusResults
         self.diffResults = diffResults
+        self.diffDelays = diffDelays
         self.syntheticDiffResults = syntheticDiffResults
         self.currentBranchResult = currentBranchResult
         self.commitsAheadResult = commitsAheadResult
@@ -481,7 +520,16 @@ private actor MockGitService: GitService {
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
         recordedDiffCalls.append(DiffCall(paths: paths, scope: scope, directory: directory))
-        return diffResults.isEmpty ? "" : diffResults.removeFirst()
+        let result = diffResults.isEmpty ? "" : diffResults.removeFirst()
+
+        if !diffDelays.isEmpty {
+            let delay = diffDelays.removeFirst()
+            if delay > .zero {
+                try await Task.sleep(for: delay)
+            }
+        }
+
+        return result
     }
 
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {

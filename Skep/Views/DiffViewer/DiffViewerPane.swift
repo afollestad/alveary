@@ -119,14 +119,18 @@ private extension DiffViewerPane {
                     if selectedFile.isStaged {
                         Button("Unstage") {
                             Task {
-                                try? await viewModel.unstage(files: [selectedFile], in: directory)
+                                await performGitAction(errorPrefix: "Unstage failed") {
+                                    try await viewModel.unstage(files: [selectedFile], in: directory)
+                                }
                             }
                         }
                         .secondaryActionButtonStyle()
                     } else {
                         Button("Stage") {
                             Task {
-                                try? await viewModel.stage(files: [selectedFile], in: directory)
+                                await performGitAction(errorPrefix: "Stage failed") {
+                                    try await viewModel.stage(files: [selectedFile], in: directory)
+                                }
                             }
                         }
                         .secondaryActionButtonStyle()
@@ -171,25 +175,29 @@ private extension DiffViewerPane {
 
                         Spacer()
                     }
-                    .padding(.vertical, 3)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .accessibilityAddTraits(isSelected(file) ? .isSelected : [])
                 }
                 .buttonStyle(.plain)
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected(file) ? Color.accentColor.opacity(0.14) : Color.clear)
-                )
+                .listRowBackground(rowBackground(for: file))
                 .contextMenu {
                     if let directory = viewModel.activeDirectory {
                         if file.isStaged {
                             Button("Unstage") {
                                 Task {
-                                    try? await viewModel.unstage(files: [file], in: directory)
+                                    await performGitAction(errorPrefix: "Unstage failed") {
+                                        try await viewModel.unstage(files: [file], in: directory)
+                                    }
                                 }
                             }
                         } else {
                             Button("Stage") {
                                 Task {
-                                    try? await viewModel.stage(files: [file], in: directory)
+                                    await performGitAction(errorPrefix: "Stage failed") {
+                                        try await viewModel.stage(files: [file], in: directory)
+                                    }
                                 }
                             }
                         }
@@ -215,20 +223,22 @@ private extension DiffViewerPane {
 
             Group {
                 if let selectedFile = viewModel.selectedFile {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(fileDisplayName(selectedFile))
-                            .font(.headline)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 14)
+                    VStack(alignment: .leading, spacing: 4) {
+                        DiffPreviewHeader(
+                            title: fileDisplayName(selectedFile),
+                            fileStatus: selectedFile,
+                            parsedDiff: viewModel.parsedDiff,
+                            statusTitle: statusTitle(for: selectedFile.status)
+                        )
 
-                        ScrollView {
-                            Text(viewModel.rawDiffContent.isEmpty ? "No diff preview available." : viewModel.rawDiffContent)
-                                .font(.system(.caption, design: .monospaced))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .padding(14)
-                        }
+                        DiffPreviewContent(
+                            parsedDiff: viewModel.parsedDiff,
+                            rawDiffContent: viewModel.rawDiffContent,
+                            isLoading: viewModel.isLoadingSelectedDiff
+                        )
+                        .id(diffPreviewIdentity(for: selectedFile))
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     EmptyStateView(
                         icon: "doc.plaintext",
@@ -248,7 +258,17 @@ private extension DiffViewerPane {
             return
         }
 
-        try? await viewModel.discard(files: files, in: directory)
+        await performGitAction(errorPrefix: "Discard failed") {
+            try await viewModel.discard(files: files, in: directory)
+        }
+    }
+
+    func performGitAction(errorPrefix: String, action: () async throws -> Void) async {
+        do {
+            try await action()
+        } catch {
+            viewModel.presentGitError("\(errorPrefix): \(error.localizedDescription)")
+        }
     }
 
     func isSelected(_ file: FileStatus) -> Bool {
@@ -278,5 +298,45 @@ private extension DiffViewerPane {
         case .unmerged:
             return "!"
         }
+    }
+
+    func statusTitle(for status: FileStatus.Status) -> String {
+        switch status {
+        case .modified:
+            return "Modified"
+        case .added:
+            return "Added"
+        case .deleted:
+            return "Deleted"
+        case .renamed:
+            return "Renamed"
+        case .copied:
+            return "Copied"
+        case .untracked:
+            return "Untracked"
+        case .unmerged:
+            return "Unmerged"
+        }
+    }
+
+    func diffPreviewIdentity(for file: FileStatus) -> String {
+        [
+            file.id,
+            file.originalPath ?? "",
+            file.status.rawValue,
+            String(viewModel.rawDiffContent.count)
+        ].joined(separator: "|")
+    }
+
+    func rowBackground(for file: FileStatus) -> some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(isSelected(file) ? selectedRowFillColor : Color.clear)
+            .padding(.horizontal, 10)
+    }
+
+    var selectedRowFillColor: Color {
+        let backgroundColor = NSColor.textBackgroundColor.usingColorSpace(.deviceRGB) ?? .textBackgroundColor
+        let accentColor = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
+        return Color(nsColor: backgroundColor.blended(withFraction: 0.18, of: accentColor) ?? accentColor)
     }
 }

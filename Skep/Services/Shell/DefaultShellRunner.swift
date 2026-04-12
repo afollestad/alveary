@@ -96,37 +96,36 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
     }
 
     private func readBoundedOutput(from handle: FileHandle, maxBytes: Int?) async -> (Data, Bool) {
-        await withTaskCancellationHandler {
-            defer {
-                try? handle.close()
-            }
-
-            var captured = Data()
-            var wasTruncated = false
-
-            do {
-                for try await byte in handle.bytes {
-                    guard let maxBytes else {
-                        captured.append(byte)
-                        continue
-                    }
-
-                    if captured.count < maxBytes {
-                        captured.append(byte)
-                    } else {
-                        wasTruncated = true
-                    }
-                }
-            } catch {
-                if !Task.isCancelled {
-                    print("[ShellRunner] Failed to read process output: \(error)")
-                }
-            }
-
-            return (captured, wasTruncated)
-        } onCancel: {
+        defer {
             try? handle.close()
         }
+
+        var captured = Data()
+        var wasTruncated = false
+
+        do {
+            // `FileHandle.AsyncBytes` can raise an Objective-C exception if the handle is closed
+            // while iteration is starting or in flight, so cancellation relies on terminating the
+            // child process and letting the pipe drain to EOF instead of closing the read end.
+            for try await byte in handle.bytes {
+                guard let maxBytes else {
+                    captured.append(byte)
+                    continue
+                }
+
+                if captured.count < maxBytes {
+                    captured.append(byte)
+                } else {
+                    wasTruncated = true
+                }
+            }
+        } catch {
+            if !Task.isCancelled {
+                print("[ShellRunner] Failed to read process output: \(error)")
+            }
+        }
+
+        return (captured, wasTruncated)
     }
 }
 
