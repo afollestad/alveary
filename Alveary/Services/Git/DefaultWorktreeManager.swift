@@ -403,14 +403,14 @@ extension DefaultWorktreeManager {
         branch: String?
     ) -> [String: String] {
         var environment: [String: String] = [
-            "SKEP_THREAD_NAME": threadName,
-            "SKEP_PROJECT_PATH": projectPath,
-            "SKEP_WORKTREE_PATH": worktreePath,
-            "SKEP_PORT_SEED": shortHash(branch ?? worktreePath)
+            "ALVEARY_THREAD_NAME": threadName,
+            "ALVEARY_PROJECT_PATH": projectPath,
+            "ALVEARY_WORKTREE_PATH": worktreePath,
+            "ALVEARY_PORT_SEED": shortHash(branch ?? worktreePath)
         ]
 
         if let branch {
-            environment["SKEP_BRANCH_NAME"] = branch
+            environment["ALVEARY_BRANCH_NAME"] = branch
         }
 
         return environment

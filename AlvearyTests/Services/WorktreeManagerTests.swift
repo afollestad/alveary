@@ -52,15 +52,14 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: URL(fileURLWithPath: info.path).appendingPathComponent("config/dev.json").path))
 
         let invocations = await shell.invocations
-        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c"])
-        XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c-2"])
-        XCTAssertEqual(invocations[2].args, ["fetch", "origin", "main"])
-        XCTAssertEqual(invocations[3].args, ["worktree", "add", "--no-track", "-b", info.branch, info.path, "origin/main"])
-        XCTAssertEqual(invocations[4].executable, "/bin/sh")
-        XCTAssertEqual(invocations[4].timeout, .seconds(45))
-        XCTAssertEqual(invocations[4].environment?["SKEP_BRANCH_NAME"], info.branch)
-        XCTAssertEqual(invocations[4].environment?["SKEP_PROJECT_PATH"], projectURL.path)
-        XCTAssertEqual(invocations[4].environment?["SKEP_WORKTREE_PATH"], info.path)
+        assertSetupInvocations(invocations, branch: info.branch, worktreePath: info.path)
+        assertLifecycleEnvironment(
+            invocations[4].environment,
+            threadName: "Fix auth bug",
+            branch: info.branch,
+            projectPath: projectURL.path,
+            worktreePath: info.path
+        )
     }
 
     func testCreateRollsBackWorktreeAndBranchWhenSetupFails() async throws {
@@ -237,6 +236,29 @@ final class WorktreeManagerTests: XCTestCase {
         ShellResult(stdout: "", stderr: "", exitCode: 1, stdoutWasTruncated: false, stderrWasTruncated: false)
     }
 
+    private func assertSetupInvocations(_ invocations: [MockShellRunner.Invocation], branch: String, worktreePath: String) {
+        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c"])
+        XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c-2"])
+        XCTAssertEqual(invocations[2].args, ["fetch", "origin", "main"])
+        XCTAssertEqual(invocations[3].args, ["worktree", "add", "--no-track", "-b", branch, worktreePath, "origin/main"])
+        XCTAssertEqual(invocations[4].executable, "/bin/sh")
+        XCTAssertEqual(invocations[4].timeout, Duration.seconds(45))
+    }
+
+    private func assertLifecycleEnvironment(
+        _ environment: [String: String]?,
+        threadName: String,
+        branch: String,
+        projectPath: String,
+        worktreePath: String
+    ) {
+        XCTAssertEqual(environment?["ALVEARY_THREAD_NAME"], threadName)
+        XCTAssertEqual(environment?["ALVEARY_BRANCH_NAME"], branch)
+        XCTAssertEqual(environment?["ALVEARY_PROJECT_PATH"], projectPath)
+        XCTAssertEqual(environment?["ALVEARY_WORKTREE_PATH"], worktreePath)
+        XCTAssertEqual(environment?["ALVEARY_PORT_SEED"], shortHash(branch))
+    }
+
     private func namespacedWorktreesDirectory(for projectURL: URL) -> URL {
         let canonicalProjectPath = projectURL.resolvingSymlinksInPath().standardizedFileURL.path
         let projectName = URL(fileURLWithPath: canonicalProjectPath).lastPathComponent
@@ -259,5 +281,11 @@ final class WorktreeManagerTests: XCTestCase {
             return "thread"
         }
         return String(slug.prefix(50))
+    }
+
+    private func shortHash(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        let hexDigest = digest.map { String(format: "%02x", $0) }.joined()
+        return String(hexDigest.prefix(3))
     }
 }
