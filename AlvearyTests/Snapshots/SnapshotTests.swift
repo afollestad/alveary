@@ -231,9 +231,10 @@ final class SnapshotTests: XCTestCase {
         settings.notifications.soundName = "Pop"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(
-            SettingsScreen(viewModel: viewModel, onClose: {}),
+            SettingsScreen(viewModel: viewModel, gitHubCLI: gitHubCLI, onClose: {}),
             size: CGSize(width: 1100, height: 820),
             named: "settings_screen_general"
         )
@@ -244,10 +245,15 @@ final class SnapshotTests: XCTestCase {
         settings.branchPrefix = "af"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(
+            installedVersion: "gh version 2.89.0 (2026-03-26)",
+            authenticated: true
+        )
 
         assertMacSnapshot(
             SettingsScreen(
                 viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
                 onClose: {},
                 initialTabRawValue: "repository"
             ),

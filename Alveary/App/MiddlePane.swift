@@ -28,10 +28,7 @@ struct MiddlePane: View {
         case .mcp:
             MCPScreen(viewModel: mcpViewModel)
         case .project(let project):
-            ProjectSettingsView(
-                project: project,
-                gitHubCLI: gitHubCLI
-            )
+            ProjectSettingsView(project: project)
             .id(project.path)
         case .thread(let thread):
             ThreadDetailView(
@@ -50,7 +47,7 @@ struct MiddlePane: View {
             )
                 .id(thread.persistentModelID)
         case .settings:
-            SettingsScreen(viewModel: settingsViewModel) {
+            SettingsScreen(viewModel: settingsViewModel, gitHubCLI: gitHubCLI) {
                 appState.selectedSidebarItem = appState.previousSelection.flatMap(resolveSidebarBookmark(_:))
             }
         case nil:

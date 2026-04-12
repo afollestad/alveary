@@ -97,7 +97,7 @@ private extension DefaultClaudeConfigStore {
 
         do {
             if FileManager.default.fileExists(atPath: globalConfigURL.path) {
-                try FileManager.default.replaceItemAt(
+                _ = try FileManager.default.replaceItemAt(
                     globalConfigURL,
                     withItemAt: tempURL,
                     backupItemName: nil,

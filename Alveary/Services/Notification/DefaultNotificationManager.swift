@@ -120,7 +120,47 @@ final class DefaultNotificationManager: NotificationManager {
         playSound: Bool
     ) {
         let center = UNUserNotificationCenter.current()
+        let request = makeNotificationRequest(
+            providerName: providerName,
+            threadName: threadName,
+            message: message,
+            playSound: playSound
+        )
 
+        Task { @MainActor in
+            await postAgentNotification(request, with: center)
+        }
+    }
+
+    func postAgentNotification(_ request: UNNotificationRequest, with center: UNUserNotificationCenter) async {
+        let settings = await center.notificationSettings()
+
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            try? await center.add(request)
+        case .notDetermined:
+            guard !hasRequestedAuthorizationThisLaunch else {
+                return
+            }
+            hasRequestedAuthorizationThisLaunch = true
+            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            guard granted else {
+                return
+            }
+            try? await center.add(request)
+        case .denied:
+            return
+        @unknown default:
+            return
+        }
+    }
+
+    func makeNotificationRequest(
+        providerName: String,
+        threadName: String?,
+        message: String,
+        playSound: Bool
+    ) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = threadName.map { "\(providerName) - \($0)" } ?? providerName
         content.body = message
@@ -128,37 +168,10 @@ final class DefaultNotificationManager: NotificationManager {
             content.sound = .default
         }
 
-        let request = UNNotificationRequest(
+        return UNNotificationRequest(
             identifier: UUID().uuidString,
             content: content,
             trigger: nil
         )
-        let enqueueRequest = {
-            center.add(request)
-        }
-
-        center.getNotificationSettings { settings in
-            Task { @MainActor in
-                switch settings.authorizationStatus {
-                case .authorized, .provisional, .ephemeral:
-                    enqueueRequest()
-                case .notDetermined:
-                    guard !self.hasRequestedAuthorizationThisLaunch else {
-                        return
-                    }
-                    self.hasRequestedAuthorizationThisLaunch = true
-                    center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                        guard granted else {
-                            return
-                        }
-                        enqueueRequest()
-                    }
-                case .denied:
-                    return
-                @unknown default:
-                    return
-                }
-            }
-        }
     }
 }

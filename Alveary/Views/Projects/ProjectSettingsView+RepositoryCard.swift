@@ -15,7 +15,7 @@ struct ProjectSettingsRepositoryCard: View {
             .padding(.vertical, 14)
             .padding(.horizontal, 8)
         } label: {
-            Label("Repository", systemImage: "arrow.triangle.branch")
+            Label("Git", systemImage: "arrow.triangle.branch")
         }
     }
 }

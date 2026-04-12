@@ -23,6 +23,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             SettingsScreen(
                 viewModel: viewModel,
+                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
                 onClose: {},
                 initialTabRawValue: "agents"
             ),
@@ -38,13 +39,29 @@ extension SnapshotTests {
         try fixture.context.save()
 
         assertMacSnapshot(
-            ProjectSettingsView(
-                project: project,
-                gitHubCLI: fixture.gitHubCLI
-            )
+            ProjectSettingsView(project: project)
             .modelContainer(fixture.container),
             size: CGSize(width: 1100, height: 900),
             named: "project_settings_local_project"
+        )
+    }
+
+    func testSettingsScreenRepositoryTabWithoutGitHubCLI() {
+        var settings = AppSettings()
+        settings.branchPrefix = "af"
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "repository"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_repository_no_github_cli"
         )
     }
 

@@ -2,16 +2,19 @@ import SwiftUI
 
 struct SettingsScreen: View {
     let viewModel: SettingsViewModel
+    let gitHubCLI: GitHubCLIService
     let onClose: (() -> Void)?
 
     @State private var selectedTab: SettingsTab = .general
 
     init(
         viewModel: SettingsViewModel,
+        gitHubCLI: GitHubCLIService,
         onClose: (() -> Void)? = nil,
         initialTabRawValue: String = SettingsTab.general.rawValue
     ) {
         self.viewModel = viewModel
+        self.gitHubCLI = gitHubCLI
         self.onClose = onClose
         _selectedTab = State(initialValue: SettingsTab(rawValue: initialTabRawValue) ?? .general)
     }
@@ -66,6 +69,7 @@ struct SettingsScreen: View {
                         )
                     case .repository:
                         RepositorySettingsTabView(
+                            gitHubCLI: gitHubCLI,
                             branchPrefix: binding(for: \.branchPrefix),
                             pushOnCreate: binding(for: \.pushOnCreate)
                         )
@@ -93,7 +97,16 @@ struct SettingsScreen: View {
         var id: String { rawValue }
 
         var title: String {
-            rawValue.capitalized
+            switch self {
+            case .general:
+                return "General"
+            case .agents:
+                return "Agents"
+            case .repository:
+                return "Git"
+            case .interface:
+                return "Interface"
+            }
         }
 
         var icon: String {
@@ -119,7 +132,7 @@ private extension SettingsScreen {
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
         case .repository:
-            return "Configure branch creation defaults for new worktrees."
+            return "Configure Git defaults and GitHub authentication for new worktrees."
         case .interface:
             return "Adjust theme and typography for the app shell."
         }
