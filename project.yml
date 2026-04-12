@@ -20,6 +20,7 @@ targets:
       - path: Skep
         excludes:
           - "**/.DS_Store"
+      - path: AppIcon.icon
     dependencies:
       - package: knit
         product: Knit

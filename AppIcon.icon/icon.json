@@ -6,13 +6,13 @@
     {
       "layers" : [
         {
-          "image-name" : "main.png",
-          "name" : "main",
+          "image-name" : "alveary7.png",
+          "name" : "alveary",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 0.55,
             "translation-in-points" : [
-              0,
-              -54
+              -0.27499999999997726,
+              31.075000000000045
             ]
           }
         }
