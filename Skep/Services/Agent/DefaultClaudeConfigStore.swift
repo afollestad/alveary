@@ -7,24 +7,6 @@ actor DefaultClaudeConfigStore: ClaudeConfigStore {
         self.homeDirectoryURL = homeDirectoryURL
     }
 
-    func ensureLocalSettingsFile(in workingDirectory: String) async {
-        let settingsURL = localSettingsURL(in: workingDirectory)
-        guard !FileManager.default.fileExists(atPath: settingsURL.path) else {
-            return
-        }
-
-        do {
-            try FileManager.default.createDirectory(
-                at: settingsURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-            try Data("{}".utf8).write(to: settingsURL, options: .atomic)
-        } catch {
-            print("[ClaudeConfigStore] Failed to create local settings file at \(settingsURL.path): \(error)")
-        }
-    }
-
     func upsertTrustedProject(path: String) async {
         let normalizedPath = CanonicalPath.normalize(path)
         var root = readGlobalConfig()
@@ -83,11 +65,6 @@ private extension DefaultClaudeConfigStore {
 
     var globalConfigURL: URL {
         homeDirectoryURL.appendingPathComponent(".claude.json")
-    }
-
-    func localSettingsURL(in workingDirectory: String) -> URL {
-        URL(fileURLWithPath: CanonicalPath.normalize(workingDirectory), isDirectory: true)
-            .appendingPathComponent(".claude/settings.local.json")
     }
 
     func readGlobalConfig() -> [String: Any] {

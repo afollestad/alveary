@@ -8,7 +8,6 @@ actor DefaultProviderSetupService: ProviderSetupService {
     func prepareForSpawn(providerId: String, workingDirectory: String, autoTrust: Bool) async {
         switch providerId {
         case "claude":
-            await claudeConfigStore.ensureLocalSettingsFile(in: workingDirectory)
             if autoTrust {
                 await claudeConfigStore.upsertTrustedProject(path: workingDirectory)
             }

@@ -4,40 +4,6 @@ import XCTest
 @testable import Skep
 
 final class ClaudeConfigStoreTests: XCTestCase {
-    func testEnsureLocalSettingsFileCreatesEmptyJSONObjectWhenMissing() async throws {
-        let fixture = try makeFixture()
-        defer { fixture.cleanup() }
-        let workingDirectory = try fixture.makeWorkingDirectory(named: "project")
-
-        await fixture.store.ensureLocalSettingsFile(in: workingDirectory.path)
-
-        let settingsURL = workingDirectory.appendingPathComponent(".claude/settings.local.json")
-        let data = try Data(contentsOf: settingsURL)
-        let payload = try XCTUnwrap(String(data: data, encoding: .utf8))
-
-        XCTAssertEqual(payload, "{}")
-    }
-
-    func testEnsureLocalSettingsFileDoesNotOverwriteExistingContent() async throws {
-        let fixture = try makeFixture()
-        defer { fixture.cleanup() }
-        let workingDirectory = try fixture.makeWorkingDirectory(named: "project")
-        let settingsURL = workingDirectory.appendingPathComponent(".claude/settings.local.json")
-        try FileManager.default.createDirectory(
-            at: settingsURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        try Data("{\"theme\":\"dark\"}".utf8).write(to: settingsURL)
-
-        await fixture.store.ensureLocalSettingsFile(in: workingDirectory.path)
-
-        let data = try Data(contentsOf: settingsURL)
-        let payload = try XCTUnwrap(String(data: data, encoding: .utf8))
-
-        XCTAssertEqual(payload, "{\"theme\":\"dark\"}")
-    }
-
     func testUpsertTrustedProjectPreservesExistingMCPServers() async throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }

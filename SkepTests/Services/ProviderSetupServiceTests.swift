@@ -4,7 +4,7 @@ import XCTest
 @testable import Skep
 
 final class ProviderSetupServiceTests: XCTestCase {
-    func testPrepareForSpawnForClaudeCreatesLocalSettingsAndTrustEntry() async throws {
+    func testPrepareForSpawnForClaudeWritesTrustEntry() async throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }
         let workingDirectory = try fixture.makeWorkingDirectory(named: "worktree")
@@ -14,9 +14,6 @@ final class ProviderSetupServiceTests: XCTestCase {
             workingDirectory: workingDirectory.path,
             autoTrust: true
         )
-
-        let settingsURL = workingDirectory.appendingPathComponent(".claude/settings.local.json")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: settingsURL.path))
 
         let root = try readJSON(at: fixture.globalConfigURL)
         let projects = try XCTUnwrap(root["projects"] as? [String: Any])
@@ -36,8 +33,7 @@ final class ProviderSetupServiceTests: XCTestCase {
             autoTrust: false
         )
 
-        let settingsURL = workingDirectory.appendingPathComponent(".claude/settings.local.json")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: settingsURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workingDirectory.appendingPathComponent(".claude/settings.local.json").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.globalConfigURL.path))
     }
 
