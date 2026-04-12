@@ -6,6 +6,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedEffortLevels = ["low", "medium", "high", "max"]
     static let supportedThemes = ["system", "light", "dark"]
     static let supportedDiffViewerWidthRange = 320.0...960.0
+    static let supportedDiffViewerSplitRange = 0.25...0.75
+    static let defaultDiffViewerTopSectionFraction = 0.5
 
     var defaultProvider = "claude"
     var permissionMode = "default"
@@ -18,6 +20,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var codeFontSize = 13
     var chatFontSize = 14
     var diffViewerWidth = 380.0
+    var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var notifications = NotificationSettings()
     var branchPrefix = "skep"
     var pushOnCreate = false
@@ -42,6 +45,10 @@ struct AppSettings: Codable, Sendable, Equatable {
             max(copy.diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
             Self.supportedDiffViewerWidthRange.upperBound
         )
+        copy.diffViewerTopSectionFraction = min(
+            max(copy.diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
+            Self.supportedDiffViewerSplitRange.upperBound
+        )
         if let soundName = copy.notifications.soundName,
            !NotificationSettings.availableSoundNames.contains(soundName) {
             copy.notifications.soundName = NotificationSettings.defaultSoundName
@@ -53,6 +60,55 @@ struct AppSettings: Codable, Sendable, Equatable {
         }
 
         return copy
+    }
+}
+
+extension AppSettings {
+    enum CodingKeys: String, CodingKey {
+        case defaultProvider
+        case permissionMode
+        case effort
+        case autoGenerateNames
+        case autoTrustWorktrees
+        case createWorktreeByDefault
+        case theme
+        case codeFontFamily
+        case codeFontSize
+        case chatFontSize
+        case diffViewerWidth
+        case diffViewerTopSectionFraction
+        case notifications
+        case branchPrefix
+        case pushOnCreate
+        case providerConfigs
+    }
+
+    init(from decoder: any Decoder) throws {
+        let defaults = AppSettings()
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
+        self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
+        self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
+        self.autoGenerateNames = try container.decodeIfPresent(Bool.self, forKey: .autoGenerateNames) ?? defaults.autoGenerateNames
+        self.autoTrustWorktrees = try container.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees) ?? defaults.autoTrustWorktrees
+        self.createWorktreeByDefault = try container.decodeIfPresent(Bool.self, forKey: .createWorktreeByDefault) ?? defaults.createWorktreeByDefault
+        self.theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? defaults.theme
+        self.codeFontFamily = try container.decodeIfPresent(String.self, forKey: .codeFontFamily) ?? defaults.codeFontFamily
+        self.codeFontSize = try container.decodeIfPresent(Int.self, forKey: .codeFontSize) ?? defaults.codeFontSize
+        self.chatFontSize = try container.decodeIfPresent(Int.self, forKey: .chatFontSize) ?? defaults.chatFontSize
+        self.diffViewerWidth = try container.decodeIfPresent(Double.self, forKey: .diffViewerWidth) ?? defaults.diffViewerWidth
+        self.diffViewerTopSectionFraction = try container.decodeIfPresent(
+            Double.self,
+            forKey: .diffViewerTopSectionFraction
+        ) ?? defaults.diffViewerTopSectionFraction
+        self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
+        self.branchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix) ?? defaults.branchPrefix
+        self.pushOnCreate = try container.decodeIfPresent(Bool.self, forKey: .pushOnCreate) ?? defaults.pushOnCreate
+        self.providerConfigs = try container.decodeIfPresent(
+            [String: ProviderCustomConfig].self,
+            forKey: .providerConfigs
+        ) ?? defaults.providerConfigs
     }
 }
 

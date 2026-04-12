@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var sidebarViewModel: SidebarViewModel
     @State private var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
+    @State private var diffViewerTopSectionFraction: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
@@ -60,6 +61,7 @@ struct ContentView: View {
         let viewModelContext = resolver.modelContext()
         _viewModelContext = State(initialValue: viewModelContext)
         _diffViewerWidth = State(initialValue: CGFloat(settingsService.current.diffViewerWidth))
+        _diffViewerTopSectionFraction = State(initialValue: CGFloat(settingsService.current.diffViewerTopSectionFraction))
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             agentsManager: agentsManager,
             modelContext: viewModelContext,
@@ -114,6 +116,8 @@ struct ContentView: View {
                     DiffViewerPane(
                         viewModel: diffViewModel,
                         areAgentActionsEnabled: activeDiffActionTarget() != nil,
+                        topSectionFraction: $diffViewerTopSectionFraction,
+                        onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
                         onCommitRequested: requestAgentCommit,
                         onOpenPRRequested: requestAgentOpenPR
                     )
@@ -380,6 +384,12 @@ private extension ContentView {
     func persistDiffViewerWidth(_ width: CGFloat) {
         settingsService.update {
             $0.diffViewerWidth = width
+        }
+    }
+
+    func persistDiffViewerTopSectionFraction(_ fraction: CGFloat) {
+        settingsService.update {
+            $0.diffViewerTopSectionFraction = fraction
         }
     }
 }
