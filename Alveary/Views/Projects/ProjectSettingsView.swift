@@ -19,15 +19,7 @@ struct ProjectSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                ProjectSettingsHeader(projectName: project.name)
-
-                if let screenError {
-                    InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
-                        self.screenError = nil
-                    }
-                }
-
-                ProjectSettingsProjectCard(
+                ProjectSettingsHeader(
                     projectPath: project.path,
                     projectName: Binding(
                         get: { project.name },
@@ -38,9 +30,15 @@ struct ProjectSettingsView: View {
                     )
                 )
 
-                ProjectSettingsRepositoryCard(project: project)
+                if let screenError {
+                    InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
+                        self.screenError = nil
+                    }
+                }
 
                 if project.isGitRepository {
+                    ProjectSettingsRepositoryCard(project: project)
+
                     ProjectSettingsGitHubCard(
                         gitHubDeviceCode: gitHubDeviceCode,
                         isGitHubConnected: project.githubConnected,

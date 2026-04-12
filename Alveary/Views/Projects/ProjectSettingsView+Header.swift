@@ -1,16 +1,22 @@
 import SwiftUI
 
 struct ProjectSettingsHeader: View {
-    let projectName: String
+    let projectPath: String
+    @Binding var projectName: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Project")
                 .font(.largeTitle.weight(.semibold))
 
-            Text(projectName)
-                .font(.title3)
+            Text(projectPath)
+                .font(.callout)
                 .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            AppTextField("Project name", text: $projectName)
+
+            Divider().padding(.top, 8)
         }
     }
 }
