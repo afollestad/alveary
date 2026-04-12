@@ -1,0 +1,143 @@
+import Foundation
+
+extension ChatItemGrouper {
+    static func toolSummary(name: String?, input: String?) -> String {
+        guard let name,
+              let json = parsedJSONDictionary(from: input) else {
+            return name ?? "Tool"
+        }
+
+        switch name {
+        case "Read":
+            return readToolSummary(from: json)
+        case "Edit", "Write":
+            return fileMutationToolSummary(name: name, json: json)
+        case "Bash":
+            return bashToolSummary(from: json)
+        case "Grep":
+            return "Grep `\(json["pattern"] as? String ?? "")`"
+        case "Glob":
+            return "Glob `\(json["pattern"] as? String ?? "")`"
+        case "Agent":
+            return json["description"] as? String ?? json["subagent_type"] as? String ?? "Sub-agent"
+        case "TodoWrite":
+            return todoWriteSummary(from: json)
+        default:
+            return name
+        }
+    }
+
+    func parseTodoWriteInput(_ input: String?) -> [TaskEntry] {
+        guard let json = Self.parsedJSONDictionary(from: input),
+              let todos = json["todos"] as? [[String: Any]] else {
+            return []
+        }
+
+        return todos.enumerated().compactMap { index, todo in
+            guard let content = todo["content"] as? String else {
+                return nil
+            }
+
+            let status = TaskEntry.Status(rawValue: todo["status"] as? String ?? "pending") ?? .pending
+            return TaskEntry(
+                id: "task-\(index)",
+                content: content,
+                activeForm: todo["activeForm"] as? String,
+                status: status
+            )
+        }
+    }
+
+    func parseAgentToolInput(_ input: String?) -> (agentType: String, description: String) {
+        guard let json = Self.parsedJSONDictionary(from: input) else {
+            return ("general-purpose", "")
+        }
+
+        return (
+            json["subagent_type"] as? String ?? "general-purpose",
+            json["description"] as? String ?? json["prompt"] as? String ?? ""
+        )
+    }
+
+    func parseAskUserQuestionInput(_ input: String?) -> [PromptEntry.PromptQuestion] {
+        guard let json = Self.parsedJSONDictionary(from: input),
+              let questions = json["questions"] as? [[String: Any]] else {
+            return []
+        }
+
+        return questions.compactMap { question in
+            guard let text = question["question"] as? String else {
+                return nil
+            }
+
+            let options = (question["options"] as? [[String: Any]] ?? []).compactMap { option -> PromptEntry.PromptOption? in
+                guard let label = option["label"] as? String else {
+                    return nil
+                }
+
+                return PromptEntry.PromptOption(
+                    label: label,
+                    description: option["description"] as? String ?? ""
+                )
+            }
+
+            return PromptEntry.PromptQuestion(
+                question: text,
+                header: question["header"] as? String,
+                options: options,
+                multiSelect: question["multiSelect"] as? Bool ?? false
+            )
+        }
+    }
+
+    func cachedToolSummary(toolId: String, name: String?, input: String?) -> String {
+        if let cachedSummary = summaryCache[toolId] {
+            return cachedSummary
+        }
+
+        let summary = Self.toolSummary(name: name, input: input)
+        summaryCache[toolId] = summary
+        return summary
+    }
+}
+
+private extension ChatItemGrouper {
+    static func parsedJSONDictionary(from input: String?) -> [String: Any]? {
+        guard let input,
+              let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return json
+    }
+
+    static func readToolSummary(from json: [String: Any]) -> String {
+        let path = json["file_path"] as? String ?? ""
+        let fileName = (path as NSString).lastPathComponent
+        if let offset = json["offset"] as? Int,
+           let limit = json["limit"] as? Int {
+            return "Read `\(fileName):\(offset)-\(offset + limit - 1)`"
+        }
+
+        return "Read `\(fileName)`"
+    }
+
+    static func fileMutationToolSummary(name: String, json: [String: Any]) -> String {
+        let path = json["file_path"] as? String ?? ""
+        let fileName = (path as NSString).lastPathComponent
+        return "\(name) `\(fileName)`"
+    }
+
+    static func bashToolSummary(from json: [String: Any]) -> String {
+        let command = json["command"] as? String ?? ""
+        let truncated = command.count > 60 ? String(command.prefix(57)) + "..." : command
+        return "`\(truncated)`"
+    }
+
+    static func todoWriteSummary(from json: [String: Any]) -> String {
+        let todos = json["todos"] as? [[String: Any]] ?? []
+        let completedCount = todos.filter { ($0["status"] as? String) == "completed" }.count
+        return "\(completedCount)/\(todos.count) tasks"
+    }
+}

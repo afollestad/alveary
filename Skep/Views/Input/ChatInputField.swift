@@ -71,13 +71,6 @@ struct ChatInputField: View {
         }
     }
 
-    private var autocompleteBorderColor: Color {
-        if isDropTargeted {
-            return .accentColor
-        }
-        return Color.secondary.opacity(0.18)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let autocomplete = activeAutocomplete {
@@ -103,7 +96,7 @@ struct ChatInputField: View {
                     minHeight: 96,
                     maxHeight: 144,
                     cornerRadius: 18,
-                    borderColor: autocompleteBorderColor,
+                    borderColor: isDropTargeted ? .accentColor : Color.secondary.opacity(0.18),
                     borderWidth: isDropTargeted ? 1.5 : 1,
                     isDisabled: isTextEditorDisabled,
                     focus: $isInputFocused,
@@ -140,7 +133,7 @@ struct ChatInputField: View {
             HStack(spacing: 10) {
                 Picker("Model", selection: $selectedModel) {
                     ForEach(modelOptions, id: \.self) { option in
-                        Text(modelLabel(for: option)).tag(option)
+                        Text(ChatInputFieldTextSupport.modelLabel(for: option)).tag(option)
                     }
                 }
                 .pickerStyle(.menu)
@@ -150,7 +143,7 @@ struct ChatInputField: View {
                 if !supportedEffortLevels.isEmpty {
                     Picker("Effort", selection: $selectedEffort) {
                         ForEach(supportedEffortLevels, id: \.self) { option in
-                            Text(effortLabel(for: option)).tag(option)
+                            Text(ChatInputFieldTextSupport.effortLabel(for: option)).tag(option)
                         }
                     }
                     .pickerStyle(.menu)
@@ -200,7 +193,7 @@ struct ChatInputField: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
-                        Text(progressLabel(for: reason))
+                        Text(ChatInputFieldTextSupport.progressLabel(for: reason))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -312,7 +305,10 @@ private extension ChatInputField {
             dismissAutocomplete()
             return
         }
-        guard let token = activeCompletionToken() else {
+        guard let token = ChatInputFieldTextSupport.activeCompletionToken(
+            text: text,
+            textSelection: textSelection
+        ) else {
             dismissAutocomplete()
             return
         }
@@ -446,7 +442,7 @@ private extension ChatInputField {
         dismissAutocomplete()
 
         let replacement = suggestion.replacementText
-        let (newText, insertionOffset) = replacingText(
+        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
             in: text,
             offsets: autocomplete.replacementOffsets,
             with: replacement,
@@ -454,13 +450,17 @@ private extension ChatInputField {
         )
 
         text = newText
-        textSelection = TextSelection(insertionPoint: index(at: insertionOffset, in: newText))
+        textSelection = TextSelection(
+            insertionPoint: ChatInputFieldTextSupport.index(at: insertionOffset, in: newText)
+        )
     }
 
     func handleDroppedFiles(_ items: [URL]) -> Bool {
         let droppedMentions = items
             .filter { $0.isFileURL }
-            .map { "@\(normalizedMentionPath(for: $0.path))" }
+            .map {
+                "@\(ChatInputFieldTextSupport.normalizedMentionPath(for: $0.path, relativeTo: workingDirectory))"
+            }
 
         guard !droppedMentions.isEmpty else {
             return false
@@ -469,7 +469,10 @@ private extension ChatInputField {
         dismissAutocomplete()
 
         let insertionOffsets: Range<Int>
-        if let selection = editableSelectionOffsets() {
+        if let selection = ChatInputFieldTextSupport.editableSelectionOffsets(
+            text: text,
+            textSelection: textSelection
+        ) {
             insertionOffsets = selection
         } else {
             let end = text.count
@@ -477,7 +480,7 @@ private extension ChatInputField {
         }
 
         let insertion = droppedMentions.joined(separator: " ")
-        let (newText, insertionOffset) = replacingText(
+        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
             in: text,
             offsets: insertionOffsets,
             with: insertion,
@@ -486,175 +489,10 @@ private extension ChatInputField {
         )
 
         text = newText
-        textSelection = TextSelection(insertionPoint: index(at: insertionOffset, in: newText))
+        textSelection = TextSelection(
+            insertionPoint: ChatInputFieldTextSupport.index(at: insertionOffset, in: newText)
+        )
         isInputFocused = true
         return true
-    }
-
-    func activeCompletionToken() -> ComposerCompletionToken? {
-        guard let insertionOffset = insertionPointOffset() else {
-            return nil
-        }
-
-        let caretIndex = index(at: insertionOffset, in: text)
-        let tokenStartIndex = tokenStart(before: caretIndex)
-        let token = String(text[tokenStartIndex..<caretIndex])
-
-        guard let trigger = token.first else {
-            return nil
-        }
-
-        let startOffset = offset(of: tokenStartIndex, in: text)
-        switch trigger {
-        case "@":
-            return ComposerCompletionToken(
-                kind: .file,
-                replacementOffsets: startOffset..<insertionOffset,
-                query: String(token.dropFirst())
-            )
-        case "/":
-            guard tokenStartIndex == text.startIndex else {
-                return nil
-            }
-            return ComposerCompletionToken(
-                kind: .skill,
-                replacementOffsets: startOffset..<insertionOffset,
-                query: String(token.dropFirst())
-            )
-        default:
-            return nil
-        }
-    }
-
-    func insertionPointOffset() -> Int? {
-        guard let selection = textSelection else {
-            return text.count
-        }
-
-        switch selection.indices {
-        case .selection(let range):
-            guard range.lowerBound == range.upperBound else {
-                return nil
-            }
-            return offset(of: range.lowerBound, in: text)
-        case .multiSelection:
-            return nil
-        @unknown default:
-            return nil
-        }
-    }
-
-    func editableSelectionOffsets() -> Range<Int>? {
-        guard let selection = textSelection else {
-            let end = text.count
-            return end..<end
-        }
-
-        switch selection.indices {
-        case .selection(let range):
-            return offset(of: range.lowerBound, in: text)..<offset(of: range.upperBound, in: text)
-        case .multiSelection:
-            return nil
-        @unknown default:
-            return nil
-        }
-    }
-
-    func tokenStart(before index: String.Index) -> String.Index {
-        var current = index
-        while current > text.startIndex {
-            let previous = text.index(before: current)
-            if isTokenBoundary(text[previous]) {
-                return text.index(after: previous)
-            }
-            current = previous
-        }
-        return text.startIndex
-    }
-
-    func isTokenBoundary(_ character: Character) -> Bool {
-        character.isWhitespace || ["(", ")", "[", "]", "{", "}", "<", ">", "\"", "'", ",", ":", ";"].contains(character)
-    }
-
-    func replacingText(
-        in sourceText: String,
-        offsets: Range<Int>,
-        with replacement: String,
-        appendTrailingSpace: Bool,
-        ensureLeadingSpace: Bool = false
-    ) -> (text: String, insertionOffset: Int) {
-        var inserted = replacement
-        let lowerIndex = index(at: offsets.lowerBound, in: sourceText)
-        let upperIndex = index(at: offsets.upperBound, in: sourceText)
-
-        if ensureLeadingSpace,
-           offsets.lowerBound > 0 {
-            let previousIndex = index(at: offsets.lowerBound - 1, in: sourceText)
-            if !sourceText[previousIndex].isWhitespace {
-                inserted = " " + inserted
-            }
-        }
-
-        let needsTrailingSpace = upperIndex == sourceText.endIndex ||
-            (!sourceText[upperIndex].isWhitespace && sourceText[upperIndex] != ".")
-        if appendTrailingSpace, needsTrailingSpace {
-            inserted += " "
-        }
-
-        var newText = sourceText
-        newText.replaceSubrange(lowerIndex..<upperIndex, with: inserted)
-        let insertionOffset = offsets.lowerBound + inserted.count
-        return (newText, insertionOffset)
-    }
-
-    func offset(of index: String.Index, in text: String) -> Int {
-        text.distance(from: text.startIndex, to: index)
-    }
-
-    func index(at offset: Int, in text: String) -> String.Index {
-        text.index(text.startIndex, offsetBy: min(max(0, offset), text.count))
-    }
-
-    func normalizedMentionPath(for path: String) -> String {
-        CanonicalPath.normalizeMentionPath(path, relativeTo: workingDirectory)
-    }
-
-    func modelLabel(for value: String) -> String {
-        switch value {
-        case "default":
-            return "Default"
-        case "opus":
-            return "Opus"
-        case "sonnet":
-            return "Sonnet"
-        case "haiku":
-            return "Haiku"
-        default:
-            return value
-        }
-    }
-
-    func effortLabel(for value: String) -> String {
-        switch value {
-        case "low":
-            return "Low"
-        case "medium":
-            return "Medium"
-        case "high":
-            return "High"
-        case "max":
-            return "Max"
-        default:
-            return value.capitalized
-        }
-    }
-
-    func progressLabel(for reason: ComposerMode.ProgressReason) -> String {
-        switch reason {
-        case .initialSetup:
-            return "Preparing the first turn..."
-        case .reconfiguringSession:
-            return "Applying session changes..."
-        }
     }
 }
