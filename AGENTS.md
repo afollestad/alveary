@@ -73,6 +73,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 - Add concise code comments where needed for human readers.
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
+- Large types may be split into companion files like `Type+Feature.swift`. When reading current behavior or adding new logic to an existing type, search for same-type extensions and treat those companion files as part of the canonical implementation before editing.
 - In SwiftUI, prefer extracted `View` types over `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition. When an extracted child view is used by another view, place it in the same folder with `Parent+Child.swift` naming such as `DiffViewerPane+Header.swift`.
 - For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Skep/Views/Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
 
