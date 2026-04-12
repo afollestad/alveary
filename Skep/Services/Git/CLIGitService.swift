@@ -239,75 +239,99 @@ private extension CLIGitService {
             return []
         }
 
-        var statuses: [FileStatus] = []
         let entries = output.split(separator: "\0", omittingEmptySubsequences: true)
+        var statuses: [FileStatus] = []
         var index = 0
 
         while index < entries.count {
-            let line = String(entries[index])
-
-            if line.hasPrefix("1 ") {
-                let parts = line.split(separator: " ", maxSplits: 8)
-                guard parts.count >= 9 else {
-                    index += 1
-                    continue
-                }
-
-                let statusPair = String(parts[1])
-                let path = String(parts[8])
-                appendOrdinaryStatuses(
-                    statusPair: statusPair,
-                    path: path,
-                    originalPath: nil,
-                    into: &statuses
-                )
-            } else if line.hasPrefix("2 ") {
-                let parts = line.split(separator: " ", maxSplits: 9)
-                guard parts.count >= 10 else {
-                    index += 1
-                    continue
-                }
-
-                let statusPair = String(parts[1])
-                let path = String(parts[9])
-                let originalPath = index + 1 < entries.count ? String(entries[index + 1]) : nil
-                appendOrdinaryStatuses(
-                    statusPair: statusPair,
-                    path: path,
-                    originalPath: originalPath,
-                    into: &statuses
-                )
-                index += 1
-            } else if line.hasPrefix("u ") {
-                let parts = line.split(separator: " ", maxSplits: 10)
-                guard parts.count >= 11 else {
-                    index += 1
-                    continue
-                }
-
-                statuses.append(
-                    FileStatus(
-                        path: String(parts[10]),
-                        originalPath: nil,
-                        status: .unmerged,
-                        isStaged: false
-                    )
-                )
-            } else if line.hasPrefix("? ") {
-                statuses.append(
-                    FileStatus(
-                        path: String(line.dropFirst(2)),
-                        originalPath: nil,
-                        status: .untracked,
-                        isStaged: false
-                    )
-                )
-            }
-
-            index += 1
+            let (entryStatuses, entriesConsumed) = parseStatusEntry(at: index, in: entries)
+            statuses.append(contentsOf: entryStatuses)
+            index += entriesConsumed
         }
 
         return statuses
+    }
+
+    func parseStatusEntry(at index: Int, in entries: [Substring]) -> (statuses: [FileStatus], entriesConsumed: Int) {
+        let line = String(entries[index])
+
+        if line.hasPrefix("1 ") {
+            return (parseOrdinaryStatusLine(line), 1)
+        }
+
+        if line.hasPrefix("2 ") {
+            let originalPath = index + 1 < entries.count ? String(entries[index + 1]) : nil
+            return (parseRenamedStatusLine(line, originalPath: originalPath), min(2, entries.count - index))
+        }
+
+        if line.hasPrefix("u ") {
+            return (parseUnmergedStatusLine(line), 1)
+        }
+
+        if line.hasPrefix("? ") {
+            return (parseUntrackedStatusLine(line), 1)
+        }
+
+        return ([], 1)
+    }
+
+    func parseOrdinaryStatusLine(_ line: String) -> [FileStatus] {
+        let parts = line.split(separator: " ", maxSplits: 8)
+        guard parts.count >= 9 else {
+            return []
+        }
+
+        var statuses: [FileStatus] = []
+        appendOrdinaryStatuses(
+            statusPair: String(parts[1]),
+            path: String(parts[8]),
+            originalPath: nil,
+            into: &statuses
+        )
+        return statuses
+    }
+
+    func parseRenamedStatusLine(_ line: String, originalPath: String?) -> [FileStatus] {
+        let parts = line.split(separator: " ", maxSplits: 9)
+        guard parts.count >= 10 else {
+            return []
+        }
+
+        var statuses: [FileStatus] = []
+        appendOrdinaryStatuses(
+            statusPair: String(parts[1]),
+            path: String(parts[9]),
+            originalPath: originalPath,
+            into: &statuses
+        )
+        return statuses
+    }
+
+    func parseUnmergedStatusLine(_ line: String) -> [FileStatus] {
+        let parts = line.split(separator: " ", maxSplits: 10)
+        guard parts.count >= 11 else {
+            return []
+        }
+
+        return [
+            FileStatus(
+                path: String(parts[10]),
+                originalPath: nil,
+                status: .unmerged,
+                isStaged: false
+            )
+        ]
+    }
+
+    func parseUntrackedStatusLine(_ line: String) -> [FileStatus] {
+        [
+            FileStatus(
+                path: String(line.dropFirst(2)),
+                originalPath: nil,
+                status: .untracked,
+                isStaged: false
+            )
+        ]
     }
 
     func appendOrdinaryStatuses(
