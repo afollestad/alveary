@@ -105,7 +105,6 @@ struct DiffViewerPane: View {
                     VStack(spacing: 0) {
                         DiffViewerFileListSection(
                             files: viewModel.files,
-                            rowFillColor: selectedRowFillColor,
                             isSelected: isSelected,
                             fileDisplayName: fileDisplayName,
                             statusSymbol: statusSymbol,
@@ -284,11 +283,6 @@ private extension DiffViewerPane {
         ].joined(separator: "|")
     }
 
-    var selectedRowFillColor: Color {
-        let backgroundColor = NSColor.textBackgroundColor.usingColorSpace(.deviceRGB) ?? .textBackgroundColor
-        let accentColor = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
-        return Color(nsColor: backgroundColor.blended(withFraction: 0.18, of: accentColor) ?? accentColor)
-    }
 }
 
 private struct DiffViewerVerticalResizeHandle: View {

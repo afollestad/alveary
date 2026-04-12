@@ -257,35 +257,30 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testSidebarViewPopulated() async throws {
-        let fixture = try SidebarTestFixture()
-        let project = Project(path: "/tmp/skep", name: "Skep")
-        let activeThread = AgentThread(name: "Refactor Chat Input", project: project)
-        let archivedThread = AgentThread(name: "Audit Diff Watcher", archivedAt: Date(timeIntervalSince1970: 1_713_000_000), project: project)
-        let activeConversation = Conversation(id: "main", title: "Main", provider: "claude", thread: activeThread)
-        let archivedConversation = Conversation(id: "archive", title: "Main", provider: "claude", thread: archivedThread)
-        activeThread.conversations = [activeConversation]
-        archivedThread.conversations = [archivedConversation]
-        project.threads = [activeThread, archivedThread]
-
-        let secondaryProject = Project(path: "/tmp/tools", name: "Tools")
-
-        fixture.context.insert(project)
-        fixture.context.insert(activeThread)
-        fixture.context.insert(archivedThread)
-        fixture.context.insert(activeConversation)
-        fixture.context.insert(archivedConversation)
-        fixture.context.insert(secondaryProject)
-        try fixture.context.save()
-        await fixture.agentsManager.setStatus(.busy, for: activeConversation.id)
+        let sidebar = try await makeSidebarSnapshotFixture()
 
         let appState = AppState()
-        appState.selectedSidebarItem = .thread(activeThread)
+        appState.selectedSidebarItem = .thread(sidebar.activeThread)
 
         assertMacSnapshot(
-            SidebarView(viewModel: fixture.viewModel, appState: appState)
-                .modelContainer(fixture.container),
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+                .modelContainer(sidebar.fixture.container),
             size: CGSize(width: 320, height: 720),
             named: "sidebar_populated"
+        )
+    }
+
+    func testSidebarViewProjectSelected() async throws {
+        let sidebar = try await makeSidebarSnapshotFixture()
+
+        let appState = AppState()
+        appState.selectedSidebarItem = .project(sidebar.project)
+
+        assertMacSnapshot(
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+                .modelContainer(sidebar.fixture.container),
+            size: CGSize(width: 320, height: 720),
+            named: "sidebar_project_selected"
         )
     }
 

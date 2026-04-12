@@ -27,13 +27,19 @@ struct SidebarView: View {
                 .padding(.bottom, 10)
             }
 
-            List(selection: $appState.selectedSidebarItem) {
+            List {
                 Section {
-                    Label("Skills", systemImage: "puzzlepiece.extension")
-                        .tag(SidebarItem.skills)
+                    topLevelRow(
+                        title: "Skills",
+                        systemImage: "puzzlepiece.extension",
+                        item: .skills
+                    )
 
-                    Label("MCP", systemImage: "server.rack")
-                        .tag(SidebarItem.mcp)
+                    topLevelRow(
+                        title: "MCP",
+                        systemImage: "server.rack",
+                        item: .mcp
+                    )
                 }
 
                 Section {
@@ -58,13 +64,20 @@ struct SidebarView: View {
                                 Task { await createThread(in: project) }
                             }
                         )
-                        .tag(SidebarItem.project(project))
+                        .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .project(project))
 
                         if expandedProjects.contains(project.path) {
                             ForEach(activeThreads(for: project)) { thread in
-                                SidebarThreadRow(thread: thread, status: viewModel.threadStatus(for: thread))
-                                    .tag(SidebarItem.thread(thread))
+                                SidebarThreadRow(
+                                    thread: thread,
+                                    status: viewModel.threadStatus(for: thread),
+                                    isSelected: appState.selectedSidebarItem == .thread(thread),
+                                    onActivate: {
+                                        activateThread(thread)
+                                    }
+                                )
                                     .padding(.leading, 14)
+                                    .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .thread(thread))
                                     .contextMenu {
                                         Button("Archive") {
                                             Task { await archive(thread) }
@@ -88,8 +101,16 @@ struct SidebarView: View {
 
                                 if expandedArchivedProjects.contains(project.path) {
                                     ForEach(archivedThreads) { thread in
-                                        SidebarThreadRow(thread: thread, status: .archived)
+                                        SidebarThreadRow(
+                                            thread: thread,
+                                            status: .archived,
+                                            isSelected: appState.selectedSidebarItem == .thread(thread),
+                                            onActivate: {
+                                                activateThread(thread)
+                                            }
+                                        )
                                             .padding(.leading, 14)
+                                            .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .thread(thread))
                                             .opacity(0.75)
                                             .contextMenu {
                                                 Button("Restore") {
@@ -147,6 +168,19 @@ struct SidebarView: View {
 }
 
 private extension SidebarView {
+    func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
+        Button {
+            appState.selectedSidebarItem = item
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(appState.selectedSidebarItem == item ? .isSelected : [])
+        .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == item)
+    }
+
     func activeThreads(for project: Project) -> [AgentThread] {
         project.threads
             .filter { $0.archivedAt == nil }
@@ -178,6 +212,10 @@ private extension SidebarView {
         } else {
             appState.selectedSidebarItem = item
         }
+    }
+
+    func activateThread(_ thread: AgentThread) {
+        appState.selectedSidebarItem = .thread(thread)
     }
 
     func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {

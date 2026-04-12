@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DiffViewerFileListSection: View {
     let files: [FileStatus]
-    let rowFillColor: Color
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let statusSymbol: (FileStatus) -> String
@@ -39,12 +38,7 @@ struct DiffViewerFileListSection: View {
                 .accessibilityAddTraits(isSelected(file) ? .isSelected : [])
             }
             .buttonStyle(.plain)
-            .listRowBackground(
-                DiffViewerRowBackground(
-                    isSelected: isSelected(file),
-                    fillColor: rowFillColor
-                )
-            )
+            .appSelectionRowBackground(isSelected: isSelected(file))
             .contextMenu {
                 if file.isStaged {
                     Button("Unstage") {
@@ -71,16 +65,5 @@ struct DiffViewerFileListSection: View {
                 )
             }
         }
-    }
-}
-
-private struct DiffViewerRowBackground: View {
-    let isSelected: Bool
-    let fillColor: Color
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(isSelected ? fillColor : Color.clear)
-            .padding(.horizontal, 10)
     }
 }
