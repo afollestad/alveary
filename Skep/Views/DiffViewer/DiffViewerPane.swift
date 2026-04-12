@@ -280,6 +280,7 @@ private extension DiffViewerPane {
                         rawDiffContent: viewModel.rawDiffContent,
                         isLoading: viewModel.isLoadingSelectedDiff
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(diffPreviewIdentity(for: selectedFile))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
