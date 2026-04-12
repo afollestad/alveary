@@ -5,12 +5,9 @@ import SwiftUI
 struct ProjectSettingsView: View {
     let project: Project
     let gitHubCLI: GitHubCLIService
-    let providerDetection: any ProviderDetectionService
-    let agentRegistry: AgentRegistry
 
     @Environment(\.modelContext) private var modelContext
     @State private var config: AlvearyProjectConfig?
-    @State private var providerStatuses: [String: ProviderStatus] = [:]
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubAuthenticating = false
     @State private var gitHubDeviceCode: GitHubDeviceCode?
@@ -56,18 +53,6 @@ struct ProjectSettingsView: View {
                     )
                 }
 
-                ProjectSettingsAgentsCard(
-                    agentRegistry: agentRegistry,
-                    providerStatuses: providerStatuses,
-                    allProvidersMissing: allProvidersMissing,
-                    statusDescription: statusDescription,
-                    shortStatusLabel: shortStatusLabel,
-                    statusColor: statusColor,
-                    onRefresh: {
-                        Task { await refreshProviderStatuses() }
-                    }
-                )
-
                 ProjectSettingsScriptsCard(
                     setupScript: config?.setupScript,
                     teardownScript: config?.teardownScript
@@ -96,11 +81,6 @@ private extension ProjectSettingsView {
         FileManager.default.fileExists(atPath: configURL.path)
     }
 
-    var allProvidersMissing: Bool {
-        let statuses = providerStatuses.values
-        return !statuses.isEmpty && statuses.allSatisfy { $0 == .missing }
-    }
-
     var configURL: URL {
         URL(fileURLWithPath: project.path).appendingPathComponent(".alveary.json")
     }
@@ -108,16 +88,6 @@ private extension ProjectSettingsView {
     func loadState() async {
         config = await AlvearyProjectConfig(projectPath: project.path)
         gitHubInstalledVersion = project.isGitRepository ? await gitHubCLI.checkInstalled() : nil
-        await refreshProviderStatuses()
-    }
-
-    func refreshProviderStatuses() async {
-        await providerDetection.checkAllProviders()
-        var newStatuses: [String: ProviderStatus] = [:]
-        for agent in agentRegistry.agents where agent.provider != nil {
-            newStatuses[agent.id] = await providerDetection.status(for: agent.id)
-        }
-        providerStatuses = newStatuses
     }
 
     func connectGitHub() async {
@@ -167,51 +137,6 @@ private extension ProjectSettingsView {
             try modelContext.save()
         } catch {
             screenError = error.localizedDescription
-        }
-    }
-
-    func shortStatusLabel(for status: ProviderStatus) -> String {
-        switch status {
-        case .connected:
-            return "Connected"
-        case .needsKey:
-            return "Needs Key"
-        case .missing:
-            return "Missing"
-        case .error:
-            return "Error"
-        case .unchecked:
-            return "Checking"
-        }
-    }
-
-    func statusDescription(for status: ProviderStatus) -> String {
-        switch status {
-        case .connected(let path, let version):
-            return "\(version) at \(path)"
-        case .needsKey:
-            return "CLI found, but it still needs authentication or an API key."
-        case .missing:
-            return "Not installed on this Mac yet."
-        case .error(let message):
-            return message
-        case .unchecked:
-            return "Checking installation status."
-        }
-    }
-
-    func statusColor(for status: ProviderStatus) -> Color {
-        switch status {
-        case .connected:
-            return .green
-        case .needsKey:
-            return .orange
-        case .missing:
-            return .secondary
-        case .error:
-            return .red
-        case .unchecked:
-            return .blue
         }
     }
 

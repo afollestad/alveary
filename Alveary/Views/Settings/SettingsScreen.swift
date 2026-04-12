@@ -60,6 +60,7 @@ struct SettingsScreen: View {
                         )
                     case .agents:
                         AgentsSettingsTabView(
+                            viewModel: viewModel,
                             providerIDs: viewModel.availableProviderIDs,
                             providerConfigBinding: providerConfigBinding
                         )
@@ -116,7 +117,7 @@ private extension SettingsScreen {
         case .general:
             return "Manage thread defaults and notification settings."
         case .agents:
-            return "Override CLI settings for each supported provider."
+            return "Manage agent installs and override CLI settings for each supported provider."
         case .repository:
             return "Configure branch creation defaults for new worktrees."
         case .interface:

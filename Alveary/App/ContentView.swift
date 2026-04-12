@@ -78,7 +78,11 @@ struct ContentView: View {
         ))
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: mcpService))
-        _settingsViewModel = State(initialValue: SettingsViewModel(settingsService: settingsService))
+        _settingsViewModel = State(initialValue: SettingsViewModel(
+            settingsService: settingsService,
+            providerDetection: providerDetection,
+            agentRegistry: agentRegistry
+        ))
     }
 
     var body: some View {
@@ -86,8 +90,6 @@ struct ContentView: View {
             appState: appState,
             modelContext: viewModelContext,
             gitHubCLI: gitHubCLI,
-            providerDetection: providerDetection,
-            agentRegistry: agentRegistry,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
             settingsService: settingsService,

@@ -5,8 +5,6 @@ struct MiddlePane: View {
     @Bindable var appState: AppState
     let modelContext: ModelContext
     let gitHubCLI: GitHubCLIService
-    let providerDetection: any ProviderDetectionService
-    let agentRegistry: AgentRegistry
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
     let settingsService: SettingsService
@@ -32,9 +30,7 @@ struct MiddlePane: View {
         case .project(let project):
             ProjectSettingsView(
                 project: project,
-                gitHubCLI: gitHubCLI,
-                providerDetection: providerDetection,
-                agentRegistry: agentRegistry
+                gitHubCLI: gitHubCLI
             )
             .id(project.path)
         case .thread(let thread):

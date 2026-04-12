@@ -4,6 +4,42 @@ import XCTest
 
 @MainActor
 final class SettingsViewModelTests: XCTestCase {
+    func testRefreshProviderStatusesLoadsDetectedStatusAndHelperMetadata() async {
+        let detection = RecordingProviderDetectionService(statuses: [
+            "claude": .connected(path: "/usr/local/bin/claude", version: "2.1.104")
+        ])
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(),
+            providerDetection: detection
+        )
+
+        await viewModel.refreshProviderStatuses()
+        let checkAllProvidersInvocations = await detection.checkAllProvidersInvocations()
+
+        XCTAssertEqual(viewModel.providerStatus(for: "claude"), .connected(path: "/usr/local/bin/claude", version: "2.1.104"))
+        XCTAssertEqual(viewModel.shortStatusLabel(for: viewModel.providerStatus(for: "claude")), "Connected")
+        XCTAssertEqual(viewModel.statusDescription(for: viewModel.providerStatus(for: "claude")), "2.1.104 at /usr/local/bin/claude")
+        XCTAssertEqual(viewModel.installCommand(for: "claude"), "curl -fsSL https://claude.ai/install.sh | bash")
+        XCTAssertEqual(checkAllProvidersInvocations, 1)
+    }
+
+    func testRefreshProviderStatusesIfNeededOnlyLoadsOnce() async {
+        let detection = RecordingProviderDetectionService(statuses: [
+            "claude": .missing
+        ])
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(),
+            providerDetection: detection
+        )
+
+        await viewModel.refreshProviderStatusesIfNeeded()
+        await viewModel.refreshProviderStatusesIfNeeded()
+        let checkAllProvidersInvocations = await detection.checkAllProvidersInvocations()
+
+        XCTAssertEqual(viewModel.providerStatus(for: "claude"), .missing)
+        XCTAssertEqual(checkAllProvidersInvocations, 1)
+    }
+
     func testOptionSourcesAreStableAndPickerSafe() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
@@ -120,5 +156,35 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         XCTAssertEqual(viewModel.soundName, "Glass")
+    }
+}
+
+private actor RecordingProviderDetectionService: ProviderDetectionService {
+    private let statuses: [String: ProviderStatus]
+    private var checkAllProvidersCallCount = 0
+
+    init(statuses: [String: ProviderStatus]) {
+        self.statuses = statuses
+    }
+
+    func resolvedPath(for providerId: String) -> String? {
+        if case let .connected(path, _)? = statuses[providerId] {
+            return path
+        }
+        return nil
+    }
+
+    func status(for providerId: String) -> ProviderStatus {
+        statuses[providerId] ?? .missing
+    }
+
+    func checkAllProviders() async {
+        checkAllProvidersCallCount += 1
+    }
+
+    func checkProvider(_ providerId: String) async {}
+
+    func checkAllProvidersInvocations() -> Int {
+        checkAllProvidersCallCount
     }
 }

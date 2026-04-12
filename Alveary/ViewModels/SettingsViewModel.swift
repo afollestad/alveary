@@ -1,12 +1,23 @@
 import Observation
+import SwiftUI
 
 @MainActor
 @Observable
 final class SettingsViewModel {
     private let settingsService: any SettingsService
+    private let providerDetection: (any ProviderDetectionService)?
+    private let agentRegistry: AgentRegistry
 
-    init(settingsService: any SettingsService) {
+    var providerStatuses: [String: ProviderStatus] = [:]
+
+    init(
+        settingsService: any SettingsService,
+        providerDetection: (any ProviderDetectionService)? = nil,
+        agentRegistry: AgentRegistry = DefaultAgentRegistry()
+    ) {
         self.settingsService = settingsService
+        self.providerDetection = providerDetection
+        self.agentRegistry = agentRegistry
     }
 
     var availableProviderIDs: [String] {
@@ -15,6 +26,82 @@ final class SettingsViewModel {
 
     func permissionModeOptions(for providerId: String) -> [String] {
         providerId == "claude" ? AppSettings.supportedPermissionModes : []
+    }
+
+    func installCommand(for providerId: String) -> String? {
+        agentRegistry.agent(for: providerId)?.installCommand
+    }
+
+    func providerStatus(for providerId: String) -> ProviderStatus {
+        providerStatuses[providerId] ?? .unchecked
+    }
+
+    func refreshProviderStatusesIfNeeded() async {
+        guard providerStatuses.isEmpty else {
+            return
+        }
+        await refreshProviderStatuses()
+    }
+
+    func refreshProviderStatuses() async {
+        guard let providerDetection else {
+            providerStatuses = [:]
+            return
+        }
+
+        providerStatuses = Dictionary(uniqueKeysWithValues: availableProviderIDs.map { ($0, .unchecked) })
+        await providerDetection.checkAllProviders()
+
+        var newStatuses: [String: ProviderStatus] = [:]
+        for providerId in availableProviderIDs {
+            newStatuses[providerId] = await providerDetection.status(for: providerId)
+        }
+        providerStatuses = newStatuses
+    }
+
+    func shortStatusLabel(for status: ProviderStatus) -> String {
+        switch status {
+        case .connected:
+            return "Connected"
+        case .needsKey:
+            return "Needs Key"
+        case .missing:
+            return "Missing"
+        case .error:
+            return "Error"
+        case .unchecked:
+            return "Checking"
+        }
+    }
+
+    func statusDescription(for status: ProviderStatus) -> String {
+        switch status {
+        case .connected(let path, let version):
+            return "\(version) at \(path)"
+        case .needsKey:
+            return "CLI found, but it still needs authentication or an API key."
+        case .missing:
+            return "Not installed on this Mac yet."
+        case .error(let message):
+            return message
+        case .unchecked:
+            return "Checking installation status."
+        }
+    }
+
+    func statusColor(for status: ProviderStatus) -> Color {
+        switch status {
+        case .connected:
+            return .green
+        case .needsKey:
+            return .orange
+        case .missing:
+            return .secondary
+        case .error:
+            return .red
+        case .unchecked:
+            return .blue
+        }
     }
 
     func effortOptions(for providerId: String) -> [String] {
