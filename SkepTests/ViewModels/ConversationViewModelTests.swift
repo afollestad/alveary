@@ -197,15 +197,8 @@ private struct TestFixture {
         context.insert(project)
         try context.save()
 
-        var settings = AppSettings()
-        settings.autoGenerateNames = true
-        settings.autoTrustWorktrees = true
-        let settingsService = InMemorySettingsService(current: settings)
-        let agentsManager = MockAgentsManager(
-            isRunning: hasCompletedInitialSetup,
-            sendError: sendError,
-            reconfigureError: reconfigureError
-        )
+        let settingsService = InMemorySettingsService(current: Self.testSettings())
+        let agentsManager = MockAgentsManager(isRunning: hasCompletedInitialSetup, sendError: sendError, reconfigureError: reconfigureError)
         let runtimeStore = MockConversationRuntimeStore()
         let worktreeManager = MockWorktreeManager(worktreeInfo: worktreeInfo)
         let providerSetup = MockProviderSetupService()
@@ -230,6 +223,13 @@ private struct TestFixture {
         self.providerSetup = providerSetup
         self.settingsService = settingsService
         self.viewModel = viewModel
+    }
+
+    private static func testSettings() -> AppSettings {
+        var settings = AppSettings()
+        settings.autoGenerateNames = true
+        settings.autoTrustWorktrees = true
+        return settings
     }
 
     func dbThread() throws -> AgentThread {
