@@ -16,24 +16,4 @@ extension SnapshotTests {
             named: "project_settings_local_project"
         )
     }
-
-    func testDiffViewerPaneHeaderOpenPRAction() {
-        assertMacSnapshot(
-            DiffViewerPaneHeader(
-                activeDirectory: "/tmp/alveary",
-                contextualAction: .openPR,
-                selectedFile: nil,
-                areAgentActionsEnabled: true,
-                onRefresh: {},
-                onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
-                onStageSelectedFile: {},
-                onUnstageSelectedFile: {},
-                onDiscardSelectedFile: {}
-            ),
-            size: CGSize(width: 460, height: 92),
-            named: "diff_viewer_header_open_pr"
-        )
-    }
 }
