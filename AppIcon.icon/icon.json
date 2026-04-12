@@ -6,13 +6,14 @@
     {
       "layers" : [
         {
-          "image-name" : "main.png",
+          "blend-mode" : "plus-darker",
+          "image-name" : "dutch_skep_rounder.svg",
           "name" : "main",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 1.3,
             "translation-in-points" : [
-              0,
-              -54
+              5,
+              -0.2827867880686199
             ]
           }
         }
