@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+set -euo pipefail
 
 usage() {
   cat <<'EOF'
@@ -53,7 +53,9 @@ if [ "$mode" = "verify" ]; then
     -scheme Skep \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test < "$tmp_args"
+    test < "$tmp_args" \
+    2>&1 | xcbeautify
+  echo "Snapshot verification passed."
   exit 0
 fi
 
@@ -62,7 +64,8 @@ xargs -0 xcodebuild \
   -scheme Skep \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  build-for-testing < "$tmp_args"
+  build-for-testing < "$tmp_args" \
+  2>&1 | xcbeautify
 
 xctestrun_path=$(find .build/xcode/Build/Products -name '*.xctestrun' | head -n 1)
 if [ -z "$xctestrun_path" ]; then
@@ -99,4 +102,7 @@ xargs -0 xcodebuild \
   -xctestrun "$patched_xctestrun" \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  test-without-building < "$tmp_args"
+  test-without-building < "$tmp_args" \
+  2>&1 | xcbeautify
+
+echo "Snapshots recorded."

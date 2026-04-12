@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
@@ -10,7 +10,9 @@ if [ "$#" -eq 0 ]; then
     -scheme Skep \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test
+    test \
+    2>&1 | xcbeautify
+  echo "Tests passed."
   exit 0
 fi
 
@@ -26,4 +28,7 @@ xargs -0 xcodebuild \
   -scheme Skep \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  test < "$tmp_args"
+  test < "$tmp_args" \
+  2>&1 | xcbeautify
+
+echo "Tests passed."
