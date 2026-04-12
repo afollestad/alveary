@@ -1,8 +1,8 @@
 included:
-  - Skep
-  - SkepTests
+  - Alveary
+  - AlvearyTests
 excluded:
-  - Skep/DI/Generated
+  - Alveary/DI/Generated
 line_length:
   warning: 150
   error: 200

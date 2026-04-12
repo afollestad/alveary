@@ -1,4 +1,4 @@
-name: Skep
+name: Alveary
 options:
   bundleIdPrefix: com.afollestad
   deploymentTarget:
@@ -13,11 +13,11 @@ settings:
     GENERATE_INFOPLIST_FILE: YES
     ENABLE_USER_SCRIPT_SANDBOXING: NO
 targets:
-  Skep:
+  Alveary:
     type: application
     platform: macOS
     sources:
-      - path: Skep
+      - path: Alveary
         excludes:
           - "**/.DS_Store"
       - path: AppIcon.icon
@@ -28,10 +28,9 @@ targets:
         product: Textual
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.skep
+        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: Skep/Resources/Skep.entitlements
     preBuildScripts:
       - name: Knit Code Generation
         script: |
@@ -45,13 +44,13 @@ targets:
             echo "error: knit-cli is required for code generation. Install via 'mint install cashapp/knit knit-cli'."
             exit 1
           fi
-          mkdir -p "${SRCROOT}/Skep/DI/Generated"
+          mkdir -p "${SRCROOT}/Alveary/DI/Generated"
           "$KNIT_CLI" gen \
-            --assembly-input-path "${SRCROOT}/Skep/DI" \
-            --type-safety-extensions-output-path "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
-          chmod u+w "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
-          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Skep/DI/Generated/KnitExtensions.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
-          chmod a-w "${SRCROOT}/Skep/DI/Generated/KnitExtensions.swift"
+            --assembly-input-path "${SRCROOT}/Alveary/DI" \
+            --type-safety-extensions-output-path "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
+          chmod u+w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
+          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Alveary/DI/Generated/KnitExtensions.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
+          chmod a-w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
         inputFiles: []
         outputFiles: []
     postBuildScripts:
@@ -60,20 +59,20 @@ targets:
           if command -v swiftlint &> /dev/null; then
             swiftlint
           fi
-  SkepTests:
+  AlvearyTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: SkepTests
+      - path: AlvearyTests
         excludes:
           - "**/.DS_Store"
     dependencies:
-      - target: Skep
+      - target: Alveary
       - package: swift-snapshot-testing
         product: SnapshotTesting
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.skep.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary.tests
         GENERATE_INFOPLIST_FILE: YES
 packages:
   knit:

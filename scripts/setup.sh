@@ -18,6 +18,7 @@ install_brew_formula() {
 }
 
 install_brew_formula xcodegen
+install_brew_formula xcbeautify
 install_brew_formula swiftlint
 install_brew_formula mint
 
@@ -36,6 +37,6 @@ echo "Installing Git hooks..."
 "$repo_root/scripts/install-git-hooks.sh"
 
 echo "Setup complete. Next steps:"
-echo "  1. If you want to view the project in XCode: `open Skep.xcodeproj`"
-echo "  2. Re-run 'xcodegen generate' any time you change project structure or dependencies, then re-open Skep.xcodeproj."
+echo "  1. If you want to view the project in XCode: open Alveary.xcodeproj"
+echo "  2. Re-run 'xcodegen generate' any time you change project structure or dependencies, then re-open Alveary.xcodeproj."
 echo "  3. Build with './scripts/build.sh', test with './scripts/test.sh', verify snapshots with './scripts/snapshots.sh verify', or launch with './scripts/run.sh'."

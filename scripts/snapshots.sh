@@ -5,18 +5,27 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/snapshots.sh <verify|record> [test_identifier ...]
 
-Defaults to the full `SkepTests/SnapshotTests` suite when no test identifiers are provided.
+Defaults to the full `AlvearyTests/SnapshotTests` suite when no test identifiers are provided.
 
 Examples:
   ./scripts/snapshots.sh verify
-  ./scripts/snapshots.sh verify SkepTests/SnapshotTests/testSidebarViewPopulated
+  ./scripts/snapshots.sh verify AlvearyTests/SnapshotTests/testSidebarViewPopulated
   ./scripts/snapshots.sh record
-  ./scripts/snapshots.sh record SkepTests/SnapshotTests/testSidebarViewPopulated
+  ./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
 EOF
 }
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
+
+run_and_format() {
+  if command -v xcbeautify >/dev/null 2>&1; then
+    # Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
+    "$@" 2>&1 | xcbeautify --disable-logging
+  else
+    "$@"
+  fi
+}
 
 if [ "$#" -lt 1 ]; then
   usage >&2
@@ -36,7 +45,7 @@ case "$mode" in
 esac
 
 if [ "$#" -eq 0 ]; then
-  set -- "SkepTests/SnapshotTests"
+  set -- "AlvearyTests/SnapshotTests"
 fi
 
 tmp_args=$(mktemp)
@@ -48,26 +57,22 @@ for test_name in "$@"; do
 done
 
 if [ "$mode" = "verify" ]; then
-  # Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
-  xargs -0 xcodebuild \
-    -project Skep.xcodeproj \
-    -scheme Skep \
+  run_and_format xargs -0 xcodebuild \
+    -project Alveary.xcodeproj \
+    -scheme Alveary \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test < "$tmp_args" \
-    2>&1 | xcbeautify --disable-logging
+    test < "$tmp_args"
   echo "Snapshot verification passed."
   exit 0
 fi
 
-# Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
-xargs -0 xcodebuild \
-  -project Skep.xcodeproj \
-  -scheme Skep \
+run_and_format xargs -0 xcodebuild \
+  -project Alveary.xcodeproj \
+  -scheme Alveary \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  build-for-testing < "$tmp_args" \
-  2>&1 | xcbeautify --disable-logging
+  build-for-testing < "$tmp_args"
 
 xctestrun_path=$(find .build/xcode/Build/Products -name '*.xctestrun' | head -n 1)
 if [ -z "$xctestrun_path" ]; then
@@ -100,12 +105,10 @@ with open(path, 'wb') as file:
     plistlib.dump(data, file)
 PY
 
-# Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
-xargs -0 xcodebuild \
+run_and_format xargs -0 xcodebuild \
   -xctestrun "$patched_xctestrun" \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  test-without-building < "$tmp_args" \
-  2>&1 | xcbeautify --disable-logging
+  test-without-building < "$tmp_args"
 
 echo "Snapshots recorded."

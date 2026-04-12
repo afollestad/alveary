@@ -1,13 +1,13 @@
-# Skep
+# Alveary
 
-_A skep is a traditional beehive made from coiled straw or wicker, historically used to house honey bees._
+_An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
-The Skep app is a native macOS AI agent orchestrator, written in Swift — like a hive of bees that works for you! It's built from scratch (with the help of agents), 
+The Alveary app is a native macOS AI agent orchestrator, written in Swift — like a hive of bees that works for you! It's built from scratch (with the help of agents), 
 taking UX inspiration from other tools like [Codex](https://developers.openai.com/codex/app) and [Superset](https://superset.sh).
 
 ## Setup
 
-Skep is developed as a macOS app with Xcode 26.3, XcodeGen, SwiftLint, and `knit-cli`.
+Alveary is developed as a macOS app with Xcode 26.3, XcodeGen, `xcbeautify`, SwiftLint, and `knit-cli`.
 
 Run the bootstrap script once per clone:
 
@@ -15,7 +15,7 @@ Run the bootstrap script once per clone:
 ./scripts/setup.sh
 ```
 
-That script installs the required CLI tools with Homebrew and Mint, generates `Skep.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
+That script installs the required CLI tools with Homebrew and Mint, including `xcbeautify` for prettified `xcodebuild` output, generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
 
 ## Build, Test, and Run
 
@@ -48,7 +48,7 @@ Run the full test suite:
 Run a focused test class:
 
 ```sh
-./scripts/test.sh SkepTests/AppDelegateTests
+./scripts/test.sh AlvearyTests/AppDelegateTests
 ```
 
 ## Snapshot Tests
@@ -62,15 +62,15 @@ Verify the full snapshot suite:
 Verify or record a focused snapshot test:
 
 ```sh
-./scripts/snapshots.sh verify SkepTests/SnapshotTests/testSidebarViewPopulated
-./scripts/snapshots.sh record SkepTests/SnapshotTests/testSidebarViewPopulated
+./scripts/snapshots.sh verify AlvearyTests/SnapshotTests/testSidebarViewPopulated
+./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
 ```
 
-`./scripts/snapshots.sh` defaults to `SkepTests/SnapshotTests` when no test identifier is provided.
+`./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests` when no test identifier is provided.
 
 ## Knit
 
-Skep uses `knit-cli gen` from the app target's Xcode pre-build script. That means builds already have a build hook for Knit, but the hook is CLI-based rather than `KnitBuildPlugin`-based. `project.yml` is the source of truth for that workflow, and the generated file remains `Skep/DI/Generated/KnitExtensions.swift`.
+Alveary uses `knit-cli gen` from the app target's Xcode pre-build script. That means builds already have a build hook for Knit, but the hook is CLI-based rather than `KnitBuildPlugin`-based. `project.yml` is the source of truth for that workflow, and the generated file remains `Alveary/DI/Generated/KnitExtensions.swift`.
 
 # License
 
