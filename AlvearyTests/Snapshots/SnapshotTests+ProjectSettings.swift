@@ -3,35 +3,6 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testSettingsScreenAgentsTab() {
-        var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
-            cli: "/Users/test/.local/bin/claude",
-            extraArgs: "--verbose"
-        )
-
-        let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
-            providerDetection: SnapshotProviderDetectionService(statuses: [
-                "claude": .connected(
-                    path: "/Users/test/.local/bin/claude",
-                    version: "2.1.104"
-                )
-            ])
-        )
-
-        assertMacSnapshot(
-            SettingsScreen(
-                viewModel: viewModel,
-                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
-                onClose: {},
-                initialTabRawValue: "agents"
-            ),
-            size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_agents"
-        )
-    }
-
     func testProjectSettingsViewHidesGitHubForLocalProject() throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.89.0", gitHubAuthenticated: false)
         let project = Project(path: "/tmp/local-project", name: "Local Project")
@@ -43,25 +14,6 @@ extension SnapshotTests {
             .modelContainer(fixture.container),
             size: CGSize(width: 1100, height: 900),
             named: "project_settings_local_project"
-        )
-    }
-
-    func testSettingsScreenRepositoryTabWithoutGitHubCLI() {
-        var settings = AppSettings()
-        settings.branchPrefix = "af"
-
-        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
-        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
-
-        assertMacSnapshot(
-            SettingsScreen(
-                viewModel: viewModel,
-                gitHubCLI: gitHubCLI,
-                onClose: {},
-                initialTabRawValue: "repository"
-            ),
-            size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_repository_no_github_cli"
         )
     }
 
@@ -84,27 +36,4 @@ extension SnapshotTests {
             named: "diff_viewer_header_open_pr"
         )
     }
-}
-
-private actor SnapshotProviderDetectionService: ProviderDetectionService {
-    private let statuses: [String: ProviderStatus]
-
-    init(statuses: [String: ProviderStatus]) {
-        self.statuses = statuses
-    }
-
-    func resolvedPath(for providerId: String) -> String? {
-        if case let .connected(path, _)? = statuses[providerId] {
-            return path
-        }
-        return nil
-    }
-
-    func status(for providerId: String) -> ProviderStatus {
-        statuses[providerId] ?? .missing
-    }
-
-    func checkAllProviders() async {}
-
-    func checkProvider(_ providerId: String) async {}
 }

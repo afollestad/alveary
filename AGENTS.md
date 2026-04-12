@@ -1,7 +1,7 @@
 ## Keep AGENTS.md Up to Date
 
-**WHEN** changes to dependencies, project structure, or lint rules are made, make sure `AGENTS.md` and `README.md` are kept up to date.
-**WHEN** gotchas worth documenting are found, check if they belong in `AGENTS.md` to inform future sessions.
+**WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md`.
+**WHEN** making changes to dependencies, project structure, or lint, make sure `AGENTS.md` and `README.md` are kept up to date.
 
 ## XCode Project Generation
 
