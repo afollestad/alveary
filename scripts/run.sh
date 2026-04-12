@@ -9,4 +9,5 @@ if [ ! -d "$app_path" ]; then
   "$repo_root/scripts/build.sh"
 fi
 
+echo "Running the app without building..."
 open "$app_path"

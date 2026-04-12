@@ -19,8 +19,15 @@ fi
 tmp_args=$(mktemp)
 trap 'rm -f "$tmp_args"' EXIT
 
-for test_name in "$@"; do
-  printf '%s\0' "-only-testing:$test_name" >> "$tmp_args"
+for test_arg in "$@"; do
+  case "$test_arg" in
+    -*)
+      printf '%s\0' "$test_arg" >> "$tmp_args"
+      ;;
+    *)
+      printf '%s\0' "-only-testing:$test_arg" >> "$tmp_args"
+      ;;
+  esac
 done
 
 xargs -0 xcodebuild \

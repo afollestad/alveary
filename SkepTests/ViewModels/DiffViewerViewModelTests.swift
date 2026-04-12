@@ -64,6 +64,7 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertGreaterThan(polledStatusCalls, initialStatusCalls)
 
         fixture.viewModel.setWatchingEnabled(false)
+        try? await Task.sleep(for: .milliseconds(50))
         let callsAfterDisable = await fixture.gitService.statusCallCount()
 
         try? await Task.sleep(for: .milliseconds(70))

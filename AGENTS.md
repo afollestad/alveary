@@ -29,11 +29,13 @@ Use the CLI-based Knit workflow documented in `project.yml`; do not switch the p
 
 The project currently builds as the `Skep` scheme in `Skep.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
 
-- First-time local setup: `./scripts/setup.sh` installs the required CLI tools, generates `Skep.xcodeproj`, and configures the repo-local Git hooks.
+- First-time local setup: `./scripts/setup.sh` installs the required CLI tools, generates `Skep.xcodeproj`, and configures the repo-local Git hooks. Keep lower-level setup helpers under `scripts/setup/`.
+- GitHub Actions CI is defined in `.github/workflows/ci.yml` and runs on a macOS runner with Xcode 26.3.
 - Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
 - Build from the command line with `./scripts/build.sh`.
 - Run the full test suite with `./scripts/test.sh`.
 - Run focused tests with `./scripts/test.sh SkepTests/AppDelegateTests` or multiple identifiers as separate arguments.
+- `./scripts/test.sh` also accepts raw `xcodebuild` selectors like `-skip-testing:SkepTests/SnapshotTests`; CI skips snapshot tests because macOS version differences between local and CI runners cause pixel-level rendering mismatches.
 - See the "Snapshot Testing" section below for snapshot verification.
 - Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Skep.xcodeproj -scheme Skep -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Skep.app`.
@@ -59,10 +61,11 @@ Snapshots should be verified before committing, whenever UI is modified.
 The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).
 
 - The repo ships a pre-commit hook at `.githooks/pre-commit` that runs `swiftlint` for commits touching Swift sources or `.swiftlint.yml`.
-- Install the repo-managed hooks once with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`. This writes a repo-local `core.hooksPath=.githooks` override and does not modify your global Git hooks setup.
+- Install the repo-managed hooks once with `./scripts/setup.sh` or `./scripts/setup/install-git-hooks.sh`. This writes a repo-local `core.hooksPath=.githooks` override and does not modify your global Git hooks setup.
 - The hook runs `swiftlint` from the project root so nested config discovery still works for `SkepTests/.swiftlint.yml`.
 - Run `swiftlint` from the project root *without* `--config`; passing an explicit config file bypasses nested config discovery and breaks the `SkepTests/.swiftlint.yml` override.
 - Run `swiftlint` manually when you want feedback before reaching the commit hook.
+- CI's SwiftLint workflow lives in `scripts/ci/run_swiftlint.sh`, `scripts/ci/build_swiftlint_pr_comment_body.sh`, and `scripts/ci/sync_swiftlint_pr_comment.sh`; keep that file-grouped issue formatting and PR-comment sync logic there instead of duplicating it inline in workflow YAML.
 - *If a change introduces new lint warnings and/or errors, inform the user before following through with a commit.*
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.

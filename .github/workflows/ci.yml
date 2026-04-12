@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-ci:
+    runs-on: macos-26
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26.3
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.3'
+
+      - name: Install build tools
+        run: sh ./scripts/setup/install-tools.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run SwiftLint
+        id: lint
+        continue-on-error: true
+        run: bash ./scripts/ci/run_swiftlint.sh --report .build/ci/swiftlint.json --comment-body .build/ci/swiftlint-comment.md
+
+      - name: Comment on SwiftLint issues
+        if: always() && github.event_name == 'pull_request' && steps.lint.outputs.issue_count != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ./scripts/ci/sync_swiftlint_pr_comment.sh --body .build/ci/swiftlint-comment.md
+
+      - name: Build app
+        run: ./scripts/build.sh
+
+      - name: Run unit tests
+        run: ./scripts/test.sh -skip-testing:SkepTests/SnapshotTests
+
+      - name: Diff snapshots
+        id: snapshots
+        run: |
+          ./scripts/snapshots.sh record || true
+          ref_dir="SkepTests/Snapshots/__Snapshots__"
+          diff_dir=".build/ci/snapshot-diff"
+          mkdir -p "$diff_dir/reference" "$diff_dir/ci"
+
+          changed=false
+          for ci_img in $(find "$ref_dir" -name '*.png'); do
+            rel="${ci_img#$ref_dir/}"
+            mkdir -p "$(dirname "$diff_dir/reference/$rel")"
+            if ! git show "HEAD:$ci_img" > "$diff_dir/reference/$rel" 2>/dev/null; then
+              rm -f "$diff_dir/reference/$rel"
+              continue
+            fi
+            if ! cmp -s "$diff_dir/reference/$rel" "$ci_img"; then
+              changed=true
+              mkdir -p "$(dirname "$diff_dir/ci/$rel")"
+              cp "$ci_img" "$diff_dir/ci/$rel"
+            else
+              rm -f "$diff_dir/reference/$rel"
+            fi
+          done
+
+          if [ "$changed" = true ]; then
+            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+            bash ./scripts/ci/build_snapshot_diff_report.sh \
+              --ref-dir "$diff_dir/reference" \
+              --ci-dir "$diff_dir/ci" \
+              --output "$diff_dir/snapshot-diff-report.html"
+            echo "::warning::Snapshot differences detected between local references and CI rendering. Download the snapshot-diff artifact to compare."
+          else
+            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+            echo "Snapshots match."
+          fi
+
+      - name: Upload snapshot diff
+        if: steps.snapshots.outputs.has_diff == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-diff
+          path: .build/ci/snapshot-diff
+          retention-days: 14
+
+      - name: Fail job if snapshots differ
+        if: steps.snapshots.outputs.has_diff == 'true'
+        run: |
+          echo "::error::Snapshots recorded on CI differ from committed references. See the snapshot-diff artifact."
+          exit 1
+
+      - name: Fail job if SwiftLint failed
+        if: always() && steps.lint.outputs.exit_code != '0'
+        run: exit "${{ steps.lint.outputs.exit_code }}"

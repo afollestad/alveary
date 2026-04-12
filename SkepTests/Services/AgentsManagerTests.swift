@@ -193,9 +193,10 @@ final class AgentsManagerTests: XCTestCase {
         for index in 0...20 {
             try stderr.fileHandleForWriting.write(contentsOf: Data("stderr-\(index)\n".utf8))
         }
+        stderr.fileHandleForWriting.closeFile()
+        try await Task.sleep(for: .milliseconds(50))
         try stdout.fileHandleForWriting.write(contentsOf: Data("not-json\n".utf8))
         stdout.fileHandleForWriting.closeFile()
-        stderr.fileHandleForWriting.closeFile()
 
         let event = try await eventTask.value
         guard case let .error(message) = event else {
