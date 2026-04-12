@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+set -euo pipefail
 
 usage() {
   cat <<'EOF'
@@ -48,21 +48,26 @@ for test_name in "$@"; do
 done
 
 if [ "$mode" = "verify" ]; then
+  # Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
   xargs -0 xcodebuild \
     -project Skep.xcodeproj \
     -scheme Skep \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test < "$tmp_args"
+    test < "$tmp_args" \
+    2>&1 | xcbeautify --disable-logging
+  echo "Snapshot verification passed."
   exit 0
 fi
 
+# Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
 xargs -0 xcodebuild \
   -project Skep.xcodeproj \
   -scheme Skep \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  build-for-testing < "$tmp_args"
+  build-for-testing < "$tmp_args" \
+  2>&1 | xcbeautify --disable-logging
 
 xctestrun_path=$(find .build/xcode/Build/Products -name '*.xctestrun' | head -n 1)
 if [ -z "$xctestrun_path" ]; then
@@ -95,8 +100,12 @@ with open(path, 'wb') as file:
     plistlib.dump(data, file)
 PY
 
+# Hide xcbeautify's startup/version banner so the script output stays focused on snapshot results.
 xargs -0 xcodebuild \
   -xctestrun "$patched_xctestrun" \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  test-without-building < "$tmp_args"
+  test-without-building < "$tmp_args" \
+  2>&1 | xcbeautify --disable-logging
+
+echo "Snapshots recorded."
