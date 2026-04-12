@@ -13,8 +13,8 @@ struct SidebarProjectRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Button(action: onToggleExpanded) {
-                Image(systemName: disclosureSymbolName)
-                    .font(.caption.weight(.semibold))
+                Image(systemName: leadingSymbolName)
+                    .font(leadingSymbolFont)
                     .foregroundStyle(Color.primary)
                     .frame(width: 16, height: 16, alignment: .leading)
                     .contentTransition(.symbolEffect(.replace))
@@ -58,6 +58,14 @@ struct SidebarProjectRow: View {
         .padding(.horizontal, 6)
         .onHover { isHovering = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
+    }
+
+    private var leadingSymbolName: String {
+        isHovering ? disclosureSymbolName : "folder"
+    }
+
+    private var leadingSymbolFont: Font {
+        isHovering ? .caption.weight(.semibold) : .body
     }
 
     private var disclosureSymbolName: String {
