@@ -93,7 +93,7 @@ struct DiffViewerPane: View {
                 EmptyStateView(
                     icon: "rectangle.split.3x1",
                     heading: "No diff context",
-                    subtext: "Select a thread to inspect repository changes and diff previews.",
+                    subtext: "Select a thread to inspect project changes and diff previews.",
                     actions: []
                 )
             } else {
@@ -105,6 +105,7 @@ struct DiffViewerPane: View {
                     VStack(spacing: 0) {
                         DiffViewerFileListSection(
                             files: viewModel.files,
+                            isGitRepository: viewModel.isGitRepository,
                             isSelected: isSelected,
                             fileDisplayName: fileDisplayName,
                             statusSymbol: statusSymbol,

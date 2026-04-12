@@ -28,7 +28,7 @@ struct SidebarProjectRow: View {
                             Text(project.name)
                                 .font(.headline)
 
-                            Text(project.baseRef ?? project.path)
+                            Text(projectSubtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -62,5 +62,13 @@ struct SidebarProjectRow: View {
 
     private var disclosureSymbolName: String {
         isExpanded ? "chevron.down" : "chevron.right"
+    }
+
+    private var projectSubtitle: String {
+        if project.isGitRepository {
+            project.baseRef ?? project.path
+        } else {
+            "local"
+        }
     }
 }

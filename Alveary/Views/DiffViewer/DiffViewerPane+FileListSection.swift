@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DiffViewerFileListSection: View {
     let files: [FileStatus]
+    let isGitRepository: Bool
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let statusSymbol: (FileStatus) -> String
@@ -57,12 +58,21 @@ struct DiffViewerFileListSection: View {
         }
         .overlay {
             if files.isEmpty {
-                EmptyStateView(
-                    icon: "checkmark.circle",
-                    heading: "Working tree is clean",
-                    subtext: "There are no local changes to preview right now.",
-                    actions: []
-                )
+                if isGitRepository {
+                    EmptyStateView(
+                        icon: "checkmark.circle",
+                        heading: "Working tree is clean",
+                        subtext: "There are no local changes to preview right now.",
+                        actions: []
+                    )
+                } else {
+                    EmptyStateView(
+                        icon: "tray",
+                        heading: "Git features unavailable",
+                        subtext: "This project is not a Git repository, so there are no Git diffs to show.",
+                        actions: []
+                    )
+                }
             }
         }
     }

@@ -20,7 +20,7 @@ struct DiffViewerPaneHeader: View {
                     Text("Diff Viewer")
                         .font(.headline)
 
-                    Text(activeDirectory ?? "No repository selected")
+                    Text(activeDirectory ?? "No project selected")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

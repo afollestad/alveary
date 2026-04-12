@@ -33,4 +33,8 @@ final class Project {
         self.githubConnected = githubConnected
         self.threads = threads
     }
+
+    var isGitRepository: Bool {
+        gitBranch != nil || baseRef != nil || remoteName != nil || gitRemote != nil || githubRepository != nil
+    }
 }

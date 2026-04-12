@@ -38,21 +38,23 @@ struct ProjectSettingsView: View {
                     )
                 )
                 ProjectSettingsRepositoryCard(project: project)
-                ProjectSettingsGitHubCard(
-                    gitHubDeviceCode: gitHubDeviceCode,
-                    isGitHubConnected: project.githubConnected,
-                    gitHubInstalledVersion: gitHubInstalledVersion,
-                    isGitHubAuthenticating: isGitHubAuthenticating,
-                    onOpenBrowser: {
-                        guard let verificationURL = gitHubDeviceCode?.verificationURL else {
-                            return
+                if project.isGitRepository {
+                    ProjectSettingsGitHubCard(
+                        gitHubDeviceCode: gitHubDeviceCode,
+                        isGitHubConnected: project.githubConnected,
+                        gitHubInstalledVersion: gitHubInstalledVersion,
+                        isGitHubAuthenticating: isGitHubAuthenticating,
+                        onOpenBrowser: {
+                            guard let verificationURL = gitHubDeviceCode?.verificationURL else {
+                                return
+                            }
+                            NSWorkspace.shared.open(verificationURL)
+                        },
+                        onConnectGitHub: {
+                            Task { await connectGitHub() }
                         }
-                        NSWorkspace.shared.open(verificationURL)
-                    },
-                    onConnectGitHub: {
-                        Task { await connectGitHub() }
-                    }
-                )
+                    )
+                }
                 ProjectSettingsAgentsCard(
                     agentRegistry: agentRegistry,
                     providerStatuses: providerStatuses,
@@ -101,7 +103,7 @@ private extension ProjectSettingsView {
 
     func loadState() async {
         config = await AlvearyProjectConfig(projectPath: project.path)
-        gitHubInstalledVersion = await gitHubCLI.checkInstalled()
+        gitHubInstalledVersion = project.isGitRepository ? await gitHubCLI.checkInstalled() : nil
         await refreshProviderStatuses()
     }
 

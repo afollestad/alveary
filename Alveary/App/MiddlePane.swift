@@ -62,9 +62,9 @@ struct MiddlePane: View {
                 EmptyStateView(
                     icon: "folder.badge.plus",
                     heading: "Add your first project",
-                    subtext: "Open a Git repository to start working with AI agents.",
+                    subtext: "Open a project folder to start working with AI agents.",
                     actions: [
-                        .init(title: "Open Existing Repo...", style: .primary) {
+                        .init(title: "Open Project Folder...", style: .primary) {
                             appState.openNewProjectFlow()
                         }
                     ]

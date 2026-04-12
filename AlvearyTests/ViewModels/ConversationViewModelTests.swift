@@ -150,6 +150,42 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Implement the authentication retry flow"])
         XCTAssertNil(fixture.viewModel.setupPhase)
     }
+
+    func testSetupAndStartDisablesWorktreeForNonGitProjects() async throws {
+        let fixture = try TestFixture(
+            threadName: "New thread",
+            useWorktree: true,
+            hasCompletedInitialSetup: false,
+            projectIsGitRepository: false
+        )
+
+        try await fixture.viewModel.setupAndStart("Implement the authentication retry flow")
+
+        let refreshedThread = try fixture.dbThread()
+        XCTAssertFalse(refreshedThread.useWorktree)
+        XCTAssertNil(refreshedThread.worktreePath)
+        XCTAssertNil(refreshedThread.branch)
+        XCTAssertTrue(refreshedThread.hasCompletedInitialSetup)
+        XCTAssertEqual(refreshedThread.name, "Implement the authentication retry flow")
+
+        let createCalls = await fixture.worktreeManager.createCalls()
+        XCTAssertTrue(createCalls.isEmpty)
+
+        let providerSetupCalls = await fixture.providerSetup.calls()
+        XCTAssertEqual(providerSetupCalls.count, 1)
+        XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
+        XCTAssertEqual(providerSetupCalls.first?.workingDirectory, fixture.project.path)
+        XCTAssertEqual(providerSetupCalls.first?.autoTrust, false)
+
+        let spawnCalls = await fixture.agentsManager.spawnCalls()
+        XCTAssertEqual(spawnCalls.count, 1)
+        XCTAssertEqual(spawnCalls.first?.config.workingDirectory, fixture.project.path)
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Implement the authentication retry flow"])
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Implement the authentication retry flow"])
+        XCTAssertNil(fixture.viewModel.setupPhase)
+    }
 }
 
 @MainActor
@@ -172,7 +208,8 @@ private struct TestFixture {
         hasCompletedInitialSetup: Bool = true,
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
-        worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread")
+        worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
+        projectIsGitRepository: Bool = true
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -184,7 +221,7 @@ private struct TestFixture {
         )
         let context = ModelContext(container)
 
-        let project = Project(path: "/tmp/alveary-project", name: "Alveary", remoteName: "origin", baseRef: "main")
+        let project = Self.makeProject(isGitRepository: projectIsGitRepository)
         let thread = AgentThread(
             name: threadName,
             hasCompletedInitialSetup: hasCompletedInitialSetup,
@@ -230,6 +267,16 @@ private struct TestFixture {
         settings.autoGenerateNames = true
         settings.autoTrustWorktrees = true
         return settings
+    }
+
+    private static func makeProject(isGitRepository: Bool) -> Project {
+        Project(
+            path: "/tmp/alveary-project",
+            name: "Alveary",
+            remoteName: isGitRepository ? "origin" : nil,
+            gitBranch: isGitRepository ? "feature/auth" : nil,
+            baseRef: isGitRepository ? "main" : nil
+        )
     }
 
     func dbThread() throws -> AgentThread {

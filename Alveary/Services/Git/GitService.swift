@@ -50,7 +50,7 @@ extension GitError: LocalizedError {
         case .commandFailed(let message):
             return message
         case .notARepository:
-            return "The selected directory is not a Git repository"
+            return "This project is not a Git repository"
         case .outputTooLarge(let message):
             return message
         }

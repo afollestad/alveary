@@ -228,7 +228,7 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.selectedFile?.path, "feature.swift")
     }
 
-    func testRefreshFailureClearsContextualActionAndSkipsSelectedDiffReload() async {
+    func testNonGitProjectsDoNotSurfaceDiffErrors() async {
         let modifiedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
         let fixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
@@ -249,8 +249,11 @@ final class DiffViewerViewModelTests: XCTestCase {
         let diffCallCount = await fixture.gitService.diffCalls().count
         let listPRCallCount = fixture.gitHubService.listPRCallCount()
 
-        XCTAssertEqual(fixture.viewModel.gitError, "Git status failed: The selected directory is not a Git repository")
+        XCTAssertNil(fixture.viewModel.gitError)
+        XCTAssertFalse(fixture.viewModel.isGitRepository)
         XCTAssertEqual(fixture.viewModel.contextualAction, .none)
+        XCTAssertNil(fixture.viewModel.selectedFile)
+        XCTAssertNil(fixture.viewModel.parsedDiff)
         XCTAssertEqual(diffCallCount, 1)
         XCTAssertEqual(listPRCallCount, 0)
     }

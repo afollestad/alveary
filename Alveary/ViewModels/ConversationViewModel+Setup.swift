@@ -167,6 +167,12 @@ extension ConversationViewModel {
             return project.path
         }
 
+        guard project.isGitRepository else {
+            thread.useWorktree = false
+            try modelContext.save()
+            return project.path
+        }
+
         setupPhase = .creatingWorktree
         let worktreeSlug = Self.threadName(from: message) ?? thread.name
 

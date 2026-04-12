@@ -2,6 +2,8 @@ import AppKit
 import Foundation
 import Observation
 
+// swiftlint:disable file_length
+
 @MainActor
 @Observable
 final class DiffViewerViewModel {
@@ -19,6 +21,7 @@ final class DiffViewerViewModel {
     private(set) var contextualAction: ContextualAction = .none
     private(set) var gitError: String?
     private(set) var activeDirectory: String?
+    private(set) var isGitRepository = true
 
     private var activeConversationIds: Set<String> = []
     private var baseRef = "main"
@@ -161,6 +164,7 @@ final class DiffViewerViewModel {
             isLoadingSelectedDiff = false
             contextualAction = .none
             gitError = nil
+            isGitRepository = true
         }
 
         contextualActionResolver.invalidatePRCache()
@@ -205,6 +209,7 @@ final class DiffViewerViewModel {
         isLoadingSelectedDiff = false
         contextualAction = .none
         gitError = nil
+        isGitRepository = true
         refreshScheduler.clearPending()
         contextualActionResolver.invalidatePRCache()
     }
@@ -326,6 +331,9 @@ private extension DiffViewerViewModel {
         let selectionGeneration: UInt64
     }
 
+    // Keeping refresh state handling colocated with the view-model state avoids
+    // widening access across companion files just to satisfy lint structure.
+    // swiftlint:disable:next function_body_length
     private func performRefresh(_ request: RefreshRequest) async {
         if request.invalidatePRCache {
             contextualActionResolver.invalidatePRCache()
@@ -337,13 +345,26 @@ private extension DiffViewerViewModel {
         let generation = directoryGeneration
         let refreshedFiles: [FileStatus]
         let refreshedError: String?
+        let refreshedIsGitRepository: Bool
 
         do {
             refreshedFiles = try await gitService.status(in: request.directory)
             refreshedError = nil
+            refreshedIsGitRepository = true
+        } catch let error as GitError {
+            if error == .notARepository {
+                refreshedFiles = []
+                refreshedError = nil
+                refreshedIsGitRepository = false
+            } else {
+                refreshedFiles = []
+                refreshedError = "Git status failed: \(error.localizedDescription)"
+                refreshedIsGitRepository = true
+            }
         } catch {
             refreshedFiles = []
             refreshedError = "Git status failed: \(error.localizedDescription)"
+            refreshedIsGitRepository = true
         }
 
         guard isCurrentBinding(directory: request.directory, generation: generation) else {
@@ -352,9 +373,16 @@ private extension DiffViewerViewModel {
 
         files = refreshedFiles
         gitError = refreshedError
+        isGitRepository = refreshedIsGitRepository
 
         if refreshedError != nil {
             contextualAction = .none
+            return
+        }
+
+        if !refreshedIsGitRepository {
+            contextualAction = .none
+            await refreshSelectedDiffIfNeeded(in: request.directory, generation: generation, reason: request.reason)
             return
         }
 
@@ -497,3 +525,5 @@ private extension DiffViewerViewModel {
         activeDirectory == directory && directoryGeneration == generation
     }
 }
+
+// swiftlint:enable file_length

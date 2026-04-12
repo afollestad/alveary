@@ -60,6 +60,39 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 0)
     }
 
+    func testCreateProjectAllowsNonGitDirectories() async throws {
+        let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.0.0", gitHubAuthenticated: true)
+        let projectURL = try makeProjectDirectory(named: "plain-project")
+
+        await fixture.shell.enqueue(
+            .success(
+                shellResult(
+                    stdout: "",
+                    stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+                    exitCode: 128
+                )
+            )
+        )
+
+        let project = try await fixture.viewModel.createProject(path: projectURL.path)
+
+        XCTAssertEqual(project.path, projectURL.path)
+        XCTAssertEqual(project.name, "plain-project")
+        XCTAssertNil(project.remoteName)
+        XCTAssertNil(project.gitRemote)
+        XCTAssertNil(project.gitBranch)
+        XCTAssertNil(project.baseRef)
+        XCTAssertNil(project.githubRepository)
+        XCTAssertFalse(project.githubConnected)
+
+        let invocations = await fixture.shell.invocations
+        XCTAssertEqual(invocations.map(\.args), [
+            ["rev-parse", "--show-toplevel"]
+        ])
+        XCTAssertEqual(fixture.gitHubCLI.checkInstalledCallCount, 0)
+        XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 0)
+    }
+
     func testCreateProjectTreatsMissingGitHubCLIAsDisconnected() async throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: nil, gitHubAuthenticated: true)
         let projectURL = try makeProjectDirectory(named: "github-project")
@@ -78,9 +111,16 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 0)
     }
 
-    func testCreateThreadSeedsDefaultsAndInitialConversation() async throws {
+    func testCreateThreadSeedsDefaultsAndInitialConversationForGitProjects() async throws {
         let fixture = try SidebarTestFixture(defaultEffort: "max", createWorktreeByDefault: true)
-        let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
+        let project = Project(
+            path: "/tmp/alveary-project",
+            name: "Alveary",
+            gitBranch: "feature/auth",
+            baseRef: "main"
+        )
+        fixture.context.insert(project)
+        try fixture.context.save()
 
         let readContext = ModelContext(fixture.container)
         let externalProject = try XCTUnwrap(
@@ -103,6 +143,28 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(savedThread.conversations.first?.provider, "claude")
         XCTAssertTrue(savedThread.conversations.first?.isMain ?? false)
         XCTAssertEqual(savedThread.conversations.first?.displayOrder, 0)
+    }
+
+    func testCreateThreadDisablesWorktreeDefaultForNonGitProjects() async throws {
+        let fixture = try SidebarTestFixture(defaultEffort: "max", createWorktreeByDefault: true)
+        let project = try fixture.insertProject(name: "Plain Folder", path: "/tmp/plain-folder")
+
+        let readContext = ModelContext(fixture.container)
+        let externalProject = try XCTUnwrap(
+            try readContext.fetch(FetchDescriptor<Project>()).first
+        )
+
+        let thread = try await fixture.viewModel.createThread(
+            project: externalProject,
+            provider: "claude",
+            permissionMode: "plan"
+        )
+
+        let savedThread = try fixture.requireThread(thread)
+        XCTAssertEqual(savedThread.project?.path, project.path)
+        XCTAssertFalse(savedThread.useWorktree)
+        XCTAssertEqual(savedThread.effort, "max")
+        XCTAssertEqual(savedThread.conversations.count, 1)
     }
 
     func testArchiveThreadAttemptsAllConversationTeardownsBeforeFailing() async throws {

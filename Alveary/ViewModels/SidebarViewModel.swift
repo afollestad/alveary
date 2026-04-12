@@ -59,40 +59,21 @@ final class SidebarViewModel {
     }
 
     func createProject(path: String) async throws -> Project {
-        let projectPath = try await gitOutput(
-            args: ["rev-parse", "--show-toplevel"],
-            in: path
-        )
-        let currentBranch = try await gitOutput(
-            args: ["rev-parse", "--abbrev-ref", "HEAD"],
-            in: projectPath
-        )
-        let remoteName = try await resolvePreferredRemoteName(
-            in: projectPath,
-            currentBranch: currentBranch
-        )
-        let remoteURL = try await resolveRemoteURL(in: projectPath, remoteName: remoteName)
-        let githubRepository = remoteURL.flatMap(Self.parseGitHubRepository(from:))
-        let githubConnected = await resolveGitHubConnectionState(for: githubRepository)
-        let baseRef = try await resolveBaseRef(
-            in: projectPath,
-            remoteName: remoteName,
-            fallbackBranch: currentBranch
-        )
+        let projectDetails = try await resolveProjectDetails(for: path)
 
         // Load the shared repo config once during import so later settings/worktree flows
         // reuse the same parse path. Invalid JSON intentionally degrades to defaults.
-        _ = await AlvearyProjectConfig(projectPath: projectPath)
+        _ = await AlvearyProjectConfig(projectPath: projectDetails.path)
 
         let project = Project(
-            path: projectPath,
-            name: URL(fileURLWithPath: projectPath).lastPathComponent,
-            gitRemote: remoteURL,
-            remoteName: remoteName,
-            gitBranch: currentBranch,
-            baseRef: baseRef,
-            githubRepository: githubRepository,
-            githubConnected: githubConnected
+            path: projectDetails.path,
+            name: URL(fileURLWithPath: projectDetails.path).lastPathComponent,
+            gitRemote: projectDetails.remoteURL,
+            remoteName: projectDetails.remoteName,
+            gitBranch: projectDetails.gitBranch,
+            baseRef: projectDetails.baseRef,
+            githubRepository: projectDetails.githubRepository,
+            githubConnected: projectDetails.githubConnected
         )
         modelContext.insert(project)
         try modelContext.save()
@@ -105,7 +86,7 @@ final class SidebarViewModel {
             name: "New thread",
             permissionMode: permissionMode,
             effort: settingsService.current.effort,
-            useWorktree: settingsService.current.createWorktreeByDefault,
+            useWorktree: settingsService.current.createWorktreeByDefault && dbProject.isGitRepository,
             project: dbProject
         )
         let conversation = Conversation(
@@ -259,7 +240,7 @@ final class SidebarViewModel {
     }
 }
 
-private extension SidebarViewModel {
+extension SidebarViewModel {
     func requireProject(_ project: Project) throws -> Project {
         let path = project.path
         let descriptor = FetchDescriptor<Project>(
