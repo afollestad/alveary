@@ -44,7 +44,7 @@ struct SidebarView: View {
                     }
 
                     ForEach(projects) { project in
-                        ProjectRow(
+                        SidebarProjectRow(
                             project: project,
                             isExpanded: expandedProjects.contains(project.path),
                             onToggleExpanded: {
@@ -58,7 +58,7 @@ struct SidebarView: View {
 
                         if expandedProjects.contains(project.path) {
                             ForEach(activeThreads(for: project)) { thread in
-                                ThreadRow(thread: thread, status: viewModel.threadStatus(for: thread))
+                                SidebarThreadRow(thread: thread, status: viewModel.threadStatus(for: thread))
                                     .tag(SidebarItem.thread(thread))
                                     .padding(.leading, 14)
                                     .contextMenu {
@@ -74,7 +74,7 @@ struct SidebarView: View {
 
                             let archivedThreads = archivedThreads(for: project)
                             if !archivedThreads.isEmpty {
-                                ArchivedThreadsRow(
+                                SidebarArchivedThreadsRow(
                                     isExpanded: expandedArchivedProjects.contains(project.path),
                                     onToggle: {
                                         toggleExpansion(for: project.path, in: &expandedArchivedProjects)
@@ -84,7 +84,7 @@ struct SidebarView: View {
 
                                 if expandedArchivedProjects.contains(project.path) {
                                     ForEach(archivedThreads) { thread in
-                                        ThreadRow(thread: thread, status: .archived)
+                                        SidebarThreadRow(thread: thread, status: .archived)
                                             .padding(.leading, 14)
                                             .opacity(0.75)
                                             .contextMenu {
@@ -102,7 +102,7 @@ struct SidebarView: View {
                         }
                     }
                 } header: {
-                    ProjectsHeaderRow {
+                    SidebarProjectsHeaderRow {
                         appState.openNewProjectFlow()
                     }
                 }
@@ -256,158 +256,5 @@ private extension SidebarView {
 
     func resolveThread(id: PersistentIdentifier) -> AgentThread? {
         uiModelContext.model(for: id) as? AgentThread
-    }
-}
-
-private struct ProjectsHeaderRow: View {
-    let onAddProject: () -> Void
-
-    var body: some View {
-        HStack {
-            Text("Projects")
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .accessibilityAddTraits(.isHeader)
-
-            Spacer()
-
-            Button(action: onAddProject) {
-                Image(systemName: "plus.circle")
-                    .foregroundStyle(Color.primary)
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Add Project")
-            .help("Add Project")
-        }
-        .padding(.leading, 8)
-        .padding(.trailing, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-    }
-}
-
-private struct ProjectRow: View {
-    let project: Project
-    let isExpanded: Bool
-    let onToggleExpanded: () -> Void
-    let onCreateThread: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button(action: onToggleExpanded) {
-                Image(systemName: leadingSymbolName)
-                    .font(leadingSymbolFont)
-                    .foregroundStyle(Color.primary)
-                    .frame(width: 16, height: 16, alignment: .leading)
-                    .contentTransition(.symbolEffect(.replace))
-            }
-            .buttonStyle(.plain)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(project.name)
-                    .font(.headline)
-
-                Text(project.baseRef ?? project.path)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button(action: onCreateThread) {
-                Image(systemName: "square.and.pencil")
-            }
-            .buttonStyle(.borderless)
-            .opacity(isHovering ? 1 : 0)
-            .allowsHitTesting(isHovering)
-            .animation(.easeInOut(duration: 0.12), value: isHovering)
-            .help("New Thread")
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onToggleExpanded)
-        .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.12), value: isHovering)
-    }
-
-    private var leadingSymbolName: String {
-        isHovering ? (isExpanded ? "chevron.down" : "chevron.right") : "folder"
-    }
-
-    private var leadingSymbolFont: Font {
-        isHovering ? .caption.weight(.semibold) : .body
-    }
-}
-
-private struct ThreadRow: View {
-    let thread: AgentThread
-    let status: ThreadStatus
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .offset(x: -3)
-                .opacity(status == .stopped ? 0 : 1)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(thread.name)
-                    .foregroundStyle(thread.name == "New thread" ? .secondary : .primary)
-                    .lineLimit(1)
-
-                if let branch = thread.branch {
-                    Text(branch)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var statusColor: Color {
-        switch status {
-        case .busy:
-            return .green
-        case .idle:
-            return .blue
-        case .error:
-            return .red
-        case .archived:
-            return .secondary
-        case .stopped:
-            return .clear
-        }
-    }
-}
-
-private struct ArchivedThreadsRow: View {
-    let isExpanded: Bool
-    let onToggle: () -> Void
-
-    var body: some View {
-        Button(action: onToggle) {
-            HStack(spacing: 10) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 12)
-
-                Label("Archived", systemImage: "archivebox")
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 4)
     }
 }

@@ -19,7 +19,20 @@ struct SkillsScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                header
+                SkillsScreenHeader(
+                    searchQuery: Binding(
+                        get: { viewModel.searchQuery },
+                        set: { viewModel.searchQuery = $0 }
+                    ),
+                    onRefresh: {
+                        Task {
+                            await viewModel.refreshCatalog()
+                        }
+                    },
+                    onCreate: {
+                        isCreateSheetPresented = true
+                    }
+                )
 
                 if let screenError {
                     InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
@@ -28,7 +41,9 @@ struct SkillsScreen: View {
                 }
 
                 if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty {
-                    introCard
+                    SkillsIntroCard {
+                        isCreateSheetPresented = true
+                    }
                 }
 
                 let filteredInstalled = viewModel.filteredInstalled
@@ -49,15 +64,69 @@ struct SkillsScreen: View {
                     )
                 } else {
                     if !filteredInstalled.isEmpty {
-                        section(title: "Installed", skills: filteredInstalled)
+                        SkillsSection(
+                            title: "Installed",
+                            skills: filteredInstalled,
+                            columns: columns,
+                            onOpen: { skill in
+                                selectedSkill = skill
+                            },
+                            onPrimaryAction: { skill in
+                                if skill.isInstalled {
+                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                        Task { await uninstall(skill) }
+                                    }
+                                } else {
+                                    Task {
+                                        await install(skill)
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     if !filteredRecommended.isEmpty {
-                        section(title: "Recommended", skills: filteredRecommended)
+                        SkillsSection(
+                            title: "Recommended",
+                            skills: filteredRecommended,
+                            columns: columns,
+                            onOpen: { skill in
+                                selectedSkill = skill
+                            },
+                            onPrimaryAction: { skill in
+                                if skill.isInstalled {
+                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                        Task { await uninstall(skill) }
+                                    }
+                                } else {
+                                    Task {
+                                        await install(skill)
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     if !viewModel.searchResults.isEmpty {
-                        section(title: "skills.sh", skills: viewModel.searchResults)
+                        SkillsSection(
+                            title: "skills.sh",
+                            skills: viewModel.searchResults,
+                            columns: columns,
+                            onOpen: { skill in
+                                selectedSkill = skill
+                            },
+                            onPrimaryAction: { skill in
+                                if skill.isInstalled {
+                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                        Task { await uninstall(skill) }
+                                    }
+                                } else {
+                                    Task {
+                                        await install(skill)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -103,102 +172,6 @@ struct SkillsScreen: View {
 }
 
 private extension SkillsScreen {
-    var header: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Skills")
-                        .font(.largeTitle.weight(.semibold))
-
-                    Text("Give your agents superpowers.")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    Task {
-                        await viewModel.refreshCatalog()
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .secondaryActionButtonStyle()
-
-                Button {
-                    isCreateSheetPresented = true
-                } label: {
-                    Label("New Skill", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
-            }
-
-            AppTextField(
-                "Search skills",
-                text: Binding(
-                    get: { viewModel.searchQuery },
-                    set: { viewModel.searchQuery = $0 }
-                )
-            )
-        }
-    }
-
-    var introCard: some View {
-        GroupBox {
-            HStack(alignment: .top, spacing: 16) {
-                Image(systemName: "puzzlepiece.extension")
-                    .font(.title)
-                    .foregroundStyle(Color.accentColor)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Extend your agents with skills")
-                        .font(.headline)
-
-                    Text("Skills are reusable modules that give agents new capabilities.")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    isCreateSheetPresented = true
-                } label: {
-                    Label("New Skill", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
-            }
-        }
-    }
-
-    func section(title: String, skills: [Skill]) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title)
-                .font(.title3.weight(.semibold))
-
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-                ForEach(skills) { skill in
-                    SkillCard(
-                        skill: skill,
-                        onOpen: {
-                            selectedSkill = skill
-                        },
-                        onPrimaryAction: {
-                            if skill.isInstalled {
-                                uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                                    Task { await uninstall(skill) }
-                                }
-                            } else {
-                                Task {
-                                    await install(skill)
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-
     func install(_ skill: Skill) async {
         do {
             try await viewModel.install(skill)
@@ -213,73 +186,6 @@ private extension SkillsScreen {
         } catch {
             screenError = error.localizedDescription
         }
-    }
-}
-
-private struct SkillCard: View {
-    let skill: Skill
-    let onOpen: () -> Void
-    let onPrimaryAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(skill.name)
-                        .font(.headline)
-                        .lineLimit(2)
-
-                    Text(skill.owner.map { owner in
-                        guard let repo = skill.repo else { return owner }
-                        return "\(owner)/\(repo)"
-                    } ?? "Local")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Text(skill.source == .skillsSh ? "skills.sh" : skill.source.rawValue.capitalized)
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.14)))
-            }
-
-            Text(skill.description.isEmpty ? "No description available." : skill.description)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-
-            if skill.isInstalled, !skill.syncedAgentIDs.isEmpty {
-                Text("Synced: \(skill.syncedAgentIDs.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if let installs = skill.installs {
-                Text("\(installs.formatted()) installs")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Button("Details", action: onOpen)
-                    .secondaryActionButtonStyle()
-                Spacer()
-                if skill.isInstalled {
-                    Button("Uninstall", role: .destructive, action: onPrimaryAction)
-                        .destructiveActionButtonStyle()
-                } else {
-                    Button("Install", action: onPrimaryAction)
-                        .primaryActionButtonStyle()
-                }
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
     }
 }
 

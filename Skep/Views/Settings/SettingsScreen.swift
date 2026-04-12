@@ -29,35 +29,45 @@ struct SettingsScreen: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(selectedTab.title)
-                                .font(.largeTitle.weight(.semibold))
-
-                            Text(description(for: selectedTab))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if let onClose {
-                            Button(action: onClose) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title3)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    SettingsScreenHeader(
+                        title: selectedTab.title,
+                        description: description(for: selectedTab),
+                        onClose: onClose
+                    )
 
                     switch selectedTab {
                     case .general:
-                        generalTab
+                        GeneralSettingsTabView(
+                            viewModel: viewModel,
+                            defaultProvider: binding(for: \.defaultProvider),
+                            permissionMode: binding(for: \.permissionMode),
+                            effort: binding(for: \.effort),
+                            autoGenerateNames: binding(for: \.autoGenerateNames),
+                            createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
+                            autoTrustWorktrees: binding(for: \.autoTrustWorktrees),
+                            notificationsEnabled: binding(for: \.notificationsEnabled),
+                            osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
+                            soundEnabled: binding(for: \.soundEnabled),
+                            soundName: binding(for: \.soundName)
+                        )
                     case .agents:
-                        agentsTab
+                        AgentsSettingsTabView(
+                            providerIDs: viewModel.availableProviderIDs,
+                            providerConfigBinding: providerConfigBinding
+                        )
                     case .repository:
-                        repositoryTab
+                        RepositorySettingsTabView(
+                            branchPrefix: binding(for: \.branchPrefix),
+                            pushOnCreate: binding(for: \.pushOnCreate)
+                        )
                     case .interface:
-                        interfaceTab
+                        InterfaceSettingsTabView(
+                            viewModel: viewModel,
+                            theme: binding(for: \.theme),
+                            codeFontFamily: binding(for: \.codeFontFamily),
+                            codeFontSize: binding(for: \.codeFontSize),
+                            chatFontSize: binding(for: \.chatFontSize)
+                        )
                     }
                 }
                 .padding(28)
@@ -93,114 +103,6 @@ struct SettingsScreen: View {
 }
 
 private extension SettingsScreen {
-    static let settingsRowHeight: CGFloat = 32
-    static let settingsTextFieldWidth: CGFloat = 320
-
-    var generalTab: some View {
-        Form {
-            Section("Thread Defaults") {
-                Picker("Default provider", selection: binding(for: \.defaultProvider)) {
-                    ForEach(viewModel.availableProviderIDs, id: \.self) { providerID in
-                        Text(providerID.capitalized).tag(providerID)
-                    }
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-
-                Picker("Permission mode", selection: binding(for: \.permissionMode)) {
-                    ForEach(viewModel.permissionModeOptions(for: viewModel.defaultProvider), id: \.self) { mode in
-                        Text(mode).tag(mode)
-                    }
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-
-                Picker("Effort", selection: binding(for: \.effort)) {
-                    ForEach(viewModel.effortOptions(for: viewModel.defaultProvider), id: \.self) { effort in
-                        Text(effort.capitalized).tag(effort)
-                    }
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-
-                Toggle("Auto-generate thread names", isOn: binding(for: \.autoGenerateNames))
-                    .frame(minHeight: Self.settingsRowHeight)
-                Toggle("Create worktree by default", isOn: binding(for: \.createWorktreeByDefault))
-                    .frame(minHeight: Self.settingsRowHeight)
-                Toggle("Auto-trust worktrees", isOn: binding(for: \.autoTrustWorktrees))
-                    .frame(minHeight: Self.settingsRowHeight)
-            }
-
-            Section("Notifications") {
-                Toggle("Enable notifications", isOn: binding(for: \.notificationsEnabled))
-                    .frame(minHeight: Self.settingsRowHeight)
-                Toggle("Use macOS notifications", isOn: binding(for: \.osNotificationsEnabled))
-                    .disabled(!viewModel.notificationsEnabled)
-                    .frame(minHeight: Self.settingsRowHeight)
-                Toggle("Play sounds", isOn: binding(for: \.soundEnabled))
-                    .disabled(!viewModel.notificationsEnabled)
-                    .frame(minHeight: Self.settingsRowHeight)
-
-                Picker("Sound", selection: binding(for: \.soundName)) {
-                    ForEach(viewModel.availableSoundNames, id: \.self) { sound in
-                        Text(sound).tag(sound)
-                    }
-                }
-                .disabled(!viewModel.notificationsEnabled || !viewModel.soundEnabled)
-                .frame(minHeight: Self.settingsRowHeight)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    var agentsTab: some View {
-        Form {
-            ForEach(viewModel.availableProviderIDs, id: \.self) { providerID in
-                Section(providerID.capitalized) {
-                    settingsTextFieldRow("CLI override", text: providerConfigBinding(for: providerID, keyPath: \.cli))
-                    settingsTextFieldRow("Resume flag", text: providerConfigBinding(for: providerID, keyPath: \.resumeFlag))
-                    settingsTextFieldRow("Default args", text: providerConfigBinding(for: providerID, keyPath: \.defaultArgs))
-                    settingsTextFieldRow("Auto-approve flag", text: providerConfigBinding(for: providerID, keyPath: \.autoApproveFlag))
-                    settingsTextFieldRow("Initial prompt flag", text: providerConfigBinding(for: providerID, keyPath: \.initialPromptFlag))
-                    settingsTextFieldRow("Extra args", text: providerConfigBinding(for: providerID, keyPath: \.extraArgs))
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    var repositoryTab: some View {
-        Form {
-            Section("Branching") {
-                settingsTextFieldRow("Branch prefix", text: binding(for: \.branchPrefix))
-                Toggle("Push on create", isOn: binding(for: \.pushOnCreate))
-                    .frame(minHeight: Self.settingsRowHeight)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    var interfaceTab: some View {
-        Form {
-            Section("Appearance") {
-                Picker("Theme", selection: binding(for: \.theme)) {
-                    ForEach(viewModel.themeOptions, id: \.self) { theme in
-                        Text(theme.capitalized).tag(theme)
-                    }
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-
-                settingsTextFieldRow("Code font family", text: binding(for: \.codeFontFamily))
-                Stepper(value: binding(for: \.codeFontSize), in: 10...24) {
-                    Text("Code font size: \(viewModel.codeFontSize)")
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-                Stepper(value: binding(for: \.chatFontSize), in: 11...24) {
-                    Text("Chat font size: \(viewModel.chatFontSize)")
-                }
-                .frame(minHeight: Self.settingsRowHeight)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
     private func description(for tab: SettingsTab) -> String {
         switch tab {
         case .general:
@@ -212,26 +114,6 @@ private extension SettingsScreen {
         case .interface:
             return "Adjust theme and typography for the app shell."
         }
-    }
-
-    func settingsTextFieldRow(_ title: String, text: Binding<String>) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .accessibilityHidden(true)
-
-            Spacer(minLength: 16)
-
-            AppTextField(
-                title,
-                text: text,
-                showsPrompt: false,
-                textAlignment: .trailing,
-                horizontalPadding: 10,
-                verticalPadding: 7
-            )
-            .frame(width: Self.settingsTextFieldWidth)
-        }
-        .frame(maxWidth: .infinity, minHeight: Self.settingsRowHeight, alignment: .leading)
     }
 
     func binding<Value>(for keyPath: ReferenceWritableKeyPath<SettingsViewModel, Value>) -> Binding<Value> {

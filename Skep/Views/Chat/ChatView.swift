@@ -120,206 +120,38 @@ struct ChatView: View {
                     onRetry: retryDraft
                 )
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
-                            ForEach(viewModel.state.grouper.items) { item in
-                                switch item {
-                                case .userMessage(_, let text):
-                                    UserBubble(text: text)
-                                case .assistantMessage(_, let text):
-                                    AssistantBubble(markdown: text)
-                                case .workingBlock(_, let tools):
-                                    WorkingBlock(tools: tools)
-                                case .subAgentBlock(_, let agents):
-                                    SubAgentBlock(agents: agents)
-                                case .taskListBlock(_, let tasks):
-                                    TaskListBlock(tasks: tasks)
-                                case .promptBlock(_, let prompt):
-                                    PromptBlock(prompt: prompt, isBusy: promptSubmissionIsBusy) { answers in
-                                        do {
-                                            return try await viewModel.answerPrompt(promptId: prompt.id, answers: answers)
-                                        } catch {
-                                            if viewModel.lastTurnError == nil {
-                                                viewModel.lastTurnError = "Failed to send answer: \(error.localizedDescription)"
-                                            }
-                                            return nil
-                                        }
-                                    }
-                                case .thinking(_, let text):
-                                    ThinkingBlock(text: text)
-                                case .error(_, let message):
-                                    ErrorBanner(message: message)
-                                }
-                            }
-
-                            if let streamingText = viewModel.streamingText {
-                                StreamingBubble(text: streamingText)
-                                    .id("streaming")
-                            }
-
-                            ForEach(viewModel.messageQueue.pending) { entry in
-                                QueuedMessageBubble(
-                                    text: entry.text,
-                                    showsStagedContext: entry.stagedContext != nil,
-                                    showsRetry: viewModel.state.inFlightQueuedMessageID == nil
-                                        && viewModel.messageQueue.peekNext()?.id == entry.id
-                                        && !viewModel.state.turnState.isActive,
-                                    isDismissDisabled: viewModel.state.inFlightQueuedMessageID == entry.id,
-                                    onRetry: {
-                                        Task { try? await viewModel.retryNextQueuedMessage() }
-                                    },
-                                    onDismiss: {
-                                        viewModel.removeQueuedMessage(id: entry.id)
-                                    }
-                                )
-                            }
-
-                            Color.clear
-                                .frame(height: 1)
-                                .id("chat-bottom")
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 20)
-                    }
-                    .transaction { transaction in
-                        if viewModel.turnState.isActive {
-                            transaction.disablesAnimations = true
-                        }
-                    }
-                    .onScrollGeometryChange(for: Bool.self) { geometry in
-                        let distanceFromBottom = geometry.contentSize.height - (geometry.contentOffset.y + geometry.containerSize.height)
-                        return distanceFromBottom < 60
-                    } action: { _, isNearBottom in
-                        isFollowing = isNearBottom
-                    }
-                    .onChange(of: events.count) {
-                        viewModel.rebuildChatItemsIfNeeded(from: events)
-                        if isFollowing {
-                            proxy.scrollTo("chat-bottom", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: viewModel.messageQueue.pending.count) {
-                        guard isFollowing else {
-                            return
-                        }
-                        proxy.scrollTo("chat-bottom", anchor: .bottom)
-                    }
-                    .onChange(of: viewModel.streamingText) {
-                        guard isFollowing else {
-                            return
-                        }
-
-                        let now = Date()
-                        if now.timeIntervalSince(lastScrollTime) >= 0.1 {
-                            lastScrollTime = now
-                            proxy.scrollTo("chat-bottom", anchor: .bottom)
-                        }
-                    }
-                    .onAppear {
-                        viewModel.rebuildChatItemsIfNeeded(from: events)
-                        if hasVisibleChatContent {
-                            proxy.scrollTo("chat-bottom", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: viewModel.turnState.isActive) { _, isActive in
-                        if isActive {
-                            isFollowing = true
-                        }
-                    }
-                    .overlay(alignment: .bottom) {
-                        if !isFollowing && (viewModel.turnState.isActive || viewModel.streamingText != nil) {
-                            Button {
-                                isFollowing = true
-                                proxy.scrollTo("chat-bottom", anchor: .bottom)
-                            } label: {
-                                Label("Jump to bottom", systemImage: "arrow.down")
-                            }
-                            .primaryActionButtonStyle()
-                            .padding(.bottom, 12)
-                        }
-                    }
-                }
-            }
-
-            VStack(spacing: 10) {
-                if let lastTurnError = viewModel.lastTurnError,
-                   !showsCenteredPreHistoryRetry {
-                    InlineBanner(message: lastTurnError, severity: .error, autoDismissAfter: nil) {
-                        viewModel.lastTurnError = nil
-                    }
-                }
-
-                if viewModel.state.isReconfiguringSession {
-                    ReconfigureStatusBanner(message: "Applying session changes...")
-                }
-
-                if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
-                    InlineBanner(message: sessionContinuityNotice, severity: .warning, autoDismissAfter: nil) {
-                        viewModel.sessionContinuityNotice = nil
-                    }
-                }
-
-                if viewModel.state.showPermissionBanner {
-                    PermissionBanner(
-                        canEscalate: canShowWriteEscalation,
-                        isActionDisabled: composerIsBusy || viewModel.state.isReconfiguringSession,
-                        escalationLabel: permissionEscalationLabel,
-                        onDismiss: {
-                            viewModel.state.showPermissionBanner = false
-                        },
-                        onEscalate: {
-                            if let escalationMode = composerCapabilities.suggestedWriteEscalationMode {
-                                applyPermissionModeChange(escalationMode)
-                            }
-                        }
-                    )
-                }
-
-                if let stagedContext = viewModel.stagedContext {
-                    StagedContextBanner(context: stagedContext) {
-                        viewModel.stagedContext = nil
-                    }
-                }
-
-                if !diffViewModel.files.isEmpty {
-                    ChangedFilesStrip(
-                        files: diffViewModel.files,
-                        onOpenDiff: { file in
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                appState.isRightPaneVisible = true
-                            }
-                            guard let directory = diffViewModel.activeDirectory else {
-                                return
-                            }
-                            Task {
-                                await diffViewModel.selectFile(file, in: directory)
-                            }
-                        }
-                    )
-                }
-
-                ChatInputField(
-                    text: Bindable(viewModel.state).inputDraft,
-                    mode: composerMode,
-                    onSubmit: sendDraft,
-                    onSteer: steerDraft,
-                    onStop: {
-                        Task { await viewModel.cancel() }
-                    },
-                    selectedModel: selectedModelBinding,
-                    selectedEffort: selectedEffortBinding,
-                    selectedPermissionMode: selectedPermissionModeBinding,
-                    supportedPermissionModes: composerCapabilities.supportedPermissionModes,
-                    supportedEffortLevels: composerCapabilities.supportedEffortLevels,
-                    supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-                    workingDirectory: workingDirectory,
-                    loadFileCompletions: loadFileCompletions,
-                    loadSkillCompletions: loadSkillCompletions
+                ChatTranscriptView(
+                    viewModel: viewModel,
+                    events: events,
+                    promptSubmissionIsBusy: promptSubmissionIsBusy,
+                    lastScrollTime: $lastScrollTime,
+                    isFollowing: $isFollowing
                 )
             }
-            .padding(20)
-            .background(.bar)
+
+            ChatComposerPanel(
+                viewModel: viewModel,
+                diffViewModel: diffViewModel,
+                composerCapabilities: composerCapabilities,
+                workingDirectory: workingDirectory,
+                showsCenteredPreHistoryRetry: showsCenteredPreHistoryRetry,
+                composerMode: composerMode,
+                composerIsBusy: composerIsBusy,
+                canShowWriteEscalation: canShowWriteEscalation,
+                permissionEscalationLabel: permissionEscalationLabel,
+                selectedModel: selectedModelBinding,
+                selectedEffort: selectedEffortBinding,
+                selectedPermissionMode: selectedPermissionModeBinding,
+                loadFileCompletions: loadFileCompletions,
+                loadSkillCompletions: loadSkillCompletions,
+                onSubmit: sendDraft,
+                onSteer: steerDraft,
+                onStop: {
+                    Task { await viewModel.cancel() }
+                },
+                onApplyPermissionModeChange: applyPermissionModeChange,
+                appState: appState
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

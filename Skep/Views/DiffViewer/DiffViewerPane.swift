@@ -29,7 +29,58 @@ struct DiffViewerPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            DiffViewerPaneHeader(
+                activeDirectory: viewModel.activeDirectory,
+                contextualAction: viewModel.contextualAction,
+                selectedFile: viewModel.selectedFile,
+                areAgentActionsEnabled: areAgentActionsEnabled,
+                onRefresh: {
+                    guard let directory = viewModel.activeDirectory else {
+                        return
+                    }
+                    Task {
+                        await viewModel.refreshAndInvalidateFileList(in: directory, reason: .manual)
+                    }
+                },
+                onCommitRequested: onCommitRequested,
+                onOpenPRRequested: onOpenPRRequested,
+                onViewPRRequested: { url in
+                    guard let url = URL(string: url) else {
+                        return
+                    }
+                    NSWorkspace.shared.open(url)
+                },
+                onStageSelectedFile: {
+                    guard let selectedFile = viewModel.selectedFile,
+                          let directory = viewModel.activeDirectory else {
+                        return
+                    }
+
+                    Task {
+                        await performGitAction(errorPrefix: "Stage failed") {
+                            try await viewModel.stage(files: [selectedFile], in: directory)
+                        }
+                    }
+                },
+                onUnstageSelectedFile: {
+                    guard let selectedFile = viewModel.selectedFile,
+                          let directory = viewModel.activeDirectory else {
+                        return
+                    }
+
+                    Task {
+                        await performGitAction(errorPrefix: "Unstage failed") {
+                            try await viewModel.unstage(files: [selectedFile], in: directory)
+                        }
+                    }
+                },
+                onDiscardSelectedFile: {
+                    guard let selectedFile = viewModel.selectedFile else {
+                        return
+                    }
+                    pendingDiscardFiles = [selectedFile]
+                }
+            )
 
             if let gitError = viewModel.gitError {
                 InlineBanner(message: gitError, severity: .error, autoDismissAfter: nil) {
@@ -46,7 +97,78 @@ struct DiffViewerPane: View {
                     actions: []
                 )
             } else {
-                content
+                GeometryReader { proxy in
+                    let contentHeight = max(proxy.size.height - DiffViewerVerticalResizeHandle.thickness, 0)
+                    let topSectionHeight = contentHeight * clampedTopSectionFraction(topSectionFraction)
+                    let bottomSectionHeight = max(contentHeight - topSectionHeight, 0)
+
+                    VStack(spacing: 0) {
+                        DiffViewerFileListSection(
+                            files: viewModel.files,
+                            rowFillColor: selectedRowFillColor,
+                            isSelected: isSelected,
+                            fileDisplayName: fileDisplayName,
+                            statusSymbol: statusSymbol,
+                            onSelectFile: { file in
+                                guard let directory = viewModel.activeDirectory else {
+                                    return
+                                }
+
+                                Task {
+                                    await viewModel.selectFile(file, in: directory)
+                                }
+                            },
+                            onStageFile: { file in
+                                guard let directory = viewModel.activeDirectory else {
+                                    return
+                                }
+
+                                Task {
+                                    await performGitAction(errorPrefix: "Stage failed") {
+                                        try await viewModel.stage(files: [file], in: directory)
+                                    }
+                                }
+                            },
+                            onUnstageFile: { file in
+                                guard let directory = viewModel.activeDirectory else {
+                                    return
+                                }
+
+                                Task {
+                                    await performGitAction(errorPrefix: "Unstage failed") {
+                                        try await viewModel.unstage(files: [file], in: directory)
+                                    }
+                                }
+                            },
+                            onDiscardFile: { file in
+                                pendingDiscardFiles = [file]
+                            }
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: topSectionHeight)
+
+                        DiffViewerVerticalResizeHandle(
+                            splitFraction: $topSectionFraction,
+                            totalHeight: contentHeight,
+                            bounds: AppSettings.supportedDiffViewerSplitRange,
+                            onCommit: onTopSectionFractionCommit
+                        )
+
+                        DiffViewerPreviewSection(
+                            selectedFile: viewModel.selectedFile,
+                            parsedDiff: viewModel.parsedDiff,
+                            rawDiffContent: viewModel.rawDiffContent,
+                            isLoading: viewModel.isLoadingSelectedDiff,
+                            fileDisplayName: fileDisplayName,
+                            statusTitle: statusTitle,
+                            diffPreviewIdentity: diffPreviewIdentity
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: bottomSectionHeight)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .confirmationDialog(
@@ -80,222 +202,6 @@ struct DiffViewerPane: View {
 }
 
 private extension DiffViewerPane {
-    var header: some View {
-        VStack(spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Diff Viewer")
-                        .font(.headline)
-
-                    Text(viewModel.activeDirectory ?? "No repository selected")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Button {
-                    guard let directory = viewModel.activeDirectory else {
-                        return
-                    }
-                    Task {
-                        await viewModel.refreshAndInvalidateFileList(in: directory, reason: .manual)
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(viewModel.activeDirectory == nil)
-            }
-
-            HStack(spacing: 8) {
-                switch viewModel.contextualAction {
-                case .commit:
-                    Button("Commit", action: onCommitRequested)
-                        .primaryActionButtonStyle()
-                        .disabled(!areAgentActionsEnabled)
-                case .openPR:
-                    Button("Open PR", action: onOpenPRRequested)
-                        .primaryActionButtonStyle()
-                        .disabled(!areAgentActionsEnabled)
-                case .viewPR(let url):
-                    Button("View PR") {
-                        if let url = URL(string: url) {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .primaryActionButtonStyle()
-                case .none:
-                    EmptyView()
-                }
-
-                Spacer()
-
-                if let selectedFile = viewModel.selectedFile,
-                   let directory = viewModel.activeDirectory {
-                    if selectedFile.isStaged {
-                        Button("Unstage") {
-                            Task {
-                                await performGitAction(errorPrefix: "Unstage failed") {
-                                    try await viewModel.unstage(files: [selectedFile], in: directory)
-                                }
-                            }
-                        }
-                        .secondaryActionButtonStyle()
-                    } else {
-                        Button("Stage") {
-                            Task {
-                                await performGitAction(errorPrefix: "Stage failed") {
-                                    try await viewModel.stage(files: [selectedFile], in: directory)
-                                }
-                            }
-                        }
-                        .secondaryActionButtonStyle()
-                    }
-
-                    Button("Discard", role: .destructive) {
-                        pendingDiscardFiles = [selectedFile]
-                    }
-                    .destructiveActionButtonStyle()
-                }
-            }
-        }
-        .padding(14)
-        .background(.bar)
-    }
-
-    var content: some View {
-        GeometryReader { proxy in
-            let contentHeight = max(proxy.size.height - DiffViewerVerticalResizeHandle.thickness, 0)
-            let topSectionHeight = contentHeight * clampedTopSectionFraction(topSectionFraction)
-            let bottomSectionHeight = max(contentHeight - topSectionHeight, 0)
-
-            VStack(spacing: 0) {
-                fileListSection
-                    .frame(maxWidth: .infinity)
-                    .frame(height: topSectionHeight)
-
-                DiffViewerVerticalResizeHandle(
-                    splitFraction: $topSectionFraction,
-                    totalHeight: contentHeight,
-                    bounds: AppSettings.supportedDiffViewerSplitRange,
-                    onCommit: onTopSectionFractionCommit
-                )
-
-                previewSection
-                    .frame(maxWidth: .infinity)
-                    .frame(height: bottomSectionHeight)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    var fileListSection: some View {
-        List(viewModel.files) { file in
-            Button {
-                guard let directory = viewModel.activeDirectory else {
-                    return
-                }
-                Task {
-                    await viewModel.selectFile(file, in: directory)
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Text(statusSymbol(for: file))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(file.isStaged ? .green : .secondary)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(fileDisplayName(file))
-                            .lineLimit(1)
-                            .foregroundStyle(.primary)
-
-                        Text(file.isStaged ? "Staged" : "Unstaged")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .accessibilityAddTraits(isSelected(file) ? .isSelected : [])
-            }
-            .buttonStyle(.plain)
-            .listRowBackground(rowBackground(for: file))
-            .contextMenu {
-                if let directory = viewModel.activeDirectory {
-                    if file.isStaged {
-                        Button("Unstage") {
-                            Task {
-                                await performGitAction(errorPrefix: "Unstage failed") {
-                                    try await viewModel.unstage(files: [file], in: directory)
-                                }
-                            }
-                        }
-                    } else {
-                        Button("Stage") {
-                            Task {
-                                await performGitAction(errorPrefix: "Stage failed") {
-                                    try await viewModel.stage(files: [file], in: directory)
-                                }
-                            }
-                        }
-                    }
-
-                    Button("Discard", role: .destructive) {
-                        pendingDiscardFiles = [file]
-                    }
-                }
-            }
-        }
-        .overlay {
-            if viewModel.files.isEmpty {
-                EmptyStateView(
-                    icon: "checkmark.circle",
-                    heading: "Working tree is clean",
-                    subtext: "There are no local changes to preview right now.",
-                    actions: []
-                )
-            }
-        }
-    }
-
-    var previewSection: some View {
-        Group {
-            if let selectedFile = viewModel.selectedFile {
-                VStack(alignment: .leading, spacing: 4) {
-                    DiffPreviewHeader(
-                        title: fileDisplayName(selectedFile),
-                        fileStatus: selectedFile,
-                        parsedDiff: viewModel.parsedDiff,
-                        statusTitle: statusTitle(for: selectedFile.status)
-                    )
-
-                    DiffPreviewContent(
-                        parsedDiff: viewModel.parsedDiff,
-                        rawDiffContent: viewModel.rawDiffContent,
-                        isLoading: viewModel.isLoadingSelectedDiff
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .id(diffPreviewIdentity(for: selectedFile))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                EmptyStateView(
-                    icon: "doc.plaintext",
-                    heading: "Select a file",
-                    subtext: "Choose a changed file to preview its diff.",
-                    actions: []
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
     func clampedTopSectionFraction(_ candidate: CGFloat) -> CGFloat {
         let lowerBound = CGFloat(AppSettings.supportedDiffViewerSplitRange.lowerBound)
         let upperBound = CGFloat(AppSettings.supportedDiffViewerSplitRange.upperBound)
@@ -376,12 +282,6 @@ private extension DiffViewerPane {
             file.status.rawValue,
             String(viewModel.rawDiffContent.count)
         ].joined(separator: "|")
-    }
-
-    func rowBackground(for file: FileStatus) -> some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(isSelected(file) ? selectedRowFillColor : Color.clear)
-            .padding(.horizontal, 10)
     }
 
     var selectedRowFillColor: Color {

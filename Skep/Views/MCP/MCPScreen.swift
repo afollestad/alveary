@@ -16,7 +16,18 @@ struct MCPScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                header
+                MCPScreenHeader(
+                    searchQuery: Binding(
+                        get: { viewModel.searchQuery },
+                        set: { viewModel.searchQuery = $0 }
+                    ),
+                    onRefresh: {
+                        Task { await viewModel.refreshProviders() }
+                    },
+                    onAddServer: {
+                        formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+                    }
+                )
 
                 if let screenError {
                     InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
@@ -25,7 +36,9 @@ struct MCPScreen: View {
                 }
 
                 if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {
-                    introCard
+                    MCPIntroCard {
+                        formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+                    }
                 }
 
                 if !viewModel.filteredServers.isEmpty {
@@ -99,71 +112,6 @@ struct MCPScreen: View {
 }
 
 private extension MCPScreen {
-    var header: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("MCP")
-                        .font(.largeTitle.weight(.semibold))
-
-                    Text("Connect your agents with external data sources and tools.")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    Task { await viewModel.refreshProviders() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .secondaryActionButtonStyle()
-
-                Button {
-                    formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
-                } label: {
-                    Label("Add Server", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
-            }
-
-            AppTextField(
-                "Search servers",
-                text: Binding(
-                    get: { viewModel.searchQuery },
-                    set: { viewModel.searchQuery = $0 }
-                )
-            )
-        }
-    }
-
-    var introCard: some View {
-        GroupBox {
-            HStack(alignment: .top, spacing: 16) {
-                Image(systemName: "server.rack")
-                    .font(.title)
-                    .foregroundStyle(Color.accentColor)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Connect external tools via MCP")
-                        .font(.headline)
-
-                    Text("MCP servers give your agents access to databases, APIs, and other tools.")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
-                } label: {
-                    Label("Add Server", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
-            }
-        }
-    }
-
     func save(_ draft: MCPServerDraft) async {
         do {
             try await viewModel.addServer(draft.makeServer(), for: Array(draft.selectedAgents))
