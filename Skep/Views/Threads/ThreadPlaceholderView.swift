@@ -83,7 +83,8 @@ struct ThreadPlaceholderView: View {
             EmptyStateView(
                 icon: "bubble.left.and.text.bubble.right.fill",
                 heading: "Conversation workspace coming next",
-                subtext: "This shell now routes the sidebar, project settings, skills, MCP, and diff viewer. The thread chat surface is the next Phase 6 slice to land.",
+                subtext: "This shell now routes the sidebar, project settings, skills, MCP, and diff viewer. "
+                    + "The thread chat surface is the next Phase 6 slice to land.",
                 actions: []
             )
         }
