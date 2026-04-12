@@ -9,7 +9,16 @@ struct ProjectSettingsRepositoryCard: View {
                 LabeledContent("Base branch", value: project.baseRef ?? "Unknown")
                 LabeledContent("Remote", value: project.remoteName ?? "Local only")
                 LabeledContent("Remote URL", value: project.gitRemote ?? "Not configured")
-                LabeledContent("GitHub repo", value: project.githubRepository ?? "Not a GitHub remote")
+                LabeledContent("GitHub repo") {
+                    if let githubRepository = project.githubRepository,
+                       let githubRepositoryURL = project.githubRepositoryURL {
+                        Link(githubRepository, destination: githubRepositoryURL)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("Not a GitHub remote")
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 14)

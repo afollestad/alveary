@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 
 @Model
@@ -36,5 +37,13 @@ final class Project {
 
     var isGitRepository: Bool {
         gitBranch != nil || baseRef != nil || remoteName != nil || gitRemote != nil || githubRepository != nil
+    }
+
+    var githubRepositoryURL: URL? {
+        guard let githubRepository else {
+            return nil
+        }
+
+        return URL(string: "https://github.com/\(githubRepository)")
     }
 }
