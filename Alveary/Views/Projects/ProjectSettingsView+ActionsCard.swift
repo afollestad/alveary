@@ -9,6 +9,8 @@ struct ProjectSettingsActionsCard: View {
                 Text("No custom project actions are configured yet.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 8)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(actions, id: \.name) { action in
@@ -23,6 +25,8 @@ struct ProjectSettingsActionsCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 14)
+                .padding(.horizontal, 8)
             }
         } label: {
             Label("Actions", systemImage: "play.square")

@@ -37,7 +37,9 @@ struct ProjectSettingsView: View {
                         }
                     )
                 )
+
                 ProjectSettingsRepositoryCard(project: project)
+
                 if project.isGitRepository {
                     ProjectSettingsGitHubCard(
                         gitHubDeviceCode: gitHubDeviceCode,
@@ -55,6 +57,7 @@ struct ProjectSettingsView: View {
                         }
                     )
                 }
+
                 ProjectSettingsAgentsCard(
                     agentRegistry: agentRegistry,
                     providerStatuses: providerStatuses,
@@ -66,11 +69,14 @@ struct ProjectSettingsView: View {
                         Task { await refreshProviderStatuses() }
                     }
                 )
+
                 ProjectSettingsScriptsCard(
                     setupScript: config?.setupScript,
                     teardownScript: config?.teardownScript
                 )
+
                 ProjectSettingsActionsCard(actions: config?.actions ?? [])
+
                 ProjectSettingsConfigCard(
                     configExists: configExists,
                     onEditLocalEnvironment: openConfigFile,

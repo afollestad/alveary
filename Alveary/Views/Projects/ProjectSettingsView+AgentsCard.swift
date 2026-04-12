@@ -64,6 +64,8 @@ struct ProjectSettingsAgentsCard: View {
                     .secondaryActionButtonStyle()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 8)
         } label: {
             Label("AI Agents", systemImage: "sparkles.rectangle.stack")
         }

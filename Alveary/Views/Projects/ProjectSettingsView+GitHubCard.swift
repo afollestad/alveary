@@ -57,6 +57,8 @@ struct ProjectSettingsGitHubCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 8)
         } label: {
             Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
         }

@@ -12,6 +12,8 @@ struct ProjectSettingsRepositoryCard: View {
                 LabeledContent("GitHub repo", value: project.githubRepository ?? "Not a GitHub remote")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 8)
         } label: {
             Label("Repository", systemImage: "arrow.triangle.branch")
         }

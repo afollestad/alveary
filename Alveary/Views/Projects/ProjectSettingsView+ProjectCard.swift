@@ -16,6 +16,8 @@ struct ProjectSettingsProjectCard: View {
 
                 AppTextField("Project name", text: $projectName)
             }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
             Label("Project", systemImage: "folder")
