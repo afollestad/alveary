@@ -2,7 +2,7 @@ import Foundation
 
 @testable import Skep
 
-final class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
+class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
     struct StubResponse: Sendable {
         let statusCode: Int
         let data: Data
