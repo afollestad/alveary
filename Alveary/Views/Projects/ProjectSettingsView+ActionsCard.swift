@@ -66,6 +66,14 @@ struct ProjectSettingsAccessoryIconButton: View {
     }
 }
 
+private enum ProjectSettingsActionEditorLayout {
+    static let rowControlWidth: CGFloat = 520
+    static let accessoryButtonWidth: CGFloat = 24
+    static let accessorySpacing: CGFloat = 12
+
+    static let nameFieldWidth = rowControlWidth - accessoryButtonWidth - accessorySpacing
+}
+
 private struct ProjectSettingsActionEditor: View {
     let action: ProjectSettingsActionDraft
     let onChange: (ProjectSettingsActionDraft) -> Void
@@ -73,11 +81,28 @@ private struct ProjectSettingsActionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(action.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New Action" : action.name)
-                    .font(.headline)
+            HStack(spacing: 12) {
+                Text("Name")
+                    .accessibilityHidden(true)
 
-                Spacer()
+                Spacer(minLength: 16)
+
+                AppTextField(
+                    "Name",
+                    text: Binding(
+                        get: { action.name },
+                        set: { newValue in
+                            var updatedAction = action
+                            updatedAction.name = newValue
+                            onChange(updatedAction)
+                        }
+                    ),
+                    showsPrompt: false,
+                    textAlignment: .leading,
+                    horizontalPadding: 10,
+                    verticalPadding: 7
+                )
+                .frame(width: ProjectSettingsActionEditorLayout.nameFieldWidth)
 
                 ProjectSettingsAccessoryIconButton(
                     systemImage: "trash",
@@ -85,29 +110,7 @@ private struct ProjectSettingsActionEditor: View {
                     action: onRemove
                 )
             }
-
-            ProjectSettingsActionIconRow(
-                symbolName: action.displayedIconName,
-                onSelect: { selectedIcon in
-                    var updatedAction = action
-                    updatedAction.icon = selectedIcon
-                    onChange(updatedAction)
-                }
-            )
-
-            SettingsTextFieldRow(
-                "Name",
-                text: Binding(
-                    get: { action.name },
-                    set: { newValue in
-                        var updatedAction = action
-                        updatedAction.name = newValue
-                        onChange(updatedAction)
-                    }
-                ),
-                width: 420,
-                textAlignment: .leading
-            )
+            .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
 
             SettingsTextFieldRow(
                 "Command",
@@ -119,8 +122,17 @@ private struct ProjectSettingsActionEditor: View {
                         onChange(updatedAction)
                     }
                 ),
-                width: 520,
+                width: ProjectSettingsActionEditorLayout.rowControlWidth,
                 textAlignment: .leading
+            )
+
+            ProjectSettingsActionIconRow(
+                symbolName: action.displayedIconName,
+                onSelect: { selectedIcon in
+                    var updatedAction = action
+                    updatedAction.icon = selectedIcon
+                    onChange(updatedAction)
+                }
             )
         }
         .padding(14)
