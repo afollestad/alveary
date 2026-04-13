@@ -4,7 +4,6 @@ import XCTest
 
 @testable import Alveary
 
-@MainActor
 final class SidebarKeyboardNavigationTests: XCTestCase {
     private var container: ModelContainer!
     private var context: ModelContext!
