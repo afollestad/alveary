@@ -34,7 +34,7 @@ struct SidebarThreadRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private var statusColor: Color {

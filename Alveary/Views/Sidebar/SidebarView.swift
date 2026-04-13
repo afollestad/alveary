@@ -50,10 +50,17 @@ struct SidebarView: View {
                             .padding(.leading, 8)
                     }
 
-                    ForEach(projects) { project in
+                    ForEach(projects.indices, id: \.self) { index in
+                        let project = projects[index]
+                        let isExpanded = expandedProjects.contains(project.path)
+                        let isArchivedExpanded = expandedArchivedProjects.contains(project.path)
+                        let activeProjectThreads = activeThreads(for: project)
+                        let archivedProjectThreads = archivedThreads(for: project)
+                        let projectTopSpacing = spacingBeforeProject(at: index, in: projects)
+
                         SidebarProjectRow(
                             project: project,
-                            isExpanded: expandedProjects.contains(project.path),
+                            isExpanded: isExpanded,
                             isSelected: appState.selectedSidebarItem == .project(project),
                             onToggleExpanded: {
                                 toggleExpansion(for: project.path, in: &expandedProjects)
@@ -65,7 +72,11 @@ struct SidebarView: View {
                                 Task { await createThread(in: project) }
                             }
                         )
-                        .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .project(project))
+                        .appSelectionRowBackground(
+                            isSelected: appState.selectedSidebarItem == .project(project),
+                            topInset: projectTopSpacing
+                        )
+                        .padding(.top, projectTopSpacing)
                         .contextMenu {
                             Button("New Thread") {
                                 Task { await createThread(in: project) }
@@ -76,8 +87,10 @@ struct SidebarView: View {
                             }
                         }
 
-                        if expandedProjects.contains(project.path) {
-                            ForEach(activeThreads(for: project)) { thread in
+                        if isExpanded {
+                            ForEach(activeProjectThreads.indices, id: \.self) { index in
+                                let thread = activeProjectThreads[index]
+
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
@@ -99,18 +112,19 @@ struct SidebarView: View {
                                     }
                             }
 
-                            let archivedThreads = archivedThreads(for: project)
-                            if !archivedThreads.isEmpty {
+                            if !archivedProjectThreads.isEmpty {
                                 SidebarArchivedThreadsRow(
-                                    isExpanded: expandedArchivedProjects.contains(project.path),
+                                    isExpanded: isArchivedExpanded,
                                     onToggle: {
                                         toggleExpansion(for: project.path, in: &expandedArchivedProjects)
                                     }
                                 )
                                 .padding(.leading, 14)
 
-                                if expandedArchivedProjects.contains(project.path) {
-                                    ForEach(archivedThreads) { thread in
+                                if isArchivedExpanded {
+                                    ForEach(archivedProjectThreads.indices, id: \.self) { index in
+                                        let thread = archivedProjectThreads[index]
+
                                         SidebarThreadRow(
                                             thread: thread,
                                             status: .archived,
@@ -203,6 +217,23 @@ struct SidebarView: View {
 }
 
 private extension SidebarView {
+    func spacingBeforeProject(at index: Int, in projects: [Project]) -> CGFloat {
+        guard index > 0 else {
+            return 0
+        }
+
+        let previousProject = projects[index - 1]
+        let previousActiveThreads = activeThreads(for: previousProject)
+        let previousArchivedThreads = archivedThreads(for: previousProject)
+        let hasExpandedContent = !previousActiveThreads.isEmpty || !previousArchivedThreads.isEmpty
+
+        guard expandedProjects.contains(previousProject.path), hasExpandedContent else {
+            return 0
+        }
+
+        return 8
+    }
+
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
         Button {
             appState.selectedSidebarItem = item
