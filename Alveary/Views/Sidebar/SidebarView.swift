@@ -210,7 +210,7 @@ struct SidebarView: View {
         } message: { thread in
             Text("This permanently deletes \(thread.displayName()) and removes its worktree and branch if present.")
         }
-        .alert(
+        .confirmationDialog(
             "Remove project?",
             isPresented: Binding(
                 get: { pendingDeleteProject != nil },
