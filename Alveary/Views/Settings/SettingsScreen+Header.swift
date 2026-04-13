@@ -18,11 +18,7 @@ struct SettingsScreenHeader: View {
             Spacer()
 
             if let onClose {
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
+                ModalCloseButton("Close settings", action: onClose)
             }
         }
     }

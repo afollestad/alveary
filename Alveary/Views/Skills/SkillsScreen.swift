@@ -216,13 +216,9 @@ private struct SkillDetailSheet: View {
 
                 Spacer()
 
-                Button {
+                ModalCloseButton("Close skill details") {
                     dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
                 }
-                .buttonStyle(.plain)
             }
 
             SkillMarkdownContent(markdown: markdown, baseURL: markdownBaseURL, isLoading: isLoading)
@@ -330,8 +326,16 @@ private struct CreateSkillSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Create Skill")
-                .font(.title2.weight(.semibold))
+            HStack(alignment: .top) {
+                Text("Create Skill")
+                    .font(.title2.weight(.semibold))
+
+                Spacer()
+
+                ModalCloseButton("Close create skill") {
+                    dismiss()
+                }
+            }
 
             AppTextField("Name (kebab-case)", text: $name)
             AppTextField("Description", text: $description)

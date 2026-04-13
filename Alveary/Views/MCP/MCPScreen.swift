@@ -323,8 +323,16 @@ private struct MCPServerFormSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(draft.name.isEmpty ? "Add MCP Server" : draft.name)
-                    .font(.title2.weight(.semibold))
+                HStack(alignment: .top) {
+                    Text(draft.name.isEmpty ? "Add MCP Server" : draft.name)
+                        .font(.title2.weight(.semibold))
+
+                    Spacer()
+
+                    ModalCloseButton("Close MCP server form") {
+                        dismiss()
+                    }
+                }
 
                 AppTextField("Server name", text: $draft.name)
 

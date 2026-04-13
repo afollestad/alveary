@@ -10,6 +10,32 @@ struct DestructiveConfirmationRequest {
     let confirm: () -> Void
 }
 
+struct ModalCloseButton: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    init(_ accessibilityLabel: String, action: @escaping () -> Void) {
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: 30, height: 30)
+                .background(
+                    Circle()
+                        .fill(Color.secondary.opacity(0.16))
+                )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 extension View {
     func destructiveConfirmation(
         _ request: Binding<DestructiveConfirmationRequest?>
