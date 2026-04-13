@@ -131,7 +131,7 @@ final class SidebarViewModel {
 
     func restoreThread(_ thread: AgentThread) throws {
         let dbThread = try requireThread(thread)
-        dbThread.archivedAt = nil
+        dbThread.prepareForRestore()
         try modelContext.save()
     }
 

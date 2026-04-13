@@ -44,3 +44,12 @@ final class AgentThread {
         self.conversations = conversations
     }
 }
+
+extension AgentThread {
+    func prepareForRestore() {
+        for conversation in conversations {
+            conversation.refreshPendingRestoreContextFromHistory()
+        }
+        archivedAt = nil
+    }
+}

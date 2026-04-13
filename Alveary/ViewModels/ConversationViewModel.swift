@@ -64,6 +64,7 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.state = runtimeStore.conversationState(for: conversation.id)
+        hydratePendingRestoreContextIfNeeded()
         subscribe()
     }
 
@@ -236,6 +237,24 @@ final class ConversationViewModel {
 
     func cancel() async {
         await agentsManager.cancelTurn(conversationId: conversation.id)
+    }
+
+    func dismissStagedContext() {
+        let dismissedContext = state.stagedContext
+        state.stagedContext = nil
+
+        guard let dismissedContext,
+              let dbConversation = dbConversation(),
+              dbConversation.pendingRestoreContext == dismissedContext else {
+            return
+        }
+
+        dbConversation.pendingRestoreContext = nil
+        do {
+            try modelContext.save()
+        } catch {
+            // Best-effort only; the user explicitly chose to drop the restore context.
+        }
     }
 
     func replaceState(with state: ConversationState) {

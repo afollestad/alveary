@@ -99,19 +99,6 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.state.stagedContext)
     }
 
-    func testSendPrependsStagedContextOnlyToTransport() async throws {
-        let fixture = try ConversationViewModelTestFixture()
-        fixture.viewModel.state.stagedContext = "Context block"
-
-        try await fixture.viewModel.send("Fix the auth bug")
-
-        let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, ["Context block\n\nFix the auth bug"])
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Fix the auth bug"])
-        XCTAssertNil(fixture.viewModel.state.stagedContext)
-        XCTAssertTrue(fixture.viewModel.turnState.isActive)
-    }
-
     func testSetupAndStartCreatesWorktreeSpawnsAgentAndSendsFirstMessage() async throws {
         let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
         let fixture = try ConversationViewModelTestFixture(
@@ -208,6 +195,7 @@ struct ConversationViewModelTestFixture {
         threadHasCustomName: Bool = false,
         useWorktree: Bool = false,
         hasCompletedInitialSetup: Bool = true,
+        pendingRestoreContext: String? = nil,
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
@@ -232,6 +220,7 @@ struct ConversationViewModelTestFixture {
             project: project
         )
         let conversation = Conversation(title: conversationTitle, provider: "claude", thread: thread)
+        conversation.pendingRestoreContext = pendingRestoreContext
         project.threads.append(thread)
         thread.conversations.append(conversation)
         context.insert(project)

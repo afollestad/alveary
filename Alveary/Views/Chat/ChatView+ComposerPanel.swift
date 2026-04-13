@@ -58,7 +58,7 @@ struct ChatComposerPanel: View {
 
             if let stagedContext = viewModel.stagedContext {
                 StagedContextBanner(context: stagedContext) {
-                    viewModel.stagedContext = nil
+                    viewModel.dismissStagedContext()
                 }
             }
 

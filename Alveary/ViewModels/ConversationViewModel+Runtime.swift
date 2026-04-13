@@ -123,9 +123,10 @@ extension ConversationViewModel {
     }
 
     func sendReserved(_ message: String, stagedContextOverride: String? = nil) async throws {
+        let appliedContext = stagedContextOverride ?? state.stagedContext
         let transportMessage = buildTransportMessage(
             message: message,
-            stagedContextOverride: stagedContextOverride
+            stagedContext: appliedContext
         )
 
         guard let dbConversation = dbConversation() else {
@@ -137,6 +138,7 @@ extension ConversationViewModel {
         if stagedContextOverride == nil {
             state.stagedContext = nil
         }
+        clearConsumedPendingRestoreContext(using: appliedContext)
         state.turnState.beginTurn()
         insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: true)
     }
@@ -172,17 +174,48 @@ extension ConversationViewModel {
         }
         await saveTask.value
     }
+
+    func hydratePendingRestoreContextIfNeeded() {
+        guard let pendingRestoreContext = dbConversation()?.pendingRestoreContext else {
+            return
+        }
+
+        if state.stagedContext == pendingRestoreContext {
+            return
+        }
+
+        guard !state.messageQueue.pending.contains(where: { $0.stagedContext == pendingRestoreContext }) else {
+            return
+        }
+
+        state.stagedContext = pendingRestoreContext
+    }
 }
 
 private extension ConversationViewModel {
     func buildTransportMessage(
         message: String,
-        stagedContextOverride: String?
+        stagedContext: String?
     ) -> String {
-        if let context = stagedContextOverride ?? state.stagedContext {
+        if let context = stagedContext {
             return context + "\n\n" + message
         }
         return message
+    }
+
+    func clearConsumedPendingRestoreContext(using stagedContext: String?) {
+        guard let stagedContext,
+              let dbConversation = dbConversation(),
+              dbConversation.pendingRestoreContext == stagedContext else {
+            return
+        }
+
+        dbConversation.pendingRestoreContext = nil
+        do {
+            try modelContext.save()
+        } catch {
+            // Best-effort only; the next save will retry persisting the cleared restore context.
+        }
     }
 
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {

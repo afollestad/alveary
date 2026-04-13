@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ProjectSettingsArchivedThreadsCard: View {
     let threads: [AgentThread]
-    let onRestoreThread: (AgentThread) -> Void
+    let onRequestRestoreThread: (AgentThread) -> Void
 
     var body: some View {
         GroupBox {
@@ -19,7 +19,7 @@ struct ProjectSettingsArchivedThreadsCard: View {
                     ForEach(threads, id: \.persistentModelID) { thread in
                         ProjectSettingsArchivedThreadRow(
                             thread: thread,
-                            onRestore: { onRestoreThread(thread) }
+                            onRestore: { onRequestRestoreThread(thread) }
                         )
                     }
                 }

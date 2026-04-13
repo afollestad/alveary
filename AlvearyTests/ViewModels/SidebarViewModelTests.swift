@@ -197,9 +197,37 @@ final class SidebarViewModelTests: XCTestCase {
             archivedAt: Date()
         )
 
+        let dbThread = try fixture.requireThread(thread)
+        guard let conversation = dbThread.conversations.first else {
+            XCTFail("Expected a conversation")
+            return
+        }
+        conversation.events = [
+            ConversationEventRecord(
+                conversationId: conversation.id,
+                type: "message",
+                role: "user",
+                content: "Investigate the flaky sidebar reload",
+                conversation: conversation
+            ),
+            ConversationEventRecord(
+                conversationId: conversation.id,
+                type: "message",
+                role: "assistant",
+                content: "I found a stale observer during restore.",
+                conversation: conversation
+            )
+        ]
+        try fixture.context.save()
+
         try fixture.viewModel.restoreThread(thread)
 
-        XCTAssertNil(try fixture.requireThread(thread).archivedAt)
+        let restoredThread = try fixture.requireThread(thread)
+        XCTAssertNil(restoredThread.archivedAt)
+        let pendingRestoreContext = restoredThread.conversations.first?.pendingRestoreContext
+        XCTAssertEqual(pendingRestoreContext?.contains("Fresh session restore context"), true)
+        XCTAssertEqual(pendingRestoreContext?.contains("Investigate the flaky sidebar reload"), true)
+        XCTAssertEqual(pendingRestoreContext?.contains("I found a stale observer during restore."), true)
     }
 
     func testDeleteThreadRemovesPendingBranchesAndWorktreeBeforeDeletingModel() async throws {

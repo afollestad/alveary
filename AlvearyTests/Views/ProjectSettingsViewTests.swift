@@ -12,8 +12,35 @@ final class ProjectSettingsViewTests: XCTestCase {
             archivedAt: Date()
         )
 
+        let dbThread = try fixture.requireThread(thread)
+        guard let conversation = dbThread.conversations.first else {
+            XCTFail("Expected a conversation")
+            return
+        }
+        conversation.events = [
+            ConversationEventRecord(
+                conversationId: conversation.id,
+                type: "message",
+                role: "user",
+                content: "Reconnect me to the earlier diff discussion",
+                conversation: conversation
+            ),
+            ConversationEventRecord(
+                conversationId: conversation.id,
+                type: "message",
+                role: "assistant",
+                content: "The branch already has the diff staged locally.",
+                conversation: conversation
+            )
+        ]
+        try fixture.context.save()
+
         try restoreProjectSettingsArchivedThread(thread, modelContext: fixture.context)
 
-        XCTAssertNil(try fixture.requireThread(thread).archivedAt)
+        let restoredThread = try fixture.requireThread(thread)
+        XCTAssertNil(restoredThread.archivedAt)
+        let pendingRestoreContext = restoredThread.conversations.first?.pendingRestoreContext
+        XCTAssertEqual(pendingRestoreContext?.contains("Reconnect me to the earlier diff discussion"), true)
+        XCTAssertEqual(pendingRestoreContext?.contains("Fresh session restore context"), true)
     }
 }

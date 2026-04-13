@@ -65,6 +65,7 @@ struct ProjectSettingsView: View {
     @State private var actions: [ProjectSettingsActionDraft]
     @State private var pendingSaveTask: Task<Void, Never>?
     @State private var screenError: String?
+    @State private var pendingRestoreThread: AgentThread?
 
     init(
         project: Project,
@@ -128,13 +129,36 @@ struct ProjectSettingsView: View {
 
                 ProjectSettingsArchivedThreadsCard(
                     threads: archivedThreads,
-                    onRestoreThread: restoreArchivedThread
+                    onRequestRestoreThread: { pendingRestoreThread = $0 }
                 )
             }
             .padding(28)
         }
         .task(id: project.path) {
             await loadState()
+        }
+        .confirmationDialog(
+            "Restore archived thread?",
+            isPresented: Binding(
+                get: { pendingRestoreThread != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingRestoreThread = nil
+                    }
+                }
+            ),
+            presenting: pendingRestoreThread
+        ) { thread in
+            Button("Restore") {
+                pendingRestoreThread = nil
+                restoreArchivedThread(thread)
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingRestoreThread = nil
+            }
+        } message: { thread in
+            Text(restoreConfirmationMessage(for: thread))
         }
     }
 }
@@ -143,8 +167,13 @@ func restoreProjectSettingsArchivedThread(
     _ thread: AgentThread,
     modelContext: ModelContext
 ) throws {
-    thread.archivedAt = nil
+    thread.prepareForRestore()
     try modelContext.save()
+}
+
+func projectSettingsRestoreConfirmationMessage(for thread: AgentThread) -> String {
+    "Restoring \"\(thread.displayName())\" puts it back in the project list. Local transcript and worktree metadata stay in Alveary. "
+        + "The next run starts a fresh provider session, and Alveary attaches a restore summary to your next message."
 }
 
 private extension ProjectSettingsView {
@@ -301,6 +330,10 @@ private extension ProjectSettingsView {
         } catch {
             screenError = error.localizedDescription
         }
+    }
+
+    func restoreConfirmationMessage(for thread: AgentThread) -> String {
+        projectSettingsRestoreConfirmationMessage(for: thread)
     }
 }
 
