@@ -41,6 +41,8 @@ The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The
 
 ## Snapshot Testing
 
+- When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
+- When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
 - Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests.
 - Verify snapshot tests with `./scripts/snapshots.sh verify` and record them with `./scripts/snapshots.sh record`.
 - `./scripts/snapshots.sh record` is expected to exit non-zero after writing updated baselines because SnapshotTesting reports recorded snapshots as test failures in record mode; treat a follow-up `./scripts/snapshots.sh verify ...` pass as the confirmation step.
@@ -71,35 +73,46 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 
 **WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
 
-## General Guidelines
+## Code Style And File Organization
+
+These are default structure and readability conventions for new code and routine edits. Follow them unless a nearby type already has an established local pattern.
 
 - Private types should always go *below* public types.
 - Add concise code comments where needed for human readers.
-- When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
-- When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
 - Large types may be split into companion files like `Type+Feature.swift`. When reading current behavior or adding new logic to an existing type, search for same-type extensions and treat those companion files as part of the canonical implementation before editing.
-- Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file.
+- Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file. Also lean on companion files earlier to avoid files becoming too large, and use them to resolve lint warnings about file length.
 - In SwiftUI, prefer extracted `View` types over `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition. When an extracted child view is used by another view, place it in the same folder with `Parent+Child.swift` naming such as `DiffViewerPane+Header.swift`.
+
+## Interaction Contracts
+
+These capture repo-specific interaction patterns and UI implementation choices. Keep new UI aligned with them unless you are intentionally redesigning the behavior across the app.
+
+- Thread rename is inline (Finder-style `TextField` swap in `SidebarThreadRow`), not a modal sheet. The row tracks an `editingThreadID` binding. Conversation rename in multi-conversation tabs uses the same inline pattern via `editingConversationID` in `ConversationTabChip`.
+- Session reconfiguration is a between-turn action. Do not let agent/session setting changes reconfigure a conversation while a turn is active or a send is still in flight; those changes must wait until the current turn finishes.
 - For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Alveary/Views/Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
 - For selectable list rows (sidebar items, settings tabs, diff file lists), use the `.appSelectableRow(isSelected:action:)` modifier from `Alveary/Views/Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows — `Button` does not reliably fill the full row hit area in a `List`.
 - Conversation tab chips are not list rows, but they should mirror the same press-feedback principles: let the select action own the full capsule hit area, overlay trailing affordances like the close button on top of that surface, and prefer fill changes over capsule strokes for selected styling because macOS can render stray vertical artifacts from chip outlines in snapshots.
+- Sidebar keyboard navigation traverses items in a flat order: Skills → MCP → each project row (with its active threads interleaved when the project is expanded) → next project. The traversal is built by `buildNavigableItems()` and driven by `navigateVertically()` in `SidebarView+KeyboardNavigation.swift`. When adding new top-level sidebar sections or changing expansion behavior, update these functions and their tests.
+- `ThreadDetailConversationTabs` should keep the system `.bar` background for the header chrome and add any custom separator as an overlay. Replacing the bar with `windowBackgroundColor` creates an unintended dark strip in the live app.
 
 ## Repository Invariants
 
+These are architectural and persistence contracts. Treat them as hard constraints unless the work explicitly includes a coordinated migration.
+
 - `AgentRegistry` is the single source of truth for shared agent metadata. When adding or changing an agent, update `Alveary/Services/Detection/DefaultAgentRegistry.swift` and derive provider install guidance, detection metadata, skills directories, and MCP integration metadata from that shared entry instead of introducing feature-local agent lists.
-- `AgentThread.name` stores the visible thread label, while `AgentThread.hasCustomName` distinguishes a manual rename from the default untitled state. Manual thread rename flows must set `hasCustomName`, and first-message auto-naming should only fire while the thread is still effectively untitled. Thread rename cascades to the main conversation's `title` when it still has its default name (`customTitle == nil`); do not add a separate rename affordance for the sole conversation when only one exists.
-- Thread rename is inline (Finder-style `TextField` swap in `SidebarThreadRow`), not a modal sheet. The row tracks an `editingThreadID` binding. Conversation rename in multi-conversation tabs uses the same inline pattern via `editingConversationID` in `ConversationTabChip`.
+- `AgentThread.name` stores the visible thread label, while `AgentThread.hasCustomName` distinguishes a manual rename from the default untitled state. Manual thread rename flows must set `hasCustomName`, and thread auto-naming should only fire while the thread is still effectively untitled (`!hasCustomName && trimmedName == "New thread"`). Conversation auto-titling is a separate rule: the first user message may set `Conversation.title` whenever `customTitle == nil`, even if the thread already has a non-default name. Thread rename cascades to the main conversation's `title` when it still has its default name (`customTitle == nil`); do not add a separate rename affordance for the sole conversation when only one exists.
 - `DataAssembly` owns the on-disk SwiftData location. Keep the app store scoped under `~/Library/Application Support/Alveary/Alveary.store` so local resets stay app-specific and never fall back to the generic `default.store` path.
 - `ClaudeConfigStore` is the sole serialized writer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
+- `.alveary.json` writes are a selective round-trip, not a wholesale rewrite. The project settings editor only owns `scripts.setup`, `scripts.teardown`, `preservePatterns`, and `actions`; when saving supported config, preserve non-editable supported fields such as `scripts.setupTimeoutSeconds` and `shellSetup` instead of dropping them.
 - Project actions are edited from project settings via `.alveary.json`, but they surface in the main toolbar only while a thread for that project is selected. Execution should prefer the thread's `worktreePath` and only fall back to the project root when no worktree exists.
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
 - `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
 - `SessionEntry`'s canonical cwd plus paired `appSessionId` / `launchSessionId` are required for Claude fork-session recovery and startup orphan cleanup. Resume/orphan flows must preserve both IDs and use canonicalized paths rather than recomputing ownership from raw process state alone.
 - `SessionManager.persist()` must remain off `@MainActor`. `AppDelegate.applicationWillTerminate(_:)` bridges the final repair-path persist through `Task.detached` while synchronously blocking the main thread on a bounded semaphore; moving session persistence onto the main actor would deadlock shutdown.
 - Worktree roots are namespaced by canonical project path under `../worktrees/`; preserve that namespacing so sibling clones with the same repo folder name cannot collide.
+- Worktree lifecycle scripts from `.alveary.json` have stable defaults and rollback behavior. `scripts.setup` runs in the new worktree with a default 300-second timeout unless `scripts.setupTimeoutSeconds` overrides it; `scripts.teardown` runs during removal with a 60-second timeout; both receive `ALVEARY_THREAD_NAME`, `ALVEARY_PROJECT_PATH`, `ALVEARY_WORKTREE_PATH`, optional `ALVEARY_BRANCH_NAME`, and `ALVEARY_PORT_SEED`. If `scripts.setup` fails, the manager must attempt to remove the new worktree and delete the rollback branch before surfacing the error.
+- Preserved-file copying during worktree creation defaults to `.env`, `.env.local`, and `.env.development` when `.alveary.json` omits `preservePatterns`. Custom `preservePatterns` replace that default list.
 - The app layout uses a two-column `NavigationSplitView` with a conditional right-pane `HStack` detail split. Do not switch the diff pane back to native three-column `NavigationSplitViewVisibility` control on macOS 26; it does not behave correctly for programmatic right-pane toggling.
-- Sidebar keyboard navigation traverses items in a flat order: Skills → MCP → each project row (with its active threads interleaved when the project is expanded) → next project. The traversal is built by `buildNavigableItems()` and driven by `navigateVertically()` in `SidebarView+KeyboardNavigation.swift`. When adding new top-level sidebar sections or changing expansion behavior, update these functions and their tests.
-- `ThreadDetailConversationTabs` should keep the system `.bar` background for the header chrome and add any custom separator as an overlay. Replacing the bar with `windowBackgroundColor` creates an unintended dark strip in the live app.
 
 ## macOS Lifecycle and Concurrency
 
