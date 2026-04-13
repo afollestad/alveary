@@ -5,6 +5,7 @@ struct ThreadDetailConversationTabs: View {
     let selectedConversation: Conversation
     let statusForConversation: (Conversation) -> ActivitySignal
     let onSelect: (Conversation) -> Void
+    let onRemove: (Conversation) -> Void
     let onCreate: () -> Void
 
     var body: some View {
@@ -13,30 +14,13 @@ struct ThreadDetailConversationTabs: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(conversations) { conversation in
-                            Button {
-                                onSelect(conversation)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(statusColor(for: statusForConversation(conversation)))
-                                        .frame(width: 8, height: 8)
-                                        .opacity(showsStatusDot(for: statusForConversation(conversation)) ? 1 : 0)
-
-                                    Text(label(for: conversation))
-                                        .lineLimit(1)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(
-                                            selectedConversation.persistentModelID == conversation.persistentModelID
-                                                ? Color.accentColor.opacity(0.16)
-                                                : Color.secondary.opacity(0.08)
-                                        )
-                                )
-                            }
-                            .buttonStyle(.plain)
+                            ConversationTabChip(
+                                label: label(for: conversation),
+                                status: statusForConversation(conversation),
+                                isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
+                                onSelect: { onSelect(conversation) },
+                                onClose: { onRemove(conversation) }
+                            )
                         }
                     }
                 }
@@ -67,6 +51,55 @@ struct ThreadDetailConversationTabs: View {
     }
 }
 
+private struct ConversationTabChip: View {
+    let label: String
+    let status: ActivitySignal
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: onSelect) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                        .opacity(showsStatusDot ? 1 : 0)
+
+                    Text(label)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(label)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule(style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
 private extension ThreadDetailConversationTabs {
     func label(for conversation: Conversation) -> String {
         if let title = conversation.title, !title.isEmpty {
@@ -79,8 +112,10 @@ private extension ThreadDetailConversationTabs {
 
         return conversation.provider?.capitalized ?? "Conversation"
     }
+}
 
-    func showsStatusDot(for status: ActivitySignal) -> Bool {
+private extension ConversationTabChip {
+    var showsStatusDot: Bool {
         switch status {
         case .neutral, .stopped:
             return false
@@ -89,7 +124,7 @@ private extension ThreadDetailConversationTabs {
         }
     }
 
-    func statusColor(for status: ActivitySignal) -> Color {
+    var statusColor: Color {
         switch status {
         case .busy:
             return .green

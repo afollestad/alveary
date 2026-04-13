@@ -16,7 +16,8 @@ struct ThreadDetailView: View {
     let diffViewModel: DiffViewerViewModel
 
     @Environment(\.modelContext) private var uiModelContext
-    @State private var createConversationError: String?
+    @State private var conversationActionError: String?
+    @State private var pendingDeleteConversation: Conversation?
 
     private var conversations: [Conversation] {
         thread.conversations.sorted {
@@ -37,9 +38,9 @@ struct ThreadDetailView: View {
     var body: some View {
         if let conversation = appState.selectedConversation(in: thread) {
             VStack(spacing: 0) {
-                if let createConversationError {
-                    InlineBanner(message: createConversationError, severity: .error, autoDismissAfter: nil) {
-                        self.createConversationError = nil
+                if let conversationActionError {
+                    InlineBanner(message: conversationActionError, severity: .error, autoDismissAfter: nil) {
+                        self.conversationActionError = nil
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
@@ -50,6 +51,7 @@ struct ThreadDetailView: View {
                     selectedConversation: conversation,
                     statusForConversation: { agentsManager.status(for: $0.id) },
                     onSelect: { appState.selectConversation($0, in: thread) },
+                    onRemove: { pendingDeleteConversation = $0 },
                     onCreate: { Task { await createConversation() } }
                 )
 
@@ -75,6 +77,30 @@ struct ThreadDetailView: View {
             .task(id: selectedConversationID) {
                 cancelPendingDiffActionIfNeeded()
             }
+            .confirmationDialog(
+                "Remove conversation?",
+                isPresented: Binding(
+                    get: { pendingDeleteConversation != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pendingDeleteConversation = nil
+                        }
+                    }
+                ),
+                presenting: pendingDeleteConversation
+            ) { conversation in
+                Button("Remove", role: .destructive) {
+                    let conversationID = conversation.persistentModelID
+                    pendingDeleteConversation = nil
+                    Task { await removeConversation(id: conversationID) }
+                }
+
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteConversation = nil
+                }
+            } message: { conversation in
+                Text("This permanently deletes \(conversationLabel(for: conversation)) and its saved messages.")
+            }
         } else {
             EmptyStateView(
                 icon: "bubble.left.and.text.bubble.right.fill",
@@ -99,7 +125,7 @@ struct ThreadDetailView: View {
 private extension ThreadDetailView {
     func createConversation() async {
         guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
-            createConversationError = "Couldn't create conversation: thread no longer exists"
+            conversationActionError = "Couldn't create conversation: thread no longer exists"
             return
         }
 
@@ -114,7 +140,7 @@ private extension ThreadDetailView {
 
         do {
             try uiModelContext.save()
-            createConversationError = nil
+            conversationActionError = nil
 
             guard case .thread(let selectedThread) = appState.selectedSidebarItem,
                   selectedThread.persistentModelID == thread.persistentModelID else {
@@ -135,7 +161,49 @@ private extension ThreadDetailView {
                 )
             }
         } catch {
-            createConversationError = "Couldn't create conversation: \(error.localizedDescription)"
+            conversationActionError = "Couldn't create conversation: \(error.localizedDescription)"
+        }
+    }
+
+    func removeConversation(id: PersistentIdentifier) async {
+        guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
+            conversationActionError = "Couldn't remove conversation: thread no longer exists"
+            return
+        }
+        guard let dbConversation = uiModelContext.model(for: id) as? Conversation else {
+            conversationActionError = "Couldn't remove conversation: it no longer exists"
+            return
+        }
+        guard dbThread.conversations.count > 1 else {
+            conversationActionError = "Couldn't remove conversation: threads must keep at least one conversation"
+            return
+        }
+
+        do {
+            try await agentsManager.destroyRuntime(conversationId: dbConversation.id)
+            uiModelContext.delete(dbConversation)
+            try uiModelContext.save()
+            conversationActionError = nil
+
+            if appState.pendingDiffAction?.conversationID == id {
+                appState.pendingDiffAction = nil
+            }
+
+            appState.repairSelectedConversationIfNeeded(for: dbThread)
+
+            if let path = dbThread.worktreePath ?? dbThread.project?.path {
+                let baseRef = dbThread.project?.baseRef ?? "main"
+                let remoteName = dbThread.project?.remoteName
+                let conversationIds = Set(dbThread.conversations.map(\.id))
+                await diffViewModel.switchToDirectory(
+                    path,
+                    baseRef: baseRef,
+                    remoteName: remoteName,
+                    conversationIds: conversationIds
+                )
+            }
+        } catch {
+            conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
         }
     }
 
@@ -148,5 +216,17 @@ private extension ThreadDetailView {
             appState.pendingDiffAction = nil
             return
         }
+    }
+
+    func conversationLabel(for conversation: Conversation) -> String {
+        if let title = conversation.title, !title.isEmpty {
+            return title
+        }
+
+        if conversation.isMain {
+            return "Main"
+        }
+
+        return conversation.provider?.capitalized ?? "Conversation"
     }
 }

@@ -262,13 +262,17 @@ extension SidebarViewModel {
         return dbThread
     }
 
+    func quiesceConversation(_ conversationId: String) async throws {
+        try await agentsManager.destroyRuntime(conversationId: conversationId)
+    }
+
     func quiesceThreadConversations(_ thread: AgentThread) async throws {
         let conversationIds = thread.conversations.map(\.id)
         var firstError: Error?
 
         for conversationId in conversationIds {
             do {
-                try await agentsManager.destroyRuntime(conversationId: conversationId)
+                try await quiesceConversation(conversationId)
             } catch {
                 if firstError == nil {
                     firstError = error
