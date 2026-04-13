@@ -96,6 +96,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 - `SessionManager.persist()` must remain off `@MainActor`. `AppDelegate.applicationWillTerminate(_:)` bridges the final repair-path persist through `Task.detached` while synchronously blocking the main thread on a bounded semaphore; moving session persistence onto the main actor would deadlock shutdown.
 - Worktree roots are namespaced by canonical project path under `../worktrees/`; preserve that namespacing so sibling clones with the same repo folder name cannot collide.
 - The app layout uses a two-column `NavigationSplitView` with a conditional right-pane `HStack` detail split. Do not switch the diff pane back to native three-column `NavigationSplitViewVisibility` control on macOS 26; it does not behave correctly for programmatic right-pane toggling.
+- Sidebar keyboard navigation traverses items in a flat order: Skills → MCP → each project row (with its active threads interleaved when the project is expanded) → next project. The traversal is built by `buildNavigableItems()` and driven by `navigateVertically()` in `SidebarView+KeyboardNavigation.swift`. When adding new top-level sidebar sections or changing expansion behavior, update these functions and their tests.
 
 ## macOS Lifecycle and Concurrency
 

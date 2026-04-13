@@ -4,6 +4,7 @@ struct SidebarProjectRow: View {
     let project: Project
     let isExpanded: Bool
     let isSelected: Bool
+    let isActive: Bool
     let onToggleExpanded: () -> Void
     let onActivate: () -> Void
     let onCreateThread: () -> Void
@@ -84,12 +85,16 @@ struct SidebarProjectRow: View {
         .animation(.easeInOut(duration: 0.12), value: isHovering)
     }
 
+    private var showDisclosure: Bool {
+        isHovering || isActive
+    }
+
     private var leadingSymbolName: String {
-        isHovering ? disclosureSymbolName : "folder"
+        showDisclosure ? disclosureSymbolName : "folder"
     }
 
     private var leadingSymbolFont: Font {
-        isHovering ? .caption.weight(.semibold) : .body
+        showDisclosure ? .caption.weight(.semibold) : .body
     }
 
     private var disclosureSymbolName: String {

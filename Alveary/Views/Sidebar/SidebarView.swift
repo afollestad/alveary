@@ -7,13 +7,13 @@ struct SidebarView: View {
 
     @Environment(\.modelContext) private var uiModelContext
     @Query private var queriedProjects: [Project]
-    @State private var expandedProjects: Set<String> = []
+    @State var expandedProjects: Set<String> = []
     @State private var expandedArchivedProjects: Set<String> = []
     @State private var editingThreadID: PersistentIdentifier?
     @State private var pendingDeleteThread: AgentThread?
     @State private var pendingDeleteProject: Project?
 
-    private var projects: [Project] {
+    var projects: [Project] {
         queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
@@ -59,10 +59,17 @@ struct SidebarView: View {
                         let archivedProjectThreads = archivedThreads(for: project)
                         let projectTopSpacing = spacingBeforeProject(at: index, in: projects)
 
+                        let isProjectActive: Bool = switch appState.selectedSidebarItem {
+                        case .project(let selected) where selected.path == project.path: true
+                        case .thread(let thread) where thread.project?.path == project.path: true
+                        default: false
+                        }
+
                         SidebarProjectRow(
                             project: project,
                             isExpanded: isExpanded,
                             isSelected: appState.selectedSidebarItem == .project(project),
+                            isActive: isProjectActive,
                             onToggleExpanded: {
                                 toggleExpansion(for: project.path, in: &expandedProjects)
                             },
@@ -168,7 +175,7 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            .onKeyPress(keys: [.leftArrow, .rightArrow, Self.backspaceKey], action: handleSidebarKeyPress)
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, Self.backspaceKey], action: handleSidebarKeyPress)
         }
         .onAppear {
             syncExpansionWithSelection(appState.selectedSidebarItem)
@@ -231,6 +238,14 @@ extension SidebarView {
     static let backspaceKey = KeyEquivalent("\u{7F}")
 }
 
+extension SidebarView {
+    func activeThreads(for project: Project) -> [AgentThread] {
+        project.threads
+            .filter { $0.archivedAt == nil }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}
+
 private extension SidebarView {
     func spacingBeforeProject(at index: Int, in projects: [Project]) -> CGFloat {
         guard index > 0 else {
@@ -256,12 +271,6 @@ private extension SidebarView {
                 isSelected: appState.selectedSidebarItem == item,
                 action: { appState.selectedSidebarItem = item }
             )
-    }
-
-    func activeThreads(for project: Project) -> [AgentThread] {
-        project.threads
-            .filter { $0.archivedAt == nil }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     func archivedThreads(for project: Project) -> [AgentThread] {
@@ -297,6 +306,8 @@ private extension SidebarView {
 
     func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
         switch keyPress.key {
+        case .upArrow, .downArrow:
+            return handleVerticalArrow(keyPress.key)
         case Self.backspaceKey:
             guard case .thread(let thread) = appState.selectedSidebarItem else {
                 return .ignored
