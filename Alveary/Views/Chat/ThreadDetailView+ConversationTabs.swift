@@ -36,14 +36,6 @@ struct ThreadDetailConversationTabs: View {
                         .foregroundStyle(.secondary)
                 }
                 .contentShape(Rectangle())
-                .contextMenu {
-                    Button("Rename...") {
-                        onRename(selectedConversation)
-                    }
-                }
-                .accessibilityAction(named: Text("Rename")) {
-                    onRename(selectedConversation)
-                }
             }
 
             Spacer()
