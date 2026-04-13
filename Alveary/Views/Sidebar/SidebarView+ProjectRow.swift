@@ -18,7 +18,7 @@ struct SidebarProjectRow: View {
                 Image(systemName: leadingSymbolName)
                     .font(leadingSymbolFont)
                     .foregroundStyle(Color.primary)
-                    .frame(width: 16, height: 16, alignment: .leading)
+                    .frame(width: 16, height: 16)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
