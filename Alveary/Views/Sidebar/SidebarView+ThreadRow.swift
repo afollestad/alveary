@@ -1,9 +1,18 @@
+import SwiftData
 import SwiftUI
 
 struct SidebarThreadRow: View {
     let thread: AgentThread
     let status: ThreadStatus
-    let onRename: () -> Void
+    @Binding var editingThreadID: PersistentIdentifier?
+    let onCommitRename: (String) -> Void
+
+    @State private var editText = ""
+    @FocusState private var isFieldFocused: Bool
+
+    private var isEditing: Bool {
+        editingThreadID == thread.persistentModelID
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -14,9 +23,18 @@ struct SidebarThreadRow: View {
                 .opacity(status == .stopped ? 0 : 1)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(thread.displayName())
-                    .foregroundStyle(thread.isEffectivelyUntitled ? .secondary : .primary)
-                    .lineLimit(1)
+                if isEditing {
+                    TextField("Thread name", text: $editText)
+                        .textFieldStyle(.plain)
+                        .focused($isFieldFocused)
+                        .onSubmit { commitRename() }
+                        .onExitCommand { cancelRename() }
+                        .lineLimit(1)
+                } else {
+                    Text(thread.displayName())
+                        .foregroundStyle(thread.isEffectivelyUntitled ? .secondary : .primary)
+                        .lineLimit(1)
+                }
 
                 if let branch = thread.branch {
                     Text(branch)
@@ -29,8 +47,19 @@ struct SidebarThreadRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
+        .onChange(of: isEditing) { _, editing in
+            if editing {
+                editText = thread.displayName()
+                isFieldFocused = true
+            }
+        }
+        .onChange(of: isFieldFocused) { _, focused in
+            if !focused && isEditing {
+                commitRename()
+            }
+        }
         .accessibilityAction(named: Text("Rename")) {
-            onRename()
+            editingThreadID = thread.persistentModelID
         }
     }
 
@@ -47,5 +76,17 @@ struct SidebarThreadRow: View {
         case .stopped:
             return .clear
         }
+    }
+
+    private func commitRename() {
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            onCommitRename(trimmed)
+        }
+        editingThreadID = nil
+    }
+
+    private func cancelRename() {
+        editingThreadID = nil
     }
 }

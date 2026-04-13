@@ -9,7 +9,7 @@ struct SidebarView: View {
     @Query private var queriedProjects: [Project]
     @State private var expandedProjects: Set<String> = []
     @State private var expandedArchivedProjects: Set<String> = []
-    @State private var renameDraft: ThreadRenameDraft?
+    @State private var editingThreadID: PersistentIdentifier?
     @State private var pendingDeleteThread: AgentThread?
     @State private var pendingDeleteProject: Project?
 
@@ -95,8 +95,9 @@ struct SidebarView: View {
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
-                                    onRename: {
-                                        renameDraft = ThreadRenameDraft(thread: thread)
+                                    editingThreadID: $editingThreadID,
+                                    onCommitRename: { newName in
+                                        renameThread(thread, to: newName)
                                     }
                                 )
                                     .padding(.leading, 14)
@@ -109,8 +110,8 @@ struct SidebarView: View {
                                             Task { await archive(thread) }
                                         }
 
-                                        Button("Rename...") {
-                                            renameDraft = ThreadRenameDraft(thread: thread)
+                                        Button("Rename") {
+                                            editingThreadID = thread.persistentModelID
                                         }
 
                                         Button("Delete...", role: .destructive) {
@@ -135,8 +136,9 @@ struct SidebarView: View {
                                         SidebarThreadRow(
                                             thread: thread,
                                             status: .archived,
-                                            onRename: {
-                                                renameDraft = ThreadRenameDraft(thread: thread)
+                                            editingThreadID: $editingThreadID,
+                                            onCommitRename: { newName in
+                                                renameThread(thread, to: newName)
                                             }
                                         )
                                             .padding(.leading, 14)
@@ -150,8 +152,8 @@ struct SidebarView: View {
                                                     Task { await restore(thread, in: project) }
                                                 }
 
-                                                Button("Rename...") {
-                                                    renameDraft = ThreadRenameDraft(thread: thread)
+                                                Button("Rename") {
+                                                    editingThreadID = thread.persistentModelID
                                                 }
 
                                                 Button("Delete...", role: .destructive) {
@@ -179,15 +181,6 @@ struct SidebarView: View {
             syncExpansionWithSelection(item)
         }
         .animation(nil, value: statusVersion)
-        .sheet(item: $renameDraft) { draft in
-            RenameSheet(
-                draft: draft,
-                heading: "Rename Thread",
-                placeholder: "Thread name",
-                closeLabel: "Close rename thread",
-                onSave: renameThread
-            )
-        }
         .confirmationDialog(
             "Delete thread?",
             isPresented: Binding(
@@ -380,25 +373,24 @@ private extension SidebarView {
         }
     }
 
-    func renameThread(_ draft: ThreadRenameDraft) -> Bool {
-        guard let persistedName = draft.persistedName else {
-            return false
-        }
-        guard let dbThread = uiModelContext.model(for: draft.threadID) as? AgentThread else {
+    func renameThread(_ thread: AgentThread, to newName: String) {
+        guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
             viewModel.presentSidebarError(SidebarThreadActionError.renameTargetMissing)
-            return false
+            return
         }
 
-        dbThread.name = persistedName
+        dbThread.name = newName
         dbThread.hasCustomName = true
+
+        if let mainConversation = dbThread.conversations.first(where: { $0.isMain }),
+           mainConversation.customTitle == nil {
+            mainConversation.title = newName
+        }
 
         do {
             try uiModelContext.save()
-            renameDraft = nil
-            return true
         } catch {
             viewModel.presentSidebarError(SidebarThreadActionError.renameFailed(error))
-            return false
         }
     }
 
