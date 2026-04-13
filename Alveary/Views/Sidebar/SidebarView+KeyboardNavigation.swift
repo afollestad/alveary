@@ -35,7 +35,7 @@ extension SidebarView {
             }
             switch viewModel.deleteKeyAction {
             case .archive:
-                Task { await archive(thread) }
+                pendingArchiveThread = thread
             case .delete:
                 pendingDeleteThread = thread
             }

@@ -8,8 +8,8 @@ struct SidebarView: View {
     @Environment(\.modelContext) var uiModelContext
     @Query private var queriedProjects: [Project]
     @State var expandedProjects: Set<String> = []
-    @State var expandedArchivedProjects: Set<String> = []
     @State private var editingThreadID: PersistentIdentifier?
+    @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
     @State var pendingDeleteProject: Project?
 
@@ -54,9 +54,7 @@ struct SidebarView: View {
                     ForEach(projects.indices, id: \.self) { index in
                         let project = projects[index]
                         let isExpanded = expandedProjects.contains(project.path)
-                        let isArchivedExpanded = expandedArchivedProjects.contains(project.path)
                         let activeProjectThreads = activeThreads(for: project)
-                        let archivedProjectThreads = archivedThreads(for: project)
                         let projectTopSpacing = spacingBeforeProject(at: index, in: projects)
 
                         let isProjectActive: Bool = switch appState.selectedSidebarItem {
@@ -111,8 +109,8 @@ struct SidebarView: View {
                                         action: { activateThread(thread) }
                                     )
                                     .contextMenu {
-                                        Button("Archive") {
-                                            Task { await archive(thread) }
+                                        Button("Archive...") {
+                                            pendingArchiveThread = thread
                                         }
 
                                         Button("Rename") {
@@ -123,48 +121,6 @@ struct SidebarView: View {
                                             pendingDeleteThread = thread
                                         }
                                     }
-                            }
-
-                            if !archivedProjectThreads.isEmpty {
-                                SidebarArchivedThreadsRow(
-                                    isExpanded: isArchivedExpanded,
-                                    onToggle: {
-                                        toggleExpansion(for: project.path, in: &expandedArchivedProjects)
-                                    }
-                                )
-                                .padding(.leading, 14)
-
-                                if isArchivedExpanded {
-                                    ForEach(archivedProjectThreads, id: \.persistentModelID) { thread in
-                                        SidebarThreadRow(
-                                            thread: thread,
-                                            status: .archived,
-                                            editingThreadID: $editingThreadID,
-                                            onCommitRename: { newName in
-                                                renameThread(thread, to: newName)
-                                            }
-                                        )
-                                            .padding(.leading, 14)
-                                            .appSelectableRow(
-                                                isSelected: appState.selectedSidebarItem == .thread(thread),
-                                                action: { activateThread(thread) }
-                                            )
-                                            .opacity(0.75)
-                                            .contextMenu {
-                                                Button("Restore") {
-                                                    Task { await restore(thread, in: project) }
-                                                }
-
-                                                Button("Rename") {
-                                                    editingThreadID = thread.persistentModelID
-                                                }
-
-                                                Button("Delete...", role: .destructive) {
-                                                    pendingDeleteThread = thread
-                                                }
-                                            }
-                                    }
-                                }
                             }
                         }
                     }
@@ -185,6 +141,29 @@ struct SidebarView: View {
         }
         .animation(nil, value: statusVersion)
         .confirmationDialog(
+            "Archive thread?",
+            isPresented: Binding(
+                get: { pendingArchiveThread != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingArchiveThread = nil
+                    }
+                }
+            ),
+            presenting: pendingArchiveThread
+        ) { thread in
+            Button("Archive") {
+                pendingArchiveThread = nil
+                Task { await archive(thread) }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingArchiveThread = nil
+            }
+        } message: { thread in
+            Text(archiveConfirmationMessage(for: thread))
+        }
+        .confirmationDialog(
             "Delete thread?",
             isPresented: Binding(
                 get: { pendingDeleteThread != nil },
@@ -204,7 +183,7 @@ struct SidebarView: View {
                 pendingDeleteThread = nil
             }
         } message: { thread in
-            Text("This permanently deletes \(thread.displayName()) and removes its worktree and branch if present.")
+            Text(deleteConfirmationMessage(for: thread))
         }
         .confirmationDialog(
             "Remove project?",
@@ -231,5 +210,14 @@ struct SidebarView: View {
                     "The main project folder will not be touched."
             )
         }
+    }
+
+    func archiveConfirmationMessage(for thread: AgentThread) -> String {
+        "This archives \"\(thread.displayName())\". "
+            + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
+    }
+
+    func deleteConfirmationMessage(for thread: AgentThread) -> String {
+        "This permanently deletes \"\(thread.displayName())\" and removes its worktree and branch if present."
     }
 }

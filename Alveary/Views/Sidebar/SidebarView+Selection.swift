@@ -14,8 +14,7 @@ extension SidebarView {
 
         let previousProject = projects[index - 1]
         let previousActiveThreads = activeThreads(for: previousProject)
-        let previousArchivedThreads = archivedThreads(for: previousProject)
-        let hasExpandedContent = !previousActiveThreads.isEmpty || !previousArchivedThreads.isEmpty
+        let hasExpandedContent = !previousActiveThreads.isEmpty
 
         guard expandedProjects.contains(previousProject.path), hasExpandedContent else {
             return 0
@@ -31,16 +30,6 @@ extension SidebarView {
                 isSelected: appState.selectedSidebarItem == item,
                 action: { appState.selectedSidebarItem = item }
             )
-    }
-
-    func archivedThreads(for project: Project) -> [AgentThread] {
-        project.threads
-            .filter { $0.archivedAt != nil }
-            .sorted { lhs, rhs in
-                let leftDate = lhs.archivedAt ?? .distantPast
-                let rightDate = rhs.archivedAt ?? .distantPast
-                return leftDate > rightDate
-            }
     }
 
     func toggleExpansion(for path: String, in set: inout Set<String>) {

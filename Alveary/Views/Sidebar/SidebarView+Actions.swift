@@ -40,15 +40,6 @@ extension SidebarView {
         }
     }
 
-    func restore(_ thread: AgentThread, in project: Project) async {
-        do {
-            try viewModel.restoreThread(thread)
-            expandedProjects.insert(project.path)
-        } catch {
-            viewModel.presentSidebarError(error)
-        }
-    }
-
     func renameThread(_ thread: AgentThread, to newName: String) {
         guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
             viewModel.presentSidebarError(SidebarThreadActionError.renameTargetMissing)
@@ -138,7 +129,6 @@ extension SidebarView {
         do {
             try await viewModel.deleteProject(project)
             expandedProjects.remove(project.path)
-            expandedArchivedProjects.remove(project.path)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark

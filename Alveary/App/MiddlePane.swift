@@ -74,30 +74,37 @@ struct MiddlePane: View {
     }
 }
 
+func resolveSidebarSelectionBookmark(
+    _ bookmark: AppState.SidebarBookmark,
+    modelContext: ModelContext
+) -> SidebarItem? {
+    switch bookmark {
+    case .skills:
+        return .skills
+    case .mcp:
+        return .mcp
+    case .projectPath(let path):
+        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
+            project.path == path
+        })
+        guard let project = try? modelContext.fetch(descriptor).first else {
+            return nil
+        }
+        return .project(project)
+    case .threadId(let id):
+        guard let thread = modelContext.model(for: id) as? AgentThread else {
+            return nil
+        }
+
+        if thread.archivedAt != nil {
+            return thread.project.map(SidebarItem.project)
+        }
+        return .thread(thread)
+    }
+}
+
 private extension MiddlePane {
     func resolveSidebarBookmark(_ bookmark: AppState.SidebarBookmark) -> SidebarItem? {
-        switch bookmark {
-        case .skills:
-            return .skills
-        case .mcp:
-            return .mcp
-        case .projectPath(let path):
-            let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-                project.path == path
-            })
-            guard let project = try? uiModelContext.fetch(descriptor).first else {
-                return nil
-            }
-            return .project(project)
-        case .threadId(let id):
-            guard let thread = uiModelContext.model(for: id) as? AgentThread else {
-                return nil
-            }
-
-            if thread.archivedAt != nil {
-                return thread.project.map(SidebarItem.project)
-            }
-            return .thread(thread)
-        }
+        resolveSidebarSelectionBookmark(bookmark, modelContext: uiModelContext)
     }
 }

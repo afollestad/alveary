@@ -34,6 +34,12 @@ struct ContentView: View {
     @State var terminalManager: TerminalManager
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
 
+    static func makeViewModelContext(resolver: Resolver) -> ModelContext {
+        // Keep UI mutations on the container's main context so sidebar `@Query` reads
+        // and imperative view-model saves stay in sync without requiring a relaunch.
+        resolver.modelContainer().mainContext
+    }
+
     init(resolver: Resolver, appState: AppState) {
         self.appState = appState
         let settingsService = resolver.settingsService()
@@ -60,7 +66,7 @@ struct ContentView: View {
         self.providerSetup = providerSetup
         self.fileListManager = fileListManager
 
-        let viewModelContext = resolver.modelContext(); _viewModelContext = State(initialValue: viewModelContext)
+        let viewModelContext = Self.makeViewModelContext(resolver: resolver); _viewModelContext = State(initialValue: viewModelContext)
         _diffViewerWidth = State(initialValue: CGFloat(settingsService.current.diffViewerWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settingsService.current.diffViewerTopSectionFraction))
         _terminalPaneHeight = State(initialValue: CGFloat(settingsService.current.terminalPaneHeight))

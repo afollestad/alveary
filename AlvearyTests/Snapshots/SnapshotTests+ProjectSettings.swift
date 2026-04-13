@@ -6,7 +6,13 @@ extension SnapshotTests {
     func testProjectSettingsViewHidesGitHubForLocalProject() throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.89.0", gitHubAuthenticated: false)
         let project = Project(path: "/tmp/local-project", name: "Local Project")
+        let archivedThread = AgentThread(
+            name: "Retire stale MCP wiring",
+            archivedAt: Date(timeIntervalSince1970: 1_713_000_000),
+            project: project
+        )
         fixture.context.insert(project)
+        fixture.context.insert(archivedThread)
         try fixture.context.save()
         let config = AlvearyProjectConfig.empty
 

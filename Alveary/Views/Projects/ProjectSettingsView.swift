@@ -125,6 +125,11 @@ struct ProjectSettingsView: View {
                     onAddAction: addAction,
                     onRemoveAction: removeAction
                 )
+
+                ProjectSettingsArchivedThreadsCard(
+                    threads: archivedThreads,
+                    onRestoreThread: restoreArchivedThread
+                )
             }
             .padding(28)
         }
@@ -134,7 +139,25 @@ struct ProjectSettingsView: View {
     }
 }
 
+func restoreProjectSettingsArchivedThread(
+    _ thread: AgentThread,
+    modelContext: ModelContext
+) throws {
+    thread.archivedAt = nil
+    try modelContext.save()
+}
+
 private extension ProjectSettingsView {
+    var archivedThreads: [AgentThread] {
+        project.threads
+            .filter { $0.archivedAt != nil }
+            .sorted { lhs, rhs in
+                let leftDate = lhs.archivedAt ?? .distantPast
+                let rightDate = rhs.archivedAt ?? .distantPast
+                return leftDate > rightDate
+            }
+    }
+
     var setupScriptBinding: Binding<String> {
         Binding(
             get: { setupScript },
@@ -267,6 +290,14 @@ private extension ProjectSettingsView {
     func saveProject() {
         do {
             try modelContext.save()
+        } catch {
+            screenError = error.localizedDescription
+        }
+    }
+
+    func restoreArchivedThread(_ thread: AgentThread) {
+        do {
+            try restoreProjectSettingsArchivedThread(thread, modelContext: modelContext)
         } catch {
             screenError = error.localizedDescription
         }

@@ -1,3 +1,4 @@
+import Knit
 import SwiftData
 import XCTest
 
@@ -5,6 +6,16 @@ import XCTest
 
 @MainActor
 final class ContentViewProjectActionsTests: XCTestCase {
+    func testContentViewUsesModelContainerMainContextForViewModels() {
+        let assembler = ScopedModuleAssembler<Resolver>([
+            AppAssembly(),
+            DataAssembly(isStoredInMemoryOnly: true)
+        ])
+        let resolver = assembler.resolver
+
+        XCTAssertTrue(ContentView.makeViewModelContext(resolver: resolver) === resolver.modelContainer().mainContext)
+    }
+
     func testProjectActionExecutionContextPrefersWorktreePathAndCarriesThreadMetadata() throws {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)
