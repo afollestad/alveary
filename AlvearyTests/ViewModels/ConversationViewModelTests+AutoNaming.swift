@@ -62,4 +62,24 @@ extension ConversationViewModelTests {
         XCTAssertEqual(third.displayName(), "Conversation (3)")
         XCTAssertEqual(custom.displayName(), "Planning")
     }
+
+    func testConversationDisplayNameTrimsCustomTitleAndFallsBackForBlankTitle() {
+        let blank = Conversation(title: "   ", provider: "claude", isMain: false, displayOrder: 1)
+        let custom = Conversation(title: "  Planning  ", provider: "claude", isMain: false, displayOrder: 1)
+
+        XCTAssertNil(blank.customTitle)
+        XCTAssertEqual(blank.displayName(), "Conversation (2)")
+        XCTAssertEqual(custom.customTitle, "Planning")
+        XCTAssertEqual(custom.displayName(), "Planning")
+    }
+
+    func testConversationPersistedTitleKeepsDerivedFallbackUnpersistedUntilUserOverridesIt() {
+        let untitled = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 2)
+        let renamed = Conversation(title: "Planning", provider: "claude", isMain: false, displayOrder: 2)
+
+        XCTAssertNil(untitled.persistedTitle(from: "Conversation (3)"))
+        XCTAssertEqual(untitled.persistedTitle(from: "  Investigate auth race  "), "Investigate auth race")
+        XCTAssertEqual(renamed.persistedTitle(from: "Conversation (3)"), "Conversation (3)")
+        XCTAssertNil(renamed.persistedTitle(from: "   "))
+    }
 }

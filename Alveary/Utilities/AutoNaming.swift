@@ -38,16 +38,49 @@ extension ConversationViewModel {
 }
 
 extension Conversation {
-    func displayName() -> String {
+    var customTitle: String? {
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmedTitle, !trimmedTitle.isEmpty {
-            return trimmedTitle
+        guard let trimmedTitle, !trimmedTitle.isEmpty else {
+            return nil
         }
 
+        return trimmedTitle
+    }
+
+    func defaultDisplayName() -> String {
         if isMain {
             return "Main"
         }
 
         return "Conversation (\(displayOrder + 1))"
+    }
+
+    static func persistedTitle(
+        from editedTitle: String,
+        fallbackName: String,
+        hasCustomTitle: Bool
+    ) -> String? {
+        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            return nil
+        }
+
+        if !hasCustomTitle, trimmedTitle == fallbackName {
+            return nil
+        }
+
+        return trimmedTitle
+    }
+
+    func persistedTitle(from editedTitle: String) -> String? {
+        Self.persistedTitle(
+            from: editedTitle,
+            fallbackName: defaultDisplayName(),
+            hasCustomTitle: customTitle != nil
+        )
+    }
+
+    func displayName() -> String {
+        customTitle ?? defaultDisplayName()
     }
 }

@@ -106,7 +106,7 @@ extension ConversationViewModel {
         state.grouper.appendLocalUserMessage(id: record.id, text: message)
 
         if settingsService.current.autoGenerateNames,
-           (dbConversation.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty,
+           dbConversation.customTitle == nil,
            let name = Self.threadName(from: message) {
             dbConversation.title = name
         }

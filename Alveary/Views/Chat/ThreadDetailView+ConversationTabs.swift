@@ -5,6 +5,7 @@ struct ThreadDetailConversationTabs: View {
     let selectedConversation: Conversation
     let statusForConversation: (Conversation) -> ActivitySignal
     let onSelect: (Conversation) -> Void
+    let onRename: (Conversation) -> Void
     let onRemove: (Conversation) -> Void
     let onCreate: () -> Void
 
@@ -19,6 +20,7 @@ struct ThreadDetailConversationTabs: View {
                                 status: statusForConversation(conversation),
                                 isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
                                 onSelect: { onSelect(conversation) },
+                                onRename: { onRename(conversation) },
                                 onClose: { onRemove(conversation) }
                             )
                         }
@@ -32,6 +34,15 @@ struct ThreadDetailConversationTabs: View {
                     Text(selectedConversation.provider ?? "Conversation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+                .contextMenu {
+                    Button("Rename...") {
+                        onRename(selectedConversation)
+                    }
+                }
+                .accessibilityAction(named: Text("Rename")) {
+                    onRename(selectedConversation)
                 }
             }
 
@@ -56,6 +67,7 @@ private struct ConversationTabChip: View {
     let status: ActivitySignal
     let isSelected: Bool
     let onSelect: () -> Void
+    let onRename: () -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -75,6 +87,9 @@ private struct ConversationTabChip: View {
             .buttonStyle(.plain)
             .accessibilityLabel(label)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityAction(named: Text("Rename")) {
+                onRename()
+            }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
@@ -96,6 +111,11 @@ private struct ConversationTabChip: View {
             Capsule(style: .continuous)
                 .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
         )
+        .contextMenu {
+            Button("Rename...") {
+                onRename()
+            }
+        }
         .fixedSize(horizontal: true, vertical: false)
     }
 }
