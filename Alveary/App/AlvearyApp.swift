@@ -16,15 +16,15 @@ struct AlvearyApp: App {
         .defaultSize(width: 1440, height: 920)
         .commands {
             CommandGroup(replacing: .newItem) {
+                Button("Add a Project...") {
+                    appState.openNewProjectFlow()
+                }
+                .keyboardShortcut("o", modifiers: .command)
+
                 Button("New Thread") {
                     appState.startNewThreadFlow()
                 }
                 .keyboardShortcut("n", modifiers: .command)
-
-                Button("New Project...") {
-                    appState.openNewProjectFlow()
-                }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
 
             CommandGroup(replacing: .appSettings) {
