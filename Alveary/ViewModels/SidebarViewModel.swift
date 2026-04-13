@@ -384,40 +384,6 @@ extension SidebarViewModel {
         return .commandFailed(combined)
     }
 
-    static func parseGitHubRepository(from remoteURL: String) -> String? {
-        let trimmed = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let scpPrefix = trimmed.range(of: "git@github.com:", options: .caseInsensitive) {
-            return normalizeGitHubRepositoryPath(String(trimmed[scpPrefix.upperBound...]))
-        }
-
-        guard let components = URLComponents(string: trimmed),
-              let host = components.host?.lowercased(),
-              host == "github.com" || host == "www.github.com" else {
-            return nil
-        }
-
-        return normalizeGitHubRepositoryPath(components.path)
-    }
-
-    static func normalizeGitHubRepositoryPath(_ path: String) -> String? {
-        let parts = path
-            .split(separator: "/", omittingEmptySubsequences: true)
-            .map(String.init)
-        guard parts.count >= 2 else {
-            return nil
-        }
-
-        let owner = parts[0]
-        let repo = parts[1].hasSuffix(".git")
-            ? String(parts[1].dropLast(4))
-            : parts[1]
-        guard !owner.isEmpty, !repo.isEmpty else {
-            return nil
-        }
-        return "\(owner)/\(repo)"
-    }
-
     func directoryExists(at path: String) -> Bool {
         var isDirectory = ObjCBool(false)
         let exists = FileManager.default.fileExists(

@@ -13,7 +13,7 @@ final class SidebarViewModelTests: XCTestCase {
         await fixture.shell.enqueue(.success(shellResult(stdout: "\(projectURL.path)\n")))
         await fixture.shell.enqueue(.success(shellResult(stdout: "feature/auth\n")))
         await fixture.shell.enqueue(.success(shellResult(stdout: "upstream\n")))
-        await fixture.shell.enqueue(.success(shellResult(stdout: "git@github.com:acme/rocket.git\n")))
+        await fixture.shell.enqueue(.success(shellResult(stdout: "org-49461806@github.com:acme/rocket.git\n")))
         await fixture.shell.enqueue(.success(shellResult(stdout: "refs/remotes/upstream/main\n")))
 
         let project = try await fixture.viewModel.createProject(path: projectURL.path)
@@ -21,7 +21,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(project.path, projectURL.path)
         XCTAssertEqual(project.name, "remote-project")
         XCTAssertEqual(project.remoteName, "upstream")
-        XCTAssertEqual(project.gitRemote, "git@github.com:acme/rocket.git")
+        XCTAssertEqual(project.gitRemote, "org-49461806@github.com:acme/rocket.git")
         XCTAssertEqual(project.gitBranch, "feature/auth")
         XCTAssertEqual(project.baseRef, "main")
         XCTAssertEqual(project.githubRepository, "acme/rocket")

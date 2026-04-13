@@ -28,7 +28,7 @@ extension SidebarViewModel {
                 currentBranch: currentBranch
             )
             let remoteURL = try await resolveRemoteURL(in: projectPath, remoteName: remoteName)
-            let githubRepository = remoteURL.flatMap(Self.parseGitHubRepository(from:))
+            let githubRepository = remoteURL.flatMap(Project.parseGitHubRepository(from:))
             let githubConnected = await resolveGitHubConnectionState(for: githubRepository)
             let baseRef = try await resolveBaseRef(
                 in: projectPath,
