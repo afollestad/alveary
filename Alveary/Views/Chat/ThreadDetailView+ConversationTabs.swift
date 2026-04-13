@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -55,6 +56,12 @@ struct ThreadDetailConversationTabs: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(.bar)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(height: 1)
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -75,63 +82,13 @@ private struct ConversationTabChip: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        Group {
             if isEditing {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
-                        .opacity(showsStatusDot ? 1 : 0)
-
-                    TextField("Conversation name", text: $editText)
-                        .textFieldStyle(.plain)
-                        .focused($isFieldFocused)
-                        .onSubmit { commitRename() }
-                        .onExitCommand { cancelRename() }
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
+                editingChip
             } else {
-                Button(action: onSelect) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 8, height: 8)
-                            .opacity(showsStatusDot ? 1 : 0)
-
-                        Text(conversation.displayName())
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(conversation.displayName())
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .accessibilityAction(named: Text("Rename")) {
-                    editingConversationID = conversation.persistentModelID
-                }
+                selectableChip
             }
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(4)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(conversation.displayName())")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            Capsule(style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
-        )
         .contextMenu {
             Button("Rename...") {
                 editingConversationID = conversation.persistentModelID
@@ -152,14 +109,97 @@ private struct ConversationTabChip: View {
     }
 }
 
-private extension ConversationTabChip {
-    var showsStatusDot: Bool {
-        switch status {
-        case .neutral, .stopped:
-            return false
-        case .busy, .idle, .error:
-            return true
+private struct ConversationTabSelectButtonStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Capsule(style: .continuous)
+                    .fill(backgroundColor(isPressed: configuration.isPressed))
+            )
+            .contentShape(Capsule(style: .continuous))
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed {
+            return AppSelectionStyle.pressedFill
         }
+        if isSelected {
+            return Color.accentColor.opacity(0.16)
+        }
+        return Color.secondary.opacity(0.08)
+    }
+}
+
+private extension ConversationTabChip {
+    var editingChip: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+
+                TextField("Conversation name", text: $editText)
+                    .textFieldStyle(.plain)
+                    .focused($isFieldFocused)
+                    .onSubmit { commitRename() }
+                    .onExitCommand { cancelRename() }
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            closeButton
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+    }
+
+    var selectableChip: some View {
+        ZStack(alignment: .trailing) {
+            Button(action: onSelect) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+
+                    Text(conversation.displayName())
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
+                .padding(.trailing, 36)
+            }
+            .buttonStyle(ConversationTabSelectButtonStyle(isSelected: isSelected))
+            .focusEffectDisabled()
+            .accessibilityLabel(conversation.displayName())
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityAction(named: Text("Rename")) {
+                editingConversationID = conversation.persistentModelID
+            }
+
+            closeButton
+                .padding(.trailing, 12)
+        }
+    }
+
+    var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .accessibilityLabel("Remove \(conversation.displayName())")
     }
 
     var statusColor: Color {
@@ -171,7 +211,7 @@ private extension ConversationTabChip {
         case .error:
             return .red
         case .neutral, .stopped:
-            return .clear
+            return .secondary
         }
     }
 

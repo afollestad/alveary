@@ -3,6 +3,22 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testSidebarThreadRowStoppedStatusDotVisible() {
+        let thread = AgentThread(name: AgentThread.untitledName)
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_stopped_dot"
+        )
+    }
+
     func testSidebarViewPopulated() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
 

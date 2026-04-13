@@ -20,7 +20,6 @@ struct SidebarThreadRow: View {
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
                 .offset(x: -3)
-                .opacity(status == .stopped ? 0 : 1)
 
             VStack(alignment: .leading, spacing: 2) {
                 if isEditing {
@@ -74,7 +73,7 @@ struct SidebarThreadRow: View {
         case .archived:
             return .secondary
         case .stopped:
-            return .clear
+            return .secondary
         }
     }
 

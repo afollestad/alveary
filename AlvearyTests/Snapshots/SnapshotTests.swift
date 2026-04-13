@@ -221,4 +221,79 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testConversationTabsNeutralStatusDotVisible() {
+        let thread = AgentThread(name: "Status Dot Coverage")
+        let mainConversation = Conversation(
+            id: "main",
+            provider: "claude",
+            isMain: true,
+            displayOrder: 0,
+            thread: thread
+        )
+        let secondConversation = Conversation(
+            id: "side",
+            title: "Follow-up",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: thread
+        )
+        thread.conversations = [mainConversation, secondConversation]
+
+        assertMacSnapshot(
+            ThreadDetailConversationTabs(
+                conversations: thread.conversations,
+                selectedConversation: mainConversation,
+                statusForConversation: { conversation in
+                    conversation.id == mainConversation.id ? .neutral : .busy
+                },
+                onSelect: { _ in },
+                onCommitRename: { _, _ in },
+                onRemove: { _ in },
+                onCreate: {},
+                editingConversationID: .constant(nil)
+            ),
+            size: CGSize(width: 640, height: 72),
+            named: "conversation_tabs_neutral_dot"
+        )
+    }
+
+    func testConversationTabsDividerVisibleInDarkMode() {
+        let thread = AgentThread(name: "Status Dot Coverage")
+        let mainConversation = Conversation(
+            id: "main",
+            provider: "claude",
+            isMain: true,
+            displayOrder: 0,
+            thread: thread
+        )
+        let secondConversation = Conversation(
+            id: "side",
+            title: "Follow-up",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: thread
+        )
+        thread.conversations = [mainConversation, secondConversation]
+
+        assertMacSnapshot(
+            ThreadDetailConversationTabs(
+                conversations: thread.conversations,
+                selectedConversation: mainConversation,
+                statusForConversation: { conversation in
+                    conversation.id == mainConversation.id ? .neutral : .busy
+                },
+                onSelect: { _ in },
+                onCommitRename: { _, _ in },
+                onRemove: { _ in },
+                onCreate: {},
+                editingConversationID: .constant(nil)
+            ),
+            size: CGSize(width: 640, height: 72),
+            named: "conversation_tabs_dark_divider",
+            colorScheme: .dark
+        )
+    }
+
 }

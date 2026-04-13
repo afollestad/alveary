@@ -8,24 +8,26 @@ func assertMacSnapshot<V: View>(
     _ view: V,
     size: CGSize,
     named: String? = nil,
+    colorScheme: ColorScheme = .light,
     file: StaticString = #filePath,
     testName: String = #function,
     line: UInt = #line
 ) {
     let isRecordingSnapshots = ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1"
+    let appearanceName: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
 
     let rootView = view
         .transaction { $0.animation = nil }
         .environment(\.locale, Locale(identifier: "en_US_POSIX"))
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
         .environment(\.layoutDirection, .leftToRight)
-        .environment(\.colorScheme, .light)
+        .environment(\.colorScheme, colorScheme)
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
 
     let controller = NSHostingController(rootView: rootView)
     controller.view.frame = CGRect(origin: .zero, size: size)
-    controller.view.appearance = NSAppearance(named: .aqua)
+    controller.view.appearance = NSAppearance(named: appearanceName)
     let window = NSWindow(
         contentRect: CGRect(origin: .zero, size: size),
         styleMask: [.borderless],
@@ -33,6 +35,7 @@ func assertMacSnapshot<V: View>(
         defer: false
     )
     window.isReleasedWhenClosed = false
+    window.appearance = NSAppearance(named: appearanceName)
     window.backgroundColor = .windowBackgroundColor
     window.contentViewController = controller
     window.layoutIfNeeded()
