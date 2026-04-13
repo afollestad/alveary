@@ -20,7 +20,7 @@ struct DiffViewerPaneHeader: View {
                     Text("Diff Viewer")
                         .font(.headline)
 
-                    Text(activeDirectory ?? "No project selected")
+                    Text(displayDirectory)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -80,5 +80,13 @@ struct DiffViewerPaneHeader: View {
         }
         .padding(14)
         .background(.bar)
+    }
+
+    private var displayDirectory: String {
+        guard let activeDirectory else {
+            return "No project selected"
+        }
+
+        return CanonicalPath.abbreviateHomeDirectory(activeDirectory)
     }
 }

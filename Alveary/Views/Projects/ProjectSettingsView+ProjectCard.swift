@@ -7,7 +7,7 @@ struct ProjectSettingsProjectCard: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
-                Text(projectPath)
+                Text(CanonicalPath.abbreviateHomeDirectory(projectPath))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)

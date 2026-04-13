@@ -103,7 +103,7 @@ struct SidebarProjectRow: View {
 
     private var projectSubtitle: String {
         if project.isGitRepository {
-            project.baseRef ?? project.path
+            project.baseRef ?? CanonicalPath.abbreviateHomeDirectory(project.path)
         } else {
             "local"
         }

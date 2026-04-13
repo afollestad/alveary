@@ -9,7 +9,7 @@ struct ProjectSettingsHeader: View {
             Text("Project")
                 .font(.largeTitle.weight(.semibold))
 
-            Text(projectPath)
+            Text(CanonicalPath.abbreviateHomeDirectory(projectPath))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)

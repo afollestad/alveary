@@ -26,6 +26,23 @@ final class CanonicalPathTests: XCTestCase {
         XCTAssertEqual(CanonicalPath.normalize(normalized), normalized)
     }
 
+    func testAbbreviateHomeDirectoryReplacesHomePrefixWithTilde() {
+        let homeDirectory = NSHomeDirectory()
+        let path = homeDirectory + "/Development/alveary"
+
+        XCTAssertEqual(
+            CanonicalPath.abbreviateHomeDirectory(path),
+            "~/Development/alveary"
+        )
+    }
+
+    func testAbbreviateHomeDirectoryKeepsExternalPathsUnchanged() {
+        XCTAssertEqual(
+            CanonicalPath.abbreviateHomeDirectory("/tmp/alveary"),
+            "/tmp/alveary"
+        )
+    }
+
     func testNormalizeHandlesNonexistentPaths() throws {
         let tempDirectory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
