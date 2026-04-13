@@ -45,11 +45,7 @@ struct ThreadPlaceholderView: View {
                                     .foregroundStyle(conversation.isMain ? Color.accentColor : Color.secondary)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(
-                                        conversation.title
-                                            ?? conversation.provider
-                                            ?? (conversation.isMain ? "Main conversation" : "Side conversation")
-                                    )
+                                    Text(conversation.displayName())
                                         .font(.headline)
                                         .foregroundStyle(.primary)
 

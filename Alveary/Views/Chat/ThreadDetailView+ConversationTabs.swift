@@ -15,7 +15,7 @@ struct ThreadDetailConversationTabs: View {
                     HStack(spacing: 10) {
                         ForEach(conversations) { conversation in
                             ConversationTabChip(
-                                label: label(for: conversation),
+                                label: conversation.displayName(),
                                 status: statusForConversation(conversation),
                                 isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
                                 onSelect: { onSelect(conversation) },
@@ -26,7 +26,7 @@ struct ThreadDetailConversationTabs: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(label(for: selectedConversation))
+                    Text(selectedConversation.displayName())
                         .font(.headline)
 
                     Text(selectedConversation.provider ?? "Conversation")
@@ -97,20 +97,6 @@ private struct ConversationTabChip: View {
                 .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
         )
         .fixedSize(horizontal: true, vertical: false)
-    }
-}
-
-private extension ThreadDetailConversationTabs {
-    func label(for conversation: Conversation) -> String {
-        if let title = conversation.title, !title.isEmpty {
-            return title
-        }
-
-        if conversation.isMain {
-            return "Main"
-        }
-
-        return conversation.provider?.capitalized ?? "Conversation"
     }
 }
 

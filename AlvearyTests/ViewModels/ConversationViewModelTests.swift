@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class ConversationViewModelTests: XCTestCase {
     func testReconfigureSessionClearsPermissionBannerAfterSuccessfulUpdate() async throws {
-        let fixture = try TestFixture()
+        let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.showPermissionBanner = true
         fixture.viewModel.state.lastPermissionDeniedToolNames = ["Write", "Edit"]
         fixture.viewModel.state.lastObservedEventIndex = 7
@@ -42,7 +42,7 @@ final class ConversationViewModelTests: XCTestCase {
     }
 
     func testReconfigureSessionPreservesPermissionBannerWhenUpdateFails() async throws {
-        let fixture = try TestFixture(reconfigureError: .reconfigureFailed)
+        let fixture = try ConversationViewModelTestFixture(reconfigureError: .reconfigureFailed)
         fixture.viewModel.state.showPermissionBanner = true
         fixture.viewModel.state.lastPermissionDeniedToolNames = ["Write"]
         fixture.viewModel.state.lastObservedEventIndex = 7
@@ -72,7 +72,7 @@ final class ConversationViewModelTests: XCTestCase {
     }
 
     func testSendDoesNotPersistWhenTransportWriteFails() async throws {
-        let fixture = try TestFixture(sendError: .sendFailed)
+        let fixture = try ConversationViewModelTestFixture(sendError: .sendFailed)
 
         do {
             try await fixture.viewModel.send("Fix the auth bug")
@@ -87,7 +87,7 @@ final class ConversationViewModelTests: XCTestCase {
     }
 
     func testQueueOrSendWhileBusyCapturesStagedContextAndClearsLiveBanner() async throws {
-        let fixture = try TestFixture()
+        let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.stagedContext = "Context block"
         fixture.viewModel.turnState.beginTurn()
 
@@ -100,7 +100,7 @@ final class ConversationViewModelTests: XCTestCase {
     }
 
     func testSendPrependsStagedContextOnlyToTransport() async throws {
-        let fixture = try TestFixture()
+        let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.stagedContext = "Context block"
 
         try await fixture.viewModel.send("Fix the auth bug")
@@ -114,7 +114,7 @@ final class ConversationViewModelTests: XCTestCase {
 
     func testSetupAndStartCreatesWorktreeSpawnsAgentAndSendsFirstMessage() async throws {
         let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
-        let fixture = try TestFixture(
+        let fixture = try ConversationViewModelTestFixture(
             threadName: "New thread",
             useWorktree: true,
             hasCompletedInitialSetup: false,
@@ -152,7 +152,7 @@ final class ConversationViewModelTests: XCTestCase {
     }
 
     func testSetupAndStartDisablesWorktreeForNonGitProjects() async throws {
-        let fixture = try TestFixture(
+        let fixture = try ConversationViewModelTestFixture(
             threadName: "New thread",
             useWorktree: true,
             hasCompletedInitialSetup: false,
@@ -189,7 +189,7 @@ final class ConversationViewModelTests: XCTestCase {
 }
 
 @MainActor
-private struct TestFixture {
+struct ConversationViewModelTestFixture {
     let container: ModelContainer
     let context: ModelContext
     let project: Project
@@ -204,6 +204,7 @@ private struct TestFixture {
 
     init(
         threadName: String = "Thread",
+        conversationTitle: String? = nil,
         useWorktree: Bool = false,
         hasCompletedInitialSetup: Bool = true,
         sendError: MockAgentsManager.MockError? = nil,
@@ -228,7 +229,7 @@ private struct TestFixture {
             useWorktree: useWorktree,
             project: project
         )
-        let conversation = Conversation(provider: "claude", thread: thread)
+        let conversation = Conversation(title: conversationTitle, provider: "claude", thread: thread)
         project.threads.append(thread)
         thread.conversations.append(conversation)
         context.insert(project)
@@ -261,14 +262,12 @@ private struct TestFixture {
         self.settingsService = settingsService
         self.viewModel = viewModel
     }
-
     private static func testSettings() -> AppSettings {
         var settings = AppSettings()
         settings.autoGenerateNames = true
         settings.autoTrustWorktrees = true
         return settings
     }
-
     private static func makeProject(isGitRepository: Bool) -> Project {
         Project(
             path: "/tmp/alveary-project",
@@ -278,14 +277,18 @@ private struct TestFixture {
             baseRef: isGitRepository ? "main" : nil
         )
     }
-
     func dbThread() throws -> AgentThread {
         guard let thread = context.model(for: self.thread.persistentModelID) as? AgentThread else {
             throw FixtureError.missingThread
         }
         return thread
     }
-
+    func dbConversation() throws -> Conversation {
+        guard let conversation = context.model(for: self.conversation.persistentModelID) as? Conversation else {
+            throw FixtureError.missingConversation
+        }
+        return conversation
+    }
     func userMessages() throws -> [ConversationEventRecord] {
         try context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
             $0.conversationId == conversation.id && $0.role == "user"
@@ -293,11 +296,12 @@ private struct TestFixture {
     }
 }
 
-private enum FixtureError: Error {
+enum FixtureError: Error {
     case missingThread
+    case missingConversation
 }
 
-private actor MockAgentsManager: AgentsManager {
+actor MockAgentsManager: AgentsManager {
     enum MockError: Error, Sendable, Equatable {
         case sendFailed
         case reconfigureFailed
@@ -399,7 +403,7 @@ private actor MockAgentsManager: AgentsManager {
 }
 
 @MainActor
-private final class MockConversationRuntimeStore: ConversationRuntimeStore {
+final class MockConversationRuntimeStore: ConversationRuntimeStore {
     private var states: [String: ConversationState] = [:]
 
     func conversationState(for conversationId: String) -> ConversationState {
@@ -413,7 +417,7 @@ private final class MockConversationRuntimeStore: ConversationRuntimeStore {
     }
 }
 
-private actor MockWorktreeManager: WorktreeManager {
+actor MockWorktreeManager: WorktreeManager {
     struct CreateCall: Equatable {
         let projectPath: String
         let threadName: String
@@ -469,7 +473,7 @@ private actor MockWorktreeManager: WorktreeManager {
     }
 }
 
-private actor MockProviderSetupService: ProviderSetupService {
+actor MockProviderSetupService: ProviderSetupService {
     struct Call: Sendable, Equatable {
         let providerId: String
         let workingDirectory: String

@@ -36,87 +36,89 @@ struct ThreadDetailView: View {
     }
 
     var body: some View {
-        if let conversation = appState.selectedConversation(in: thread) {
-            VStack(spacing: 0) {
-                if let conversationActionError {
-                    InlineBanner(message: conversationActionError, severity: .error, autoDismissAfter: nil) {
-                        self.conversationActionError = nil
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                }
-
-                ThreadDetailConversationTabs(
-                    conversations: conversations,
-                    selectedConversation: conversation,
-                    statusForConversation: { agentsManager.status(for: $0.id) },
-                    onSelect: { appState.selectConversation($0, in: thread) },
-                    onRemove: { pendingDeleteConversation = $0 },
-                    onCreate: { Task { await createConversation() } }
-                )
-
-                ConversationView(
-                    conversation: conversation,
-                    agentsManager: agentsManager,
-                    runtimeStore: runtimeStore,
-                    modelContext: modelContext,
-                    settingsService: settingsService,
-                    providerRegistry: providerRegistry,
-                    worktreeManager: worktreeManager,
-                    providerSetup: providerSetup,
-                    fileListManager: fileListManager,
-                    loadSkillCompletions: loadSkillCompletions,
-                    diffViewModel: diffViewModel,
-                    appState: appState
-                )
-                .id(conversation.id)
-            }
-            .task(id: thread.persistentModelID) {
-                appState.repairSelectedConversationIfNeeded(for: thread)
-            }
-            .task(id: selectedConversationID) {
-                cancelPendingDiffActionIfNeeded()
-            }
-            .confirmationDialog(
-                "Remove conversation?",
-                isPresented: Binding(
-                    get: { pendingDeleteConversation != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            pendingDeleteConversation = nil
+        Group {
+            if let conversation = appState.selectedConversation(in: thread) {
+                VStack(spacing: 0) {
+                    if let conversationActionError {
+                        InlineBanner(message: conversationActionError, severity: .error, autoDismissAfter: nil) {
+                            self.conversationActionError = nil
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
                     }
-                ),
-                presenting: pendingDeleteConversation
-            ) { conversation in
-                Button("Remove", role: .destructive) {
-                    let conversationID = conversation.persistentModelID
-                    pendingDeleteConversation = nil
-                    Task { await removeConversation(id: conversationID) }
-                }
 
-                Button("Cancel", role: .cancel) {
-                    pendingDeleteConversation = nil
+                    ThreadDetailConversationTabs(
+                        conversations: conversations,
+                        selectedConversation: conversation,
+                        statusForConversation: { agentsManager.status(for: $0.id) },
+                        onSelect: { appState.selectConversation($0, in: thread) },
+                        onRemove: { pendingDeleteConversation = $0 },
+                        onCreate: { Task { await createConversation() } }
+                    )
+
+                    ConversationView(
+                        conversation: conversation,
+                        agentsManager: agentsManager,
+                        runtimeStore: runtimeStore,
+                        modelContext: modelContext,
+                        settingsService: settingsService,
+                        providerRegistry: providerRegistry,
+                        worktreeManager: worktreeManager,
+                        providerSetup: providerSetup,
+                        fileListManager: fileListManager,
+                        loadSkillCompletions: loadSkillCompletions,
+                        diffViewModel: diffViewModel,
+                        appState: appState
+                    )
+                    .id(conversation.id)
                 }
-            } message: { conversation in
-                Text("This permanently deletes \(conversationLabel(for: conversation)) and its saved messages.")
-            }
-        } else {
-            EmptyStateView(
-                icon: "bubble.left.and.text.bubble.right.fill",
-                heading: "Create your first conversation",
-                subtext: "Start a main or side conversation in this thread to begin chatting with your agent.",
-                actions: [
-                    .init(title: "New Conversation", style: .primary) {
-                        Task { await createConversation() }
+                .task(id: thread.persistentModelID) {
+                    appState.repairSelectedConversationIfNeeded(for: thread)
+                }
+                .task(id: selectedConversationID) {
+                    cancelPendingDiffActionIfNeeded()
+                }
+                .confirmationDialog(
+                    "Remove conversation?",
+                    isPresented: Binding(
+                        get: { pendingDeleteConversation != nil },
+                        set: { isPresented in
+                            if !isPresented {
+                                pendingDeleteConversation = nil
+                            }
+                        }
+                    ),
+                    presenting: pendingDeleteConversation
+                ) { conversation in
+                    Button("Remove", role: .destructive) {
+                        let conversationID = conversation.persistentModelID
+                        pendingDeleteConversation = nil
+                        Task { await removeConversation(id: conversationID) }
                     }
-                ]
-            )
-            .task(id: thread.persistentModelID) {
-                appState.repairSelectedConversationIfNeeded(for: thread)
-            }
-            .task(id: selectedConversationID) {
-                cancelPendingDiffActionIfNeeded()
+
+                    Button("Cancel", role: .cancel) {
+                        pendingDeleteConversation = nil
+                    }
+                } message: { conversation in
+                    Text("This permanently deletes \(conversation.displayName()) and its saved messages.")
+                }
+            } else {
+                EmptyStateView(
+                    icon: "bubble.left.and.text.bubble.right.fill",
+                    heading: "Create your first conversation",
+                    subtext: "Start a main or side conversation in this thread to begin chatting with your agent.",
+                    actions: [
+                        .init(title: "New Conversation", style: .primary) {
+                            Task { await createConversation() }
+                        }
+                    ]
+                )
+                .task(id: thread.persistentModelID) {
+                    appState.repairSelectedConversationIfNeeded(for: thread)
+                }
+                .task(id: selectedConversationID) {
+                    cancelPendingDiffActionIfNeeded()
+                }
             }
         }
     }
@@ -216,17 +218,5 @@ private extension ThreadDetailView {
             appState.pendingDiffAction = nil
             return
         }
-    }
-
-    func conversationLabel(for conversation: Conversation) -> String {
-        if let title = conversation.title, !title.isEmpty {
-            return title
-        }
-
-        if conversation.isMain {
-            return "Main"
-        }
-
-        return conversation.provider?.capitalized ?? "Conversation"
     }
 }

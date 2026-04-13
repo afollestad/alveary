@@ -36,3 +36,18 @@ extension ConversationViewModel {
         .joined(separator: "\n")
     }
 }
+
+extension Conversation {
+    func displayName() -> String {
+        let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedTitle, !trimmedTitle.isEmpty {
+            return trimmedTitle
+        }
+
+        if isMain {
+            return "Main"
+        }
+
+        return "Conversation (\(displayOrder + 1))"
+    }
+}
