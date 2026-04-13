@@ -9,9 +9,19 @@ struct SettingsTextFieldRow: View {
     let title: String
     @Binding var text: String
 
-    init(_ title: String, text: Binding<String>) {
+    private let width: CGFloat
+    private let textAlignment: TextAlignment
+
+    init(
+        _ title: String,
+        text: Binding<String>,
+        width: CGFloat = SettingsScreenLayout.settingsTextFieldWidth,
+        textAlignment: TextAlignment = .trailing
+    ) {
         self.title = title
         _text = text
+        self.width = width
+        self.textAlignment = textAlignment
     }
 
     var body: some View {
@@ -25,11 +35,11 @@ struct SettingsTextFieldRow: View {
                 title,
                 text: $text,
                 showsPrompt: false,
-                textAlignment: .trailing,
+                textAlignment: textAlignment,
                 horizontalPadding: 10,
                 verticalPadding: 7
             )
-            .frame(width: SettingsScreenLayout.settingsTextFieldWidth)
+            .frame(width: width)
         }
         .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
     }

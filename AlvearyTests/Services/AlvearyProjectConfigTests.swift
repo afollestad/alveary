@@ -16,7 +16,7 @@ final class AlvearyProjectConfigTests: XCTestCase {
                 "shellSetup": "source .envrc",
                 "preservePatterns": [".env", "config/*.json"],
                 "actions": [
-                    ["name": "Test", "command": "swift test"],
+                    ["icon": "hammer", "name": "Test", "command": "swift test"],
                     ["name": "Lint", "command": "swiftlint"]
                 ]
             ],
@@ -33,7 +33,7 @@ final class AlvearyProjectConfigTests: XCTestCase {
         XCTAssertEqual(
             config.actions,
             [
-                .init(name: "Test", command: "swift test"),
+                .init(icon: "hammer", name: "Test", command: "swift test"),
                 .init(name: "Lint", command: "swiftlint")
             ]
         )
@@ -62,8 +62,10 @@ final class AlvearyProjectConfigTests: XCTestCase {
                     "teardown": ""
                 ],
                 "shellSetup": "",
+                "preservePatterns": [" ", ".env.local", ""],
                 "actions": [
-                    ["name": "Valid", "command": "echo ok"],
+                    ["icon": "", "name": "Valid", "command": "echo ok"],
+                    ["name": " ", "command": "echo nope"],
                     ["name": "Missing command"]
                 ]
             ],
@@ -76,7 +78,43 @@ final class AlvearyProjectConfigTests: XCTestCase {
         XCTAssertNil(config.setupTimeoutSeconds)
         XCTAssertNil(config.teardownScript)
         XCTAssertNil(config.shellSetup)
+        XCTAssertEqual(config.preservePatterns, [".env.local"])
         XCTAssertEqual(config.actions, [.init(name: "Valid", command: "echo ok")])
+    }
+
+    func testWritePreservesAdvancedFieldsWhileUpdatingEditableValues() async throws {
+        let projectURL = try makeProjectDirectory()
+        let initialConfig = AlvearyProjectConfig(
+            setupScript: "bin/setup",
+            setupTimeoutSeconds: 45,
+            teardownScript: "bin/teardown",
+            shellSetup: "source .envrc",
+            preservePatterns: [".env"],
+            actions: [.init(icon: "hammer", name: "Test", command: "swift test")]
+        )
+
+        let updatedConfig = initialConfig.updatingEditableFields(
+            setupScript: "scripts/bootstrap",
+            teardownScript: "scripts/cleanup",
+            preservePatterns: [".env.local", " ", "config/*.json"],
+            actions: [
+                .init(icon: "sparkles", name: "Generate", command: "make generate"),
+                .init(icon: "terminal", name: " ", command: "ignored")
+            ]
+        )
+
+        try await updatedConfig.write(projectPath: projectURL.path)
+        let reloadedConfig = await AlvearyProjectConfig(projectPath: projectURL.path)
+
+        XCTAssertEqual(reloadedConfig.setupScript, "scripts/bootstrap")
+        XCTAssertEqual(reloadedConfig.setupTimeoutSeconds, 45)
+        XCTAssertEqual(reloadedConfig.teardownScript, "scripts/cleanup")
+        XCTAssertEqual(reloadedConfig.shellSetup, "source .envrc")
+        XCTAssertEqual(reloadedConfig.preservePatterns, [".env.local", "config/*.json"])
+        XCTAssertEqual(
+            reloadedConfig.actions,
+            [.init(icon: "sparkles", name: "Generate", command: "make generate")]
+        )
     }
 
     private func makeProjectDirectory() throws -> URL {

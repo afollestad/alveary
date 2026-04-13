@@ -303,9 +303,9 @@ private extension TerminalPane {
 
     func emptyOutputDescription(for session: TerminalSession) -> String {
         if let currentDirectory = session.currentDirectory, !currentDirectory.isEmpty {
-            return "This session is scoped to \(currentDirectory). Output will stream into this panel once the command runner is wired up."
+            return "This session is scoped to \(currentDirectory). Captured output will appear here as the command finishes or reports errors."
         }
 
-        return "Output will stream into this panel once the command runner is wired up."
+        return "Captured output will appear here as the command finishes or reports errors."
     }
 }

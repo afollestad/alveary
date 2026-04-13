@@ -73,10 +73,12 @@ struct SidebarProjectRow: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
         .onHover { isHovering in
-            self.isHovering = isHovering
+            withAnimation(.easeInOut(duration: 0.12)) {
+                self.isHovering = isHovering
 
-            if !isHovering {
-                isHoveringCreateThread = false
+                if !isHovering {
+                    isHoveringCreateThread = false
+                }
             }
         }
         .animation(.easeInOut(duration: 0.12), value: isHovering)

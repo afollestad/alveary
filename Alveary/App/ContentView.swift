@@ -8,6 +8,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var uiModelContext
 
     private let settingsService: SettingsService
+    let shellRunner: ShellRunner
     private let gitHubCLI: GitHubCLIService
     private let providerDetection: any ProviderDetectionService
     private let agentRegistry: AgentRegistry
@@ -30,23 +31,23 @@ struct ContentView: View {
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
-    @State private var terminalManager: TerminalManager
+    @State var terminalManager: TerminalManager
+    @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
 
     init(resolver: Resolver, appState: AppState) {
         self.appState = appState
         let settingsService = resolver.settingsService()
+        let shellRunner = resolver.shellRunner()
         let gitHubCLI = resolver.gitHubCLIService()
         let providerDetection = resolver.providerDetectionService()
         let agentRegistry = resolver.agentRegistry()
-        let providerRegistry = resolver.providerRegistry()
-        let skillsService = resolver.skillsService()
-        let mcpService = resolver.mcpService()
-        let agentsManager = resolver.agentsManager()
-        let runtimeStore = resolver.conversationRuntimeStore()
+        let providerRegistry = resolver.providerRegistry(); let (skillsService, mcpService) = (resolver.skillsService(), resolver.mcpService())
+        let (agentsManager, runtimeStore) = (resolver.agentsManager(), resolver.conversationRuntimeStore())
         let worktreeManager = resolver.worktreeManager()
-        let providerSetup = resolver.providerSetupService(); let fileListManager = resolver.fileListManager()
+        let (providerSetup, fileListManager) = (resolver.providerSetupService(), resolver.fileListManager())
 
         self.settingsService = settingsService
+        self.shellRunner = shellRunner
         self.gitHubCLI = gitHubCLI
         self.providerDetection = providerDetection
         self.agentRegistry = agentRegistry
@@ -85,6 +86,7 @@ struct ContentView: View {
             agentRegistry: agentRegistry
         ))
         _terminalManager = State(initialValue: TerminalManager())
+        _toolbarProjectActions = State(initialValue: [])
     }
 
     var body: some View {
@@ -154,15 +156,25 @@ struct ContentView: View {
         .environment(terminalManager)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    appState.isLeftPaneVisible.toggle()
-                } label: {
+                if let thread = selectedThread,
+                   !toolbarProjectActions.isEmpty {
+                    ForEach(Array(toolbarProjectActions.enumerated()), id: \.offset) { _, action in
+                        Button {
+                            runProjectAction(thread: thread, action: action)
+                        } label: {
+                            Label(action.name, systemImage: action.icon ?? "terminal")
+                        }
+                        .help(action.name)
+                    }
+                }
+
+                Button(action: toggleTerminalPane) {
                     Label(
-                        appState.isLeftPaneVisible ? "Hide Sidebar" : "Show Sidebar",
-                        systemImage: "sidebar.leading"
+                        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal",
+                        systemImage: "terminal"
                     )
                 }
-                .keyboardShortcut("\\", modifiers: .command)
+                .help(appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -174,20 +186,15 @@ struct ContentView: View {
                         systemImage: "sidebar.trailing"
                     )
                 }
+                .help(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
                 .keyboardShortcut("\\", modifiers: [.command, .shift])
-
-                Button(action: toggleTerminalPane) {
-                    Label(
-                        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal",
-                        systemImage: "terminal"
-                    )
-                }
 
                 Button {
                     appState.openSettings()
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
+                .help("Open Settings")
             }
         }
         .onChange(of: appState.isLeftPaneVisible) { _, isVisible in
@@ -213,6 +220,9 @@ struct ContentView: View {
             handlePendingCommand(command)
         }
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
+        .task(id: selectedThread?.project?.path) {
+            await refreshToolbarProjectActions()
+        }
         .onAppear {
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
@@ -221,12 +231,16 @@ struct ContentView: View {
 }
 
 private extension ContentView {
-    var visibleThreadID: PersistentIdentifier? {
-        if case .thread(let thread) = appState.selectedSidebarItem {
-            return thread.persistentModelID
+    var selectedThread: AgentThread? {
+        guard case .thread(let thread) = appState.selectedSidebarItem else {
+            return nil
         }
 
-        return nil
+        return thread
+    }
+
+    var visibleThreadID: PersistentIdentifier? {
+        selectedThread?.persistentModelID
     }
 
     func colorScheme(for theme: String) -> ColorScheme? {
@@ -441,6 +455,22 @@ private extension ContentView {
         uiModelContext.model(for: id) as? AgentThread
     }
 
+    func refreshToolbarProjectActions() async {
+        guard let thread = selectedThread,
+              let projectPath = thread.project?.path else {
+            toolbarProjectActions = []
+            return
+        }
+
+        let config = await AlvearyProjectConfig(projectPath: projectPath)
+
+        guard selectedThread?.persistentModelID == thread.persistentModelID else {
+            return
+        }
+
+        toolbarProjectActions = config.actions ?? []
+    }
+
     func persistDiffViewerWidth(_ width: CGFloat) {
         settingsService.update {
             $0.diffViewerWidth = width
@@ -458,4 +488,5 @@ private extension ContentView {
             $0.terminalPaneHeight = height
         }
     }
+
 }

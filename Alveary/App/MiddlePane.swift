@@ -29,7 +29,7 @@ struct MiddlePane: View {
             MCPScreen(viewModel: mcpViewModel)
         case .project(let project):
             ProjectSettingsView(project: project)
-            .id(project.path)
+                .id(project.path)
         case .thread(let thread):
             ThreadDetailView(
                 thread: thread,
