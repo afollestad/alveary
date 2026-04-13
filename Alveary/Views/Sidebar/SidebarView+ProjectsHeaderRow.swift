@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SidebarProjectsHeaderRow: View {
+    @State private var isHoveringAddProject = false
+
     let onAddProject: () -> Void
 
     var body: some View {
@@ -14,12 +16,23 @@ struct SidebarProjectsHeaderRow: View {
 
             Button(action: onAddProject) {
                 Image(systemName: "plus.circle")
-                    .foregroundStyle(Color.primary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(isHoveringAddProject ? 0.95 : 0.8))
                     .frame(width: 24, height: 24)
+                    .background(
+                        Circle()
+                            .fill(Color.primary.opacity(isHoveringAddProject ? 0.12 : 0))
+                    )
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .contentShape(Circle())
+            .onHover { isHovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHoveringAddProject = isHovering
+                }
+            }
             .accessibilityLabel("Add Project")
-            .help("Add Project")
+            .help("Add a project")
         }
         .padding(.leading, 8)
         .padding(.trailing, 16)

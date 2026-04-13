@@ -9,6 +9,7 @@ struct SidebarProjectRow: View {
     let onCreateThread: () -> Void
 
     @State private var isHovering = false
+    @State private var isHoveringCreateThread = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -45,18 +46,39 @@ struct SidebarProjectRow: View {
 
                 Button(action: onCreateThread) {
                     Image(systemName: "square.and.pencil")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(isHoveringCreateThread ? 0.95 : 0.8))
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(Color.primary.opacity(isHoveringCreateThread ? 0.12 : 0))
+                        )
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .contentShape(Circle())
+                .offset(x: 4)
                 .opacity(isHovering ? 1 : 0)
                 .allowsHitTesting(isHovering)
+                .onHover { isHovering in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        isHoveringCreateThread = isHovering
+                    }
+                }
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
-                .help("New Thread")
+                .accessibilityLabel("New Thread")
+                .help("Create a new thread")
             }
             .frame(maxWidth: .infinity)
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
-        .onHover { isHovering = $0 }
+        .onHover { isHovering in
+            self.isHovering = isHovering
+
+            if !isHovering {
+                isHoveringCreateThread = false
+            }
+        }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
     }
 
