@@ -24,14 +24,11 @@ struct ProjectSettingsPreservePatternsCard: View {
                             )
 
                             if index < patterns.count - 1 || !pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Button {
-                                    onRemovePattern(index)
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Remove preserve pattern")
+                                ProjectSettingsAccessoryIconButton(
+                                    systemImage: "trash",
+                                    accessibilityLabel: "Remove preserve pattern",
+                                    action: { onRemovePattern(index) }
+                                )
                             }
                         }
                     }

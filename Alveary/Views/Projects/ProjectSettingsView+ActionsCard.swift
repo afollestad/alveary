@@ -38,6 +38,34 @@ struct ProjectSettingsActionsCard: View {
     }
 }
 
+struct ProjectSettingsAccessoryIconButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(Color.primary.opacity(isHovering ? 0.12 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .onHover { isHovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                self.isHovering = isHovering
+            }
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 private struct ProjectSettingsActionEditor: View {
     let action: ProjectSettingsActionDraft
     let onChange: (ProjectSettingsActionDraft) -> Void
@@ -51,14 +79,11 @@ private struct ProjectSettingsActionEditor: View {
 
                 Spacer()
 
-                Button {
-                    onRemove()
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Remove action")
+                ProjectSettingsAccessoryIconButton(
+                    systemImage: "trash",
+                    accessibilityLabel: "Remove action",
+                    action: onRemove
+                )
             }
 
             ProjectSettingsActionIconRow(

@@ -151,6 +151,63 @@ final class WorktreeManagerTests: XCTestCase {
         }
     }
 
+    func testRemoveRunsTeardownScriptForWorktrees() async throws {
+        let projectURL = try makeTemporaryProject()
+        let worktreeURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees/demo")
+        try writeProjectConfig(
+            at: projectURL,
+            json: """
+            {
+              "scripts": {
+                "teardown": "echo teardown"
+              }
+            }
+            """
+        )
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: worktreeListOutput(
+                        projectPath: projectURL.path,
+                        worktreePath: worktreeURL.path,
+                        branch: "alveary/demo"
+                    ),
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+
+        try await manager.remove(
+            projectPath: projectURL.path,
+            worktreePath: worktreeURL.path,
+            branch: "alveary/demo"
+        )
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations[0].args, ["worktree", "list", "--porcelain"])
+        XCTAssertEqual(invocations[1].executable, "/bin/sh")
+        XCTAssertEqual(invocations[1].args, ["-c", "echo teardown"])
+        XCTAssertEqual(invocations[1].directory, worktreeURL.path)
+        XCTAssertEqual(invocations[1].timeout, .seconds(60))
+        XCTAssertEqual(invocations[2].args, ["worktree", "remove", "--force", worktreeURL.path])
+        XCTAssertEqual(invocations[3].args, ["show-ref", "--verify", "--quiet", "refs/heads/alveary/demo"])
+        XCTAssertEqual(invocations[4].args, ["branch", "-D", "alveary/demo"])
+        assertLifecycleEnvironment(
+            invocations[1].environment,
+            threadName: "demo",
+            branch: "alveary/demo",
+            projectPath: projectURL.path,
+            worktreePath: worktreeURL.path
+        )
+    }
+
     func testRemoveAllDeletesRegisteredWorktreesAndProjectNamespaceDirectory() async throws {
         let projectURL = try makeTemporaryProject()
         let worktreeURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees/demo/worktree")
@@ -226,6 +283,18 @@ final class WorktreeManagerTests: XCTestCase {
 
     private func writeProjectConfig(at projectURL: URL, json: String) throws {
         try json.write(to: projectURL.appendingPathComponent(".alveary.json"), atomically: true, encoding: .utf8)
+    }
+
+    private func worktreeListOutput(projectPath: String, worktreePath: String, branch: String) -> String {
+        """
+        worktree \(projectPath)
+        HEAD abc123
+        branch refs/heads/main
+
+        worktree \(worktreePath)
+        HEAD def456
+        branch refs/heads/\(branch)
+        """
     }
 
     private static func emptyShellResult() -> ShellResult {
