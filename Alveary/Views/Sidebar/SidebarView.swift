@@ -89,9 +89,7 @@ struct SidebarView: View {
                         }
 
                         if isExpanded {
-                            ForEach(activeProjectThreads.indices, id: \.self) { index in
-                                let thread = activeProjectThreads[index]
-
+                            ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
@@ -130,9 +128,7 @@ struct SidebarView: View {
                                 .padding(.leading, 14)
 
                                 if isArchivedExpanded {
-                                    ForEach(archivedProjectThreads.indices, id: \.self) { index in
-                                        let thread = archivedProjectThreads[index]
-
+                                    ForEach(archivedProjectThreads, id: \.persistentModelID) { thread in
                                         SidebarThreadRow(
                                             thread: thread,
                                             status: .archived,
