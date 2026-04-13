@@ -163,6 +163,42 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(result, .skills)
     }
 
+    func testRenameThreadIDReturnsSelectedThreadIDWhenNotEditing() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let thread = makeThread(name: "Thread 1", project: project)
+
+        let result = renameThreadID(
+            for: .thread(thread),
+            editingThreadID: nil
+        )
+
+        XCTAssertEqual(result, thread.persistentModelID)
+    }
+
+    func testRenameThreadIDReturnsNilForNonThreadSelection() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = renameThreadID(
+            for: .project(project),
+            editingThreadID: nil
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testRenameThreadIDReturnsNilWhileEditingAnotherThread() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let thread = makeThread(name: "Thread 1", project: project)
+        let editingThread = makeThread(name: "Thread 2", project: project)
+
+        let result = renameThreadID(
+            for: .thread(thread),
+            editingThreadID: editingThread.persistentModelID
+        )
+
+        XCTAssertNil(result)
+    }
+
     // MARK: - Helpers
 
     @discardableResult

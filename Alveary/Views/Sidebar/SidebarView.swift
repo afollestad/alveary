@@ -8,7 +8,7 @@ struct SidebarView: View {
     @Environment(\.modelContext) var uiModelContext
     @Query private var queriedProjects: [Project]
     @State var expandedProjects: Set<String> = []
-    @State private var editingThreadID: PersistentIdentifier?
+    @State var editingThreadID: PersistentIdentifier?
     @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
     @State var pendingDeleteProject: Project?
@@ -131,7 +131,7 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, Self.backspaceKey], action: handleSidebarKeyPress)
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey], action: handleSidebarKeyPress)
         }
         .onAppear {
             syncExpansionWithSelection(appState.selectedSidebarItem)

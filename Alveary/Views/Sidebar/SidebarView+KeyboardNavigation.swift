@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 extension SidebarView {
@@ -29,33 +30,71 @@ extension SidebarView {
         switch keyPress.key {
         case .upArrow, .downArrow:
             return handleVerticalArrow(keyPress.key)
+        case .return:
+            return handleRenameKey()
         case Self.backspaceKey:
-            guard case .thread(let thread) = appState.selectedSidebarItem else {
-                return .ignored
-            }
-            switch viewModel.deleteKeyAction {
-            case .archive:
-                pendingArchiveThread = thread
-            case .delete:
-                pendingDeleteThread = thread
-            }
-            return .handled
+            return handleDeleteKey()
+        case .leftArrow, .rightArrow:
+            return handleHorizontalArrow(keyPress.key)
+        default:
+            return .ignored
+        }
+    }
+
+    func handleRenameKey() -> KeyPress.Result {
+        guard let threadID = renameThreadID(
+            for: appState.selectedSidebarItem,
+            editingThreadID: editingThreadID
+        ) else {
+            return .ignored
+        }
+
+        editingThreadID = threadID
+        return .handled
+    }
+
+    func handleDeleteKey() -> KeyPress.Result {
+        guard case .thread(let thread) = appState.selectedSidebarItem else {
+            return .ignored
+        }
+
+        switch viewModel.deleteKeyAction {
+        case .archive:
+            pendingArchiveThread = thread
+        case .delete:
+            pendingDeleteThread = thread
+        }
+        return .handled
+    }
+
+    func handleHorizontalArrow(_ key: KeyEquivalent) -> KeyPress.Result {
+        guard case .project(let project) = appState.selectedSidebarItem else {
+            return .ignored
+        }
+
+        switch key {
         case .leftArrow:
-            guard case .project(let project) = appState.selectedSidebarItem else {
-                return .ignored
-            }
             expandedProjects.remove(project.path)
             return .handled
         case .rightArrow:
-            guard case .project(let project) = appState.selectedSidebarItem else {
-                return .ignored
-            }
             expandedProjects.insert(project.path)
             return .handled
         default:
             return .ignored
         }
     }
+}
+
+func renameThreadID(
+    for selection: SidebarItem?,
+    editingThreadID: PersistentIdentifier?
+) -> PersistentIdentifier? {
+    guard editingThreadID == nil,
+          case .thread(let thread) = selection else {
+        return nil
+    }
+
+    return thread.persistentModelID
 }
 
 func buildNavigableItems(
