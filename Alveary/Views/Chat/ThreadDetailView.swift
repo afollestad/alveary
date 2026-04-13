@@ -105,7 +105,13 @@ struct ThreadDetailView: View {
                     Text("This permanently deletes \(conversation.displayName()) and its saved messages.")
                 }
                 .sheet(item: $renameDraft) { draft in
-                    ConversationRenameSheet(draft: draft, onSave: renameConversation)
+                    RenameSheet(
+                        draft: draft,
+                        heading: "Rename Conversation",
+                        placeholder: "Conversation name",
+                        closeLabel: "Close rename conversation",
+                        onSave: renameConversation
+                    )
                 }
             } else {
                 EmptyStateView(
@@ -245,7 +251,7 @@ private extension ThreadDetailView {
     }
 }
 
-private struct ConversationRenameDraft: Identifiable {
+private struct ConversationRenameDraft: RenameDraft {
     let conversationID: PersistentIdentifier
     let fallbackName: String
     let currentDisplayName: String
@@ -278,59 +284,5 @@ private struct ConversationRenameDraft: Identifiable {
             fallbackName: fallbackName,
             hasCustomTitle: hasCustomTitle
         )
-    }
-}
-
-private struct ConversationRenameSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State var draft: ConversationRenameDraft
-    let onSave: (ConversationRenameDraft) -> Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Rename Conversation")
-                        .font(.title2.weight(.semibold))
-
-                    Text("Current label: \(draft.currentDisplayName)")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                ModalCloseButton("Close rename conversation") {
-                    dismiss()
-                }
-            }
-
-            AppTextField("Conversation name", text: $draft.title)
-                .onSubmit(save)
-
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .secondaryActionButtonStyle()
-
-                Spacer()
-
-                Button("Save", action: save)
-                    .primaryActionButtonStyle()
-                    .disabled(!draft.canSave)
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 420)
-    }
-}
-
-private extension ConversationRenameSheet {
-    func save() {
-        guard onSave(draft) else {
-            return
-        }
-
-        dismiss()
     }
 }

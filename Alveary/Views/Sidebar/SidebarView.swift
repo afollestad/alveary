@@ -182,7 +182,13 @@ struct SidebarView: View {
         }
         .animation(nil, value: statusVersion)
         .sheet(item: $renameDraft) { draft in
-            ThreadRenameSheet(draft: draft, onSave: renameThread)
+            RenameSheet(
+                draft: draft,
+                heading: "Rename Thread",
+                placeholder: "Thread name",
+                closeLabel: "Close rename thread",
+                onSave: renameThread
+            )
         }
         .confirmationDialog(
             "Delete thread?",
