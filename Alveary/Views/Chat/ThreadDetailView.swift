@@ -17,7 +17,7 @@ struct ThreadDetailView: View {
 
     @Environment(\.modelContext) private var uiModelContext
     @State private var conversationActionError: String?
-    @State private var renameDraft: ConversationRenameDraft?
+    @State private var editingConversationID: PersistentIdentifier?
     @State private var pendingDeleteConversation: Conversation?
 
     private var conversations: [Conversation] {
@@ -53,9 +53,10 @@ struct ThreadDetailView: View {
                         selectedConversation: conversation,
                         statusForConversation: { agentsManager.status(for: $0.id) },
                         onSelect: { appState.selectConversation($0, in: thread) },
-                        onRename: { renameDraft = ConversationRenameDraft(conversation: $0) },
+                        onCommitRename: { renameConversation($0, to: $1) },
                         onRemove: { pendingDeleteConversation = $0 },
-                        onCreate: { Task { await createConversation() } }
+                        onCreate: { Task { await createConversation() } },
+                        editingConversationID: $editingConversationID
                     )
 
                     ConversationView(
@@ -104,15 +105,7 @@ struct ThreadDetailView: View {
                 } message: { conversation in
                     Text("This permanently deletes \(conversation.displayName()) and its saved messages.")
                 }
-                .sheet(item: $renameDraft) { draft in
-                    RenameSheet(
-                        draft: draft,
-                        heading: "Rename Conversation",
-                        placeholder: "Conversation name",
-                        closeLabel: "Close rename conversation",
-                        onSave: renameConversation
-                    )
-                }
+
             } else {
                 EmptyStateView(
                     icon: "bubble.left.and.text.bubble.right.fill",
@@ -136,22 +129,19 @@ struct ThreadDetailView: View {
 }
 
 private extension ThreadDetailView {
-    func renameConversation(_ draft: ConversationRenameDraft) -> Bool {
-        guard let dbConversation = uiModelContext.model(for: draft.conversationID) as? Conversation else {
+    func renameConversation(_ conversation: Conversation, to newName: String) {
+        guard let dbConversation = uiModelContext.model(for: conversation.persistentModelID) as? Conversation else {
             conversationActionError = "Couldn't rename conversation: it no longer exists"
-            return false
+            return
         }
 
-        dbConversation.title = draft.persistedTitle
+        dbConversation.title = dbConversation.persistedTitle(from: newName)
 
         do {
             try uiModelContext.save()
             conversationActionError = nil
-            renameDraft = nil
-            return true
         } catch {
             conversationActionError = "Couldn't rename conversation: \(error.localizedDescription)"
-            return false
         }
     }
 
@@ -248,41 +238,5 @@ private extension ThreadDetailView {
             appState.pendingDiffAction = nil
             return
         }
-    }
-}
-
-private struct ConversationRenameDraft: RenameDraft {
-    let conversationID: PersistentIdentifier
-    let fallbackName: String
-    let currentDisplayName: String
-    let hasCustomTitle: Bool
-    var title: String
-
-    var id: PersistentIdentifier {
-        conversationID
-    }
-
-    init(conversation: Conversation) {
-        conversationID = conversation.persistentModelID
-        fallbackName = conversation.defaultDisplayName()
-        currentDisplayName = conversation.displayName()
-        hasCustomTitle = conversation.customTitle != nil
-        title = conversation.customTitle ?? conversation.displayName()
-    }
-
-    var trimmedTitle: String {
-        title.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var canSave: Bool {
-        !trimmedTitle.isEmpty
-    }
-
-    var persistedTitle: String? {
-        Conversation.persistedTitle(
-            from: title,
-            fallbackName: fallbackName,
-            hasCustomTitle: hasCustomTitle
-        )
     }
 }

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct ThreadDetailConversationTabs: View {
@@ -5,9 +6,11 @@ struct ThreadDetailConversationTabs: View {
     let selectedConversation: Conversation
     let statusForConversation: (Conversation) -> ActivitySignal
     let onSelect: (Conversation) -> Void
-    let onRename: (Conversation) -> Void
+    let onCommitRename: (Conversation, String) -> Void
     let onRemove: (Conversation) -> Void
     let onCreate: () -> Void
+
+    @Binding var editingConversationID: PersistentIdentifier?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -16,11 +19,12 @@ struct ThreadDetailConversationTabs: View {
                     HStack(spacing: 10) {
                         ForEach(conversations) { conversation in
                             ConversationTabChip(
-                                label: conversation.displayName(),
+                                conversation: conversation,
                                 status: statusForConversation(conversation),
                                 isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
+                                editingConversationID: $editingConversationID,
                                 onSelect: { onSelect(conversation) },
-                                onRename: { onRename(conversation) },
+                                onCommitRename: { onCommitRename(conversation, $0) },
                                 onClose: { onRemove(conversation) }
                             )
                         }
@@ -55,32 +59,57 @@ struct ThreadDetailConversationTabs: View {
 }
 
 private struct ConversationTabChip: View {
-    let label: String
+    let conversation: Conversation
     let status: ActivitySignal
     let isSelected: Bool
+    @Binding var editingConversationID: PersistentIdentifier?
     let onSelect: () -> Void
-    let onRename: () -> Void
+    let onCommitRename: (String) -> Void
     let onClose: () -> Void
+
+    @State private var editText = ""
+    @FocusState private var isFieldFocused: Bool
+
+    private var isEditing: Bool {
+        editingConversationID == conversation.persistentModelID
+    }
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(action: onSelect) {
+            if isEditing {
                 HStack(spacing: 8) {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 8, height: 8)
                         .opacity(showsStatusDot ? 1 : 0)
 
-                    Text(label)
+                    TextField("Conversation name", text: $editText)
+                        .textFieldStyle(.plain)
+                        .focused($isFieldFocused)
+                        .onSubmit { commitRename() }
+                        .onExitCommand { cancelRename() }
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .accessibilityAction(named: Text("Rename")) {
-                onRename()
+            } else {
+                Button(action: onSelect) {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
+                            .opacity(showsStatusDot ? 1 : 0)
+
+                        Text(conversation.displayName())
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(conversation.displayName())
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityAction(named: Text("Rename")) {
+                    editingConversationID = conversation.persistentModelID
+                }
             }
 
             Button(action: onClose) {
@@ -91,7 +120,7 @@ private struct ConversationTabChip: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(label)")
+            .accessibilityLabel("Remove \(conversation.displayName())")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -105,10 +134,21 @@ private struct ConversationTabChip: View {
         )
         .contextMenu {
             Button("Rename...") {
-                onRename()
+                editingConversationID = conversation.persistentModelID
             }
         }
         .fixedSize(horizontal: true, vertical: false)
+        .onChange(of: isEditing) { _, editing in
+            if editing {
+                editText = conversation.customTitle ?? conversation.displayName()
+                isFieldFocused = true
+            }
+        }
+        .onChange(of: isFieldFocused) { _, focused in
+            if !focused && isEditing {
+                commitRename()
+            }
+        }
     }
 }
 
@@ -133,5 +173,17 @@ private extension ConversationTabChip {
         case .neutral, .stopped:
             return .clear
         }
+    }
+
+    func commitRename() {
+        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            onCommitRename(trimmed)
+        }
+        editingConversationID = nil
+    }
+
+    func cancelRename() {
+        editingConversationID = nil
     }
 }
