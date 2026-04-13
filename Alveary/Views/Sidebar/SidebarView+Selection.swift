@@ -26,6 +26,7 @@ extension SidebarView {
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
         Label(title, systemImage: systemImage)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
             .appSelectableRow(
                 isSelected: appState.selectedSidebarItem == item,
                 action: { appState.selectedSidebarItem = item }
