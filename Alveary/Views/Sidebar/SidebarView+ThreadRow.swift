@@ -31,7 +31,6 @@ struct SidebarThreadRow: View {
                         .lineLimit(1)
                 } else {
                     Text(thread.displayName())
-                        .foregroundStyle(thread.isEffectivelyUntitled ? .secondary : .primary)
                         .lineLimit(1)
                 }
 
