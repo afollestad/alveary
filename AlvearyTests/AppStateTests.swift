@@ -138,6 +138,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertNotEqual(secondRequest.id, firstRequest.id)
     }
 
+    func testTerminalPaneVisibilityHelpersDriveProgrammaticDrawerState() {
+        let state = AppState()
+
+        XCTAssertFalse(state.isTerminalPaneVisible)
+
+        state.showTerminalPane()
+        XCTAssertTrue(state.isTerminalPaneVisible)
+
+        state.toggleTerminalPane()
+        XCTAssertFalse(state.isTerminalPaneVisible)
+
+        state.toggleTerminalPane()
+        XCTAssertTrue(state.isTerminalPaneVisible)
+
+        state.hideTerminalPane()
+        XCTAssertFalse(state.isTerminalPaneVisible)
+    }
+
     private func makeFixture(
         primaryConversations: [Conversation],
         secondaryConversations: [Conversation] = []

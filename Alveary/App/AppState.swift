@@ -8,6 +8,7 @@ final class AppState {
     var selectedSidebarItem: SidebarItem?
     var isRightPaneVisible = false
     var isLeftPaneVisible = true
+    var isTerminalPaneVisible = false
     var pendingCommand: CommandRequest?
     var pendingDiffAction: DiffActionRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
@@ -26,6 +27,18 @@ final class AppState {
 
     func openNewProjectFlow() {
         pendingCommand = .newProject(UUID())
+    }
+
+    func toggleTerminalPane() {
+        isTerminalPaneVisible.toggle()
+    }
+
+    func showTerminalPane() {
+        isTerminalPaneVisible = true
+    }
+
+    func hideTerminalPane() {
+        isTerminalPaneVisible = false
     }
 
     func requestDiffAction(message: String, conversationID: PersistentIdentifier) {

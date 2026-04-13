@@ -26,9 +26,11 @@ struct ContentView: View {
     @State private var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
     @State private var diffViewerTopSectionFraction: CGFloat
+    @State private var terminalPaneHeight: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
+    @State private var terminalManager: TerminalManager
 
     init(resolver: Resolver, appState: AppState) {
         self.appState = appState
@@ -42,8 +44,7 @@ struct ContentView: View {
         let agentsManager = resolver.agentsManager()
         let runtimeStore = resolver.conversationRuntimeStore()
         let worktreeManager = resolver.worktreeManager()
-        let providerSetup = resolver.providerSetupService()
-        let fileListManager = resolver.fileListManager()
+        let providerSetup = resolver.providerSetupService(); let fileListManager = resolver.fileListManager()
 
         self.settingsService = settingsService
         self.gitHubCLI = gitHubCLI
@@ -58,10 +59,10 @@ struct ContentView: View {
         self.providerSetup = providerSetup
         self.fileListManager = fileListManager
 
-        let viewModelContext = resolver.modelContext()
-        _viewModelContext = State(initialValue: viewModelContext)
+        let viewModelContext = resolver.modelContext(); _viewModelContext = State(initialValue: viewModelContext)
         _diffViewerWidth = State(initialValue: CGFloat(settingsService.current.diffViewerWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settingsService.current.diffViewerTopSectionFraction))
+        _terminalPaneHeight = State(initialValue: CGFloat(settingsService.current.terminalPaneHeight))
         _sidebarViewModel = State(initialValue: SidebarViewModel(
             agentsManager: agentsManager,
             modelContext: viewModelContext,
@@ -83,6 +84,7 @@ struct ContentView: View {
             providerDetection: providerDetection,
             agentRegistry: agentRegistry
         ))
+        _terminalManager = State(initialValue: TerminalManager())
     }
 
     var body: some View {
@@ -110,29 +112,46 @@ struct ContentView: View {
             SidebarView(viewModel: sidebarViewModel, appState: appState)
                 .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
         } detail: {
-            HStack(spacing: 0) {
-                middlePane
-                .frame(maxWidth: .infinity)
+            ZStack(alignment: .bottom) {
+                HStack(spacing: 0) {
+                    middlePane
+                        .frame(maxWidth: .infinity)
 
-                if appState.isRightPaneVisible {
-                    ContentDiffViewerResizeHandle(
-                        width: $diffViewerWidth,
-                        bounds: AppSettings.supportedDiffViewerWidthRange,
-                        onCommit: persistDiffViewerWidth
+                    if appState.isRightPaneVisible {
+                        ContentDiffViewerResizeHandle(
+                            width: $diffViewerWidth,
+                            bounds: AppSettings.supportedDiffViewerWidthRange,
+                            onCommit: persistDiffViewerWidth
+                        )
+                        DiffViewerPane(
+                            viewModel: diffViewModel,
+                            areAgentActionsEnabled: activeDiffActionTarget() != nil,
+                            topSectionFraction: $diffViewerTopSectionFraction,
+                            onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
+                            onCommitRequested: requestAgentCommit,
+                            onOpenPRRequested: requestAgentOpenPR
+                        )
+                        .frame(width: diffViewerWidth)
+                    }
+                }
+
+                if appState.isTerminalPaneVisible {
+                    TerminalPane(
+                        height: $terminalPaneHeight,
+                        onHeightCommit: persistTerminalPaneHeight,
+                        visibleThreadID: visibleThreadID,
+                        canViewThread: canViewThread,
+                        onViewThread: viewThread,
+                        onClose: appState.hideTerminalPane
                     )
-                    DiffViewerPane(
-                        viewModel: diffViewModel,
-                        areAgentActionsEnabled: activeDiffActionTarget() != nil,
-                        topSectionFraction: $diffViewerTopSectionFraction,
-                        onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
-                        onCommitRequested: requestAgentCommit,
-                        onOpenPRRequested: requestAgentOpenPR
-                    )
-                    .frame(width: diffViewerWidth)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1)
                 }
             }
             .clipped()
+            .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
+        .environment(terminalManager)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -156,6 +175,13 @@ struct ContentView: View {
                     )
                 }
                 .keyboardShortcut("\\", modifiers: [.command, .shift])
+
+                Button(action: toggleTerminalPane) {
+                    Label(
+                        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal",
+                        systemImage: "terminal"
+                    )
+                }
 
                 Button {
                     appState.openSettings()
@@ -195,12 +221,47 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    var visibleThreadID: PersistentIdentifier? {
+        if case .thread(let thread) = appState.selectedSidebarItem {
+            return thread.persistentModelID
+        }
+
+        return nil
+    }
+
     func colorScheme(for theme: String) -> ColorScheme? {
         switch theme {
         case "light": .light
         case "dark": .dark
         default: nil
         }
+    }
+
+    func toggleTerminalPane() {
+        if appState.isTerminalPaneVisible {
+            appState.hideTerminalPane()
+        } else {
+            terminalManager.ensureSelection()
+            appState.showTerminalPane()
+        }
+    }
+
+    func canViewThread(_ id: PersistentIdentifier) -> Bool {
+        guard visibleThreadID != id,
+              let thread = resolveThread(id: id) else {
+            return false
+        }
+
+        return thread.archivedAt == nil
+    }
+
+    func viewThread(_ id: PersistentIdentifier) {
+        guard let thread = resolveThread(id: id),
+              thread.archivedAt == nil else {
+            return
+        }
+
+        appState.selectedSidebarItem = .thread(thread)
     }
 
     func updateDiffViewer(item: SidebarItem?) {
@@ -389,6 +450,12 @@ private extension ContentView {
     func persistDiffViewerTopSectionFraction(_ fraction: CGFloat) {
         settingsService.update {
             $0.diffViewerTopSectionFraction = fraction
+        }
+    }
+
+    func persistTerminalPaneHeight(_ height: CGFloat) {
+        settingsService.update {
+            $0.terminalPaneHeight = height
         }
     }
 }

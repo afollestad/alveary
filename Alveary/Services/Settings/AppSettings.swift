@@ -8,6 +8,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
+    static let supportedTerminalPaneHeightRange = 240.0...560.0
+    static let defaultTerminalPaneHeight = 320.0
 
     var defaultProvider = "claude"
     var permissionMode = "default"
@@ -21,6 +23,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var chatFontSize = 14
     var diffViewerWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
+    var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var notifications = NotificationSettings()
     var branchPrefix = "alveary"
     var pushOnCreate = false
@@ -48,6 +51,10 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.diffViewerTopSectionFraction = min(
             max(copy.diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
             Self.supportedDiffViewerSplitRange.upperBound
+        )
+        copy.terminalPaneHeight = min(
+            max(copy.terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
+            Self.supportedTerminalPaneHeightRange.upperBound
         )
         if let soundName = copy.notifications.soundName,
            !NotificationSettings.availableSoundNames.contains(soundName) {
@@ -77,6 +84,7 @@ extension AppSettings {
         case chatFontSize
         case diffViewerWidth
         case diffViewerTopSectionFraction
+        case terminalPaneHeight
         case notifications
         case branchPrefix
         case pushOnCreate
@@ -102,6 +110,7 @@ extension AppSettings {
             Double.self,
             forKey: .diffViewerTopSectionFraction
         ) ?? defaults.diffViewerTopSectionFraction
+        self.terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? defaults.terminalPaneHeight
         self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
         self.branchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix) ?? defaults.branchPrefix
         self.pushOnCreate = try container.decodeIfPresent(Bool.self, forKey: .pushOnCreate) ?? defaults.pushOnCreate
