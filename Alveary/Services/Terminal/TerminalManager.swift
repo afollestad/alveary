@@ -45,12 +45,38 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         status == .running
     }
 
+    var chipLabel: String {
+        guard let threadName = normalizedThreadName else {
+            return title
+        }
+
+        let truncatedThreadName: String
+        if threadName.count > Self.maxChipThreadNameLength {
+            truncatedThreadName = "\(threadName.prefix(Self.maxChipThreadNameLength))…"
+        } else {
+            truncatedThreadName = threadName
+        }
+
+        return "\(title) - \(truncatedThreadName)"
+    }
+
     enum Status: String, Sendable {
         case running
         case succeeded
         case failed
         case cancelled
     }
+
+    private var normalizedThreadName: String? {
+        guard let trimmedThreadName = threadName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedThreadName.isEmpty else {
+            return nil
+        }
+
+        return trimmedThreadName
+    }
+
+    private static let maxChipThreadNameLength = 20
 }
 
 @MainActor
@@ -60,6 +86,7 @@ final class TerminalManager {
     var selectedSessionID: UUID?
 
     private let maxRetainedOutputCharacters = 120_000
+    private var sessionTasks: [UUID: Task<Void, Never>] = [:]
 
     var selectedSession: TerminalSession? {
         guard !sessions.isEmpty else {
@@ -131,7 +158,18 @@ final class TerminalManager {
         sessions[index].output = trimOutput(sessions[index].output + output)
     }
 
+    func registerTask(_ task: Task<Void, Never>, forSessionID id: UUID) {
+        guard sessions.contains(where: { $0.id == id }) else {
+            task.cancel()
+            return
+        }
+
+        sessionTasks[id]?.cancel()
+        sessionTasks[id] = task
+    }
+
     func markSessionFinished(id: UUID, exitCode: Int32) {
+        sessionTasks[id] = nil
         updateSession(id: id) { session in
             session.status = exitCode == 0 ? .succeeded : .failed
             session.endedAt = Date()
@@ -139,6 +177,8 @@ final class TerminalManager {
     }
 
     func cancelSession(id: UUID) {
+        sessionTasks[id]?.cancel()
+        sessionTasks[id] = nil
         updateSession(id: id) { session in
             session.status = .cancelled
             session.endedAt = Date()
@@ -146,6 +186,8 @@ final class TerminalManager {
     }
 
     func closeSession(id: UUID) {
+        sessionTasks[id]?.cancel()
+        sessionTasks[id] = nil
         sessions.removeAll { $0.id == id }
         ensureSelection()
     }

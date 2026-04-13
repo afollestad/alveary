@@ -46,14 +46,6 @@ struct TerminalPane: View {
 
                     Spacer()
 
-                    if let selectedSessionContext {
-                        Text(selectedSessionContext)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .textSelection(.enabled)
-                    }
-
                     ModalCloseButton("Hide terminal", action: onClose)
                 }
 
@@ -66,7 +58,10 @@ struct TerminalPane: View {
                                         session: session,
                                         isSelected: session.id == terminalManager.selectedSession?.id,
                                         action: {
-                                            terminalManager.selectSession(id: session.id)
+                                            handleSessionActivation(session)
+                                        },
+                                        onClose: {
+                                            terminalManager.closeSession(id: session.id)
                                         }
                                     )
                                 }
@@ -114,37 +109,17 @@ struct TerminalPane: View {
                                         .foregroundStyle(.secondary)
                                         .textSelection(.enabled)
                                 }
+
+                                TerminalSessionContextRow(
+                                    projectName: selectedSession.projectName,
+                                    currentDirectory: selectedSession.currentDirectory
+                                )
                             }
 
                             Spacer()
 
                             VStack(alignment: .trailing, spacing: 10) {
                                 TerminalSessionStatusBadge(status: selectedSession.status)
-
-                                if let threadID = selectedSession.threadID,
-                                   canViewThread(threadID) {
-                                    Button {
-                                        onViewThread(threadID)
-                                    } label: {
-                                        Label("View Thread", systemImage: "arrow.up.forward.square")
-                                    }
-                                    .secondaryActionButtonStyle()
-                                    .accessibilityHint("Switches the main content area to this session's thread.")
-                                }
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            if let projectName = selectedSession.projectName, !projectName.isEmpty {
-                                TerminalSessionMetadataRow(title: "Project", value: projectName)
-                            }
-
-                            if let threadName = selectedSession.threadName, !threadName.isEmpty {
-                                TerminalSessionMetadataRow(title: "Thread", value: threadName)
-                            }
-
-                            if let currentDirectory = selectedSession.currentDirectory, !currentDirectory.isEmpty {
-                                TerminalSessionMetadataRow(title: "Directory", value: currentDirectory)
                             }
                         }
 
@@ -208,22 +183,6 @@ private extension TerminalPane {
         terminalManager.selectedSession
     }
 
-    var selectedSessionContext: String? {
-        if let threadName = selectedSession?.threadName, !threadName.isEmpty {
-            return threadName
-        }
-
-        if let projectName = selectedSession?.projectName, !projectName.isEmpty {
-            return projectName
-        }
-
-        if let currentDirectory = selectedSession?.currentDirectory, !currentDirectory.isEmpty {
-            return currentDirectory
-        }
-
-        return nil
-    }
-
     var visibleSessions: [TerminalSession] {
         var sessions = Array(terminalManager.sessions.prefix(maxVisibleSessionChips))
 
@@ -244,6 +203,17 @@ private extension TerminalPane {
     var overflowSessions: [TerminalSession] {
         let visibleIDs = Set(visibleSessions.map(\.id))
         return terminalManager.sessions.filter { !visibleIDs.contains($0.id) }
+    }
+
+    func handleSessionActivation(_ session: TerminalSession) {
+        if terminalManager.selectedSession?.id == session.id,
+           let threadID = session.threadID,
+           canViewThread(threadID) {
+            onViewThread(threadID)
+            return
+        }
+
+        terminalManager.selectSession(id: session.id)
     }
 
     var panelShape: RoundedRectangle {

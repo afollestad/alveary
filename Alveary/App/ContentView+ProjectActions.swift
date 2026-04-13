@@ -63,7 +63,7 @@ extension ContentView {
         )
         appState.showTerminalPane()
 
-        Task {
+        let task = Task {
             do {
                 let result = try await shellRunner.run(
                     executable: "/bin/sh",
@@ -76,10 +76,14 @@ extension ContentView {
                     terminalManager.appendOutput(output, to: sessionID)
                 }
                 terminalManager.markSessionFinished(id: sessionID, exitCode: result.exitCode)
+            } catch is CancellationError {
+                terminalManager.cancelSession(id: sessionID)
             } catch {
                 terminalManager.appendOutput(error.localizedDescription, to: sessionID)
                 terminalManager.markSessionFinished(id: sessionID, exitCode: 1)
             }
         }
+
+        terminalManager.registerTask(task, forSessionID: sessionID)
     }
 }

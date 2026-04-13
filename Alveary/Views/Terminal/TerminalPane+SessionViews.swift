@@ -4,30 +4,45 @@ struct TerminalSessionChip: View {
     let session: TerminalSession
     let isSelected: Bool
     let action: () -> Void
+    let onClose: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
+        HStack(spacing: 6) {
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
 
-                Text(session.title)
-                    .lineLimit(1)
+                    Text(session.chipLabel)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
-            )
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close \(session.chipLabel)")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule(style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+        )
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -46,7 +61,7 @@ private extension TerminalSessionChip {
     }
 
     var accessibilityLabel: String {
-        "\(session.title), \(session.status.rawValue)"
+        "\(session.chipLabel), \(session.status.rawValue)"
     }
 }
 
@@ -55,9 +70,9 @@ struct TerminalSessionMenuRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(session.title)
+            Text(session.chipLabel)
 
-            if let detail = session.threadName ?? session.projectName ?? session.currentDirectory {
+            if let detail = session.projectName ?? session.currentDirectory {
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -66,23 +81,54 @@ struct TerminalSessionMenuRow: View {
     }
 }
 
-struct TerminalSessionMetadataRow: View {
-    let title: String
-    let value: String
+struct TerminalSessionContextRow: View {
+    let projectName: String?
+    let currentDirectory: String?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
+        HStack(spacing: 8) {
+            if let projectName = normalizedProjectName {
+                Text(projectName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
-            Text(value)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if normalizedProjectName != nil, normalizedDirectory != nil {
+                Circle()
+                    .fill(Color.secondary.opacity(0.55))
+                    .frame(width: 3, height: 3)
+            }
+
+            if let currentDirectory = normalizedDirectory {
+                Text(currentDirectory)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(1)
+            }
         }
+    }
+}
+
+private extension TerminalSessionContextRow {
+    var normalizedProjectName: String? {
+        normalized(projectName)
+    }
+
+    var normalizedDirectory: String? {
+        normalized(currentDirectory)
+    }
+
+    func normalized(_ value: String?) -> String? {
+        guard let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedValue.isEmpty else {
+            return nil
+        }
+
+        return trimmedValue
     }
 }
 

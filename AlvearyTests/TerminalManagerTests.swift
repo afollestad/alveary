@@ -4,6 +4,18 @@ import XCTest
 
 @MainActor
 final class TerminalManagerTests: XCTestCase {
+    func testChipLabelIncludesThreadNameWhenPresent() {
+        let session = TerminalSession(title: "Run", threadName: "Terminal polish")
+
+        XCTAssertEqual(session.chipLabel, "Run - Terminal polish")
+    }
+
+    func testChipLabelTruncatesLongThreadNames() {
+        let session = TerminalSession(title: "Run", threadName: "01234567890123456789-extra")
+
+        XCTAssertEqual(session.chipLabel, "Run - 01234567890123456789…")
+    }
+
     func testCreateSessionSelectsNewestSessionByDefault() {
         let manager = TerminalManager()
 
@@ -25,6 +37,20 @@ final class TerminalManagerTests: XCTestCase {
 
         XCTAssertEqual(manager.sessions.map(\.id), [first])
         XCTAssertEqual(manager.selectedSessionID, first)
+    }
+
+    func testCloseSessionCancelsRegisteredTask() {
+        let manager = TerminalManager()
+        let sessionID = manager.createSession(title: "Build")
+        let task = Task<Void, Never> {
+            try? await Task.sleep(for: .seconds(10))
+        }
+
+        manager.registerTask(task, forSessionID: sessionID)
+        manager.closeSession(id: sessionID)
+
+        XCTAssertTrue(task.isCancelled)
+        XCTAssertTrue(manager.sessions.isEmpty)
     }
 
     func testAppendOutputRetainsNewestContentWithinBound() {

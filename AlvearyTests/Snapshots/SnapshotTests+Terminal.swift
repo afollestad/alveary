@@ -8,7 +8,7 @@ extension SnapshotTests {
         terminalManager.createSession(
             title: "Build",
             projectName: "Alveary",
-            threadName: "Refine Terminal Drawer",
+            threadName: "Refine Terminal Drawer Layout",
             currentDirectory: "/Users/alice/Development/alveary",
             command: "./scripts/build.sh",
             output: "Build started...\nCompiling TerminalPane.swift\nBuild Succeeded",
@@ -28,7 +28,7 @@ extension SnapshotTests {
         terminalManager.createSession(
             title: "Test",
             projectName: "Website",
-            threadName: "Sidebar Cache Fix",
+            threadName: "Sidebar Cache Preservation Fix",
             currentDirectory: "/Users/alice/Development/website",
             command: "npm test",
             output: "1 failing test\n- should preserve cached sidebar state",
