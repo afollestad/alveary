@@ -1,6 +1,8 @@
 import SwiftUI
 
 extension SidebarView {
+    static let backspaceKey = KeyEquivalent("\u{7F}")
+
     var navigableItems: [SidebarItem] {
         buildNavigableItems(
             projects: projects,
@@ -21,6 +23,38 @@ extension SidebarView {
         }
         appState.selectedSidebarItem = next
         return .handled
+    }
+
+    func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        switch keyPress.key {
+        case .upArrow, .downArrow:
+            return handleVerticalArrow(keyPress.key)
+        case Self.backspaceKey:
+            guard case .thread(let thread) = appState.selectedSidebarItem else {
+                return .ignored
+            }
+            switch viewModel.deleteKeyAction {
+            case .archive:
+                Task { await archive(thread) }
+            case .delete:
+                pendingDeleteThread = thread
+            }
+            return .handled
+        case .leftArrow:
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
+            expandedProjects.remove(project.path)
+            return .handled
+        case .rightArrow:
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
+            expandedProjects.insert(project.path)
+            return .handled
+        default:
+            return .ignored
+        }
     }
 }
 
