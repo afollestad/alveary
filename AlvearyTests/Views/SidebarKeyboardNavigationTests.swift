@@ -163,6 +163,140 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(result, .skills)
     }
 
+    func testShouldNavigateUpOnLeftArrowReturnsTrueForThreadSelection() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let thread = makeThread(name: "Thread 1", project: project)
+
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .thread(thread),
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsTrueForSkillsSelection() {
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .skills,
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsTrueForMCPSelection() {
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .mcp,
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsFalseForExpandedProject() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .project(project),
+            expandedProjects: [project.path]
+        )
+
+        XCTAssertFalse(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsTrueForExpandedProjectWithoutVisibleThreads() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .project(project),
+            expandedProjects: [project.path],
+            projectHasVisibleThreads: { _ in false }
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsTrueForCollapsedProject() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .project(project),
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateUpOnLeftArrowReturnsFalseForTopLevelSelection() {
+        let result = shouldNavigateUpOnLeftArrow(
+            selection: .settings,
+            expandedProjects: []
+        )
+
+        XCTAssertFalse(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsFalseForCollapsedProject() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .project(project),
+            expandedProjects: []
+        )
+
+        XCTAssertFalse(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsTrueForExpandedProject() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .project(project),
+            expandedProjects: [project.path]
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsTrueForThreadSelection() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let thread = makeThread(name: "Thread 1", project: project)
+
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .thread(thread),
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsTrueForSkillsSelection() {
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .skills,
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsTrueForMCPSelection() {
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .mcp,
+            expandedProjects: []
+        )
+
+        XCTAssertTrue(result)
+    }
+
+    func testShouldNavigateDownOnRightArrowReturnsFalseForTopLevelSelection() {
+        let result = shouldNavigateDownOnRightArrow(
+            selection: .settings,
+            expandedProjects: []
+        )
+
+        XCTAssertFalse(result)
+    }
+
     func testRenameThreadIDReturnsSelectedThreadIDWhenNotEditing() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)

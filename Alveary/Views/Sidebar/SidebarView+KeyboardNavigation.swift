@@ -68,20 +68,72 @@ extension SidebarView {
     }
 
     func handleHorizontalArrow(_ key: KeyEquivalent) -> KeyPress.Result {
-        guard case .project(let project) = appState.selectedSidebarItem else {
-            return .ignored
-        }
-
         switch key {
         case .leftArrow:
+            if shouldNavigateUpOnLeftArrow(
+                selection: appState.selectedSidebarItem,
+                expandedProjects: expandedProjects,
+                projectHasVisibleThreads: { project in
+                    !activeThreads(for: project).isEmpty
+                }
+            ) {
+                return handleVerticalArrow(.upArrow)
+            }
+
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
             expandedProjects.remove(project.path)
             return .handled
         case .rightArrow:
+            if shouldNavigateDownOnRightArrow(
+                selection: appState.selectedSidebarItem,
+                expandedProjects: expandedProjects
+            ) {
+                return handleVerticalArrow(.downArrow)
+            }
+
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
             expandedProjects.insert(project.path)
             return .handled
         default:
             return .ignored
         }
+    }
+}
+
+func shouldNavigateUpOnLeftArrow(
+    selection: SidebarItem?,
+    expandedProjects: Set<String>,
+    projectHasVisibleThreads: (Project) -> Bool = { _ in true }
+) -> Bool {
+    switch selection {
+    case .skills, .mcp:
+        return true
+    case .thread:
+        return true
+    case .project(let project):
+        return !expandedProjects.contains(project.path) || !projectHasVisibleThreads(project)
+    default:
+        return false
+    }
+}
+
+func shouldNavigateDownOnRightArrow(
+    selection: SidebarItem?,
+    expandedProjects: Set<String>
+) -> Bool {
+    switch selection {
+    case .skills, .mcp:
+        return true
+    case .thread:
+        return true
+    case .project(let project):
+        return expandedProjects.contains(project.path)
+    default:
+        return false
     }
 }
 
