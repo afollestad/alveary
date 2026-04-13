@@ -205,6 +205,7 @@ struct ConversationViewModelTestFixture {
     init(
         threadName: String = "Thread",
         conversationTitle: String? = nil,
+        threadHasCustomName: Bool = false,
         useWorktree: Bool = false,
         hasCompletedInitialSetup: Bool = true,
         sendError: MockAgentsManager.MockError? = nil,
@@ -225,6 +226,7 @@ struct ConversationViewModelTestFixture {
         let project = Self.makeProject(isGitRepository: projectIsGitRepository)
         let thread = AgentThread(
             name: threadName,
+            hasCustomName: threadHasCustomName,
             hasCompletedInitialSetup: hasCompletedInitialSetup,
             useWorktree: useWorktree,
             project: project

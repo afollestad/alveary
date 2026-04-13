@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class AgentThread {
     var name: String
+    var hasCustomName: Bool
     var branch: String?
     var pendingCleanupBranches: [String]
     var worktreePath: String?
@@ -17,6 +18,7 @@ final class AgentThread {
 
     init(
         name: String,
+        hasCustomName: Bool = false,
         branch: String? = nil,
         pendingCleanupBranches: [String] = [],
         worktreePath: String? = nil,
@@ -29,6 +31,7 @@ final class AgentThread {
         conversations: [Conversation] = []
     ) {
         self.name = name
+        self.hasCustomName = hasCustomName
         self.branch = branch
         self.pendingCleanupBranches = pendingCleanupBranches
         self.worktreePath = worktreePath.map(CanonicalPath.normalize)

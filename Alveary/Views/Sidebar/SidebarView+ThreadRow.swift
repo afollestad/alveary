@@ -5,6 +5,7 @@ struct SidebarThreadRow: View {
     let status: ThreadStatus
     let isSelected: Bool
     let onActivate: () -> Void
+    let onRename: () -> Void
 
     var body: some View {
         Button(action: onActivate) {
@@ -16,8 +17,8 @@ struct SidebarThreadRow: View {
                     .opacity(status == .stopped ? 0 : 1)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(thread.name)
-                        .foregroundStyle(thread.name == "New thread" ? .secondary : .primary)
+                    Text(thread.displayName())
+                        .foregroundStyle(thread.isEffectivelyUntitled ? .secondary : .primary)
                         .lineLimit(1)
 
                     if let branch = thread.branch {
@@ -34,6 +35,9 @@ struct SidebarThreadRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction(named: Text("Rename")) {
+            onRename()
+        }
         .padding(.vertical, 6)
     }
 

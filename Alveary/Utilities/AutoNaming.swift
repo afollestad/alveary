@@ -37,6 +37,32 @@ extension ConversationViewModel {
     }
 }
 
+extension AgentThread {
+    static let untitledName = "New thread"
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isEffectivelyUntitled: Bool {
+        !hasCustomName && trimmedName == Self.untitledName
+    }
+
+    static func persistedName(from editedName: String) -> String? {
+        let trimmedName = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return nil
+        }
+
+        return trimmedName
+    }
+
+    func displayName() -> String {
+        let resolvedName = trimmedName
+        return resolvedName.isEmpty ? Self.untitledName : resolvedName
+    }
+}
+
 extension Conversation {
     var customTitle: String? {
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)

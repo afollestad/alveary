@@ -6,6 +6,14 @@ import XCTest
 
 @MainActor
 final class DataAssemblyTests: XCTestCase {
+    func testPersistentStoreURLUsesAlvearyScopedLocation() {
+        let applicationSupportDirectory = URL(fileURLWithPath: "/tmp/Application Support", isDirectory: true)
+
+        let storeURL = DataAssembly.persistentStoreURL(in: applicationSupportDirectory)
+
+        XCTAssertEqual(storeURL.path, "/tmp/Application Support/Alveary/Alveary.store")
+    }
+
     func testResolvesContainerAndPersistsEveryModelType() throws {
         let assembler = makeAssembler()
         let context = assembler.resolver.modelContext()

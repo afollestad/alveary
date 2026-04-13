@@ -113,9 +113,10 @@ extension ConversationViewModel {
 
         if shouldAutoNameThread,
            settingsService.current.autoGenerateNames,
-           dbConversation.thread?.name == "New thread",
+           let thread = dbConversation.thread,
+           thread.isEffectivelyUntitled,
            let name = Self.threadName(from: message) {
-            dbConversation.thread?.name = name
+            thread.name = name
         }
 
         scheduleSave()

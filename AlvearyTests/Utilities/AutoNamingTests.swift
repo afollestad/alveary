@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 final class AutoNamingTests: XCTestCase {
+    func testAgentThreadNamingHelpersRespectManualRenameState() {
+        let untitled = AgentThread(name: AgentThread.untitledName)
+        let manuallyUntitled = AgentThread(name: AgentThread.untitledName, hasCustomName: true)
+        let renamed = AgentThread(name: "  Investigate auth race  ", hasCustomName: true)
+        let blank = AgentThread(name: "   ")
+
+        XCTAssertTrue(untitled.isEffectivelyUntitled)
+        XCTAssertFalse(manuallyUntitled.isEffectivelyUntitled)
+        XCTAssertFalse(renamed.isEffectivelyUntitled)
+        XCTAssertEqual(renamed.displayName(), "Investigate auth race")
+        XCTAssertEqual(blank.displayName(), AgentThread.untitledName)
+        XCTAssertEqual(AgentThread.persistedName(from: "  Investigate auth race  "), "Investigate auth race")
+        XCTAssertNil(AgentThread.persistedName(from: "   "))
+    }
+
     func testThreadNameRejectsShortMessagesConfirmationsAndCommands() {
         XCTAssertNil(ConversationViewModel.threadName(from: "Short"))
         XCTAssertNil(ConversationViewModel.threadName(from: "yes"))

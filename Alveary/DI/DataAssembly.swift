@@ -1,3 +1,4 @@
+import Foundation
 import Knit
 import SwiftData
 
@@ -21,9 +22,8 @@ final class DataAssembly: AutoInitModuleAssembly {
         let isStoredInMemoryOnly = isStoredInMemoryOnly
 
         container.register(ModelContainer.self) { _ in
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: isStoredInMemoryOnly)
-
             do {
+                let configuration = try Self.makeModelConfiguration(isStoredInMemoryOnly: isStoredInMemoryOnly)
                 return try ModelContainer(
                     for: Project.self,
                     AgentThread.self,
@@ -47,5 +47,36 @@ final class DataAssembly: AutoInitModuleAssembly {
             return ModelContext(modelContainer)
         }
         .inObjectScope(.container)
+    }
+}
+
+extension DataAssembly {
+    static func persistentStoreURL(in applicationSupportDirectory: URL) -> URL {
+        applicationSupportDirectory
+            .appendingPathComponent("Alveary", isDirectory: true)
+            .appendingPathComponent("Alveary.store")
+    }
+}
+
+private extension DataAssembly {
+    static func makeModelConfiguration(isStoredInMemoryOnly: Bool) throws -> ModelConfiguration {
+        if isStoredInMemoryOnly {
+            return ModelConfiguration(isStoredInMemoryOnly: true)
+        }
+
+        let applicationSupportDirectory = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let storeURL = persistentStoreURL(in: applicationSupportDirectory)
+
+        try FileManager.default.createDirectory(
+            at: storeURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        return ModelConfiguration(url: storeURL)
     }
 }

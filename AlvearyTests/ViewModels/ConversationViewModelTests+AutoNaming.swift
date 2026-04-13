@@ -51,6 +51,19 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().name, "New thread")
     }
 
+    func testSendDoesNotAutoNameThreadWhenManualTitleMatchesDefaultLabel() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            threadName: AgentThread.untitledName,
+            threadHasCustomName: true
+        )
+
+        try await fixture.viewModel.send("Fix the flaky login flow")
+
+        XCTAssertEqual(try fixture.dbConversation().title, "Fix the flaky login flow")
+        XCTAssertEqual(try fixture.dbThread().name, AgentThread.untitledName)
+        XCTAssertTrue(try fixture.dbThread().hasCustomName)
+    }
+
     func testConversationDisplayNameUsesStableDisplayOrderFallbacks() {
         let main = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
         let second = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 1)
