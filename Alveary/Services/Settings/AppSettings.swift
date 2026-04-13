@@ -14,6 +14,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var defaultProvider = "claude"
     var permissionMode = "default"
     var effort = "medium"
+    var deleteKeyAction = ThreadDeleteKeyAction.archive
     var autoGenerateNames = true
     var autoTrustWorktrees = true
     var createWorktreeByDefault = false
@@ -75,6 +76,7 @@ extension AppSettings {
         case defaultProvider
         case permissionMode
         case effort
+        case deleteKeyAction
         case autoGenerateNames
         case autoTrustWorktrees
         case createWorktreeByDefault
@@ -98,6 +100,7 @@ extension AppSettings {
         self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
+        self.deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? defaults.deleteKeyAction
         self.autoGenerateNames = try container.decodeIfPresent(Bool.self, forKey: .autoGenerateNames) ?? defaults.autoGenerateNames
         self.autoTrustWorktrees = try container.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees) ?? defaults.autoTrustWorktrees
         self.createWorktreeByDefault = try container.decodeIfPresent(Bool.self, forKey: .createWorktreeByDefault) ?? defaults.createWorktreeByDefault
@@ -187,6 +190,20 @@ struct NotificationSettings: Codable, Sendable, Equatable {
     var osNotifications = true
     var sound = true
     var soundName: String? = NotificationSettings.defaultSoundName
+}
+
+enum ThreadDeleteKeyAction: String, Codable, Sendable, CaseIterable {
+    case archive
+    case delete
+
+    var label: String {
+        switch self {
+        case .archive:
+            return "Archive"
+        case .delete:
+            return "Delete"
+        }
+    }
 }
 
 private extension String {

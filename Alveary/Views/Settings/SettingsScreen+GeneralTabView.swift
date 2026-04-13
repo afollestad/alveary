@@ -5,6 +5,7 @@ struct GeneralSettingsTabView: View {
     @Binding var defaultProvider: String
     @Binding var permissionMode: String
     @Binding var effort: String
+    @Binding var deleteKeyAction: ThreadDeleteKeyAction
     @Binding var autoGenerateNames: Bool
     @Binding var createWorktreeByDefault: Bool
     @Binding var autoTrustWorktrees: Bool
@@ -33,6 +34,13 @@ struct GeneralSettingsTabView: View {
                 Picker("Effort", selection: $effort) {
                     ForEach(viewModel.effortOptions(for: viewModel.defaultProvider), id: \.self) { effort in
                         Text(effort.capitalized).tag(effort)
+                    }
+                }
+                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
+
+                Picker("Delete key action", selection: $deleteKeyAction) {
+                    ForEach(ThreadDeleteKeyAction.allCases, id: \.self) { action in
+                        Text(action.label).tag(action)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)

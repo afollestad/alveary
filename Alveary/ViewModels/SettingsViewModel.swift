@@ -131,6 +131,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.effort = newValue } }
     }
 
+    var deleteKeyAction: ThreadDeleteKeyAction {
+        get { settingsService.current.deleteKeyAction }
+        set { settingsService.update { $0.deleteKeyAction = newValue } }
+    }
+
     var autoGenerateNames: Bool {
         get { settingsService.current.autoGenerateNames }
         set { settingsService.update { $0.autoGenerateNames = newValue } }

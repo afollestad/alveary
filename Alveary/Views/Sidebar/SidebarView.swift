@@ -168,7 +168,7 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            .onKeyPress(keys: [.leftArrow, .rightArrow], action: handleSidebarKeyPress)
+            .onKeyPress(keys: [.leftArrow, .rightArrow, Self.backspaceKey], action: handleSidebarKeyPress)
         }
         .onAppear {
             syncExpansionWithSelection(appState.selectedSidebarItem)
@@ -225,6 +225,10 @@ struct SidebarView: View {
             )
         }
     }
+}
+
+extension SidebarView {
+    static let backspaceKey = KeyEquivalent("\u{7F}")
 }
 
 private extension SidebarView {
@@ -292,15 +296,28 @@ private extension SidebarView {
     }
 
     func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        guard case .project(let project) = appState.selectedSidebarItem else {
-            return .ignored
-        }
-
         switch keyPress.key {
+        case Self.backspaceKey:
+            guard case .thread(let thread) = appState.selectedSidebarItem else {
+                return .ignored
+            }
+            switch viewModel.deleteKeyAction {
+            case .archive:
+                Task { await archive(thread) }
+            case .delete:
+                pendingDeleteThread = thread
+            }
+            return .handled
         case .leftArrow:
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
             expandedProjects.remove(project.path)
             return .handled
         case .rightArrow:
+            guard case .project(let project) = appState.selectedSidebarItem else {
+                return .ignored
+            }
             expandedProjects.insert(project.path)
             return .handled
         default:

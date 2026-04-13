@@ -49,6 +49,7 @@ struct SettingsScreen: View {
                             defaultProvider: binding(for: \.defaultProvider),
                             permissionMode: binding(for: \.permissionMode),
                             effort: binding(for: \.effort),
+                            deleteKeyAction: binding(for: \.deleteKeyAction),
                             autoGenerateNames: binding(for: \.autoGenerateNames),
                             createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                             autoTrustWorktrees: binding(for: \.autoTrustWorktrees),

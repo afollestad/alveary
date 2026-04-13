@@ -57,6 +57,7 @@ final class SettingsViewModelTests: XCTestCase {
         service.update {
             $0.permissionMode = "plan"
             $0.effort = "high"
+            $0.deleteKeyAction = .delete
             $0.autoGenerateNames = false
             $0.autoTrustWorktrees = false
             $0.createWorktreeByDefault = true
@@ -77,6 +78,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.defaultProvider, "claude")
         XCTAssertEqual(viewModel.permissionMode, "plan")
         XCTAssertEqual(viewModel.effort, "high")
+        XCTAssertEqual(viewModel.deleteKeyAction, .delete)
         XCTAssertFalse(viewModel.autoGenerateNames)
         XCTAssertFalse(viewModel.autoTrustWorktrees)
         XCTAssertTrue(viewModel.createWorktreeByDefault)
@@ -100,6 +102,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.defaultProvider = "claude"
         viewModel.permissionMode = "bypassPermissions"
         viewModel.effort = "max"
+        viewModel.deleteKeyAction = .delete
         viewModel.autoGenerateNames = false
         viewModel.autoTrustWorktrees = false
         viewModel.createWorktreeByDefault = true
@@ -117,6 +120,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.defaultProvider, "claude")
         XCTAssertEqual(service.current.permissionMode, "bypassPermissions")
         XCTAssertEqual(service.current.effort, "max")
+        XCTAssertEqual(service.current.deleteKeyAction, .delete)
         XCTAssertFalse(service.current.autoGenerateNames)
         XCTAssertFalse(service.current.autoTrustWorktrees)
         XCTAssertTrue(service.current.createWorktreeByDefault)

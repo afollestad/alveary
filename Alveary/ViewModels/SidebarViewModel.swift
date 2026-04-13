@@ -80,6 +80,10 @@ final class SidebarViewModel {
         return project
     }
 
+    var deleteKeyAction: ThreadDeleteKeyAction {
+        settingsService.current.deleteKeyAction
+    }
+
     func createThread(project: Project, provider: String, permissionMode: String) async throws -> AgentThread {
         let dbProject = try requireProject(project)
         let thread = AgentThread(
