@@ -95,16 +95,15 @@ struct SidebarView: View {
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
-                                    isSelected: appState.selectedSidebarItem == .thread(thread),
-                                    onActivate: {
-                                        activateThread(thread)
-                                    },
                                     onRename: {
                                         renameDraft = ThreadRenameDraft(thread: thread)
                                     }
                                 )
                                     .padding(.leading, 14)
-                                    .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .thread(thread))
+                                    .appSelectableRow(
+                                        isSelected: appState.selectedSidebarItem == .thread(thread),
+                                        action: { activateThread(thread) }
+                                    )
                                     .contextMenu {
                                         Button("Archive") {
                                             Task { await archive(thread) }
@@ -136,16 +135,15 @@ struct SidebarView: View {
                                         SidebarThreadRow(
                                             thread: thread,
                                             status: .archived,
-                                            isSelected: appState.selectedSidebarItem == .thread(thread),
-                                            onActivate: {
-                                                activateThread(thread)
-                                            },
                                             onRename: {
                                                 renameDraft = ThreadRenameDraft(thread: thread)
                                             }
                                         )
                                             .padding(.leading, 14)
-                                            .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == .thread(thread))
+                                            .appSelectableRow(
+                                                isSelected: appState.selectedSidebarItem == .thread(thread),
+                                                action: { activateThread(thread) }
+                                            )
                                             .opacity(0.75)
                                             .contextMenu {
                                                 Button("Restore") {
@@ -259,16 +257,12 @@ private extension SidebarView {
     }
 
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
-        Button {
-            appState.selectedSidebarItem = item
-        } label: {
-            Label(title, systemImage: systemImage)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(appState.selectedSidebarItem == item ? .isSelected : [])
-        .appSelectionRowBackground(isSelected: appState.selectedSidebarItem == item)
+        Label(title, systemImage: systemImage)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appSelectableRow(
+                isSelected: appState.selectedSidebarItem == item,
+                action: { appState.selectedSidebarItem = item }
+            )
     }
 
     func activeThreads(for project: Project) -> [AgentThread] {

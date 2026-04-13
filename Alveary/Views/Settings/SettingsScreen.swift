@@ -22,17 +22,13 @@ struct SettingsScreen: View {
     var body: some View {
         HStack(spacing: 0) {
             List(SettingsTab.allCases) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    Label(tab.title, systemImage: tab.icon)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
-                .appSelectionRowBackground(isSelected: selectedTab == tab)
+                Label(tab.title, systemImage: tab.icon)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                    .appSelectableRow(
+                        isSelected: selectedTab == tab,
+                        action: { selectedTab = tab }
+                    )
             }
             .frame(width: 180)
 

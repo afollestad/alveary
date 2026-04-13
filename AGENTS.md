@@ -80,6 +80,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style 
 - Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file.
 - In SwiftUI, prefer extracted `View` types over `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition. When an extracted child view is used by another view, place it in the same folder with `Parent+Child.swift` naming such as `DiffViewerPane+Header.swift`.
 - For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Alveary/Views/Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
+- For selectable list rows (sidebar items, settings tabs, diff file lists), use the `.appSelectableRow(isSelected:action:)` modifier from `Alveary/Views/Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows — `Button` does not reliably fill the full row hit area in a `List`.
 
 ## Repository Invariants
 

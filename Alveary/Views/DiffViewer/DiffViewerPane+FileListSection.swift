@@ -13,33 +13,29 @@ struct DiffViewerFileListSection: View {
 
     var body: some View {
         List(files) { file in
-            Button {
-                onSelectFile(file)
-            } label: {
-                HStack(spacing: 10) {
-                    Text(statusSymbol(file))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(file.isStaged ? .green : .secondary)
+            HStack(spacing: 10) {
+                Text(statusSymbol(file))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(file.isStaged ? .green : .secondary)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(fileDisplayName(file))
-                            .lineLimit(1)
-                            .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fileDisplayName(file))
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
 
-                        Text(file.isStaged ? "Staged" : "Unstaged")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
+                    Text(file.isStaged ? "Staged" : "Unstaged")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .accessibilityAddTraits(isSelected(file) ? .isSelected : [])
+
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .appSelectionRowBackground(isSelected: isSelected(file))
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appSelectableRow(
+                isSelected: isSelected(file),
+                action: { onSelectFile(file) }
+            )
             .contextMenu {
                 if file.isStaged {
                     Button("Unstage") {
