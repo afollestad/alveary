@@ -2,6 +2,7 @@ import SwiftUI
 
 private let destructiveActionTint = Color(red: 0.74, green: 0.18, blue: 0.17)
 private let secondaryActionTint = Color.primary.opacity(0.12)
+private let iconActionButtonTint = Color.secondary.opacity(0.16)
 
 struct DestructiveConfirmationRequest {
     let title: String
@@ -23,15 +24,8 @@ struct ModalCloseButton: View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.primary)
-                .frame(width: 30, height: 30)
-                .background(
-                    Circle()
-                        .fill(Color.secondary.opacity(0.16))
-                )
         }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
+        .iconActionButtonStyle()
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -59,6 +53,10 @@ extension View {
 
     func destructiveActionButtonStyle() -> some View {
         buttonStyle(ProminentActionButtonStyle(fillColor: destructiveActionTint, foregroundColor: .white))
+    }
+
+    func iconActionButtonStyle() -> some View {
+        modifier(IconActionButtonModifier())
     }
 }
 
@@ -169,6 +167,45 @@ private struct ProminentActionButtonStyle: ButtonStyle {
         }
 
         return isPressed ? fillColor.opacity(0.84) : fillColor
+    }
+}
+
+private struct IconActionButtonModifier: ViewModifier {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.primary.opacity(foregroundOpacity))
+            .frame(width: 30, height: 30)
+            .background(
+                Circle()
+                    .fill(iconActionButtonTint.opacity(backgroundOpacity))
+            )
+            .contentShape(Circle())
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isHovering = hovering
+                }
+            }
+    }
+
+    private var foregroundOpacity: Double {
+        guard isEnabled else {
+            return 0.6
+        }
+
+        return isHovering ? 0.95 : 0.8
+    }
+
+    private var backgroundOpacity: Double {
+        guard isEnabled, isHovering else {
+            return 0
+        }
+
+        return 1
     }
 }
 

@@ -29,9 +29,11 @@ struct DiffViewerPaneHeader: View {
                 Spacer()
 
                 Button(action: onRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Image(systemName: "arrow.clockwise")
                 }
-                .buttonStyle(.borderless)
+                .iconActionButtonStyle()
+                .help("Refresh")
+                .accessibilityLabel("Refresh")
                 .disabled(activeDirectory == nil)
             }
 
