@@ -8,43 +8,6 @@ private struct ConversationSaveSnapshot {
 }
 
 extension ConversationViewModel {
-    func subscribe() {
-        subscriptionTask?.cancel()
-        let token = UUID()
-        state.activeSubscriptionToken = token
-        subscriptionTask = Task { @MainActor in
-            guard let subscription = await agentsManager.subscribe(
-                conversationId: conversation.id,
-                afterIndex: state.lastPersistedEventIndex
-            ) else {
-                guard state.activeSubscriptionToken == token else {
-                    return
-                }
-                state.activeBufferGeneration = nil
-                return
-            }
-
-            guard state.activeSubscriptionToken == token else {
-                return
-            }
-            state.activeBufferGeneration = subscription.generation
-
-            for await event in subscription.stream {
-                guard state.activeSubscriptionToken == token else {
-                    return
-                }
-                state.lastObservedEventIndex += 1
-                handleEvent(event)
-            }
-
-            guard !Task.isCancelled, state.activeSubscriptionToken == token else {
-                return
-            }
-            state.turnState.endTurn()
-            state.clearStreamingText()
-        }
-    }
-
     func handleTurnCompleted() {
         guard state.messageQueue.peekNext() != nil else {
             state.turnState.endTurn()
@@ -317,6 +280,9 @@ private extension ConversationViewModel {
 
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         switch event {
+        case .sessionInit:
+            return false
+
         case .messageChunk(let text, let parentToolUseId):
             if parentToolUseId == nil {
                 state.appendStreamingChunk(text)
@@ -377,6 +343,7 @@ private extension ConversationViewModel {
         }
 
         modelContext.insert(record)
+        state.grouper.append(event: record)
         scheduleSave()
     }
 

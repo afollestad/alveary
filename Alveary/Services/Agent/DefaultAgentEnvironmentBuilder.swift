@@ -66,6 +66,8 @@ final class DefaultAgentEnvironmentBuilder: AgentEnvironmentBuilder, Sendable {
         "NO_PROXY",
         "ALL_PROXY",
         "SSL_CERT_FILE",
-        "REQUESTS_CA_BUNDLE"
+        "REQUESTS_CA_BUNDLE",
+        "CLAUDE_STREAM_IDLE_TIMEOUT_MS",
+        "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK"
     ]
 }

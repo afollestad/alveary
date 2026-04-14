@@ -39,8 +39,8 @@ final class EventBuffer: @unchecked Sendable {
             }
         }
 
-        let activeContinuations = Array(continuations.values)
-        for continuation in activeContinuations {
+        let activeContinuations = Array(continuations)
+        for (_, continuation) in activeContinuations {
             continuation.yield(event)
         }
         lock.unlock()

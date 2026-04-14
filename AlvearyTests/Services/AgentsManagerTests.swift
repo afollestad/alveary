@@ -164,6 +164,47 @@ final class AgentsManagerTests: XCTestCase {
         XCTAssertEqual(adapter.decodedPayloads.count, 1)
     }
 
+    func testReadAgentOutputDecodesFinalStructuredStdoutLineWithoutTrailingNewline() async throws {
+        let adapter = EchoAgentAdapter()
+        let manager = DefaultAgentsManager(
+            sessionManager: InMemorySessionManager(),
+            providerDetection: StubProviderDetectionService(),
+            environmentBuilder: DefaultAgentEnvironmentBuilder(),
+            providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
+            settingsService: InMemorySettingsService(),
+            notificationManager: StubNotificationManager(),
+            adapterFactory: { _ in adapter }
+        )
+        let stdout = Pipe()
+        let stderr = Pipe()
+        let stream = manager.readAgentOutput(
+            stdout: stdout.fileHandleForReading,
+            stderr: stderr.fileHandleForReading,
+            adapter: adapter
+        )
+        let payload: [String: String] = [
+            "type": "message",
+            "role": "assistant",
+            "content": "hello"
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        let eventTask = Task {
+            try await firstEvent(
+                from: stream,
+                description: "expected decoded stdout event without trailing newline"
+            )
+        }
+
+        try stdout.fileHandleForWriting.write(contentsOf: data)
+        stdout.fileHandleForWriting.closeFile()
+        stderr.fileHandleForWriting.closeFile()
+
+        let event = try await eventTask.value
+        XCTAssertEqual(event, .message(role: "assistant", content: "echo:hello", parentToolUseId: nil))
+        XCTAssertEqual(adapter.decodedPayloads.count, 1)
+    }
+
     func testReadAgentOutputIncludesNewestStderrLinesAfterWrapAround() async throws {
         let adapter = EchoAgentAdapter()
         let manager = DefaultAgentsManager(
@@ -208,6 +249,17 @@ final class AgentsManagerTests: XCTestCase {
         XCTAssertTrue(message.contains("stderr-20"))
     }
 
+    func testDefaultAgentEnvironmentBuilderPreservesClaudeStreamWorkaroundEnvVars() {
+        withEnvironmentValue(key: "CLAUDE_STREAM_IDLE_TIMEOUT_MS", value: "30000") {
+            withEnvironmentValue(key: "CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK", value: "1") {
+                let environment = DefaultAgentEnvironmentBuilder().buildEnvironment()
+
+                XCTAssertEqual(environment["CLAUDE_STREAM_IDLE_TIMEOUT_MS"], "30000")
+                XCTAssertEqual(environment["CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK"], "1")
+            }
+        }
+    }
+
     private func assertSessionLaunchCalls(_ launchCalls: [RecordingLaunchAdapter.SessionLaunchCall]) {
         XCTAssertEqual(launchCalls.count, 2)
         XCTAssertEqual(launchCalls.map(\.isResuming), [false, true])
@@ -246,4 +298,17 @@ final class AgentsManagerTests: XCTestCase {
             return !hasTrackedProcess && !isRunning
         }
     }
+}
+
+private func withEnvironmentValue(key: String, value: String, perform: () -> Void) {
+    let previous = ProcessInfo.processInfo.environment[key]
+    setenv(key, value, 1)
+    defer {
+        if let previous {
+            setenv(key, previous, 1)
+        } else {
+            unsetenv(key)
+        }
+    }
+    perform()
 }

@@ -13,8 +13,8 @@ struct ChatComposerPanel: View {
     let selectedModel: Binding<String>
     let selectedEffort: Binding<String>
     let selectedPermissionMode: Binding<String>
-    let loadFileCompletions: () async -> [String]
-    let loadSkillCompletions: () async -> [Skill]
+    let loadFileCompletions: @Sendable () async -> [String]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
     let onSubmit: () -> Void
     let onSteer: () -> Void
     let onStop: () -> Void

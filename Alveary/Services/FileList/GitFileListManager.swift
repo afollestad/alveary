@@ -28,8 +28,12 @@ actor GitFileListManager: FileListManager {
     }
 
     private func refresh(for cacheKey: String) async -> [String] {
-        let files = (try? await gitService.listFiles(in: cacheKey)) ?? []
-        cache[cacheKey] = files
-        return files
+        do {
+            let files = try await gitService.listFiles(in: cacheKey)
+            cache[cacheKey] = files
+            return files
+        } catch {
+            return cache[cacheKey] ?? []
+        }
     }
 }

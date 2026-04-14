@@ -95,6 +95,18 @@ final class ChatItemGrouper {
     var promptToolIds: Set<String> = []
     var subAgentProgressRefreshTask: Task<Void, Never>?
 
+    func append(event: ConversationEventRecord) {
+        removeTrailingPendingBlocksIfNeeded()
+
+        if !routeSubAgentEventIfNeeded(event) {
+            process(event)
+        }
+
+        flushTools()
+        flushSubAgents()
+        processedCount += 1
+    }
+
     func update(events: [ConversationEventRecord], forceFullRebuild: Bool = false) {
         if forceFullRebuild || events.count < processedCount {
             resetAllState()

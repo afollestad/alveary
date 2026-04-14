@@ -107,7 +107,7 @@ struct ContentView: View {
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             fileListManager: fileListManager,
-            loadInstalledSkills: {
+            loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []
             },
             diffViewModel: diffViewModel,

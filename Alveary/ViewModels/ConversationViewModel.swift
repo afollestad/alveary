@@ -8,6 +8,7 @@ final class ConversationViewModel {
     let conversation: Conversation
 
     private(set) var state: ConversationState
+    private var hasActivatedViewLifecycle = false
 
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
@@ -64,8 +65,26 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.state = runtimeStore.conversationState(for: conversation.id)
+    }
+
+    func activateViewLifecycle() {
+        guard !hasActivatedViewLifecycle else {
+            return
+        }
+
+        hasActivatedViewLifecycle = true
         hydratePendingRestoreContextIfNeeded()
         subscribe()
+    }
+
+    func deactivateViewLifecycle() {
+        guard hasActivatedViewLifecycle else {
+            return
+        }
+
+        hasActivatedViewLifecycle = false
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
     }
 
     var needsSetup: Bool {
@@ -278,12 +297,7 @@ final class ConversationViewModel {
         self.state = state
     }
 
-    deinit {
-        MainActor.assumeIsolated {
-            subscriptionTask?.cancel()
-            saveTask?.cancel()
-        }
-    }
+    deinit {}
 }
 
 private extension ConversationViewModel {

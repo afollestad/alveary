@@ -12,7 +12,7 @@ struct MiddlePane: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
-    let loadInstalledSkills: () async -> [Skill]
+    let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel

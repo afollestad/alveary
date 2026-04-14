@@ -126,59 +126,230 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     nonisolated func readAgentOutput(stdout: FileHandle, stderr: FileHandle, adapter: AgentAdapter) -> AsyncStream<ConversationEvent> {
         return AsyncStream { continuation in
             let stderrBuffer = StderrBuffer(maxLines: 20)
-
-            let stderrTask = Task.detached {
-                do {
-                    for try await line in stderr.bytes.lines {
-                        stderrBuffer.append(line)
-                    }
-                } catch {
-                    // stderr closes on normal exit.
-                }
+            let coordinator = AgentStreamCoordinator(
+                continuation: continuation,
+                adapter: adapter,
+                stderrBuffer: stderrBuffer
+            )
+            let stderrPump = PipeLinePump(handle: stderr) { lineData in
+                stderrBuffer.append(utf8String(from: lineData))
+                return true
+            } onFinish: {
+                coordinator.markStderrFinished()
             }
-
-            Task.detached {
-                do {
-                    for try await line in stdout.bytes.lines {
-                        guard let data = line.data(using: .utf8),
-                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !trimmed.isEmpty else {
-                                continue
-                            }
-
-                            let prefix = String(trimmed.prefix(240))
-                            let stderrTail = stderrBuffer.lastLines.joined(separator: "\n")
-                            let message = if stderrTail.isEmpty {
-                                "Malformed agent stdout line: \(prefix)"
-                            } else {
-                                "Malformed agent stdout line: \(prefix)\n\nStderr:\n\(stderrTail)"
-                            }
-                            continuation.yield(.error(message: message))
-                            break
-                        }
-
-                        for event in adapter.decode(json) {
-                            continuation.yield(event)
-                        }
+            let stdoutPump = PipeLinePump(handle: stdout) { lineData in
+                guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
+                    let trimmed = utf8String(from: lineData)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        return true
                     }
-                } catch {
-                    let stderrTail = stderrBuffer.lastLines.joined(separator: "\n")
-                    let message = if stderrTail.isEmpty {
-                        "Stream read failed: \(error.localizedDescription)"
-                    } else {
-                        "Agent error: \(stderrTail)"
-                    }
-                    continuation.yield(.error(message: message))
+
+                    coordinator.recordMalformedLine(prefix: String(trimmed.prefix(240)))
+                    return false
                 }
 
-                _ = await stderrTask.result
-                for event in adapter.finalize() {
+                for event in adapter.decode(json) {
                     continuation.yield(event)
                 }
-                continuation.finish()
+                return true
+            } onFinish: {
+                coordinator.markStdoutFinished()
+            }
+
+            stderrPump.start()
+            stdoutPump.start()
+
+            continuation.onTermination = { _ in
+                stderrPump.cancel()
+                stdoutPump.cancel()
+                coordinator.cancel()
             }
         }
+    }
+}
+
+private func utf8String(from data: Data) -> String {
+    String(bytes: data, encoding: .utf8) ?? ""
+}
+
+private final class AgentStreamCoordinator: @unchecked Sendable {
+    private let lock = NSLock()
+    private let continuation: AsyncStream<ConversationEvent>.Continuation
+    private let adapter: AgentAdapter
+    private let stderrBuffer: StderrBuffer
+
+    private var stdoutFinished = false
+    private var stderrFinished = false
+    private var malformedLinePrefix: String?
+    private var isCancelled = false
+    private var hasFinished = false
+
+    init(
+        continuation: AsyncStream<ConversationEvent>.Continuation,
+        adapter: AgentAdapter,
+        stderrBuffer: StderrBuffer
+    ) {
+        self.continuation = continuation
+        self.adapter = adapter
+        self.stderrBuffer = stderrBuffer
+    }
+
+    func recordMalformedLine(prefix: String) {
+        lock.lock()
+        if malformedLinePrefix == nil {
+            malformedLinePrefix = prefix
+        }
+        lock.unlock()
+    }
+
+    func markStdoutFinished() {
+        finish(kind: .stdout)
+    }
+
+    func markStderrFinished() {
+        finish(kind: .stderr)
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        hasFinished = true
+        lock.unlock()
+    }
+
+    private func finish(kind: FinishedKind) {
+        let shouldFinalize: Bool
+        let malformedLinePrefix: String?
+
+        lock.lock()
+        switch kind {
+        case .stdout:
+            stdoutFinished = true
+        case .stderr:
+            stderrFinished = true
+        }
+        shouldFinalize = !hasFinished && !isCancelled && stdoutFinished && stderrFinished
+        if shouldFinalize {
+            hasFinished = true
+        }
+        malformedLinePrefix = self.malformedLinePrefix
+        lock.unlock()
+
+        guard shouldFinalize else {
+            return
+        }
+
+        if let malformedLinePrefix {
+            let stderrTail = stderrBuffer.lastLines.joined(separator: "\n")
+            let message = if stderrTail.isEmpty {
+                "Malformed agent stdout line: \(malformedLinePrefix)"
+            } else {
+                "Malformed agent stdout line: \(malformedLinePrefix)\n\nStderr:\n\(stderrTail)"
+            }
+            continuation.yield(.error(message: message))
+        }
+
+        for event in adapter.finalize() {
+            continuation.yield(event)
+        }
+        continuation.finish()
+    }
+
+    private enum FinishedKind {
+        case stdout
+        case stderr
+    }
+}
+
+private final class PipeLinePump: @unchecked Sendable {
+    private let lock = NSLock()
+    private let handle: FileHandle
+    private let onLine: @Sendable (Data) -> Bool
+    private let onFinish: @Sendable () -> Void
+
+    private var buffer = Data()
+    private var hasFinished = false
+
+    init(
+        handle: FileHandle,
+        onLine: @escaping @Sendable (Data) -> Bool,
+        onFinish: @escaping @Sendable () -> Void
+    ) {
+        self.handle = handle
+        self.onLine = onLine
+        self.onFinish = onFinish
+    }
+
+    func start() {
+        handle.readabilityHandler = { [weak self] handle in
+            self?.handleReadable(handle)
+        }
+    }
+
+    func cancel() {
+        finish(flushPendingLine: false)
+    }
+
+    private func handleReadable(_ handle: FileHandle) {
+        let chunk = handle.availableData
+        if chunk.isEmpty {
+            finish(flushPendingLine: true)
+            return
+        }
+
+        let lines = appendAndTakeLines(from: chunk)
+        for line in lines where !onLine(line) {
+            finish(flushPendingLine: false)
+            return
+        }
+    }
+
+    private func appendAndTakeLines(from chunk: Data) -> [Data] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !hasFinished else {
+            return []
+        }
+
+        buffer.append(chunk)
+
+        var lines: [Data] = []
+        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            var line = Data(buffer[..<newlineIndex])
+            if line.last == 0x0D {
+                line.removeLast()
+            }
+            lines.append(line)
+            buffer.removeSubrange(...newlineIndex)
+        }
+        return lines
+    }
+
+    private func finish(flushPendingLine: Bool) {
+        let pendingLine: Data?
+
+        lock.lock()
+        guard !hasFinished else {
+            lock.unlock()
+            return
+        }
+
+        hasFinished = true
+        handle.readabilityHandler = nil
+        if flushPendingLine, !buffer.isEmpty {
+            pendingLine = buffer.last == 0x0D ? Data(buffer.dropLast()) : buffer
+        } else {
+            pendingLine = nil
+        }
+        buffer.removeAll(keepingCapacity: false)
+        lock.unlock()
+
+        if let pendingLine, !pendingLine.isEmpty {
+            _ = onLine(pendingLine)
+        }
+        onFinish()
     }
 }
 

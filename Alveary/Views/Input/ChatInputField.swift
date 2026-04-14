@@ -20,8 +20,8 @@ struct ChatInputField: View {
     let onEditQueuedMessage: ((UUID) -> Void)?
     let onDismissQueuedMessage: ((UUID) -> Void)?
     let workingDirectory: String?
-    let loadFileCompletions: () async -> [String]
-    let loadSkillCompletions: () async -> [Skill]
+    let loadFileCompletions: @Sendable () async -> [String]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
 
     let knownModels = ["default", "opus", "sonnet", "haiku"]
     let maxAutocompleteResults = 50
@@ -57,8 +57,8 @@ struct ChatInputField: View {
         onEditQueuedMessage: ((UUID) -> Void)? = nil,
         onDismissQueuedMessage: ((UUID) -> Void)? = nil,
         workingDirectory: String?,
-        loadFileCompletions: @escaping () async -> [String],
-        loadSkillCompletions: @escaping () async -> [Skill]
+        loadFileCompletions: @escaping @Sendable () async -> [String],
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill]
     ) {
         _text = text
         self.mode = mode

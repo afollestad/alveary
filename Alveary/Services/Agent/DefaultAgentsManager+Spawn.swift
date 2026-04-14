@@ -395,7 +395,6 @@ extension DefaultAgentsManager {
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
             return
         }
-
         managedBuffer.buffer.push(event)
 
         if case .sessionInit(let sessionId) = event, let sessionId {
@@ -415,14 +414,20 @@ extension DefaultAgentsManager {
             break
         }
 
-        let shouldNotify = await MainActor.run {
-            if case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
-               !isError,
-               permissionDenials.isEmpty {
+        guard event.canTriggerNotification else {
+            return
+        }
+
+        let shouldNotify: Bool
+        if case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
+           !isError,
+           permissionDenials.isEmpty {
+            shouldNotify = await MainActor.run {
                 let state = conversationState(for: conversationId)
                 return state.messageQueue.peekNext() == nil && state.inFlightQueuedMessageID == nil
             }
-            return true
+        } else {
+            shouldNotify = true
         }
 
         guard shouldNotify else {
@@ -438,5 +443,16 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.finishAll()
+    }
+}
+
+private extension ConversationEvent {
+    var canTriggerNotification: Bool {
+        switch self {
+        case .tokens, .stop, .notification, .error:
+            return true
+        default:
+            return false
+        }
     }
 }

@@ -84,7 +84,9 @@ struct ChatTranscriptView: View {
                 isFollowing = isNearBottom
             }
             .onChange(of: events.count) {
-                viewModel.rebuildChatItemsIfNeeded(from: events)
+                if !viewModel.turnState.isActive {
+                    viewModel.rebuildChatItemsIfNeeded(from: events)
+                }
                 if isFollowing {
                     proxy.scrollTo("chat-bottom", anchor: .bottom)
                 }
@@ -113,6 +115,8 @@ struct ChatTranscriptView: View {
             .onChange(of: viewModel.turnState.isActive) { _, isActive in
                 if isActive {
                     isFollowing = true
+                } else {
+                    viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
                 }
             }
             .overlay(alignment: .bottom) {

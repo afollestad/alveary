@@ -12,7 +12,7 @@ struct ThreadDetailView: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
-    let loadSkillCompletions: () async -> [Skill]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
 
     @Environment(\.modelContext) private var uiModelContext

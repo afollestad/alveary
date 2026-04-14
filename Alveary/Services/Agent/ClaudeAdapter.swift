@@ -232,7 +232,11 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
 
     private func decodeStreamEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
         guard let event = json["event"] as? [String: Any],
-              event["type"] as? String == "content_block_delta",
+              let eventType = event["type"] as? String else {
+            return []
+        }
+
+        guard eventType == "content_block_delta",
               let delta = event["delta"] as? [String: Any],
               delta["type"] as? String == "text_delta",
               let text = delta["text"] as? String else {

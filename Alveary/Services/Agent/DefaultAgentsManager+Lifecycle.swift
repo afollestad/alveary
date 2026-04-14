@@ -255,8 +255,6 @@ extension DefaultAgentsManager {
             return
         }
 
-        streamTasks[id]?.cancel()
-        streamTasks.removeValue(forKey: id)
         processes.removeValue(forKey: id)
         adapters.removeValue(forKey: id)
         stdinWriteTails[id]?.cancel()
@@ -273,10 +271,23 @@ extension DefaultAgentsManager {
                 if current != .idle, current != .error {
                     updateStatus(.stopped, for: id)
                 }
+                Task { @MainActor in
+                    let state = conversationStatesStore.withLock { $0[id] }
+                    guard let state, state.turnState.isActive else {
+                        return
+                    }
+                    state.turnState.endTurn()
+                    state.clearStreamingText()
+                    if state.lastTurnError == nil {
+                        state.lastTurnError = "Agent process exited before finishing the turn"
+                    }
+                }
             } else {
                 updateStatus(.error, for: id)
                 Task { @MainActor in
                     let state = conversationStatesStore.withLock { $0[id] }
+                    state?.turnState.endTurn()
+                    state?.clearStreamingText()
                     if state?.lastTurnError == nil {
                         state?.lastTurnError = "Agent process crashed unexpectedly"
                     }

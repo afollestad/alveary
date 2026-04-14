@@ -116,6 +116,11 @@ extension ChatInputField {
         activeAutocomplete = autocomplete
 
         guard let source = autocomplete.source else {
+            if loadTask == nil || loadTask?.isCancelled == true {
+                autocomplete.isLoading = true
+                activeAutocomplete = autocomplete
+                loadAutocompleteSource(for: autocomplete)
+            }
             return
         }
         scheduleFiltering(for: autocomplete.sessionID, kind: autocomplete.kind, query: token.query, source: source)
@@ -125,13 +130,21 @@ extension ChatInputField {
         loadTask?.cancel()
         filterTask?.cancel()
 
-        loadTask = Task {
+        let loadFileCompletions = self.loadFileCompletions
+        let loadSkillCompletions = self.loadSkillCompletions
+
+        // Keep source loading off the main actor so streaming turns do not starve autocomplete.
+        loadTask = Task.detached(priority: .userInitiated) {
             let source: ComposerAutocompleteSource
             switch autocomplete.kind {
             case .file:
                 source = .file(await loadFileCompletions())
             case .skill:
                 source = .skill(await loadSkillCompletions())
+            }
+
+            guard !Task.isCancelled else {
+                return
             }
 
             await MainActor.run {
@@ -143,6 +156,7 @@ extension ChatInputField {
                 current.source = source
                 current.isLoading = false
                 activeAutocomplete = current
+                loadTask = nil
 
                 scheduleFiltering(
                     for: current.sessionID,
@@ -162,20 +176,25 @@ extension ChatInputField {
     ) {
         filterTask?.cancel()
 
-        filterTask = Task {
+        let autocompleteDebounceNanoseconds = self.autocompleteDebounceNanoseconds
+        let maxAutocompleteResults = self.maxAutocompleteResults
+
+        filterTask = Task.detached(priority: .userInitiated) {
             try? await Task.sleep(nanoseconds: autocompleteDebounceNanoseconds)
             guard !Task.isCancelled else {
                 return
             }
 
-            let matches = await Task.detached(priority: .userInitiated) {
-                ComposerAutocompleteMatcher.matches(
-                    for: kind,
-                    query: query,
-                    source: source,
-                    limit: maxAutocompleteResults
-                )
-            }.value
+            let matches = ComposerAutocompleteMatcher.matches(
+                for: kind,
+                query: query,
+                source: source,
+                limit: maxAutocompleteResults
+            )
+
+            guard !Task.isCancelled else {
+                return
+            }
 
             await MainActor.run {
                 guard var autocomplete = activeAutocomplete,
@@ -196,6 +215,7 @@ extension ChatInputField {
                 }
 
                 activeAutocomplete = autocomplete
+                filterTask = nil
             }
         }
     }
@@ -203,6 +223,8 @@ extension ChatInputField {
     func dismissAutocomplete() {
         loadTask?.cancel()
         filterTask?.cancel()
+        loadTask = nil
+        filterTask = nil
         activeAutocomplete = nil
     }
 

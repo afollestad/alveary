@@ -27,16 +27,31 @@ final class FileListManagerTests: XCTestCase {
 
         XCTAssertTrue(files.isEmpty)
     }
+
+    func testWarmCacheFailureDoesNotPoisonLaterSuccessfulLookup() async {
+        let gitService = MockGitService(
+            listFilesResults: [["Sources/App.swift"]],
+            listFilesErrors: [GitError.notARepository, nil]
+        )
+        let manager = GitFileListManager(gitService: gitService)
+
+        await manager.warmCache(for: "/tmp/project")
+        let files = await manager.files(for: "/tmp/project")
+
+        XCTAssertEqual(files, ["Sources/App.swift"])
+    }
 }
 
 private actor MockGitService: GitService {
     private let listFilesError: Error?
+    private var listFilesErrors: [Error?]
     private var listFilesResults: [[String]]
     private var callCount = 0
 
-    init(listFilesResults: [[String]] = [], listFilesError: Error? = nil) {
+    init(listFilesResults: [[String]] = [], listFilesError: Error? = nil, listFilesErrors: [Error?] = []) {
         self.listFilesResults = listFilesResults
         self.listFilesError = listFilesError
+        self.listFilesErrors = listFilesErrors
     }
 
     func status(in directory: String) async throws -> [FileStatus] { [] }
@@ -50,7 +65,11 @@ private actor MockGitService: GitService {
 
     func listFiles(in directory: String) async throws -> [String] {
         callCount += 1
-        if let listFilesError {
+        if !listFilesErrors.isEmpty {
+            if let error = listFilesErrors.removeFirst() {
+                throw error
+            }
+        } else if let listFilesError {
             throw listFilesError
         }
         if !listFilesResults.isEmpty {

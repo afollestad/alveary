@@ -4,6 +4,37 @@ import XCTest
 
 @MainActor
 final class ChatItemGrouperTests: XCTestCase {
+    func testAppendThenFullRebuildKeepsTranscriptStable() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let userMessage = ConversationEventRecord(
+            id: "user-message",
+            conversationId: conversationId,
+            type: "message",
+            role: "user",
+            content: "Hello"
+        )
+        let assistantMessage = ConversationEventRecord(
+            id: "assistant-message",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: "Hi"
+        )
+
+        grouper.append(event: userMessage)
+        grouper.append(event: assistantMessage)
+        grouper.update(events: [userMessage, assistantMessage], forceFullRebuild: true)
+
+        XCTAssertEqual(
+            grouper.items,
+            [
+                .userMessage(id: "user-message", text: "Hello"),
+                .assistantMessage(id: "assistant-message", text: "Hi")
+            ]
+        )
+    }
+
     func testLateToolResultPatchesExistingWorkingBlock() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

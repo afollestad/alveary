@@ -20,6 +20,8 @@ extension ConversationViewModelTests {
     func testPendingRestoreContextHydratesIntoComposerAndClearsAfterSend() async throws {
         let fixture = try ConversationViewModelTestFixture(pendingRestoreContext: "Restored summary")
 
+        fixture.viewModel.activateViewLifecycle()
+
         XCTAssertEqual(fixture.viewModel.state.stagedContext, "Restored summary")
 
         try await fixture.viewModel.send("Continue from there")
@@ -32,6 +34,8 @@ extension ConversationViewModelTests {
 
     func testDismissStagedContextClearsPendingRestoreContext() throws {
         let fixture = try ConversationViewModelTestFixture(pendingRestoreContext: "Restored summary")
+
+        fixture.viewModel.activateViewLifecycle()
 
         fixture.viewModel.dismissStagedContext()
 

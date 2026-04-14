@@ -19,7 +19,7 @@ struct ConversationView: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
-    let loadSkillCompletions: () async -> [Skill]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     @Bindable var appState: AppState
 
@@ -52,7 +52,7 @@ struct ConversationView: View {
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
         fileListManager: FileListManager,
-        loadSkillCompletions: @escaping () async -> [Skill],
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
         appState: AppState
     ) {
@@ -88,19 +88,21 @@ struct ConversationView: View {
             diffViewModel: diffViewModel,
             composerCapabilities: composerCapabilities,
             workingDirectory: activeWorkingDirectory,
-            loadFileCompletions: {
-                guard let path = activeWorkingDirectory else {
-                    return []
-                }
-                return await fileListManager.files(for: path)
-            },
+            loadFileCompletions: Self.makeFileCompletionLoader(
+                fileListManager: fileListManager,
+                workingDirectory: activeWorkingDirectory
+            ),
             loadSkillCompletions: loadSkillCompletions,
             appState: appState
         )
         .task {
+            viewModel.activateViewLifecycle()
             if let path = activeWorkingDirectory {
                 await fileListManager.warmCache(for: path)
             }
+        }
+        .onDisappear {
+            viewModel.deactivateViewLifecycle()
         }
         .onChange(of: activeWorkingDirectory) { _, newPath in
             guard let newPath,
@@ -153,6 +155,20 @@ struct ConversationView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private extension ConversationView {
+    static func makeFileCompletionLoader(
+        fileListManager: FileListManager,
+        workingDirectory: String?
+    ) -> @Sendable () async -> [String] {
+        {
+            guard let workingDirectory else {
+                return []
+            }
+            return await fileListManager.files(for: workingDirectory)
         }
     }
 }

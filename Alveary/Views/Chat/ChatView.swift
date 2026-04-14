@@ -10,8 +10,8 @@ struct ChatView: View {
     let diffViewModel: DiffViewerViewModel
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
-    let loadFileCompletions: () async -> [String]
-    let loadSkillCompletions: () async -> [Skill]
+    let loadFileCompletions: @Sendable () async -> [String]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
     @Bindable var appState: AppState
 
     @Query private var events: [ConversationEventRecord]
@@ -88,8 +88,8 @@ struct ChatView: View {
         diffViewModel: DiffViewerViewModel,
         composerCapabilities: ComposerCapabilities,
         workingDirectory: String?,
-        loadFileCompletions: @escaping () async -> [String],
-        loadSkillCompletions: @escaping () async -> [Skill],
+        loadFileCompletions: @escaping @Sendable () async -> [String],
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         appState: AppState
     ) {
         self.viewModel = viewModel
