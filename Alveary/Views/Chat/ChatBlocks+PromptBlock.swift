@@ -188,19 +188,67 @@ struct ThinkingBlock: View {
     let text: String
     @State private var isExpanded = false
 
+    private var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canExpand: Bool {
+        preview != trimmedText
+    }
+
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-                .textSelection(.enabled)
-        } label: {
-            HStack(spacing: 10) {
-                Text(isExpanded ? "💭" : "▸")
-                Text(isExpanded ? "Thinking" : preview)
+        VStack(alignment: .leading, spacing: 0) {
+            if canExpand {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .frame(width: 12, alignment: .center)
+                            .foregroundStyle(.secondary)
+
+                        Text(isExpanded ? "Thinking" : preview)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "ellipsis.bubble")
+                            .font(.caption.weight(.semibold))
+
+                        Text("Thinking")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Text(trimmedText)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if canExpand && isExpanded {
+                Text(text)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+                    .padding(.leading, 22)
+                    .textSelection(.enabled)
             }
         }
         .padding(16)
@@ -212,7 +260,7 @@ struct ThinkingBlock: View {
     }
 
     private var preview: String {
-        let firstLine = text.split(separator: "\n").first.map(String.init) ?? "Thinking"
+        let firstLine = trimmedText.split(separator: "\n").first.map(String.init) ?? "Thinking"
         if firstLine.count > 80 {
             return String(firstLine.prefix(77)) + "..."
         }
