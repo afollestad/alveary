@@ -7,6 +7,7 @@ struct ChatInputField: View {
     let onSubmit: () -> Void
     let onSteer: () -> Void
     let onStop: (() -> Void)?
+    let outerPadding: EdgeInsets
     @Binding var selectedModel: String
     @Binding var selectedEffort: String
     @Binding var selectedPermissionMode: String
@@ -44,6 +45,7 @@ struct ChatInputField: View {
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
         onStop: (() -> Void)?,
+        outerPadding: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
         selectedModel: Binding<String>,
         selectedEffort: Binding<String>,
         selectedPermissionMode: Binding<String>,
@@ -65,6 +67,7 @@ struct ChatInputField: View {
         self.onSubmit = onSubmit
         self.onSteer = onSteer
         self.onStop = onStop
+        self.outerPadding = outerPadding
         _selectedModel = selectedModel
         _selectedEffort = selectedEffort
         _selectedPermissionMode = selectedPermissionMode
@@ -288,7 +291,7 @@ struct ChatInputField: View {
                 }
             }
         }
-        .padding(16)
+        .padding(outerPadding)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)

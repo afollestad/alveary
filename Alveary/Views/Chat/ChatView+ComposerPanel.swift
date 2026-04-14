@@ -85,6 +85,7 @@ struct ChatComposerPanel: View {
                 onSubmit: onSubmit,
                 onSteer: onSteer,
                 onStop: onStop,
+                outerPadding: EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0),
                 selectedModel: selectedModel,
                 selectedEffort: selectedEffort,
                 selectedPermissionMode: selectedPermissionMode,
