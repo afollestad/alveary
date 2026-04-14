@@ -2,6 +2,40 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+struct ChatTranscriptScrollMetrics: Equatable {
+    let offsetY: CGFloat
+    let contentHeight: CGFloat
+    let containerHeight: CGFloat
+
+    var distanceFromBottom: CGFloat {
+        contentHeight - (offsetY + containerHeight)
+    }
+
+    var isNearBottom: Bool {
+        return distanceFromBottom < 60
+    }
+}
+
+enum ChatTranscriptScrollBehavior {
+    static func shouldPreserveFollowMode(
+        oldMetrics: ChatTranscriptScrollMetrics,
+        newMetrics: ChatTranscriptScrollMetrics
+    ) -> Bool {
+        let contentGrew = newMetrics.contentHeight > oldMetrics.contentHeight + 0.5
+        let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
+        return oldMetrics.isNearBottom && contentGrew && !offsetChanged
+    }
+
+    static func shouldCancelProgrammaticScroll(
+        oldMetrics: ChatTranscriptScrollMetrics,
+        newMetrics: ChatTranscriptScrollMetrics
+    ) -> Bool {
+        let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
+        let movedFurtherFromBottom = newMetrics.distanceFromBottom > oldMetrics.distanceFromBottom + 0.5
+        return offsetChanged && movedFurtherFromBottom
+    }
+}
+
 struct ChatTranscriptView: View {
     let viewModel: ConversationViewModel
     let events: [ConversationEventRecord]
@@ -9,6 +43,9 @@ struct ChatTranscriptView: View {
 
     @Binding var lastScrollTime: Date
     @Binding var isFollowing: Bool
+    @Binding var scrollToBottomRequest: Int
+
+    @State private var pendingProgrammaticScroll = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -72,30 +109,59 @@ struct ChatTranscriptView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            .defaultScrollAnchor(.bottom)
             .transaction { transaction in
                 if viewModel.turnState.isActive {
                     transaction.disablesAnimations = true
                 }
             }
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                let distanceFromBottom = geometry.contentSize.height - (geometry.contentOffset.y + geometry.containerSize.height)
-                return distanceFromBottom < 60
-            } action: { _, isNearBottom in
-                isFollowing = isNearBottom
+            .onScrollGeometryChange(for: ChatTranscriptScrollMetrics.self) { geometry in
+                ChatTranscriptScrollMetrics(
+                    offsetY: geometry.contentOffset.y,
+                    contentHeight: geometry.contentSize.height,
+                    containerHeight: geometry.containerSize.height
+                )
+            } action: { oldMetrics, newMetrics in
+                if pendingProgrammaticScroll {
+                    if newMetrics.isNearBottom {
+                        pendingProgrammaticScroll = false
+                        isFollowing = true
+                    } else if ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
+                        oldMetrics: oldMetrics,
+                        newMetrics: newMetrics
+                    ) {
+                        pendingProgrammaticScroll = false
+                        isFollowing = false
+                    }
+                    return
+                }
+
+                if ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+                    oldMetrics: oldMetrics,
+                    newMetrics: newMetrics
+                ) {
+                    isFollowing = true
+                    scrollToBottom(using: proxy)
+                    return
+                }
+
+                isFollowing = newMetrics.isNearBottom
             }
             .onChange(of: events.count) {
                 if !viewModel.turnState.isActive {
                     viewModel.rebuildChatItemsIfNeeded(from: events)
                 }
-                if isFollowing {
-                    proxy.scrollTo("chat-bottom", anchor: .bottom)
+                if shouldForceBottomScroll(for: events) {
+                    scrollToBottom(using: proxy, forceFollow: true)
+                } else if isFollowing {
+                    scrollToBottom(using: proxy)
                 }
             }
-            .onChange(of: viewModel.messageQueue.pending.count) {
-                guard isFollowing else {
+            .onChange(of: viewModel.messageQueue.pending.count) { oldCount, newCount in
+                guard newCount > oldCount else {
                     return
                 }
-                proxy.scrollTo("chat-bottom", anchor: .bottom)
+                scrollToBottom(using: proxy, forceFollow: true)
             }
             .onChange(of: viewModel.streamingText) {
                 guard isFollowing else {
@@ -104,13 +170,12 @@ struct ChatTranscriptView: View {
 
                 let now = Date()
                 if now.timeIntervalSince(lastScrollTime) >= 0.1 {
-                    lastScrollTime = now
-                    proxy.scrollTo("chat-bottom", anchor: .bottom)
+                    scrollToBottom(using: proxy, at: now)
                 }
             }
             .onAppear {
                 viewModel.rebuildChatItemsIfNeeded(from: events)
-                proxy.scrollTo("chat-bottom", anchor: .bottom)
+                scrollToBottom(using: proxy, forceFollow: true)
             }
             .onChange(of: viewModel.turnState.isActive) { _, isActive in
                 if isActive {
@@ -119,11 +184,13 @@ struct ChatTranscriptView: View {
                     viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
                 }
             }
+            .onChange(of: scrollToBottomRequest) { _, _ in
+                scrollToBottom(using: proxy, forceFollow: true)
+            }
             .overlay(alignment: .bottom) {
                 if !isFollowing && (viewModel.turnState.isActive || viewModel.streamingText != nil) {
                     Button {
-                        isFollowing = true
-                        proxy.scrollTo("chat-bottom", anchor: .bottom)
+                        scrollToBottom(using: proxy, forceFollow: true)
                     } label: {
                         Label("Jump to bottom", systemImage: "arrow.down")
                     }
@@ -132,5 +199,35 @@ struct ChatTranscriptView: View {
                 }
             }
         }
+    }
+}
+
+private extension ChatTranscriptView {
+    func scrollToBottom(
+        using proxy: ScrollViewProxy,
+        forceFollow: Bool = false,
+        at time: Date = Date()
+    ) {
+        if forceFollow {
+            isFollowing = true
+        }
+
+        pendingProgrammaticScroll = true
+        lastScrollTime = time
+        proxy.scrollTo("chat-bottom", anchor: .bottom)
+
+        // Lazy transcript layout can settle after the first scroll request, so
+        // issue one more scroll on the next pass to keep follow mode pinned.
+        DispatchQueue.main.async {
+            proxy.scrollTo("chat-bottom", anchor: .bottom)
+        }
+    }
+
+    func shouldForceBottomScroll(for events: [ConversationEventRecord]) -> Bool {
+        guard let lastEvent = events.last else {
+            return false
+        }
+
+        return lastEvent.type == "message" && lastEvent.role == "user"
     }
 }

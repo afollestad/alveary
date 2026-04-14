@@ -17,6 +17,7 @@ struct ChatView: View {
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
     @State private var isFollowing = true
+    @State private var scrollToBottomRequest = 0
 
     private var hasVisibleChatContent: Bool {
         !events.isEmpty || !viewModel.state.grouper.items.isEmpty || viewModel.streamingText != nil
@@ -125,7 +126,8 @@ struct ChatView: View {
                     events: events,
                     promptSubmissionIsBusy: promptSubmissionIsBusy,
                     lastScrollTime: $lastScrollTime,
-                    isFollowing: $isFollowing
+                    isFollowing: $isFollowing,
+                    scrollToBottomRequest: $scrollToBottomRequest
                 )
             }
 
@@ -181,6 +183,7 @@ private extension ChatView {
 
         let outboundMessage = outboundMessage(from: message)
 
+        requestScrollToBottom()
         viewModel.state.inputDraft = ""
         Task {
             do {
@@ -202,6 +205,7 @@ private extension ChatView {
 
         let outboundMessage = outboundMessage(from: message)
 
+        requestScrollToBottom()
         viewModel.state.inputDraft = ""
         Task {
             do {
@@ -223,6 +227,7 @@ private extension ChatView {
 
         let outboundMessage = outboundMessage(from: message)
 
+        requestScrollToBottom()
         viewModel.state.inputDraft = ""
         Task {
             do {
@@ -234,6 +239,11 @@ private extension ChatView {
                 }
             }
         }
+    }
+
+    func requestScrollToBottom() {
+        isFollowing = true
+        scrollToBottomRequest += 1
     }
 
     func applyModelChange(_ newValue: String) {
