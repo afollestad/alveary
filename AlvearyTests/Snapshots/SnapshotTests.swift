@@ -152,6 +152,28 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testComposerAutocompletePopupEmptyState() {
+        assertMacSnapshot(
+            ComposerAutocompletePopup(
+                autocomplete: sampleEmptyAutocomplete,
+                onSelect: { _ in }
+            ),
+            size: CGSize(width: 540, height: 120),
+            named: "composer_autocomplete_empty"
+        )
+    }
+
+    func testComposerAutocompletePopupLoadingState() {
+        assertMacSnapshot(
+            ComposerAutocompletePopup(
+                autocomplete: sampleLoadingAutocomplete,
+                onSelect: { _ in }
+            ),
+            size: CGSize(width: 540, height: 120),
+            named: "composer_autocomplete_loading"
+        )
+    }
+
     func testQueuedMessageBubbleWithContextAndRetry() {
         assertMacSnapshot(
             ChatInputField(

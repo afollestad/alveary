@@ -38,6 +38,7 @@ struct ChatInputField: View {
     @State var filterTask: Task<Void, Never>?
     @State private var isDropTargeted = false
     @State private var isKeymapPresented = false
+    @State private var autocompletePopupHeight: CGFloat = 0
 
     init(
         text: Binding<String>,
@@ -133,13 +134,6 @@ struct ChatInputField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let autocomplete = activeAutocomplete {
-                ComposerAutocompletePopup(
-                    autocomplete: autocomplete,
-                    onSelect: applyAutocompleteSuggestion
-                )
-            }
-
             VStack(spacing: 0) {
                 if !queuedMessages.isEmpty,
                    let onSteerQueuedMessage,
@@ -182,6 +176,31 @@ struct ChatInputField: View {
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress
                 )
+                .overlay(alignment: .topLeading) {
+                    if let autocomplete = activeAutocomplete {
+                        ComposerAutocompletePopup(
+                            autocomplete: autocomplete,
+                            onSelect: applyAutocompleteSuggestion
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear
+                                    .onAppear {
+                                        autocompletePopupHeight = proxy.size.height
+                                    }
+                                    .onChange(of: proxy.size.height) { _, newHeight in
+                                        autocompletePopupHeight = newHeight
+                                    }
+                            }
+                        }
+                        .opacity(autocompletePopupHeight == 0 ? 0 : 1)
+                        .offset(y: -(autocompletePopupHeight + 8))
+                        .zIndex(1)
+                    }
+                }
+                .zIndex(activeAutocomplete == nil ? 0 : 1)
             }
             .dropDestination(for: URL.self) { items, _ in
                 handleDroppedFiles(items)
@@ -205,6 +224,9 @@ struct ChatInputField: View {
                 if isInputFocused {
                     refreshAutocomplete(forceReload: true)
                 }
+            }
+            .onChange(of: activeAutocomplete?.sessionID) {
+                autocompletePopupHeight = 0
             }
             .onDisappear {
                 loadTask?.cancel()
@@ -292,6 +314,7 @@ struct ChatInputField: View {
             }
         }
         .padding(outerPadding)
+        .zIndex(activeAutocomplete == nil ? 0 : 1)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)

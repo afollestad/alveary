@@ -21,22 +21,25 @@ extension SnapshotTests {
             suggestions: [
                 ComposerAutocompleteSuggestion(
                     id: "Alveary/Views/Input/ChatInputAutocomplete.swift",
-                    title: "ChatInputAutocomplete.swift",
-                    subtitle: "Alveary/Views/Input",
+                    title: "Alveary/Views/Input/ChatInputAutocomplete.swift",
+                    subtitle: nil,
+                    trailingText: nil,
                     replacementText: "@Alveary/Views/Input/ChatInputAutocomplete.swift",
                     symbolName: "doc.text"
                 ),
                 ComposerAutocompleteSuggestion(
                     id: "Alveary/Views/Chat/ChatSupplementaryViews.swift",
-                    title: "ChatSupplementaryViews.swift",
-                    subtitle: "Alveary/Views/Chat",
+                    title: "~/Development/alveary/Alveary/Views/Chat/ChatSupplementaryViews.swift",
+                    subtitle: nil,
+                    trailingText: nil,
                     replacementText: "@Alveary/Views/Chat/ChatSupplementaryViews.swift",
                     symbolName: "doc.text"
                 ),
                 ComposerAutocompleteSuggestion(
                     id: "AlvearyTests/Snapshots/SnapshotTestSupport.swift",
-                    title: "SnapshotTestSupport.swift",
-                    subtitle: "AlvearyTests/Snapshots",
+                    title: "AlvearyTests/Snapshots/SnapshotTestSupport.swift",
+                    subtitle: nil,
+                    trailingText: nil,
                     replacementText: "@AlvearyTests/Snapshots/SnapshotTestSupport.swift",
                     symbolName: "doc.text"
                 )
@@ -59,27 +62,58 @@ extension SnapshotTests {
                     id: "skill-ios-accessibility",
                     title: "ios-accessibility",
                     subtitle: "Audit SwiftUI screens for VoiceOver and Dynamic Type issues.",
+                    trailingText: "Personal",
                     replacementText: "/ios-accessibility",
-                    symbolName: "sparkles"
+                    symbolName: "shippingbox"
                 ),
                 ComposerAutocompleteSuggestion(
                     id: "skill-ios-debugging",
                     title: "ios-debugging",
                     subtitle: "Set up and troubleshoot iOS debugging without opening Xcode.",
+                    trailingText: "cash-ios",
                     replacementText: "/ios-debugging",
-                    symbolName: "sparkles"
+                    symbolName: "shippingbox"
                 ),
                 ComposerAutocompleteSuggestion(
                     id: "skill-ios-simulator",
                     title: "ios-simulator",
                     subtitle: "Start, stop, and manage iOS simulators for testing.",
+                    trailingText: "Personal",
                     replacementText: "/ios-simulator",
-                    symbolName: "sparkles"
+                    symbolName: "shippingbox"
                 )
             ],
             totalMatches: 3,
             highlightedIndex: 0,
             isLoading: false
+        )
+    }
+
+    var sampleEmptyAutocomplete: ComposerAutocompleteState {
+        ComposerAutocompleteState(
+            sessionID: UUID(),
+            kind: .file,
+            replacementOffsets: 0..<4,
+            query: "zzzz",
+            source: nil,
+            suggestions: [],
+            totalMatches: 0,
+            highlightedIndex: 0,
+            isLoading: false
+        )
+    }
+
+    var sampleLoadingAutocomplete: ComposerAutocompleteState {
+        ComposerAutocompleteState(
+            sessionID: UUID(),
+            kind: .skill,
+            replacementOffsets: 0..<4,
+            query: "tes",
+            source: nil,
+            suggestions: [],
+            totalMatches: 0,
+            highlightedIndex: 0,
+            isLoading: true
         )
     }
 

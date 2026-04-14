@@ -78,6 +78,17 @@ final class CanonicalPathTests: XCTestCase {
         )
     }
 
+    func testDisplayMentionPathAbbreviatesHomeDirectoryAfterNormalization() {
+        let homeDirectory = NSHomeDirectory()
+        let workingDirectory = homeDirectory + "/Development/alveary"
+        let filePath = homeDirectory + "/Documents/Notes.swift"
+
+        XCTAssertEqual(
+            CanonicalPath.displayMentionPath(filePath, relativeTo: workingDirectory),
+            "~/Documents/Notes.swift"
+        )
+    }
+
     private func makeTempDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

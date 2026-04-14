@@ -12,6 +12,10 @@ enum CanonicalPath {
         NSString(string: path).abbreviatingWithTildeInPath
     }
 
+    static func displayMentionPath(_ path: String, relativeTo workingDirectory: String?) -> String {
+        abbreviateHomeDirectory(normalizeMentionPath(path, relativeTo: workingDirectory))
+    }
+
     static func normalizeMentionPath(_ path: String, relativeTo workingDirectory: String?) -> String {
         let expandedPath = NSString(string: path).expandingTildeInPath
 

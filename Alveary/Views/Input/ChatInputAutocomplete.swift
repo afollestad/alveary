@@ -1,119 +1,230 @@
 import Foundation
 import SwiftUI
 
+private let composerAutocompletePopupCornerRadius: CGFloat = 18
+private let composerAutocompleteRowCornerRadius: CGFloat = 14
+private let composerAutocompleteRowSpacing: CGFloat = 12
+private let composerAutocompleteListSpacing: CGFloat = 6
+private let composerAutocompleteRowVerticalPadding: CGFloat = 10
+private let composerAutocompleteMaxVisibleRows: CGFloat = 6
+private let composerAutocompleteMaxHeight: CGFloat =
+    composerAutocompleteMaxVisibleRows * 40 + (composerAutocompleteMaxVisibleRows - 1) * composerAutocompleteListSpacing
+
 struct ComposerAutocompletePopup: View {
     let autocomplete: ComposerAutocompleteState
     let onSelect: (ComposerAutocompleteSuggestion) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(autocomplete.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text(autocomplete.statusLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if autocomplete.isLoading {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Loading suggestions...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if autocomplete.suggestions.isEmpty {
-                Text("No matches yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(autocomplete.suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                            Button {
-                                onSelect(suggestion)
-                            } label: {
-                                HStack(alignment: .top, spacing: 10) {
-                                    Image(systemName: suggestion.symbolName)
-                                        .foregroundStyle(.secondary)
-                                        .accessibilityHidden(true)
-
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(highlightedText(suggestion.title, query: autocomplete.query))
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.primary)
-
-                                        if let subtitle = suggestion.subtitle,
-                                           !subtitle.isEmpty {
-                                            Text(subtitle)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(index == autocomplete.highlightedIndex ? Color.accentColor.opacity(0.14) : .clear)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(maxHeight: 220)
-            }
-        }
-        .padding(14)
+        content
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(NSColor.windowBackgroundColor))
+            RoundedRectangle(cornerRadius: composerAutocompletePopupCornerRadius, style: .continuous)
+                .fill(popupFillColor)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+            RoundedRectangle(cornerRadius: composerAutocompletePopupCornerRadius, style: .continuous)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
     }
 }
 
 private extension ComposerAutocompletePopup {
-    func highlightedText(_ value: String, query: String) -> AttributedString {
-        guard !query.isEmpty else {
-            return AttributedString(value)
+    @ViewBuilder
+    var content: some View {
+        if autocomplete.isLoading {
+            HStack(spacing: composerAutocompleteRowSpacing) {
+                ProgressView()
+                    .controlSize(.small)
+
+                Text("Loading suggestions…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if autocomplete.suggestions.isEmpty {
+            HStack {
+                Text("No matches yet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: composerAutocompleteListSpacing) {
+                    ForEach(Array(autocomplete.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                        ComposerAutocompleteRow(
+                            kind: autocomplete.kind,
+                            suggestion: suggestion,
+                            query: autocomplete.query,
+                            isHighlighted: index == autocomplete.highlightedIndex,
+                            onSelect: {
+                                onSelect(suggestion)
+                            }
+                        )
+                    }
+                }
+            }
+            .frame(maxHeight: composerAutocompleteMaxHeight)
         }
+    }
 
-        let normalizedQuery = query.lowercased()
-        var queryIndex = normalizedQuery.startIndex
-        var highlightedValue = AttributedString()
+    var popupFillColor: Color {
+        Color(nsColor: .composerAutocompleteFillColor(for: colorScheme))
+    }
+}
 
-        for character in value {
-            let characterString = String(character)
-            let isMatch = queryIndex < normalizedQuery.endIndex &&
-                characterString.lowercased() == String(normalizedQuery[queryIndex])
+private extension NSColor {
+    static func composerAutocompleteFillColor(for colorScheme: ColorScheme) -> NSColor {
+        switch colorScheme {
+        case .dark:
+            return NSColor(calibratedRed: 0.16, green: 0.16, blue: 0.17, alpha: 1)
+        case .light:
+            return NSColor(calibratedRed: 0.93, green: 0.93, blue: 0.94, alpha: 1)
+        @unknown default:
+            return NSColor(calibratedRed: 0.93, green: 0.93, blue: 0.94, alpha: 1)
+        }
+    }
+}
 
-            var segment = AttributedString(characterString)
+private struct ComposerAutocompleteRow: View {
+    let kind: ComposerAutocompleteKind
+    let suggestion: ComposerAutocompleteSuggestion
+    let query: String
+    let isHighlighted: Bool
+    let onSelect: () -> Void
 
-            if isMatch {
-                segment.inlinePresentationIntent = .stronglyEmphasized
-                queryIndex = normalizedQuery.index(after: queryIndex)
+    var body: some View {
+        Button(action: onSelect) {
+            Group {
+                switch kind {
+                case .file:
+                    fileRow
+                case .skill:
+                    skillRow
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, composerAutocompleteRowVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: composerAutocompleteRowCornerRadius, style: .continuous)
+                    .fill(isHighlighted ? Color.primary.opacity(0.1) : .clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private extension ComposerAutocompleteRow {
+    var fileRow: some View {
+        HStack(spacing: composerAutocompleteRowSpacing) {
+            Image(systemName: suggestion.symbolName)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            Text(composerAutocompleteHighlightedText(suggestion.title, query: query))
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    var skillRow: some View {
+        HStack(spacing: composerAutocompleteRowSpacing) {
+            Image(systemName: suggestion.symbolName)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            Text(composerAutocompleteHighlightedText(suggestion.title, query: query))
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .layoutPriority(2)
+
+            if let subtitle = suggestion.subtitle,
+               !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
             }
 
-            highlightedValue.append(segment)
-        }
+            Spacer(minLength: 0)
 
+            if let trailingText = suggestion.trailingText,
+               !trailingText.isEmpty {
+                Text(trailingText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .layoutPriority(2)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private func composerAutocompleteHighlightedText(_ value: String, query: String) -> AttributedString {
+    guard !query.isEmpty else {
+        return AttributedString(value)
+    }
+
+    if let matchingRange = value.range(
+        of: query,
+        options: [.caseInsensitive, .diacriticInsensitive]
+    ) {
+        var highlightedValue = AttributedString(String(value[..<matchingRange.lowerBound]))
+
+        var matchedSegment = AttributedString(String(value[matchingRange]))
+        matchedSegment.inlinePresentationIntent = .stronglyEmphasized
+        highlightedValue.append(matchedSegment)
+
+        highlightedValue.append(AttributedString(String(value[matchingRange.upperBound...])))
         return highlightedValue
     }
+
+    return composerAutocompleteSubsequenceHighlightedText(value, query: query)
+}
+
+private func composerAutocompleteSubsequenceHighlightedText(_ value: String, query: String) -> AttributedString {
+    let normalizedQuery = query.lowercased()
+    var queryIndex = normalizedQuery.startIndex
+    var highlightedValue = AttributedString()
+
+    for character in value {
+        let characterString = String(character)
+        let isMatch = queryIndex < normalizedQuery.endIndex &&
+            characterString.lowercased() == String(normalizedQuery[queryIndex])
+
+        var segment = AttributedString(characterString)
+
+        if isMatch {
+            segment.inlinePresentationIntent = .stronglyEmphasized
+            queryIndex = normalizedQuery.index(after: queryIndex)
+        }
+
+        highlightedValue.append(segment)
+    }
+
+    return highlightedValue
 }
 
 struct ComposerCompletionToken {
@@ -132,25 +243,6 @@ struct ComposerAutocompleteState {
     var totalMatches = 0
     var highlightedIndex = 0
     var isLoading: Bool
-
-    var title: String {
-        switch kind {
-        case .file:
-            return "Files"
-        case .skill:
-            return "Skills"
-        }
-    }
-
-    var statusLabel: String {
-        if isLoading {
-            return "Loading"
-        }
-        guard totalMatches > 0 else {
-            return "0 matches"
-        }
-        return "\(min(highlightedIndex + 1, totalMatches)) of \(totalMatches)"
-    }
 }
 
 enum ComposerAutocompleteKind: Sendable, Equatable {
@@ -159,7 +251,7 @@ enum ComposerAutocompleteKind: Sendable, Equatable {
 }
 
 enum ComposerAutocompleteSource: Sendable {
-    case file([String])
+    case file([String], workingDirectory: String?)
     case skill([Skill])
 }
 
@@ -167,6 +259,7 @@ struct ComposerAutocompleteSuggestion: Identifiable, Sendable, Equatable {
     let id: String
     let title: String
     let subtitle: String?
+    let trailingText: String?
     let replacementText: String
     let symbolName: String
 }
@@ -184,8 +277,8 @@ enum ComposerAutocompleteMatcher {
         limit: Int
     ) -> ComposerAutocompleteMatchResult {
         switch (kind, source) {
-        case (.file, .file(let files)):
-            return fileMatches(query: query, files: files, limit: limit)
+        case (.file, .file(let files, let workingDirectory)):
+            return fileMatches(query: query, files: files, workingDirectory: workingDirectory, limit: limit)
         case (.skill, .skill(let skills)):
             return skillMatches(query: query, skills: skills, limit: limit)
         default:
@@ -196,6 +289,7 @@ enum ComposerAutocompleteMatcher {
     private static func fileMatches(
         query: String,
         files: [String],
+        workingDirectory: String?,
         limit: Int
     ) -> ComposerAutocompleteMatchResult {
         let matches = scoredMatches(candidates: files, query: query) { file, normalizedQuery in
@@ -211,12 +305,11 @@ enum ComposerAutocompleteMatcher {
 
         return ComposerAutocompleteMatchResult(
             suggestions: matches.prefix(limit).map { file in
-                let fileName = (file as NSString).lastPathComponent
-                let directory = (file as NSString).deletingLastPathComponent
                 return ComposerAutocompleteSuggestion(
                     id: file,
-                    title: fileName,
-                    subtitle: directory == "." ? nil : directory,
+                    title: CanonicalPath.displayMentionPath(file, relativeTo: workingDirectory),
+                    subtitle: nil,
+                    trailingText: nil,
                     replacementText: "@\(file)",
                     symbolName: "doc.text"
                 )
@@ -243,8 +336,9 @@ enum ComposerAutocompleteMatcher {
                     id: skill.id,
                     title: skill.name,
                     subtitle: skill.description,
+                    trailingText: skill.autocompleteScopeLabel,
                     replacementText: "/\(skill.name)",
-                    symbolName: "sparkles"
+                    symbolName: "shippingbox"
                 )
             },
             totalMatches: matches.count
@@ -331,5 +425,17 @@ extension Array {
             return nil
         }
         return self[index]
+    }
+}
+
+private extension Skill {
+    var autocompleteScopeLabel: String {
+        if let repo, !repo.isEmpty {
+            return repo
+        }
+        if let owner, !owner.isEmpty {
+            return owner
+        }
+        return "Personal"
     }
 }

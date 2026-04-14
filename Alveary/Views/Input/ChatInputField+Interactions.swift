@@ -138,7 +138,7 @@ extension ChatInputField {
             let source: ComposerAutocompleteSource
             switch autocomplete.kind {
             case .file:
-                source = .file(await loadFileCompletions())
+                source = .file(await loadFileCompletions(), workingDirectory: workingDirectory)
             case .skill:
                 source = .skill(await loadSkillCompletions())
             }
