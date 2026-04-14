@@ -42,34 +42,21 @@ struct ProjectSettingsActionsCard: View {
 struct ProjectSettingsAccessoryIconButton: View {
     let systemImage: String
     let accessibilityLabel: String
+    let usesDestructiveStyle: Bool
     let action: () -> Void
-
-    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .background(
-                    Circle()
-                        .fill(Color.primary.opacity(isHovering ? 0.12 : 0))
-                )
         }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .onHover { isHovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
-                self.isHovering = isHovering
-            }
-        }
+        .modifier(AccessoryIconButtonStyleModifier(usesDestructiveStyle: usesDestructiveStyle))
         .accessibilityLabel(accessibilityLabel)
     }
 }
 
 private enum ProjectSettingsActionEditorLayout {
     static let rowControlWidth: CGFloat = 520
-    static let accessoryButtonWidth: CGFloat = 24
+    static let accessoryButtonWidth: CGFloat = 30
     static let accessorySpacing: CGFloat = 12
 
     static let nameFieldWidth = rowControlWidth - accessoryButtonWidth - accessorySpacing
@@ -108,6 +95,7 @@ private struct ProjectSettingsActionEditor: View {
                 ProjectSettingsAccessoryIconButton(
                     systemImage: "trash",
                     accessibilityLabel: "Remove action",
+                    usesDestructiveStyle: true,
                     action: onRemove
                 )
             }
@@ -142,6 +130,18 @@ private struct ProjectSettingsActionEditor: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
+    }
+}
+
+private struct AccessoryIconButtonStyleModifier: ViewModifier {
+    let usesDestructiveStyle: Bool
+
+    func body(content: Content) -> some View {
+        if usesDestructiveStyle {
+            content.destructiveIconActionButtonStyle()
+        } else {
+            content.iconActionButtonStyle()
+        }
     }
 }
 

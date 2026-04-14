@@ -27,6 +27,7 @@ struct ProjectSettingsPreservePatternsCard: View {
                                 ProjectSettingsAccessoryIconButton(
                                     systemImage: "trash",
                                     accessibilityLabel: "Remove preserve pattern",
+                                    usesDestructiveStyle: true,
                                     action: { onRemovePattern(index) }
                                 )
                             }

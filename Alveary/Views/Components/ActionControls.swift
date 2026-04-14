@@ -3,6 +3,7 @@ import SwiftUI
 private let destructiveActionTint = Color(red: 0.74, green: 0.18, blue: 0.17)
 private let secondaryActionTint = Color.primary.opacity(0.12)
 private let iconActionButtonTint = Color.secondary.opacity(0.16)
+private let destructiveIconActionButtonTint = destructiveActionTint.opacity(0.16)
 
 struct DestructiveConfirmationRequest {
     let title: String
@@ -56,7 +57,16 @@ extension View {
     }
 
     func iconActionButtonStyle() -> some View {
-        modifier(IconActionButtonModifier())
+        buttonStyle(IconActionButtonStyle())
+    }
+
+    func destructiveIconActionButtonStyle() -> some View {
+        buttonStyle(
+            IconActionButtonStyle(
+                foregroundColor: destructiveActionTint,
+                backgroundColor: destructiveIconActionButtonTint
+            )
+        )
     }
 }
 
@@ -170,21 +180,49 @@ private struct ProminentActionButtonStyle: ButtonStyle {
     }
 }
 
-private struct IconActionButtonModifier: ViewModifier {
+private struct IconActionButtonStyle: ButtonStyle {
+    let foregroundColor: Color
+    let backgroundColor: Color
+
+    init(
+        foregroundColor: Color = .primary,
+        backgroundColor: Color = iconActionButtonTint
+    ) {
+        self.foregroundColor = foregroundColor
+        self.backgroundColor = backgroundColor
+    }
+
     @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        IconActionButtonBody(
+            configuration: configuration,
+            isEnabled: isEnabled,
+            foregroundColor: foregroundColor,
+            backgroundColor: backgroundColor
+        )
+    }
+}
+
+private struct IconActionButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let isEnabled: Bool
+    let foregroundColor: Color
+    let backgroundColor: Color
+
     @State private var isHovering = false
 
-    func body(content: Content) -> some View {
-        content
-            .buttonStyle(.plain)
+    var body: some View {
+        configuration.label
             .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.primary.opacity(foregroundOpacity))
+            .foregroundStyle(foregroundColor.opacity(foregroundOpacity))
             .frame(width: 30, height: 30)
+            .contentShape(Circle())
             .background(
                 Circle()
-                    .fill(iconActionButtonTint.opacity(backgroundOpacity))
+                    .fill(backgroundColor.opacity(backgroundOpacity))
             )
-            .contentShape(Circle())
+            .buttonStyle(.plain)
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.12)) {
                     isHovering = hovering
