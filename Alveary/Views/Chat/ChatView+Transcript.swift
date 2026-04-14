@@ -2,6 +2,8 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+private let transcriptVerticalInset: CGFloat = 20
+
 struct ChatTranscriptScrollMetrics: Equatable {
     let offsetY: CGFloat
     let contentHeight: CGFloat
@@ -22,8 +24,9 @@ enum ChatTranscriptScrollBehavior {
         newMetrics: ChatTranscriptScrollMetrics
     ) -> Bool {
         let contentGrew = newMetrics.contentHeight > oldMetrics.contentHeight + 0.5
+        let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
         let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
-        return oldMetrics.isNearBottom && contentGrew && !offsetChanged
+        return oldMetrics.isNearBottom && (contentGrew || containerChanged) && !offsetChanged
     }
 
     static func shouldCancelProgrammaticScroll(
@@ -103,11 +106,11 @@ struct ChatTranscriptView: View {
                     }
 
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: transcriptVerticalInset)
                         .id("chat-bottom")
                 }
                 .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(.top, transcriptVerticalInset)
             }
             .defaultScrollAnchor(.bottom)
             .transaction { transaction in

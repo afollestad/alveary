@@ -28,6 +28,18 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
+    func testPreservesFollowModeWhenContainerHeightChangesAtBottomWithoutUserScroll() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 360)
+
+        XCTAssertTrue(
+            ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+                oldMetrics: oldMetrics,
+                newMetrics: newMetrics
+            )
+        )
+    }
+
     func testCancelsProgrammaticScrollWhenUserMovesFurtherFromBottom() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 470, contentHeight: 1_000, containerHeight: 400)
