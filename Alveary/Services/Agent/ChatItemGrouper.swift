@@ -45,6 +45,7 @@ struct ToolEntry: Identifiable, Equatable {
     let input: String
     let output: String?
     let stderr: String?
+    let isComplete: Bool
     let isInterrupted: Bool
     let isImage: Bool
     let noOutputExpected: Bool

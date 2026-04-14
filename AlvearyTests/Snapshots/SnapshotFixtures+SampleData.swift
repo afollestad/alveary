@@ -92,6 +92,7 @@ extension SnapshotTests {
                 input: "{\"file_path\":\"Sources/auth.swift\",\"offset\":1,\"limit\":40}",
                 output: "1\timport Foundation\n2\tstruct AuthManager {}",
                 stderr: nil,
+                isComplete: true,
                 isInterrupted: false,
                 isImage: false,
                 noOutputExpected: false,
@@ -104,10 +105,29 @@ extension SnapshotTests {
                 input: "{\"file_path\":\"Sources/auth.swift\",\"old_string\":\"old\",\"new_string\":\"new\"}",
                 output: nil,
                 stderr: nil,
+                isComplete: false,
                 isInterrupted: false,
                 isImage: false,
                 noOutputExpected: false,
                 isError: false
+            )
+        ]
+    }
+
+    var sampleErrorTools: [ToolEntry] {
+        [
+            ToolEntry(
+                id: "sleep-10",
+                name: "Bash",
+                summary: "`sleep 10`",
+                input: "{\"command\":\"sleep 10\",\"description\":\"Sleep for 10 seconds\"}",
+                output: "<tool_use_error>Blocked: standalone sleep 10. Run blocking commands in the background with run_in_background",
+                stderr: nil,
+                isComplete: true,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: true
             )
         ]
     }

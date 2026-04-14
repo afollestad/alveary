@@ -117,21 +117,15 @@ struct AssistantBubble: View {
     let markdown: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Assistant")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            StructuredText(markdown: markdown)
-                .textual.structuredTextStyle(.default)
-                .textual.overflowMode(.scroll)
-                .textual.textSelection(.enabled)
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.secondary.opacity(0.08))
-                )
-        }
+        StructuredText(markdown: markdown)
+            .textual.structuredTextStyle(.default)
+            .textual.overflowMode(.scroll)
+            .textual.textSelection(.enabled)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
         .frame(maxWidth: 720, alignment: .leading)
     }
 }
@@ -141,25 +135,19 @@ struct StreamingBubble: View {
     @State private var cursorVisible = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Assistant")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 2) {
+            Text(text)
+                .textSelection(.enabled)
 
-            HStack(alignment: .bottom, spacing: 2) {
-                Text(text)
-                    .textSelection(.enabled)
-
-                Rectangle()
-                    .fill(.primary.opacity(cursorVisible ? 0.65 : 0))
-                    .frame(width: 2, height: 16)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-            )
+            Rectangle()
+                .fill(.primary.opacity(cursorVisible ? 0.65 : 0))
+                .frame(width: 2, height: 16)
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
         .frame(maxWidth: 720, alignment: .leading)
         .onAppear {
             cursorVisible = true

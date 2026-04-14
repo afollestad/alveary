@@ -3,32 +3,84 @@ import SwiftUI
 
 struct WorkingBlock: View {
     let tools: [ToolEntry]
+    private let initiallyExpandedToolIDs: Set<String>
     @State private var isExpanded = false
+
+    private var singleTool: ToolEntry? {
+        tools.count == 1 ? tools.first : nil
+    }
+
+    init(
+        tools: [ToolEntry],
+        initiallyExpanded: Bool = false,
+        initiallyExpandedToolIDs: Set<String> = []
+    ) {
+        self.tools = tools
+        self.initiallyExpandedToolIDs = initiallyExpandedToolIDs
+        _isExpanded = State(initialValue: initiallyExpanded)
+    }
 
     private var editCount: Int {
         tools.filter { ["Edit", "Write", "MultiEdit"].contains($0.name) }.count
     }
 
+    private var failureCount: Int {
+        tools.filter(\.isError).count
+    }
+
+    private var interruptedCount: Int {
+        tools.filter(\.isInterrupted).count
+    }
+
+    private var isWorking: Bool {
+        tools.contains { !$0.isComplete }
+    }
+
+    private var title: String {
+        isWorking ? "Working" : "Done"
+    }
+
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(tools) { tool in
-                    ToolRow(tool: tool)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 10) {
+                    DisclosureChevron(isExpanded: isExpanded)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.headline)
+
+                        Text(summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
                 }
+                .contentShape(Rectangle())
             }
-            .padding(.top, 12)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.caption.weight(.semibold))
+            .buttonStyle(.plain)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Working")
-                        .font(.headline)
-
-                    Text(summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            if isExpanded {
+                if let singleTool {
+                    ToolRow(
+                        tool: singleTool,
+                        initiallyExpanded: true,
+                        showsDisclosure: false
+                    )
+                    .padding(.top, 12)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(tools) { tool in
+                            ToolRow(
+                                tool: tool,
+                                initiallyExpanded: initiallyExpandedToolIDs.contains(tool.id)
+                            )
+                        }
+                    }
+                    .padding(.top, 12)
                 }
             }
         }
@@ -41,16 +93,40 @@ struct WorkingBlock: View {
     }
 
     private var summary: String {
-        if editCount > 0 {
-            return "Used \(tools.count) tools, \(editCount) file edit\(editCount == 1 ? "" : "s")"
+        let toolLabel = "tool" + (tools.count == 1 ? "" : "s")
+        if isWorking {
+            if editCount > 0 {
+                return "\(tools.count) \(toolLabel), \(editCount) update\(editCount == 1 ? "" : "s") so far"
+            }
+            return "\(tools.count) \(toolLabel)"
         }
-        return "Used \(tools.count) tools"
+
+        var parts = ["\(tools.count) \(toolLabel)"]
+        if editCount > 0 {
+            parts.append("\(editCount) update\(editCount == 1 ? "" : "s")")
+        }
+        if failureCount > 0 {
+            parts.append("\(failureCount) failed")
+        } else if interruptedCount > 0 {
+            parts.append("\(interruptedCount) interrupted")
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
 private struct ToolRow: View {
     let tool: ToolEntry
+    let showsDisclosure: Bool
     @State private var isExpanded = false
+
+    private let detailLeadingInset: CGFloat = 42
+    private let annotationLeadingInset: CGFloat = 42
+
+    init(tool: ToolEntry, initiallyExpanded: Bool = false, showsDisclosure: Bool = true) {
+        self.tool = tool
+        self.showsDisclosure = showsDisclosure
+        _isExpanded = State(initialValue: showsDisclosure ? initiallyExpanded : true)
+    }
 
     private var annotation: String? {
         guard let output = tool.output?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty else {
@@ -62,46 +138,83 @@ private struct ToolRow: View {
             return nil
         }
 
-        let truncated = String(last)
-        if truncated.count > 80 {
-            return String(truncated.prefix(77)) + "..."
-        }
-        return truncated
+        return String(last)
     }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 10) {
-                DetailCodeBlock(title: "Input", content: prettyPrintedJSON(tool.input))
+        VStack(alignment: .leading, spacing: 0) {
+            if showsDisclosure {
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    toolHeader
+                }
+                .buttonStyle(.plain)
+            } else {
+                toolHeader
+            }
 
-                if let output = tool.output {
-                    if tool.isImage {
-                        Label("Image output isn't previewed yet.", systemImage: "photo")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        if !tool.noOutputExpected {
-                            Text("No output")
+            if let annotation {
+                Text("└ \(annotation)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                    .padding(.leading, annotationLeadingInset)
+            }
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    DetailCodeBlock(title: "Input", content: prettyPrintedJSON(tool.input))
+
+                    if let output = tool.output {
+                        if tool.isImage {
+                            Label("Image output isn't previewed yet.", systemImage: "photo")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        } else if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            if !tool.noOutputExpected {
+                                Text("No output")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            DetailCodeBlock(title: "Output", content: output)
                         }
-                    } else {
-                        DetailCodeBlock(title: "Output", content: output)
+                    }
+
+                    if let stderr = tool.stderr,
+                       !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        DetailCodeBlock(title: "stderr", content: stderr, tint: .orange)
                     }
                 }
-
-                if let stderr = tool.stderr,
-                   !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    DetailCodeBlock(title: "stderr", content: stderr, tint: .orange)
-                }
+                .padding(.top, 10)
+                .padding(.leading, detailLeadingInset)
             }
-            .padding(.top, 10)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(tool.isError ? .red : .green)
+        }
+    }
 
+    @ViewBuilder
+    private var toolHeader: some View {
+        HStack(alignment: .top, spacing: 0) {
+            HStack(spacing: 10) {
+                if showsDisclosure {
+                    DisclosureChevron(isExpanded: isExpanded)
+                } else {
+                    Color.clear
+                        .frame(width: 12, height: 12)
+                }
+
+                Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(tool.isError ? .red : .green)
+                    .frame(width: 18, alignment: .center)
+            }
+            .frame(width: annotationLeadingInset, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
                     Text(tool.summary)
                         .font(.subheadline.weight(.semibold))
 
@@ -113,17 +226,12 @@ private struct ToolRow: View {
                             .background(Capsule().fill(Color.orange.opacity(0.18)))
                     }
 
-                    Spacer()
-                }
-
-                if let annotation {
-                    Text("└ \(annotation)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 28)
+                    Spacer(minLength: 0)
                 }
             }
+            .padding(.leading, 2)
         }
+        .contentShape(Rectangle())
     }
 }
 
@@ -139,17 +247,36 @@ private struct DetailCodeBlock: View {
                 .foregroundStyle(tint)
 
             ScrollView(.horizontal) {
-                Text(content)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                HStack(alignment: .top, spacing: 0) {
+                    Text(content)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.bottom, 8)
+
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(tint.opacity(0.08))
             )
         }
+    }
+}
+
+private struct DisclosureChevron: View {
+    let isExpanded: Bool
+
+    var body: some View {
+        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+            .font(.caption.weight(.semibold))
+            .frame(width: 12, alignment: .center)
+            .foregroundStyle(.secondary)
     }
 }
 
