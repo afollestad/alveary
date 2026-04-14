@@ -5,7 +5,7 @@ _An alveary is a place where bees are kept, including a beehive or apiary enclos
 This app is an agent orchestration tool for macOS, like a swarm of bees working towards a common goal. 
 It's built from the ground up in native Swift, with the help of agents! I took inspiration from other tools like Conductor and Codex.
 
-_Find it useful? [A tip](https://ko-fi.com/aidan1995) would be much appreciated!_
+See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
 
 # Development
 
