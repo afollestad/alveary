@@ -16,8 +16,24 @@ struct ChatTranscriptView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(viewModel.state.grouper.items) { item in
                         switch item {
-                        case .userMessage(_, let text):
-                            UserBubble(text: text)
+                        case .userMessage(let id, let text):
+                            UserBubble(
+                                text: text,
+                                showsRetry: viewModel.state.retryableFailedMessageIDs.contains(id),
+                                onRetry: viewModel.state.retryableFailedMessageIDs.contains(id)
+                                    ? {
+                                        Task {
+                                            do {
+                                                try await viewModel.retryFailedUserMessage(id: id)
+                                            } catch {
+                                                if viewModel.lastTurnError == nil {
+                                                    viewModel.lastTurnError = error.localizedDescription
+                                                }
+                                            }
+                                        }
+                                    }
+                                    : nil
+                            )
                         case .assistantMessage(_, let text):
                             AssistantBubble(markdown: text)
                         case .workingBlock(_, let tools):
@@ -47,23 +63,6 @@ struct ChatTranscriptView: View {
                     if let streamingText = viewModel.streamingText {
                         StreamingBubble(text: streamingText)
                             .id("streaming")
-                    }
-
-                    ForEach(viewModel.messageQueue.pending) { entry in
-                        QueuedMessageBubble(
-                            text: entry.text,
-                            showsStagedContext: entry.stagedContext != nil,
-                            showsRetry: viewModel.state.inFlightQueuedMessageID == nil
-                                && viewModel.messageQueue.peekNext()?.id == entry.id
-                                && !viewModel.state.turnState.isActive,
-                            isDismissDisabled: viewModel.state.inFlightQueuedMessageID == entry.id,
-                            onRetry: {
-                                Task { try? await viewModel.retryNextQueuedMessage() }
-                            },
-                            onDismiss: {
-                                viewModel.removeQueuedMessage(id: entry.id)
-                            }
-                        )
                     }
 
                     Color.clear

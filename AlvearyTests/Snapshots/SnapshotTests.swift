@@ -122,6 +122,14 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testChatInputKeymapSheet() {
+        assertMacSnapshot(
+            ChatInputKeymapSheet(supportsMidTurnSteering: true),
+            size: CGSize(width: 520, height: 260),
+            named: "chat_input_keymap_sheet"
+        )
+    }
+
     func testComposerAutocompletePopupFiles() {
         assertMacSnapshot(
             ComposerAutocompletePopup(
@@ -146,16 +154,49 @@ final class SnapshotTests: XCTestCase {
 
     func testQueuedMessageBubbleWithContextAndRetry() {
         assertMacSnapshot(
-            QueuedMessageBubble(
-                text: "After the current turn, also validate the diff refresh logic against renamed files.",
-                showsStagedContext: true,
-                showsRetry: true,
-                isDismissDisabled: false,
-                onRetry: {},
-                onDismiss: {}
+            ChatInputField(
+                text: .constant(""),
+                mode: .busy(canStop: true),
+                onSubmit: {},
+                onSteer: {},
+                onStop: {},
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: true,
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "After the current turn, also validate the diff refresh logic against renamed files.",
+                        stagedContext: "Context block"
+                    ),
+                    QueuedMessage(text: "Follow with the snapshot cleanup once the diff finishes loading.", stagedContext: nil),
+                    QueuedMessage(text: "Confirm the retry badge renders on transcript failures.", stagedContext: nil)
+                ],
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                onSteerQueuedMessage: { _ in },
+                onEditQueuedMessage: { _ in },
+                onDismissQueuedMessage: { _ in },
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
             ),
-            size: CGSize(width: 760, height: 220),
+            size: CGSize(width: 760, height: 360),
             named: "queued_message_with_context"
+        )
+    }
+
+    func testUserBubbleRetryableFailure() {
+        assertMacSnapshot(
+            UserBubble(
+                text: "Follow up on the diff refresh issue after the current run.",
+                showsRetry: true,
+                onRetry: {}
+            ),
+            size: CGSize(width: 760, height: 180),
+            named: "user_bubble_retryable_failure"
         )
     }
 

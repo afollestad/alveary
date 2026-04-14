@@ -13,29 +13,81 @@ struct ChatInputField: View {
     let supportedPermissionModes: [PermissionModeOption]
     let supportedEffortLevels: [String]
     let supportsMidTurnSteering: Bool
+    let queuedMessages: [QueuedMessage]
+    let isTurnActive: Bool
+    let inFlightQueuedMessageID: UUID?
+    let onSteerQueuedMessage: ((UUID) -> Void)?
+    let onEditQueuedMessage: ((UUID) -> Void)?
+    let onDismissQueuedMessage: ((UUID) -> Void)?
     let workingDirectory: String?
     let loadFileCompletions: () async -> [String]
     let loadSkillCompletions: () async -> [Skill]
 
-    private let knownModels = ["default", "opus", "sonnet", "haiku"]
-    private let maxAutocompleteResults = 50
-    private let autocompleteDebounceNanoseconds: UInt64 = 75_000_000
+    let knownModels = ["default", "opus", "sonnet", "haiku"]
+    let maxAutocompleteResults = 50
+    let autocompleteDebounceNanoseconds: UInt64 = 75_000_000
+    let composerHorizontalPadding: CGFloat = 10
+    let composerVerticalPadding: CGFloat = 10
+    let composerBaseHeight: CGFloat = 68
 
-    @FocusState private var isInputFocused: Bool
-    @State private var textSelection: TextSelection?
-    @State private var activeAutocomplete: ComposerAutocompleteState?
-    @State private var loadTask: Task<Void, Never>?
-    @State private var filterTask: Task<Void, Never>?
+    @FocusState var isInputFocused: Bool
+    @State var textSelection: TextSelection?
+    @State var activeAutocomplete: ComposerAutocompleteState?
+    @State var loadTask: Task<Void, Never>?
+    @State var filterTask: Task<Void, Never>?
     @State private var isDropTargeted = false
+    @State private var isKeymapPresented = false
 
-    private var trimmedText: String {
+    init(
+        text: Binding<String>,
+        mode: ComposerMode,
+        onSubmit: @escaping () -> Void,
+        onSteer: @escaping () -> Void,
+        onStop: (() -> Void)?,
+        selectedModel: Binding<String>,
+        selectedEffort: Binding<String>,
+        selectedPermissionMode: Binding<String>,
+        supportedPermissionModes: [PermissionModeOption],
+        supportedEffortLevels: [String],
+        supportsMidTurnSteering: Bool,
+        queuedMessages: [QueuedMessage] = [],
+        isTurnActive: Bool = false,
+        inFlightQueuedMessageID: UUID? = nil,
+        onSteerQueuedMessage: ((UUID) -> Void)? = nil,
+        onEditQueuedMessage: ((UUID) -> Void)? = nil,
+        onDismissQueuedMessage: ((UUID) -> Void)? = nil,
+        workingDirectory: String?,
+        loadFileCompletions: @escaping () async -> [String],
+        loadSkillCompletions: @escaping () async -> [Skill]
+    ) {
+        _text = text
+        self.mode = mode
+        self.onSubmit = onSubmit
+        self.onSteer = onSteer
+        self.onStop = onStop
+        _selectedModel = selectedModel
+        _selectedEffort = selectedEffort
+        _selectedPermissionMode = selectedPermissionMode
+        self.supportedPermissionModes = supportedPermissionModes
+        self.supportedEffortLevels = supportedEffortLevels
+        self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.queuedMessages = queuedMessages
+        self.isTurnActive = isTurnActive
+        self.inFlightQueuedMessageID = inFlightQueuedMessageID
+        self.onSteerQueuedMessage = onSteerQueuedMessage
+        self.onEditQueuedMessage = onEditQueuedMessage
+        self.onDismissQueuedMessage = onDismissQueuedMessage
+        self.workingDirectory = workingDirectory
+        self.loadFileCompletions = loadFileCompletions
+        self.loadSkillCompletions = loadSkillCompletions
+    }
+
+    var trimmedText: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var isTextEditorDisabled: Bool {
-        if case .progressOnly = mode {
-            return true
-        }
+    var isTextEditorDisabled: Bool {
+        if case .progressOnly = mode { return true }
         return false
     }
 
@@ -49,10 +101,15 @@ struct ChatInputField: View {
     }
 
     private var modelOptions: [String] {
-        if knownModels.contains(selectedModel) {
-            return knownModels
-        }
-        return knownModels + [selectedModel]
+        knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
+    }
+
+    private var inputBorderColor: Color {
+        isDropTargeted ? .accentColor : Color.secondary.opacity(0.18)
+    }
+
+    private var inputBorderWidth: CGFloat {
+        isDropTargeted ? 1.5 : 1
     }
 
     private var placeholder: String {
@@ -80,25 +137,44 @@ struct ChatInputField: View {
                 )
             }
 
-            ZStack(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text(placeholder)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
+            VStack(spacing: 0) {
+                if !queuedMessages.isEmpty,
+                   let onSteerQueuedMessage,
+                   let onEditQueuedMessage,
+                   let onDismissQueuedMessage {
+                    ChatInputQueuedMessagesSection(
+                        queuedMessages: queuedMessages,
+                        supportsMidTurnSteering: supportsMidTurnSteering,
+                        isTurnActive: isTurnActive,
+                        inFlightQueuedMessageID: inFlightQueuedMessageID,
+                        borderColor: inputBorderColor,
+                        borderWidth: inputBorderWidth,
+                        onSteerQueuedMessage: onSteerQueuedMessage,
+                        onEditQueuedMessage: onEditQueuedMessage,
+                        onDismissQueuedMessage: onDismissQueuedMessage
+                    )
                 }
 
                 AppTextEditor(
                     text: $text,
                     selection: $textSelection,
-                    minHeight: 96,
+                    minHeight: composerBaseHeight,
+                    idealHeight: composerBaseHeight,
                     maxHeight: 144,
+                    placeholder: placeholder,
                     cornerRadius: 18,
-                    borderColor: isDropTargeted ? .accentColor : Color.secondary.opacity(0.18),
-                    borderWidth: isDropTargeted ? 1.5 : 1,
+                    cornerRadii: queuedMessages.isEmpty ? nil : RectangleCornerRadii(
+                        topLeading: 0,
+                        bottomLeading: 18,
+                        bottomTrailing: 18,
+                        topTrailing: 0
+                    ),
+                    horizontalPadding: composerHorizontalPadding,
+                    verticalPadding: composerVerticalPadding,
+                    borderColor: inputBorderColor,
+                    borderWidth: inputBorderWidth,
                     isDisabled: isTextEditorDisabled,
+                    sizesToContent: true,
                     focus: $isInputFocused,
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress
@@ -123,13 +199,14 @@ struct ChatInputField: View {
                 }
             }
             .onChange(of: workingDirectory) {
-                refreshAutocomplete(forceReload: true)
+                if isInputFocused {
+                    refreshAutocomplete(forceReload: true)
+                }
             }
             .onDisappear {
                 loadTask?.cancel()
                 filterTask?.cancel()
             }
-
             HStack(spacing: 10) {
                 Picker("Model", selection: $selectedModel) {
                     ForEach(modelOptions, id: \.self) { option in
@@ -164,24 +241,35 @@ struct ChatInputField: View {
 
                 Spacer()
 
+                if !isTextEditorDisabled {
+                    Button {
+                        isKeymapPresented = true
+                    } label: {
+                        Image(systemName: "keyboard")
+                    }
+                    .iconActionButtonStyle()
+                    .accessibilityLabel("Show chat keyboard shortcuts")
+                }
                 switch mode {
                 case .idle:
                     Button(action: performSubmit) {
-                        Label("Send", systemImage: "arrow.up.circle.fill")
+                        ChatInputActionLabel("Send", systemImage: "paperplane.fill")
                     }
                     .primaryActionButtonStyle()
                     .disabled(trimmedText.isEmpty)
 
                 case .busy(let canStop):
-                    Button("Queue", action: performSubmit)
+                    Button(action: performSubmit) {
+                        ChatInputActionLabel("Queue", systemImage: "clock")
+                    }
                         .primaryActionButtonStyle()
                         .disabled(trimmedText.isEmpty)
 
                     if canStop {
-                        Button(role: .destructive) {
+                        Button {
                             onStop?()
                         } label: {
-                            Label("Stop", systemImage: "stop.fill")
+                            ChatInputActionLabel("Stop", systemImage: "stop.fill")
                         }
                         .destructiveActionButtonStyle()
                     } else {
@@ -199,300 +287,14 @@ struct ChatInputField: View {
                     }
                 }
             }
-
-            if case .busy(let canStop) = mode,
-               canStop,
-               supportsMidTurnSteering {
-                Text("Press Shift+Enter to steer immediately, Enter to queue, and Option+Enter for a newline.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Press Enter to send, or Option+Enter for a newline.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)
         )
-    }
-}
-
-private extension ChatInputField {
-    func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
-        if handleAutocompleteKeyPress(keyPress) {
-            return .handled
+        .sheet(isPresented: $isKeymapPresented) {
+            ChatInputKeymapSheet(supportsMidTurnSteering: supportsMidTurnSteering)
         }
-
-        guard keyPress.key == .return else {
-            return .ignored
-        }
-        guard !keyPress.modifiers.contains(.option) else {
-            return .ignored
-        }
-
-        switch mode {
-        case .progressOnly:
-            return .handled
-        case .busy(let canStop):
-            if canStop,
-               supportsMidTurnSteering,
-               keyPress.modifiers.contains(.shift) {
-                performSteer()
-            } else {
-                performSubmit()
-            }
-            return .handled
-        case .idle:
-            performSubmit()
-            return .handled
-        }
-    }
-
-    func handleAutocompleteKeyPress(_ keyPress: KeyPress) -> Bool {
-        guard var autocomplete = activeAutocomplete else {
-            return false
-        }
-
-        switch keyPress.key {
-        case .upArrow:
-            guard !autocomplete.suggestions.isEmpty else {
-                return true
-            }
-            autocomplete.highlightedIndex = max(0, autocomplete.highlightedIndex - 1)
-            activeAutocomplete = autocomplete
-            return true
-        case .downArrow:
-            guard !autocomplete.suggestions.isEmpty else {
-                return true
-            }
-            autocomplete.highlightedIndex = min(
-                autocomplete.suggestions.count - 1,
-                autocomplete.highlightedIndex + 1
-            )
-            activeAutocomplete = autocomplete
-            return true
-        case .escape:
-            dismissAutocomplete()
-            return true
-        case .tab:
-            return applyHighlightedAutocompleteSuggestion()
-        case .return:
-            return applyHighlightedAutocompleteSuggestion()
-        default:
-            return false
-        }
-    }
-
-    func performSubmit() {
-        guard !trimmedText.isEmpty else {
-            return
-        }
-        onSubmit()
-    }
-
-    func performSteer() {
-        guard !trimmedText.isEmpty else {
-            return
-        }
-        onSteer()
-    }
-
-    func refreshAutocomplete(forceReload: Bool = false) {
-        guard isInputFocused, !isTextEditorDisabled else {
-            dismissAutocomplete()
-            return
-        }
-        guard let token = ChatInputFieldTextSupport.activeCompletionToken(
-            text: text,
-            textSelection: textSelection
-        ) else {
-            dismissAutocomplete()
-            return
-        }
-
-        if forceReload || activeAutocomplete?.kind != token.kind {
-            let session = ComposerAutocompleteState(
-                sessionID: UUID(),
-                kind: token.kind,
-                replacementOffsets: token.replacementOffsets,
-                query: token.query,
-                isLoading: true
-            )
-            activeAutocomplete = session
-            loadAutocompleteSource(for: session)
-            return
-        }
-
-        guard var autocomplete = activeAutocomplete else {
-            return
-        }
-        autocomplete.replacementOffsets = token.replacementOffsets
-        autocomplete.query = token.query
-        activeAutocomplete = autocomplete
-
-        guard let source = autocomplete.source else {
-            return
-        }
-        scheduleFiltering(for: autocomplete.sessionID, kind: autocomplete.kind, query: token.query, source: source)
-    }
-
-    func loadAutocompleteSource(for autocomplete: ComposerAutocompleteState) {
-        loadTask?.cancel()
-        filterTask?.cancel()
-
-        loadTask = Task {
-            let source: ComposerAutocompleteSource
-            switch autocomplete.kind {
-            case .file:
-                source = .file(await loadFileCompletions())
-            case .skill:
-                source = .skill(await loadSkillCompletions())
-            }
-
-            await MainActor.run {
-                guard var current = activeAutocomplete,
-                      current.sessionID == autocomplete.sessionID else {
-                    return
-                }
-
-                current.source = source
-                current.isLoading = false
-                activeAutocomplete = current
-
-                scheduleFiltering(
-                    for: current.sessionID,
-                    kind: current.kind,
-                    query: current.query,
-                    source: source
-                )
-            }
-        }
-    }
-
-    func scheduleFiltering(
-        for sessionID: UUID,
-        kind: ComposerAutocompleteKind,
-        query: String,
-        source: ComposerAutocompleteSource
-    ) {
-        filterTask?.cancel()
-
-        filterTask = Task {
-            try? await Task.sleep(nanoseconds: autocompleteDebounceNanoseconds)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            let matches = await Task.detached(priority: .userInitiated) {
-                ComposerAutocompleteMatcher.matches(
-                    for: kind,
-                    query: query,
-                    source: source,
-                    limit: maxAutocompleteResults
-                )
-            }.value
-
-            await MainActor.run {
-                guard var autocomplete = activeAutocomplete,
-                      autocomplete.sessionID == sessionID else {
-                    return
-                }
-
-                autocomplete.suggestions = matches.suggestions
-                autocomplete.totalMatches = matches.totalMatches
-
-                if autocomplete.suggestions.isEmpty {
-                    autocomplete.highlightedIndex = 0
-                } else {
-                    autocomplete.highlightedIndex = min(
-                        autocomplete.highlightedIndex,
-                        autocomplete.suggestions.count - 1
-                    )
-                }
-
-                activeAutocomplete = autocomplete
-            }
-        }
-    }
-
-    func dismissAutocomplete() {
-        loadTask?.cancel()
-        filterTask?.cancel()
-        activeAutocomplete = nil
-    }
-
-    func applyHighlightedAutocompleteSuggestion() -> Bool {
-        guard let autocomplete = activeAutocomplete,
-              let suggestion = autocomplete.suggestions[safe: autocomplete.highlightedIndex] else {
-            return false
-        }
-
-        applyAutocompleteSuggestion(suggestion)
-        return true
-    }
-
-    func applyAutocompleteSuggestion(_ suggestion: ComposerAutocompleteSuggestion) {
-        guard let autocomplete = activeAutocomplete else {
-            return
-        }
-
-        dismissAutocomplete()
-
-        let replacement = suggestion.replacementText
-        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
-            in: text,
-            offsets: autocomplete.replacementOffsets,
-            with: replacement,
-            appendTrailingSpace: true
-        )
-
-        text = newText
-        textSelection = TextSelection(
-            insertionPoint: ChatInputFieldTextSupport.index(at: insertionOffset, in: newText)
-        )
-    }
-
-    func handleDroppedFiles(_ items: [URL]) -> Bool {
-        let droppedMentions = items
-            .filter { $0.isFileURL }
-            .map {
-                "@\(ChatInputFieldTextSupport.normalizedMentionPath(for: $0.path, relativeTo: workingDirectory))"
-            }
-
-        guard !droppedMentions.isEmpty else {
-            return false
-        }
-
-        dismissAutocomplete()
-
-        let insertionOffsets: Range<Int>
-        if let selection = ChatInputFieldTextSupport.editableSelectionOffsets(
-            text: text,
-            textSelection: textSelection
-        ) {
-            insertionOffsets = selection
-        } else {
-            let end = text.count
-            insertionOffsets = end..<end
-        }
-
-        let insertion = droppedMentions.joined(separator: " ")
-        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
-            in: text,
-            offsets: insertionOffsets,
-            with: insertion,
-            appendTrailingSpace: true,
-            ensureLeadingSpace: insertionOffsets.lowerBound > 0
-        )
-
-        text = newText
-        textSelection = TextSelection(
-            insertionPoint: ChatInputFieldTextSupport.index(at: insertionOffset, in: newText)
-        )
-        isInputFocused = true
-        return true
     }
 }

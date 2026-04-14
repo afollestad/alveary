@@ -91,6 +91,18 @@ struct ChatComposerPanel: View {
                 supportedPermissionModes: composerCapabilities.supportedPermissionModes,
                 supportedEffortLevels: composerCapabilities.supportedEffortLevels,
                 supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+                queuedMessages: viewModel.messageQueue.pending,
+                isTurnActive: viewModel.state.turnState.isActive,
+                inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
+                onSteerQueuedMessage: { messageID in
+                    Task { try? await viewModel.steerQueuedMessage(id: messageID) }
+                },
+                onEditQueuedMessage: { messageID in
+                    viewModel.editQueuedMessage(id: messageID)
+                },
+                onDismissQueuedMessage: { messageID in
+                    viewModel.removeQueuedMessage(id: messageID)
+                },
                 workingDirectory: workingDirectory,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions

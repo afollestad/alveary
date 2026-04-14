@@ -79,16 +79,14 @@ private extension EmptyThreadState {
 
 struct UserBubble: View {
     let text: String
+    let showsRetry: Bool
+    let onRetry: (() -> Void)?
 
     var body: some View {
         HStack {
             Spacer(minLength: 60)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text("You")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
                 Text(text)
                     .textSelection(.enabled)
                     .padding(14)
@@ -97,6 +95,18 @@ struct UserBubble: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.accentColor)
                     )
+
+                if showsRetry, let onRetry {
+                    HStack(spacing: 8) {
+                        Text("Not sent")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button("Retry", action: onRetry)
+                            .controlSize(.small)
+                            .secondaryActionButtonStyle()
+                    }
+                }
             }
             .frame(maxWidth: 640, alignment: .trailing)
         }
@@ -156,59 +166,6 @@ struct StreamingBubble: View {
             withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) {
                 cursorVisible = false
             }
-        }
-    }
-}
-
-struct QueuedMessageBubble: View {
-    let text: String
-    let showsStagedContext: Bool
-    let showsRetry: Bool
-    let isDismissDisabled: Bool
-    let onRetry: (() -> Void)?
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack {
-            Spacer(minLength: 80)
-
-            VStack(alignment: .trailing, spacing: 10) {
-                HStack(spacing: 8) {
-                    Text("Queued")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    if showsStagedContext {
-                        Label("Context attached", systemImage: "paperclip")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Text(text)
-                    .multilineTextAlignment(.trailing)
-                    .padding(14)
-                    .foregroundStyle(.primary)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.secondary.opacity(0.08))
-                    )
-
-                HStack(spacing: 10) {
-                    if showsRetry, let onRetry {
-                        Button("Retry", action: onRetry)
-                            .secondaryActionButtonStyle()
-                    }
-
-                    Button(role: .destructive, action: onDismiss) {
-                        Label("Dismiss", systemImage: "trash")
-                    }
-                    .destructiveActionButtonStyle()
-                    .disabled(isDismissDisabled)
-                }
-            }
-            .frame(maxWidth: 640, alignment: .trailing)
-            .opacity(0.86)
         }
     }
 }

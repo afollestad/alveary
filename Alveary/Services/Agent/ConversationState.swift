@@ -25,6 +25,8 @@ final class ConversationState {
     var lastPermissionDeniedToolNames: Set<String> = []
     var inFlightQueuedMessageID: UUID?
     var setupPhase: SetupPhase?
+    var retryableFailedMessageIDs: Set<String> = []
+    var retryableFailedMessageStagedContexts: [String: String] = [:]
 
     func appendStreamingChunk(_ text: String) {
         if streamingText == nil {
@@ -36,5 +38,19 @@ final class ConversationState {
 
     func clearStreamingText() {
         streamingText = nil
+    }
+
+    func markRetryableFailedMessage(id: String, stagedContext: String?) {
+        retryableFailedMessageIDs.insert(id)
+        if let stagedContext {
+            retryableFailedMessageStagedContexts[id] = stagedContext
+        } else {
+            retryableFailedMessageStagedContexts.removeValue(forKey: id)
+        }
+    }
+
+    func clearRetryableFailedMessage(id: String) {
+        retryableFailedMessageIDs.remove(id)
+        retryableFailedMessageStagedContexts.removeValue(forKey: id)
     }
 }

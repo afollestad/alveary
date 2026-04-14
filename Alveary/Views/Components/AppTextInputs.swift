@@ -11,6 +11,7 @@ struct AppTextField: View {
     private let horizontalPadding: CGFloat
     private let verticalPadding: CGFloat
     private let backgroundColor: Color
+    private let cornerRadii: RectangleCornerRadii?
     private let borderColor: Color
     private let borderWidth: CGFloat
 
@@ -20,6 +21,7 @@ struct AppTextField: View {
         showsPrompt: Bool = true,
         textAlignment: TextAlignment = .leading,
         cornerRadius: CGFloat = AppInputStyle.defaultCornerRadius,
+        cornerRadii: RectangleCornerRadii? = nil,
         horizontalPadding: CGFloat = AppInputStyle.defaultHorizontalPadding,
         verticalPadding: CGFloat = AppInputStyle.defaultVerticalPadding,
         backgroundColor: Color = AppInputStyle.backgroundColor,
@@ -31,6 +33,7 @@ struct AppTextField: View {
         self.showsPrompt = showsPrompt
         self.textAlignment = textAlignment
         self.cornerRadius = cornerRadius
+        self.cornerRadii = cornerRadii
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.backgroundColor = backgroundColor
@@ -41,6 +44,7 @@ struct AppTextField: View {
     var body: some View {
         AppTextInputContainer(
             cornerRadius: cornerRadius,
+            cornerRadii: cornerRadii,
             backgroundColor: backgroundColor,
             borderColor: borderColor,
             borderWidth: borderWidth
@@ -75,47 +79,60 @@ private extension AppTextField {
 
 struct AppTextEditor: View {
     @Binding private var text: String
+    @State private var measuredTextHeight: CGFloat = 0
 
     private let selection: Binding<TextSelection?>?
+    private let placeholder: String?
     private let minHeight: CGFloat
+    private let idealHeight: CGFloat?
     private let maxHeight: CGFloat?
     private let cornerRadius: CGFloat
+    private let cornerRadii: RectangleCornerRadii?
     private let horizontalPadding: CGFloat
     private let verticalPadding: CGFloat
     private let backgroundColor: Color
     private let borderColor: Color
     private let borderWidth: CGFloat
     private let isDisabled: Bool
+    private let sizesToContent: Bool
     private let focus: FocusState<Bool>.Binding?
-    private let keyPressKeys: [KeyEquivalent]
-    private let onKeyPress: ((KeyPress) -> KeyPress.Result)?
+    private let keyPressKeys: [AppTextEditorKey]
+    private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
 
     init(
         text: Binding<String>,
         minHeight: CGFloat = 110,
+        idealHeight: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
+        placeholder: String? = nil,
         cornerRadius: CGFloat = AppInputStyle.defaultCornerRadius,
+        cornerRadii: RectangleCornerRadii? = nil,
         horizontalPadding: CGFloat = AppInputStyle.editorHorizontalPadding,
         verticalPadding: CGFloat = AppInputStyle.editorVerticalPadding,
         backgroundColor: Color = AppInputStyle.backgroundColor,
         borderColor: Color = AppInputStyle.borderColor,
         borderWidth: CGFloat = AppInputStyle.borderWidth,
         isDisabled: Bool = false,
+        sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
-        keyPressKeys: [KeyEquivalent] = [],
-        onKeyPress: ((KeyPress) -> KeyPress.Result)? = nil
+        keyPressKeys: [AppTextEditorKey] = [],
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
         self._text = text
         self.selection = nil
+        self.placeholder = placeholder
         self.minHeight = minHeight
+        self.idealHeight = idealHeight
         self.maxHeight = maxHeight
         self.cornerRadius = cornerRadius
+        self.cornerRadii = cornerRadii
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.backgroundColor = backgroundColor
         self.borderColor = borderColor
         self.borderWidth = borderWidth
         self.isDisabled = isDisabled
+        self.sizesToContent = sizesToContent
         self.focus = focus
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
@@ -125,29 +142,37 @@ struct AppTextEditor: View {
         text: Binding<String>,
         selection: Binding<TextSelection?>,
         minHeight: CGFloat = 110,
+        idealHeight: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
+        placeholder: String? = nil,
         cornerRadius: CGFloat = AppInputStyle.defaultCornerRadius,
+        cornerRadii: RectangleCornerRadii? = nil,
         horizontalPadding: CGFloat = AppInputStyle.editorHorizontalPadding,
         verticalPadding: CGFloat = AppInputStyle.editorVerticalPadding,
         backgroundColor: Color = AppInputStyle.backgroundColor,
         borderColor: Color = AppInputStyle.borderColor,
         borderWidth: CGFloat = AppInputStyle.borderWidth,
         isDisabled: Bool = false,
+        sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
-        keyPressKeys: [KeyEquivalent] = [],
-        onKeyPress: ((KeyPress) -> KeyPress.Result)? = nil
+        keyPressKeys: [AppTextEditorKey] = [],
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
         self._text = text
         self.selection = selection
+        self.placeholder = placeholder
         self.minHeight = minHeight
+        self.idealHeight = idealHeight
         self.maxHeight = maxHeight
         self.cornerRadius = cornerRadius
+        self.cornerRadii = cornerRadii
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.backgroundColor = backgroundColor
         self.borderColor = borderColor
         self.borderWidth = borderWidth
         self.isDisabled = isDisabled
+        self.sizesToContent = sizesToContent
         self.focus = focus
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
@@ -156,75 +181,51 @@ struct AppTextEditor: View {
     var body: some View {
         AppTextInputContainer(
             cornerRadius: cornerRadius,
+            cornerRadii: cornerRadii,
             backgroundColor: backgroundColor,
             borderColor: borderColor,
             borderWidth: borderWidth
         ) {
-            editorContent
+            AppKitTextEditorView(
+                text: $text,
+                selection: selection,
+                measuredTextHeight: $measuredTextHeight,
+                placeholder: placeholder,
+                horizontalPadding: horizontalPadding,
+                verticalPadding: verticalPadding,
+                isDisabled: isDisabled,
+                focus: focus,
+                keyPressKeys: Set(keyPressKeys),
+                onKeyPress: onKeyPress
+            )
+            .frame(
+                maxWidth: .infinity,
+                minHeight: resolvedHeight,
+                idealHeight: resolvedHeight,
+                maxHeight: resolvedHeight,
+                alignment: .topLeading
+            )
         }
     }
 }
 
 private extension AppTextEditor {
-    @ViewBuilder
-    var editorContent: some View {
-        if let selection {
-            configuredEditor(TextEditor(text: $text, selection: selection))
-        } else {
-            configuredEditor(TextEditor(text: $text))
+    var resolvedHeight: CGFloat {
+        guard sizesToContent else {
+            return idealHeight ?? minHeight
         }
-    }
 
-    @ViewBuilder
-    func configuredEditor<Editor: View>(_ editor: Editor) -> some View {
-        if let focus {
-            if let onKeyPress, !keyPressKeys.isEmpty {
-                editor
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.vertical, verticalPadding)
-                    .frame(minHeight: minHeight, maxHeight: maxHeight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(isDisabled)
-                    .focused(focus)
-                    .onKeyPress(keys: Set(keyPressKeys), action: onKeyPress)
-            } else {
-                editor
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.vertical, verticalPadding)
-                    .frame(minHeight: minHeight, maxHeight: maxHeight)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(isDisabled)
-                    .focused(focus)
-            }
-        } else if let onKeyPress, !keyPressKeys.isEmpty {
-            editor
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, verticalPadding)
-                .frame(minHeight: minHeight, maxHeight: maxHeight)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(isDisabled)
-                .onKeyPress(keys: Set(keyPressKeys), action: onKeyPress)
-        } else {
-            editor
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, verticalPadding)
-                .frame(minHeight: minHeight, maxHeight: maxHeight)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(isDisabled)
+        let unclampedHeight = max(measuredTextHeight, minHeight)
+        if let maxHeight {
+            return min(unclampedHeight, maxHeight)
         }
+        return unclampedHeight
     }
 }
 
 private struct AppTextInputContainer<Content: View>: View {
     let cornerRadius: CGFloat
+    let cornerRadii: RectangleCornerRadii?
     let backgroundColor: Color
     let borderColor: Color
     let borderWidth: CGFloat
@@ -232,29 +233,45 @@ private struct AppTextInputContainer<Content: View>: View {
 
     init(
         cornerRadius: CGFloat,
+        cornerRadii: RectangleCornerRadii? = nil,
         backgroundColor: Color,
         borderColor: Color,
         borderWidth: CGFloat,
         @ViewBuilder content: () -> Content
     ) {
         self.cornerRadius = cornerRadius
+        self.cornerRadii = cornerRadii
         self.backgroundColor = backgroundColor
         self.borderColor = borderColor
         self.borderWidth = borderWidth
         self.content = content()
     }
 
+    @ViewBuilder
     var body: some View {
-        content
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(backgroundColor)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(borderColor, lineWidth: borderWidth)
-            )
+        if let cornerRadii {
+            content
+                .background(
+                    UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
+                        .fill(backgroundColor)
+                )
+                .clipShape(UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous))
+                .overlay(
+                    UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
+                        .stroke(borderColor, lineWidth: borderWidth)
+                )
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(backgroundColor)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(borderColor, lineWidth: borderWidth)
+                )
+        }
     }
 }
 

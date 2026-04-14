@@ -86,19 +86,6 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.state.isSendingMessage)
     }
 
-    func testQueueOrSendWhileBusyCapturesStagedContextAndClearsLiveBanner() async throws {
-        let fixture = try ConversationViewModelTestFixture()
-        fixture.viewModel.state.stagedContext = "Context block"
-        fixture.viewModel.turnState.beginTurn()
-
-        try await fixture.viewModel.queueOrSend("Follow-up")
-
-        let queued = try XCTUnwrap(fixture.viewModel.messageQueue.peekNext())
-        XCTAssertEqual(queued.text, "Follow-up")
-        XCTAssertEqual(queued.stagedContext, "Context block")
-        XCTAssertNil(fixture.viewModel.state.stagedContext)
-    }
-
     func testSetupAndStartCreatesWorktreeSpawnsAgentAndSendsFirstMessage() async throws {
         let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
         let fixture = try ConversationViewModelTestFixture(
@@ -312,6 +299,7 @@ actor MockAgentsManager: AgentsManager {
     private var isRunningValue: Bool
     private let sendError: MockError?
     private let reconfigureError: MockError?
+    private var queuedSendResults: [Result<Void, MockError>] = []
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
@@ -332,10 +320,25 @@ actor MockAgentsManager: AgentsManager {
     }
 
     func sendMessage(_ message: String, conversationId: String) async throws {
+        if !queuedSendResults.isEmpty {
+            let result = queuedSendResults.removeFirst()
+            switch result {
+            case .success:
+                recordedSentMessages.append(message)
+                return
+            case .failure(let error):
+                throw error
+            }
+        }
+
         if let sendError {
             throw sendError
         }
         recordedSentMessages.append(message)
+    }
+
+    func enqueueSendResult(_ result: Result<Void, MockError>) {
+        queuedSendResults.append(result)
     }
 
     func cancelTurn(conversationId: String) {}

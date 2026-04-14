@@ -205,32 +205,49 @@ final class ConversationViewModel {
         }
     }
 
-    func retryNextQueuedMessage() async throws {
-        guard !state.turnState.isActive, !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the queued message")
-        }
-        guard state.inFlightQueuedMessageID == nil else {
-            return
-        }
-        guard let next = state.messageQueue.peekNext() else {
+    func editQueuedMessage(id: UUID) {
+        guard state.inFlightQueuedMessageID != id,
+              let removed = state.messageQueue.remove(id: id) else {
             return
         }
 
-        state.inFlightQueuedMessageID = next.id
-        defer {
-            if state.inFlightQueuedMessageID == next.id {
-                state.inFlightQueuedMessageID = nil
-            }
+        if let restoredContext = removed.stagedContext,
+           state.stagedContext == nil,
+           !state.messageQueue.pending.contains(where: { $0.stagedContext != nil }) {
+            state.stagedContext = restoredContext
+        }
+
+        if state.inputDraft.isEmpty {
+            state.inputDraft = removed.text
+        } else {
+            state.inputDraft += "\n\n" + removed.text
+        }
+    }
+
+    func retryFailedUserMessage(id: String) async throws {
+        guard !state.turnState.isActive, !state.isSendingMessage else {
+            throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the message")
+        }
+        guard state.retryableFailedMessageIDs.contains(id) else {
+            return
+        }
+        guard let record = userMessageRecord(id: id),
+              let message = record.content,
+              !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            state.clearRetryableFailedMessage(id: id)
+            return
         }
 
         do {
             try await withOutboundReservation {
-                try await deliverMessageReserved(next.text, stagedContextOverride: next.stagedContext)
-                state.messageQueue.remove(id: next.id)
-                state.respawnAttempts = 0
+                try await deliverMessageReserved(
+                    message,
+                    stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
+                    existingLocalUserMessageID: id
+                )
             }
         } catch {
-            state.lastTurnError = "Queued message failed to send: \(error.localizedDescription)"
+            state.lastTurnError = "Retry failed: \(error.localizedDescription)"
             throw error
         }
     }
@@ -266,5 +283,15 @@ final class ConversationViewModel {
             subscriptionTask?.cancel()
             saveTask?.cancel()
         }
+    }
+}
+
+private extension ConversationViewModel {
+    func userMessageRecord(id: String) -> ConversationEventRecord? {
+        try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate { $0.id == id }
+            )
+        ).first
     }
 }

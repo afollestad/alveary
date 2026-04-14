@@ -59,6 +59,10 @@ extension ConversationViewModel {
                 state.turnState.endTurn()
                 return
             }
+            guard let dbConversation = dbConversation() else {
+                state.turnState.endTurn()
+                return
+            }
 
             state.inFlightQueuedMessageID = next.id
             defer {
@@ -68,21 +72,7 @@ extension ConversationViewModel {
             }
 
             do {
-                try await withOutboundReservation {
-                    if await needsRespawn() {
-                        guard state.respawnAttempts < Self.maxRespawnAttempts else {
-                            state.lastTurnError = "Agent process keeps crashing — queued message paused"
-                            state.respawnAttempts = 0
-                            state.turnState.endTurn()
-                            return
-                        }
-                        state.respawnAttempts += 1
-                    }
-
-                    try await deliverMessageReserved(next.text, stagedContextOverride: next.stagedContext)
-                    state.messageQueue.remove(id: next.id)
-                    state.respawnAttempts = 0
-                }
+                try await sendNextQueuedMessage(next, in: dbConversation)
             } catch {
                 state.lastTurnError = "Queued message failed to send: \(error.localizedDescription)"
                 state.turnState.endTurn()
@@ -90,11 +80,12 @@ extension ConversationViewModel {
         }
     }
 
+    @discardableResult
     func insertLocalUserMessage(
         _ message: String,
         into dbConversation: Conversation,
         shouldAutoNameThread: Bool
-    ) {
+    ) -> ConversationEventRecord {
         let record = ConversationEventRecord(
             conversationId: dbConversation.id,
             type: "message",
@@ -120,9 +111,14 @@ extension ConversationViewModel {
         }
 
         scheduleSave()
+        return record
     }
 
-    func sendReserved(_ message: String, stagedContextOverride: String? = nil) async throws {
+    func sendReserved(
+        _ message: String,
+        stagedContextOverride: String? = nil,
+        existingLocalUserMessageID: String? = nil
+    ) async throws {
         let appliedContext = stagedContextOverride ?? state.stagedContext
         let transportMessage = buildTransportMessage(
             message: message,
@@ -140,7 +136,63 @@ extension ConversationViewModel {
         }
         clearConsumedPendingRestoreContext(using: appliedContext)
         state.turnState.beginTurn()
-        insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: true)
+        if let existingLocalUserMessageID {
+            state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
+        } else {
+            insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: true)
+        }
+    }
+
+    func steerQueuedMessage(id: UUID) async throws {
+        guard state.turnState.isActive else {
+            throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
+        }
+        guard state.inFlightQueuedMessageID == nil else {
+            throw AgentError.spawnFailed("Wait for the current queued message action to finish")
+        }
+        guard let queuedMessage = state.messageQueue.pending.first(where: { $0.id == id }) else {
+            throw AgentError.spawnFailed("That queued message is no longer available")
+        }
+
+        var localMessageID: String?
+        state.inFlightQueuedMessageID = id
+        defer {
+            if state.inFlightQueuedMessageID == id {
+                state.inFlightQueuedMessageID = nil
+            }
+        }
+
+        do {
+            try await withOutboundReservation {
+                guard let queuedMessage = state.messageQueue.remove(id: id),
+                      let dbConversation = dbConversation() else {
+                    throw AgentError.spawnFailed("Conversation no longer exists")
+                }
+
+                let transportMessage = buildTransportMessage(
+                    message: queuedMessage.text,
+                    stagedContext: queuedMessage.stagedContext
+                )
+                let localMessage = insertLocalUserMessage(
+                    queuedMessage.text,
+                    into: dbConversation,
+                    shouldAutoNameThread: false
+                )
+                localMessageID = localMessage.id
+
+                state.lastTurnError = nil
+                try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
+                clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
+                state.clearRetryableFailedMessage(id: localMessage.id)
+                state.respawnAttempts = 0
+            }
+        } catch {
+            if let localMessageID {
+                state.markRetryableFailedMessage(id: localMessageID, stagedContext: queuedMessage.stagedContext)
+            }
+            state.lastTurnError = "Steer failed: \(error.localizedDescription)"
+            throw error
+        }
     }
 
     func handleEvent(_ event: ConversationEvent) {
@@ -193,6 +245,51 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
+    func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
+        var localMessageID: String?
+
+        try await withOutboundReservation {
+            if await needsRespawn() {
+                guard state.respawnAttempts < Self.maxRespawnAttempts else {
+                    state.lastTurnError = "Agent process keeps crashing — queued message paused"
+                    state.respawnAttempts = 0
+                    state.turnState.endTurn()
+                    return
+                }
+                state.respawnAttempts += 1
+            }
+
+            guard let queuedMessage = state.messageQueue.remove(id: next.id) else {
+                state.turnState.endTurn()
+                return
+            }
+
+            let localMessage = insertLocalUserMessage(
+                queuedMessage.text,
+                into: dbConversation,
+                shouldAutoNameThread: true
+            )
+            localMessageID = localMessage.id
+
+            do {
+                try await deliverMessageReserved(
+                    queuedMessage.text,
+                    stagedContextOverride: queuedMessage.stagedContext,
+                    existingLocalUserMessageID: localMessage.id
+                )
+                state.respawnAttempts = 0
+            } catch {
+                if let localMessageID {
+                    state.markRetryableFailedMessage(
+                        id: localMessageID,
+                        stagedContext: queuedMessage.stagedContext
+                    )
+                }
+                throw error
+            }
+        }
+    }
+
     func buildTransportMessage(
         message: String,
         stagedContext: String?

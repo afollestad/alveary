@@ -1,0 +1,441 @@
+@preconcurrency import AppKit
+import SwiftUI
+
+enum AppTextEditorKey: Hashable {
+    case upArrow
+    case downArrow
+    case tab
+    case escape
+    case `return`
+}
+
+struct AppTextEditorKeyPress {
+    enum Result {
+        case handled
+        case ignored
+    }
+
+    let key: AppTextEditorKey
+    let modifiers: EventModifiers
+}
+
+// NSTextView gives the composer reliable sizing, scrolling, and return-key handling.
+struct AppKitTextEditorView: NSViewRepresentable {
+    @Binding var text: String
+    let selection: Binding<TextSelection?>?
+    @Binding var measuredTextHeight: CGFloat
+    let placeholder: String?
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    let isDisabled: Bool
+    let focus: FocusState<Bool>.Binding?
+    let keyPressKeys: Set<AppTextEditorKey>
+    let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> AppKitTextEditorContainerView {
+        let containerView = AppKitTextEditorContainerView(frame: .zero)
+        let scrollView = AppKitTextEditorScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.contentInsets = NSEdgeInsets()
+        scrollView.backgroundColor = .clear
+
+        let textView = AppKitTextView(frame: .zero)
+        textView.delegate = context.coordinator
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.drawsBackground = false
+        textView.allowsUndo = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.minSize = .zero
+        textView.textContainerInset = NSSize(width: horizontalPadding, height: verticalPadding)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = text
+        textView.onFocusChange = { [weak coordinator = context.coordinator] isFocused in
+            coordinator?.handleFocusChange(isFocused)
+        }
+
+        scrollView.documentView = textView
+        textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
+        containerView.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+
+        context.coordinator.attach(textView: textView, scrollView: scrollView)
+        scrollView.onLayout = { [weak coordinator = context.coordinator] in
+            coordinator?.recalculateHeight()
+        }
+        context.coordinator.applyConfiguration(from: self)
+        context.coordinator.recalculateHeight()
+
+        return containerView
+    }
+
+    func updateNSView(_ containerView: AppKitTextEditorContainerView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.applyConfiguration(from: self)
+        context.coordinator.syncTextIfNeeded()
+        context.coordinator.syncSelectionIfNeeded()
+        context.coordinator.syncFocusIfNeeded()
+        context.coordinator.recalculateHeight()
+    }
+}
+
+@MainActor
+final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
+    var parent: AppKitTextEditorView
+    weak var textView: AppKitTextView?
+    weak var scrollView: AppKitTextEditorScrollView?
+    var suppressCallbacks = false
+
+    init(parent: AppKitTextEditorView) {
+        self.parent = parent
+    }
+
+    func attach(textView: AppKitTextView, scrollView: AppKitTextEditorScrollView) {
+        self.textView = textView
+        self.scrollView = scrollView
+    }
+
+    func applyConfiguration(from parent: AppKitTextEditorView) {
+        guard let textView else {
+            return
+        }
+
+        textView.isEditable = !parent.isDisabled
+        textView.isSelectable = true
+        textView.placeholder = parent.placeholder ?? ""
+        textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
+        textView.needsDisplay = true
+    }
+
+    func syncTextIfNeeded() {
+        guard let textView, textView.string != parent.text else {
+            return
+        }
+
+        suppressCallbacks = true
+        textView.string = parent.text
+        suppressCallbacks = false
+        textView.needsDisplay = true
+    }
+
+    func syncSelectionIfNeeded() {
+        guard let textView,
+              let selection = parent.selection else {
+            return
+        }
+
+        guard let nsRange = nsRange(for: selection.wrappedValue, in: parent.text) else {
+            syncSelectionBinding(with: textView)
+            return
+        }
+
+        guard textView.selectedRange() != nsRange else {
+            return
+        }
+
+        suppressCallbacks = true
+        textView.setSelectedRange(nsRange)
+        suppressCallbacks = false
+    }
+
+    func syncFocusIfNeeded() {
+        guard let textView, let focus = parent.focus, focus.wrappedValue else {
+            return
+        }
+
+        guard textView.window?.firstResponder !== textView else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            textView.window?.makeFirstResponder(textView)
+        }
+    }
+
+    func handleFocusChange(_ isFocused: Bool) {
+        guard let focus = parent.focus, focus.wrappedValue != isFocused else {
+            return
+        }
+
+        focus.wrappedValue = isFocused
+    }
+
+    func textDidChange(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else {
+            return
+        }
+
+        if !suppressCallbacks {
+            parent.text = textView.string
+        }
+        recalculateHeight()
+        updateSelection(from: textView)
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else {
+            return
+        }
+
+        updateSelection(from: textView)
+    }
+
+    func textDidBeginEditing(_ notification: Notification) {
+        handleFocusChange(true)
+    }
+
+    func textDidEndEditing(_ notification: Notification) {
+        handleFocusChange(false)
+    }
+
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        guard let key = AppTextEditorKey(selector: commandSelector),
+              parent.keyPressKeys.contains(key),
+              let handler = parent.onKeyPress else {
+            return false
+        }
+
+        let modifiers = NSApp.currentEvent?.modifierFlags.eventModifiers ?? []
+        let result = handler(AppTextEditorKeyPress(key: key, modifiers: modifiers))
+        return result == .handled
+    }
+
+    func recalculateHeight() {
+        guard let textView,
+              let scrollView,
+              let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else {
+            return
+        }
+
+        let availableWidth = scrollView.contentSize.width
+        guard availableWidth > 0 else {
+            return
+        }
+
+        if abs(textView.frame.width - availableWidth) > 0.5 {
+            textView.frame.size.width = availableWidth
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let lineHeight = layoutManager.defaultLineHeight(for: textView.font ?? .systemFont(ofSize: NSFont.systemFontSize))
+        let usedHeight = layoutManager.usedRect(for: textContainer).height
+        let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
+
+        if abs(textView.frame.height - max(contentHeight, scrollView.contentSize.height)) > 0.5 {
+            textView.frame.size.height = max(contentHeight, scrollView.contentSize.height)
+        }
+
+        if abs(parent.measuredTextHeight - contentHeight) > 0.5 {
+            parent.measuredTextHeight = contentHeight
+        }
+    }
+
+    private func updateSelection(from textView: NSTextView) {
+        guard !suppressCallbacks,
+              parent.selection != nil else {
+            return
+        }
+
+        syncSelectionBinding(with: textView)
+    }
+
+    private func textSelection(for range: NSRange, in text: String) -> TextSelection? {
+        guard let stringRange = Range(range, in: text) else {
+            return nil
+        }
+
+        if range.length == 0 {
+            return TextSelection(insertionPoint: stringRange.lowerBound)
+        }
+        return TextSelection(range: stringRange)
+    }
+
+    private func syncSelectionBinding(with textView: NSTextView) {
+        guard let selection = parent.selection,
+              let textSelection = textSelection(for: textView.selectedRange(), in: textView.string) else {
+            return
+        }
+
+        if selection.wrappedValue != textSelection {
+            selection.wrappedValue = textSelection
+        }
+    }
+
+    private func nsRange(for selection: TextSelection?, in text: String) -> NSRange? {
+        guard let selection else {
+            return nil
+        }
+
+        switch selection.indices {
+        case .selection(let range):
+            return nsRange(for: range, in: text)
+        case .multiSelection(let rangeSet):
+            guard let firstRange = rangeSet.ranges.first else {
+                return nil
+            }
+            return nsRange(for: firstRange, in: text)
+        @unknown default:
+            return nil
+        }
+    }
+
+    private func nsRange(for range: Range<String.Index>, in text: String) -> NSRange? {
+        let utf16 = text.utf16
+        guard let lowerBound = range.lowerBound.samePosition(in: utf16),
+              let upperBound = range.upperBound.samePosition(in: utf16) else {
+            return nil
+        }
+
+        let location = utf16.distance(from: utf16.startIndex, to: lowerBound)
+        let length = utf16.distance(from: lowerBound, to: upperBound)
+        return NSRange(location: location, length: length)
+    }
+}
+
+extension AppKitTextEditorView {
+    typealias Coordinator = AppKitTextEditorCoordinator
+}
+
+final class AppKitTextEditorScrollView: NSScrollView {
+    var onLayout: (() -> Void)?
+
+    override func layout() {
+        super.layout()
+        onLayout?()
+    }
+}
+
+final class AppKitTextEditorContainerView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+}
+
+final class AppKitTextView: NSTextView {
+    var onFocusChange: ((Bool) -> Void)?
+    var placeholder = "" {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if string.isEmpty, !placeholder.isEmpty {
+            drawPlaceholder(in: dirtyRect)
+        }
+        super.draw(dirtyRect)
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let didBecomeFirstResponder = super.becomeFirstResponder()
+        if didBecomeFirstResponder {
+            onFocusChange?(true)
+            needsDisplay = true
+        }
+        return didBecomeFirstResponder
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let didResignFirstResponder = super.resignFirstResponder()
+        if didResignFirstResponder {
+            onFocusChange?(false)
+            needsDisplay = true
+        }
+        return didResignFirstResponder
+    }
+
+    private func drawPlaceholder(in dirtyRect: NSRect) {
+        let lineFragmentPadding = textContainer?.lineFragmentPadding ?? 0
+        let placeholderRect = NSRect(
+            x: textContainerInset.width + lineFragmentPadding,
+            y: textContainerInset.height,
+            width: max(bounds.width - (textContainerInset.width * 2) - (lineFragmentPadding * 2), 0),
+            height: max(bounds.height - (textContainerInset.height * 2), 0)
+        )
+
+        let paragraphStyle = (typingAttributes[.paragraphStyle] as? NSParagraphStyle) ?? NSParagraphStyle.default
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font ?? .preferredFont(forTextStyle: .body),
+            .foregroundColor: NSColor.placeholderTextColor,
+            .paragraphStyle: paragraphStyle
+        ]
+
+        (placeholder as NSString).draw(
+            with: placeholderRect.intersection(dirtyRect),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        )
+    }
+}
+
+private extension AppTextEditorKey {
+    init?(selector: Selector) {
+        switch selector {
+        case #selector(NSResponder.moveUp(_:)):
+            self = .upArrow
+        case #selector(NSResponder.moveDown(_:)):
+            self = .downArrow
+        case #selector(NSResponder.insertTab(_:)):
+            self = .tab
+        case #selector(NSResponder.cancelOperation(_:)):
+            self = .escape
+        case #selector(NSResponder.insertNewline(_:)):
+            self = .return
+        default:
+            return nil
+        }
+    }
+}
+
+private extension NSEvent.ModifierFlags {
+    var eventModifiers: EventModifiers {
+        var modifiers: EventModifiers = []
+
+        if contains(.shift) {
+            modifiers.insert(.shift)
+        }
+        if contains(.control) {
+            modifiers.insert(.control)
+        }
+        if contains(.option) {
+            modifiers.insert(.option)
+        }
+        if contains(.command) {
+            modifiers.insert(.command)
+        }
+        if contains(.capsLock) {
+            modifiers.insert(.capsLock)
+        }
+        if contains(.numericPad) {
+            modifiers.insert(.numericPad)
+        }
+
+        return modifiers
+    }
+}

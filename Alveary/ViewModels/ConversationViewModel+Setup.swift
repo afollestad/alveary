@@ -99,12 +99,17 @@ extension ConversationViewModel {
 
     func deliverMessageReserved(
         _ message: String,
-        stagedContextOverride: String? = nil
+        stagedContextOverride: String? = nil,
+        existingLocalUserMessageID: String? = nil
     ) async throws {
         try repairMissingWorktreeIfNeeded()
 
         if needsSetup {
-            try await setupAndStartReserved(message, stagedContextOverride: stagedContextOverride)
+            try await setupAndStartReserved(
+                message,
+                stagedContextOverride: stagedContextOverride,
+                existingLocalUserMessageID: existingLocalUserMessageID
+            )
             return
         }
 
@@ -113,12 +118,17 @@ extension ConversationViewModel {
             state.respawnAttempts = 0
         }
 
-        try await sendReserved(message, stagedContextOverride: stagedContextOverride)
+        try await sendReserved(
+            message,
+            stagedContextOverride: stagedContextOverride,
+            existingLocalUserMessageID: existingLocalUserMessageID
+        )
     }
 
     func setupAndStartReserved(
         _ message: String,
-        stagedContextOverride: String? = nil
+        stagedContextOverride: String? = nil,
+        existingLocalUserMessageID: String? = nil
     ) async throws {
         state.lastTurnError = nil
 
@@ -144,7 +154,11 @@ extension ConversationViewModel {
             try await startAgentReserved(config: makeSpawnConfig(workingDirectory: workingDirectory))
             thread.hasCompletedInitialSetup = true
             try modelContext.save()
-            try await sendReserved(message, stagedContextOverride: stagedContextOverride)
+            try await sendReserved(
+                message,
+                stagedContextOverride: stagedContextOverride,
+                existingLocalUserMessageID: existingLocalUserMessageID
+            )
         } catch {
             try await rollbackFailedInitialSetup(
                 error: error,

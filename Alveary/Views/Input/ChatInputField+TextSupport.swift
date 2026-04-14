@@ -18,7 +18,9 @@ enum ChatInputFieldTextSupport {
             return nil
         }
 
-        let startOffset = offset(of: tokenStartIndex, in: text)
+        guard let startOffset = offset(of: tokenStartIndex, in: text) else {
+            return nil
+        }
         switch trigger {
         case "@":
             return ComposerCompletionToken(
@@ -72,7 +74,11 @@ enum ChatInputFieldTextSupport {
 
         switch textSelection.indices {
         case .selection(let range):
-            return offset(of: range.lowerBound, in: text)..<offset(of: range.upperBound, in: text)
+            guard let lowerBound = offset(of: range.lowerBound, in: text),
+                  let upperBound = offset(of: range.upperBound, in: text) else {
+                return nil
+            }
+            return lowerBound..<upperBound
         case .multiSelection:
             return nil
         @unknown default:
@@ -154,8 +160,12 @@ enum ChatInputFieldTextSupport {
         }
     }
 
-    static func offset(of index: String.Index, in text: String) -> Int {
-        text.distance(from: text.startIndex, to: index)
+    static func offset(of index: String.Index, in text: String) -> Int? {
+        let utf16 = text.utf16
+        guard let utf16Index = index.samePosition(in: utf16) else {
+            return nil
+        }
+        return utf16.distance(from: utf16.startIndex, to: utf16Index)
     }
 
     static func index(at offset: Int, in text: String) -> String.Index {

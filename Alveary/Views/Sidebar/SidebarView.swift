@@ -55,7 +55,6 @@ struct SidebarView: View {
                         let project = projects[index]
                         let isExpanded = expandedProjects.contains(project.path)
                         let activeProjectThreads = activeThreads(for: project)
-                        let projectTopSpacing = spacingBeforeProject(at: index, in: projects)
 
                         let isProjectActive: Bool = switch appState.selectedSidebarItem {
                         case .project(let selected) where selected.path == project.path: true
@@ -79,10 +78,8 @@ struct SidebarView: View {
                             }
                         )
                         .appSelectionRowBackground(
-                            isSelected: appState.selectedSidebarItem == .project(project),
-                            topInset: projectTopSpacing
+                            isSelected: appState.selectedSidebarItem == .project(project)
                         )
-                        .padding(.top, projectTopSpacing)
                         .contextMenu {
                             Button("New Thread") {
                                 Task { await createThread(in: project) }
