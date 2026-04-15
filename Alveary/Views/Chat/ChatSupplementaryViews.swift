@@ -1,6 +1,10 @@
 import SwiftUI
 import Textual
 
+private let chatBubbleHorizontalPadding: CGFloat = 12
+private let chatBubbleVerticalPadding: CGFloat = 10
+private let chatBubbleCornerRadius: CGFloat = 12
+
 struct EmptyThreadState: View {
     let showsRetryState: Bool
     let setupPhase: SetupPhase?
@@ -89,10 +93,11 @@ struct UserBubble: View {
             VStack(alignment: .trailing, spacing: 6) {
                 Text(text)
                     .textSelection(.enabled)
-                    .padding(14)
+                    .padding(.horizontal, chatBubbleHorizontalPadding)
+                    .padding(.vertical, chatBubbleVerticalPadding)
                     .foregroundStyle(.white)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                             .fill(Color.accentColor)
                     )
 
@@ -121,9 +126,10 @@ struct AssistantBubble: View {
             .textual.structuredTextStyle(.default)
             .textual.overflowMode(.scroll)
             .textual.textSelection(.enabled)
-            .padding(16)
+            .padding(.horizontal, chatBubbleHorizontalPadding)
+            .padding(.vertical, chatBubbleVerticalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                     .fill(Color.secondary.opacity(0.08))
             )
         .frame(maxWidth: 720, alignment: .leading)
@@ -143,9 +149,10 @@ struct StreamingBubble: View {
                 .fill(.primary.opacity(cursorVisible ? 0.65 : 0))
                 .frame(width: 2, height: 16)
         }
-        .padding(16)
+        .padding(.horizontal, chatBubbleHorizontalPadding)
+        .padding(.vertical, chatBubbleVerticalPadding)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: 720, alignment: .leading)

@@ -53,7 +53,7 @@ struct ChatTranscriptView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(viewModel.state.grouper.items) { item in
                         switch item {
                         case .userMessage(let id, let text):

@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 
+private let chatBlockPadding: CGFloat = 14
+private let chatBlockCornerRadius: CGFloat = 12
+
 struct WorkingBlock: View {
     let tools: [ToolEntry]
     private let initiallyExpandedToolIDs: Set<String>
@@ -84,9 +87,9 @@ struct WorkingBlock: View {
                 }
             }
         }
-        .padding(16)
+        .padding(chatBlockPadding)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: 720, alignment: .leading)
@@ -327,9 +330,9 @@ struct SubAgentBlock: View {
                             DetailCodeBlock(title: "Result", content: result)
                         }
                     }
-                    .padding(14)
+                    .padding(12)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
                             .fill(Color.secondary.opacity(0.06))
                     )
                 }
@@ -345,9 +348,9 @@ struct SubAgentBlock: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(16)
+        .padding(chatBlockPadding)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: 720, alignment: .leading)
@@ -394,9 +397,9 @@ struct TaskListBlock: View {
                 .font(.subheadline)
             }
         }
-        .padding(16)
+        .padding(chatBlockPadding)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: 720, alignment: .leading)

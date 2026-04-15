@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+private let promptBlockPadding: CGFloat = 14
+private let promptQuestionCardPadding: CGFloat = 12
+private let promptBlockCornerRadius: CGFloat = 12
+
 struct PromptBlock: View {
     let prompt: PromptEntry
     let isBusy: Bool
@@ -31,9 +35,9 @@ struct PromptBlock: View {
                     Text(effectiveSummary)
                         .foregroundStyle(.secondary)
                 }
-                .padding(16)
+                .padding(promptBlockPadding)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
                         .fill(Color.secondary.opacity(0.08))
                 )
             } else {
@@ -71,9 +75,9 @@ struct PromptBlock: View {
                         .disabled(!isSubmitEnabled)
                     }
                 }
-                .padding(16)
+                .padding(promptBlockPadding)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
                         .fill(Color.secondary.opacity(0.08))
                 )
             }
@@ -126,9 +130,9 @@ private struct PromptQuestionCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(promptQuestionCardPadding)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.06))
         )
     }
@@ -251,9 +255,9 @@ struct ThinkingBlock: View {
                     .textSelection(.enabled)
             }
         }
-        .padding(16)
+        .padding(promptBlockPadding)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: 720, alignment: .leading)
