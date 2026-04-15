@@ -38,6 +38,8 @@ The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The
 - Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Alveary.xcodeproj -scheme Alveary -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Alveary.app`.
 - For interactive development, you can also open `Alveary.xcodeproj` in Xcode and run the `Alveary` scheme directly.
+- When actively working on something, if the user needs to manually test, run `./scripts/build.sh` first and wait for it to exit successfully before running `./scripts/run.sh`.
+- Never run `./scripts/build.sh` and `./scripts/run.sh` in parallel, and do not start `./scripts/run.sh` until the build has completed.
 
 ## Snapshot Testing
 
