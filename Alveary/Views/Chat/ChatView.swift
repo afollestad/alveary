@@ -69,7 +69,7 @@ struct ChatView: View {
 
     private var selectedEffortBinding: Binding<String> {
         Binding(
-            get: { conversation.thread?.effort ?? "auto" },
+            get: { AppSettings.normalizedEffortLevel(conversation.thread?.effort) },
             set: { applyEffortChange($0) }
         )
     }

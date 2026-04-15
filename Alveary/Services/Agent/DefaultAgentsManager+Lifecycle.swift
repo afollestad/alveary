@@ -266,33 +266,11 @@ extension DefaultAgentsManager {
 
         let suppressVisibleStatus = consumeSuppressedExit(for: id, pid: pid)
         if !suppressVisibleStatus {
-            if terminationReason == .exit, terminationStatus == 0 {
-                let current = status(for: id)
-                if current != .idle, current != .error {
-                    updateStatus(.stopped, for: id)
-                }
-                Task { @MainActor in
-                    let state = conversationStatesStore.withLock { $0[id] }
-                    guard let state, state.turnState.isActive else {
-                        return
-                    }
-                    state.turnState.endTurn()
-                    state.clearStreamingText()
-                    if state.lastTurnError == nil {
-                        state.lastTurnError = "Agent process exited before finishing the turn"
-                    }
-                }
-            } else {
-                updateStatus(.error, for: id)
-                Task { @MainActor in
-                    let state = conversationStatesStore.withLock { $0[id] }
-                    state?.turnState.endTurn()
-                    state?.clearStreamingText()
-                    if state?.lastTurnError == nil {
-                        state?.lastTurnError = "Agent process crashed unexpectedly"
-                    }
-                }
-            }
+            handleVisibleProcessExit(
+                id: id,
+                terminationReason: terminationReason,
+                terminationStatus: terminationStatus
+            )
         }
 
         closingConversationIds.remove(id)
@@ -334,5 +312,56 @@ extension DefaultAgentsManager {
         }
 
         eventBuffers.removeValue(forKey: id)
+    }
+
+    private func handleVisibleProcessExit(
+        id: String,
+        terminationReason: Process.TerminationReason,
+        terminationStatus: Int32
+    ) {
+        let exitedCleanly = terminationReason == .exit && terminationStatus == 0
+        if exitedCleanly {
+            let current = status(for: id)
+            if current != .idle, current != .error {
+                updateStatus(.stopped, for: id)
+            }
+        } else {
+            updateStatus(.error, for: id)
+        }
+
+        Task { @MainActor in
+            applyConversationExitOutcome(for: id, exitedCleanly: exitedCleanly)
+        }
+    }
+
+    @MainActor
+    private func applyConversationExitOutcome(for id: String, exitedCleanly: Bool) {
+        let state = conversationStatesStore.withLock { $0[id] }
+        guard let state else {
+            return
+        }
+
+        guard state.turnState.isActive else {
+            return
+        }
+
+        state.turnState.endTurn()
+        state.clearStreamingText()
+
+        if state.isCancellingTurn {
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.lastTurnInterrupted = true
+            return
+        }
+
+        guard state.lastTurnError == nil else {
+            return
+        }
+
+        state.lastTurnInterrupted = false
+        state.lastTurnError = exitedCleanly
+            ? "Agent process exited before finishing the turn"
+            : "Agent process crashed unexpectedly"
     }
 }

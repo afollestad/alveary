@@ -24,7 +24,7 @@ final class AgentThread {
         worktreePath: String? = nil,
         hasCompletedInitialSetup: Bool = false,
         permissionMode: String = "default",
-        effort: String = "auto",
+        effort: String = AppSettings.defaultEffortLevel,
         useWorktree: Bool = false,
         archivedAt: Date? = nil,
         project: Project? = nil,

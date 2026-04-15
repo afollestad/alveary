@@ -30,12 +30,17 @@ struct ChatInputKeymapSheet: View {
                         description: "Steer the current turn immediately while the agent is working."
                     )
                 }
+
+                ChatInputKeymapRow(
+                    keys: "Esc, then Esc",
+                    description: "During an active turn, double-tap escape to interrupt (stop) the turn."
+                )
             }
 
             Spacer()
         }
         .padding(24)
-        .frame(minWidth: 420, minHeight: 220, alignment: .topLeading)
+        .frame(minWidth: 420, minHeight: 300, alignment: .topLeading)
     }
 }
 

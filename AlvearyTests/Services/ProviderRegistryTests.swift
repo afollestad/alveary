@@ -45,7 +45,7 @@ final class ProviderRegistryTests: XCTestCase {
                 )
             ]
         )
-        XCTAssertEqual(provider?.supportedEffortLevels, ["auto", "low", "medium", "high", "max"])
+        XCTAssertEqual(provider?.supportedEffortLevels, AppSettings.supportedEffortLevels)
         XCTAssertTrue(provider?.supportsBidirectionalStreaming == true)
         XCTAssertTrue(provider?.supportsMidTurnSteering == true)
         XCTAssertNil(agentRegistry.agent(for: "missing"))

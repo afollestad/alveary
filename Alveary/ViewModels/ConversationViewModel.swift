@@ -134,6 +134,8 @@ final class ConversationViewModel {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
+            state.lastTurnInterrupted = false
+            state.isCancellingTurn = false
             state.lastTurnError = nil
             try await agentsManager.sendMessage(message, conversationId: conversation.id)
             insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: false)
@@ -272,6 +274,11 @@ final class ConversationViewModel {
     }
 
     func cancel() async {
+        guard state.turnState.isActive else {
+            return
+        }
+
+        state.isCancellingTurn = true
         await agentsManager.cancelTurn(conversationId: conversation.id)
     }
 

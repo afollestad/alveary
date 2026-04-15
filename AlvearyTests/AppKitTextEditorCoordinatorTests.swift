@@ -99,9 +99,8 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
     }
 
     func testEffortLabelsIncludeEffortSuffix() {
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "auto"), "Automatic effort")
         XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "low"), "Low effort")
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium effort")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium effort (default)")
         XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "high"), "High effort")
         XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "max"), "Max effort")
     }

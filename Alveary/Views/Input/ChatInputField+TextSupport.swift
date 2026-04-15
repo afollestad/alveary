@@ -222,12 +222,10 @@ enum ChatInputFieldTextSupport {
 
     static func effortLabel(for value: String) -> String {
         switch value {
-        case "auto":
-            return "Automatic effort"
         case "low":
             return "Low effort"
         case "medium":
-            return "Medium effort"
+            return "Medium effort (default)"
         case "high":
             return "High effort"
         case "max":

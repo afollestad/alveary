@@ -167,6 +167,16 @@ struct ErrorBanner: View {
     }
 }
 
+struct TurnInterruptedNote: View {
+    var body: some View {
+        Text("Interrupted")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 6)
+    }
+}
+
 struct ReconfigureStatusBanner: View {
     let message: String
 

@@ -52,7 +52,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 suggestedWriteEscalationMode: "acceptEdits",
                 writeEscalationEligibleTools: ["Write", "Edit", "MultiEdit"],
                 effortFlag: "--effort",
-                supportedEffortLevels: ["auto", "low", "medium", "high", "max"]
+                supportedEffortLevels: AppSettings.supportedEffortLevels
             ),
             skillsDirectory: "~/.claude/skills",
             mcp: MCPIntegrationDefinition(

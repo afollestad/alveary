@@ -64,7 +64,7 @@ extension ConversationViewModel {
             workingDirectory: workingDirectory,
             permissionMode: dbConversation.thread?.permissionMode,
             model: state.selectedModel,
-            effort: dbConversation.thread?.effort,
+            effort: AppSettings.normalizedEffortLevel(dbConversation.thread?.effort),
             initialPrompt: initialPrompt
         )
     }
@@ -130,6 +130,8 @@ extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         existingLocalUserMessageID: String? = nil
     ) async throws {
+        state.lastTurnInterrupted = false
+        state.isCancellingTurn = false
         state.lastTurnError = nil
 
         guard let dbConversation = dbConversation(),

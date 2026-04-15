@@ -12,6 +12,14 @@ extension SnapshotTests {
         )
     }
 
+    func testTurnInterruptedNote() {
+        assertMacSnapshot(
+            TurnInterruptedNote(),
+            size: CGSize(width: 320, height: 80),
+            named: "turn_interrupted_note"
+        )
+    }
+
     func testStreamingBubble() {
         assertMacSnapshot(
             StreamingBubble(text: "Working through the repo now."),

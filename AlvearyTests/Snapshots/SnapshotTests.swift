@@ -43,7 +43,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("medium"),
                 selectedPermissionMode: .constant("default"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: true,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },
@@ -66,7 +66,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("high"),
                 selectedPermissionMode: .constant("acceptEdits"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: true,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },
@@ -89,7 +89,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("medium"),
                 selectedPermissionMode: .constant("default"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: false,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },
@@ -112,7 +112,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("medium"),
                 selectedPermissionMode: .constant("default"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: true,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },
@@ -135,7 +135,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("medium"),
                 selectedPermissionMode: .constant("default"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: true,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },
@@ -173,7 +173,7 @@ final class SnapshotTests: XCTestCase {
     func testChatInputKeymapSheet() {
         assertMacSnapshot(
             ChatInputKeymapSheet(supportsMidTurnSteering: true),
-            size: CGSize(width: 520, height: 260),
+            size: CGSize(width: 520, height: 320),
             named: "chat_input_keymap_sheet"
         )
     }
@@ -245,7 +245,7 @@ final class SnapshotTests: XCTestCase {
                 selectedEffort: .constant("medium"),
                 selectedPermissionMode: .constant("default"),
                 supportedPermissionModes: samplePermissionModes,
-                supportedEffortLevels: ["auto", "low", "medium", "high"],
+                supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: true,
                 queuedMessages: [
                     QueuedMessage(

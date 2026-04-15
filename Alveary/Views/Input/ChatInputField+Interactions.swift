@@ -31,6 +31,10 @@ extension ChatInputField {
             return .handled
         }
 
+        if handleStopShortcutKeyPress(keyPress) {
+            return .handled
+        }
+
         guard keyPress.key == .return else {
             return .ignored
         }
@@ -54,6 +58,22 @@ extension ChatInputField {
             performSubmit()
             return .handled
         }
+    }
+
+    func handleStopShortcutKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {
+        guard keyPress.key == .escape,
+              keyPress.modifiers.isEmpty,
+              canUseEscapeToStop else {
+            return false
+        }
+
+        if showsStopShortcutHint {
+            performStop()
+        } else {
+            armStopShortcutHint()
+        }
+
+        return true
     }
 
     func handleAutocompleteKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {
@@ -104,6 +124,47 @@ extension ChatInputField {
             return
         }
         onSteer()
+    }
+
+    func performStop() {
+        clearStopShortcutHint()
+        onStop?()
+    }
+
+    func armStopShortcutHint() {
+        stopShortcutResetTask?.cancel()
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsStopShortcutHint = true
+        }
+
+        stopShortcutResetTask = Task {
+            try? await Task.sleep(nanoseconds: stopShortcutHintTimeoutNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                clearStopShortcutHint()
+            }
+        }
+    }
+
+    func clearStopShortcutHint(animated: Bool = true) {
+        stopShortcutResetTask?.cancel()
+        stopShortcutResetTask = nil
+
+        guard showsStopShortcutHint else {
+            return
+        }
+
+        if animated {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                showsStopShortcutHint = false
+            }
+        } else {
+            showsStopShortcutHint = false
+        }
     }
 
     func refreshAutocomplete(forceReload: Bool = false) {

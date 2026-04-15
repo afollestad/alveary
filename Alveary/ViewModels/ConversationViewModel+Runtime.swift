@@ -92,6 +92,8 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Conversation no longer exists")
         }
 
+        state.lastTurnInterrupted = false
+        state.isCancellingTurn = false
         state.lastTurnError = nil
         try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
         if stagedContextOverride == nil {
@@ -143,6 +145,8 @@ extension ConversationViewModel {
                 )
                 localMessageID = localMessage.id
 
+                state.lastTurnInterrupted = false
+                state.isCancellingTurn = false
                 state.lastTurnError = nil
                 try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
@@ -297,16 +301,14 @@ private extension ConversationViewModel {
             return true
 
         case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
-            handleTokenEvent(
+            return shouldPersistTokenEvent(
                 isError: isError,
                 stopReason: stopReason,
                 permissionDenials: permissionDenials
             )
-            return true
 
         case .stop:
-            state.turnState.endTurn()
-            return true
+            return shouldPersistStopEvent()
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             state.grouper.handleSubAgentControl(event)
@@ -321,9 +323,25 @@ private extension ConversationViewModel {
         isError: Bool,
         stopReason: String?,
         permissionDenials: [PermissionDenialSummary]
-    ) {
+    ) -> TokenEventPersistence {
         state.clearStreamingText()
+        if isConfirmedTurnInterruption(
+            isError: isError,
+            stopReason: stopReason,
+            permissionDenials: permissionDenials
+        ) {
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.lastTurnInterrupted = true
+            state.lastPermissionDeniedToolNames = []
+            state.showPermissionBanner = false
+            state.turnState.endTurn()
+            return .persistSyntheticStop(message: "Interrupted")
+        }
+
+        state.isCancellingTurn = false
         if isError {
+            state.lastTurnInterrupted = false
             state.lastTurnError = stopReason ?? "Agent turn failed"
         }
         state.lastPermissionDeniedToolNames = Set(permissionDenials.map(\.toolName))
@@ -334,6 +352,70 @@ private extension ConversationViewModel {
         } else {
             state.turnState.endTurn()
         }
+
+        return .persistTokens
+    }
+
+    func shouldPersistTokenEvent(
+        isError: Bool,
+        stopReason: String?,
+        permissionDenials: [PermissionDenialSummary]
+    ) -> Bool {
+        switch handleTokenEvent(
+            isError: isError,
+            stopReason: stopReason,
+            permissionDenials: permissionDenials
+        ) {
+        case .persistTokens:
+            return true
+        case .persistSyntheticStop(let message):
+            persistSyntheticStopRecord(message: message)
+            return false
+        }
+    }
+
+    func shouldPersistStopEvent() -> Bool {
+        if state.isCancellingTurn {
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.lastTurnInterrupted = true
+        }
+        state.turnState.endTurn()
+        return true
+    }
+
+    func isConfirmedTurnInterruption(
+        isError: Bool,
+        stopReason: String?,
+        permissionDenials: [PermissionDenialSummary]
+    ) -> Bool {
+        guard isError,
+              state.isCancellingTurn,
+              permissionDenials.isEmpty else {
+            return false
+        }
+
+        let normalizedStopReason = stopReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard let normalizedStopReason,
+              !normalizedStopReason.isEmpty else {
+            return true
+        }
+
+        return normalizedStopReason.contains("interrupt") || normalizedStopReason.contains("cancel")
+    }
+
+    func persistSyntheticStopRecord(message: String) {
+        guard let dbConversation = dbConversation(),
+              let record = ConversationEvent.stop(message: message).toRecord(conversation: dbConversation) else {
+            return
+        }
+
+        modelContext.insert(record)
+        state.grouper.append(event: record)
+        scheduleSave()
     }
 
     func persistEventRecord(for event: ConversationEvent) {
@@ -403,4 +485,9 @@ private extension ConversationViewModel {
         needsFollowUpSave = false
         scheduleSave()
     }
+}
+
+private enum TokenEventPersistence {
+    case persistTokens
+    case persistSyntheticStop(message: String)
 }

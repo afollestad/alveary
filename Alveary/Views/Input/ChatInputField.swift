@@ -29,6 +29,7 @@ struct ChatInputField: View {
     let knownModels = ["default", "opus", "sonnet", "haiku"]
     let maxAutocompleteResults = 50
     let autocompleteDebounceNanoseconds: UInt64 = 75_000_000
+    let stopShortcutHintTimeoutNanoseconds: UInt64 = 1_000_000_000
     let composerHorizontalPadding: CGFloat = 10
     let composerVerticalPadding: CGFloat = 10
     let composerBaseHeight: CGFloat = 68
@@ -44,6 +45,8 @@ struct ChatInputField: View {
     @State private var isDropTargeted = false
     @State private var isKeymapPresented = false
     @State private var autocompletePopupHeight: CGFloat = 0
+    @State var showsStopShortcutHint = false
+    @State var stopShortcutResetTask: Task<Void, Never>?
 
     init(
         text: Binding<String>,
@@ -51,6 +54,7 @@ struct ChatInputField: View {
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
         onStop: (() -> Void)?,
+        showsStopShortcutHint: Bool = false,
         outerPadding: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
         selectedModel: Binding<String>,
         selectedEffort: Binding<String>,
@@ -75,6 +79,7 @@ struct ChatInputField: View {
         self.onSubmit = onSubmit
         self.onSteer = onSteer
         self.onStop = onStop
+        _showsStopShortcutHint = State(initialValue: showsStopShortcutHint)
         self.outerPadding = outerPadding
         _selectedModel = selectedModel
         _selectedEffort = selectedEffort
@@ -113,6 +118,14 @@ struct ChatInputField: View {
         }
     }
 
+    var canUseEscapeToStop: Bool {
+        guard case .busy(let canStop) = mode else {
+            return false
+        }
+
+        return canStop
+    }
+
     private var modelOptions: [String] {
         knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
     }
@@ -131,7 +144,7 @@ struct ChatInputField: View {
             return "Ask anything, @ to add files, / for skills"
         case .busy(let canStop):
             if canStop, supportsMidTurnSteering {
-                return "Send a message to steer, or queue for next turn..."
+                return "Enter to queue for the next turn, or Opt+Enter to steer..."
             }
             return "Type a message to queue for the next turn..."
         case .progressOnly(.initialSetup):
@@ -255,10 +268,16 @@ struct ChatInputField: View {
             .onChange(of: activeAutocomplete?.sessionID) {
                 autocompletePopupHeight = 0
             }
+            .onChange(of: canUseEscapeToStop) { _, canUseEscapeToStop in
+                if !canUseEscapeToStop {
+                    clearStopShortcutHint(animated: false)
+                }
+            }
             .onDisappear {
                 loadTask?.cancel()
                 filterTask?.cancel()
                 skillHintLoadTask?.cancel()
+                stopShortcutResetTask?.cancel()
             }
             .task {
                 loadSkillArgumentHintsIfNeeded()
@@ -332,12 +351,10 @@ struct ChatInputField: View {
                         .disabled(trimmedText.isEmpty)
 
                     if canStop {
-                        Button {
-                            onStop?()
-                        } label: {
-                            ChatInputActionLabel("Stop", systemImage: "stop.fill")
-                        }
-                        .destructiveActionButtonStyle()
+                        ChatInputStopButton(
+                            showsShortcutHint: showsStopShortcutHint,
+                            action: performStop
+                        )
                     } else {
                         ProgressView()
                             .controlSize(.small)
@@ -362,6 +379,31 @@ struct ChatInputField: View {
         )
         .sheet(isPresented: $isKeymapPresented) {
             ChatInputKeymapSheet(supportsMidTurnSteering: supportsMidTurnSteering)
+        }
+    }
+}
+
+private struct ChatInputStopButton: View {
+    let showsShortcutHint: Bool
+    let action: () -> Void
+
+    private let shortcutHintColor = Color(red: 0.74, green: 0.18, blue: 0.17)
+
+    var body: some View {
+        Button(action: action) {
+            ChatInputActionLabel("Stop", systemImage: "stop.fill")
+        }
+        .destructiveActionButtonStyle()
+        .overlay(alignment: .bottomTrailing) {
+            if showsShortcutHint {
+                Text("Press Esc again to stop")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(shortcutHintColor)
+                    .fixedSize()
+                    .offset(y: 18)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
         }
     }
 }

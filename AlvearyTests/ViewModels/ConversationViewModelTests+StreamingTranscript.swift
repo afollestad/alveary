@@ -117,4 +117,66 @@ extension ConversationViewModelTests {
         XCTAssertTrue(sessionInitEvents.isEmpty)
         XCTAssertNil(fixture.viewModel.streamingText)
     }
+
+    func testCancellationMarksTurnInterruptedInsteadOfSettingError() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.isCancellingTurn = true
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: nil,
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
+        XCTAssertEqual(persistedEvents.first?.content, "Interrupted")
+    }
+
+    func testCancellationDoesNotMaskRealTurnFailures() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.isCancellingTurn = true
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "Agent process crashed unexpectedly",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Agent process crashed unexpectedly")
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["tokens"])
+        XCTAssertEqual(persistedEvents.first?.stopReason, "Agent process crashed unexpectedly")
+    }
 }

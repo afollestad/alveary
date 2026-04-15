@@ -105,6 +105,11 @@ struct ChatTranscriptView: View {
                             .id("streaming")
                     }
 
+                    if viewModel.state.lastTurnInterrupted,
+                       !viewModel.turnState.isActive {
+                        TurnInterruptedNote()
+                    }
+
                     Color.clear
                         .frame(height: transcriptVerticalInset)
                         .id("chat-bottom")

@@ -39,7 +39,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedThread.conversations.first?.displayOrder, 0)
     }
 
-    func testCreateThreadUsesAutomaticEffortByDefault() async throws {
+    func testCreateThreadUsesMediumEffortByDefault() async throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Plain Folder", path: "/tmp/plain-folder")
 
@@ -56,7 +56,7 @@ extension SidebarViewModelTests {
 
         let savedThread = try fixture.requireThread(thread)
         XCTAssertEqual(savedThread.project?.path, project.path)
-        XCTAssertEqual(savedThread.effort, "auto")
+        XCTAssertEqual(savedThread.effort, AppSettings.defaultEffortLevel)
     }
 
     func testCreateThreadDisablesWorktreeDefaultForNonGitProjects() async throws {

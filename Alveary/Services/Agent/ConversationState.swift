@@ -9,9 +9,11 @@ final class ConversationState {
 
     var streamingText: String?
     var lastTurnError: String?
+    var lastTurnInterrupted = false
     var stagedContext: String?
     var sessionContinuityNotice: String?
     var isSendingMessage = false
+    var isCancellingTurn = false
     var isReconfiguringSession = false
     var lastObservedEventIndex = 0
     var lastPersistedEventIndex = 0
