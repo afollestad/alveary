@@ -355,13 +355,7 @@ private extension ChatView {
             return message
         }
 
-        let pattern = #"(^|[\s\(\[\{<"'])@([^\s\)\]\}>"']+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return message
-        }
-
-        let fullRange = NSRange(location: 0, length: (message as NSString).length)
-        let matches = regex.matches(in: message, range: fullRange)
+        let matches = ChatInputFieldTextSupport.fileMentionMatches(in: message)
         guard !matches.isEmpty else {
             return message
         }
@@ -369,13 +363,10 @@ private extension ChatView {
         let source = message as NSString
         let mutable = NSMutableString(string: message)
         for match in matches.reversed() {
-            guard match.numberOfRanges >= 3 else {
-                continue
-            }
-
-            let prefix = source.substring(with: match.range(at: 1))
-            let path = source.substring(with: match.range(at: 2))
-            let normalizedPath = normalizedMentionPath(path)
+            let prefixLength = match.highlightRange.location - match.range.location
+            let prefixRange = NSRange(location: match.range.location, length: prefixLength)
+            let prefix = prefixLength > 0 ? source.substring(with: prefixRange) : ""
+            let normalizedPath = normalizedMentionPath(match.path)
             mutable.replaceCharacters(in: match.range, with: prefix + normalizedPath)
         }
 

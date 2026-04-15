@@ -29,6 +29,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
     let verticalPadding: CGFloat
     let isDisabled: Bool
     let focus: FocusState<Bool>.Binding?
+    let textHighlightRanges: ((String) -> [NSRange])?
     let keyPressKeys: Set<AppTextEditorKey>
     let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
 
@@ -52,6 +53,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         let textView = AppKitTextView(frame: .zero)
         textView.delegate = context.coordinator
         textView.font = .preferredFont(forTextStyle: .body)
+        textView.textColor = .labelColor
         textView.drawsBackground = false
         textView.allowsUndo = true
         textView.isRichText = false
@@ -122,19 +124,23 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
         textView.isEditable = !parent.isDisabled
         textView.isSelectable = true
+        textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
         textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
+        applyTextHighlights()
         textView.needsDisplay = true
     }
 
     func syncTextIfNeeded() {
         guard let textView, textView.string != parent.text else {
+            applyTextHighlights()
             return
         }
 
         suppressCallbacks = true
         textView.string = parent.text
         suppressCallbacks = false
+        applyTextHighlights()
         textView.needsDisplay = true
     }
 
@@ -188,8 +194,41 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         if !suppressCallbacks {
             parent.text = textView.string
         }
+        applyTextHighlights()
         recalculateHeight()
         updateSelection(from: textView)
+    }
+
+    private func applyTextHighlights() {
+        guard let textView,
+              let textStorage = textView.textStorage else {
+            return
+        }
+
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        let baseColor = NSColor.labelColor
+        guard fullRange.length > 0 else {
+            textView.typingAttributes[.foregroundColor] = baseColor
+            return
+        }
+
+        let highlightColor = NSColor.controlAccentColor
+        let highlightRanges = parent.textHighlightRanges?(textView.string) ?? []
+
+        textStorage.beginEditing()
+        textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
+
+        for range in highlightRanges {
+            let clampedRange = NSIntersectionRange(range, fullRange)
+            guard clampedRange.length > 0 else {
+                continue
+            }
+
+            textStorage.addAttribute(.foregroundColor, value: highlightColor, range: clampedRange)
+        }
+
+        textStorage.endEditing()
+        textView.typingAttributes[.foregroundColor] = baseColor
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {

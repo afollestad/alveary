@@ -276,7 +276,7 @@ extension ChatInputField {
         ) {
             insertionOffsets = selection
         } else {
-            let end = text.count
+            let end = text.utf16.count
             insertionOffsets = end..<end
         }
 

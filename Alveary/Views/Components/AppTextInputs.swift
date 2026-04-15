@@ -96,6 +96,7 @@ struct AppTextEditor: View {
     private let isDisabled: Bool
     private let sizesToContent: Bool
     private let focus: FocusState<Bool>.Binding?
+    private let textHighlightRanges: ((String) -> [NSRange])?
     private let keyPressKeys: [AppTextEditorKey]
     private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
 
@@ -115,6 +116,7 @@ struct AppTextEditor: View {
         isDisabled: Bool = false,
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
+        textHighlightRanges: ((String) -> [NSRange])? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
@@ -134,6 +136,7 @@ struct AppTextEditor: View {
         self.isDisabled = isDisabled
         self.sizesToContent = sizesToContent
         self.focus = focus
+        self.textHighlightRanges = textHighlightRanges
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
     }
@@ -155,6 +158,7 @@ struct AppTextEditor: View {
         isDisabled: Bool = false,
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
+        textHighlightRanges: ((String) -> [NSRange])? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
@@ -174,6 +178,7 @@ struct AppTextEditor: View {
         self.isDisabled = isDisabled
         self.sizesToContent = sizesToContent
         self.focus = focus
+        self.textHighlightRanges = textHighlightRanges
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
     }
@@ -195,6 +200,7 @@ struct AppTextEditor: View {
                 verticalPadding: verticalPadding,
                 isDisabled: isDisabled,
                 focus: focus,
+                textHighlightRanges: textHighlightRanges,
                 keyPressKeys: Set(keyPressKeys),
                 onKeyPress: onKeyPress
             )

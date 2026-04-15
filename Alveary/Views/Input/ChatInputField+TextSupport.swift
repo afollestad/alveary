@@ -2,6 +2,15 @@ import Foundation
 import SwiftUI
 
 enum ChatInputFieldTextSupport {
+    struct FileMentionMatch: Equatable {
+        let range: NSRange
+        let highlightRange: NSRange
+        let path: String
+    }
+
+    private static let fileMentionPattern = #"(^|[\s\(\[\{<"'])@([^\s\)\]\}>"']+)"#
+    private static let fileMentionRegex = try? NSRegularExpression(pattern: fileMentionPattern)
+
     static func activeCompletionToken(
         text: String,
         textSelection: TextSelection?
@@ -47,7 +56,7 @@ enum ChatInputFieldTextSupport {
         textSelection: TextSelection?
     ) -> Int? {
         guard let textSelection else {
-            return text.count
+            return textLength(in: text)
         }
 
         switch textSelection.indices {
@@ -68,7 +77,7 @@ enum ChatInputFieldTextSupport {
         textSelection: TextSelection?
     ) -> Range<Int>? {
         guard let textSelection else {
-            let end = text.count
+            let end = textLength(in: text)
             return end..<end
         }
 
@@ -113,12 +122,59 @@ enum ChatInputFieldTextSupport {
 
         var newText = sourceText
         newText.replaceSubrange(lowerIndex..<upperIndex, with: inserted)
-        let insertionOffset = offsets.lowerBound + inserted.count
+        let insertionOffset = offsets.lowerBound + textLength(in: inserted)
         return (newText, insertionOffset)
     }
 
     static func normalizedMentionPath(for path: String, relativeTo workingDirectory: String?) -> String {
         CanonicalPath.normalizeMentionPath(path, relativeTo: workingDirectory)
+    }
+
+    static func fileMentionMatches(in text: String) -> [FileMentionMatch] {
+        guard text.contains("@"),
+              let fileMentionRegex else {
+            return []
+        }
+
+        let source = text as NSString
+        let fullRange = NSRange(location: 0, length: source.length)
+
+        return fileMentionRegex.matches(in: text, range: fullRange).compactMap { match in
+            guard match.numberOfRanges >= 3 else {
+                return nil
+            }
+
+            let fullMatchRange = match.range
+            let prefixRange = match.range(at: 1)
+            let pathRange = match.range(at: 2)
+            guard fullMatchRange.location != NSNotFound,
+                  prefixRange.location != NSNotFound,
+                  pathRange.location != NSNotFound else {
+                return nil
+            }
+
+            let highlightStart = prefixRange.location + prefixRange.length
+            let highlightEnd = pathRange.location + pathRange.length
+            guard highlightEnd > highlightStart else {
+                return nil
+            }
+
+            return FileMentionMatch(
+                range: fullMatchRange,
+                highlightRange: NSRange(location: highlightStart, length: highlightEnd - highlightStart),
+                path: source.substring(with: pathRange)
+            )
+        }
+    }
+
+    static func highlightedTokenRanges(in text: String) -> [NSRange] {
+        var ranges = fileMentionMatches(in: text).map(\.highlightRange)
+
+        if let slashCommandRange = leadingSlashCommandRange(in: text) {
+            ranges.insert(slashCommandRange, at: 0)
+        }
+
+        return ranges
     }
 
     static func modelLabel(for value: String) -> String {
@@ -169,7 +225,29 @@ enum ChatInputFieldTextSupport {
     }
 
     static func index(at offset: Int, in text: String) -> String.Index {
-        text.index(text.startIndex, offsetBy: min(max(0, offset), text.count))
+        let utf16 = text.utf16
+        let clampedOffset = min(max(0, offset), utf16.count)
+        let utf16Index = utf16.index(utf16.startIndex, offsetBy: clampedOffset)
+        return String.Index(utf16Index, within: text) ?? text.endIndex
+    }
+
+    private static func leadingSlashCommandRange(in text: String) -> NSRange? {
+        guard text.first == "/" else {
+            return nil
+        }
+
+        var endIndex = text.index(after: text.startIndex)
+        while endIndex < text.endIndex,
+              !isTokenBoundary(text[endIndex]) {
+            endIndex = text.index(after: endIndex)
+        }
+
+        guard let endOffset = offset(of: endIndex, in: text), endOffset > 0 else {
+            return nil
+        }
+
+        // Slash commands only activate from the front of the message, so only color the leading token.
+        return NSRange(location: 0, length: endOffset)
     }
 
     private static func tokenStart(before index: String.Index, in text: String) -> String.Index {
@@ -185,6 +263,10 @@ enum ChatInputFieldTextSupport {
     }
 
     private static func isTokenBoundary(_ character: Character) -> Bool {
-        character.isWhitespace || ["(", ")", "[", "]", "{", "}", "<", ">", "\"", "'", ",", ":", ";"].contains(character)
+        character.isWhitespace || ["(", "[", "{", "<", "\"", "'"].contains(character)
+    }
+
+    private static func textLength(in text: String) -> Int {
+        text.utf16.count
     }
 }

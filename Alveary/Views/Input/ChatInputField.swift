@@ -173,6 +173,7 @@ struct ChatInputField: View {
                     isDisabled: isTextEditorDisabled,
                     sizesToContent: true,
                     focus: $isInputFocused,
+                    textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges,
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress
                 )

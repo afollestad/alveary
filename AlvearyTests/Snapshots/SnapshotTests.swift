@@ -122,6 +122,29 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testChatInputFieldHighlightedTokens() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("/ios-accessibility inspect @Alveary/Views/Input/ChatInputField.swift next"),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_highlighted_tokens"
+        )
+    }
+
     func testChatInputKeymapSheet() {
         assertMacSnapshot(
             ChatInputKeymapSheet(supportsMidTurnSteering: true),
