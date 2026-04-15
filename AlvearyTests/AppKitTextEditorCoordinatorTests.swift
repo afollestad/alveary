@@ -113,6 +113,11 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "bypassPermissions"), "Bypass permissions")
     }
 
+    func testWorktreeLocationLabelsUseFriendlyNames() {
+        XCTAssertEqual(ChatInputFieldTextSupport.worktreeLocationLabel(for: false), "Local")
+        XCTAssertEqual(ChatInputFieldTextSupport.worktreeLocationLabel(for: true), "Worktree")
+    }
+
     func testActiveCompletionTokenIgnoresColonPrefixedMentions() {
         let text = "See:@file"
 

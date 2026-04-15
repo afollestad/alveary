@@ -256,6 +256,10 @@ enum ChatInputFieldTextSupport {
         }
     }
 
+    static func worktreeLocationLabel(for usesWorktree: Bool) -> String {
+        usesWorktree ? "Worktree" : "Local"
+    }
+
     static func progressLabel(for reason: ComposerMode.ProgressReason) -> String {
         switch reason {
         case .initialSetup:

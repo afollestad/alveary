@@ -11,8 +11,10 @@ struct ChatInputField: View {
     @Binding var selectedModel: String
     @Binding var selectedEffort: String
     @Binding var selectedPermissionMode: String
+    @Binding var selectedUseWorktree: Bool
     let supportedPermissionModes: [PermissionModeOption]
     let supportedEffortLevels: [String]
+    let showWorktreePicker: Bool
     let supportsMidTurnSteering: Bool
     let queuedMessages: [QueuedMessage]
     let isTurnActive: Bool
@@ -53,8 +55,10 @@ struct ChatInputField: View {
         selectedModel: Binding<String>,
         selectedEffort: Binding<String>,
         selectedPermissionMode: Binding<String>,
+        selectedUseWorktree: Binding<Bool> = .constant(false),
         supportedPermissionModes: [PermissionModeOption],
         supportedEffortLevels: [String],
+        showWorktreePicker: Bool = false,
         supportsMidTurnSteering: Bool,
         queuedMessages: [QueuedMessage] = [],
         isTurnActive: Bool = false,
@@ -75,8 +79,10 @@ struct ChatInputField: View {
         _selectedModel = selectedModel
         _selectedEffort = selectedEffort
         _selectedPermissionMode = selectedPermissionMode
+        _selectedUseWorktree = selectedUseWorktree
         self.supportedPermissionModes = supportedPermissionModes
         self.supportedEffortLevels = supportedEffortLevels
+        self.showWorktreePicker = showWorktreePicker
         self.supportsMidTurnSteering = supportsMidTurnSteering
         self.queuedMessages = queuedMessages
         self.isTurnActive = isTurnActive
@@ -283,6 +289,16 @@ struct ChatInputField: View {
                         ForEach(supportedPermissionModes, id: \.value) { option in
                             Text(ChatInputFieldTextSupport.permissionModeLabel(for: option)).tag(option.value)
                         }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(areControlsDisabled)
+                }
+
+                if showWorktreePicker {
+                    Picker("Thread location", selection: $selectedUseWorktree) {
+                        Text(ChatInputFieldTextSupport.worktreeLocationLabel(for: false)).tag(false)
+                        Text(ChatInputFieldTextSupport.worktreeLocationLabel(for: true)).tag(true)
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()

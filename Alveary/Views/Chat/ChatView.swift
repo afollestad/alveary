@@ -81,6 +81,22 @@ struct ChatView: View {
         )
     }
 
+    private var selectedUseWorktreeBinding: Binding<Bool> {
+        Binding(
+            get: { conversation.thread?.useWorktree ?? false },
+            set: { applyWorktreePreferenceChange($0) }
+        )
+    }
+
+    private var showWorktreePicker: Bool {
+        guard let thread = conversation.thread,
+              let project = thread.project else {
+            return false
+        }
+
+        return project.isGitRepository && !thread.hasCompletedInitialSetup
+    }
+
     init(
         viewModel: ConversationViewModel,
         conversation: Conversation,
@@ -144,6 +160,8 @@ struct ChatView: View {
                 selectedModel: selectedModelBinding,
                 selectedEffort: selectedEffortBinding,
                 selectedPermissionMode: selectedPermissionModeBinding,
+                selectedUseWorktree: selectedUseWorktreeBinding,
+                showWorktreePicker: showWorktreePicker,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
                 onSubmit: sendDraft,
@@ -347,6 +365,28 @@ private extension ChatView {
                 viewModel.state.lastPermissionDeniedToolNames = previousDeniedTools
                 viewModel.lastTurnError = error.localizedDescription
             }
+        }
+    }
+
+    func applyWorktreePreferenceChange(_ newValue: Bool) {
+        guard let threadID = conversation.thread?.persistentModelID,
+              let dbThread = modelContext.model(for: threadID) as? AgentThread,
+              dbThread.project?.isGitRepository == true else {
+            return
+        }
+
+        let previousValue = dbThread.useWorktree
+        guard previousValue != newValue else {
+            return
+        }
+
+        dbThread.useWorktree = newValue
+
+        do {
+            try modelContext.save()
+        } catch {
+            dbThread.useWorktree = previousValue
+            viewModel.lastTurnError = error.localizedDescription
         }
     }
 
