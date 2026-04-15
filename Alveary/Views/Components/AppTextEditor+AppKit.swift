@@ -30,6 +30,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
     let isDisabled: Bool
     let focus: FocusState<Bool>.Binding?
     let textHighlightRanges: ((String) -> [NSRange])?
+    let inlineHint: AppTextEditorInlineHint?
     let keyPressKeys: Set<AppTextEditorKey>
     let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
 
@@ -126,8 +127,10 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         textView.isSelectable = true
         textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
+        textView.inlineHint = parent.inlineHint
         textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
         applyTextHighlights()
+        textView.refreshInlineHintView()
         textView.needsDisplay = true
     }
 
@@ -141,6 +144,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         textView.string = parent.text
         suppressCallbacks = false
         applyTextHighlights()
+        textView.refreshInlineHintView()
         textView.needsDisplay = true
     }
 
@@ -368,68 +372,6 @@ final class AppKitTextEditorScrollView: NSScrollView {
 final class AppKitTextEditorContainerView: NSView {
     override var isFlipped: Bool {
         true
-    }
-}
-
-final class AppKitTextView: NSTextView {
-    var onFocusChange: ((Bool) -> Void)?
-    var placeholder = "" {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        if string.isEmpty, !placeholder.isEmpty {
-            drawPlaceholder(in: dirtyRect)
-        }
-        super.draw(dirtyRect)
-    }
-
-    override func didChangeText() {
-        super.didChangeText()
-        needsDisplay = true
-    }
-
-    override func becomeFirstResponder() -> Bool {
-        let didBecomeFirstResponder = super.becomeFirstResponder()
-        if didBecomeFirstResponder {
-            onFocusChange?(true)
-            needsDisplay = true
-        }
-        return didBecomeFirstResponder
-    }
-
-    override func resignFirstResponder() -> Bool {
-        let didResignFirstResponder = super.resignFirstResponder()
-        if didResignFirstResponder {
-            onFocusChange?(false)
-            needsDisplay = true
-        }
-        return didResignFirstResponder
-    }
-
-    private func drawPlaceholder(in dirtyRect: NSRect) {
-        let lineFragmentPadding = textContainer?.lineFragmentPadding ?? 0
-        let placeholderRect = NSRect(
-            x: textContainerInset.width + lineFragmentPadding,
-            y: textContainerInset.height,
-            width: max(bounds.width - (textContainerInset.width * 2) - (lineFragmentPadding * 2), 0),
-            height: max(bounds.height - (textContainerInset.height * 2), 0)
-        )
-
-        let paragraphStyle = (typingAttributes[.paragraphStyle] as? NSParagraphStyle) ?? NSParagraphStyle.default
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font ?? .preferredFont(forTextStyle: .body),
-            .foregroundColor: NSColor.placeholderTextColor,
-            .paragraphStyle: paragraphStyle
-        ]
-
-        (placeholder as NSString).draw(
-            with: placeholderRect.intersection(dirtyRect),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
     }
 }
 

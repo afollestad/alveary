@@ -8,6 +8,12 @@ enum ChatInputFieldTextSupport {
         let path: String
     }
 
+    struct SlashCommandMatch: Equatable {
+        let range: NSRange
+        let name: String
+        let trailingText: String
+    }
+
     private static let fileMentionPattern = #"(^|[\s\(\[\{<"'])@([^\s\)\]\}>"']+)"#
     private static let fileMentionRegex = try? NSRegularExpression(pattern: fileMentionPattern)
 
@@ -170,11 +176,33 @@ enum ChatInputFieldTextSupport {
     static func highlightedTokenRanges(in text: String) -> [NSRange] {
         var ranges = fileMentionMatches(in: text).map(\.highlightRange)
 
-        if let slashCommandRange = leadingSlashCommandRange(in: text) {
-            ranges.insert(slashCommandRange, at: 0)
+        if let slashCommandMatch = leadingSlashCommandMatch(in: text) {
+            ranges.insert(slashCommandMatch.range, at: 0)
         }
 
         return ranges
+    }
+
+    static func inlineSlashCommandHint(
+        in text: String,
+        textSelection: TextSelection?,
+        isInputFocused: Bool,
+        commandHints: [String: String]
+    ) -> String? {
+        guard let slashCommandMatch = leadingSlashCommandMatch(in: text),
+              !slashCommandMatch.name.isEmpty,
+              containsOnlyInlineHintWhitespace(slashCommandMatch.trailingText),
+              isInlineHintSelectionEligible(
+                  text: text,
+                  textSelection: textSelection,
+                  isInputFocused: isInputFocused
+              ),
+              let hint = commandHints[slashCommandMatch.name],
+              !hint.isEmpty else {
+            return nil
+        }
+
+        return slashCommandMatch.trailingText.isEmpty ? " " + hint : hint
     }
 
     static func modelLabel(for value: String) -> String {
@@ -231,11 +259,12 @@ enum ChatInputFieldTextSupport {
         return String.Index(utf16Index, within: text) ?? text.endIndex
     }
 
-    private static func leadingSlashCommandRange(in text: String) -> NSRange? {
+    static func leadingSlashCommandMatch(in text: String) -> SlashCommandMatch? {
         guard text.first == "/" else {
             return nil
         }
 
+        let commandStartIndex = text.index(after: text.startIndex)
         var endIndex = text.index(after: text.startIndex)
         while endIndex < text.endIndex,
               !isTokenBoundary(text[endIndex]) {
@@ -246,8 +275,11 @@ enum ChatInputFieldTextSupport {
             return nil
         }
 
-        // Slash commands only activate from the front of the message, so only color the leading token.
-        return NSRange(location: 0, length: endOffset)
+        return SlashCommandMatch(
+            range: NSRange(location: 0, length: endOffset),
+            name: String(text[commandStartIndex..<endIndex]),
+            trailingText: String(text[endIndex...])
+        )
     }
 
     private static func tokenStart(before index: String.Index, in text: String) -> String.Index {
@@ -264,6 +296,39 @@ enum ChatInputFieldTextSupport {
 
     private static func isTokenBoundary(_ character: Character) -> Bool {
         character.isWhitespace || ["(", "[", "{", "<", "\"", "'"].contains(character)
+    }
+
+    private static func isInlineHintSelectionEligible(
+        text: String,
+        textSelection: TextSelection?,
+        isInputFocused: Bool
+    ) -> Bool {
+        guard isInputFocused else {
+            return false
+        }
+
+        guard let textSelection else {
+            return true
+        }
+
+        let textEnd = textLength(in: text)
+        switch textSelection.indices {
+        case .selection(let range):
+            guard let lowerOffset = offset(of: range.lowerBound, in: text),
+                  let upperOffset = offset(of: range.upperBound, in: text) else {
+                // The AppKit bridge can briefly report stale selection indices during text/reset churn.
+                return true
+            }
+            return lowerOffset == upperOffset && upperOffset == textEnd
+        case .multiSelection:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    private static func containsOnlyInlineHintWhitespace(_ text: String) -> Bool {
+        text.unicodeScalars.allSatisfy { CharacterSet.whitespaces.contains($0) }
     }
 
     private static func textLength(in text: String) -> Int {

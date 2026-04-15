@@ -2,6 +2,30 @@ import Foundation
 import SwiftUI
 
 extension ChatInputField {
+    func loadSkillArgumentHintsIfNeeded() {
+        guard !hasLoadedSkillArgumentHints,
+              skillHintLoadTask == nil else {
+            return
+        }
+
+        let loadSkillCompletions = self.loadSkillCompletions
+
+        skillHintLoadTask = Task.detached(priority: .userInitiated) {
+            let skills = await loadSkillCompletions()
+            let hints = Self.argumentHintsByCommandKey(from: skills)
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                skillArgumentHints = hints
+                hasLoadedSkillArgumentHints = true
+                skillHintLoadTask = nil
+            }
+        }
+    }
+
     func handleKeyPress(_ keyPress: AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result {
         if handleAutocompleteKeyPress(keyPress) {
             return .handled
@@ -140,7 +164,13 @@ extension ChatInputField {
             case .file:
                 source = .file(await loadFileCompletions(), workingDirectory: workingDirectory)
             case .skill:
-                source = .skill(await loadSkillCompletions())
+                let skills = await loadSkillCompletions()
+                source = .skill(skills)
+
+                await MainActor.run {
+                    skillArgumentHints = Self.argumentHintsByCommandKey(from: skills)
+                    hasLoadedSkillArgumentHints = true
+                }
             }
 
             guard !Task.isCancelled else {
@@ -294,5 +324,21 @@ extension ChatInputField {
         )
         isInputFocused = true
         return true
+    }
+
+    nonisolated static func argumentHintsByCommandKey(from skills: [Skill]) -> [String: String] {
+        skills.reduce(into: [:]) { hints, skill in
+            guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !argumentHint.isEmpty else {
+                return
+            }
+
+            if hints[skill.name] == nil {
+                hints[skill.name] = argumentHint
+            }
+            if hints[skill.id] == nil {
+                hints[skill.id] = argumentHint
+            }
+        }
     }
 }

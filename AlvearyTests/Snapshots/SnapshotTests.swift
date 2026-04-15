@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 
 @testable import Alveary
 
@@ -142,6 +143,30 @@ final class SnapshotTests: XCTestCase {
             ),
             size: CGSize(width: 760, height: 240),
             named: "chat_input_highlighted_tokens"
+        )
+    }
+
+    func testAppTextEditorInlineHint() {
+        let text = "/review-github-pr "
+        let selection = TextSelection(insertionPoint: text.endIndex)
+
+        assertMacSnapshot(
+            AppTextEditor(
+                text: .constant(text),
+                selection: .constant(selection),
+                minHeight: 68,
+                idealHeight: 68,
+                maxHeight: 144,
+                placeholder: "Ask anything, @ to add files, / for skills",
+                cornerRadius: 18,
+                horizontalPadding: 10,
+                verticalPadding: 10,
+                sizesToContent: true,
+                textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges,
+                inlineHint: AppTextEditorInlineHint(text: "[PR URL]")
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "app_text_editor_inline_hint"
         )
     }
 

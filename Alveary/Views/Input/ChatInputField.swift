@@ -36,6 +36,9 @@ struct ChatInputField: View {
     @State var activeAutocomplete: ComposerAutocompleteState?
     @State var loadTask: Task<Void, Never>?
     @State var filterTask: Task<Void, Never>?
+    @State var skillArgumentHints: [String: String] = [:]
+    @State var hasLoadedSkillArgumentHints = false
+    @State var skillHintLoadTask: Task<Void, Never>?
     @State private var isDropTargeted = false
     @State private var isKeymapPresented = false
     @State private var autocompletePopupHeight: CGFloat = 0
@@ -132,6 +135,19 @@ struct ChatInputField: View {
         }
     }
 
+    private var inlineSlashCommandHint: AppTextEditorInlineHint? {
+        guard let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: textSelection,
+            isInputFocused: isInputFocused,
+            commandHints: skillArgumentHints
+        ) else {
+            return nil
+        }
+
+        return AppTextEditorInlineHint(text: hint)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(spacing: 0) {
@@ -174,6 +190,7 @@ struct ChatInputField: View {
                     sizesToContent: true,
                     focus: $isInputFocused,
                     textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges,
+                    inlineHint: inlineSlashCommandHint,
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress
                 )
@@ -209,6 +226,9 @@ struct ChatInputField: View {
                 isDropTargeted = isTargeted
             }
             .onChange(of: text) {
+                if text.hasPrefix("/") {
+                    loadSkillArgumentHintsIfNeeded()
+                }
                 refreshAutocomplete()
             }
             .onChange(of: textSelection) {
@@ -232,6 +252,10 @@ struct ChatInputField: View {
             .onDisappear {
                 loadTask?.cancel()
                 filterTask?.cancel()
+                skillHintLoadTask?.cancel()
+            }
+            .task {
+                loadSkillArgumentHintsIfNeeded()
             }
             HStack(spacing: 10) {
                 Picker("Model", selection: $selectedModel) {

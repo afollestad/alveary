@@ -97,6 +97,7 @@ struct AppTextEditor: View {
     private let sizesToContent: Bool
     private let focus: FocusState<Bool>.Binding?
     private let textHighlightRanges: ((String) -> [NSRange])?
+    private let inlineHint: AppTextEditorInlineHint?
     private let keyPressKeys: [AppTextEditorKey]
     private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
 
@@ -117,6 +118,7 @@ struct AppTextEditor: View {
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
+        inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
@@ -137,6 +139,7 @@ struct AppTextEditor: View {
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
+        self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
     }
@@ -159,6 +162,7 @@ struct AppTextEditor: View {
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
+        inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
     ) {
@@ -179,6 +183,7 @@ struct AppTextEditor: View {
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
+        self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
     }
@@ -201,6 +206,7 @@ struct AppTextEditor: View {
                 isDisabled: isDisabled,
                 focus: focus,
                 textHighlightRanges: textHighlightRanges,
+                inlineHint: inlineHint,
                 keyPressKeys: Set(keyPressKeys),
                 onKeyPress: onKeyPress
             )

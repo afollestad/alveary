@@ -11,6 +11,7 @@ extension DefaultSkillsService {
         let id: String
         let name: String
         let description: String
+        let argumentHint: String?
         let source: String
         let owner: String?
         let repo: String?
@@ -25,6 +26,7 @@ extension DefaultSkillsService {
     struct SkillFrontmatter {
         let name: String?
         let description: String?
+        let argumentHint: String?
         let version: String?
     }
 
@@ -38,12 +40,14 @@ extension DefaultSkillsService {
 
     static func parseFrontmatter(_ content: String) -> SkillFrontmatter {
         guard let frontmatter = frontmatterSections(in: content) else {
-            return SkillFrontmatter(name: nil, description: nil, version: nil)
+            return SkillFrontmatter(name: nil, description: nil, argumentHint: nil, version: nil)
         }
 
         return SkillFrontmatter(
             name: extractYamlValue(from: frontmatter.yaml, key: "name"),
             description: extractYamlValue(from: frontmatter.yaml, key: "description"),
+            argumentHint: extractYamlValue(from: frontmatter.yaml, key: "argument-hint")
+                ?? extractYamlValue(from: frontmatter.yaml, key: "argumentHint"),
             version: extractYamlValue(from: frontmatter.yaml, key: "version")
         )
     }
@@ -245,6 +249,7 @@ private extension DefaultSkillsService {
             id: skillID,
             name: frontmatter.name ?? skillID,
             description: frontmatter.description ?? "",
+            argumentHint: frontmatter.argumentHint,
             source: "catalog",
             owner: owner,
             repo: repo,

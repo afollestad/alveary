@@ -110,6 +110,182 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertTrue(ChatInputFieldTextSupport.fileMentionMatches(in: text).isEmpty)
     }
 
+    func testInlineSlashCommandHintShowsAtEndOfExactCommand() {
+        let text = "/review-github-pr "
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(insertionPoint: text.endIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertEqual(hint, "[PR URL]")
+    }
+
+    func testInlineSlashCommandHintPrefixesSpaceBeforeArgumentsStart() {
+        let text = "/review-github-pr"
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(insertionPoint: text.endIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertEqual(hint, " [PR URL]")
+    }
+
+    func testInlineSlashCommandHintHidesOnceArgumentsBegin() {
+        let text = "/review-github-pr https://github.com/example/repo/pull/42"
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(insertionPoint: text.endIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertNil(hint)
+    }
+
+    func testInlineSlashCommandHintHidesWhenCaretLeavesEndOfCommand() {
+        let text = "/review-github-pr "
+        let caretIndex = text.index(before: text.endIndex)
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(insertionPoint: caretIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertNil(hint)
+    }
+
+    func testInlineSlashCommandHintHidesForSelectionRanges() {
+        let text = "/review-github-pr "
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(range: text.startIndex..<text.endIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertNil(hint)
+    }
+
+    func testInlineSlashCommandHintHidesAfterTrailingNewline() {
+        let text = "/review-github-pr\n"
+
+        let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: TextSelection(insertionPoint: text.endIndex),
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertNil(hint)
+    }
+
+    func testInlineSlashCommandHintSurvivesStaleSelectionWhileFocused() {
+        let staleText = "/review-github-pr extra"
+        let staleSelection = TextSelection(
+            insertionPoint: staleText.index(staleText.startIndex, offsetBy: staleText.count)
+        )
+
+        let focusedHint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: "/review-github-pr",
+            textSelection: staleSelection,
+            isInputFocused: true,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertEqual(focusedHint, " [PR URL]")
+
+        let unfocusedHint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: "/review-github-pr",
+            textSelection: staleSelection,
+            isInputFocused: false,
+            commandHints: ["review-github-pr": "[PR URL]"]
+        )
+
+        XCTAssertNil(unfocusedHint)
+    }
+
+    func testInlineHintDrawingRectStartsAfterCommandText() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = "/review-github-pr "
+
+        guard let hintRect = textView.inlineHintDrawingRect() else {
+            return XCTFail("Expected inline hint drawing rect")
+        }
+
+        XCTAssertGreaterThan(hintRect.minX, textView.textContainerInset.width)
+        XCTAssertEqual(hintRect.minY, textView.textContainerOrigin.y)
+    }
+
+    func testRefreshInlineHintViewAddsVisibleLabel() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = "/review-github-pr"
+        textView.inlineHint = AppTextEditorInlineHint(text: " [PR URL]")
+
+        textView.refreshInlineHintView()
+
+        let hintViews = textView.subviews.compactMap { $0 as? AppTextEditorInlineHintView }
+        XCTAssertEqual(hintViews.count, 1)
+        XCTAssertEqual(hintViews.first?.text, " [PR URL]")
+        XCTAssertEqual(hintViews.first?.isHidden, false)
+    }
+
+    func testArgumentHintsByCommandKeyKeepsFirstDuplicateNameAndIndexesIDs() {
+        let hints = ChatInputField.argumentHintsByCommandKey(from: [
+            Skill(
+                id: "review-github-pr-local",
+                name: "review-github-pr",
+                description: "Local",
+                argumentHint: "[LOCAL PR URL]",
+                version: nil,
+                source: .local,
+                isInstalled: true,
+                syncedAgentIDs: [],
+                owner: nil,
+                repo: nil,
+                sourceUrl: nil,
+                installs: nil
+            ),
+            Skill(
+                id: "review-github-pr-remote",
+                name: "review-github-pr",
+                description: "Remote",
+                argumentHint: "[REMOTE PR URL]",
+                version: nil,
+                source: .catalog,
+                isInstalled: false,
+                syncedAgentIDs: [],
+                owner: nil,
+                repo: nil,
+                sourceUrl: nil,
+                installs: nil
+            )
+        ])
+
+        XCTAssertEqual(hints["review-github-pr"], "[LOCAL PR URL]")
+        XCTAssertEqual(hints["review-github-pr-local"], "[LOCAL PR URL]")
+        XCTAssertEqual(hints["review-github-pr-remote"], "[REMOTE PR URL]")
+    }
+
     func testFileMentionMatchesExcludePrefixFromHighlightRange() {
         let matches = ChatInputFieldTextSupport.fileMentionMatches(
             in: "Review (@Alveary/Views/Input/ChatInputField.swift) next"
@@ -139,6 +315,7 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             isDisabled: false,
             focus: nil,
             textHighlightRanges: nil,
+            inlineHint: nil,
             keyPressKeys: [],
             onKeyPress: nil
         )

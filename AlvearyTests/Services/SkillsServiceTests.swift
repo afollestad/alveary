@@ -238,6 +238,35 @@ final class SkillsServiceTests: XCTestCase {
         XCTAssertEqual(result.version, "0.4.0")
     }
 
+    func testParseFrontmatterReadsArgumentHint() {
+        let markdown = """
+        ---
+        name: review-github-pr
+        description: Review a PR.
+        argument-hint: "[PR URL]"
+        version: 1.0.0
+        ---
+        # Review
+        """
+
+        let result = DefaultSkillsService.parseFrontmatter(markdown)
+
+        XCTAssertEqual(result.name, "review-github-pr")
+        XCTAssertEqual(result.argumentHint, "[PR URL]")
+        XCTAssertEqual(result.version, "1.0.0")
+    }
+
+    func testLoadInstalledReadsArgumentHintFromFrontmatter() async throws {
+        let fixture = try SkillsServiceFixture()
+        defer { fixture.cleanup() }
+
+        try fixture.createSkill(id: "review-github-pr", description: "Review a PR", argumentHint: "[PR URL]")
+
+        let installed = try await fixture.service.loadInstalled()
+
+        XCTAssertEqual(installed.first?.argumentHint, "[PR URL]")
+    }
+
     func testMarkdownBodyStripsFrontmatterAndLeadingBlankLines() {
         let markdown = """
         ---
@@ -322,20 +351,20 @@ private struct SkillsServiceFixture {
         try? FileManager.default.removeItem(at: rootDirectory)
     }
 
-    func createSkill(id: String, description: String) throws {
+    func createSkill(id: String, description: String, argumentHint: String? = nil) throws {
         let directory = baseDir.appendingPathComponent(id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-        try skillMarkdown(id: id, description: description).write(
+        try skillMarkdown(id: id, description: description, argumentHint: argumentHint).write(
             to: directory.appendingPathComponent("SKILL.md"),
             atomically: true,
             encoding: .utf8
         )
     }
 
-    func createSharedSkill(id: String, description: String) throws {
+    func createSharedSkill(id: String, description: String, argumentHint: String? = nil) throws {
         let directory = sharedSkillsDirectory.appendingPathComponent(id, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-        try skillMarkdown(id: id, description: description).write(
+        try skillMarkdown(id: id, description: description, argumentHint: argumentHint).write(
             to: directory.appendingPathComponent("SKILL.md"),
             atomically: true,
             encoding: .utf8
@@ -360,14 +389,20 @@ private struct SkillsServiceFixture {
     }
 }
 
-private func skillMarkdown(id: String, description: String) -> String {
-    [
+private func skillMarkdown(id: String, description: String, argumentHint: String? = nil) -> String {
+    var lines = [
         "---",
         "name: \"\(id)\"",
-        "description: \"\(description)\"",
+        "description: \"\(description)\""
+    ]
+    if let argumentHint {
+        lines.append("argument-hint: \"\(argumentHint)\"")
+    }
+    lines.append(contentsOf: [
         "version: 1.0.0",
         "---",
         "",
         "# \(id)"
-    ].joined(separator: "\n")
+    ])
+    return lines.joined(separator: "\n")
 }
