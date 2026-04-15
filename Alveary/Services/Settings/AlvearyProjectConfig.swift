@@ -88,7 +88,20 @@ struct AlvearyProjectConfig: Sendable, Equatable {
 
     func write(projectPath: String) async throws {
         let configURL = URL(fileURLWithPath: projectPath).appendingPathComponent(".alveary.json")
-        let data = try Self.serializedData(for: self)
+        let normalizedConfig = normalizedForPersistence
+
+        guard !normalizedConfig.jsonObject.isEmpty else {
+            try await Task.detached(priority: .utility) {
+                guard FileManager.default.fileExists(atPath: configURL.path) else {
+                    return
+                }
+
+                try FileManager.default.removeItem(at: configURL)
+            }.value
+            return
+        }
+
+        let data = try Self.serializedData(for: normalizedConfig)
 
         try await Task.detached(priority: .utility) {
             try data.write(to: configURL, options: .atomic)

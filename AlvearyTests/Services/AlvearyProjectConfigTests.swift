@@ -117,6 +117,34 @@ final class AlvearyProjectConfigTests: XCTestCase {
         )
     }
 
+    func testWriteDeletesConfigWhenNormalizedConfigIsEmpty() async throws {
+        let projectURL = try makeProjectDirectory()
+        let configURL = projectURL.appendingPathComponent(".alveary.json")
+        let initialConfig = AlvearyProjectConfig(
+            setupScript: "bin/setup",
+            teardownScript: "bin/teardown",
+            preservePatterns: [".env"],
+            actions: [.init(name: "Test", command: "swift test")]
+        )
+
+        try await initialConfig.write(projectPath: projectURL.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: configURL.path))
+
+        let clearedConfig = initialConfig.updatingEditableFields(
+            setupScript: " ",
+            teardownScript: "",
+            preservePatterns: ["", "   "],
+            actions: []
+        )
+
+        try await clearedConfig.write(projectPath: projectURL.path)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configURL.path))
+
+        let reloadedConfig = await AlvearyProjectConfig(projectPath: projectURL.path)
+        assertAllFieldsNil(in: reloadedConfig)
+    }
+
     private func makeProjectDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
