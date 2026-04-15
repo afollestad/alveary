@@ -141,6 +141,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.autoGenerateNames = newValue } }
     }
 
+    var reopenLastThreadAndConversationOnLaunch: Bool {
+        get { settingsService.current.reopenLastThreadAndConversationOnLaunch }
+        set { settingsService.update { $0.reopenLastThreadAndConversationOnLaunch = newValue } }
+    }
+
     var autoTrustWorktrees: Bool {
         get { settingsService.current.autoTrustWorktrees }
         set { settingsService.update { $0.autoTrustWorktrees = newValue } }

@@ -51,6 +51,7 @@ struct SettingsScreen: View {
                             effort: binding(for: \.effort),
                             deleteKeyAction: binding(for: \.deleteKeyAction),
                             autoGenerateNames: binding(for: \.autoGenerateNames),
+                            reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                             createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                             autoTrustWorktrees: binding(for: \.autoTrustWorktrees),
                             notificationsEnabled: binding(for: \.notificationsEnabled),
@@ -125,7 +126,7 @@ private extension SettingsScreen {
     private func description(for tab: SettingsTab) -> String {
         switch tab {
         case .general:
-            return "Manage thread defaults and notification settings."
+            return "Manage thread defaults, startup behavior, and notification settings."
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
         case .repository:

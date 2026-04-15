@@ -5,9 +5,9 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var appState: AppState
-    @Environment(\.modelContext) private var uiModelContext
+    @Environment(\.modelContext) var uiModelContext
 
-    private let settingsService: SettingsService
+    let settingsService: SettingsService
     let shellRunner: ShellRunner
     private let gitHubCLI: GitHubCLIService
     private let providerDetection: any ProviderDetectionService
@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var settingsViewModel: SettingsViewModel
     @State var terminalManager: TerminalManager
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
+    @State var didAttemptLaunchSelectionRestore = false
 
     static func makeViewModelContext(resolver: Resolver) -> ModelContext {
         // Keep UI mutations on the container's main context so sidebar `@Query` reads
@@ -212,6 +213,7 @@ struct ContentView: View {
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             updateDiffViewer(item: selection)
             cancelPendingDiffActionIfNeeded()
+            persistLastOpenThreadSelection(for: selection)
         }
         .onChange(of: appState.previousSelection) { _, _ in
             guard appState.selectedSidebarItem == .settings else {
@@ -225,11 +227,15 @@ struct ContentView: View {
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
         }
+        .onChange(of: appState.selectedConversationIDs) { _, _ in
+            persistLastOpenThreadSelection(for: appState.selectedSidebarItem)
+        }
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .task(id: selectedThread?.project?.path) {
             await refreshToolbarProjectActions()
         }
         .onAppear {
+            restoreLastOpenThreadSelectionIfNeeded()
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
         }
@@ -460,7 +466,6 @@ private extension ContentView {
     func resolveThread(id: PersistentIdentifier) -> AgentThread? {
         uiModelContext.model(for: id) as? AgentThread
     }
-
     func refreshToolbarProjectActions() async {
         guard let thread = selectedThread,
               let projectPath = thread.project?.path else {
@@ -476,19 +481,16 @@ private extension ContentView {
 
         toolbarProjectActions = config.actions ?? []
     }
-
     func persistDiffViewerWidth(_ width: CGFloat) {
         settingsService.update {
             $0.diffViewerWidth = width
         }
     }
-
     func persistDiffViewerTopSectionFraction(_ fraction: CGFloat) {
         settingsService.update {
             $0.diffViewerTopSectionFraction = fraction
         }
     }
-
     func persistTerminalPaneHeight(_ height: CGFloat) {
         settingsService.update {
             $0.terminalPaneHeight = height

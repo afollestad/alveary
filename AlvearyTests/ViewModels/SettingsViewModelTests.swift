@@ -59,6 +59,7 @@ final class SettingsViewModelTests: XCTestCase {
             $0.effort = "high"
             $0.deleteKeyAction = .delete
             $0.autoGenerateNames = false
+            $0.reopenLastThreadAndConversationOnLaunch = true
             $0.autoTrustWorktrees = false
             $0.createWorktreeByDefault = true
             $0.theme = "dark"
@@ -80,6 +81,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.deleteKeyAction, .delete)
         XCTAssertFalse(viewModel.autoGenerateNames)
+        XCTAssertTrue(viewModel.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(viewModel.autoTrustWorktrees)
         XCTAssertTrue(viewModel.createWorktreeByDefault)
         XCTAssertEqual(viewModel.theme, "dark")
@@ -104,6 +106,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.effort = "max"
         viewModel.deleteKeyAction = .delete
         viewModel.autoGenerateNames = false
+        viewModel.reopenLastThreadAndConversationOnLaunch = true
         viewModel.autoTrustWorktrees = false
         viewModel.createWorktreeByDefault = true
         viewModel.theme = "light"
@@ -122,6 +125,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.deleteKeyAction, .delete)
         XCTAssertFalse(service.current.autoGenerateNames)
+        XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(service.current.autoTrustWorktrees)
         XCTAssertTrue(service.current.createWorktreeByDefault)
         XCTAssertEqual(service.current.theme, "light")

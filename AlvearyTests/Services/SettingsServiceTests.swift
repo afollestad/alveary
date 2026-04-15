@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -20,6 +21,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
+            $0.reopenLastThreadAndConversationOnLaunch = true
             $0.branchPrefix = "feature"
             $0.diffViewerWidth = 520
         }
@@ -29,8 +31,73 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.permissionMode, "plan")
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.deleteKeyAction, .delete)
+        XCTAssertTrue(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
+    }
+
+    func testUserDefaultsSettingsServicePersistsLastOpenThreadSelectionAcrossReloads() throws {
+        let defaults = try makeDefaults()
+        let service = UserDefaultsSettingsService(defaults: defaults)
+        let container = try makeModelContainer()
+        let context = ModelContext(container)
+        let project = Project(path: "/tmp/\(UUID().uuidString)", name: "Fixture")
+        let conversation = Conversation(title: "Main", provider: "claude")
+        let thread = AgentThread(name: "Primary", project: project, conversations: [conversation])
+        project.threads.append(thread)
+        context.insert(project)
+        try context.save()
+
+        service.update {
+            $0.reopenLastThreadAndConversationOnLaunch = true
+            $0.lastOpenThreadID = thread.persistentModelID
+            $0.lastOpenConversationID = conversation.persistentModelID
+        }
+
+        let reloadedService = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(reloadedService.current.lastOpenThreadID, thread.persistentModelID)
+        XCTAssertEqual(reloadedService.current.lastOpenConversationID, conversation.persistentModelID)
+    }
+
+    func testUserDefaultsSettingsServiceIgnoresInvalidSavedRestoreIdentifiers() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "plan",
+            "effort": "high",
+            "autoGenerateNames": false,
+            "reopenLastThreadAndConversationOnLaunch": true,
+            "autoTrustWorktrees": true,
+            "createWorktreeByDefault": false,
+            "theme": "dark",
+            "codeFontFamily": "Monaco",
+            "codeFontSize": 16,
+            "chatFontSize": 18,
+            "diffViewerWidth": 520,
+            "notifications": [
+                "enabled": true,
+                "osNotifications": true,
+                "sound": true,
+                "soundName": "Glass"
+            ],
+            "branchPrefix": "feature",
+            "pushOnCreate": false,
+            "providerConfigs": [:],
+            "lastOpenThreadID": "not-a-persistent-id",
+            "lastOpenConversationID": 42
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.permissionMode, "plan")
+        XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
+        XCTAssertNil(service.current.lastOpenThreadID)
+        XCTAssertNil(service.current.lastOpenConversationID)
     }
 
     func testUserDefaultsSettingsServiceLeavesCurrentUnchangedWhenEncodingFails() throws {
@@ -214,5 +281,15 @@ final class SettingsServiceTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
         return defaults
+    }
+
+    private func makeModelContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
     }
 }

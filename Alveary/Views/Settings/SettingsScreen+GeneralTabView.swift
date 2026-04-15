@@ -7,6 +7,7 @@ struct GeneralSettingsTabView: View {
     @Binding var effort: String
     @Binding var deleteKeyAction: ThreadDeleteKeyAction
     @Binding var autoGenerateNames: Bool
+    @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var createWorktreeByDefault: Bool
     @Binding var autoTrustWorktrees: Bool
     @Binding var notificationsEnabled: Bool
@@ -51,6 +52,14 @@ struct GeneralSettingsTabView: View {
                     .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
                 Toggle("Auto-trust worktrees", isOn: $autoTrustWorktrees)
                     .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
+            }
+
+            Section("Startup") {
+                Toggle(
+                    "Re-open the last thread and conversation on launch",
+                    isOn: $reopenLastThreadAndConversationOnLaunch
+                )
+                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
             }
 
             Section("Notifications") {

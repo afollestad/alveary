@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct AppSettings: Codable, Sendable, Equatable {
     static let supportedProviderIDs = ["claude"]
@@ -16,6 +17,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var effort = "medium"
     var deleteKeyAction = ThreadDeleteKeyAction.archive
     var autoGenerateNames = true
+    var reopenLastThreadAndConversationOnLaunch = false
     var autoTrustWorktrees = true
     var createWorktreeByDefault = false
     var theme = "system"
@@ -29,6 +31,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var branchPrefix = "alveary"
     var pushOnCreate = false
     var providerConfigs: [String: ProviderCustomConfig] = [:]
+    var lastOpenThreadID: PersistentIdentifier?
+    var lastOpenConversationID: PersistentIdentifier?
 
     func normalized() -> AppSettings {
         var copy = self
@@ -78,6 +82,7 @@ extension AppSettings {
         case effort
         case deleteKeyAction
         case autoGenerateNames
+        case reopenLastThreadAndConversationOnLaunch
         case autoTrustWorktrees
         case createWorktreeByDefault
         case theme
@@ -91,6 +96,8 @@ extension AppSettings {
         case branchPrefix
         case pushOnCreate
         case providerConfigs
+        case lastOpenThreadID
+        case lastOpenConversationID
     }
 
     init(from decoder: any Decoder) throws {
@@ -102,6 +109,10 @@ extension AppSettings {
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
         self.deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? defaults.deleteKeyAction
         self.autoGenerateNames = try container.decodeIfPresent(Bool.self, forKey: .autoGenerateNames) ?? defaults.autoGenerateNames
+        self.reopenLastThreadAndConversationOnLaunch = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .reopenLastThreadAndConversationOnLaunch
+        ) ?? defaults.reopenLastThreadAndConversationOnLaunch
         self.autoTrustWorktrees = try container.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees) ?? defaults.autoTrustWorktrees
         self.createWorktreeByDefault = try container.decodeIfPresent(Bool.self, forKey: .createWorktreeByDefault) ?? defaults.createWorktreeByDefault
         self.theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? defaults.theme
@@ -121,6 +132,8 @@ extension AppSettings {
             [String: ProviderCustomConfig].self,
             forKey: .providerConfigs
         ) ?? defaults.providerConfigs
+        self.lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
+        self.lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
     }
 }
 
