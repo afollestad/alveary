@@ -5,9 +5,9 @@ import XCTest
 extension SnapshotTests {
     var samplePermissionModes: [PermissionModeOption] {
         [
-            PermissionModeOption(value: "default", label: "Ask", description: "Prompt before tool actions."),
-            PermissionModeOption(value: "acceptEdits", label: "Auto-Edit", description: "Allow edit tools without asking."),
-            PermissionModeOption(value: "auto", label: "Auto", description: "Allow safe actions automatically.")
+            PermissionModeOption(value: "default", label: "Default permissions", description: "Prompt before restricted tool actions."),
+            PermissionModeOption(value: "acceptEdits", label: "Accept edits", description: "Allow edit tools without asking."),
+            PermissionModeOption(value: "auto", label: "Automatic", description: "Allow safe actions automatically.")
         ]
     }
 

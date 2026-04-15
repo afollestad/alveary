@@ -15,7 +15,37 @@ final class ProviderRegistryTests: XCTestCase {
         XCTAssertEqual(agent?.mcp?.configPath, "~/.claude.json")
         XCTAssertEqual(provider?.cli, "claude")
         XCTAssertEqual(provider?.permissionModeFlag, "--permission-mode")
-        XCTAssertEqual(provider?.supportedEffortLevels, ["low", "medium", "high", "max"])
+        XCTAssertEqual(
+            provider?.supportedPermissionModes,
+            [
+                PermissionModeOption(
+                    value: "default",
+                    label: "Default permissions",
+                    description: "Safe default; denied writes return as tool errors in non-interactive mode."
+                ),
+                PermissionModeOption(
+                    value: "plan",
+                    label: "Plan",
+                    description: "Read-only exploration and planning."
+                ),
+                PermissionModeOption(
+                    value: "acceptEdits",
+                    label: "Accept edits",
+                    description: "Auto-accept file edits while keeping stronger checks for other actions."
+                ),
+                PermissionModeOption(
+                    value: "auto",
+                    label: "Automatic",
+                    description: "Auto-approve most actions with safety checks."
+                ),
+                PermissionModeOption(
+                    value: "bypassPermissions",
+                    label: "Bypass permissions",
+                    description: "Bypass permission checks entirely."
+                )
+            ]
+        )
+        XCTAssertEqual(provider?.supportedEffortLevels, ["auto", "low", "medium", "high", "max"])
         XCTAssertTrue(provider?.supportsBidirectionalStreaming == true)
         XCTAssertTrue(provider?.supportsMidTurnSteering == true)
         XCTAssertNil(agentRegistry.agent(for: "missing"))

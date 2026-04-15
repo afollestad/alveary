@@ -98,6 +98,21 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(ranges, [NSRange(location: 33, length: 41)])
     }
 
+    func testEffortLabelsIncludeEffortSuffix() {
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "auto"), "Automatic effort")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "low"), "Low effort")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium effort")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "high"), "High effort")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "max"), "Max effort")
+    }
+
+    func testPermissionModeLabelsUseFriendlyNames() {
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "default"), "Default permissions")
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "acceptEdits"), "Accept edits")
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "auto"), "Automatic")
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "bypassPermissions"), "Bypass permissions")
+    }
+
     func testActiveCompletionTokenIgnoresColonPrefixedMentions() {
         let text = "See:@file"
 

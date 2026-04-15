@@ -281,7 +281,7 @@ struct ChatInputField: View {
                 if !supportedPermissionModes.isEmpty {
                     Picker("Permissions", selection: $selectedPermissionMode) {
                         ForEach(supportedPermissionModes, id: \.value) { option in
-                            Text(option.label).tag(option.value)
+                            Text(ChatInputFieldTextSupport.permissionModeLabel(for: option)).tag(option.value)
                         }
                     }
                     .pickerStyle(.menu)

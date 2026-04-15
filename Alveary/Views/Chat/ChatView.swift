@@ -69,7 +69,7 @@ struct ChatView: View {
 
     private var selectedEffortBinding: Binding<String> {
         Binding(
-            get: { conversation.thread?.effort ?? "medium" },
+            get: { conversation.thread?.effort ?? "auto" },
             set: { applyEffortChange($0) }
         )
     }
@@ -163,11 +163,11 @@ private extension ChatView {
     var permissionEscalationLabel: String {
         switch composerCapabilities.suggestedWriteEscalationMode {
         case "acceptEdits":
-            return "Switch to Auto-Edit"
+            return "Switch to Accept edits"
         case "auto":
-            return "Switch to Auto"
+            return "Switch to Automatic"
         case "bypassPermissions":
-            return "Switch to Auto-Approve"
+            return "Switch to Bypass permissions"
         case let mode?:
             return "Switch to \(mode)"
         case nil:

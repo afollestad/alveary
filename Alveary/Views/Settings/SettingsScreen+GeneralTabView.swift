@@ -27,14 +27,14 @@ struct GeneralSettingsTabView: View {
 
                 Picker("Permission mode", selection: $permissionMode) {
                     ForEach(viewModel.permissionModeOptions(for: viewModel.defaultProvider), id: \.self) { mode in
-                        Text(mode).tag(mode)
+                        Text(ChatInputFieldTextSupport.permissionModeLabel(for: mode)).tag(mode)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
 
                 Picker("Effort", selection: $effort) {
                     ForEach(viewModel.effortOptions(for: viewModel.defaultProvider), id: \.self) { effort in
-                        Text(effort.capitalized).tag(effort)
+                        Text(ChatInputFieldTextSupport.effortLabel(for: effort)).tag(effort)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)

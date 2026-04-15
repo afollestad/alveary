@@ -25,7 +25,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 supportedPermissionModes: [
                     PermissionModeOption(
                         value: "default",
-                        label: "Default",
+                        label: "Default permissions",
                         description: "Safe default; denied writes return as tool errors in non-interactive mode."
                     ),
                     PermissionModeOption(
@@ -35,24 +35,24 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                     ),
                     PermissionModeOption(
                         value: "acceptEdits",
-                        label: "Auto-Edit",
+                        label: "Accept edits",
                         description: "Auto-accept file edits while keeping stronger checks for other actions."
                     ),
                     PermissionModeOption(
                         value: "auto",
-                        label: "Auto",
+                        label: "Automatic",
                         description: "Auto-approve most actions with safety checks."
                     ),
                     PermissionModeOption(
                         value: "bypassPermissions",
-                        label: "Auto-Approve",
+                        label: "Bypass permissions",
                         description: "Bypass permission checks entirely."
                     )
                 ],
                 suggestedWriteEscalationMode: "acceptEdits",
                 writeEscalationEligibleTools: ["Write", "Edit", "MultiEdit"],
                 effortFlag: "--effort",
-                supportedEffortLevels: ["low", "medium", "high", "max"]
+                supportedEffortLevels: ["auto", "low", "medium", "high", "max"]
             ),
             skillsDirectory: "~/.claude/skills",
             mcp: MCPIntegrationDefinition(

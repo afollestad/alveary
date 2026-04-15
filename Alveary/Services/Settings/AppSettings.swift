@@ -4,7 +4,7 @@ import SwiftData
 struct AppSettings: Codable, Sendable, Equatable {
     static let supportedProviderIDs = ["claude"]
     static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "bypassPermissions"]
-    static let supportedEffortLevels = ["low", "medium", "high", "max"]
+    static let supportedEffortLevels = ["auto", "low", "medium", "high", "max"]
     static let supportedThemes = ["system", "light", "dark"]
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
@@ -14,7 +14,7 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     var defaultProvider = "claude"
     var permissionMode = "default"
-    var effort = "medium"
+    var effort = "auto"
     var deleteKeyAction = ThreadDeleteKeyAction.archive
     var autoGenerateNames = true
     var reopenLastThreadAndConversationOnLaunch = false
@@ -44,7 +44,7 @@ struct AppSettings: Codable, Sendable, Equatable {
             copy.permissionMode = "default"
         }
         if !Self.supportedEffortLevels.contains(copy.effort) {
-            copy.effort = "medium"
+            copy.effort = "auto"
         }
         if !Self.supportedThemes.contains(copy.theme) {
             copy.theme = "system"
