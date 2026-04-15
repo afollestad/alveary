@@ -66,16 +66,16 @@ extension SidebarView {
 
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
+        let replacementItem = selectionAfterDeletingThread(thread)
 
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
            selectedThread.persistentModelID == thread.persistentModelID {
-            appState.selectedSidebarItem = thread.project.map(SidebarItem.project)
+            appState.selectedSidebarItem = replacementItem
         }
 
         if case .threadId(let bookmarkedID) = appState.previousSelection,
-           bookmarkedID == thread.persistentModelID,
-           let project = thread.project {
-            appState.previousSelection = .projectPath(project.path)
+           bookmarkedID == thread.persistentModelID {
+            appState.previousSelection = replacementItem.flatMap(AppState.SidebarBookmark.init)
         }
 
         do {
@@ -140,5 +140,27 @@ extension SidebarView {
 
     func resolveThread(id: PersistentIdentifier) -> AgentThread? {
         uiModelContext.model(for: id) as? AgentThread
+    }
+
+    func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {
+        guard let project = thread.project else {
+            return nil
+        }
+
+        let threads = activeThreads(for: project)
+        guard let deletedIndex = threads.firstIndex(where: { $0.persistentModelID == thread.persistentModelID }) else {
+            return .project(project)
+        }
+
+        if deletedIndex > 0 {
+            return .thread(threads[deletedIndex - 1])
+        }
+
+        let nextIndex = deletedIndex + 1
+        if threads.indices.contains(nextIndex) {
+            return .thread(threads[nextIndex])
+        }
+
+        return .project(project)
     }
 }
