@@ -62,27 +62,47 @@ private extension ComposerAutocompletePopup {
             .padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: composerAutocompleteListSpacing) {
-                    ForEach(Array(autocomplete.suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                        ComposerAutocompleteRow(
-                            kind: autocomplete.kind,
-                            suggestion: suggestion,
-                            query: autocomplete.query,
-                            isHighlighted: index == autocomplete.highlightedIndex,
-                            onSelect: {
-                                onSelect(suggestion)
-                            }
-                        )
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: composerAutocompleteListSpacing) {
+                        ForEach(Array(autocomplete.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                            ComposerAutocompleteRow(
+                                kind: autocomplete.kind,
+                                suggestion: suggestion,
+                                query: autocomplete.query,
+                                isHighlighted: index == autocomplete.highlightedIndex,
+                                onSelect: {
+                                    onSelect(suggestion)
+                                }
+                            )
+                            .id(suggestion.id)
+                        }
                     }
                 }
+                .onAppear {
+                    scrollToHighlightedSuggestion(using: proxy)
+                }
+                .onChange(of: autocomplete.highlightedIndex) {
+                    scrollToHighlightedSuggestion(using: proxy)
+                }
+                .onChange(of: autocomplete.query) {
+                    scrollToHighlightedSuggestion(using: proxy)
+                }
+                .frame(maxHeight: composerAutocompleteMaxHeight)
             }
-            .frame(maxHeight: composerAutocompleteMaxHeight)
         }
     }
 
     var popupFillColor: Color {
         Color(nsColor: .composerAutocompleteFillColor(for: colorScheme))
+    }
+
+    func scrollToHighlightedSuggestion(using proxy: ScrollViewProxy) {
+        guard let highlightedSuggestionID = autocomplete.suggestions[safe: autocomplete.highlightedIndex]?.id else {
+            return
+        }
+
+        proxy.scrollTo(highlightedSuggestionID, anchor: .center)
     }
 }
 

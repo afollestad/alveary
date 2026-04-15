@@ -50,6 +50,93 @@ extension SnapshotTests {
         )
     }
 
+    var sampleScrolledFileAutocomplete: ComposerAutocompleteState {
+        ComposerAutocompleteState(
+            sessionID: UUID(),
+            kind: .file,
+            replacementOffsets: 18..<27,
+            query: "chat",
+            source: nil,
+            suggestions: [
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/AppDelegate.swift",
+                    title: "Alveary/AppDelegate.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/AppDelegate.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Chat/ChatBlocks.swift",
+                    title: "Alveary/Views/Chat/ChatBlocks.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Chat/ChatBlocks.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Chat/ChatSupplementaryViews.swift",
+                    title: "Alveary/Views/Chat/ChatSupplementaryViews.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Chat/ChatSupplementaryViews.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Chat/ChatView.swift",
+                    title: "Alveary/Views/Chat/ChatView.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Chat/ChatView.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Chat/ChatView+Transcript.swift",
+                    title: "Alveary/Views/Chat/ChatView+Transcript.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Chat/ChatView+Transcript.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Input/ChatInputField.swift",
+                    title: "Alveary/Views/Input/ChatInputField.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Input/ChatInputField.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Input/ChatInputField+Interactions.swift",
+                    title: "Alveary/Views/Input/ChatInputField+Interactions.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Input/ChatInputField+Interactions.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "Alveary/Views/Input/ChatInputAutocomplete.swift",
+                    title: "Alveary/Views/Input/ChatInputAutocomplete.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@Alveary/Views/Input/ChatInputAutocomplete.swift",
+                    symbolName: "doc.text"
+                ),
+                ComposerAutocompleteSuggestion(
+                    id: "AlvearyTests/AppKitTextEditorCoordinatorTests.swift",
+                    title: "AlvearyTests/AppKitTextEditorCoordinatorTests.swift",
+                    subtitle: nil,
+                    trailingText: nil,
+                    replacementText: "@AlvearyTests/AppKitTextEditorCoordinatorTests.swift",
+                    symbolName: "doc.text"
+                )
+            ],
+            totalMatches: 9,
+            highlightedIndex: 7,
+            isLoading: false
+        )
+    }
+
     var sampleSkillAutocomplete: ComposerAutocompleteState {
         ComposerAutocompleteState(
             sessionID: UUID(),

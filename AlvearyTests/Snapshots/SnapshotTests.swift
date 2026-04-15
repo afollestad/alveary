@@ -189,6 +189,17 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testComposerAutocompletePopupScrolledHighlight() {
+        assertMacSnapshot(
+            ComposerAutocompletePopup(
+                autocomplete: sampleScrolledFileAutocomplete,
+                onSelect: { _ in }
+            ),
+            size: CGSize(width: 540, height: 280),
+            named: "composer_autocomplete_files_scrolled_highlight"
+        )
+    }
+
     func testComposerAutocompletePopupSkills() {
         assertMacSnapshot(
             ComposerAutocompletePopup(

@@ -231,6 +231,27 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(hintRect.minY, textView.textContainerOrigin.y)
     }
 
+    func testComposerAutocompleteMatcherFiltersFileSuggestionsForNarrowQuery() {
+        let files = [
+            "Alveary/Views/Input/ChatInputAutocomplete.swift",
+            "Alveary/Views/Input/ChatInputField.swift",
+            "Alveary/Views/Chat/ChatView.swift"
+        ]
+
+        let result = ComposerAutocompleteMatcher.matches(
+            for: .file,
+            query: "autocomplete",
+            source: .file(files, workingDirectory: nil),
+            limit: 10
+        )
+
+        XCTAssertEqual(
+            result.suggestions.map(\.id),
+            ["Alveary/Views/Input/ChatInputAutocomplete.swift"]
+        )
+        XCTAssertEqual(result.totalMatches, 1)
+    }
+
     func testRefreshInlineHintViewAddsVisibleLabel() {
         let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
         textView.font = .preferredFont(forTextStyle: .body)
