@@ -1,0 +1,13 @@
+## Composer And Autocomplete Behavior
+
+These instructions cover composer-specific view code under `Alveary/Views/Input/`.
+
+- `TextSelection` values flowing through the AppKit editor can briefly refer to an older string right after send/reset updates. Any code that maps those indices into the current string, including `NSTextView` sync and autocomplete helpers, must treat stale indices as invalid and normalize or bail out instead of assuming the indices still belong to the new text.
+- Keep selection and replacement offsets in UTF-16 units to match AppKit `NSRange` behavior; mixing them with `String.count` breaks emoji and other composed-character handling.
+- Apply composer token styling as attributed ranges while keeping the editor's base `textColor` and typing color pinned to the normal label color. Deriving the base color from already-styled text can cause accent-colored mentions or slash commands to bleed into later plain text or persist after clearing the input.
+- Slash-command argument hints are visual-only `AppKitTextView` inline hints driven by skill frontmatter (`argument-hint`). Keep them out of the underlying composer `text` and hide them once the user starts typing real arguments or moves the caret away from the end of the command.
+- Composer autocomplete source loading and filtering must not inherit the live-turn `MainActor` workload. Run the expensive work off-main and only hop back to publish `activeAutocomplete` state so `@` mentions and `/` skills stay responsive while a turn is streaming.
+- Composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. Keep the popup as an overlay on `AppTextEditor` so it floats over queued-message rows and changed-files strips, while file suggestions show canonical display paths and skill suggestions stay in the single-line icon/name/description/scope layout.
+- Composer autocomplete loading and empty placeholder states should share the same full-width popup container and surface color as populated suggestions; keep focused snapshots for files, skills, empty, and loading variants when changing popup styling.
+- Composer autocomplete popup scrolling should target each suggestion's stable `id`, not list indices or whole-array change observation. File-mention filtering replaces rows aggressively while typing, and index-driven scroll bookkeeping can leave `@` results visually stale or glitchy.
+- The composer worktree-location picker is an empty-thread-only control for git-backed threads. New threads seed `AgentThread.useWorktree` from the global `createWorktreeByDefault` setting, the picker edits that per-thread override before first send, and it should disappear for that thread once `hasCompletedInitialSetup` flips true.

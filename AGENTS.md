@@ -2,6 +2,19 @@
 
 **WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md`.
 **WHEN** making changes to dependencies, project structure, or lint, make sure `AGENTS.md` and `README.md` are kept up to date.
+**WHEN** adding or updating agent guidance, prefer the narrowest `AGENTS.md` whose scope covers the affected files. Keep instructions in the root `AGENTS.md` only when they are truly repo-wide or protect cross-cutting invariants.
+
+## Scoped AGENTS Files
+
+Use nested `AGENTS.md` files to keep local guidance close to the code it governs.
+
+- `Alveary/DI/AGENTS.md` covers Knit assemblies and generated DI output.
+- `Alveary/Views/AGENTS.md` covers shared SwiftUI view composition rules.
+- `Alveary/Views/Components/AGENTS.md` covers shared component and `AppTextEditor` implementation details.
+- `Alveary/Views/Chat/AGENTS.md` covers chat-specific view chrome and tab behavior.
+- `Alveary/Views/Input/AGENTS.md` covers composer autocomplete, slash-command hints, and worktree picker behavior.
+- `Alveary/Views/Sidebar/AGENTS.md` covers sidebar-specific interaction patterns.
+- `AlvearyTests/AGENTS.md` covers snapshot and test-organization guidance.
 
 ## XCode Project Generation
 
@@ -17,14 +30,6 @@ The XCode project (`Alveary.xcodeproj`) is generated from `project.yml` using Xc
 
 **DO NOT** commit `Alveary.xcodeproj/` — it is gitignored and regenerated from `project.yml`.
 
-## Knit
-
-The app uses `knit-cli gen` from the target pre-build script to generate `Alveary/DI/Generated/KnitExtensions.swift`. Treat that file as generated output: keep it in the repo, but do not hand-edit it.
-
-Add Knit `ModuleAssembly` files under `Alveary/DI/`. If you add a new assembly or change resolver registrations in a way that should produce new generated resolver accessors, make sure the generated file is refreshed before you finish by building the app target or running the same `knit-cli gen` command used in `project.yml`.
-
-Use the CLI-based Knit workflow documented in `project.yml`; do not switch the project over to `KnitBuildPlugin` unless the repo docs and build configuration are intentionally updated together.
-
 ## Building, Testing, and Running
 
 The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
@@ -34,33 +39,18 @@ The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The
 - Build from the command line with `./scripts/build.sh`.
 - Run the full test suite with `./scripts/test.sh`.
 - Run focused tests with `./scripts/test.sh AlvearyTests/AppDelegateTests` or multiple identifiers as separate arguments.
-- See the "Snapshot Testing" section below for snapshot verification.
+- See `AlvearyTests/AGENTS.md` for snapshot verification details.
 - Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Alveary.xcodeproj -scheme Alveary -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Alveary.app`.
 - For interactive development, you can also open `Alveary.xcodeproj` in Xcode and run the `Alveary` scheme directly.
 - When actively working on something, if the user needs to manually test, run `./scripts/build.sh` first and wait for it to exit successfully before running `./scripts/run.sh`.
 - Never run `./scripts/build.sh` and `./scripts/run.sh` in parallel, and do not start `./scripts/run.sh` until the build has completed.
-
-## Snapshot Testing
+- Do not use `multi_tool_use.parallel` for any ordered validation workflow such as build-then-run, build-then-test, or record-then-verify snapshots. If one command depends on the previous command's result, run them strictly serially.
+- If the user asks to build and then run after each iteration, treat that as a hard sequencing requirement: finish `./scripts/build.sh`, confirm success, and only then start `./scripts/run.sh`.
 
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
-- Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests.
-- Verify snapshot tests with `./scripts/snapshots.sh verify` and record them with `./scripts/snapshots.sh record`.
-- `./scripts/snapshots.sh record` is expected to exit non-zero after writing updated baselines because SnapshotTesting reports recorded snapshots as test failures in record mode; treat a follow-up `./scripts/snapshots.sh verify ...` pass as the confirmation step.
-- `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`, and also accepts focused identifiers like `AlvearyTests/SnapshotTests/testSidebarViewPopulated`.
-- Prefer focused companion snapshot files such as `SnapshotTests+Terminal.swift` instead of continuing to grow `SnapshotTests.swift`; keep snapshot coverage grouped by screen or feature area.
-- Keep `assertMacSnapshot()` window-backed. macOS SwiftUI snapshots that render sidebar `List` content with custom section headers can capture as a blank background if they are hosted in a bare `NSHostingController` without an `NSWindow` display pass.
-- `assertMacSnapshot()` supports dark-mode coverage via its `colorScheme:` argument; when adding dark-mode snapshots, keep the SwiftUI `colorScheme` and the hosting `NSAppearance` in sync or AppKit-backed colors such as `separatorColor` will render incorrectly.
-- Moving a snapshot test into a different file changes the baseline lookup path under `AlvearyTests/Snapshots/__Snapshots__/`; move or re-record the reference images to match the new companion file, and run `xcodegen generate` afterward if you added, removed, or renamed snapshot test source files.
-
-Examples:
-```sh
-./scripts/snapshots.sh verify AlvearyTests/SnapshotTests/testSidebarViewPopulated
-./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
-```
-
-Snapshots should be verified before committing, whenever UI is modified.
+- Use `./scripts/snapshots.sh` for snapshot workflows, and verify snapshots before committing whenever UI is modified. See `AlvearyTests/AGENTS.md` for the focused snapshot-specific rules.
 
 ## Linting
 
@@ -83,38 +73,17 @@ These are default structure and readability conventions for new code and routine
 - Add concise code comments where needed for human readers.
 - Large types may be split into companion files like `Type+Feature.swift`. When reading current behavior or adding new logic to an existing type, search for same-type extensions and treat those companion files as part of the canonical implementation before editing.
 - Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file. Also lean on companion files earlier to avoid files becoming too large, and use them to resolve lint warnings about file length.
-- In SwiftUI, prefer extracted `View` types over `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition. When an extracted child view is used by another view, place it in the same folder with `Parent+Child.swift` naming such as `DiffViewerPane+Header.swift`.
 
 ## Interaction Contracts
 
 These capture repo-specific interaction patterns and UI implementation choices. Keep new UI aligned with them unless you are intentionally redesigning the behavior across the app.
 
-- Thread rename is inline (Finder-style `TextField` swap in `SidebarThreadRow`), not a modal sheet. The row tracks an `editingThreadID` binding. Conversation rename in multi-conversation tabs uses the same inline pattern via `editingConversationID` in `ConversationTabChip`.
 - Session reconfiguration is a between-turn action. Do not let agent/session setting changes reconfigure a conversation while a turn is active or a send is still in flight; those changes must wait until the current turn finishes.
-- For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Alveary/Views/Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
-- For icon-bearing action buttons that use the shared prominent button styles, prefer explicit `Image` + `Text` content over `Label`; on macOS the shared style can render `Label` as text-only in some contexts.
 - Queued messages stay stacked above the chat composer until they are actually sent. Do not render pending queued entries in the transcript as if they were already part of the conversation history.
 - Once a queued message is actually attempted, it belongs to the transcript. If that attempted send fails, show retry affordances on the transcript user message rather than moving it back into the queued-message list.
 - While a turn is active, keep transcript updates incremental. Persisted live-turn events should append directly into `ChatItemGrouper`, and full transcript regrouping from the `events` query should be deferred until the turn ends so the active turn does not starve composer interactions like autocomplete or text insertion.
 - Live root-assistant `messageChunk` events should be coalesced before they hop onto the main actor. Do not process every streamed text delta as its own `MainActor` mutation, or active turns can starve transcript completion and composer interactions.
-- Transcript auto-follow should stay pinned when the user is already at the bottom and new content increases transcript height, including wrapped streaming-bubble growth. Treat content-size growth differently from a user-initiated scroll-away so the `Jump to bottom` affordance only appears after the user actually leaves the bottom.
-- In `ChatTranscriptView`, keep the bottom inset inside the `chat-bottom` scroll target instead of as trailing stack padding. Bottom padding after the anchor leaves a small extra scroll range when entering a thread or jumping to the bottom.
-- Transcript follow mode should also survive transcript viewport-height changes caused by bottom-area composer banners or strips appearing and disappearing. If the user did not scroll and they were already near bottom, treat container-height changes like other bottom-pinned layout changes and keep the transcript anchored.
 - `ConversationViewModel` agent subscriptions are view-lifecycle owned, not initializer-owned. Keep `activateViewLifecycle()` / `deactivateViewLifecycle()` wired from `ConversationView`'s `.task` and `.onDisappear` instead of restarting subscriptions from `init`, because parent SwiftUI refreshes can recreate the model and churn `activeSubscriptionToken`.
-- The macOS chat composer uses the AppKit-backed `AppTextEditor`/`AppKitTextView` bridge. Keep the placeholder drawn inside `AppKitTextView` instead of reintroducing a SwiftUI overlay so it shares the real `NSTextView` insets and caret positioning.
-- `TextSelection` values flowing through the AppKit editor can briefly refer to an older string right after send/reset updates. Any code that maps those indices into the current string, including `NSTextView` sync and autocomplete/mention helpers, must treat stale indices as invalid and normalize or bail out instead of assuming the indices still belong to the new text. Keep selection/replacement offsets in UTF-16 units to match AppKit `NSRange` behavior; mixing them with `String.count` breaks emoji/composed-character handling.
-- Composer token styling in `AppKitTextView` should be applied as attributed ranges while keeping the editor's base `textColor`/typing color pinned to the normal label color. Deriving the base color from already-styled text can cause accent-colored mentions or slash commands to bleed into later plain text or persist after clearing the input.
-- Slash-command argument hints are visual-only `AppKitTextView` inline hints driven by skill frontmatter (`argument-hint`). Keep them out of the underlying composer `text` and hide them once the user starts typing real arguments or moves the caret away from the end of the command.
-- Composer autocomplete source loading and filtering must not inherit the live-turn `MainActor` workload. Run the expensive work off-main and only hop back to publish `activeAutocomplete` state so `@` mentions and `/` skills stay responsive while a turn is streaming.
-- Composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. Keep the popup as an overlay on `AppTextEditor` so it floats over queued-message rows and changed-files strips, while file suggestions show canonical display paths and skill suggestions stay in the single-line icon/name/description/scope layout.
-- Composer autocomplete loading and empty placeholder states should share the same full-width popup container and surface color as populated suggestions; keep focused snapshots for files, skills, empty, and loading variants when changing popup styling.
-- Composer autocomplete popup scrolling should target each suggestion's stable `id`, not list indices or whole-array change observation. File-mention filtering replaces rows aggressively while typing, and index-driven scroll bookkeeping can leave `@` results visually stale or glitchy.
-- The composer worktree-location picker is an empty-thread-only control for git-backed threads. New threads seed `AgentThread.useWorktree` from the global `createWorktreeByDefault` setting, the picker edits that per-thread override before first send, and it should disappear for that thread once `hasCompletedInitialSetup` flips true.
-- For selectable list rows (sidebar items, settings tabs, diff file lists), use the `.appSelectableRow(isSelected:action:)` modifier from `Alveary/Views/Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows — `Button` does not reliably fill the full row hit area in a `List`.
-- Conversation tab chips are not list rows, but they should mirror the same press-feedback principles: let the select action own the full capsule hit area, overlay trailing affordances like the close button on top of that surface, and prefer fill changes over capsule strokes for selected styling because macOS can render stray vertical artifacts from chip outlines in snapshots.
-- Deleting the selected sidebar thread should keep focus within the same project when possible: prefer the previous visible thread in the project list, otherwise the next visible thread, and only fall back to the project row when no visible threads remain.
-- Sidebar keyboard navigation traverses items in a flat order: Skills → MCP → each project row (with its active threads interleaved when the project is expanded) → next project. The traversal is built by `buildNavigableItems()` and driven by `navigateVertically()` in `SidebarView+KeyboardNavigation.swift`. Horizontal arrows intentionally reuse that vertical path in some cases: left-arrow behaves like up-arrow for `Skills`, `MCP`, thread rows, and already-collapsed project rows, while right-arrow behaves like down-arrow for `Skills`, `MCP`, thread rows, and already-expanded project rows; collapsed/expanded project rows still use left/right to collapse/expand first. When adding new top-level sidebar sections or changing expansion behavior, update these functions and their tests.
-- `ThreadDetailConversationTabs` should keep the system `.bar` background for the header chrome and add any custom separator as an overlay. Replacing the bar with `windowBackgroundColor` creates an unintended dark strip in the live app.
 
 ## Repository Invariants
 
