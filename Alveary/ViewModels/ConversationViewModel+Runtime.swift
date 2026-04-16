@@ -384,29 +384,6 @@ private extension ConversationViewModel {
         return true
     }
 
-    func isConfirmedTurnInterruption(
-        isError: Bool,
-        stopReason: String?,
-        permissionDenials: [PermissionDenialSummary]
-    ) -> Bool {
-        guard isError,
-              state.isCancellingTurn,
-              permissionDenials.isEmpty else {
-            return false
-        }
-
-        let normalizedStopReason = stopReason?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        guard let normalizedStopReason,
-              !normalizedStopReason.isEmpty else {
-            return true
-        }
-
-        return normalizedStopReason.contains("interrupt") || normalizedStopReason.contains("cancel")
-    }
-
     func persistSyntheticStopRecord(message: String) {
         guard let dbConversation = dbConversation(),
               let record = ConversationEvent.stop(message: message).toRecord(conversation: dbConversation) else {

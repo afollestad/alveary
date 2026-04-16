@@ -149,6 +149,39 @@ extension ConversationViewModelTests {
         XCTAssertEqual(persistedEvents.first?.content, "Interrupted")
     }
 
+    func testCancellationDuringToolUseMarksTurnInterrupted() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.isCancellingTurn = true
+
+        // Claude CLI reports `is_error: true` with `stop_reason: "tool_use"` when a turn is
+        // cancelled mid tool call. That is an interruption, not a genuine failure.
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "tool_use",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
+        XCTAssertEqual(persistedEvents.first?.content, "Interrupted")
+    }
+
     func testCancellationDoesNotMaskRealTurnFailures() throws {
         let fixture = try ConversationViewModelTestFixture()
 
