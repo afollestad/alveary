@@ -88,8 +88,8 @@ private struct ChatInputQueuedMessageRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "arrow.turn.down.left")
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "clock")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
