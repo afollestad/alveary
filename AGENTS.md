@@ -9,12 +9,15 @@
 Use nested `AGENTS.md` files to keep local guidance close to the code it governs.
 
 - `Alveary/DI/AGENTS.md` covers Knit assemblies and generated DI output.
+- `Alveary/Services/Git/AGENTS.md` covers worktree lifecycle and the GitHub CLI adapter.
 - `Alveary/Views/AGENTS.md` covers shared SwiftUI view composition rules.
 - `Alveary/Views/Components/AGENTS.md` covers shared component and `AppTextEditor` implementation details.
 - `Alveary/Views/Chat/AGENTS.md` covers chat-specific view chrome and tab behavior.
 - `Alveary/Views/Input/AGENTS.md` covers composer autocomplete, slash-command hints, and worktree picker behavior.
 - `Alveary/Views/Sidebar/AGENTS.md` covers sidebar-specific interaction patterns.
 - `AlvearyTests/AGENTS.md` covers snapshot and test-organization guidance.
+
+**WHEN** creating a new nested `AGENTS.md`, also add a sibling `CLAUDE.md` symlink to it (`ln -s AGENTS.md CLAUDE.md` from inside that directory) so Claude Code picks up the scoped guidance, and add a line for the new file to the list above. The root `project.yml` already excludes `**/CLAUDE.md` from Xcode sources, so no project regeneration is required.
 
 ## XCode Project Generation
 
@@ -83,7 +86,6 @@ These capture repo-specific interaction patterns and UI implementation choices. 
 - Once a queued message is actually attempted, it belongs to the transcript. If that attempted send fails, show retry affordances on the transcript user message rather than moving it back into the queued-message list.
 - User-requested turn cancellation is an interruption, not a generic failure. Stopped turns should clear composer error banners, render a centered `Interrupted` transcript note, and persist a `stop` session note so restore/archive context does not summarize the turn as an error.
 - User-requested cancellation of initial-setup (worktree creation + agent spawn for a new thread) is a reset, not a failure. `ConversationViewModel.cancel()` must cancel the tracked `initialSetupTask` and flip `state.isCancellingInitialSetup = true` so the composer shows a spinner instead of the stop button; the existing `rollbackFailedInitialSetup` path restores the draft and clears `hasCompletedInitialSetup`, and `sendDraft` / `retryDraft` must swallow `CancellationError` so no error banner appears. A subsequent send re-enters setup via the normal `needsSetup` check.
-- `DefaultWorktreeManager.create()` is self-cleaning on any post-`git worktree add` failure, including task cancellation. The internal catch runs `detachedCleanupAfterFailedCreate` as a `Task.detached` so the caller's cancellation cannot abort the removal shell commands; the ViewModel's `rollbackFailedWorktreeCreation` therefore does not need to know about partially-created worktrees.
 - While a turn is active, keep transcript updates incremental. Persisted live-turn events should append directly into `ChatItemGrouper`, and full transcript regrouping from the `events` query should be deferred until the turn ends so the active turn does not starve composer interactions like autocomplete or text insertion.
 - Live root-assistant `messageChunk` events should be coalesced before they hop onto the main actor. Do not process every streamed text delta as its own `MainActor` mutation, or active turns can starve transcript completion and composer interactions.
 - `ConversationViewModel` agent subscriptions are view-lifecycle owned, not initializer-owned. Keep `activateViewLifecycle()` / `deactivateViewLifecycle()` wired from `ConversationView`'s `.task` and `.onDisappear` instead of restarting subscriptions from `init`, because parent SwiftUI refreshes can recreate the model and churn `activeSubscriptionToken`.
@@ -104,10 +106,6 @@ These are architectural and persistence contracts. Treat them as hard constraint
 - `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
 - `SessionEntry`'s canonical cwd plus paired `appSessionId` / `launchSessionId` are required for Claude fork-session recovery and startup orphan cleanup. Resume/orphan flows must preserve both IDs and use canonicalized paths rather than recomputing ownership from raw process state alone.
 - `SessionManager.persist()` must remain off `@MainActor`. `AppDelegate.applicationWillTerminate(_:)` bridges the final repair-path persist through `Task.detached` while synchronously blocking the main thread on a bounded semaphore; moving session persistence onto the main actor would deadlock shutdown.
-- Worktree roots are namespaced by canonical project path under the user-configurable `AppSettings.worktreesBaseDirectory` (default `~/Documents/worktrees`); preserve that namespacing so sibling clones with the same repo folder name cannot collide. `DefaultWorktreeManager.projectWorktreesDirectory(for:worktreesBase:)` reads the expanded base via `AppSettings.expandedWorktreesBaseDirectory`, and `create` / `createFromBranch` must `ensureWorktreeParentDirectoryExists` before invoking `git worktree add` so a fresh base directory is populated.
-- Worktree lifecycle scripts from `.alveary.json` have stable defaults and rollback behavior. `scripts.setup` runs in the new worktree with a default 300-second timeout unless `scripts.setupTimeoutSeconds` overrides it; `scripts.teardown` runs during removal with a 60-second timeout; both receive `ALVEARY_THREAD_NAME`, `ALVEARY_PROJECT_PATH`, `ALVEARY_WORKTREE_PATH`, optional `ALVEARY_BRANCH_NAME`, and `ALVEARY_PORT_SEED`. If `scripts.setup` fails, the manager must attempt to remove the new worktree and delete the rollback branch before surfacing the error.
-- Preserved-file copying during worktree creation defaults to `.env`, `.env.local`, and `.env.development` when `.alveary.json` omits `preservePatterns`. Custom `preservePatterns` replace that default list.
-- `DefaultWorktreeManager.removeWorktree` must follow `git worktree remove --force` with a `FileManager.removeItem` on the exact thread worktree path, because git can leave the now-empty thread directory behind when untracked content or filesystem quirks interfere. Keep that cleanup scoped to the single worktree path — never the shared parent directory returned by `projectWorktreesDirectory`, which hosts sibling threads.
 - The app layout uses a two-column `NavigationSplitView` with a conditional right-pane `HStack` detail split. Do not switch the diff pane back to native three-column `NavigationSplitViewVisibility` control on macOS 26; it does not behave correctly for programmatic right-pane toggling.
 
 ## macOS Lifecycle and Concurrency
@@ -123,5 +121,4 @@ These are architectural and persistence contracts. Treat them as hard constraint
 - Do not re-add Claude `--include-hook-events` in `-p` mode; it does not emit useful hook events there, and lifecycle state should continue to derive from the standard event stream and process lifecycle.
 - Do not switch `DefaultAgentsManager.readAgentOutput` back to `FileHandle.AsyncBytes.lines` for Claude's stream-json pipe. Keep the `readabilityHandler`-based `PipeLinePump` so final EOF-delimited JSON records without a trailing newline still flush and the UI does not get stuck in a busy/Stop state.
 - Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.
-- `gh auth login --web` does not auto-open the browser without a TTY. GitHub auth flows in the app must continue parsing the emitted URL/code and opening the browser explicitly.
 - Claude auto-denies `AskUserQuestion` in `-p --output-format stream-json` mode. Keep the app-native prompt/selection UI as the interaction path instead of expecting the CLI to pause for an answer.
