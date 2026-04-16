@@ -176,15 +176,24 @@ struct StreamingBubble: View {
 }
 
 struct ActiveTurnThinkingIndicator: View {
-    @State private var activeDotIndex = 0
+    @State private var startDate: Date?
+
+    private let dotCount = 3
+    private let cycleDuration: Double = 1.1
+    private let dotPhaseOffset: Double = 0.22
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(.secondary.opacity(activeDotIndex == index ? 0.85 : 0.28))
-                    .frame(width: 7, height: 7)
-                    .scaleEffect(activeDotIndex == index ? 1 : 0.72)
+        TimelineView(.animation(paused: startDate == nil)) { context in
+            let elapsed = startDate.map { context.date.timeIntervalSince($0) } ?? 0
+            HStack(spacing: 6) {
+                ForEach(0..<dotCount, id: \.self) { index in
+                    let progress = pulseProgress(elapsed: elapsed, index: index)
+                    Circle()
+                        .fill(.secondary)
+                        .frame(width: 7, height: 7)
+                        .opacity(0.28 + progress * 0.57)
+                        .scaleEffect(0.72 + progress * 0.28)
+                }
             }
         }
         .padding(.horizontal, chatBubbleHorizontalPadding)
@@ -192,11 +201,12 @@ struct ActiveTurnThinkingIndicator: View {
         .frame(maxWidth: 720, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Assistant is thinking")
-        .onReceive(Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()) { _ in
-            withAnimation(.easeInOut(duration: 0.18)) {
-                activeDotIndex = (activeDotIndex + 1) % 3
-            }
-        }
+        .onAppear { startDate = Date() }
+    }
+
+    private func pulseProgress(elapsed: TimeInterval, index: Int) -> Double {
+        let phase = (elapsed / cycleDuration - Double(index) * dotPhaseOffset) * 2 * .pi
+        return (1 - cos(phase)) / 2
     }
 }
 
