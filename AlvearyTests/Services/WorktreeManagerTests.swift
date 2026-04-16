@@ -216,6 +216,45 @@ final class WorktreeManagerTests: XCTestCase {
         )
     }
 
+    func testRemoveDeletesLeftoverWorktreeDirectoryButNotParent() async throws {
+        let projectURL = try makeTemporaryProject()
+        let worktreesParentURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees")
+        let worktreeURL = worktreesParentURL.appendingPathComponent("demo")
+        try FileManager.default.createDirectory(at: worktreeURL, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: worktreesParentURL) }
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: worktreeListOutput(
+                        projectPath: projectURL.path,
+                        worktreePath: worktreeURL.path,
+                        branch: "alveary/demo"
+                    ),
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(.success(Self.emptyShellResult()))
+        await shell.enqueue(.success(Self.emptyShellResult()))
+        await shell.enqueue(.success(Self.emptyShellResult()))
+
+        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+
+        try await manager.remove(
+            projectPath: projectURL.path,
+            worktreePath: worktreeURL.path,
+            branch: "alveary/demo"
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktreesParentURL.path))
+    }
+
     func testRemoveAllDeletesRegisteredWorktreesAndProjectNamespaceDirectory() async throws {
         let projectURL = try makeTemporaryProject()
         let worktreesBaseURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees")

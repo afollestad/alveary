@@ -338,6 +338,13 @@ extension DefaultWorktreeManager {
             )
         }
 
+        // `git worktree remove` can leave the thread-specific directory itself in place
+        // (e.g. when untracked files remain or on certain filesystems). Clean up just that
+        // directory — never its parent, which holds other threads' worktrees.
+        if removeResult.succeeded, FileManager.default.fileExists(atPath: worktreePath) {
+            try? FileManager.default.removeItem(atPath: worktreePath)
+        }
+
         return removeResult
     }
 
