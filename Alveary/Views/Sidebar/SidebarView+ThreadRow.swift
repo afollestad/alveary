@@ -30,38 +30,27 @@ struct SidebarThreadRow: View {
                 .frame(width: 8, height: 8)
                 .offset(x: -3)
 
-            VStack(alignment: .leading, spacing: 2) {
-                if isEditing {
-                    TextField("Thread name", text: $editText)
-                        .textFieldStyle(.plain)
-                        .focused($isFieldFocused)
-                        .onSubmit { commitRename() }
-                        .onExitCommand { cancelRename() }
-                        .lineLimit(1)
-                } else {
-                    if containsMarkdownCode {
-                        InlineText(
-                            displayName,
-                            parser: AppMarkdownParser(
-                                baseURL: nil,
-                                inlineCodeStyle: .standard,
-                                parsingMode: .inline
-                            )
-                        )
-                        .lineLimit(1)
-                        .allowsHitTesting(false)
-                    } else {
-                        Text(displayName)
-                            .lineLimit(1)
-                    }
-                }
-
-                if let branch = thread.branch {
-                    Text(branch)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+            if isEditing {
+                TextField("Thread name", text: $editText)
+                    .textFieldStyle(.plain)
+                    .focused($isFieldFocused)
+                    .onSubmit { commitRename() }
+                    .onExitCommand { cancelRename() }
+                    .lineLimit(1)
+            } else if containsMarkdownCode {
+                InlineText(
+                    displayName,
+                    parser: AppMarkdownParser(
+                        baseURL: nil,
+                        inlineCodeStyle: .standard,
+                        parsingMode: .inline
+                    )
+                )
+                .lineLimit(1)
+                .allowsHitTesting(false)
+            } else {
+                Text(displayName)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
