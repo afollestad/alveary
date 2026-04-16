@@ -165,6 +165,31 @@ struct StreamingBubble: View {
     }
 }
 
+struct ActiveTurnThinkingIndicator: View {
+    @State private var activeDotIndex = 0
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(.secondary.opacity(activeDotIndex == index ? 0.85 : 0.28))
+                    .frame(width: 7, height: 7)
+                    .scaleEffect(activeDotIndex == index ? 1 : 0.72)
+            }
+        }
+        .padding(.horizontal, chatBubbleHorizontalPadding)
+        .padding(.vertical, chatBubbleVerticalPadding)
+        .frame(maxWidth: 720, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Assistant is thinking")
+        .onReceive(Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()) { _ in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                activeDotIndex = (activeDotIndex + 1) % 3
+            }
+        }
+    }
+}
+
 struct ErrorBanner: View {
     let message: String
 

@@ -29,6 +29,14 @@ extension SnapshotTests {
         )
     }
 
+    func testActiveTurnThinkingIndicator() {
+        assertMacSnapshot(
+            ActiveTurnThinkingIndicator(),
+            size: CGSize(width: 320, height: 80),
+            named: "active_turn_thinking_indicator"
+        )
+    }
+
     func testUserBubblesStacked() {
         assertMacSnapshot(
             VStack(alignment: .leading, spacing: 6) {

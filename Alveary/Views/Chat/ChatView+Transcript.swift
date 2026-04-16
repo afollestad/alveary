@@ -114,6 +114,12 @@ struct ChatTranscriptView: View {
                     }
                 }
 
+                if viewModel.turnState.isActive,
+                   viewModel.streamingText == nil {
+                    ActiveTurnThinkingIndicator()
+                        .id("active-turn-thinking-indicator")
+                }
+
                 if let streamingText = viewModel.streamingText {
                     StreamingBubble(text: streamingText)
                         .id("streaming")
