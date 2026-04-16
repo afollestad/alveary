@@ -123,7 +123,7 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testChatInputFieldHighlightedTokens() {
+    func testChatInputFieldComposerChips() {
         assertMacSnapshot(
             ChatInputField(
                 text: .constant("/ios-accessibility inspect @Alveary/Views/Input/ChatInputField.swift next"),
@@ -142,7 +142,7 @@ final class SnapshotTests: XCTestCase {
                 loadSkillCompletions: { [] }
             ),
             size: CGSize(width: 760, height: 240),
-            named: "chat_input_highlighted_tokens"
+            named: "chat_input_composer_chips"
         )
     }
 
@@ -162,7 +162,7 @@ final class SnapshotTests: XCTestCase {
                 horizontalPadding: 10,
                 verticalPadding: 10,
                 sizesToContent: true,
-                textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges,
+                textChips: { ChatInputFieldTextSupport.composerTextChips(in: $0, workingDirectory: nil) },
                 inlineHint: AppTextEditorInlineHint(text: "[PR URL]")
             ),
             size: CGSize(width: 760, height: 120),

@@ -98,6 +98,40 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(ranges, [NSRange(location: 33, length: 41)])
     }
 
+    func testComposerTextChipsUseFilenameDisplayForFileMentions() {
+        let text = "/review-github-pr inspect @/tmp/alveary/Alveary/Views/Input/ChatInputField.swift next"
+        guard let mentionRange = text.range(of: "@/tmp/alveary/Alveary/Views/Input/ChatInputField.swift"),
+              let mentionLowerOffset = ChatInputFieldTextSupport.offset(of: mentionRange.lowerBound, in: text),
+              let mentionUpperOffset = ChatInputFieldTextSupport.offset(of: mentionRange.upperBound, in: text) else {
+            return XCTFail("Expected mention range")
+        }
+
+        let chips = ChatInputFieldTextSupport.composerTextChips(
+            in: text,
+            workingDirectory: "/tmp/alveary"
+        )
+
+        XCTAssertEqual(chips.count, 2)
+        XCTAssertEqual(chips[0], AppTextEditorChip(range: NSRange(location: 0, length: 17), displayText: "/review-github-pr", style: .slashCommand))
+        XCTAssertEqual(
+            chips[1],
+            AppTextEditorChip(
+                range: NSRange(location: mentionLowerOffset, length: mentionUpperOffset - mentionLowerOffset),
+                displayText: "@ChatInputField.swift",
+                style: .fileMention
+            )
+        )
+    }
+
+    func testComposerTextChipsIgnoreMentionsInsideInlineCode() {
+        let chips = ChatInputFieldTextSupport.composerTextChips(
+            in: "Inspect `@Alveary/Views/Input/ChatInputField.swift` next",
+            workingDirectory: nil
+        )
+
+        XCTAssertTrue(chips.isEmpty)
+    }
+
     func testEffortLabelsIncludeEffortSuffix() {
         XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "low"), "Low effort")
         XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium effort (default)")
@@ -335,6 +369,85 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(matches[0].range, NSRange(location: 7, length: 42))
         XCTAssertEqual(matches[0].highlightRange, NSRange(location: 8, length: 41))
         XCTAssertEqual(matches[0].path, "Alveary/Views/Input/ChatInputField.swift")
+    }
+
+    func testTextChipDisplayModeFallsBackToFullTextWhileEditingMention() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
+
+        let chip = AppTextEditorChip(
+            range: NSRange(location: 8, length: 41),
+            displayText: "@ChatInputField.swift",
+            style: .fileMention
+        )
+        textView.textChips = [chip]
+
+        XCTAssertEqual(textView.textChipDisplayMode(for: chip), .compactLabel("@ChatInputField.swift"))
+
+        textView.setSelectedRange(NSRange(location: 20, length: 0))
+
+        XCTAssertEqual(textView.textChipDisplayMode(for: chip), .fullText)
+    }
+
+    func testHandleLayoutChangeReappliesChipVisibilityWhenMentionWraps() {
+        let text = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
+        var measuredHeight: CGFloat = 0
+
+        let parent = AppKitTextEditorView(
+            text: .constant(text),
+            measuredTextHeight: Binding(get: { measuredHeight }, set: { measuredHeight = $0 }),
+            placeholder: nil,
+            horizontalPadding: 10,
+            verticalPadding: 10,
+            isDisabled: false,
+            focus: nil,
+            textChips: { ChatInputFieldTextSupport.composerTextChips(in: $0, workingDirectory: nil) },
+            keyPressKeys: [],
+            onKeyPress: nil
+        )
+
+        let coordinator = AppKitTextEditorCoordinator(parent: parent)
+        let scrollView = AppKitTextEditorScrollView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.font = textView.baseTextFont
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = text
+        scrollView.documentView = textView
+        coordinator.attach(textView: textView, scrollView: scrollView)
+
+        coordinator.applyConfiguration(from: parent)
+
+        guard let mentionRange = text.range(of: "@Alveary/Views/Input/ChatInputField.swift") else {
+            return XCTFail("Expected mention range")
+        }
+
+        let hiddenPrefixIndex = text.index(mentionRange.lowerBound, offsetBy: 1)
+        guard let mentionOffset = ChatInputFieldTextSupport.offset(of: hiddenPrefixIndex, in: text),
+              let initialColor = textView.textStorage?.attribute(.foregroundColor, at: mentionOffset, effectiveRange: nil) as? NSColor else {
+            return XCTFail("Expected mention styling")
+        }
+
+        XCTAssertEqual(initialColor, .clear)
+
+        scrollView.frame.size.width = 180
+        textView.textContainer?.containerSize = NSSize(width: 180, height: CGFloat.greatestFiniteMagnitude)
+        coordinator.handleLayoutChange()
+
+        guard let wrappedColor = textView.textStorage?.attribute(.foregroundColor, at: mentionOffset, effectiveRange: nil) as? NSColor else {
+            return XCTFail("Expected wrapped mention styling")
+        }
+
+        XCTAssertEqual(wrappedColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor(for: .light))
     }
 
     func testSyncSelectionIfNeededNormalizesStaleSelectionAfterTextReset() {

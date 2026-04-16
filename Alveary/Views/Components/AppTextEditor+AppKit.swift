@@ -30,9 +30,54 @@ struct AppKitTextEditorView: NSViewRepresentable {
     let isDisabled: Bool
     let focus: FocusState<Bool>.Binding?
     let textHighlightRanges: ((String) -> [NSRange])?
+    let textChips: ((String) -> [AppTextEditorChip])?
+    let codeBlockRanges: ((String) -> [NSRange])?
+    let inlineCodeBackgroundRanges: ((String) -> [NSRange])?
+    let inlineCodeRanges: ((String) -> [NSRange])?
+    let inlineCodeDelimiterRanges: ((String) -> [NSRange])?
     let inlineHint: AppTextEditorInlineHint?
     let keyPressKeys: Set<AppTextEditorKey>
     let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+
+    @Environment(\.colorScheme) var colorScheme
+
+    init(
+        text: Binding<String>,
+        selection: Binding<TextSelection?>? = nil,
+        measuredTextHeight: Binding<CGFloat>,
+        placeholder: String?,
+        horizontalPadding: CGFloat,
+        verticalPadding: CGFloat,
+        isDisabled: Bool,
+        focus: FocusState<Bool>.Binding?,
+        textHighlightRanges: ((String) -> [NSRange])? = nil,
+        textChips: ((String) -> [AppTextEditorChip])? = nil,
+        codeBlockRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeBackgroundRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
+        inlineHint: AppTextEditorInlineHint? = nil,
+        keyPressKeys: Set<AppTextEditorKey>,
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+    ) {
+        _text = text
+        self.selection = selection
+        _measuredTextHeight = measuredTextHeight
+        self.placeholder = placeholder
+        self.horizontalPadding = horizontalPadding
+        self.verticalPadding = verticalPadding
+        self.isDisabled = isDisabled
+        self.focus = focus
+        self.textHighlightRanges = textHighlightRanges
+        self.textChips = textChips
+        self.codeBlockRanges = codeBlockRanges
+        self.inlineCodeBackgroundRanges = inlineCodeBackgroundRanges
+        self.inlineCodeRanges = inlineCodeRanges
+        self.inlineCodeDelimiterRanges = inlineCodeDelimiterRanges
+        self.inlineHint = inlineHint
+        self.keyPressKeys = keyPressKeys
+        self.onKeyPress = onKeyPress
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -53,7 +98,8 @@ struct AppKitTextEditorView: NSViewRepresentable {
 
         let textView = AppKitTextView(frame: .zero)
         textView.delegate = context.coordinator
-        textView.font = .preferredFont(forTextStyle: .body)
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.font = textView.baseTextFont
         textView.textColor = .labelColor
         textView.drawsBackground = false
         textView.allowsUndo = true
@@ -84,7 +130,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
 
         context.coordinator.attach(textView: textView, scrollView: scrollView)
         scrollView.onLayout = { [weak coordinator = context.coordinator] in
-            coordinator?.recalculateHeight()
+            coordinator?.handleLayoutChange()
         }
         context.coordinator.applyConfiguration(from: self)
         context.coordinator.recalculateHeight()
@@ -108,6 +154,8 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     weak var textView: AppKitTextView?
     weak var scrollView: AppKitTextEditorScrollView?
     var suppressCallbacks = false
+    var lastLaidOutTextWidth: CGFloat = 0
+    private var selectionRestyleScheduled = false
 
     init(parent: AppKitTextEditorView) {
         self.parent = parent
@@ -123,11 +171,14 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             return
         }
 
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
         textView.isEditable = !parent.isDisabled
         textView.isSelectable = true
         textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
         textView.inlineHint = parent.inlineHint
+        syncInlineCodePresentation(for: textView)
+        syncTextChipPresentation(for: textView)
         textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
         applyTextHighlights()
         textView.refreshInlineHintView()
@@ -136,6 +187,9 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
     func syncTextIfNeeded() {
         guard let textView, textView.string != parent.text else {
+            if let textView {
+                syncInlineCodePresentation(for: textView)
+            }
             applyTextHighlights()
             return
         }
@@ -143,6 +197,8 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         suppressCallbacks = true
         textView.string = parent.text
         suppressCallbacks = false
+        syncInlineCodePresentation(for: textView)
+        syncTextChipPresentation(for: textView)
         applyTextHighlights()
         textView.refreshInlineHintView()
         textView.needsDisplay = true
@@ -198,41 +254,18 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         if !suppressCallbacks {
             parent.text = textView.string
         }
+        if let textView = textView as? AppKitTextView {
+            syncInlineCodePresentation(for: textView)
+            syncTextChipPresentation(for: textView)
+        }
         applyTextHighlights()
         recalculateHeight()
         updateSelection(from: textView)
     }
 
-    private func applyTextHighlights() {
-        guard let textView,
-              let textStorage = textView.textStorage else {
-            return
-        }
-
-        let fullRange = NSRange(location: 0, length: textStorage.length)
-        let baseColor = NSColor.labelColor
-        guard fullRange.length > 0 else {
-            textView.typingAttributes[.foregroundColor] = baseColor
-            return
-        }
-
-        let highlightColor = NSColor.controlAccentColor
-        let highlightRanges = parent.textHighlightRanges?(textView.string) ?? []
-
-        textStorage.beginEditing()
-        textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
-
-        for range in highlightRanges {
-            let clampedRange = NSIntersectionRange(range, fullRange)
-            guard clampedRange.length > 0 else {
-                continue
-            }
-
-            textStorage.addAttribute(.foregroundColor, value: highlightColor, range: clampedRange)
-        }
-
-        textStorage.endEditing()
-        textView.typingAttributes[.foregroundColor] = baseColor
+    private func syncInlineCodePresentation(for textView: AppKitTextView) {
+        textView.inlineCodeBackgroundRanges = parent.inlineCodeBackgroundRanges?(textView.string) ?? []
+        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.inlineFillNSColor(for: parent.colorScheme)
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -241,6 +274,8 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
 
         updateSelection(from: textView)
+        refreshTypingAttributes()
+        scheduleSelectionRestyle()
     }
 
     func textDidBeginEditing(_ notification: Notification) {
@@ -281,7 +316,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
 
         layoutManager.ensureLayout(for: textContainer)
-        let lineHeight = layoutManager.defaultLineHeight(for: textView.font ?? .systemFont(ofSize: NSFont.systemFontSize))
+        let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
         let usedHeight = layoutManager.usedRect(for: textContainer).height
         let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
 
@@ -301,6 +336,23 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
 
         syncSelectionBinding(with: textView)
+    }
+
+    private func scheduleSelectionRestyle() {
+        guard !selectionRestyleScheduled else {
+            return
+        }
+
+        selectionRestyleScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            self.selectionRestyleScheduled = false
+            self.applyTextHighlights()
+            self.textView?.needsDisplay = true
+        }
     }
 
     private func textSelection(for range: NSRange, in text: String) -> TextSelection? {

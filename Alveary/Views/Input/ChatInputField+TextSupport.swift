@@ -183,6 +183,36 @@ enum ChatInputFieldTextSupport {
         return ranges
     }
 
+    static func composerTextChips(in text: String, workingDirectory: String?) -> [AppTextEditorChip] {
+        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: text)
+        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
+
+        var chips = fileMentionMatches(in: text).map { match in
+            AppTextEditorChip(
+                range: match.highlightRange,
+                displayText: mentionChipDisplayText(for: match.path, relativeTo: workingDirectory),
+                style: .fileMention
+            )
+        }
+
+        if let slashCommandMatch = leadingSlashCommandMatch(in: text) {
+            chips.insert(
+                AppTextEditorChip(
+                    range: slashCommandMatch.range,
+                    displayText: "/\(slashCommandMatch.name)",
+                    style: .slashCommand
+                ),
+                at: 0
+            )
+        }
+
+        return chips.filter { chip in
+            !excludedRanges.contains { excludedRange in
+                NSIntersectionRange(excludedRange, chip.range).length > 0
+            }
+        }
+    }
+
     static func inlineSlashCommandHint(
         in text: String,
         textSelection: TextSelection?,
@@ -352,6 +382,12 @@ enum ChatInputFieldTextSupport {
 
     private static func containsOnlyInlineHintWhitespace(_ text: String) -> Bool {
         text.unicodeScalars.allSatisfy { CharacterSet.whitespaces.contains($0) }
+    }
+
+    static func mentionChipDisplayText(for path: String, relativeTo workingDirectory: String?) -> String {
+        let displayPath = CanonicalPath.displayMentionPath(path, relativeTo: workingDirectory)
+        let fileName = (displayPath as NSString).lastPathComponent
+        return "@\((fileName.isEmpty ? displayPath : fileName))"
     }
 
     private static func textLength(in text: String) -> Int {

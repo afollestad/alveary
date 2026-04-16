@@ -1,7 +1,13 @@
 @preconcurrency import AppKit
+import SwiftUI
 
 struct AppTextEditorInlineHint: Equatable {
     let text: String
+}
+
+enum AppTextEditorChipDisplayMode: Equatable {
+    case fullText
+    case compactLabel(String)
 }
 
 final class AppTextEditorInlineHintView: NSView {
@@ -50,6 +56,30 @@ final class AppTextEditorInlineHintView: NSView {
 }
 
 final class AppKitTextView: NSTextView {
+    var baseTextFont: NSFont = .preferredFont(forTextStyle: .body) {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var textChips: [AppTextEditorChip] = [] {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var inlineCodeBackgroundRanges: [NSRange] = [] {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var inlineCodeBackgroundColor: NSColor = .clear {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
     private lazy var inlineHintView: AppTextEditorInlineHintView = {
         let view = AppTextEditorInlineHintView(frame: .zero)
         view.isHidden = true
@@ -71,6 +101,9 @@ final class AppKitTextView: NSTextView {
     override func draw(_ dirtyRect: NSRect) {
         if string.isEmpty, !placeholder.isEmpty {
             drawPlaceholder(in: dirtyRect)
+        } else {
+            drawInlineCodeBackgrounds(in: dirtyRect)
+            drawTextChipBackgrounds(in: dirtyRect)
         }
         super.draw(dirtyRect)
     }
@@ -104,6 +137,7 @@ final class AppKitTextView: NSTextView {
     override func layout() {
         super.layout()
         updateInlineHintView()
+        needsDisplay = true
     }
 
     private func drawPlaceholder(in dirtyRect: NSRect) {
@@ -117,7 +151,7 @@ final class AppKitTextView: NSTextView {
 
         let paragraphStyle = (typingAttributes[.paragraphStyle] as? NSParagraphStyle) ?? NSParagraphStyle.default
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font ?? .preferredFont(forTextStyle: .body),
+            .font: baseTextFont,
             .foregroundColor: NSColor.placeholderTextColor,
             .paragraphStyle: paragraphStyle
         ]
@@ -127,6 +161,172 @@ final class AppKitTextView: NSTextView {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
+    }
+
+    private func drawInlineCodeBackgrounds(in dirtyRect: NSRect) {
+        guard let layoutManager,
+              let textContainer,
+              !inlineCodeBackgroundRanges.isEmpty else {
+            return
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let drawingOffset = textContainerOrigin
+        let cornerRadius: CGFloat = 4
+        let horizontalInset: CGFloat = 3
+        let verticalInset: CGFloat = 1
+
+        for characterRange in inlineCodeBackgroundRanges {
+            let clampedRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: (string as NSString).length))
+            guard clampedRange.length > 0 else {
+                continue
+            }
+
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: clampedRange, actualCharacterRange: nil)
+            guard glyphRange.length > 0 else {
+                continue
+            }
+
+            layoutManager.enumerateEnclosingRects(
+                forGlyphRange: glyphRange,
+                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                in: textContainer
+            ) { enclosingRect, _ in
+                let backgroundRect = NSRect(
+                    x: enclosingRect.minX + drawingOffset.x - horizontalInset,
+                    y: enclosingRect.minY + drawingOffset.y - verticalInset,
+                    width: enclosingRect.width + (horizontalInset * 2),
+                    height: enclosingRect.height + (verticalInset * 2)
+                ).integral
+
+                guard backgroundRect.intersects(dirtyRect) else {
+                    return
+                }
+
+                self.inlineCodeBackgroundColor.setFill()
+                NSBezierPath(
+                    roundedRect: backgroundRect,
+                    xRadius: cornerRadius,
+                    yRadius: cornerRadius
+                ).fill()
+            }
+        }
+    }
+
+    func textChipDisplayMode(for chip: AppTextEditorChip) -> AppTextEditorChipDisplayMode {
+        let textLength = (string as NSString).length
+        let clampedRange = NSIntersectionRange(chip.range, NSRange(location: 0, length: textLength))
+        guard clampedRange.length > 0 else {
+            return .fullText
+        }
+
+        let fullText = (string as NSString).substring(with: clampedRange)
+        guard fullText != chip.displayText,
+              !selectionIntersectsChip(clampedRange),
+              textChipRects(for: clampedRange).count == 1 else {
+            return .fullText
+        }
+
+        return .compactLabel(chip.displayText)
+    }
+
+    private func drawTextChipBackgrounds(in dirtyRect: NSRect) {
+        let cornerRadius: CGFloat = 4
+
+        for resolvedChip in resolvedTextChips() {
+            let fillColor = AppTextEditorCodeBlockStyling.textChipFillColor(
+                for: resolvedChip.chip.style,
+                colorScheme: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+            )
+            let strokeColor = AppTextEditorCodeBlockStyling.textChipStrokeColor(
+                for: resolvedChip.chip.style,
+                colorScheme: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+            )
+
+            fillColor.setFill()
+            strokeColor.setStroke()
+
+            for rect in resolvedChip.rects where rect.intersects(dirtyRect) {
+                let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+                path.fill()
+                path.lineWidth = 1
+                path.stroke()
+            }
+        }
+    }
+
+    private func resolvedTextChips() -> [ResolvedTextChip] {
+        textChips.compactMap { chip in
+            let rects = textChipRects(for: chip.range)
+            guard !rects.isEmpty else {
+                return nil
+            }
+
+            return ResolvedTextChip(chip: chip, rects: rects)
+        }
+    }
+
+    func textChipRects(for characterRange: NSRange) -> [NSRect] {
+        guard let layoutManager,
+              let textContainer else {
+            return []
+        }
+
+        let textLength = (string as NSString).length
+        let clampedRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: textLength))
+        guard clampedRange.length > 0 else {
+            return []
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: clampedRange, actualCharacterRange: nil)
+        guard glyphRange.length > 0 else {
+            return []
+        }
+
+        let drawingOffset = textContainerOrigin
+        let desiredInset: CGFloat = 3
+        let verticalInset: CGFloat = 2
+        let leftInset = chipLeadingInset(
+            for: clampedRange,
+            layoutManager: layoutManager,
+            textContainer: textContainer,
+            desiredInset: desiredInset
+        )
+        let rightInset = chipTrailingInset(
+            for: clampedRange,
+            layoutManager: layoutManager,
+            textContainer: textContainer,
+            desiredInset: desiredInset
+        )
+        var rects: [NSRect] = []
+
+        layoutManager.enumerateEnclosingRects(
+            forGlyphRange: glyphRange,
+            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+            in: textContainer
+        ) { enclosingRect, _ in
+            rects.append(
+                NSRect(
+                    x: enclosingRect.minX + drawingOffset.x - leftInset,
+                    y: enclosingRect.minY + drawingOffset.y - verticalInset,
+                    width: enclosingRect.width + leftInset + rightInset,
+                    height: enclosingRect.height + (verticalInset * 2)
+                ).integral
+            )
+        }
+
+        return rects
+    }
+
+    private func selectionIntersectsChip(_ chipRange: NSRange) -> Bool {
+        let selectionRange = selectedRange()
+
+        if selectionRange.length == 0 {
+            return selectionRange.location >= chipRange.location && selectionRange.location < NSMaxRange(chipRange)
+        }
+
+        return NSIntersectionRange(selectionRange, chipRange).length > 0
     }
 
     func refreshInlineHintView() {
@@ -147,7 +347,7 @@ final class AppKitTextView: NSTextView {
         }
 
         inlineHintView.text = inlineHint.text
-        inlineHintView.font = font ?? .preferredFont(forTextStyle: .body)
+        inlineHintView.font = baseTextFont
         inlineHintView.textColor = .placeholderTextColor
         inlineHintView.frame = hintRect.integral
         inlineHintView.isHidden = false
@@ -207,4 +407,9 @@ final class AppKitTextView: NSTextView {
 
         return layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil, withoutAdditionalLayout: true)
     }
+}
+
+private struct ResolvedTextChip {
+    let chip: AppTextEditorChip
+    let rects: [NSRect]
 }

@@ -20,6 +20,7 @@ targets:
       - path: Alveary
         excludes:
           - "**/.DS_Store"
+          - "**/AGENTS.md"
       - path: AppIcon.icon
     dependencies:
       - package: knit
@@ -66,6 +67,7 @@ targets:
       - path: AlvearyTests
         excludes:
           - "**/.DS_Store"
+          - "**/AGENTS.md"
     dependencies:
       - target: Alveary
       - package: swift-snapshot-testing

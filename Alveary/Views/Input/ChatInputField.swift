@@ -210,7 +210,13 @@ struct ChatInputField: View {
                     isDisabled: isTextEditorDisabled,
                     sizesToContent: true,
                     focus: $isInputFocused,
-                    textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges,
+                    textChips: { text in
+                        ChatInputFieldTextSupport.composerTextChips(in: text, workingDirectory: workingDirectory)
+                    },
+                    codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
+                    inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                    inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                    inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges },
                     inlineHint: inlineSlashCommandHint,
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress

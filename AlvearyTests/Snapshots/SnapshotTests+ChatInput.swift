@@ -76,4 +76,62 @@ extension SnapshotTests {
             named: "chat_input_busy_stop_hint"
         )
     }
+
+    func testChatInputFieldCodeBlocks() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Please tighten this up:\n```swift\nlet values = [1, 2, 3]\nprint(values)\n```"),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: true,
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "Queue this too:\n```bash\nnpm test\n```",
+                        stagedContext: nil
+                    )
+                ],
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 320),
+            named: "chat_input_code_blocks"
+        )
+    }
+
+    func testChatInputFieldInlineCode() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Please review `Sources/App.swift` next."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: true,
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "Then check `Package.swift` too.",
+                        stagedContext: nil
+                    )
+                ],
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 280),
+            named: "chat_input_inline_code"
+        )
+    }
 }

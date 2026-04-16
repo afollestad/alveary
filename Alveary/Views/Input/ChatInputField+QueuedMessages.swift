@@ -82,19 +82,29 @@ private struct ChatInputQueuedMessageRow: View {
     let onEdit: () -> Void
     let onDismiss: () -> Void
 
+    private var containsMarkdownCode: Bool {
+        AppMarkdownCodeBlockParser.containsCode(in: message.text)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "arrow.turn.down.left")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: message.stagedContext == nil ? 0 : 5) {
-                    Text(message.text)
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Group {
+                        if containsMarkdownCode {
+                            AppMarkdownText(markdown: message.text)
+                        } else {
+                            Text(message.text)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     if message.stagedContext != nil {
                         HStack(spacing: 6) {

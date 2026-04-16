@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import Textual
 
 struct SidebarThreadRow: View {
     let thread: AgentThread
@@ -12,6 +13,14 @@ struct SidebarThreadRow: View {
 
     private var isEditing: Bool {
         editingThreadID == thread.persistentModelID
+    }
+
+    private var displayName: String {
+        thread.displayName()
+    }
+
+    private var containsMarkdownCode: Bool {
+        AppMarkdownCodeBlockParser.containsCode(in: displayName)
     }
 
     var body: some View {
@@ -30,8 +39,20 @@ struct SidebarThreadRow: View {
                         .onExitCommand { cancelRename() }
                         .lineLimit(1)
                 } else {
-                    Text(thread.displayName())
+                    if containsMarkdownCode {
+                        InlineText(
+                            displayName,
+                            parser: AppMarkdownParser(
+                                baseURL: nil,
+                                inlineCodeStyle: .standard,
+                                parsingMode: .inline
+                            )
+                        )
                         .lineLimit(1)
+                    } else {
+                        Text(displayName)
+                            .lineLimit(1)
+                    }
                 }
 
                 if let branch = thread.branch {
@@ -47,7 +68,7 @@ struct SidebarThreadRow: View {
         .padding(.vertical, 6)
         .onChange(of: isEditing) { _, editing in
             if editing {
-                editText = thread.displayName()
+                editText = displayName
                 isFieldFocused = true
             }
         }

@@ -13,6 +13,34 @@ extension SnapshotTests {
         )
     }
 
+    func testAssistantBubbleCodeBlock() {
+        assertMacSnapshot(
+            AssistantBubble(markdown: "Here you go:\n```swift\nlet greeting = \"Hello\"\nprint(greeting)\n```"),
+            size: CGSize(width: 420, height: 220),
+            named: "assistant_bubble_code_block"
+        )
+    }
+
+    func testAssistantBubbleInlineCode() {
+        assertMacSnapshot(
+            AssistantBubble(markdown: "Run `git status` and then `git diff` before the next step."),
+            size: CGSize(width: 420, height: 180),
+            named: "assistant_bubble_inline_code"
+        )
+    }
+
+    func testUserBubbleInlineCode() {
+        assertMacSnapshot(
+            UserBubble(
+                text: "Run `git status` before the next step.",
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 420, height: 180),
+            named: "user_bubble_inline_code"
+        )
+    }
+
     func testTurnInterruptedNote() {
         assertMacSnapshot(
             TurnInterruptedNote(),
@@ -71,6 +99,18 @@ extension SnapshotTests {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading),
             size: CGSize(width: 520, height: 260),
             named: "assistant_bubbles_stacked"
+        )
+    }
+
+    func testUserBubbleCodeBlock() {
+        assertMacSnapshot(
+            UserBubble(
+                text: "Please update this:\n```swift\nlet enabled = true\n```",
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 420, height: 220),
+            named: "user_bubble_code_block"
         )
     }
 }

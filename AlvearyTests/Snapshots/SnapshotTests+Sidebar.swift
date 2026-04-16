@@ -19,6 +19,22 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowInlineCodeTitle() {
+        let thread = AgentThread(name: "Test `code block`")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .idle,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_inline_code"
+        )
+    }
+
     func testSidebarViewPopulated() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
 

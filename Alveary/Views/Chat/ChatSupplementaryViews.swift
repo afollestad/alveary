@@ -1,5 +1,4 @@
 import SwiftUI
-import Textual
 
 private let chatBubbleHorizontalPadding: CGFloat = 12
 private let chatBubbleVerticalPadding: CGFloat = 10
@@ -86,20 +85,34 @@ struct UserBubble: View {
     let showsRetry: Bool
     let onRetry: (() -> Void)?
 
+    private var containsMarkdownCode: Bool {
+        AppMarkdownCodeBlockParser.containsCode(in: text)
+    }
+
     var body: some View {
         HStack {
             Spacer(minLength: 60)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text(text)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, chatBubbleHorizontalPadding)
-                    .padding(.vertical, chatBubbleVerticalPadding)
-                    .foregroundStyle(.white)
-                    .background(
-                        RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
-                            .fill(Color.accentColor)
-                    )
+                Group {
+                    if containsMarkdownCode {
+                        AppMarkdownText(
+                            markdown: text,
+                            foregroundColor: .white,
+                            inlineCodeStyle: .userBubble
+                        )
+                    } else {
+                        Text(text)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.white)
+                    }
+                }
+                .padding(.horizontal, chatBubbleHorizontalPadding)
+                .padding(.vertical, chatBubbleVerticalPadding)
+                .background(
+                    RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
+                        .fill(Color.accentColor)
+                )
 
                 if showsRetry, let onRetry {
                     HStack(spacing: 8) {
@@ -122,17 +135,14 @@ struct AssistantBubble: View {
     let markdown: String
 
     var body: some View {
-        StructuredText(markdown: markdown)
-            .textual.structuredTextStyle(.default)
-            .textual.overflowMode(.scroll)
-            .textual.textSelection(.enabled)
+        AppMarkdownText(markdown: markdown)
             .padding(.horizontal, chatBubbleHorizontalPadding)
             .padding(.vertical, chatBubbleVerticalPadding)
             .background(
                 RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                     .fill(Color.secondary.opacity(0.08))
             )
-        .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: 720, alignment: .leading)
     }
 }
 

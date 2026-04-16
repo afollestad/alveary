@@ -1,5 +1,16 @@
 import SwiftUI
 
+struct AppTextEditorChip: Equatable {
+    let range: NSRange
+    let displayText: String
+    let style: AppTextEditorChipStyle
+}
+
+enum AppTextEditorChipStyle: Equatable {
+    case slashCommand
+    case fileMention
+}
+
 struct AppTextField: View {
     @Binding private var text: String
     @FocusState private var isFocused: Bool
@@ -97,6 +108,11 @@ struct AppTextEditor: View {
     private let sizesToContent: Bool
     private let focus: FocusState<Bool>.Binding?
     private let textHighlightRanges: ((String) -> [NSRange])?
+    private let textChips: ((String) -> [AppTextEditorChip])?
+    private let codeBlockRanges: ((String) -> [NSRange])?
+    private let inlineCodeBackgroundRanges: ((String) -> [NSRange])?
+    private let inlineCodeRanges: ((String) -> [NSRange])?
+    private let inlineCodeDelimiterRanges: ((String) -> [NSRange])?
     private let inlineHint: AppTextEditorInlineHint?
     private let keyPressKeys: [AppTextEditorKey]
     private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
@@ -118,6 +134,11 @@ struct AppTextEditor: View {
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
+        textChips: ((String) -> [AppTextEditorChip])? = nil,
+        codeBlockRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeBackgroundRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
@@ -139,6 +160,11 @@ struct AppTextEditor: View {
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
+        self.textChips = textChips
+        self.codeBlockRanges = codeBlockRanges
+        self.inlineCodeBackgroundRanges = inlineCodeBackgroundRanges
+        self.inlineCodeRanges = inlineCodeRanges
+        self.inlineCodeDelimiterRanges = inlineCodeDelimiterRanges
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
@@ -162,6 +188,11 @@ struct AppTextEditor: View {
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
+        textChips: ((String) -> [AppTextEditorChip])? = nil,
+        codeBlockRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeBackgroundRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeRanges: ((String) -> [NSRange])? = nil,
+        inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
@@ -183,6 +214,11 @@ struct AppTextEditor: View {
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
+        self.textChips = textChips
+        self.codeBlockRanges = codeBlockRanges
+        self.inlineCodeBackgroundRanges = inlineCodeBackgroundRanges
+        self.inlineCodeRanges = inlineCodeRanges
+        self.inlineCodeDelimiterRanges = inlineCodeDelimiterRanges
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
@@ -206,6 +242,11 @@ struct AppTextEditor: View {
                 isDisabled: isDisabled,
                 focus: focus,
                 textHighlightRanges: textHighlightRanges,
+                textChips: textChips,
+                codeBlockRanges: codeBlockRanges,
+                inlineCodeBackgroundRanges: inlineCodeBackgroundRanges,
+                inlineCodeRanges: inlineCodeRanges,
+                inlineCodeDelimiterRanges: inlineCodeDelimiterRanges,
                 inlineHint: inlineHint,
                 keyPressKeys: Set(keyPressKeys),
                 onKeyPress: onKeyPress
