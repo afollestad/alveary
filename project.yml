@@ -21,6 +21,7 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/AGENTS.md"
+          - "**/CLAUDE.md"
       - path: AppIcon.icon
     dependencies:
       - package: knit
@@ -68,6 +69,7 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/AGENTS.md"
+          - "**/CLAUDE.md"
     dependencies:
       - target: Alveary
       - package: swift-snapshot-testing
