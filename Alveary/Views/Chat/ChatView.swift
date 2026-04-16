@@ -36,6 +36,9 @@ struct ChatView: View {
     }
 
     private var composerMode: ComposerMode {
+        if !hasVisibleChatContent, viewModel.state.isCancellingInitialSetup {
+            return .progressOnly(.cancellingInitialSetup)
+        }
         if !hasVisibleChatContent, viewModel.setupPhase != nil {
             return .progressOnly(.initialSetup)
         }
@@ -133,6 +136,7 @@ struct ChatView: View {
                 EmptyThreadState(
                     showsRetryState: showsCenteredPreHistoryRetry,
                     setupPhase: viewModel.setupPhase,
+                    isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
                     error: showsCenteredPreHistoryRetry ? viewModel.lastTurnError : nil,
                     onRetry: retryDraft
                 )
@@ -207,6 +211,8 @@ private extension ChatView {
         Task {
             do {
                 try await viewModel.queueOrSend(outboundMessage)
+            } catch is CancellationError {
+                // User-initiated cancellation — rollback already restored the draft.
             } catch {
                 viewModel.state.inputDraft = message
                 if viewModel.lastTurnError == nil {
@@ -229,6 +235,8 @@ private extension ChatView {
         Task {
             do {
                 try await viewModel.queueOrSend(outboundMessage)
+            } catch is CancellationError {
+                // User-initiated cancellation — rollback already restored the draft.
             } catch {
                 viewModel.state.inputDraft = message
                 if viewModel.lastTurnError == nil {

@@ -22,6 +22,7 @@ final class ConversationViewModel {
     var saveTask: Task<Void, Never>?
     var saveTaskID: UUID?
     var needsFollowUpSave = false
+    var initialSetupTask: Task<Void, Error>?
 
     var turnState: TurnState { state.turnState }
     var messageQueue: MessageQueue { state.messageQueue }
@@ -117,11 +118,26 @@ final class ConversationViewModel {
         if state.turnState.isActive || state.isSendingMessage || state.messageQueue.peekNext() != nil {
             state.messageQueue.enqueue(message, stagedContext: state.stagedContext)
             state.stagedContext = nil
-        } else {
+            return
+        }
+
+        guard needsSetup else {
+            try await withOutboundReservation {
+                try await deliverMessageReserved(message)
+            }
+            return
+        }
+
+        // Wrap the initial-setup path in an unstructured Task so `cancel()` can abort it
+        // (and trigger the existing rollback) even though the setup phase predates the turn.
+        let task = Task { [self] in
             try await withOutboundReservation {
                 try await deliverMessageReserved(message)
             }
         }
+        initialSetupTask = task
+        defer { initialSetupTask = nil }
+        try await task.value
     }
 
     func steer(_ message: String) async throws {
@@ -274,6 +290,20 @@ final class ConversationViewModel {
     }
 
     func cancel() async {
+        if let task = initialSetupTask {
+            initialSetupTask = nil
+            // Flip the UI into a dedicated cancelling state so the stop button is replaced
+            // by a spinner until the rollback completes.
+            state.isCancellingInitialSetup = true
+            task.cancel()
+            _ = try? await task.value
+            // Rollback's `restoreStateAfterFailedInitialSetup` replaces the state snapshot but
+            // does not touch this flag, so clear it here on whichever state the view model now
+            // observes — a no-op on a freshly replaced state, and the UI reset on the retained one.
+            state.isCancellingInitialSetup = false
+            return
+        }
+
         guard state.turnState.isActive else {
             return
         }

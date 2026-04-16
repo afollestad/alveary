@@ -7,12 +7,25 @@ private let chatBubbleCornerRadius: CGFloat = 12
 struct EmptyThreadState: View {
     let showsRetryState: Bool
     let setupPhase: SetupPhase?
+    let isCancellingInitialSetup: Bool
     let error: String?
     let onRetry: () -> Void
 
     var body: some View {
         Group {
-            if let setupPhase {
+            if isCancellingInitialSetup {
+                VStack(spacing: 18) {
+                    ProgressView()
+                        .controlSize(.large)
+
+                    Text("Cancelling setup")
+                        .font(.title3.weight(.semibold))
+
+                    Text("Cleaning up the partial worktree and rollback branch.")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let setupPhase {
                 VStack(spacing: 18) {
                     ProgressView()
                         .controlSize(.large)
@@ -178,9 +191,14 @@ struct StreamingBubble: View {
 struct ActiveTurnThinkingIndicator: View {
     @State private var startDate: Date?
 
+    private let isAnimated: Bool
     private let dotCount = 3
     private let cycleDuration: Double = 1.1
     private let dotPhaseOffset: Double = 0.22
+
+    init(isAnimated: Bool = true) {
+        self.isAnimated = isAnimated
+    }
 
     var body: some View {
         TimelineView(.animation(paused: startDate == nil)) { context in
@@ -201,7 +219,12 @@ struct ActiveTurnThinkingIndicator: View {
         .frame(maxWidth: 720, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Assistant is thinking")
-        .onAppear { startDate = Date() }
+        .onAppear {
+            // Skipping the startDate assignment keeps `TimelineView(.animation(paused:))`
+            // pinned to `elapsed == 0`, which is what snapshot tests rely on for determinism.
+            guard isAnimated else { return }
+            startDate = Date()
+        }
     }
 
     private func pulseProgress(elapsed: TimeInterval, index: Int) -> Double {

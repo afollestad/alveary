@@ -120,11 +120,11 @@ struct ChatInputField: View {
     }
 
     var canUseEscapeToStop: Bool {
-        guard case .busy(let canStop) = mode else {
-            return false
+        switch mode {
+        case .busy(let canStop): return canStop
+        case .progressOnly(let reason): return reason.canStop
+        case .idle: return false
         }
-
-        return canStop
     }
 
     private var modelOptions: [String] {
@@ -150,6 +150,8 @@ struct ChatInputField: View {
             return "Type a message to queue for the next turn..."
         case .progressOnly(.initialSetup):
             return "Preparing the conversation for its first turn..."
+        case .progressOnly(.cancellingInitialSetup):
+            return "Cancelling the conversation setup..."
         case .progressOnly(.reconfiguringSession):
             return "Applying session changes..."
         }
@@ -370,12 +372,19 @@ struct ChatInputField: View {
                     }
 
                 case .progressOnly(let reason):
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(ChatInputFieldTextSupport.progressLabel(for: reason))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if reason.canStop {
+                        ChatInputStopButton(
+                            showsShortcutHint: showsStopShortcutHint,
+                            action: performStop
+                        )
+                    } else {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(ChatInputFieldTextSupport.progressLabel(for: reason))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }

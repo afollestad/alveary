@@ -292,6 +292,8 @@ enum ChatInputFieldTextSupport {
         switch reason {
         case .initialSetup:
             return "Preparing the first turn..."
+        case .cancellingInitialSetup:
+            return "Cancelling setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
         }

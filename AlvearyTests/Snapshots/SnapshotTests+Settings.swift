@@ -51,7 +51,7 @@ extension SnapshotTests {
         )
     }
 
-    func testSettingsScreenRepositoryTab() {
+    func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af"
 
@@ -66,14 +66,14 @@ extension SnapshotTests {
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
                 onClose: {},
-                initialTabRawValue: "repository"
+                initialTabRawValue: "git"
             ),
             size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_repository"
+            named: "settings_screen_git"
         )
     }
 
-    func testSettingsScreenRepositoryTabWithoutGitHubCLI() {
+    func testSettingsScreenGitTabWithoutGitHubCLI() {
         var settings = AppSettings()
         settings.branchPrefix = "af"
 
@@ -85,10 +85,10 @@ extension SnapshotTests {
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
                 onClose: {},
-                initialTabRawValue: "repository"
+                initialTabRawValue: "git"
             ),
             size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_repository_no_github_cli"
+            named: "settings_screen_git_no_github_cli"
         )
     }
 }

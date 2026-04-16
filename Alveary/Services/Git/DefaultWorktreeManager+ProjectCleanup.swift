@@ -2,8 +2,10 @@ import Foundation
 
 extension DefaultWorktreeManager {
     func removeAll(projectPath: String) async throws {
+        let worktreesBase = await MainActor.run { settingsService.current.expandedWorktreesBaseDirectory }
+
         guard directoryExists(at: projectPath) else {
-            try removeProjectWorktreesDirectory(projectPath: projectPath)
+            try removeProjectWorktreesDirectory(projectPath: projectPath, worktreesBase: worktreesBase)
             return
         }
 
@@ -34,15 +36,13 @@ extension DefaultWorktreeManager {
             }
         }
 
-        try removeProjectWorktreesDirectory(projectPath: projectPath)
+        try removeProjectWorktreesDirectory(projectPath: projectPath, worktreesBase: worktreesBase)
     }
 }
 
 extension DefaultWorktreeManager {
-    func projectWorktreesDirectory(for projectPath: String) -> URL {
-        URL(fileURLWithPath: projectPath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("worktrees")
+    func projectWorktreesDirectory(for projectPath: String, worktreesBase: String) -> URL {
+        URL(fileURLWithPath: worktreesBase)
             .appendingPathComponent(projectNamespace(for: projectPath))
     }
 
@@ -55,8 +55,8 @@ extension DefaultWorktreeManager {
         return exists && isDirectory.boolValue
     }
 
-    func removeProjectWorktreesDirectory(projectPath: String) throws {
-        let directory = projectWorktreesDirectory(for: projectPath)
+    func removeProjectWorktreesDirectory(projectPath: String, worktreesBase: String) throws {
+        let directory = projectWorktreesDirectory(for: projectPath, worktreesBase: worktreesBase)
         guard FileManager.default.fileExists(atPath: directory.path) else {
             return
         }

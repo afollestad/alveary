@@ -59,7 +59,7 @@ extension SnapshotTests {
 
     func testActiveTurnThinkingIndicator() {
         assertMacSnapshot(
-            ActiveTurnThinkingIndicator(),
+            ActiveTurnThinkingIndicator(isAnimated: false),
             size: CGSize(width: 320, height: 80),
             named: "active_turn_thinking_indicator"
         )

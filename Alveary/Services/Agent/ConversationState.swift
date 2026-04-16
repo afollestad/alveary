@@ -14,6 +14,7 @@ final class ConversationState {
     var sessionContinuityNotice: String?
     var isSendingMessage = false
     var isCancellingTurn = false
+    var isCancellingInitialSetup = false
     var isReconfiguringSession = false
     var lastObservedEventIndex = 0
     var lastPersistedEventIndex = 0

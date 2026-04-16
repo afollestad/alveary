@@ -161,6 +161,45 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.setupPhase)
     }
 
+    func testCancelDuringInitialSetupRollsBackStateAndRestoresDraft() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            threadName: "New thread",
+            useWorktree: true,
+            hasCompletedInitialSetup: false,
+            pausesWorktreeCreate: true
+        )
+
+        let message = "Start working on the authentication retry flow"
+        let sendTask = Task {
+            try await fixture.viewModel.queueOrSend(message)
+        }
+
+        for _ in 0..<50 where fixture.viewModel.setupPhase == nil {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(fixture.viewModel.setupPhase, .creatingWorktree)
+        XCTAssertNotNil(fixture.viewModel.initialSetupTask)
+
+        await fixture.viewModel.cancel()
+
+        do {
+            try await sendTask.value
+            XCTFail("Expected CancellationError")
+        } catch is CancellationError {
+            // expected
+        }
+
+        XCTAssertNil(fixture.viewModel.setupPhase)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingInitialSetup)
+        XCTAssertNil(fixture.viewModel.initialSetupTask)
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, message)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        let refreshedThread = try fixture.dbThread()
+        XCTAssertFalse(refreshedThread.hasCompletedInitialSetup)
+        XCTAssertNil(refreshedThread.worktreePath)
+        XCTAssertNil(refreshedThread.branch)
+    }
+
     func testMakeSpawnConfigNormalizesLegacyAutomaticEffortToMedium() throws {
         let fixture = try ConversationViewModelTestFixture()
         let thread = try fixture.dbThread()
@@ -196,17 +235,10 @@ struct ConversationViewModelTestFixture {
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
-        projectIsGitRepository: Bool = true
+        projectIsGitRepository: Bool = true,
+        pausesWorktreeCreate: Bool = false
     ) throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            configurations: configuration
-        )
-        let context = ModelContext(container)
+        let (container, context) = try Self.makeInMemoryContainer()
 
         let project = Self.makeProject(isGitRepository: projectIsGitRepository)
         let thread = AgentThread(
@@ -226,7 +258,10 @@ struct ConversationViewModelTestFixture {
         let settingsService = InMemorySettingsService(current: Self.testSettings())
         let agentsManager = MockAgentsManager(isRunning: hasCompletedInitialSetup, sendError: sendError, reconfigureError: reconfigureError)
         let runtimeStore = MockConversationRuntimeStore()
-        let worktreeManager = MockWorktreeManager(worktreeInfo: worktreeInfo)
+        let worktreeManager = MockWorktreeManager(
+            worktreeInfo: worktreeInfo,
+            blocksCreateUntilCancelled: pausesWorktreeCreate
+        )
         let providerSetup = MockProviderSetupService()
         let viewModel = ConversationViewModel(
             conversation: conversation,
@@ -255,6 +290,18 @@ struct ConversationViewModelTestFixture {
         settings.autoGenerateNames = true
         settings.autoTrustWorktrees = true
         return settings
+    }
+
+    private static func makeInMemoryContainer() throws -> (ModelContainer, ModelContext) {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: configuration
+        )
+        return (container, ModelContext(container))
     }
     private static func makeProject(isGitRepository: Bool) -> Project {
         Project(

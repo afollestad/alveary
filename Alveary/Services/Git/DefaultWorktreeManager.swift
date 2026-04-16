@@ -8,7 +8,7 @@ actor DefaultWorktreeManager: WorktreeManager {
         let branch: String
     }
 
-    private let settingsService: SettingsService
+    let settingsService: SettingsService
     private let shell: ShellRunner
 
     init(settingsService: SettingsService, shell: ShellRunner) {
@@ -26,13 +26,16 @@ actor DefaultWorktreeManager: WorktreeManager {
         let target = try await resolveWorktreeTarget(
             projectPath: projectPath,
             threadName: threadName,
-            branchPrefix: settings.branchPrefix
+            branchPrefix: settings.branchPrefix,
+            worktreesBase: settings.expandedWorktreesBaseDirectory
         )
         let resolvedBase = await resolveBaseRef(
             projectPath: projectPath,
             baseRef: baseRef,
             remoteName: remoteName
         )
+
+        try ensureWorktreeParentDirectoryExists(for: target.path)
 
         let result = try await shell.run(
             executable: "/usr/bin/git",
@@ -43,23 +46,34 @@ actor DefaultWorktreeManager: WorktreeManager {
             throw Self.makeGitError(from: result)
         }
 
-        try await postCreateSetup(
-            projectPath: projectPath,
-            worktreePath: target.path,
-            threadName: threadName,
-            branch: target.branch,
-            rollbackBranch: target.branch
-        )
-
-        if settings.pushOnCreate, let remoteName {
-            _ = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["push", "--set-upstream", remoteName, target.branch],
-                in: target.path
+        // From here on, the worktree directory and rollback branch exist on disk. If anything
+        // below fails — including Task cancellation from the caller — we must clean them up.
+        do {
+            try await postCreateSetup(
+                projectPath: projectPath,
+                worktreePath: target.path,
+                threadName: threadName,
+                branch: target.branch,
+                rollbackBranch: target.branch
             )
-        }
 
-        return WorktreeInfo(path: CanonicalPath.normalize(target.path), branch: target.branch)
+            if settings.pushOnCreate, let remoteName {
+                _ = try? await shell.run(
+                    executable: "/usr/bin/git",
+                    args: ["push", "--set-upstream", remoteName, target.branch],
+                    in: target.path
+                )
+            }
+
+            return WorktreeInfo(path: CanonicalPath.normalize(target.path), branch: target.branch)
+        } catch {
+            await detachedCleanupAfterFailedCreate(
+                projectPath: projectPath,
+                worktreePath: target.path,
+                rollbackBranch: target.branch
+            )
+            throw error
+        }
     }
 
     func createFromBranch(
@@ -68,7 +82,12 @@ actor DefaultWorktreeManager: WorktreeManager {
         branch: String,
         remoteName: String?
     ) async throws -> WorktreeInfo {
-        let worktreePath = resolveUniqueWorktreePath(projectPath: projectPath, threadName: threadName)
+        let settings = await MainActor.run { settingsService.current }
+        let worktreePath = resolveUniqueWorktreePath(
+            projectPath: projectPath,
+            threadName: threadName,
+            worktreesBase: settings.expandedWorktreesBaseDirectory
+        )
 
         if let remoteName {
             _ = try? await shell.run(
@@ -78,6 +97,8 @@ actor DefaultWorktreeManager: WorktreeManager {
                 timeout: .seconds(30)
             )
         }
+
+        try ensureWorktreeParentDirectoryExists(for: worktreePath)
 
         let result = try await shell.run(
             executable: "/usr/bin/git",
@@ -202,9 +223,14 @@ extension DefaultWorktreeManager {
     private func resolveWorktreeTarget(
         projectPath: String,
         threadName: String,
-        branchPrefix: String
+        branchPrefix: String,
+        worktreesBase: String
     ) async throws -> WorktreeTarget {
-        let candidateBase = makeCandidateBase(projectPath: projectPath, threadName: threadName)
+        let candidateBase = makeCandidateBase(
+            projectPath: projectPath,
+            threadName: threadName,
+            worktreesBase: worktreesBase
+        )
 
         for suffix in 0..<10_000 {
             let candidateName = candidateName(baseName: candidateBase.baseName, suffix: suffix)
@@ -224,8 +250,12 @@ extension DefaultWorktreeManager {
         throw GitError.commandFailed("Unable to find a unique worktree target for \(threadName)")
     }
 
-    func resolveUniqueWorktreePath(projectPath: String, threadName: String) -> String {
-        let candidateBase = makeCandidateBase(projectPath: projectPath, threadName: threadName)
+    func resolveUniqueWorktreePath(projectPath: String, threadName: String, worktreesBase: String) -> String {
+        let candidateBase = makeCandidateBase(
+            projectPath: projectPath,
+            threadName: threadName,
+            worktreesBase: worktreesBase
+        )
 
         for suffix in 0..<10_000 {
             let candidateName = candidateName(baseName: candidateBase.baseName, suffix: suffix)
@@ -238,12 +268,21 @@ extension DefaultWorktreeManager {
         return candidateBase.worktreesDirectory.appendingPathComponent(candidateBase.baseName).path
     }
 
-    func makeCandidateBase(projectPath: String, threadName: String) -> (baseName: String, worktreesDirectory: URL) {
+    func makeCandidateBase(
+        projectPath: String,
+        threadName: String,
+        worktreesBase: String
+    ) -> (baseName: String, worktreesDirectory: URL) {
         let slug = slugify(threadName)
         let hash = shortHash(threadName)
-        let worktreesDirectory = projectWorktreesDirectory(for: projectPath)
+        let worktreesDirectory = projectWorktreesDirectory(for: projectPath, worktreesBase: worktreesBase)
 
         return (baseName: "\(slug)-\(hash)", worktreesDirectory: worktreesDirectory)
+    }
+
+    func ensureWorktreeParentDirectoryExists(for worktreePath: String) throws {
+        let parent = URL(fileURLWithPath: worktreePath).deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
     }
 
     func candidateName(baseName: String, suffix: Int) -> String {
@@ -332,6 +371,24 @@ extension DefaultWorktreeManager {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    // Runs the partial-worktree cleanup as a detached child task so the caller's cancellation
+    // cannot abort the shell commands we need to remove the on-disk worktree and rollback branch.
+    func detachedCleanupAfterFailedCreate(
+        projectPath: String,
+        worktreePath: String,
+        rollbackBranch: String
+    ) async {
+        let cleanup = Task.detached { [weak self] in
+            guard let self else { return }
+            _ = try? await self.cleanupFailedSetup(
+                projectPath: projectPath,
+                worktreePath: worktreePath,
+                rollbackBranch: rollbackBranch
+            )
+        }
+        await cleanup.value
     }
 
     func cleanupFailedSetup(
@@ -433,64 +490,4 @@ extension DefaultWorktreeManager {
         return String(hexDigest.prefix(3))
     }
 
-    func preserveFiles(from source: String, to destination: String, patterns configPatterns: [String]?) throws {
-        let patterns = configPatterns ?? [".env", ".env.local", ".env.development"]
-        let sourceURL = URL(fileURLWithPath: source)
-        let destinationURL = URL(fileURLWithPath: destination)
-        let fileManager = FileManager.default
-
-        for pattern in patterns {
-            let fullPattern = sourceURL.appendingPathComponent(pattern).path
-            var globResult = glob_t()
-            defer { globfree(&globResult) }
-
-            guard glob(fullPattern, 0, nil, &globResult) == 0 else {
-                continue
-            }
-
-            for index in 0..<Int(globResult.gl_pathc) {
-                guard let matchPointer = globResult.gl_pathv[index],
-                      let matchedPath = String(validatingCString: matchPointer) else {
-                    continue
-                }
-
-                let relativePath = String(matchedPath.dropFirst(sourceURL.path.count + 1))
-                let destinationPath = destinationURL.appendingPathComponent(relativePath)
-                try fileManager.createDirectory(
-                    at: destinationPath.deletingLastPathComponent(),
-                    withIntermediateDirectories: true
-                )
-                if fileManager.fileExists(atPath: destinationPath.path) {
-                    try? fileManager.removeItem(at: destinationPath)
-                }
-                try? fileManager.copyItem(atPath: matchedPath, toPath: destinationPath.path)
-            }
-        }
-    }
-
-    func parseWorktreeList(_ output: String) -> [WorktreeInfo] {
-        var worktrees: [WorktreeInfo] = []
-        var currentPath: String?
-        var currentBranch: String?
-
-        for line in output.components(separatedBy: "\n") {
-            if line.hasPrefix("worktree ") {
-                currentPath = String(line.dropFirst(9))
-            } else if line.hasPrefix("branch refs/heads/") {
-                currentBranch = String(line.dropFirst(18))
-            } else if line.isEmpty {
-                if let currentPath, let currentBranch {
-                    worktrees.append(WorktreeInfo(path: currentPath, branch: currentBranch))
-                }
-                currentPath = nil
-                currentBranch = nil
-            }
-        }
-
-        if let currentPath, let currentBranch {
-            worktrees.append(WorktreeInfo(path: currentPath, branch: currentBranch))
-        }
-
-        return worktrees
-    }
 }

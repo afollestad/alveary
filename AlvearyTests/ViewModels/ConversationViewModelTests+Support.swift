@@ -205,9 +205,11 @@ actor MockWorktreeManager: WorktreeManager {
 
     private let worktreeInfo: WorktreeInfo
     private var recordedCreateCalls: [CreateCall] = []
+    private let blocksCreateUntilCancelled: Bool
 
-    init(worktreeInfo: WorktreeInfo) {
+    init(worktreeInfo: WorktreeInfo, blocksCreateUntilCancelled: Bool = false) {
         self.worktreeInfo = worktreeInfo
+        self.blocksCreateUntilCancelled = blocksCreateUntilCancelled
     }
 
     func create(
@@ -224,6 +226,12 @@ actor MockWorktreeManager: WorktreeManager {
                 remoteName: remoteName
             )
         )
+        if blocksCreateUntilCancelled {
+            // Sleep long enough that the test is guaranteed to observe the paused state
+            // and cancel the setup task. `Task.sleep` throws `CancellationError` once the
+            // enclosing task is cancelled, simulating the SIGTERM-then-throw path.
+            try await Task.sleep(for: .seconds(60))
+        }
         return worktreeInfo
     }
 

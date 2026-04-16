@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 
-struct RepositorySettingsTabView: View {
+struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
     @Binding var branchPrefix: String
+    @Binding var worktreesBaseDirectory: String
     @Binding var pushOnCreate: Bool
 
     @State private var gitHubInstalledVersion: String?
@@ -27,6 +28,10 @@ struct RepositorySettingsTabView: View {
                         .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
                 }
 
+                Section("Worktrees") {
+                    SettingsFolderPickerRow("Worktrees directory", path: $worktreesBaseDirectory)
+                }
+
                 Section("GitHub") {
                     gitHubSection
                 }
@@ -39,7 +44,7 @@ struct RepositorySettingsTabView: View {
     }
 }
 
-private extension RepositorySettingsTabView {
+private extension GitSettingsTabView {
     @ViewBuilder
     var gitHubSection: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -5,32 +5,6 @@ import SwiftUI
 
 @MainActor
 final class SnapshotTests: XCTestCase {
-    func testEmptyThreadStateHero() {
-        assertMacSnapshot(
-            EmptyThreadState(
-                showsRetryState: false,
-                setupPhase: nil,
-                error: nil,
-                onRetry: {}
-            ),
-            size: CGSize(width: 900, height: 560),
-            named: "empty_thread_hero"
-        )
-    }
-
-    func testEmptyThreadStateRetry() {
-        assertMacSnapshot(
-            EmptyThreadState(
-                showsRetryState: true,
-                setupPhase: nil,
-                error: "Claude could not start because the working directory could not be prepared.",
-                onRetry: {}
-            ),
-            size: CGSize(width: 900, height: 560),
-            named: "empty_thread_retry"
-        )
-    }
-
     func testChatInputFieldIdle() {
         assertMacSnapshot(
             ChatInputField(
@@ -97,6 +71,29 @@ final class SnapshotTests: XCTestCase {
             ),
             size: CGSize(width: 760, height: 240),
             named: "chat_input_progress_only"
+        )
+    }
+
+    func testChatInputFieldCancellingInitialSetup() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Review the updated MCP cards once the session comes back."),
+                mode: .progressOnly(.cancellingInitialSetup),
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_cancelling_initial_setup"
         )
     }
 

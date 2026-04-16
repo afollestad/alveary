@@ -8,6 +8,7 @@ import XCTest
 final class WorktreeManagerTests: XCTestCase {
     func testCreateUsesSetupScriptEnvironmentAndCollisionSuffix() async throws {
         let projectURL = try makeTemporaryProject()
+        let worktreesBaseURL = try makeTemporaryWorktreesBase()
         try writeProjectConfig(
             at: projectURL,
             json: """
@@ -34,6 +35,7 @@ final class WorktreeManagerTests: XCTestCase {
         let settings = InMemorySettingsService(current: {
             var settings = AppSettings()
             settings.branchPrefix = "af"
+            settings.worktreesBaseDirectory = worktreesBaseURL.path
             return settings
         }())
         let manager = DefaultWorktreeManager(settingsService: settings, shell: shell)
@@ -64,6 +66,7 @@ final class WorktreeManagerTests: XCTestCase {
 
     func testCreateRollsBackWorktreeAndBranchWhenSetupFails() async throws {
         let projectURL = try makeTemporaryProject()
+        let worktreesBaseURL = try makeTemporaryWorktreesBase()
         try writeProjectConfig(
             at: projectURL,
             json: """
@@ -93,7 +96,12 @@ final class WorktreeManagerTests: XCTestCase {
         await shell.enqueue(.success(Self.emptyShellResult()))
         await shell.enqueue(.success(Self.emptyShellResult()))
 
-        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+        var settings = AppSettings()
+        settings.worktreesBaseDirectory = worktreesBaseURL.path
+        let manager = DefaultWorktreeManager(
+            settingsService: InMemorySettingsService(current: settings),
+            shell: shell
+        )
 
         do {
             _ = try await manager.create(
@@ -210,8 +218,9 @@ final class WorktreeManagerTests: XCTestCase {
 
     func testRemoveAllDeletesRegisteredWorktreesAndProjectNamespaceDirectory() async throws {
         let projectURL = try makeTemporaryProject()
-        let worktreeURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees/demo/worktree")
-        let namespaceDirectory = namespacedWorktreesDirectory(for: projectURL)
+        let worktreesBaseURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees")
+        let worktreeURL = worktreesBaseURL.appendingPathComponent("demo/worktree")
+        let namespaceDirectory = namespacedWorktreesDirectory(for: projectURL, base: worktreesBaseURL)
         try FileManager.default.createDirectory(at: namespaceDirectory, withIntermediateDirectories: true)
 
         let listOutput = """
@@ -240,7 +249,12 @@ final class WorktreeManagerTests: XCTestCase {
         await shell.enqueue(.success(Self.emptyShellResult()))
         await shell.enqueue(.success(Self.emptyShellResult()))
 
-        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+        var settings = AppSettings()
+        settings.worktreesBaseDirectory = worktreesBaseURL.path
+        let manager = DefaultWorktreeManager(
+            settingsService: InMemorySettingsService(current: settings),
+            shell: shell
+        )
 
         try await manager.removeAll(projectPath: projectURL.path)
 
@@ -258,13 +272,19 @@ final class WorktreeManagerTests: XCTestCase {
     func testRemoveAllRemovesNamespacedWorktreesWhenProjectFolderIsAlreadyGone() async throws {
         let parentURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let missingProjectURL = parentURL.appendingPathComponent("missing-project")
-        let namespaceDirectory = namespacedWorktreesDirectory(for: missingProjectURL)
+        let worktreesBaseURL = parentURL.appendingPathComponent("worktrees")
+        let namespaceDirectory = namespacedWorktreesDirectory(for: missingProjectURL, base: worktreesBaseURL)
 
         try FileManager.default.createDirectory(at: namespaceDirectory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: parentURL) }
 
         let shell = MockShellRunner()
-        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+        var settings = AppSettings()
+        settings.worktreesBaseDirectory = worktreesBaseURL.path
+        let manager = DefaultWorktreeManager(
+            settingsService: InMemorySettingsService(current: settings),
+            shell: shell
+        )
 
         try await manager.removeAll(projectPath: missingProjectURL.path)
 
@@ -276,6 +296,13 @@ final class WorktreeManagerTests: XCTestCase {
 
     private func makeTemporaryProject() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
+    private func makeTemporaryWorktreesBase() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("worktrees-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
@@ -328,17 +355,14 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(environment?["ALVEARY_PORT_SEED"], shortHash(branch))
     }
 
-    private func namespacedWorktreesDirectory(for projectURL: URL) -> URL {
+    private func namespacedWorktreesDirectory(for projectURL: URL, base: URL) -> URL {
         let canonicalProjectPath = projectURL.resolvingSymlinksInPath().standardizedFileURL.path
         let projectName = URL(fileURLWithPath: canonicalProjectPath).lastPathComponent
         let digest = SHA256.hash(data: Data(canonicalProjectPath.utf8))
         let hash = digest.prefix(3).map { String(format: "%02x", $0) }.joined()
         let namespace = "\(slugify(projectName))-\(hash)"
 
-        return projectURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("worktrees")
-            .appendingPathComponent(namespace)
+        return base.appendingPathComponent(namespace)
     }
 
     private func slugify(_ value: String) -> String {

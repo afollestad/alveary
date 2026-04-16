@@ -207,6 +207,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.branchPrefix = newValue } }
     }
 
+    var worktreesBaseDirectory: String {
+        get { settingsService.current.worktreesBaseDirectory }
+        set { settingsService.update { $0.worktreesBaseDirectory = newValue } }
+    }
+
     var pushOnCreate: Bool {
         get { settingsService.current.pushOnCreate }
         set { settingsService.update { $0.pushOnCreate = newValue } }

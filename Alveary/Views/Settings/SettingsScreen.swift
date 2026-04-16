@@ -65,10 +65,11 @@ struct SettingsScreen: View {
                             providerIDs: viewModel.availableProviderIDs,
                             providerConfigBinding: providerConfigBinding
                         )
-                    case .repository:
-                        RepositorySettingsTabView(
+                    case .git:
+                        GitSettingsTabView(
                             gitHubCLI: gitHubCLI,
                             branchPrefix: binding(for: \.branchPrefix),
+                            worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                             pushOnCreate: binding(for: \.pushOnCreate)
                         )
                     case .interface:
@@ -89,7 +90,7 @@ struct SettingsScreen: View {
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general
         case agents
-        case repository
+        case git
         case interface
 
         var id: String { rawValue }
@@ -100,7 +101,7 @@ struct SettingsScreen: View {
                 return "General"
             case .agents:
                 return "Agents"
-            case .repository:
+            case .git:
                 return "Git"
             case .interface:
                 return "Interface"
@@ -113,7 +114,7 @@ struct SettingsScreen: View {
                 return "slider.horizontal.3"
             case .agents:
                 return "sparkles.rectangle.stack"
-            case .repository:
+            case .git:
                 return "arrow.triangle.branch"
             case .interface:
                 return "swatchpalette"
@@ -129,7 +130,7 @@ private extension SettingsScreen {
             return "Manage thread defaults, startup behavior, and notification settings."
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
-        case .repository:
+        case .git:
             return "Configure Git defaults and GitHub authentication for new worktrees."
         case .interface:
             return "Adjust theme and typography for the app shell."

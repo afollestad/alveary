@@ -145,14 +145,14 @@ extension ConversationViewModel {
             selectedModel: state.selectedModel,
             stagedContext: state.stagedContext
         )
-        let workingDirectory = try await createInitialWorkingDirectory(
-            for: thread,
-            project: project,
-            message: message
-        )
 
-        setupPhase = .startingAgent
         do {
+            let workingDirectory = try await createInitialWorkingDirectory(
+                for: thread,
+                project: project,
+                message: message
+            )
+            setupPhase = .startingAgent
             try await startAgentReserved(config: makeSpawnConfig(workingDirectory: workingDirectory))
             thread.hasCompletedInitialSetup = true
             try modelContext.save()

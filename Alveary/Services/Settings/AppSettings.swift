@@ -30,6 +30,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var notifications = NotificationSettings()
     var branchPrefix = "alveary"
+    var worktreesBaseDirectory = "~/Documents/worktrees"
     var pushOnCreate = false
     var providerConfigs: [String: ProviderCustomConfig] = [:]
     var lastOpenThreadID: PersistentIdentifier?
@@ -70,7 +71,24 @@ struct AppSettings: Codable, Sendable, Equatable {
             }
         }
 
+        let trimmedWorktreesBase = copy.worktreesBaseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.worktreesBaseDirectory = trimmedWorktreesBase.isEmpty
+            ? AppSettings().worktreesBaseDirectory
+            : trimmedWorktreesBase
+
         return copy
+    }
+
+    var expandedWorktreesBaseDirectory: String {
+        let trimmed = worktreesBaseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate = trimmed.isEmpty ? AppSettings().worktreesBaseDirectory : trimmed
+        let expanded = (candidate as NSString).expandingTildeInPath
+        if expanded.hasPrefix("/") {
+            return expanded
+        }
+        // Reject relative or otherwise malformed paths and fall back to the packaged default
+        // so downstream `URL(fileURLWithPath:)` consumers always get an absolute root.
+        return (AppSettings().worktreesBaseDirectory as NSString).expandingTildeInPath
     }
 
     static func normalizedEffortLevel(_ effort: String?) -> String {
@@ -102,6 +120,7 @@ extension AppSettings {
         case terminalPaneHeight
         case notifications
         case branchPrefix
+        case worktreesBaseDirectory
         case pushOnCreate
         case providerConfigs
         case lastOpenThreadID
@@ -135,6 +154,10 @@ extension AppSettings {
         self.terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? defaults.terminalPaneHeight
         self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
         self.branchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix) ?? defaults.branchPrefix
+        self.worktreesBaseDirectory = try container.decodeIfPresent(
+            String.self,
+            forKey: .worktreesBaseDirectory
+        ) ?? defaults.worktreesBaseDirectory
         self.pushOnCreate = try container.decodeIfPresent(Bool.self, forKey: .pushOnCreate) ?? defaults.pushOnCreate
         self.providerConfigs = try container.decodeIfPresent(
             [String: ProviderCustomConfig].self,
