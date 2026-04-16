@@ -62,6 +62,16 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    var colorScheme: ColorScheme = .light {
+        didSet {
+            guard colorScheme != oldValue else {
+                return
+            }
+
+            needsDisplay = true
+        }
+    }
+
     var textChips: [AppTextEditorChip] = [] {
         didSet {
             needsDisplay = true
@@ -236,11 +246,11 @@ final class AppKitTextView: NSTextView {
         for resolvedChip in resolvedTextChips() {
             let fillColor = AppTextEditorCodeBlockStyling.textChipFillColor(
                 for: resolvedChip.chip.style,
-                colorScheme: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+                colorScheme: colorScheme
             )
             let strokeColor = AppTextEditorCodeBlockStyling.textChipStrokeColor(
                 for: resolvedChip.chip.style,
-                colorScheme: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
+                colorScheme: colorScheme
             )
 
             fillColor.setFill()

@@ -172,6 +172,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
 
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.colorScheme = parent.colorScheme
         textView.isEditable = !parent.isDisabled
         textView.isSelectable = true
         textView.textColor = .labelColor
