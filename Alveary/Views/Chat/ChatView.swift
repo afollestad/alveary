@@ -152,6 +152,7 @@ struct ChatView: View {
                 diffViewModel: diffViewModel,
                 composerCapabilities: composerCapabilities,
                 workingDirectory: workingDirectory,
+                showsTopDivider: hasVisibleChatContent && !isFollowing,
                 showsCenteredPreHistoryRetry: showsCenteredPreHistoryRetry,
                 composerMode: composerMode,
                 composerIsBusy: composerIsBusy,

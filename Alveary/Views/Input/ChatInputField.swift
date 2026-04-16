@@ -33,6 +33,7 @@ struct ChatInputField: View {
     let composerHorizontalPadding: CGFloat = 10
     let composerVerticalPadding: CGFloat = 10
     let composerBaseHeight: CGFloat = 68
+    let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
 
     @FocusState var isInputFocused: Bool
     @State var textSelection: TextSelection?
@@ -185,6 +186,7 @@ struct ChatInputField: View {
                         onEditQueuedMessage: onEditQueuedMessage,
                         onDismissQueuedMessage: onDismissQueuedMessage
                     )
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 AppTextEditor(
@@ -239,6 +241,7 @@ struct ChatInputField: View {
                 }
                 .zIndex(activeAutocomplete == nil ? 0 : 1)
             }
+            .animation(queuedMessagesAnimation, value: queuedMessages.map(\.id))
             .dropDestination(for: URL.self) { items, _ in
                 handleDroppedFiles(items)
             } isTargeted: { isTargeted in

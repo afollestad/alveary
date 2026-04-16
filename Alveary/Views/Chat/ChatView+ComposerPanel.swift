@@ -1,10 +1,16 @@
+import AppKit
 import SwiftUI
+
+private let composerPanelHorizontalPadding: CGFloat = 20
+private let composerPanelTopPadding: CGFloat = 10
+private let composerPanelBottomPadding: CGFloat = 20
 
 struct ChatComposerPanel: View {
     let viewModel: ConversationViewModel
     let diffViewModel: DiffViewerViewModel
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
+    let showsTopDivider: Bool
     let showsCenteredPreHistoryRetry: Bool
     let composerMode: ComposerMode
     let composerIsBusy: Bool
@@ -113,7 +119,23 @@ struct ChatComposerPanel: View {
                 loadSkillCompletions: loadSkillCompletions
             )
         }
-        .padding(20)
-        .background(.bar)
+        .padding(.horizontal, composerPanelHorizontalPadding)
+        .padding(.top, composerPanelTopPadding)
+        .padding(.bottom, composerPanelBottomPadding)
+        .background {
+            ZStack(alignment: .top) {
+                Rectangle()
+                    .fill(.bar)
+
+                if showsTopDivider {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor))
+                        .frame(height: 1)
+                        .accessibilityHidden(true)
+                        .transition(.opacity)
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: showsTopDivider)
     }
 }
