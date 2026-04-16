@@ -49,6 +49,7 @@ struct SidebarThreadRow: View {
                             )
                         )
                         .lineLimit(1)
+                        .allowsHitTesting(false)
                     } else {
                         Text(displayName)
                             .lineLimit(1)
