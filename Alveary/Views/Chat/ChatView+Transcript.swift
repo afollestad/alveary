@@ -45,6 +45,33 @@ enum ChatTranscriptScrollBehavior {
         let movedFurtherFromBottom = newMetrics.distanceFromBottom > oldMetrics.distanceFromBottom + 0.5
         return offsetChanged && movedFurtherFromBottom
     }
+
+    /// While a `jumpToLatest` scroll is still pending, composer-area changes that shrink the
+    /// transcript viewport (e.g. the changed-files strip appearing after an async diff load)
+    /// or content that grows below the current bottom move the real bottom out from under the
+    /// pending scroll. Re-issue `scrollTo` so we land at the new bottom instead of timing out.
+    static func shouldReissuePendingJumpToLatest(
+        oldMetrics: ChatTranscriptScrollMetrics,
+        newMetrics: ChatTranscriptScrollMetrics
+    ) -> Bool {
+        let containerShrunk = newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
+        let contentGrew = newMetrics.contentHeight > oldMetrics.contentHeight + 0.5
+        return containerShrunk || contentGrew
+    }
+
+    /// Once `shouldPreserveFollowMode` has fired, decide whether to actually re-scroll.
+    /// Container-size changes (e.g. composer banners or the changed-files strip appearing)
+    /// are rare and visually noticeable, so they bypass the streaming debounce; other
+    /// growth-driven re-scrolls still respect it to avoid fighting streaming cadence.
+    static func shouldReScrollOnPreserveFollow(
+        oldMetrics: ChatTranscriptScrollMetrics,
+        newMetrics: ChatTranscriptScrollMetrics,
+        timeSinceLastScroll: TimeInterval,
+        debounce: TimeInterval
+    ) -> Bool {
+        let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
+        return containerChanged || timeSinceLastScroll >= debounce
+    }
 }
 
 private enum PendingProgrammaticScrollMode {
@@ -160,12 +187,22 @@ struct ChatTranscriptView: View {
                 if newMetrics.isAtBottom {
                     isFollowing = true
                     self.pendingProgrammaticScrollMode = nil
-                } else if pendingProgrammaticScrollMode == .preserveFollow && ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
+                } else if ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
                     oldMetrics: oldMetrics,
                     newMetrics: newMetrics
                 ) {
+                    // A user-initiated scroll away from the bottom beats any pending
+                    // programmatic scroll, including `jumpToLatest`. `scrollTo` landing
+                    // moves us toward the bottom and is not caught by this check, so
+                    // only a real user drag up cancels here.
                     self.pendingProgrammaticScrollMode = nil
                     isFollowing = false
+                } else if pendingProgrammaticScrollMode == .jumpToLatest,
+                          ChatTranscriptScrollBehavior.shouldReissuePendingJumpToLatest(
+                              oldMetrics: oldMetrics,
+                              newMetrics: newMetrics
+                          ) {
+                    scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
                 }
                 return
             }
@@ -176,7 +213,12 @@ struct ChatTranscriptView: View {
             ) {
                 isFollowing = true
                 let now = Date()
-                if now.timeIntervalSince(lastScrollTime) >= transcriptFollowScrollDebounce {
+                if ChatTranscriptScrollBehavior.shouldReScrollOnPreserveFollow(
+                    oldMetrics: oldMetrics,
+                    newMetrics: newMetrics,
+                    timeSinceLastScroll: now.timeIntervalSince(lastScrollTime),
+                    debounce: transcriptFollowScrollDebounce
+                ) {
                     scrollToBottom(at: now)
                 }
                 return
