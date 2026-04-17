@@ -36,6 +36,22 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowCodeOnlyTitleRendersChip() {
+        let thread = AgentThread(name: "`code only`")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .idle,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_code_only"
+        )
+    }
+
     func testSidebarThreadRowChipAndPlainShareHeight() {
         let plainThread = AgentThread(name: "New thread")
         let chipThread = AgentThread(name: "Test `code block`")

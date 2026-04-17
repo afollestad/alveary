@@ -1,7 +1,7 @@
 ## Keep AGENTS.md Up to Date
 
-**WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md`.
-**WHEN** making changes to dependencies, project structure, or lint, make sure `AGENTS.md` and `README.md` are kept up to date.
+**WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md` files (including ones in sub-folders).
+**WHEN** making changes to dependencies, project structure, or lint, make sure `README.md` is kept up to date, as well as `AGENTS.md` files (including ones in sub-folders).
 **WHEN** adding or updating agent guidance, prefer the narrowest `AGENTS.md` whose scope covers the affected files. Keep instructions in the root `AGENTS.md` only when they are truly repo-wide or protect cross-cutting invariants.
 
 ## Scoped AGENTS Files

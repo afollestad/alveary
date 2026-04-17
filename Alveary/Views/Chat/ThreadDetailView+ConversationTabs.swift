@@ -33,8 +33,10 @@ struct ThreadDetailConversationTabs: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(selectedConversation.displayName())
-                        .font(.headline)
+                    AppMarkdownInlineLabel(
+                        text: selectedConversation.displayName(),
+                        textStyle: .headline
+                    )
 
                     Text(selectedConversation.provider ?? "Conversation")
                         .font(.caption)
@@ -168,8 +170,7 @@ private extension ConversationTabChip {
                         .fill(statusColor)
                         .frame(width: 8, height: 8)
 
-                    Text(conversation.displayName())
-                        .lineLimit(1)
+                    AppMarkdownInlineLabel(text: conversation.displayName())
                         .fixedSize(horizontal: true, vertical: false)
                 }
                 .padding(.leading, 12)
