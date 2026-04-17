@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 import XCTest
 
@@ -119,6 +118,98 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(Array(invocations[4].args.prefix(3)), ["worktree", "remove", "--force"])
         XCTAssertEqual(invocations[5].args.first, "branch")
         XCTAssertEqual(invocations[5].args[1], "-D")
+    }
+
+    // Regression test for the case where the user cancels creation while `git worktree add` is
+    // mid-run. Cancellation terminates git via SIGTERM, the add call fails, and the manager must
+    // still clean up any partial worktree and rollback branch before rethrowing.
+    func testCreateCleansUpWhenWorktreeAddFails() async throws {
+        let projectURL = try makeTemporaryProject()
+        let worktreesBaseURL = try makeTemporaryWorktreesBase()
+
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(Self.failingShellResult()))
+        await shell.enqueue(.success(Self.emptyShellResult()))
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "terminated",
+                    exitCode: 143,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "fatal: 'X' is not a working tree",
+                    exitCode: 128,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(.success(Self.failingShellResult()))
+
+        var settings = AppSettings()
+        settings.worktreesBaseDirectory = worktreesBaseURL.path
+        let manager = DefaultWorktreeManager(
+            settingsService: InMemorySettingsService(current: settings),
+            shell: shell
+        )
+
+        do {
+            _ = try await manager.create(
+                projectPath: projectURL.path,
+                threadName: "Interrupted add",
+                baseRef: "main",
+                remoteName: "origin"
+            )
+            XCTFail("Expected create failure when `git worktree add` fails")
+        } catch is GitError {
+            // Expected
+        }
+
+        let invocations = await shell.invocations
+        XCTAssertGreaterThanOrEqual(invocations.count, 5, "Expected cleanup invocations after failed add")
+        XCTAssertEqual(Array(invocations[3].args.prefix(3)), ["worktree", "remove", "--force"])
+        XCTAssertEqual(invocations[4].args.first, "branch")
+        XCTAssertEqual(invocations[4].args[1], "-D")
+    }
+
+    // Regression test for the "first empty folder, retry makes `-2`" bug: when `git worktree add`
+    // was interrupted before git registered the worktree, `git worktree remove --force` fails with
+    // "not a working tree" but the partial directory remains. The filesystem fallback must still
+    // remove it so a subsequent create can reuse the original name.
+    func testRemoveWorktreeDeletesDirectoryEvenWhenGitWorktreeRemoveFails() async throws {
+        let projectURL = try makeTemporaryProject()
+        let worktreesParentURL = projectURL.deletingLastPathComponent().appendingPathComponent("worktrees")
+        let worktreeURL = worktreesParentURL.appendingPathComponent("leftover")
+        try FileManager.default.createDirectory(at: worktreeURL, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: worktreesParentURL) }
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "fatal: '\(worktreeURL.path)' is not a working tree",
+                    exitCode: 128,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let manager = DefaultWorktreeManager(settingsService: InMemorySettingsService(), shell: shell)
+
+        _ = try await manager.removeWorktree(projectPath: projectURL.path, worktreePath: worktreeURL.path)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktreesParentURL.path))
     }
 
     func testRemoveRefusesMainRepositoryEvenWithTrailingSlash() async throws {
@@ -333,91 +424,4 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: namespaceDirectory.path))
     }
 
-    private func makeTemporaryProject() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
-        return url
-    }
-
-    private func makeTemporaryWorktreesBase() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("worktrees-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
-        return url
-    }
-
-    private func writeProjectConfig(at projectURL: URL, json: String) throws {
-        try json.write(to: projectURL.appendingPathComponent(".alveary.json"), atomically: true, encoding: .utf8)
-    }
-
-    private func worktreeListOutput(projectPath: String, worktreePath: String, branch: String) -> String {
-        """
-        worktree \(projectPath)
-        HEAD abc123
-        branch refs/heads/main
-
-        worktree \(worktreePath)
-        HEAD def456
-        branch refs/heads/\(branch)
-        """
-    }
-
-    private static func emptyShellResult() -> ShellResult {
-        ShellResult(stdout: "", stderr: "", exitCode: 0, stdoutWasTruncated: false, stderrWasTruncated: false)
-    }
-
-    private static func failingShellResult() -> ShellResult {
-        ShellResult(stdout: "", stderr: "", exitCode: 1, stdoutWasTruncated: false, stderrWasTruncated: false)
-    }
-
-    private func assertSetupInvocations(_ invocations: [MockShellRunner.Invocation], branch: String, worktreePath: String) {
-        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c"])
-        XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c-2"])
-        XCTAssertEqual(invocations[2].args, ["fetch", "origin", "main"])
-        XCTAssertEqual(invocations[3].args, ["worktree", "add", "--no-track", "-b", branch, worktreePath, "origin/main"])
-        XCTAssertEqual(invocations[4].executable, "/bin/sh")
-        XCTAssertEqual(invocations[4].timeout, Duration.seconds(45))
-    }
-
-    private func assertLifecycleEnvironment(
-        _ environment: [String: String]?,
-        threadName: String,
-        branch: String,
-        projectPath: String,
-        worktreePath: String
-    ) {
-        XCTAssertEqual(environment?["ALVEARY_THREAD_NAME"], threadName)
-        XCTAssertEqual(environment?["ALVEARY_BRANCH_NAME"], branch)
-        XCTAssertEqual(environment?["ALVEARY_PROJECT_PATH"], projectPath)
-        XCTAssertEqual(environment?["ALVEARY_WORKTREE_PATH"], worktreePath)
-        XCTAssertEqual(environment?["ALVEARY_PORT_SEED"], shortHash(branch))
-    }
-
-    private func namespacedWorktreesDirectory(for projectURL: URL, base: URL) -> URL {
-        let canonicalProjectPath = projectURL.resolvingSymlinksInPath().standardizedFileURL.path
-        let projectName = URL(fileURLWithPath: canonicalProjectPath).lastPathComponent
-        let digest = SHA256.hash(data: Data(canonicalProjectPath.utf8))
-        let hash = digest.prefix(3).map { String(format: "%02x", $0) }.joined()
-        let namespace = "\(slugify(projectName))-\(hash)"
-
-        return base.appendingPathComponent(namespace)
-    }
-
-    private func slugify(_ value: String) -> String {
-        let slug = value.lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-
-        guard !slug.isEmpty else {
-            return "thread"
-        }
-        return String(slug.prefix(50))
-    }
-
-    private func shortHash(_ value: String) -> String {
-        let digest = SHA256.hash(data: Data(value.utf8))
-        let hexDigest = digest.map { String(format: "%02x", $0) }.joined()
-        return String(hexDigest.prefix(3))
-    }
 }

@@ -9,7 +9,7 @@ actor DefaultWorktreeManager: WorktreeManager {
     }
 
     let settingsService: SettingsService
-    private let shell: ShellRunner
+    let shell: ShellRunner
 
     init(settingsService: SettingsService, shell: ShellRunner) {
         self.settingsService = settingsService
@@ -37,18 +37,20 @@ actor DefaultWorktreeManager: WorktreeManager {
 
         try ensureWorktreeParentDirectoryExists(for: target.path)
 
-        let result = try await shell.run(
-            executable: "/usr/bin/git",
-            args: ["worktree", "add", "--no-track", "-b", target.branch, target.path, resolvedBase],
-            in: projectPath
-        )
-        guard result.succeeded else {
-            throw Self.makeGitError(from: result)
-        }
-
-        // From here on, the worktree directory and rollback branch exist on disk. If anything
-        // below fails — including Task cancellation from the caller — we must clean them up.
+        // `git worktree add` itself can leave partial state — e.g. an empty target directory — if
+        // it is cancelled mid-run (Task cancellation sends SIGTERM to the git process). Wrap the
+        // whole add + post-setup sequence in cleanup so any failure, including interruption during
+        // `git worktree add`, removes the partial directory and rollback branch before rethrowing.
         do {
+            let result = try await shell.run(
+                executable: "/usr/bin/git",
+                args: ["worktree", "add", "--no-track", "-b", target.branch, target.path, resolvedBase],
+                in: projectPath
+            )
+            guard result.succeeded else {
+                throw Self.makeGitError(from: result)
+            }
+
             try await postCreateSetup(
                 projectPath: projectPath,
                 worktreePath: target.path,
@@ -100,24 +102,36 @@ actor DefaultWorktreeManager: WorktreeManager {
 
         try ensureWorktreeParentDirectoryExists(for: worktreePath)
 
-        let result = try await shell.run(
-            executable: "/usr/bin/git",
-            args: ["worktree", "add", worktreePath, branch],
-            in: projectPath
-        )
-        guard result.succeeded else {
-            throw Self.makeGitError(from: result)
+        // See the matching comment in `create()` — interrupting `git worktree add` can leave the
+        // target directory behind, so wrap the add + post-setup in cleanup. `rollbackBranch` is nil
+        // because the branch already existed before this call.
+        do {
+            let result = try await shell.run(
+                executable: "/usr/bin/git",
+                args: ["worktree", "add", worktreePath, branch],
+                in: projectPath
+            )
+            guard result.succeeded else {
+                throw Self.makeGitError(from: result)
+            }
+
+            try await postCreateSetup(
+                projectPath: projectPath,
+                worktreePath: worktreePath,
+                threadName: threadName,
+                branch: branch,
+                rollbackBranch: nil
+            )
+
+            return WorktreeInfo(path: CanonicalPath.normalize(worktreePath), branch: branch)
+        } catch {
+            await detachedCleanupAfterFailedCreate(
+                projectPath: projectPath,
+                worktreePath: worktreePath,
+                rollbackBranch: nil
+            )
+            throw error
         }
-
-        try await postCreateSetup(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            threadName: threadName,
-            branch: branch,
-            rollbackBranch: nil
-        )
-
-        return WorktreeInfo(path: CanonicalPath.normalize(worktreePath), branch: branch)
     }
 
     func remove(projectPath: String, worktreePath: String, branch: String?) async throws {
@@ -297,30 +311,6 @@ extension DefaultWorktreeManager {
         return "\(slugify(projectName))-\(hash)"
     }
 
-    func runTeardownScriptIfNeeded(
-        projectPath: String,
-        worktreePath: String,
-        branch: String?
-    ) async {
-        let config = await AlvearyProjectConfig(projectPath: projectPath)
-        guard let teardownScript = config.teardownScript else {
-            return
-        }
-
-        _ = try? await shell.run(
-            executable: "/bin/sh",
-            args: ["-c", teardownScript],
-            in: worktreePath,
-            environment: buildLifecycleScriptEnvironment(
-                projectPath: projectPath,
-                worktreePath: worktreePath,
-                threadName: URL(fileURLWithPath: worktreePath).lastPathComponent,
-                branch: branch
-            ),
-            timeout: .seconds(60)
-        )
-    }
-
     func removeWorktree(projectPath: String, worktreePath: String) async throws -> ShellResult {
         var removeResult = try await shell.run(
             executable: "/usr/bin/git",
@@ -338,146 +328,16 @@ extension DefaultWorktreeManager {
             )
         }
 
-        // `git worktree remove` can leave the thread-specific directory itself in place
-        // (e.g. when untracked files remain or on certain filesystems). Clean up just that
-        // directory — never its parent, which holds other threads' worktrees.
-        if removeResult.succeeded, FileManager.default.fileExists(atPath: worktreePath) {
+        // `git worktree remove` can leave the thread-specific directory itself in place (e.g. when
+        // untracked files remain or on certain filesystems), or fail outright because git never
+        // registered the worktree (e.g. cancellation during `git worktree add`). Either way, if
+        // the thread directory still exists we delete just that directory — never its parent,
+        // which holds other threads' worktrees.
+        if FileManager.default.fileExists(atPath: worktreePath) {
             try? FileManager.default.removeItem(atPath: worktreePath)
         }
 
         return removeResult
-    }
-
-    func runSetupScript(
-        projectPath: String,
-        worktreePath: String,
-        threadName: String,
-        branch: String,
-        config: AlvearyProjectConfig
-    ) async -> String? {
-        guard let setupScript = config.setupScript else {
-            return nil
-        }
-
-        do {
-            let result = try await shell.run(
-                executable: "/bin/sh",
-                args: ["-c", setupScript],
-                in: worktreePath,
-                environment: buildLifecycleScriptEnvironment(
-                    projectPath: projectPath,
-                    worktreePath: worktreePath,
-                    threadName: threadName,
-                    branch: branch
-                ),
-                timeout: .seconds(config.setupTimeoutSeconds ?? 300)
-            )
-            return result.succeeded
-                ? nil
-                : result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    // Runs the partial-worktree cleanup as a detached child task so the caller's cancellation
-    // cannot abort the shell commands we need to remove the on-disk worktree and rollback branch.
-    func detachedCleanupAfterFailedCreate(
-        projectPath: String,
-        worktreePath: String,
-        rollbackBranch: String
-    ) async {
-        let cleanup = Task.detached { [weak self] in
-            guard let self else { return }
-            _ = try? await self.cleanupFailedSetup(
-                projectPath: projectPath,
-                worktreePath: worktreePath,
-                rollbackBranch: rollbackBranch
-            )
-        }
-        await cleanup.value
-    }
-
-    func cleanupFailedSetup(
-        projectPath: String,
-        worktreePath: String,
-        rollbackBranch: String?
-    ) async throws -> Bool {
-        let removeResult = try? await removeWorktree(projectPath: projectPath, worktreePath: worktreePath)
-        let rollbackBranchDeleteFailed = try await rollbackBranchDeleteFailed(
-            projectPath: projectPath,
-            rollbackBranch: rollbackBranch
-        )
-        return removeResult?.succeeded != true || rollbackBranchDeleteFailed
-    }
-
-    func rollbackBranchDeleteFailed(projectPath: String, rollbackBranch: String?) async throws -> Bool {
-        guard let rollbackBranch else {
-            return false
-        }
-
-        let deleteResult = try? await shell.run(
-            executable: "/usr/bin/git",
-            args: ["branch", "-D", rollbackBranch],
-            in: projectPath
-        )
-        return deleteResult?.succeeded == false
-    }
-
-    func postCreateSetup(
-        projectPath: String,
-        worktreePath: String,
-        threadName: String,
-        branch: String,
-        rollbackBranch: String?
-    ) async throws {
-        let config = await AlvearyProjectConfig(projectPath: projectPath)
-        try preserveFiles(from: projectPath, to: worktreePath, patterns: config.preservePatterns)
-
-        guard config.setupScript != nil else { return }
-
-        let failureMessage = await runSetupScript(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            threadName: threadName,
-            branch: branch,
-            config: config
-        )
-        guard let failureMessage else {
-            return
-        }
-
-        if try await cleanupFailedSetup(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            rollbackBranch: rollbackBranch
-        ) {
-            throw GitError.commandFailed(
-                "Setup script failed: \(failureMessage). Cleanup also failed for worktree \(worktreePath)."
-            )
-        }
-
-        throw GitError.commandFailed("Setup script failed: \(failureMessage)")
-    }
-
-    func buildLifecycleScriptEnvironment(
-        projectPath: String,
-        worktreePath: String,
-        threadName: String,
-        branch: String?
-    ) -> [String: String] {
-        var environment: [String: String] = [
-            "ALVEARY_THREAD_NAME": threadName,
-            "ALVEARY_PROJECT_PATH": projectPath,
-            "ALVEARY_WORKTREE_PATH": worktreePath,
-            "ALVEARY_PORT_SEED": shortHash(branch ?? worktreePath)
-        ]
-
-        if let branch {
-            environment["ALVEARY_BRANCH_NAME"] = branch
-        }
-
-        return environment
     }
 
     func slugify(_ value: String) -> String {
