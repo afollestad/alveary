@@ -12,6 +12,7 @@ struct ThreadDetailView: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
+    let notificationManager: any NotificationManager
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
 
@@ -51,7 +52,7 @@ struct ThreadDetailView: View {
                     ThreadDetailConversationTabs(
                         conversations: conversations,
                         selectedConversation: conversation,
-                        statusForConversation: { agentsManager.status(for: $0.id) },
+                        statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
                         onSelect: { appState.selectConversation($0, in: thread) },
                         onCommitRename: { renameConversation($0, to: $1) },
                         onRemove: { pendingDeleteConversation = $0 },
@@ -203,6 +204,9 @@ private extension ThreadDetailView {
 
         do {
             try await agentsManager.destroyRuntime(conversationId: dbConversation.id)
+            // Dismiss any delivered banner and clear the unread count before the row disappears,
+            // so the dock badge and Notification Center both stay consistent with the live DB.
+            notificationManager.markConversationRead(conversationId: dbConversation.id)
             uiModelContext.delete(dbConversation)
             try uiModelContext.save()
             conversationActionError = nil

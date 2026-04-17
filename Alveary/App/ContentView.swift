@@ -20,11 +20,13 @@ struct ContentView: View {
     private let worktreeManager: WorktreeManager
     private let providerSetup: ProviderSetupService
     private let fileListManager: FileListManager
+    let notificationManager: any NotificationManager
+    let notificationRouter: NotificationRouter
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State private var viewModelContext: ModelContext
     @State private var sidebarViewModel: SidebarViewModel
-    @State private var diffViewModel: DiffViewerViewModel
+    @State var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
     @State private var diffViewerTopSectionFraction: CGFloat
     @State private var terminalPaneHeight: CGFloat
@@ -35,65 +37,70 @@ struct ContentView: View {
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
     @State var didAttemptLaunchSelectionRestore = false
 
-    static func makeViewModelContext(resolver: Resolver) -> ModelContext {
-        // Keep UI mutations on the container's main context so sidebar `@Query` reads
-        // and imperative view-model saves stay in sync without requiring a relaunch.
-        resolver.modelContainer().mainContext
+    init(resolver: Resolver, appState: AppState) {
+        self.init(dependencies: ContentViewDependencies.resolve(resolver), appState: appState)
     }
 
-    init(resolver: Resolver, appState: AppState) {
+    init(dependencies: ContentViewDependencies, appState: AppState) {
         self.appState = appState
-        let settingsService = resolver.settingsService()
-        let shellRunner = resolver.shellRunner()
-        let gitHubCLI = resolver.gitHubCLIService()
-        let providerDetection = resolver.providerDetectionService()
-        let agentRegistry = resolver.agentRegistry()
-        let providerRegistry = resolver.providerRegistry(); let (skillsService, mcpService) = (resolver.skillsService(), resolver.mcpService())
-        let (agentsManager, runtimeStore) = (resolver.agentsManager(), resolver.conversationRuntimeStore())
-        let worktreeManager = resolver.worktreeManager()
-        let (providerSetup, fileListManager) = (resolver.providerSetupService(), resolver.fileListManager())
-
-        self.settingsService = settingsService
-        self.shellRunner = shellRunner
-        self.gitHubCLI = gitHubCLI
-        self.providerDetection = providerDetection
-        self.agentRegistry = agentRegistry
-        self.providerRegistry = providerRegistry
-        self.skillsService = skillsService
-        self.mcpService = mcpService
-        self.agentsManager = agentsManager
-        self.runtimeStore = runtimeStore
-        self.worktreeManager = worktreeManager
-        self.providerSetup = providerSetup
-        self.fileListManager = fileListManager
-
-        let viewModelContext = Self.makeViewModelContext(resolver: resolver); _viewModelContext = State(initialValue: viewModelContext)
-        _diffViewerWidth = State(initialValue: CGFloat(settingsService.current.diffViewerWidth))
-        _diffViewerTopSectionFraction = State(initialValue: CGFloat(settingsService.current.diffViewerTopSectionFraction))
-        _terminalPaneHeight = State(initialValue: CGFloat(settingsService.current.terminalPaneHeight))
-        _sidebarViewModel = State(initialValue: SidebarViewModel(
-            agentsManager: agentsManager,
-            modelContext: viewModelContext,
-            shell: resolver.shellRunner(),
-            gitHubCLI: gitHubCLI,
-            worktreeManager: worktreeManager,
-            settingsService: settingsService
-        ))
-        _diffViewModel = State(initialValue: DiffViewerViewModel(
-            gitService: resolver.gitService(),
-            gitHubService: resolver.gitHubService(),
-            fileListManager: fileListManager,
-            agentsManager: agentsManager
-        ))
-        _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: skillsService))
-        _mcpViewModel = State(initialValue: MCPViewModel(mcpService: mcpService))
-        _settingsViewModel = State(initialValue: SettingsViewModel(
-            settingsService: settingsService,
-            providerDetection: providerDetection,
-            agentRegistry: agentRegistry
-        ))
+        self.settingsService = dependencies.settingsService
+        self.shellRunner = dependencies.shellRunner
+        self.gitHubCLI = dependencies.gitHubCLI
+        self.providerDetection = dependencies.providerDetection
+        self.agentRegistry = dependencies.agentRegistry
+        self.providerRegistry = dependencies.providerRegistry
+        self.skillsService = dependencies.skillsService
+        self.mcpService = dependencies.mcpService
+        self.agentsManager = dependencies.agentsManager
+        self.runtimeStore = dependencies.runtimeStore
+        self.worktreeManager = dependencies.worktreeManager
+        self.providerSetup = dependencies.providerSetup
+        self.fileListManager = dependencies.fileListManager
+        self.notificationManager = dependencies.notificationManager
+        self.notificationRouter = dependencies.notificationRouter
+        let settings = dependencies.settingsService.current
+        // Keep UI mutations on the container's main context so sidebar `@Query` reads
+        // and imperative view-model saves stay in sync without requiring a relaunch.
+        _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
+        _diffViewerWidth = State(initialValue: CGFloat(settings.diffViewerWidth))
+        _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
+        _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
+        _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies))
+        _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
+        _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
+        _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
+        _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _terminalManager = State(initialValue: TerminalManager())
         _toolbarProjectActions = State(initialValue: [])
+    }
+
+    private static func makeSidebarViewModel(dependencies: ContentViewDependencies) -> SidebarViewModel {
+        SidebarViewModel(
+            agentsManager: dependencies.agentsManager,
+            modelContext: dependencies.modelContainer.mainContext,
+            shell: dependencies.shellRunner,
+            gitHubCLI: dependencies.gitHubCLI,
+            worktreeManager: dependencies.worktreeManager,
+            settingsService: dependencies.settingsService,
+            notificationManager: dependencies.notificationManager
+        )
+    }
+
+    private static func makeDiffViewModel(dependencies: ContentViewDependencies) -> DiffViewerViewModel {
+        DiffViewerViewModel(
+            gitService: dependencies.gitService,
+            gitHubService: dependencies.gitHubService,
+            fileListManager: dependencies.fileListManager,
+            agentsManager: dependencies.agentsManager
+        )
+    }
+
+    private static func makeSettingsViewModel(dependencies: ContentViewDependencies) -> SettingsViewModel {
+        SettingsViewModel(
+            settingsService: dependencies.settingsService,
+            providerDetection: dependencies.providerDetection,
+            agentRegistry: dependencies.agentRegistry
+        )
     }
 
     var body: some View {
@@ -108,6 +115,7 @@ struct ContentView: View {
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             fileListManager: fileListManager,
+            notificationManager: notificationManager,
             loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []
             },
@@ -230,14 +238,31 @@ struct ContentView: View {
         .onChange(of: appState.selectedConversationIDs) { _, _ in
             persistLastOpenThreadSelection(for: appState.selectedSidebarItem)
         }
+        .onChange(of: activeConversationId) { _, newValue in
+            guard let newValue else { return }
+            notificationManager.markConversationRead(conversationId: newValue)
+        }
+        .onChange(of: notificationRouter.pendingConversationId) { _, newValue in
+            guard let newValue else { return }
+            openConversation(with: newValue)
+            notificationRouter.clearPendingIfMatches(newValue)
+        }
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .task(id: selectedThread?.project?.path) {
             await refreshToolbarProjectActions()
         }
         .onAppear {
+            wireNotificationManager()
             restoreLastOpenThreadSelectionIfNeeded()
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
+            if let pending = notificationRouter.pendingConversationId {
+                openConversation(with: pending)
+                notificationRouter.clearPendingIfMatches(pending)
+            }
+            // Mark-read of the active conversation is handled by the `onChange(of: activeConversationId)`
+            // observer once the restored selection propagates; just sync the dock badge on launch.
+            notificationManager.refreshBadgeCount()
         }
     }
 }
@@ -253,6 +278,13 @@ private extension ContentView {
 
     var visibleThreadID: PersistentIdentifier? {
         selectedThread?.persistentModelID
+    }
+
+    var activeConversationId: String? {
+        guard let selectedThread else {
+            return nil
+        }
+        return appState.selectedConversation(in: selectedThread)?.id
     }
 
     func colorScheme(for theme: String) -> ColorScheme? {
@@ -386,52 +418,6 @@ private extension ContentView {
         }
     }
 
-    func activeDiffActionTarget() -> (thread: AgentThread, conversation: Conversation)? {
-        guard case .thread(let thread) = appState.selectedSidebarItem,
-              let conversation = appState.selectedConversation(in: thread) else {
-            return nil
-        }
-
-        return (thread, conversation)
-    }
-
-    func requestAgentCommit() {
-        guard let (_, conversation) = activeDiffActionTarget() else {
-            return
-        }
-
-        let message: String
-        if diffViewModel.files.contains(where: { $0.isStaged }) {
-            message = "Please review the currently staged changes in this worktree and create an appropriate git commit for them."
-        } else {
-            message = "Please review the current uncommitted changes in this worktree and create an appropriate git commit."
-        }
-
-        appState.requestDiffAction(message: message, conversationID: conversation.persistentModelID)
-    }
-
-    func requestAgentOpenPR() {
-        guard let (thread, conversation) = activeDiffActionTarget() else {
-            return
-        }
-
-        let baseRef = thread.project?.baseRef ?? "main"
-        let message = "Please push or publish the current branch if needed, then open a pull request against `\(baseRef)` and share the PR URL."
-        appState.requestDiffAction(message: message, conversationID: conversation.persistentModelID)
-    }
-
-    func cancelPendingDiffActionIfNeeded() {
-        guard let request = appState.pendingDiffAction else {
-            return
-        }
-
-        guard let activeConversationID = activeDiffActionTarget()?.conversation.persistentModelID,
-              activeConversationID == request.conversationID else {
-            appState.pendingDiffAction = nil
-            return
-        }
-    }
-
     func currentProjectContext() -> Project? {
         switch appState.selectedSidebarItem {
         case .project(let project):
@@ -466,6 +452,7 @@ private extension ContentView {
     func resolveThread(id: PersistentIdentifier) -> AgentThread? {
         uiModelContext.model(for: id) as? AgentThread
     }
+
     func refreshToolbarProjectActions() async {
         guard let thread = selectedThread,
               let projectPath = thread.project?.path else {
@@ -481,20 +468,4 @@ private extension ContentView {
 
         toolbarProjectActions = config.actions ?? []
     }
-    func persistDiffViewerWidth(_ width: CGFloat) {
-        settingsService.update {
-            $0.diffViewerWidth = width
-        }
-    }
-    func persistDiffViewerTopSectionFraction(_ fraction: CGFloat) {
-        settingsService.update {
-            $0.diffViewerTopSectionFraction = fraction
-        }
-    }
-    func persistTerminalPaneHeight(_ height: CGFloat) {
-        settingsService.update {
-            $0.terminalPaneHeight = height
-        }
-    }
-
 }

@@ -26,7 +26,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             SidebarThreadRow(
                 thread: thread,
-                status: .idle,
+                status: .unread,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
@@ -42,7 +42,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             SidebarThreadRow(
                 thread: thread,
-                status: .idle,
+                status: .unread,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
@@ -59,13 +59,13 @@ extension SnapshotTests {
         let stack = VStack(spacing: 0) {
             SidebarThreadRow(
                 thread: plainThread,
-                status: .idle,
+                status: .unread,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             SidebarThreadRow(
                 thread: chipThread,
-                status: .idle,
+                status: .unread,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )

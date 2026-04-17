@@ -12,6 +12,7 @@ struct MiddlePane: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
+    let notificationManager: any NotificationManager
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     let skillsViewModel: SkillsViewModel
@@ -28,7 +29,7 @@ struct MiddlePane: View {
         case .mcp:
             MCPScreen(viewModel: mcpViewModel)
         case .project(let project):
-            ProjectSettingsView(project: project)
+            ProjectSettingsView(project: project, notificationManager: notificationManager)
                 .id(project.path)
         case .thread(let thread):
             ThreadDetailView(
@@ -42,6 +43,7 @@ struct MiddlePane: View {
                 worktreeManager: worktreeManager,
                 providerSetup: providerSetup,
                 fileListManager: fileListManager,
+                notificationManager: notificationManager,
                 loadSkillCompletions: loadInstalledSkills,
                 diffViewModel: diffViewModel
             )

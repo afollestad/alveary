@@ -57,6 +57,7 @@ actor DiffViewerMockGitService: GitService {
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
     private var recordedDiscardCalls: [DiscardCall] = []
+    private var onStatus: (@Sendable () -> Void)?
 
     init(
         statusResults: [Result<[FileStatus], Error>],
@@ -76,10 +77,15 @@ actor DiffViewerMockGitService: GitService {
 
     func status(in directory: String) async throws -> [FileStatus] {
         recordedStatusCallCount += 1
+        onStatus?()
         guard !statusResults.isEmpty else {
             return []
         }
         return try statusResults.removeFirst().get()
+    }
+
+    func setOnStatus(_ handler: (@Sendable () -> Void)?) {
+        onStatus = handler
     }
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {

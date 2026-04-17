@@ -31,6 +31,13 @@ extension AgentsManager {
 }
 
 extension Notification.Name {
+    // Cross-service notification posted on `NotificationCenter.default`. Any service that changes
+    // a conversation's user-visible status — runtime activity from `DefaultAgentsManager` or
+    // unread-flag flips from `DefaultNotificationManager` — posts here with `userInfo["conversationId"]`
+    // (and optionally `userInfo["signal"]` when the change is a runtime ActivitySignal transition).
+    // `SidebarViewModel` and `DiffViewerViewModel` observe it on `.default` to refresh status dots
+    // and file-change previews. All posters and observers must stay on `.default` so the bus
+    // remains coherent.
     static let agentStatusChanged = Notification.Name("agentStatusChanged")
     static let managedProcessesChanged = Notification.Name("managedProcessesChanged")
 }

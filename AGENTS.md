@@ -14,6 +14,7 @@ Use nested `AGENTS.md` files to keep local guidance close to the code it governs
 - `Alveary/Services/Agent/AGENTS.md` covers the agent runtime and Claude CLI adapter.
 - `Alveary/Services/Detection/AGENTS.md` covers `AgentRegistry` and provider detection.
 - `Alveary/Services/Git/AGENTS.md` covers worktree lifecycle and the GitHub CLI adapter.
+- `Alveary/Services/Notification/AGENTS.md` covers the notification manager, badge-count chaining, and OS notification tap routing.
 - `Alveary/Services/Session/AGENTS.md` covers the session manager and session persistence contract.
 - `Alveary/Services/Settings/AGENTS.md` covers `.alveary.json` round-tripping and settings persistence.
 - `Alveary/Views/AGENTS.md` covers shared SwiftUI view composition rules.

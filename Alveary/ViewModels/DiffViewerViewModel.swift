@@ -84,29 +84,7 @@ final class DiffViewerViewModel {
         self.fsEventDebounceDuration = fsEventDebounceDuration
         self.idlePollInterval = idlePollInterval
 
-        agentStatusObserver = NotificationCenter.default.addObserver(
-            forName: .agentStatusChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let conversationId = notification.userInfo?["conversationId"] as? String
-            Task { @MainActor in
-                guard let self, let directory = self.activeDirectory else {
-                    return
-                }
-
-                if let conversationId {
-                    guard self.activeConversationIds.contains(conversationId) else {
-                        return
-                    }
-                    if self.agentsManager.status(for: conversationId) == .busy {
-                        return
-                    }
-                }
-
-                await self.refreshAndInvalidateFileList(in: directory, reason: .agentTurnCompleted)
-            }
-        }
+        agentStatusObserver = makeAgentStatusObserver()
 
         appActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
@@ -134,6 +112,38 @@ final class DiffViewerViewModel {
     }
 
     deinit { MainActor.assumeIsolated { tearDown() } }
+
+    private func makeAgentStatusObserver() -> NSObjectProtocol {
+        NotificationCenter.default.addObserver(
+            forName: .agentStatusChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            // `.agentStatusChanged` is shared between runtime transitions (posted with a `signal`
+            // userInfo key) and unread-flag flips from `DefaultNotificationManager` (no `signal`).
+            // Only the former may have touched the filesystem, so skip the rescan otherwise.
+            guard notification.userInfo?["signal"] is ActivitySignal else {
+                return
+            }
+            let conversationId = notification.userInfo?["conversationId"] as? String
+            Task { @MainActor in
+                guard let self, let directory = self.activeDirectory else {
+                    return
+                }
+
+                if let conversationId {
+                    guard self.activeConversationIds.contains(conversationId) else {
+                        return
+                    }
+                    if self.agentsManager.status(for: conversationId) == .busy {
+                        return
+                    }
+                }
+
+                await self.refreshAndInvalidateFileList(in: directory, reason: .agentTurnCompleted)
+            }
+        }
+    }
 
     func switchToDirectory(
         _ directory: String,

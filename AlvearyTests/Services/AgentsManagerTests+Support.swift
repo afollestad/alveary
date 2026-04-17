@@ -326,7 +326,11 @@ final class RecordingLaunchAdapter: AgentAdapter, @unchecked Sendable {
 
 @MainActor
 final class StubNotificationManager: NotificationManager {
-    func handleEvent(_ event: ConversationEvent, providerName: String, threadName: String?) {}
+    func handleEvent(_ event: ConversationEvent, conversationId: String) {}
+    func markConversationRead(conversationId: String) {}
+    func handleAppVisibilityChanged() {}
+    func refreshBadgeCount() {}
+    func setActiveConversationProvider(_ provider: @escaping @MainActor () -> String?) {}
 }
 
 func agentsManagerLaunchContainsSubsequence(_ values: [String], _ subsequence: [String]) -> Bool {

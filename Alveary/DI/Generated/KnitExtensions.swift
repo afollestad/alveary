@@ -9,6 +9,10 @@ import SwiftData
 // If a type registration is missing or broken then the automated tests will fail for that PR
 /// Generated from ``NotificationAssembly``
 extension Resolver {
+    func notificationRouter(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> NotificationRouter {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(NotificationRouter.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
     func notificationManager(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> NotificationManager {
         let resolver = unsafeResolver(file: file, function: function, line: line)
         return knitUnwrap(resolver.resolve(NotificationManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)

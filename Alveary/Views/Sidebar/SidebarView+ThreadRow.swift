@@ -60,7 +60,7 @@ struct SidebarThreadRow: View {
         switch status {
         case .busy:
             return .green
-        case .idle:
+        case .unread:
             return .blue
         case .error:
             return .red

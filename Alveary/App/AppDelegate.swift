@@ -1,6 +1,7 @@
 @preconcurrency import AppKit
 import Darwin
 import SwiftData
+import UserNotifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -10,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sessionManager: any SessionManager
         let shellRunner: any ShellRunner
         let modelContainer: ModelContainer
+        let notificationRouter: NotificationRouter
         let workspaceNotificationCenter: NotificationCenter
         let notificationCenter: NotificationCenter
         let disableSuddenTermination: () -> Void
@@ -30,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 sessionManager: resolver.sessionManager(),
                 shellRunner: resolver.shellRunner(),
                 modelContainer: resolver.modelContainer(),
+                notificationRouter: resolver.notificationRouter(),
                 workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
                 notificationCenter: .default,
                 disableSuddenTermination: { ProcessInfo.processInfo.disableSuddenTermination() },
@@ -58,14 +61,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wakeObserver: NSObjectProtocol?
     private var managedProcessesObserver: NSObjectProtocol?
     private var suddenTerminationDisabled = false
+    private let notificationTapDelegate: NotificationTapDelegate
 
     override init() {
-        dependencies = .live()
+        let dependencies = Dependencies.live()
+        self.dependencies = dependencies
+        self.notificationTapDelegate = NotificationTapDelegate(router: dependencies.notificationRouter)
         super.init()
     }
 
     init(dependencies: Dependencies) {
         self.dependencies = dependencies
+        self.notificationTapDelegate = NotificationTapDelegate(router: dependencies.notificationRouter)
         super.init()
     }
 
@@ -85,6 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         removeObservers()
+
+        UNUserNotificationCenter.current().delegate = notificationTapDelegate
 
         startupTask?.cancel()
         startupTask = Task { [weak self] in

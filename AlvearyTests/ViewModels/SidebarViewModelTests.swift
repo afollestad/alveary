@@ -339,21 +339,23 @@ final class SidebarViewModelTests: XCTestCase {
         let thread = try fixture.insertThread(
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
-            conversationIDs: ["busy", "error", "idle", "neutral"]
+            conversationIDs: ["busy", "error", "unread", "neutral"]
         )
+        thread.conversations.first { $0.id == "unread" }?.isUnread = true
+        try fixture.context.save()
 
         await fixture.agentsManager.setStatus(.busy, for: "busy")
         await fixture.agentsManager.setStatus(.error, for: "error")
-        await fixture.agentsManager.setStatus(.idle, for: "idle")
         XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .busy)
 
         await fixture.agentsManager.setStatus(.neutral, for: "busy")
         XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .error)
 
         await fixture.agentsManager.setStatus(.neutral, for: "error")
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .idle)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .unread)
 
-        await fixture.agentsManager.setStatus(.neutral, for: "idle")
+        thread.conversations.first { $0.id == "unread" }?.isUnread = false
+        try fixture.context.save()
         XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .stopped)
 
         try fixture.markThreadArchived(thread)

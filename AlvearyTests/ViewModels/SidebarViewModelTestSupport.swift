@@ -12,6 +12,7 @@ struct SidebarTestFixture {
     let agentsManager: SidebarMockAgentsManager
     let worktreeManager: SidebarMockWorktreeManager
     let settingsService: InMemorySettingsService
+    let notificationManager: RecordingNotificationManager
     let viewModel: SidebarViewModel
 
     init(
@@ -41,6 +42,7 @@ struct SidebarTestFixture {
         settings.effort = defaultEffort
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
+        notificationManager = RecordingNotificationManager()
 
         viewModel = SidebarViewModel(
             agentsManager: agentsManager,
@@ -48,7 +50,8 @@ struct SidebarTestFixture {
             shell: shell,
             gitHubCLI: gitHubCLI,
             worktreeManager: worktreeManager,
-            settingsService: settingsService
+            settingsService: settingsService,
+            notificationManager: notificationManager
         )
     }
 

@@ -54,6 +54,7 @@ struct AppDelegateTestFixture {
                 sessionManager: sessionManager,
                 shellRunner: shellRunner,
                 modelContainer: modelContainer,
+                notificationRouter: NotificationRouter(),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,
                 disableSuddenTermination: disableSuddenTermination,

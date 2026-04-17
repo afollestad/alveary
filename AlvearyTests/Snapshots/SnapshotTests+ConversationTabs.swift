@@ -27,7 +27,7 @@ extension SnapshotTests {
                 conversations: thread.conversations,
                 selectedConversation: mainConversation,
                 statusForConversation: { conversation in
-                    conversation.id == mainConversation.id ? .neutral : .busy
+                    conversation.id == mainConversation.id ? .stopped : .busy
                 },
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
@@ -63,7 +63,7 @@ extension SnapshotTests {
             ThreadDetailConversationTabs(
                 conversations: thread.conversations,
                 selectedConversation: chipConversation,
-                statusForConversation: { _ in .idle },
+                statusForConversation: { _ in .unread },
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -91,7 +91,7 @@ extension SnapshotTests {
             ThreadDetailConversationTabs(
                 conversations: thread.conversations,
                 selectedConversation: onlyConversation,
-                statusForConversation: { _ in .idle },
+                statusForConversation: { _ in .unread },
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -127,7 +127,7 @@ extension SnapshotTests {
                 conversations: thread.conversations,
                 selectedConversation: mainConversation,
                 statusForConversation: { conversation in
-                    conversation.id == mainConversation.id ? .neutral : .busy
+                    conversation.id == mainConversation.id ? .stopped : .busy
                 },
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },

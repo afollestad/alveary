@@ -2,14 +2,6 @@ import Foundation
 import Observation
 import SwiftData
 
-enum ThreadStatus: Sendable, Equatable {
-    case busy
-    case idle
-    case stopped
-    case error
-    case archived
-}
-
 @MainActor
 @Observable
 final class SidebarViewModel {
@@ -19,6 +11,7 @@ final class SidebarViewModel {
     private let gitHubCLI: GitHubCLIService
     private let worktreeManager: WorktreeManager
     private let settingsService: SettingsService
+    private let notificationManager: any NotificationManager
     private var statusObserver: NSObjectProtocol?
 
     private(set) var sidebarError: String?
@@ -30,7 +23,8 @@ final class SidebarViewModel {
         shell: ShellRunner,
         gitHubCLI: GitHubCLIService,
         worktreeManager: WorktreeManager,
-        settingsService: SettingsService
+        settingsService: SettingsService,
+        notificationManager: any NotificationManager
     ) {
         self.agentsManager = agentsManager
         self.modelContext = modelContext
@@ -38,6 +32,7 @@ final class SidebarViewModel {
         self.gitHubCLI = gitHubCLI
         self.worktreeManager = worktreeManager
         self.settingsService = settingsService
+        self.notificationManager = notificationManager
 
         statusObserver = NotificationCenter.default.addObserver(
             forName: .agentStatusChanged,
@@ -125,6 +120,7 @@ final class SidebarViewModel {
     func archiveThread(_ thread: AgentThread) async throws {
         let dbThread = try requireThread(thread)
         try await quiesceThreadConversations(dbThread)
+        notificationManager.forgetConversations(in: [dbThread])
         dbThread.archivedAt = Date()
         try modelContext.save()
     }
@@ -133,6 +129,7 @@ final class SidebarViewModel {
         let dbThread = try requireThread(thread)
         dbThread.prepareForRestore()
         try modelContext.save()
+        notificationManager.refreshBadgeCount()
     }
 
     func deleteThread(_ thread: AgentThread) async throws {
@@ -142,6 +139,8 @@ final class SidebarViewModel {
         }
 
         try await cleanupThreadResources(dbThread, projectPath: projectPath)
+
+        notificationManager.forgetConversations(in: [dbThread])
 
         modelContext.delete(dbThread)
         try modelContext.save()
@@ -161,6 +160,8 @@ final class SidebarViewModel {
         }
 
         try await worktreeManager.removeAll(projectPath: dbProject.path)
+
+        notificationManager.forgetConversations(in: threads)
 
         modelContext.delete(dbProject)
         try modelContext.save()
@@ -208,39 +209,7 @@ final class SidebarViewModel {
     }
 
     func threadStatus(for thread: AgentThread) -> ThreadStatus {
-        if thread.archivedAt != nil {
-            return .archived
-        }
-
-        var hasError = false
-        var hasIdle = false
-        var hasStopped = false
-
-        for conversation in thread.conversations {
-            switch agentsManager.status(for: conversation.id) {
-            case .busy:
-                return .busy
-            case .error:
-                hasError = true
-            case .idle:
-                hasIdle = true
-            case .stopped:
-                hasStopped = true
-            case .neutral:
-                break
-            }
-        }
-
-        if hasError {
-            return .error
-        }
-        if hasIdle {
-            return .idle
-        }
-        if hasStopped {
-            return .stopped
-        }
-        return .stopped
+        thread.displayStatus { agentsManager.status(for: $0.id) }
     }
 }
 

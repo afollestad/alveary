@@ -56,6 +56,7 @@ struct ProjectSettingsView: View {
     let project: Project
 
     private let loadConfig: @Sendable (String) async -> AlvearyProjectConfig
+    private let notificationManager: any NotificationManager
 
     @Environment(\.modelContext) private var modelContext
     @State private var config: AlvearyProjectConfig
@@ -69,12 +70,14 @@ struct ProjectSettingsView: View {
 
     init(
         project: Project,
+        notificationManager: any NotificationManager,
         initialConfig: AlvearyProjectConfig = .empty,
         loadConfig: @escaping @Sendable (String) async -> AlvearyProjectConfig = { projectPath in
             await AlvearyProjectConfig(projectPath: projectPath)
         }
     ) {
         self.project = project
+        self.notificationManager = notificationManager
         self.loadConfig = loadConfig
 
         let editorState = ProjectSettingsEditorState(config: initialConfig)
@@ -163,12 +166,17 @@ struct ProjectSettingsView: View {
     }
 }
 
+@MainActor
 func restoreProjectSettingsArchivedThread(
     _ thread: AgentThread,
-    modelContext: ModelContext
+    modelContext: ModelContext,
+    notificationManager: any NotificationManager
 ) throws {
     thread.prepareForRestore()
     try modelContext.save()
+    // SwiftData does not emit `.agentStatusChanged` on restore, so the dock badge would miss the
+    // newly-unarchived unread conversations without this explicit refresh.
+    notificationManager.refreshBadgeCount()
 }
 
 func projectSettingsRestoreConfirmationMessage(for thread: AgentThread) -> String {
@@ -326,7 +334,11 @@ private extension ProjectSettingsView {
 
     func restoreArchivedThread(_ thread: AgentThread) {
         do {
-            try restoreProjectSettingsArchivedThread(thread, modelContext: modelContext)
+            try restoreProjectSettingsArchivedThread(
+                thread,
+                modelContext: modelContext,
+                notificationManager: notificationManager
+            )
         } catch {
             screenError = error.localizedDescription
         }

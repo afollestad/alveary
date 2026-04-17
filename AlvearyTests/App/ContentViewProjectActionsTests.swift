@@ -9,11 +9,22 @@ final class ContentViewProjectActionsTests: XCTestCase {
     func testContentViewUsesModelContainerMainContextForViewModels() {
         let assembler = ScopedModuleAssembler<Resolver>([
             AppAssembly(),
-            DataAssembly(isStoredInMemoryOnly: true)
+            DataAssembly(isStoredInMemoryOnly: true),
+            SettingsAssembly(),
+            ShellAssembly(),
+            NotificationAssembly(),
+            DetectionAssembly(),
+            AgentAssembly(),
+            SessionAssembly(),
+            GitAssembly(),
+            GitHubAssembly(),
+            SkillsAssembly(),
+            MCPAssembly()
         ])
         let resolver = assembler.resolver
 
-        XCTAssertTrue(ContentView.makeViewModelContext(resolver: resolver) === resolver.modelContainer().mainContext)
+        let dependencies = ContentViewDependencies.resolve(resolver)
+        XCTAssertTrue(dependencies.modelContainer.mainContext === resolver.modelContainer().mainContext)
     }
 
     func testProjectActionExecutionContextPrefersWorktreePathAndCarriesThreadMetadata() throws {

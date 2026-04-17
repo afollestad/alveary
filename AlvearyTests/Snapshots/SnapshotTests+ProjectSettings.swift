@@ -19,6 +19,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             ProjectSettingsView(
                 project: project,
+                notificationManager: RecordingNotificationManager(),
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
@@ -55,6 +56,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             ProjectSettingsView(
                 project: project,
+                notificationManager: RecordingNotificationManager(),
                 initialConfig: config,
                 loadConfig: { _ in config }
             )

@@ -10,6 +10,7 @@ final class Conversation {
     var isActive: Bool
     var isMain: Bool
     var displayOrder: Int
+    var isUnread: Bool
     var thread: AgentThread?
     @Relationship(deleteRule: .cascade, inverse: \ConversationEventRecord.conversation) var events: [ConversationEventRecord]
 
@@ -21,6 +22,7 @@ final class Conversation {
         isActive: Bool = true,
         isMain: Bool = true,
         displayOrder: Int = 0,
+        isUnread: Bool = false,
         thread: AgentThread? = nil,
         events: [ConversationEventRecord] = []
     ) {
@@ -31,6 +33,7 @@ final class Conversation {
         self.isActive = isActive
         self.isMain = isMain
         self.displayOrder = displayOrder
+        self.isUnread = isUnread
         self.thread = thread
         self.events = events
     }

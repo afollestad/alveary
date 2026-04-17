@@ -5,7 +5,7 @@ import SwiftUI
 struct ThreadDetailConversationTabs: View {
     let conversations: [Conversation]
     let selectedConversation: Conversation
-    let statusForConversation: (Conversation) -> ActivitySignal
+    let statusForConversation: (Conversation) -> ThreadStatus
     let onSelect: (Conversation) -> Void
     let onCommitRename: (Conversation, String) -> Void
     let onRemove: (Conversation) -> Void
@@ -62,7 +62,7 @@ struct ThreadDetailConversationTabs: View {
 
 private struct ConversationTabChip: View {
     let conversation: Conversation
-    let status: ActivitySignal
+    let status: ThreadStatus
     let isSelected: Bool
     @Binding var editingConversationID: PersistentIdentifier?
     let onSelect: () -> Void
@@ -200,11 +200,11 @@ private extension ConversationTabChip {
         switch status {
         case .busy:
             return .green
-        case .idle:
+        case .unread:
             return .blue
         case .error:
             return .red
-        case .neutral, .stopped:
+        case .stopped, .archived:
             return .secondary
         }
     }

@@ -434,8 +434,7 @@ extension DefaultAgentsManager {
             return
         }
 
-        let providerName = providerRegistry.provider(for: providerId)?.name ?? providerId
-        await notificationManager.handleEvent(event, providerName: providerName, threadName: nil)
+        await notificationManager.handleEvent(event, conversationId: conversationId)
     }
 
     private func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {
