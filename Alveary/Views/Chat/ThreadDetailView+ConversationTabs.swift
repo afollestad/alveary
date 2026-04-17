@@ -32,17 +32,10 @@ struct ThreadDetailConversationTabs: View {
                     }
                 }
             } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    AppMarkdownInlineLabel(
-                        text: selectedConversation.displayName(),
-                        textStyle: .headline
-                    )
-
-                    Text(selectedConversation.provider ?? "Conversation")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
+                AppMarkdownInlineLabel(
+                    text: selectedConversation.displayName(),
+                    textStyle: .headline
+                )
             }
 
             Spacer()
