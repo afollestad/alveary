@@ -4,9 +4,23 @@ struct InlineBanner: View {
     let message: String
     let severity: Severity
     let autoDismissAfter: Duration?
-    let onDismiss: () -> Void
+    // When nil the X affordance is hidden — useful for banners whose dismissal
+    // is driven by surrounding buttons instead of the banner itself.
+    let onDismiss: (() -> Void)?
 
     @State private var dismissTask: Task<Void, Never>?
+
+    init(
+        message: String,
+        severity: Severity,
+        autoDismissAfter: Duration?,
+        onDismiss: (() -> Void)? = nil
+    ) {
+        self.message = message
+        self.severity = severity
+        self.autoDismissAfter = autoDismissAfter
+        self.onDismiss = onDismiss
+    }
 
     enum Severity: Sendable {
         case warning
@@ -46,14 +60,16 @@ struct InlineBanner: View {
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button {
-                onDismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
+            if let onDismiss {
+                Button {
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -88,7 +104,7 @@ private extension InlineBanner {
             guard !Task.isCancelled else {
                 return
             }
-            onDismiss()
+            onDismiss?()
         }
     }
 }

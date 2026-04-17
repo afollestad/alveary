@@ -24,8 +24,10 @@ struct ContentView: View {
     let notificationRouter: NotificationRouter
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
+    @State var isAddProjectSheetPresented = false
+    @State var pendingDiskImportAfterDismiss = false
     @State private var viewModelContext: ModelContext
-    @State private var sidebarViewModel: SidebarViewModel
+    @State var sidebarViewModel: SidebarViewModel
     @State var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
     @State private var diffViewerTopSectionFraction: CGFloat
@@ -247,6 +249,14 @@ struct ContentView: View {
             openConversation(with: newValue)
             notificationRouter.clearPendingIfMatches(newValue)
         }
+        .sheet(
+            isPresented: $isAddProjectSheetPresented,
+            // Wait for the sheet's dismissal to finish before opening the
+            // `NSOpenPanel`, otherwise the modal pops on top of the still-animating
+            // sheet and stutters the UI.
+            onDismiss: handleAddProjectSheetDismiss,
+            content: addProjectSheetContent
+        )
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .task(id: selectedThread?.project?.path) {
             await refreshToolbarProjectActions()
@@ -306,7 +316,7 @@ private extension ContentView {
 
     func canViewThread(_ id: PersistentIdentifier) -> Bool {
         guard visibleThreadID != id,
-              let thread = resolveThread(id: id) else {
+              let thread = uiModelContext.resolveThread(id: id) else {
             return false
         }
 
@@ -314,7 +324,7 @@ private extension ContentView {
     }
 
     func viewThread(_ id: PersistentIdentifier) {
-        guard let thread = resolveThread(id: id),
+        guard let thread = uiModelContext.resolveThread(id: id),
               thread.archivedAt == nil else {
             return
         }
@@ -358,99 +368,6 @@ private extension ContentView {
                 conversationIds: conversationIds
             )
         }
-    }
-
-    func handlePendingCommand(_ command: AppState.CommandRequest?) {
-        guard let command else {
-            return
-        }
-
-        let commandID = command.id
-        Task { @MainActor in
-            defer {
-                if appState.pendingCommand?.id == commandID {
-                    appState.pendingCommand = nil
-                }
-            }
-
-            do {
-                switch command {
-                case .newProject:
-                    let panel = NSOpenPanel()
-                    panel.canChooseDirectories = true
-                    panel.canChooseFiles = false
-                    panel.allowsMultipleSelection = false
-
-                    guard panel.runModal() == .OK,
-                          let url = panel.url else {
-                        return
-                    }
-
-                    let createdProject = try await sidebarViewModel.createProject(path: url.path)
-                    guard appState.pendingCommand?.id == commandID else {
-                        return
-                    }
-
-                    appState.selectedSidebarItem = resolveProject(path: createdProject.path).map(SidebarItem.project)
-
-                case .newThread:
-                    guard let project = currentProjectContext() else {
-                        return
-                    }
-
-                    let createdThread = try await sidebarViewModel.createThread(
-                        project: project,
-                        provider: settingsService.current.defaultProvider,
-                        permissionMode: settingsService.current.permissionMode
-                    )
-                    guard appState.pendingCommand?.id == commandID else {
-                        return
-                    }
-
-                    appState.selectedSidebarItem = resolveThread(id: createdThread.persistentModelID).map(SidebarItem.thread)
-                }
-            } catch {
-                guard appState.pendingCommand?.id == commandID else {
-                    return
-                }
-                sidebarViewModel.presentSidebarError(error)
-            }
-        }
-    }
-
-    func currentProjectContext() -> Project? {
-        switch appState.selectedSidebarItem {
-        case .project(let project):
-            return project
-        case .thread(let thread):
-            return thread.project
-        case .settings:
-            guard let bookmark = appState.previousSelection else {
-                return nil
-            }
-
-            switch bookmark {
-            case .projectPath(let path):
-                return resolveProject(path: path)
-            case .threadId(let id):
-                return resolveThread(id: id)?.project
-            case .skills, .mcp:
-                return nil
-            }
-        default:
-            return nil
-        }
-    }
-
-    func resolveProject(path: String) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? uiModelContext.fetch(descriptor).first
-    }
-
-    func resolveThread(id: PersistentIdentifier) -> AgentThread? {
-        uiModelContext.model(for: id) as? AgentThread
     }
 
     func refreshToolbarProjectActions() async {

@@ -4,7 +4,7 @@ extension SidebarView {
     func createThread(in project: Project) async {
         do {
             let createdThread = try await viewModel.createThread(project: project)
-            guard let resolvedThread = resolveThread(id: createdThread.persistentModelID) else {
+            guard let resolvedThread = uiModelContext.resolveThread(id: createdThread.persistentModelID) else {
                 return
             }
 
@@ -136,10 +136,6 @@ extension SidebarView {
             appState.pendingDiffAction = previousDiffAction
             viewModel.presentSidebarError(error)
         }
-    }
-
-    func resolveThread(id: PersistentIdentifier) -> AgentThread? {
-        uiModelContext.model(for: id) as? AgentThread
     }
 
     func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {

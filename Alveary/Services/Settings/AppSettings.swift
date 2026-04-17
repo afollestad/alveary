@@ -31,6 +31,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var notifications = NotificationSettings()
     var branchPrefix = "alveary"
     var worktreesBaseDirectory = "~/Documents/worktrees"
+    var lastAddProjectParentFolder: String?
     var pushOnCreate = false
     var providerConfigs: [String: ProviderCustomConfig] = [:]
     var lastOpenThreadID: PersistentIdentifier?
@@ -121,6 +122,7 @@ extension AppSettings {
         case notifications
         case branchPrefix
         case worktreesBaseDirectory
+        case lastAddProjectParentFolder
         case pushOnCreate
         case providerConfigs
         case lastOpenThreadID
@@ -158,6 +160,10 @@ extension AppSettings {
             String.self,
             forKey: .worktreesBaseDirectory
         ) ?? defaults.worktreesBaseDirectory
+        self.lastAddProjectParentFolder = try container.decodeIfPresent(
+            String.self,
+            forKey: .lastAddProjectParentFolder
+        )
         self.pushOnCreate = try container.decodeIfPresent(Bool.self, forKey: .pushOnCreate) ?? defaults.pushOnCreate
         self.providerConfigs = try container.decodeIfPresent(
             [String: ProviderCustomConfig].self,

@@ -237,7 +237,7 @@ struct ErrorBanner: View {
     let message: String
 
     var body: some View {
-        InlineBanner(message: message, severity: .error, autoDismissAfter: nil) {}
+        InlineBanner(message: message, severity: .error, autoDismissAfter: nil)
             .frame(maxWidth: 720, alignment: .leading)
     }
 }

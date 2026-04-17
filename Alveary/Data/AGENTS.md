@@ -10,3 +10,7 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 
 - Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume. Restoring a thread should regenerate that summary from saved `ConversationEventRecord`s, hydrate it back into `ConversationState.stagedContext` when the conversation view model is recreated, send it only through the existing staged-context path on the next outbound message, and clear the persisted field when the user dismisses it or that send succeeds.
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
+
+## Model Context Helpers
+
+- `ModelContext+Resolve.swift` hosts shared typed lookup helpers such as `resolveThread(id:)`. Call sites should prefer `modelContext.resolveThread(id:)` over ad-hoc `modelContext.model(for: id) as? AgentThread` casts so the cast lives in one place. Add sibling resolvers here when another model grows a second call site.
