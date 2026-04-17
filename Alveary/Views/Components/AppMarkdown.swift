@@ -6,7 +6,7 @@ import Textual
 private let appMarkdownCodeBlockCornerRadius: CGFloat = 8
 private let appMarkdownCodeBlockHorizontalPadding: CGFloat = 12
 private let appMarkdownCodeBlockVerticalPadding: CGFloat = 10
-private let markdownInlineCodeFontScale: CGFloat = 0.94
+let markdownInlineCodeFontScale: CGFloat = 0.94
 private let appMarkdownInlineCodeCornerRadius: CGFloat = 5
 private let appMarkdownInlineCodeHorizontalPadding: CGFloat = 5
 private let appMarkdownInlineCodeVerticalPadding: CGFloat = 2
@@ -168,7 +168,7 @@ private struct AppMarkdownInlineCodeAttachment: Attachment {
     }
 }
 
-private struct AppMarkdownInlineCodeChip: View {
+struct AppMarkdownInlineCodeChip: View {
     let text: String
     let style: AppMarkdownInlineCodeStyle
     let fontSize: CGFloat

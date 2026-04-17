@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -32,6 +33,33 @@ extension SnapshotTests {
             .padding(.leading, 14),
             size: CGSize(width: 320, height: 52),
             named: "thread_row_inline_code"
+        )
+    }
+
+    func testSidebarThreadRowChipAndPlainShareHeight() {
+        let plainThread = AgentThread(name: "New thread")
+        let chipThread = AgentThread(name: "Test `code block`")
+
+        let stack = VStack(spacing: 0) {
+            SidebarThreadRow(
+                thread: plainThread,
+                status: .idle,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            SidebarThreadRow(
+                thread: chipThread,
+                status: .idle,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+        }
+        .padding(.leading, 14)
+
+        assertMacSnapshot(
+            stack,
+            size: CGSize(width: 320, height: 80),
+            named: "thread_rows_chip_plain_stack"
         )
     }
 
