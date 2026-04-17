@@ -1,29 +1,42 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.96863,0.52941,0.00000,1.00000"
+    "automatic-gradient" : "display-p3:0.96436,0.77783,0.33301,1.00000",
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
   },
   "groups" : [
     {
+      "blur-material" : null,
+      "hidden" : false,
       "layers" : [
         {
-          "image-name" : "alveary7.png",
-          "name" : "alveary",
+          "image-name" : "robotic_bee_icon.png",
+          "name" : "robotic_bee_icon",
           "position" : {
-            "scale" : 0.55,
+            "scale" : 0.9,
             "translation-in-points" : [
-              -0.27499999999997726,
-              31.075000000000045
+              0,
+              0
             ]
           }
         }
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.1
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.1
       }
     }
   ],
