@@ -8,7 +8,7 @@ struct ProjectSettingsPreservePatternsCard: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Files matching these patterns are copied into new worktrees when a thread is created.")
+                Text("Files matching these glob patterns are copied into new worktrees when a thread is created.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
