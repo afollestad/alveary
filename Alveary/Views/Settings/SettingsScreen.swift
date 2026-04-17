@@ -22,13 +22,18 @@ struct SettingsScreen: View {
     var body: some View {
         HStack(spacing: 0) {
             List(SettingsTab.allCases) { tab in
-                Label(tab.title, systemImage: tab.icon)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
-                    .appSelectableRow(
-                        isSelected: selectedTab == tab,
-                        action: { selectedTab = tab }
-                    )
+                Label {
+                    Text(tab.title)
+                } icon: {
+                    Image(systemName: tab.icon)
+                        .foregroundStyle(Color.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .appSelectableRow(
+                    isSelected: selectedTab == tab,
+                    action: { selectedTab = tab }
+                )
             }
             .frame(width: 180)
 
