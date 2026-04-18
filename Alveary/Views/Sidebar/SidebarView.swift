@@ -92,9 +92,11 @@ struct SidebarView: View {
 
                         if isExpanded {
                             ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
+                                let isSelected = appState.selectedSidebarItem == .thread(thread)
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
+                                    isSelected: isSelected,
                                     editingThreadID: $editingThreadID,
                                     onCommitRename: { newName in
                                         renameThread(thread, to: newName)
@@ -102,7 +104,7 @@ struct SidebarView: View {
                                 )
                                     .padding(.leading, 14)
                                     .appSelectableRow(
-                                        isSelected: appState.selectedSidebarItem == .thread(thread),
+                                        isSelected: isSelected,
                                         action: { activateThread(thread) }
                                     )
                                     .contextMenu {

@@ -134,7 +134,6 @@ extension AppKitTextEditorCoordinatorTests {
             to: textStorage,
             chips: [chip],
             fullRange: NSRange(location: 0, length: textStorage.length),
-            colorScheme: .dark,
             compactDisplayResolver: { _ in true }
         )
 
@@ -144,7 +143,7 @@ extension AppKitTextEditorCoordinatorTests {
 
         XCTAssertEqual(hiddenPrefixColor, .clear)
         XCTAssertLessThan(hiddenPrefixFont?.pointSize ?? .greatestFiniteMagnitude, 1)
-        XCTAssertEqual(visibleSuffixColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor(for: .dark))
+        XCTAssertEqual(visibleSuffixColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor)
     }
 
     func testTextChipUsesInlineCodeFontStyling() {
@@ -171,7 +170,6 @@ extension AppKitTextEditorCoordinatorTests {
             to: textStorage,
             chips: [chip],
             fullRange: NSRange(location: 0, length: textStorage.length),
-            colorScheme: .dark,
             compactDisplayResolver: { _ in false }
         )
 

@@ -52,7 +52,7 @@ enum AppTextEditorCodeBlockStyling {
             }
 
             textStorage.addAttributes(
-                inlineCodeAttributes(font: context.baseFont, colorScheme: context.colorScheme),
+                inlineCodeAttributes(font: context.baseFont),
                 range: clampedRange
             )
         }
@@ -113,12 +113,10 @@ enum AppTextEditorCodeBlockStyling {
         ]
     }
 
-    static func inlineCodeAttributes(
-        font: NSFont,
-        colorScheme: ColorScheme
-    ) -> [NSAttributedString.Key: Any] {
+    static func inlineCodeAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
         [
-            .font: NSFont.monospacedSystemFont(ofSize: font.pointSize * 0.94, weight: .regular)
+            .font: NSFont.monospacedSystemFont(ofSize: font.pointSize * 0.94, weight: .regular),
+            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         ]
     }
 
@@ -139,7 +137,7 @@ enum AppTextEditorCodeBlockStyling {
         }
 
         if context.inlineRanges.contains(where: { NSIntersectionRange($0, insertionRange).length > 0 }) {
-            var attributes = inlineCodeAttributes(font: context.baseFont, colorScheme: context.colorScheme)
+            var attributes = inlineCodeAttributes(font: context.baseFont)
             attributes[.foregroundColor] = context.baseColor
             return attributes
         }
@@ -154,7 +152,6 @@ enum AppTextEditorCodeBlockStyling {
         to textStorage: NSTextStorage,
         chips: [AppTextEditorChip],
         fullRange: NSRange,
-        colorScheme: ColorScheme,
         compactDisplayResolver: (AppTextEditorChip) -> Bool
     ) {
         for chip in chips {
@@ -166,11 +163,7 @@ enum AppTextEditorCodeBlockStyling {
             let compactDisplay = compactDisplayResolver(chip)
 
             textStorage.addAttributes(
-                textChipAttributes(
-                    style: chip.style,
-                    compactDisplay: compactDisplay,
-                    colorScheme: colorScheme
-                ),
+                textChipAttributes(style: chip.style, compactDisplay: compactDisplay),
                 range: clampedRange
             )
 
@@ -178,8 +171,7 @@ enum AppTextEditorCodeBlockStyling {
                 applyCompactFileMentionAttributes(
                     to: textStorage,
                     chipRange: clampedRange,
-                    displayText: chip.displayText,
-                    colorScheme: colorScheme
+                    displayText: chip.displayText
                 )
             }
         }
@@ -187,8 +179,7 @@ enum AppTextEditorCodeBlockStyling {
 
     static func textChipAttributes(
         style: AppTextEditorChipStyle,
-        compactDisplay: Bool,
-        colorScheme: ColorScheme
+        compactDisplay: Bool
     ) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(
@@ -197,36 +188,14 @@ enum AppTextEditorCodeBlockStyling {
             ),
             .foregroundColor: compactDisplay && style != .fileMention
                 ? NSColor.clear
-                : textChipForegroundColor(for: style, colorScheme: colorScheme)
+                : AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         ]
-    }
-
-    static func textChipForegroundColor(
-        for _: AppTextEditorChipStyle,
-        colorScheme: ColorScheme
-    ) -> NSColor {
-        AppMarkdownCodeBlockPalette.inlineForegroundNSColor(for: colorScheme)
-    }
-
-    static func textChipFillColor(
-        for _: AppTextEditorChipStyle,
-        colorScheme: ColorScheme
-    ) -> NSColor {
-        AppMarkdownCodeBlockPalette.inlineFillNSColor(for: colorScheme)
-    }
-
-    static func textChipStrokeColor(
-        for _: AppTextEditorChipStyle,
-        colorScheme _: ColorScheme
-    ) -> NSColor {
-        .clear
     }
 
     private static func applyCompactFileMentionAttributes(
         to textStorage: NSTextStorage,
         chipRange: NSRange,
-        displayText: String,
-        colorScheme: ColorScheme
+        displayText: String
     ) {
         let fullText = (textStorage.string as NSString).substring(with: chipRange)
         let fullLength = (fullText as NSString).length
@@ -244,7 +213,7 @@ enum AppTextEditorCodeBlockStyling {
             length: chipRange.length - hiddenPrefixLength - 1
         )
         let visibleAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: textChipForegroundColor(for: .fileMention, colorScheme: colorScheme)
+            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         ]
         let baseFont = (textStorage.attribute(.font, at: chipRange.location, effectiveRange: nil) as? NSFont) ??
             .preferredFont(forTextStyle: .body)

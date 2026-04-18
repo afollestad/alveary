@@ -85,7 +85,6 @@ extension AppKitTextEditorCoordinator {
             to: textStorage,
             chips: textView.textChips,
             fullRange: fullRange,
-            colorScheme: parent.colorScheme,
             compactDisplayResolver: { chip in
                 compactDisplayChips.contains(chip)
             }

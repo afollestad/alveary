@@ -39,8 +39,11 @@ struct AppMarkdownText: View {
     }
 
     private var content: some View {
+        // NOTE: Do not call `.textual.structuredTextStyle(.default)` here. It reinstates the
+        // built-in inline style (with a blue link color) and clobbers our accent-colored
+        // `.link(...)` override. Leave the individual environment modifiers below in place —
+        // Textual already defaults the remaining block styles to their `.default` values.
         StructuredText(markdown, parser: AppMarkdownParser(baseURL: baseURL, inlineCodeStyle: inlineCodeStyle))
-            .textual.structuredTextStyle(.default)
             .textual.inlineStyle(inlineStyle)
             .textual.codeBlockStyle(AppMarkdownCodeBlockStyle())
             .textual.overflowMode(.scroll)
@@ -57,33 +60,52 @@ struct AppMarkdownText: View {
     }
 }
 
-private let appMarkdownInlineStyle = InlineStyle.default.code(
-    .monospaced,
-    .fontScale(markdownInlineCodeFontScale),
-    .backgroundColor(
-        DynamicColor(
-            light: Color(nsColor: AppMarkdownCodeBlockPalette.inlineFillNSColor(for: .light)),
-            dark: Color(nsColor: AppMarkdownCodeBlockPalette.inlineFillNSColor(for: .dark))
-        )
+// Textual's `DynamicColor` accepts either a single `Color` variant or explicit light/dark
+// `Color`s. Prefer the light/dark form and flatten the palette's dynamic `NSColor` once
+// per appearance rather than wrapping a single dynamic `Color`: `DynamicColor(Color(...))`
+// would depend on SwiftUI preserving the NSColor's `dynamicProvider` through its
+// `Color`-to-`NSColor` bridge at draw time, which is an implicit contract. Flattening here
+// keeps the scheme switch inside `DynamicColor`'s own light/dark branch. Trade-off: macOS
+// system-accent changes made mid-session are not reflected in Textual-rendered chips until
+// the app restarts; the asset-catalog `AccentColor` (default "Multicolor" preference) is
+// static per launch, so this has no practical effect for the common case.
+//
+// `NSAppearance` is not `Sendable`, so the two built-in appearances are constructed
+// inside this function on each call rather than cached in module-level `let`s. The
+// helper is only invoked a handful of times at module initialization, so the extra
+// lookups are negligible.
+private func dynamicColor(from nsColor: NSColor) -> DynamicColor {
+    guard let aqua = NSAppearance(named: .aqua),
+          let darkAqua = NSAppearance(named: .darkAqua) else {
+        let fallback = Color(nsColor: nsColor)
+        return DynamicColor(light: fallback, dark: fallback)
+    }
+    return DynamicColor(
+        light: Color(nsColor: nsColor.resolved(for: aqua)),
+        dark: Color(nsColor: nsColor.resolved(for: darkAqua))
     )
-)
+}
 
-private let appMarkdownUserBubbleInlineStyle = InlineStyle.default.code(
-    .monospaced,
-    .fontScale(markdownInlineCodeFontScale),
-    .foregroundColor(
-        DynamicColor(
-            light: Color(nsColor: AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor(for: .light)),
-            dark: Color(nsColor: AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor(for: .dark))
-        )
-    ),
-    .backgroundColor(
-        DynamicColor(
-            light: Color(nsColor: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor(for: .light)),
-            dark: Color(nsColor: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor(for: .dark))
-        )
+internal let appMarkdownInlineStyle = InlineStyle.default
+    .code(
+        .monospaced,
+        .fontScale(markdownInlineCodeFontScale),
+        .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.inlineFillNSColor))
     )
-)
+    .link(.foregroundColor(Color.accentColor))
+
+// Links inside user bubbles must not be accent-colored: the bubble fill is
+// `AppSelectionStyle.rowFill` (itself an accent tint), so accent-on-accent links would
+// clash with the fill in both schemes. Match the bubble's `.primary` body color so links
+// inherit the same label treatment as the rest of the bubble text.
+private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
+    .code(
+        .monospaced,
+        .fontScale(markdownInlineCodeFontScale),
+        .foregroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor)),
+        .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor))
+    )
+    .link(.foregroundColor(Color.primary))
 
 struct AppMarkdownParser: MarkupParser {
     let baseURL: URL?
@@ -173,8 +195,6 @@ struct AppMarkdownInlineCodeChip: View {
     let style: AppMarkdownInlineCodeStyle
     let fontSize: CGFloat
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         Text(verbatim: text)
             .font(.system(size: fontSize, weight: .regular, design: .monospaced))
@@ -188,18 +208,18 @@ struct AppMarkdownInlineCodeChip: View {
     private var fillColor: NSColor {
         switch style {
         case .standard:
-            return AppMarkdownCodeBlockPalette.inlineFillNSColor(for: colorScheme)
+            return AppMarkdownCodeBlockPalette.inlineFillNSColor
         case .userBubble:
-            return AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor(for: colorScheme)
+            return AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor
         }
     }
 
     private var foregroundColor: NSColor {
         switch style {
         case .standard:
-            return AppMarkdownCodeBlockPalette.inlineForegroundNSColor(for: colorScheme)
+            return AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         case .userBubble:
-            return AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor(for: colorScheme)
+            return AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor
         }
     }
 }
@@ -409,41 +429,60 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 
-    static func inlineFillNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.24, green: 0.26, blue: 0.32, alpha: 1)
+    // Accent-tinted chip background; reads from the asset-catalog `AccentColor` via
+    // `NSColor.controlAccentColor` and layers at low opacity so chips tint their parent
+    // surface without overpowering surrounding text. Light mode bumps the opacity so the
+    // fill still reads as amber against a white parent background instead of washing out
+    // to near-white. Cached as a single dynamic NSColor so repeated accesses return the
+    // same instance — important for NSColor equality in attributed-string attributes.
+    static let inlineFillNSColor: NSColor = .accentDerived { accent, appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return accent.withAlphaComponent(0.22)
         default:
-            return NSColor(srgbRed: 0.89, green: 0.91, blue: 0.95, alpha: 1)
+            return accent.withAlphaComponent(0.40)
         }
     }
 
-    static func inlineForegroundNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.93, green: 0.94, blue: 0.96, alpha: 1)
+    // Solid accent in dark mode reads well against the low-opacity tint, but in light
+    // mode the same bright accent over a tinted fill loses contrast; blend the accent
+    // toward black so the chip text stays legible. Deriving from `controlAccentColor`
+    // keeps the foreground in sync with the `AccentColor` asset — swapping the asset to
+    // a different hue produces a matching darkened foreground automatically.
+    static let inlineForegroundNSColor: NSColor = .accentDerived { accent, appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return accent
         default:
-            return NSColor(srgbRed: 0.16, green: 0.19, blue: 0.24, alpha: 1)
+            return accent.blended(withFraction: 0.70, of: .black) ?? accent
         }
     }
 
-    static func userBubbleInlineFillNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.95, green: 0.97, blue: 1, alpha: 0.18)
+    // Neutral-gray chip fill used when the chip sits on an accent-tinted surface (user
+    // bubble, selected sidebar row, selected conversation tab). The parent surface is
+    // `AppSelectionStyle.rowFill`, which is already an accent tint — another accent-derived
+    // fill at low opacity reads as "the same color as the background" and fails contrast,
+    // especially in light mode where rowFill is a near-saturated accent. A grayscale fill
+    // breaks the accent-on-accent pattern and gives the chip a clearly distinct surface.
+    // Light mode uses a near-white gray (so `.labelColor` black text pops); dark mode uses
+    // a medium-dark gray (so `.labelColor` white text pops). Do not reintroduce a
+    // `labelColor.withAlphaComponent(...)` fill here — it looks correct on darker accents
+    // but vanishes into bright accent surfaces.
+    //
+    // Built with a raw `NSColor(name:dynamicProvider:)` rather than `.accentDerived(...)`
+    // because the resolved value does not depend on the system accent — it's a pure
+    // grayscale swatch. The `.accentDerived` helper's `performAsCurrentDrawingAppearance`
+    // flattening is only load-bearing when the transform consumes `controlAccentColor`.
+    static let userBubbleInlineFillNSColor: NSColor = NSColor(name: nil, dynamicProvider: { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(white: 0.25, alpha: 1.0)
         default:
-            return NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.2)
+            return NSColor(white: 0.93, alpha: 1.0)
         }
-    }
+    })
 
-    static func userBubbleInlineForegroundNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.97, green: 0.98, blue: 1, alpha: 1)
-        default:
-            return NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.98)
-        }
-    }
+    static let userBubbleInlineForegroundNSColor: NSColor = NSColor.labelColor
 
     static func borderNSColor(for colorScheme: ColorScheme) -> NSColor {
         switch colorScheme {

@@ -39,7 +39,7 @@ extension View {
     }
 
     func primaryActionButtonStyle() -> some View {
-        buttonStyle(ProminentActionButtonStyle(fillColor: .accentColor, foregroundColor: .white))
+        buttonStyle(ProminentActionButtonStyle(fillColor: .accentColor, foregroundColor: .onAccent))
     }
 
     func secondaryActionButtonStyle() -> some View {

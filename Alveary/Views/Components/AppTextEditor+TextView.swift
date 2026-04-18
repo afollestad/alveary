@@ -62,16 +62,6 @@ final class AppKitTextView: NSTextView {
         }
     }
 
-    var colorScheme: ColorScheme = .light {
-        didSet {
-            guard colorScheme != oldValue else {
-                return
-            }
-
-            needsDisplay = true
-        }
-    }
-
     var textChips: [AppTextEditorChip] = [] {
         didSet {
             needsDisplay = true
@@ -242,25 +232,11 @@ final class AppKitTextView: NSTextView {
 
     private func drawTextChipBackgrounds(in dirtyRect: NSRect) {
         let cornerRadius: CGFloat = 4
+        AppMarkdownCodeBlockPalette.inlineFillNSColor.setFill()
 
         for resolvedChip in resolvedTextChips() {
-            let fillColor = AppTextEditorCodeBlockStyling.textChipFillColor(
-                for: resolvedChip.chip.style,
-                colorScheme: colorScheme
-            )
-            let strokeColor = AppTextEditorCodeBlockStyling.textChipStrokeColor(
-                for: resolvedChip.chip.style,
-                colorScheme: colorScheme
-            )
-
-            fillColor.setFill()
-            strokeColor.setStroke()
-
             for rect in resolvedChip.rects where rect.intersects(dirtyRect) {
-                let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
-                path.fill()
-                path.lineWidth = 1
-                path.stroke()
+                NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
             }
         }
     }

@@ -111,20 +111,20 @@ struct UserBubble: View {
                     if containsMarkdownCode {
                         AppMarkdownText(
                             markdown: text,
-                            foregroundColor: .white,
+                            foregroundColor: .primary,
                             inlineCodeStyle: .userBubble
                         )
                     } else {
                         Text(text)
                             .textSelection(.enabled)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                     }
                 }
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatBubbleVerticalPadding)
                 .background(
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
-                        .fill(Color.accentColor)
+                        .fill(AppSelectionStyle.rowFill)
                 )
 
                 if showsRetry, let onRetry {

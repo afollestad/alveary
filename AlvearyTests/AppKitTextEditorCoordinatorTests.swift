@@ -447,7 +447,7 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             return XCTFail("Expected wrapped mention styling")
         }
 
-        XCTAssertEqual(wrappedColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor(for: .light))
+        XCTAssertEqual(wrappedColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor)
     }
 
     func testSyncSelectionIfNeededNormalizesStaleSelectionAfterTextReset() {

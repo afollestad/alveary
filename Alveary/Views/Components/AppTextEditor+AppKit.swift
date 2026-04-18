@@ -172,7 +172,6 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
 
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
-        textView.colorScheme = parent.colorScheme
         textView.isEditable = !parent.isDisabled
         textView.isSelectable = true
         textView.textColor = .labelColor
@@ -266,7 +265,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
     private func syncInlineCodePresentation(for textView: AppKitTextView) {
         textView.inlineCodeBackgroundRanges = parent.inlineCodeBackgroundRanges?(textView.string) ?? []
-        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.inlineFillNSColor(for: parent.colorScheme)
+        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.inlineFillNSColor
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {

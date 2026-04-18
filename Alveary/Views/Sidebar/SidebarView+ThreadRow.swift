@@ -4,6 +4,7 @@ import SwiftUI
 struct SidebarThreadRow: View {
     let thread: AgentThread
     let status: ThreadStatus
+    let isSelected: Bool
     @Binding var editingThreadID: PersistentIdentifier?
     let onCommitRename: (String) -> Void
 
@@ -33,7 +34,7 @@ struct SidebarThreadRow: View {
                     .onExitCommand { cancelRename() }
                     .lineLimit(1)
             } else {
-                AppMarkdownInlineLabel(text: displayName)
+                AppMarkdownInlineLabel(text: displayName, isSelected: isSelected)
                     .allowsHitTesting(false)
             }
 

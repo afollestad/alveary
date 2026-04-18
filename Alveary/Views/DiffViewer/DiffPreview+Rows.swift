@@ -291,7 +291,7 @@ struct DiffPreviewBadge: View {
         case .neutral:
             return .secondary
         case .accent:
-            return .accentColor
+            return .primary
         case .added:
             return .green
         case .deleted:
@@ -304,7 +304,7 @@ struct DiffPreviewBadge: View {
         case .neutral:
             return Color.primary.opacity(0.08)
         case .accent:
-            return Color.accentColor.opacity(0.14)
+            return AppSelectionStyle.rowFill
         case .added:
             return Color.green.opacity(0.14)
         case .deleted:

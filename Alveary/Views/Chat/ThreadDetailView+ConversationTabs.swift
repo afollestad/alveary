@@ -122,7 +122,7 @@ private struct ConversationTabSelectButtonStyle: ButtonStyle {
             return AppSelectionStyle.pressedFill
         }
         if isSelected {
-            return Color.accentColor.opacity(0.16)
+            return AppSelectionStyle.rowFill
         }
         return Color.secondary.opacity(0.08)
     }
@@ -163,7 +163,7 @@ private extension ConversationTabChip {
                         .fill(statusColor)
                         .frame(width: 8, height: 8)
 
-                    AppMarkdownInlineLabel(text: conversation.displayName())
+                    AppMarkdownInlineLabel(text: conversation.displayName(), isSelected: isSelected)
                         .fixedSize(horizontal: true, vertical: false)
                 }
                 .padding(.leading, 12)

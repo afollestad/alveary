@@ -14,6 +14,10 @@ struct AppMarkdownInlineLabel: View {
     /// The text style that drives both the SwiftUI text font and the inline-code chip
     /// metrics. Using a single value avoids mismatches between chip and surrounding text.
     var textStyle: NSFont.TextStyle = .body
+    /// When `true`, inline-code chips render in the on-accent-surface palette so they
+    /// contrast against selection backgrounds (sidebar rows, conversation tab chips)
+    /// which are already tinted with the accent color.
+    var isSelected: Bool = false
 
     var body: some View {
         let segments = InlineSegment.segments(for: text)
@@ -30,7 +34,7 @@ struct AppMarkdownInlineLabel: View {
                     case .text(let value):
                         Text(value).font(swiftUIFont)
                     case .code(let value):
-                        AppMarkdownInlineCodeChip(text: value, style: .standard, fontSize: chipFontSize)
+                        AppMarkdownInlineCodeChip(text: value, style: chipStyle, fontSize: chipFontSize)
                             .fixedSize()
                             .frame(height: textLineHeight, alignment: .center)
                     }
@@ -39,6 +43,10 @@ struct AppMarkdownInlineLabel: View {
             .lineLimit(1)
             .accessibilityElement(children: .combine)
         }
+    }
+
+    private var chipStyle: AppMarkdownInlineCodeStyle {
+        isSelected ? .userBubble : .standard
     }
 
     private var swiftUIFont: Font {

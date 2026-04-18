@@ -13,6 +13,7 @@ struct ProjectSettingsRepositoryCard: View {
                     if let githubRepository = project.githubRepository,
                        let githubRepositoryURL = project.githubRepositoryURL {
                         Link(githubRepository, destination: githubRepositoryURL)
+                            .foregroundStyle(Color.accentColor)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     } else {

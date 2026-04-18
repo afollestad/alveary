@@ -36,11 +36,7 @@ struct TerminalSessionChip: View {
         .padding(.vertical, 8)
         .background(
             Capsule(style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(isSelected ? Color.accentColor.opacity(0.28) : Color.clear, lineWidth: 1)
+                .fill(isSelected ? AppSelectionStyle.rowFill : Color.secondary.opacity(0.08))
         )
         .fixedSize(horizontal: true, vertical: false)
     }

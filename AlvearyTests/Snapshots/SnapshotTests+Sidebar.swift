@@ -11,6 +11,7 @@ extension SnapshotTests {
             SidebarThreadRow(
                 thread: thread,
                 status: .stopped,
+                isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
@@ -27,12 +28,35 @@ extension SnapshotTests {
             SidebarThreadRow(
                 thread: thread,
                 status: .unread,
+                isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
             size: CGSize(width: 320, height: 52),
             named: "thread_row_inline_code"
+        )
+    }
+
+    func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyle() {
+        let thread = AgentThread(name: "Test `code block`")
+
+        // Render the row over an `AppSelectionStyle.rowFill` background so the snapshot
+        // captures the on-accent-surface chip styling that `isSelected: true` activates.
+        // A standard-palette chip on a rowFill background would be accent-on-accent and
+        // wash out; this baseline locks in the `.userBubble` chip palette switch.
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .unread,
+                isSelected: true,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14)
+            .background(AppSelectionStyle.rowFill),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_selected_inline_code"
         )
     }
 
@@ -43,6 +67,7 @@ extension SnapshotTests {
             SidebarThreadRow(
                 thread: thread,
                 status: .unread,
+                isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
@@ -60,12 +85,14 @@ extension SnapshotTests {
             SidebarThreadRow(
                 thread: plainThread,
                 status: .unread,
+                isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             SidebarThreadRow(
                 thread: chipThread,
                 status: .unread,
+                isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
