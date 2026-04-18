@@ -113,4 +113,16 @@ extension SnapshotTests {
             named: "user_bubble_code_block"
         )
     }
+
+    func testUserBubbleSlashAndMentionChips() {
+        assertMacSnapshot(
+            UserBubble(
+                text: "/review-github-pr look at @Alveary/Views/Input/ChatInputField.swift for the new `inlineHint` flow.",
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 620, height: 220),
+            named: "user_bubble_slash_and_mention_chips"
+        )
+    }
 }

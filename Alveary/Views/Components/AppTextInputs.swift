@@ -118,6 +118,7 @@ struct AppTextEditor: View {
     private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
     private let requestFirstResponder: UUID?
     private let onFocusRequestConsumed: (() -> Void)?
+    private let isAppKitFirstResponder: Binding<Bool>?
 
     init(
         text: Binding<String>,
@@ -145,7 +146,8 @@ struct AppTextEditor: View {
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
         requestFirstResponder: UUID? = nil,
-        onFocusRequestConsumed: (() -> Void)? = nil
+        onFocusRequestConsumed: (() -> Void)? = nil,
+        isAppKitFirstResponder: Binding<Bool>? = nil
     ) {
         self._text = text
         self.selection = nil
@@ -174,6 +176,7 @@ struct AppTextEditor: View {
         self.onKeyPress = onKeyPress
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
+        self.isAppKitFirstResponder = isAppKitFirstResponder
     }
 
     init(
@@ -203,7 +206,8 @@ struct AppTextEditor: View {
         keyPressKeys: [AppTextEditorKey] = [],
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
         requestFirstResponder: UUID? = nil,
-        onFocusRequestConsumed: (() -> Void)? = nil
+        onFocusRequestConsumed: (() -> Void)? = nil,
+        isAppKitFirstResponder: Binding<Bool>? = nil
     ) {
         self._text = text
         self.selection = selection
@@ -232,6 +236,7 @@ struct AppTextEditor: View {
         self.onKeyPress = onKeyPress
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
+        self.isAppKitFirstResponder = isAppKitFirstResponder
     }
 
     var body: some View {
@@ -261,7 +266,8 @@ struct AppTextEditor: View {
                 keyPressKeys: Set(keyPressKeys),
                 onKeyPress: onKeyPress,
                 requestFirstResponder: requestFirstResponder,
-                onFocusRequestConsumed: onFocusRequestConsumed
+                onFocusRequestConsumed: onFocusRequestConsumed,
+                isAppKitFirstResponder: isAppKitFirstResponder
             )
             .frame(
                 maxWidth: .infinity,

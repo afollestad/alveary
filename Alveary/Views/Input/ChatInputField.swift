@@ -37,6 +37,14 @@ struct ChatInputField: View {
     let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
 
     @FocusState var isInputFocused: Bool
+    // Mirrors the NSTextView's first-responder state, synced via
+    // `AppKitTextEditorView.isAppKitFirstResponder`. Plain `@State` writes propagate
+    // through SwiftUI's normal invalidation path — unlike `@FocusState`, which relies on
+    // a `.focused($state)` anchor we deliberately don't install here (the editor is an
+    // NSViewRepresentable, not a SwiftUI focusable). Features that need to read "is the
+    // composer actively focused?" during body eval (e.g. `inlineSlashCommandHint`) must
+    // drive off this binding.
+    @State var isComposerFirstResponder: Bool = false
     @State var textSelection: TextSelection?
     @State var activeAutocomplete: ComposerAutocompleteState?
     @State var loadTask: Task<Void, Never>?
@@ -164,7 +172,7 @@ struct ChatInputField: View {
         guard let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
             in: text,
             textSelection: textSelection,
-            isInputFocused: isInputFocused,
+            isInputFocused: isComposerFirstResponder,
             commandHints: skillArgumentHints
         ) else {
             return nil
@@ -215,9 +223,7 @@ struct ChatInputField: View {
                     isDisabled: isTextEditorDisabled,
                     sizesToContent: true,
                     focus: $isInputFocused,
-                    textChips: { text in
-                        ChatInputFieldTextSupport.composerTextChips(in: text, workingDirectory: workingDirectory)
-                    },
+                    textChips: ChatInputFieldTextSupport.composerTextChips(in:),
                     codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
                     inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
                     inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
@@ -226,7 +232,8 @@ struct ChatInputField: View {
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
                     onKeyPress: handleKeyPress,
                     requestFirstResponder: focusRequestToken,
-                    onFocusRequestConsumed: { focusRequestToken = nil }
+                    onFocusRequestConsumed: { focusRequestToken = nil },
+                    isAppKitFirstResponder: $isComposerFirstResponder
                 )
                 .overlay(alignment: .topLeading) {
                     if let autocomplete = activeAutocomplete {

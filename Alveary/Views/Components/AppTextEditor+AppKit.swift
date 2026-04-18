@@ -49,6 +49,14 @@ struct AppKitTextEditorView: NSViewRepresentable {
     // directly and lets `handleFocusChange` backfill the @FocusState.
     let requestFirstResponder: UUID?
     let onFocusRequestConsumed: (() -> Void)?
+    // AppKit→SwiftUI signal that the NSTextView is first responder. Writes to a plain
+    // `Binding<Bool>` propagate through SwiftUI's normal state-tracking path, whereas
+    // writes to `focus: FocusState<Bool>.Binding?` — which also happen in
+    // `handleFocusChange` — don't reliably invalidate view descendants here because
+    // `ChatInputField` has no `.focused($state)` anchor in its view hierarchy. Features
+    // that need to read "is the composer actively focused?" during body evaluation (e.g.
+    // the inline slash-command hint) should drive off this plain binding.
+    let isAppKitFirstResponder: Binding<Bool>?
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -71,7 +79,8 @@ struct AppKitTextEditorView: NSViewRepresentable {
         keyPressKeys: Set<AppTextEditorKey>,
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?,
         requestFirstResponder: UUID? = nil,
-        onFocusRequestConsumed: (() -> Void)? = nil
+        onFocusRequestConsumed: (() -> Void)? = nil,
+        isAppKitFirstResponder: Binding<Bool>? = nil
     ) {
         _text = text
         self.selection = selection
@@ -92,6 +101,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         self.onKeyPress = onKeyPress
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
+        self.isAppKitFirstResponder = isAppKitFirstResponder
     }
 
     func makeCoordinator() -> Coordinator {

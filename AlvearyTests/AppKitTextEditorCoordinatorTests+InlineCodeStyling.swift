@@ -51,6 +51,54 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(String(attributedString[attachedInlineRanges[0]].characters), "git status")
     }
 
+    func testAppMarkdownParserSkipsComposerChipsInsideFencedBlocks() throws {
+        let parser = AppMarkdownParser(
+            baseURL: nil,
+            inlineCodeStyle: .userBubble,
+            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+        )
+        let attributedString = try parser.attributedString(
+            for: "```\n@Alveary/Views/Input/ChatInputField.swift\n```"
+        )
+
+        let attachmentCount = attributedString.runs.filter { $0.textual.attachment != nil }.count
+        XCTAssertEqual(attachmentCount, 0)
+    }
+
+    func testAppMarkdownParserSkipsComposerChipsInsideMarkdownLinks() throws {
+        let parser = AppMarkdownParser(
+            baseURL: nil,
+            inlineCodeStyle: .userBubble,
+            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+        )
+        let attributedString = try parser.attributedString(
+            for: "See [@Alveary/Views/Input/ChatInputField.swift](https://example.com) please."
+        )
+
+        let attachmentCount = attributedString.runs.filter { $0.textual.attachment != nil }.count
+        XCTAssertEqual(attachmentCount, 0)
+    }
+
+    func testAppMarkdownParserAttachesComposerChipsInPlainProse() throws {
+        let parser = AppMarkdownParser(
+            baseURL: nil,
+            inlineCodeStyle: .userBubble,
+            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+        )
+        let attributedString = try parser.attributedString(
+            for: "/review-github-pr look at @Alveary/Views/Input/ChatInputField.swift next"
+        )
+
+        let attachmentTexts = attributedString.runs.compactMap { run -> String? in
+            guard run.textual.attachment != nil else {
+                return nil
+            }
+            return String(attributedString[run.range].characters)
+        }
+
+        XCTAssertEqual(attachmentTexts, ["/review-github-pr", "@Alveary/Views/Input/ChatInputField.swift"])
+    }
+
     func testInlineCodeDelimiterStylingCollapsesDelimiterLayoutWidth() {
         let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 120))
         textView.font = .preferredFont(forTextStyle: .body)

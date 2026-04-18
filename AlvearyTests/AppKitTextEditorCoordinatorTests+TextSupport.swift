@@ -57,6 +57,32 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(token.replacementOffsets, expectedRange)
     }
 
+    func testReplacingTextAppendsTrailingSpaceForSlashCommandAtEndOfText() {
+        let text = "/revi"
+        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
+            in: text,
+            offsets: 0..<5,
+            with: "/review-github-pr",
+            appendTrailingSpace: true
+        )
+
+        XCTAssertEqual(newText, "/review-github-pr ")
+        XCTAssertEqual(insertionOffset, 18)
+    }
+
+    func testReplacingTextAppendsTrailingSpaceForFileMentionAtEndOfText() {
+        let text = "@Chat"
+        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
+            in: text,
+            offsets: 0..<5,
+            with: "@Alveary/Views/Input/ChatInputField.swift",
+            appendTrailingSpace: true
+        )
+
+        XCTAssertEqual(newText, "@Alveary/Views/Input/ChatInputField.swift ")
+        XCTAssertEqual(insertionOffset, 42)
+    }
+
     func testReplacingTextTracksUTF16InsertionOffsetAfterEmojiPrefix() {
         let text = "Prep 😀 @fi tail"
         guard let mentionRange = text.range(of: "@fi"),
@@ -106,10 +132,7 @@ extension AppKitTextEditorCoordinatorTests {
             return XCTFail("Expected mention range")
         }
 
-        let chips = ChatInputFieldTextSupport.composerTextChips(
-            in: text,
-            workingDirectory: "/tmp/alveary"
-        )
+        let chips = ChatInputFieldTextSupport.composerTextChips(in: text)
 
         XCTAssertEqual(chips.count, 2)
         XCTAssertEqual(chips[0], AppTextEditorChip(range: NSRange(location: 0, length: 17), displayText: "/review-github-pr", style: .slashCommand))
@@ -125,8 +148,7 @@ extension AppKitTextEditorCoordinatorTests {
 
     func testComposerTextChipsIgnoreMentionsInsideInlineCode() {
         let chips = ChatInputFieldTextSupport.composerTextChips(
-            in: "Inspect `@Alveary/Views/Input/ChatInputField.swift` next",
-            workingDirectory: nil
+            in: "Inspect `@Alveary/Views/Input/ChatInputField.swift` next"
         )
 
         XCTAssertTrue(chips.isEmpty)

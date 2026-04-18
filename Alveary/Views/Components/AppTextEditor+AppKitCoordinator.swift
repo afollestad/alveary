@@ -156,6 +156,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     }
 
     func handleFocusChange(_ isFocused: Bool) {
+        parent.isAppKitFirstResponder?.wrappedValue = isFocused
         guard let focus = parent.focus, focus.wrappedValue != isFocused else {
             return
         }

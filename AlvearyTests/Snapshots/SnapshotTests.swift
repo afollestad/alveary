@@ -159,7 +159,7 @@ final class SnapshotTests: XCTestCase {
                 horizontalPadding: 10,
                 verticalPadding: 10,
                 sizesToContent: true,
-                textChips: { ChatInputFieldTextSupport.composerTextChips(in: $0, workingDirectory: nil) },
+                textChips: ChatInputFieldTextSupport.composerTextChips(in:),
                 inlineHint: AppTextEditorInlineHint(text: "[PR URL]")
             ),
             size: CGSize(width: 760, height: 120),

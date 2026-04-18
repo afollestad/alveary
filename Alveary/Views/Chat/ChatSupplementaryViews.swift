@@ -98,28 +98,17 @@ struct UserBubble: View {
     let showsRetry: Bool
     let onRetry: (() -> Void)?
 
-    private var containsMarkdownCode: Bool {
-        AppMarkdownCodeBlockParser.containsCode(in: text)
-    }
-
     var body: some View {
         HStack {
             Spacer(minLength: 60)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Group {
-                    if containsMarkdownCode {
-                        AppMarkdownText(
-                            markdown: text,
-                            foregroundColor: .primary,
-                            inlineCodeStyle: .userBubble
-                        )
-                    } else {
-                        Text(text)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.primary)
-                    }
-                }
+                AppMarkdownText(
+                    markdown: text,
+                    foregroundColor: .primary,
+                    inlineCodeStyle: .userBubble,
+                    composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+                )
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatBubbleVerticalPadding)
                 .background(

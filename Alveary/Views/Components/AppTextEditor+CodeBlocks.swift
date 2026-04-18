@@ -1,6 +1,15 @@
 @preconcurrency import AppKit
 import SwiftUI
 
+// Visual gap between a chip's trailing edge and whatever follows (caret, next
+// character, inline hint). Applied as positive `.kern` on the chip's last char,
+// which extends that glyph's advance width — so the caret, subsequent typed text,
+// and the `AppKitTextView` inline hint all land on the same x, ~3pt past the last
+// glyph. Only applied to slash-command chips; file-mention and inline-code chips
+// sit mid-line and stay tight. See `applyTextChips(...)` and the rationale in
+// `Alveary/Views/Components/AGENTS.md`.
+let appTextEditorChipTrailingKern: CGFloat = 3
+
 enum AppTextEditorCodeBlockStyling {
     struct StyleContext {
         let fullRange: NSRange
@@ -174,7 +183,39 @@ enum AppTextEditorCodeBlockStyling {
                     displayText: chip.displayText
                 )
             }
+            // Slash commands anchor to the line's leading edge, so their trailing side is
+            // what touches the caret / inline hint / subsequent typed text. Add trailing
+            // kerning there for visual breathing room. File mentions (and inline code)
+            // are mid-line and typically sit between word-separating spaces — giving them
+            // extra trailing padding would create asymmetric spacing ("room after, none
+            // before"), so they stay tight.
+            if chip.style == .slashCommand {
+                applyTrailingKern(to: textStorage, chipRange: clampedRange, fullLength: fullRange.length)
+            }
         }
+    }
+
+    // Extends the advance width of the chip's last character via `.kern` so the caret,
+    // next typed character, and inline hint all align to the same x-position past the
+    // chip. Relying on attribute-side kerning (instead of a post-hoc rect nudge) keeps
+    // the three following-content types consistent — SwiftUI-side hint offsets would
+    // not shift the caret or following text.
+    static func applyTrailingKern(
+        to textStorage: NSTextStorage,
+        chipRange: NSRange,
+        fullLength: Int
+    ) {
+        guard chipRange.length > 0 else {
+            return
+        }
+        let lastCharacterRange = NSRange(
+            location: chipRange.location + chipRange.length - 1,
+            length: 1
+        )
+        guard NSMaxRange(lastCharacterRange) <= fullLength else {
+            return
+        }
+        textStorage.addAttribute(.kern, value: appTextEditorChipTrailingKern, range: lastCharacterRange)
     }
 
     static func textChipAttributes(

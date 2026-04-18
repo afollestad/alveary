@@ -183,14 +183,14 @@ enum ChatInputFieldTextSupport {
         return ranges
     }
 
-    static func composerTextChips(in text: String, workingDirectory: String?) -> [AppTextEditorChip] {
+    static func composerTextChips(in text: String) -> [AppTextEditorChip] {
         let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: text)
         let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
 
         var chips = fileMentionMatches(in: text).map { match in
             AppTextEditorChip(
                 range: match.highlightRange,
-                displayText: mentionChipDisplayText(for: match.path, relativeTo: workingDirectory),
+                displayText: mentionChipDisplayText(for: match.path),
                 style: .fileMention
             )
         }
@@ -386,10 +386,17 @@ enum ChatInputFieldTextSupport {
         text.unicodeScalars.allSatisfy { CharacterSet.whitespaces.contains($0) }
     }
 
-    static func mentionChipDisplayText(for path: String, relativeTo workingDirectory: String?) -> String {
-        let displayPath = CanonicalPath.displayMentionPath(path, relativeTo: workingDirectory)
-        let fileName = (displayPath as NSString).lastPathComponent
-        return "@\((fileName.isEmpty ? displayPath : fileName))"
+    // Chip labels show just the basename (with an `@` prefix). We drop the intermediate
+    // `CanonicalPath.displayMentionPath(..., relativeTo:)` normalization entirely because
+    // `lastPathComponent` yields the same filename regardless of whether the input is an
+    // absolute path, tilde-abbreviated path, or workingDirectory-relative path. If chip
+    // labels ever need to surface a parent directory or a relative path, restore the
+    // `relativeTo workingDirectory:` parameter and thread it from UserBubble and the
+    // composer call sites — there's no live-state reason to keep the knob while nothing
+    // reads it.
+    static func mentionChipDisplayText(for path: String) -> String {
+        let fileName = (path as NSString).lastPathComponent
+        return "@\((fileName.isEmpty ? path : fileName))"
     }
 
     private static func textLength(in text: String) -> Int {

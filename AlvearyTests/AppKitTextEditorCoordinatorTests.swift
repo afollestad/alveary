@@ -19,7 +19,7 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             verticalPadding: 10,
             isDisabled: false,
             focus: nil,
-            textChips: { ChatInputFieldTextSupport.composerTextChips(in: $0, workingDirectory: nil) },
+            textChips: ChatInputFieldTextSupport.composerTextChips(in:),
             keyPressKeys: [],
             onKeyPress: nil
         )

@@ -26,6 +26,7 @@ struct AppMarkdownText: View {
     var baseURL: URL?
     var foregroundColor: Color?
     var inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard
+    var composerChipProvider: ((String) -> [AppTextEditorChip])?
 
     var body: some View {
         Group {
@@ -43,7 +44,14 @@ struct AppMarkdownText: View {
         // built-in inline style (with a blue link color) and clobbers our accent-colored
         // `.link(...)` override. Leave the individual environment modifiers below in place —
         // Textual already defaults the remaining block styles to their `.default` values.
-        StructuredText(markdown, parser: AppMarkdownParser(baseURL: baseURL, inlineCodeStyle: inlineCodeStyle))
+        StructuredText(
+            markdown,
+            parser: AppMarkdownParser(
+                baseURL: baseURL,
+                inlineCodeStyle: inlineCodeStyle,
+                composerChipProvider: composerChipProvider
+            )
+        )
             .textual.inlineStyle(inlineStyle)
             .textual.codeBlockStyle(AppMarkdownCodeBlockStyle())
             .textual.overflowMode(.scroll)
@@ -110,7 +118,20 @@ private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
 struct AppMarkdownParser: MarkupParser {
     let baseURL: URL?
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
+    let composerChipProvider: ((String) -> [AppTextEditorChip])?
     var parsingMode: AppMarkdownParsingMode = .structured
+
+    init(
+        baseURL: URL? = nil,
+        inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
+        composerChipProvider: ((String) -> [AppTextEditorChip])? = nil,
+        parsingMode: AppMarkdownParsingMode = .structured
+    ) {
+        self.baseURL = baseURL
+        self.inlineCodeStyle = inlineCodeStyle
+        self.composerChipProvider = composerChipProvider
+        self.parsingMode = parsingMode
+    }
 
     func attributedString(for input: String) throws -> AttributedString {
         let markdownParser: AttributedStringMarkdownParser
@@ -126,6 +147,7 @@ struct AppMarkdownParser: MarkupParser {
 
         var attributedString = try markdownParser.attributedString(for: input)
         attachInlineCodeChips(to: &attributedString)
+        attachComposerChips(to: &attributedString)
         return attributedString
     }
 
@@ -148,8 +170,67 @@ struct AppMarkdownParser: MarkupParser {
             attributedString[range].textual.attachment = AnyAttachment(attachment)
         }
     }
+
+    // Attach composer-style chips (leading `/command`, `@file/mention`) inside rendered user
+    // messages. The markdown parser runs first, so `attributedString` is already stripped of
+    // backtick delimiters — we detect on the flattened parsed string so NSRange offsets align
+    // directly with the attributed-string content. Ranges that already carry an inline-code
+    // attachment (from `attachInlineCodeChips`), a fenced-code-block presentation intent, or
+    // a markdown link are skipped so we don't clobber those renderings.
+    private func attachComposerChips(to attributedString: inout AttributedString) {
+        guard let composerChipProvider else {
+            return
+        }
+
+        let flatString = String(attributedString.characters)
+        let chips = composerChipProvider(flatString)
+
+        for chip in chips {
+            guard chip.range.length > 0,
+                  let swiftRange = Range(chip.range, in: flatString),
+                  let lowerScalar = swiftRange.lowerBound.samePosition(in: flatString.unicodeScalars),
+                  let upperScalar = swiftRange.upperBound.samePosition(in: flatString.unicodeScalars),
+                  let lowerAttr = AttributedString.Index(lowerScalar, within: attributedString),
+                  let upperAttr = AttributedString.Index(upperScalar, within: attributedString) else {
+                continue
+            }
+
+            let attributedRange = lowerAttr..<upperAttr
+            let conflictsWithExistingRun = attributedString[attributedRange].runs.contains { run in
+                if run.textual.attachment != nil {
+                    return true
+                }
+                if run.link != nil {
+                    return true
+                }
+                if let intent = run.presentationIntent,
+                   intent.components.contains(where: { component in
+                       if case .codeBlock = component.kind {
+                           return true
+                       }
+                       return false
+                   }) {
+                    return true
+                }
+                return false
+            }
+            guard !conflictsWithExistingRun else {
+                continue
+            }
+
+            let attachment = AppMarkdownInlineCodeAttachment(
+                text: chip.displayText,
+                style: inlineCodeStyle
+            )
+            attributedString[attributedRange].textual.attachment = AnyAttachment(attachment)
+        }
+    }
 }
 
+// Renders an inline rounded chip for both parser-detected inline code runs and
+// composer-style chips (leading `/command`, `@file/mention`). Both call sites draw the
+// same chip view, so they share the attachment: inline code passes the backtick contents
+// as `text`, while composer chips pass the already-shortened display label.
 private struct AppMarkdownInlineCodeAttachment: Attachment {
     let text: String
     let style: AppMarkdownInlineCodeStyle
@@ -244,252 +325,5 @@ struct AppMarkdownCodeBlockStyle: StructuredText.CodeBlockStyle {
                 .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
         )
         .textual.blockSpacing(.init(top: 0, bottom: 12))
-    }
-}
-
-enum AppMarkdownCodeBlockParser {
-    static func containsCode(in markdown: String) -> Bool {
-        let ranges = codeRanges(in: markdown)
-        return !ranges.blockRanges.isEmpty || !ranges.inlineContentRanges.isEmpty
-    }
-
-    static func codeRanges(in markdown: String) -> AppMarkdownCodeRanges {
-        let blockRanges = blockRanges(in: markdown)
-        let inlineRanges = inlineRanges(in: markdown, excluding: blockRanges)
-        return AppMarkdownCodeRanges(
-            blockRanges: blockRanges,
-            inlineFullRanges: inlineRanges.map(\.fullRange),
-            inlineContentRanges: inlineRanges.map(\.contentRange),
-            inlineDelimiterRanges: inlineRanges.flatMap(\.delimiterRanges)
-        )
-    }
-
-    static func blockRanges(in markdown: String) -> [NSRange] {
-        let nsMarkdown = markdown as NSString
-        guard nsMarkdown.length > 0 else {
-            return []
-        }
-
-        var ranges: [NSRange] = []
-        var activeBlockStart: Int?
-        var location = 0
-
-        while location < nsMarkdown.length {
-            let lineRange = nsMarkdown.lineRange(for: NSRange(location: location, length: 0))
-            let line = nsMarkdown.substring(with: lineRange)
-            if isFenceLine(line) {
-                if let blockStart = activeBlockStart {
-                    ranges.append(NSRange(location: blockStart, length: NSMaxRange(lineRange) - blockStart))
-                    activeBlockStart = nil
-                } else {
-                    activeBlockStart = lineRange.location
-                }
-            }
-            location = NSMaxRange(lineRange)
-        }
-
-        if let activeBlockStart {
-            ranges.append(NSRange(location: activeBlockStart, length: nsMarkdown.length - activeBlockStart))
-        }
-
-        return ranges
-    }
-
-    private static func isFenceLine(_ line: String) -> Bool {
-        line.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```")
-    }
-
-    private static func inlineRanges(in markdown: String, excluding excludedRanges: [NSRange]) -> [AppMarkdownInlineCodeRange] {
-        let nsMarkdown = markdown as NSString
-        guard nsMarkdown.length > 0 else {
-            return []
-        }
-
-        var ranges: [AppMarkdownInlineCodeRange] = []
-        var location = 0
-
-        while location < nsMarkdown.length {
-            if let excludedRange = excludedRanges.first(where: { NSLocationInRange(location, $0) }) {
-                location = NSMaxRange(excludedRange)
-                continue
-            }
-
-            guard nsMarkdown.character(at: location) == 0x60 else {
-                location += 1
-                continue
-            }
-
-            let delimiterLength = consecutiveBackticks(in: nsMarkdown, from: location)
-            let openingLocation = location
-            location += delimiterLength
-
-            if let closingLocation = matchingInlineCodeClosingLocation(
-                in: nsMarkdown,
-                from: location,
-                delimiterLength: delimiterLength,
-                excluding: excludedRanges
-            ) {
-                let openingDelimiterRange = NSRange(location: openingLocation, length: delimiterLength)
-                let closingDelimiterRange = NSRange(location: closingLocation - delimiterLength, length: delimiterLength)
-                let contentRange = NSRange(
-                    location: openingLocation + delimiterLength,
-                    length: (closingLocation - delimiterLength) - (openingLocation + delimiterLength)
-                )
-                ranges.append(
-                    AppMarkdownInlineCodeRange(
-                        fullRange: NSRange(location: openingLocation, length: closingLocation - openingLocation),
-                        contentRange: contentRange,
-                        delimiterRanges: [openingDelimiterRange, closingDelimiterRange]
-                    )
-                )
-                location = closingLocation
-            }
-
-            if location >= nsMarkdown.length || nsMarkdown.character(at: max(location - 1, 0)) != 0x60 {
-                location = openingLocation + delimiterLength
-            }
-        }
-
-        return ranges
-    }
-
-    private static func consecutiveBackticks(in markdown: NSString, from location: Int) -> Int {
-        var length = 0
-        while location + length < markdown.length,
-              markdown.character(at: location + length) == 0x60 {
-            length += 1
-        }
-        return max(length, 1)
-    }
-
-    private static func matchingInlineCodeClosingLocation(
-        in markdown: NSString,
-        from startLocation: Int,
-        delimiterLength: Int,
-        excluding excludedRanges: [NSRange]
-    ) -> Int? {
-        var location = startLocation
-
-        while location < markdown.length {
-            if let excludedRange = excludedRanges.first(where: { NSLocationInRange(location, $0) }) {
-                location = NSMaxRange(excludedRange)
-                continue
-            }
-
-            guard markdown.character(at: location) == 0x60 else {
-                location += 1
-                continue
-            }
-
-            let closingLength = consecutiveBackticks(in: markdown, from: location)
-            guard closingLength == delimiterLength else {
-                location += max(closingLength, 1)
-                continue
-            }
-
-            return location + delimiterLength
-        }
-
-        return nil
-    }
-}
-
-struct AppMarkdownCodeRanges {
-    let blockRanges: [NSRange]
-    let inlineFullRanges: [NSRange]
-    let inlineContentRanges: [NSRange]
-    let inlineDelimiterRanges: [NSRange]
-
-    var allRanges: [NSRange] {
-        blockRanges + inlineFullRanges + inlineContentRanges + inlineDelimiterRanges
-    }
-}
-
-private struct AppMarkdownInlineCodeRange {
-    let fullRange: NSRange
-    let contentRange: NSRange
-    let delimiterRanges: [NSRange]
-}
-
-enum AppMarkdownCodeBlockPalette {
-    static func fillColor(for colorScheme: ColorScheme) -> Color {
-        Color(nsColor: fillNSColor(for: colorScheme))
-    }
-
-    static func borderColor(for colorScheme: ColorScheme) -> Color {
-        Color(nsColor: borderNSColor(for: colorScheme))
-    }
-
-    static func fillNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.16, green: 0.17, blue: 0.20, alpha: 1)
-        default:
-            return NSColor(srgbRed: 0.95, green: 0.95, blue: 0.97, alpha: 1)
-        }
-    }
-
-    // Accent-tinted chip background; reads from the asset-catalog `AccentColor` via
-    // `NSColor.controlAccentColor` and layers at low opacity so chips tint their parent
-    // surface without overpowering surrounding text. Light mode bumps the opacity so the
-    // fill still reads as amber against a white parent background instead of washing out
-    // to near-white. Cached as a single dynamic NSColor so repeated accesses return the
-    // same instance — important for NSColor equality in attributed-string attributes.
-    static let inlineFillNSColor: NSColor = .accentDerived { accent, appearance in
-        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-        case .darkAqua:
-            return accent.withAlphaComponent(0.22)
-        default:
-            return accent.withAlphaComponent(0.40)
-        }
-    }
-
-    // Solid accent in dark mode reads well against the low-opacity tint, but in light
-    // mode the same bright accent over a tinted fill loses contrast; blend the accent
-    // toward black so the chip text stays legible. Deriving from `controlAccentColor`
-    // keeps the foreground in sync with the `AccentColor` asset — swapping the asset to
-    // a different hue produces a matching darkened foreground automatically.
-    static let inlineForegroundNSColor: NSColor = .accentDerived { accent, appearance in
-        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-        case .darkAqua:
-            return accent
-        default:
-            return accent.blended(withFraction: 0.70, of: .black) ?? accent
-        }
-    }
-
-    // Neutral-gray chip fill used when the chip sits on an accent-tinted surface (user
-    // bubble, selected sidebar row, selected conversation tab). The parent surface is
-    // `AppSelectionStyle.rowFill`, which is already an accent tint — another accent-derived
-    // fill at low opacity reads as "the same color as the background" and fails contrast,
-    // especially in light mode where rowFill is a near-saturated accent. A grayscale fill
-    // breaks the accent-on-accent pattern and gives the chip a clearly distinct surface.
-    // Light mode uses a near-white gray (so `.labelColor` black text pops); dark mode uses
-    // a medium-dark gray (so `.labelColor` white text pops). Do not reintroduce a
-    // `labelColor.withAlphaComponent(...)` fill here — it looks correct on darker accents
-    // but vanishes into bright accent surfaces.
-    //
-    // Built with a raw `NSColor(name:dynamicProvider:)` rather than `.accentDerived(...)`
-    // because the resolved value does not depend on the system accent — it's a pure
-    // grayscale swatch. The `.accentDerived` helper's `performAsCurrentDrawingAppearance`
-    // flattening is only load-bearing when the transform consumes `controlAccentColor`.
-    static let userBubbleInlineFillNSColor: NSColor = NSColor(name: nil, dynamicProvider: { appearance in
-        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-        case .darkAqua:
-            return NSColor(white: 0.25, alpha: 1.0)
-        default:
-            return NSColor(white: 0.93, alpha: 1.0)
-        }
-    })
-
-    static let userBubbleInlineForegroundNSColor: NSColor = NSColor.labelColor
-
-    static func borderNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
-            return NSColor(srgbRed: 0.26, green: 0.27, blue: 0.31, alpha: 1)
-        default:
-            return NSColor(srgbRed: 0.87, green: 0.87, blue: 0.90, alpha: 1)
-        }
     }
 }
