@@ -140,4 +140,39 @@ extension SnapshotTests {
             colorScheme: .dark
         )
     }
+
+    func testConversationTabsEditingChip() {
+        let thread = AgentThread(name: "Editing Chip Coverage")
+        let mainConversation = Conversation(
+            id: "main",
+            provider: "claude",
+            isMain: true,
+            displayOrder: 0,
+            thread: thread
+        )
+        let secondConversation = Conversation(
+            id: "side",
+            title: "Follow-up",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: thread
+        )
+        thread.conversations = [mainConversation, secondConversation]
+
+        assertMacSnapshot(
+            ThreadDetailConversationTabs(
+                conversations: thread.conversations,
+                selectedConversation: secondConversation,
+                statusForConversation: { _ in .stopped },
+                onSelect: { _ in },
+                onCommitRename: { _, _ in },
+                onRemove: { _ in },
+                onCreate: {},
+                editingConversationID: .constant(secondConversation.persistentModelID)
+            ),
+            size: CGSize(width: 640, height: 72),
+            named: "conversation_tabs_editing_chip"
+        )
+    }
 }

@@ -55,7 +55,10 @@ struct ThreadDetailView: View {
                         statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
                         onSelect: { appState.selectConversation($0, in: thread) },
                         onCommitRename: { renameConversation($0, to: $1) },
-                        onRemove: { pendingDeleteConversation = $0 },
+                        onRemove: { conversation in
+                            guard conversations.count > 1 else { return }
+                            pendingDeleteConversation = conversation
+                        },
                         onCreate: { Task { await createConversation() } },
                         editingConversationID: $editingConversationID
                     )
@@ -202,6 +205,8 @@ private extension ThreadDetailView {
             return
         }
 
+        selectNeighborIfClosingSelected(id: id, in: dbThread)
+
         do {
             try await agentsManager.destroyRuntime(conversationId: dbConversation.id)
             // Dismiss any delivered banner and clear the unread count before the row disappears,
@@ -230,6 +235,28 @@ private extension ThreadDetailView {
             }
         } catch {
             conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
+        }
+    }
+
+    // Before deleting the selected tab, pick its visual neighbor (next, falling
+    // back to previous). `repairSelectedConversationIfNeeded` otherwise falls
+    // back to the main conversation via its main-preference sort, which jumps
+    // selection to the first tab rather than the adjacent one.
+    func selectNeighborIfClosingSelected(id: PersistentIdentifier, in dbThread: AgentThread) {
+        let order = conversations
+        guard appState.selectedConversation(in: dbThread)?.persistentModelID == id,
+              let removedIndex = order.firstIndex(where: { $0.persistentModelID == id }) else {
+            return
+        }
+        let neighbor: Conversation? = if removedIndex + 1 < order.count {
+            order[removedIndex + 1]
+        } else if removedIndex > 0 {
+            order[removedIndex - 1]
+        } else {
+            nil
+        }
+        if let neighbor {
+            appState.selectConversation(neighbor, in: dbThread)
         }
     }
 

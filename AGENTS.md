@@ -50,10 +50,7 @@ The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The
 - Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Alveary.xcodeproj -scheme Alveary -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Alveary.app`.
 - For interactive development, you can also open `Alveary.xcodeproj` in Xcode and run the `Alveary` scheme directly.
-- When actively working on something, if the user needs to manually test, run `./scripts/build.sh` first and wait for it to exit successfully before running `./scripts/run.sh`.
-- Never run `./scripts/build.sh` and `./scripts/run.sh` in parallel, and do not start `./scripts/run.sh` until the build has completed.
-- Do not use `multi_tool_use.parallel` for any ordered validation workflow such as build-then-run, build-then-test, or record-then-verify snapshots. If one command depends on the previous command's result, run them strictly serially.
-- If the user asks to build and then run after each iteration, treat that as a hard sequencing requirement: finish `./scripts/build.sh`, confirm success, and only then start `./scripts/run.sh`.
+- Ordered validation workflows (build-then-run, build-then-test, record-then-verify) must run strictly serially — never in parallel, and never via `multi_tool_use.parallel`. Wait for `./scripts/build.sh` to exit successfully before starting `./scripts/run.sh` or any dependent command. When the user asks you to build-then-run after each iteration, treat that as a hard sequencing requirement.
 
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
