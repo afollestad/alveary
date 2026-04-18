@@ -16,6 +16,48 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(session.chipLabel, "Run - 01234567890123456789…")
     }
 
+    func testChipLabelDoesNotCountInlineCodeDelimitersTowardTruncationLimit() {
+        // 20 visible chars (backticks excluded): "Test " + "code" + " Rendering" = 19.
+        let session = TerminalSession(title: "Run", threadName: "Test `code` Rendering")
+
+        XCTAssertEqual(session.chipLabel, "Run - Test `code` Rendering")
+    }
+
+    func testChipLabelClosesInlineCodeSpanWhenTruncatingInsideIt() {
+        // Visible budget (20) is spent on "Really long code blo" — 12 chars before the
+        // code span, then 8 chars inside it. The truncation falls inside the code span,
+        // so a closing backtick is emitted so the surviving markdown still renders a chip.
+        let session = TerminalSession(title: "Run", threadName: "Really long `code block` stuff")
+
+        XCTAssertEqual(session.chipLabel, "Run - Really long `code blo`…")
+    }
+
+    func testChipLabelClosesMultiBacktickInlineCodeSpanWithMatchingDelimiterLength() {
+        // Double-backtick span means the surviving markdown must close with two backticks
+        // to keep the delimiters balanced; a single backtick would leave the fragment
+        // unable to render as a chip.
+        let session = TerminalSession(title: "Run", threadName: "Start ``inside code block here`` end")
+
+        XCTAssertEqual(session.chipLabel, "Run - Start ``inside code bl``…")
+    }
+
+    func testChipLabelCountsEmojiAsSingleGraphemeClusterAgainstBudget() {
+        // Each 🔥 is one grapheme cluster but two UTF-16 code units. Budget is 20
+        // grapheme clusters, so 20 🔥 should fit without truncation.
+        let name = String(repeating: "🔥", count: 20)
+        let session = TerminalSession(title: "Run", threadName: name)
+
+        XCTAssertEqual(session.chipLabel, "Run - \(name)")
+    }
+
+    func testChipLabelTruncatesAtGraphemeClusterBoundaryForEmoji() {
+        // 21 🔥 exceeds the 20-grapheme budget. The cut must land on a grapheme boundary
+        // so the surviving string never breaks a surrogate pair.
+        let session = TerminalSession(title: "Run", threadName: String(repeating: "🔥", count: 21))
+
+        XCTAssertEqual(session.chipLabel, "Run - \(String(repeating: "🔥", count: 20))…")
+    }
+
     func testCreateSessionSelectsNewestSessionByDefault() {
         let manager = TerminalManager()
 

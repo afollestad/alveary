@@ -42,4 +42,38 @@ extension SnapshotTests {
             named: "terminal_pane_sessions"
         )
     }
+
+    func testTerminalPaneSessionChipInlineCode() {
+        let terminalManager = TerminalManager()
+        // Unselected chip: label is truncated inside the code span, so the inline-code
+        // chip renders over the muted (unselected) capsule fill.
+        terminalManager.createSession(
+            title: "Open",
+            projectName: "Alveary",
+            threadName: "Really long `code block` stuff",
+            currentDirectory: "/Users/alice/Development/alveary",
+            command: "open .",
+            output: "",
+            status: .running,
+            select: false
+        )
+        // Selected chip: label fits without truncation, so the inline-code chip renders
+        // in the on-accent style against the selected capsule fill.
+        terminalManager.createSession(
+            title: "Open",
+            projectName: "Alveary",
+            threadName: "Test `code` Rendering",
+            currentDirectory: "/Users/alice/Development/alveary",
+            command: "open .",
+            output: "",
+            status: .running
+        )
+
+        assertMacSnapshot(
+            TerminalPane(onClose: {})
+                .environment(terminalManager),
+            size: CGSize(width: 1200, height: 240),
+            named: "terminal_pane_session_chip_inline_code"
+        )
+    }
 }

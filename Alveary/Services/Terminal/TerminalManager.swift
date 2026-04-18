@@ -50,14 +50,64 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
             return title
         }
 
-        let truncatedThreadName: String
-        if threadName.count > Self.maxChipThreadNameLength {
-            truncatedThreadName = "\(threadName.prefix(Self.maxChipThreadNameLength))…"
-        } else {
-            truncatedThreadName = threadName
+        return "\(title) - \(Self.truncatePreservingInlineCode(threadName, toVisibleLength: Self.maxChipThreadNameLength))"
+    }
+
+    /// Truncates `markdown` so the visible (non-delimiter) grapheme-cluster count stays
+    /// within `limit`. Iterates by `Character` so emoji and other multi-UTF-16 graphemes
+    /// count as one and the cut never lands inside a surrogate pair. Backticks that
+    /// delimit inline code don't count toward the visible budget, so labels like
+    /// `"Test `code` Rendering"` aren't trimmed earlier than their plain equivalent. If
+    /// the cut lands inside an inline code span, a closing delimiter of the same backtick
+    /// length as the opening (so multi-backtick spans stay balanced too) is appended so
+    /// the surviving markdown still renders a chip.
+    static func truncatePreservingInlineCode(_ markdown: String, toVisibleLength limit: Int) -> String {
+        let ranges = AppMarkdownCodeBlockParser.codeRanges(in: markdown)
+        let delimiterUTF16Indices = Set(ranges.inlineDelimiterRanges.flatMap { Array($0.location..<NSMaxRange($0)) })
+
+        var visibleCount = 0
+        var cutIndex = markdown.endIndex
+        var cutUTF16Offset = (markdown as NSString).length
+        var utf16Offset = 0
+        for index in markdown.indices {
+            let character = markdown[index]
+            if !delimiterUTF16Indices.contains(utf16Offset) {
+                if visibleCount == limit {
+                    cutIndex = index
+                    cutUTF16Offset = utf16Offset
+                    break
+                }
+                visibleCount += 1
+            }
+            utf16Offset += character.utf16.count
         }
 
-        return "\(title) - \(truncatedThreadName)"
+        if cutIndex == markdown.endIndex {
+            return markdown
+        }
+
+        // Pull the cut back past any dangling opening-delimiter backticks so the prefix
+        // doesn't end with an unmatched `` ` `` that can't form a chip.
+        while cutIndex > markdown.startIndex {
+            let previous = markdown.index(before: cutIndex)
+            let previousOffset = cutUTF16Offset - markdown[previous].utf16.count
+            guard delimiterUTF16Indices.contains(previousOffset) else {
+                break
+            }
+            cutIndex = previous
+            cutUTF16Offset = previousOffset
+        }
+
+        var closingDelimiter = ""
+        if let containingRange = ranges.inlineFullRanges.first(where: { range in
+            cutUTF16Offset > range.location && cutUTF16Offset < NSMaxRange(range)
+        }) {
+            let delimiterLength = ranges.inlineDelimiterRanges
+                .first { $0.location == containingRange.location }?.length ?? 1
+            closingDelimiter = String(repeating: "`", count: delimiterLength)
+        }
+
+        return String(markdown[..<cutIndex]) + closingDelimiter + "…"
     }
 
     enum Status: String, Sendable {

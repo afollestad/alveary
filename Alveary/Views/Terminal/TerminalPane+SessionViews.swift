@@ -7,20 +7,24 @@ struct TerminalSessionChip: View {
     let onClose: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        ZStack(alignment: .trailing) {
             Button(action: action) {
                 HStack(spacing: 8) {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 8, height: 8)
 
-                    Text(session.chipLabel)
-                        .lineLimit(1)
+                    AppMarkdownInlineLabel(text: session.chipLabel, isSelected: isSelected)
                         .fixedSize(horizontal: true, vertical: false)
                 }
+                .padding(.leading, 12)
+                .padding(.vertical, 8)
+                .padding(.trailing, 36)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
+            .focusEffectDisabled()
             .accessibilityLabel(accessibilityLabel)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
@@ -30,14 +34,10 @@ struct TerminalSessionChip: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close \(session.chipLabel)")
+            .focusEffectDisabled()
+            .accessibilityLabel("Close \(plainChipLabel)")
+            .padding(.trailing, 12)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            Capsule(style: .continuous)
-                .fill(isSelected ? AppSelectionStyle.rowFill : Color.secondary.opacity(0.08))
-        )
         .fixedSize(horizontal: true, vertical: false)
     }
 }
@@ -57,7 +57,11 @@ private extension TerminalSessionChip {
     }
 
     var accessibilityLabel: String {
-        "\(session.chipLabel), \(session.status.rawValue)"
+        "\(plainChipLabel), \(session.status.rawValue)"
+    }
+
+    var plainChipLabel: String {
+        AppMarkdownInlineLabel.plainText(from: session.chipLabel)
     }
 }
 

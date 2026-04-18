@@ -6,10 +6,15 @@ These rules cover shared UI components under `Alveary/Views/Components/`.
 
 - `SelectableRowModifier` in `SelectionRowBackground.swift` drives both the press highlight and the click action from a single `DragGesture(minimumDistance: 0)`: `onChanged` sets the highlight, `onEnded` clears it and calls the row action as long as the pointer didn't move far. Do not revert to `.onTapGesture` (alone or alongside `.onLongPressGesture(minimumDuration: .infinity, pressing:)`): SwiftUI's tap gesture on macOS stops firing when a click is held past its short-click window, so the background highlights on mouse-down but mouse-up after a longer hold does nothing. Keep a sibling `.accessibilityAction { action() }` so VoiceOver activation still invokes the row.
 
+## TabChipButtonStyle
+
+- Use `TabChipButtonStyle(isSelected:)` from `TabChipButtonStyle.swift` for any pill/capsule-shaped select affordance (conversation tab chips, terminal session chips, etc.) so the whole capsule is the hit area — not just the text. Pair it with a trailing `ZStack`-overlaid close button (with `focusEffectDisabled()`) and outer padding on the button's content rather than the chip's HStack, so the capsule's pressed fill covers the full visual bounds. Do not revert to wrapping the label in a `.plain` `Button` inside a separate `HStack` with a capsule `.background`; that collapses the hit area to the text and leaves the rest of the capsule dead.
+
 ## AppMarkdownInlineLabel
 
 - Use `AppMarkdownInlineLabel` (not raw `Text`) for any single-line label that renders a user-provided string which may contain inline markdown code, such as sidebar thread rows and conversation tab chips. The label segments the string and renders inline code via `AppMarkdownInlineCodeChip` clamped to the surrounding text's line height so the chip's rounded background visually overflows into the parent's vertical padding without inflating row/tab height.
 - The label's `textStyle` parameter drives both the SwiftUI text font and the chip font size; keep them paired by always passing a single `NSFont.TextStyle` rather than reintroducing independent `font` and chip-size parameters.
+- When a chip-bearing surface needs an explicit `accessibilityLabel` (for example a `Button`-wrapped chip where SwiftUI's combined children label doesn't apply), use `AppMarkdownInlineLabel.plainText(from:)` to strip backtick delimiters. Do not read the raw markdown aloud via VoiceOver, and do not hand-roll a regex replacement that can cut inside multi-backtick spans.
 
 ## Accent Color Surfaces
 

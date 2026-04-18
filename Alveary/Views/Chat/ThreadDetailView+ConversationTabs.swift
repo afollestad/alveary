@@ -104,33 +104,11 @@ private struct ConversationTabChip: View {
     }
 }
 
-private struct ConversationTabSelectButtonStyle: ButtonStyle {
-    let isSelected: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                Capsule(style: .continuous)
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
-            )
-            .contentShape(Capsule(style: .continuous))
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if isPressed {
-            return AppSelectionStyle.pressedFill
-        }
-        if isSelected {
-            return AppSelectionStyle.rowFill
-        }
-        return Color.secondary.opacity(0.08)
-    }
-}
-
 private extension ConversationTabChip {
     var editingChip: some View {
-        HStack(spacing: 6) {
+        // Match the selectable chip's ZStack + trailing-padded capsule geometry so
+        // toggling between display and rename doesn't resize the chip.
+        ZStack(alignment: .trailing) {
             HStack(spacing: 8) {
                 Circle()
                     .fill(statusColor)
@@ -144,15 +122,17 @@ private extension ConversationTabChip {
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
+            .padding(.leading, 12)
+            .padding(.vertical, 8)
+            .padding(.trailing, 36)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
 
             closeButton
+                .padding(.trailing, 12)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            Capsule(style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
     }
 
     var selectableChip: some View {
@@ -170,9 +150,9 @@ private extension ConversationTabChip {
                 .padding(.vertical, 8)
                 .padding(.trailing, 36)
             }
-            .buttonStyle(ConversationTabSelectButtonStyle(isSelected: isSelected))
+            .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
             .focusEffectDisabled()
-            .accessibilityLabel(conversation.displayName())
+            .accessibilityLabel(plainDisplayName)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityAction(named: Text("Rename")) {
                 editingConversationID = conversation.persistentModelID
@@ -193,7 +173,11 @@ private extension ConversationTabChip {
         }
         .buttonStyle(.plain)
         .focusEffectDisabled()
-        .accessibilityLabel("Remove \(conversation.displayName())")
+        .accessibilityLabel("Remove \(plainDisplayName)")
+    }
+
+    var plainDisplayName: String {
+        AppMarkdownInlineLabel.plainText(from: conversation.displayName())
     }
 
     var statusColor: Color {

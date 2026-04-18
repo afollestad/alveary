@@ -75,6 +75,42 @@ struct AppMarkdownInlineLabel: View {
     }
 }
 
+extension AppMarkdownInlineLabel {
+    /// Returns `markdown` with inline-code backtick delimiters stripped so the result
+    /// reads cleanly in non-markdown contexts like VoiceOver accessibility labels.
+    /// Non-delimiter content (including the code span's text) is preserved verbatim.
+    static func plainText(from markdown: String) -> String {
+        let delimiterRanges = AppMarkdownCodeBlockParser
+            .codeRanges(in: markdown)
+            .inlineDelimiterRanges
+            .sorted { $0.location < $1.location }
+        guard !delimiterRanges.isEmpty else {
+            return markdown
+        }
+
+        let nsMarkdown = markdown as NSString
+        var result = ""
+        result.reserveCapacity(markdown.count)
+        var cursor = 0
+        for delimiterRange in delimiterRanges {
+            if delimiterRange.location > cursor {
+                result += nsMarkdown.substring(with: NSRange(
+                    location: cursor,
+                    length: delimiterRange.location - cursor
+                ))
+            }
+            cursor = NSMaxRange(delimiterRange)
+        }
+        if cursor < nsMarkdown.length {
+            result += nsMarkdown.substring(with: NSRange(
+                location: cursor,
+                length: nsMarkdown.length - cursor
+            ))
+        }
+        return result
+    }
+}
+
 private enum InlineSegment {
     case text(String)
     case code(String)
