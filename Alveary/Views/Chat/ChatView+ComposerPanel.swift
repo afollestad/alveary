@@ -116,7 +116,8 @@ struct ChatComposerPanel: View {
                 },
                 workingDirectory: workingDirectory,
                 loadFileCompletions: loadFileCompletions,
-                loadSkillCompletions: loadSkillCompletions
+                loadSkillCompletions: loadSkillCompletions,
+                focusRequestToken: $appState.pendingComposerFocusToken
             )
         }
         .padding(.horizontal, composerPanelHorizontalPadding)

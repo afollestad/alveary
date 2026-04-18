@@ -320,6 +320,17 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testShouldSuppressSidebarKeyPressWhileRenamingReturnsTrueWhenEditing() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let thread = makeThread(name: "Thread 1", project: project)
+
+        XCTAssertTrue(shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: thread.persistentModelID))
+    }
+
+    func testShouldSuppressSidebarKeyPressWhileRenamingReturnsFalseWhenIdle() {
+        XCTAssertFalse(shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: nil))
+    }
+
     func testRenameThreadIDReturnsNilWhileEditingAnotherThread() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)

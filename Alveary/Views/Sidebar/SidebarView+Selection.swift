@@ -13,7 +13,10 @@ extension SidebarView {
             .padding(.vertical, 8)
             .appSelectableRow(
                 isSelected: appState.selectedSidebarItem == item,
-                action: { appState.selectedSidebarItem = item }
+                action: {
+                    appState.selectedSidebarItem = item
+                    claimSidebarFocus()
+                }
             )
     }
 
@@ -32,10 +35,12 @@ extension SidebarView {
         } else {
             appState.selectedSidebarItem = item
         }
+        claimSidebarFocus()
     }
 
     func activateThread(_ thread: AgentThread) {
         appState.selectedSidebarItem = .thread(thread)
+        claimSidebarFocus()
     }
 
     func syncExpansionWithSelection(_ item: SidebarItem?) {

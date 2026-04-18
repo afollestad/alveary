@@ -9,6 +9,7 @@ extension SidebarView {
             }
 
             expandedProjects.insert(project.path)
+            appState.requestComposerFocus()
             appState.selectedSidebarItem = .thread(resolvedThread)
         } catch {
             viewModel.presentSidebarError(error)

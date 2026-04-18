@@ -2,6 +2,8 @@
 
 These instructions cover composer-specific view code under `Alveary/Views/Input/`.
 
+> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.focusedSceneValue`, `.onKeyPress`, or `.keyboardShortcut` in this folder, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. It owns the composer's `focusedSceneValue(\.chatComposerFocus, ...)` publisher contract and the companion NSTextView resign branch in `AppTextEditor+AppKit.swift`'s `syncFocusIfNeeded()`. `ChatInputField` is the sole publisher of that key — additional input surfaces here must follow the same pattern rather than introducing a second publisher.
+
 - `TextSelection` values flowing through the AppKit editor can briefly refer to an older string right after send/reset updates. Any code that maps those indices into the current string, including `NSTextView` sync and autocomplete helpers, must treat stale indices as invalid and normalize or bail out instead of assuming the indices still belong to the new text.
 - Keep selection and replacement offsets in UTF-16 units to match AppKit `NSRange` behavior; mixing them with `String.count` breaks emoji and other composed-character handling.
 - Apply composer token styling as attributed ranges while keeping the editor's base `textColor` and typing color pinned to the normal label color. Deriving the base color from already-styled text can cause accent-colored mentions or slash commands to bleed into later plain text or persist after clearing the input.

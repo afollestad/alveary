@@ -12,6 +12,8 @@ struct SidebarView: View {
     @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
     @State var pendingDeleteProject: Project?
+    @FocusState var isKeyboardFocused: Bool
+    @FocusedValue(\.chatComposerFocus) var chatComposerFocus
 
     var projects: [Project] {
         queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -69,6 +71,7 @@ struct SidebarView: View {
                             isActive: isProjectActive,
                             onToggleExpanded: {
                                 toggleExpansion(for: project.path, in: &expandedProjects)
+                                claimSidebarFocus()
                             },
                             onActivate: {
                                 activateProject(project)
@@ -130,6 +133,9 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .focusable()
+            .focused($isKeyboardFocused)
+            .focusEffectDisabled()
             .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey], action: handleSidebarKeyPress)
         }
         .onAppear {
@@ -137,6 +143,21 @@ struct SidebarView: View {
         }
         .onChange(of: appState.selectedSidebarItem) { _, item in
             syncExpansionWithSelection(item)
+            // Skip the focus claim when a command has requested the composer grab focus
+            // (e.g. ⌘N). `ChatInputField` consumes and clears the token once it focuses.
+            if appState.pendingComposerFocusToken == nil {
+                claimSidebarFocus()
+            }
+        }
+        .onChange(of: appState.pendingComposerFocusToken) { _, token in
+            // Release the sidebar's `@FocusState` claim so the composer can take AppKit
+            // first responder without a fight. Without this, a sidebar that already holds
+            // `isKeyboardFocused = true` (from prior keyboard navigation) keeps reclaiming
+            // AppKit focus via `.focused($isKeyboardFocused)` while the composer tries to
+            // take over.
+            if token != nil {
+                isKeyboardFocused = false
+            }
         }
         .animation(nil, value: statusVersion)
         .confirmationDialog(
@@ -218,5 +239,27 @@ struct SidebarView: View {
 
     func deleteConfirmationMessage(for thread: AgentThread) -> String {
         "This permanently deletes \"\(thread.displayName())\" and removes its worktree and branch if present."
+    }
+
+    // Driven by explicit user actions (row tap, selection change, expansion toggle),
+    // not by `.onChange(of: isKeyboardFocused)`. The reactive change handler also fires
+    // when SwiftUI's `.focused($isKeyboardFocused)` re-claims the List after another
+    // view briefly takes focus, which would yank focus back from the composer the
+    // moment the user clicks into it.
+    //
+    // Always call this from row taps too — clicking the *already-selected* row does
+    // not mutate `selectedSidebarItem`, so the `.onChange` hook never fires and the
+    // composer would otherwise keep AppKit first-responder while the user expects
+    // arrow keys to drive the sidebar.
+    //
+    // Clears `pendingComposerFocusToken` up front so a racing sidebar takeover
+    // cancels an unconsumed composer-focus request. Without this, a user who presses
+    // ⌘N and immediately clicks a different sidebar row before the new composer
+    // mounts would see that composer steal first responder back once it mounts and
+    // consumes the stale token.
+    func claimSidebarFocus() {
+        appState.pendingComposerFocusToken = nil
+        chatComposerFocus?.wrappedValue = false
+        isKeyboardFocused = true
     }
 }

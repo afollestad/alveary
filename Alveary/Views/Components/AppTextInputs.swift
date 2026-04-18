@@ -116,6 +116,8 @@ struct AppTextEditor: View {
     private let inlineHint: AppTextEditorInlineHint?
     private let keyPressKeys: [AppTextEditorKey]
     private let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+    private let requestFirstResponder: UUID?
+    private let onFocusRequestConsumed: (() -> Void)?
 
     init(
         text: Binding<String>,
@@ -141,7 +143,9 @@ struct AppTextEditor: View {
         inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
-        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
+        requestFirstResponder: UUID? = nil,
+        onFocusRequestConsumed: (() -> Void)? = nil
     ) {
         self._text = text
         self.selection = nil
@@ -168,6 +172,8 @@ struct AppTextEditor: View {
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
+        self.requestFirstResponder = requestFirstResponder
+        self.onFocusRequestConsumed = onFocusRequestConsumed
     }
 
     init(
@@ -195,7 +201,9 @@ struct AppTextEditor: View {
         inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: [AppTextEditorKey] = [],
-        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
+        requestFirstResponder: UUID? = nil,
+        onFocusRequestConsumed: (() -> Void)? = nil
     ) {
         self._text = text
         self.selection = selection
@@ -222,6 +230,8 @@ struct AppTextEditor: View {
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
+        self.requestFirstResponder = requestFirstResponder
+        self.onFocusRequestConsumed = onFocusRequestConsumed
     }
 
     var body: some View {
@@ -249,7 +259,9 @@ struct AppTextEditor: View {
                 inlineCodeDelimiterRanges: inlineCodeDelimiterRanges,
                 inlineHint: inlineHint,
                 keyPressKeys: Set(keyPressKeys),
-                onKeyPress: onKeyPress
+                onKeyPress: onKeyPress,
+                requestFirstResponder: requestFirstResponder,
+                onFocusRequestConsumed: onFocusRequestConsumed
             )
             .frame(
                 maxWidth: .infinity,

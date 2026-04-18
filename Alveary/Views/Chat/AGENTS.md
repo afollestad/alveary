@@ -2,6 +2,8 @@
 
 These instructions cover chat-specific view code under `Alveary/Views/Chat/`.
 
+> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.onKeyPress`, or `.keyboardShortcut` on any chat surface, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. It owns modifier-shortcut placement (⌘W, ⌘1..9, etc.), why shortcut-bearing buttons must not be buried in conditionally-rendered branches, and how any new `.onKeyPress` handler would conflict with the sidebar's focus grab.
+
 - Conversation rename in multi-conversation tabs is inline via `editingConversationID` in `ConversationTabChip`, not a separate modal flow.
 - Transcript auto-follow should stay pinned when the user is already at the bottom and new content increases transcript height, including wrapped streaming-bubble growth. Treat content-size growth differently from a user-initiated scroll-away so the `Jump to bottom` affordance only appears after the user actually leaves the bottom.
 - In `ChatTranscriptView`, keep the bottom inset inside the `chat-bottom` scroll target instead of as trailing stack padding. Bottom padding after the anchor leaves a small extra scroll range when entering a thread or jumping to the bottom.

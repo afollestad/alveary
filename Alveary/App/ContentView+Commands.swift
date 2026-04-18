@@ -77,6 +77,7 @@ extension ContentView {
                 return
             }
 
+            appState.requestComposerFocus()
             appState.selectedSidebarItem = uiModelContext.resolveThread(id: createdThread.persistentModelID).map(SidebarItem.thread)
         } catch {
             guard appState.pendingCommand?.id == commandID else {

@@ -28,8 +28,14 @@ func assertMacSnapshot<V: View>(
     let controller = NSHostingController(rootView: rootView)
     controller.view.frame = CGRect(origin: .zero, size: size)
     controller.view.appearance = NSAppearance(named: appearanceName)
+    // Position the snapshot window far off-screen so the real cursor position cannot
+    // land inside its bounds and trigger hover effects on controls (e.g. a Picker
+    // rendering a hovered background behind its selected label). Without this the
+    // off-screen window still sits in the primary-display coordinate space and picks
+    // up the global mouse position mid-render, producing flaky snapshots.
+    let offscreenOrigin = CGPoint(x: -size.width - 1000, y: -size.height - 1000)
     let window = NSWindow(
-        contentRect: CGRect(origin: .zero, size: size),
+        contentRect: CGRect(origin: offscreenOrigin, size: size),
         styleMask: [.borderless],
         backing: .buffered,
         defer: false
@@ -38,6 +44,11 @@ func assertMacSnapshot<V: View>(
     window.appearance = NSAppearance(named: appearanceName)
     window.backgroundColor = .windowBackgroundColor
     window.contentViewController = controller
+    // Explicitly clear first responder so no control in the hierarchy begins the
+    // render with a focus ring. NSHostingController can settle on an initial first
+    // responder during `layoutIfNeeded()`; flushing it before `displayIfNeeded()`
+    // produces a deterministic, focus-free baseline.
+    window.makeFirstResponder(nil)
     window.layoutIfNeeded()
     window.displayIfNeeded()
     controller.view.layoutSubtreeIfNeeded()

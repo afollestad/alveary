@@ -38,6 +38,17 @@ struct AppKitTextEditorView: NSViewRepresentable {
     let inlineHint: AppTextEditorInlineHint?
     let keyPressKeys: Set<AppTextEditorKey>
     let onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+    // Programmatic focus requests go through this token instead of writing to `focus`
+    // directly. Writing a @FocusState binding from code only propagates to SwiftUI
+    // focus tracking when a `.focused($state)` modifier exists somewhere in the view
+    // hierarchy — this NSView bridge has none, so programmatic writes previously
+    // no-op'd (the @FocusState storage updated but no view re-render fired, so
+    // updateNSView still read `focus.wrappedValue == false`). The token is a plain
+    // value that SwiftUI compares across renders, so a change here reliably triggers
+    // `updateNSView`, where the coordinator then claims AppKit first responder
+    // directly and lets `handleFocusChange` backfill the @FocusState.
+    let requestFirstResponder: UUID?
+    let onFocusRequestConsumed: (() -> Void)?
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -58,7 +69,9 @@ struct AppKitTextEditorView: NSViewRepresentable {
         inlineCodeDelimiterRanges: ((String) -> [NSRange])? = nil,
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: Set<AppTextEditorKey>,
-        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?
+        onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?,
+        requestFirstResponder: UUID? = nil,
+        onFocusRequestConsumed: (() -> Void)? = nil
     ) {
         _text = text
         self.selection = selection
@@ -77,6 +90,8 @@ struct AppKitTextEditorView: NSViewRepresentable {
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
         self.onKeyPress = onKeyPress
+        self.requestFirstResponder = requestFirstResponder
+        self.onFocusRequestConsumed = onFocusRequestConsumed
     }
 
     func makeCoordinator() -> Coordinator {
@@ -144,272 +159,9 @@ struct AppKitTextEditorView: NSViewRepresentable {
         context.coordinator.syncTextIfNeeded()
         context.coordinator.syncSelectionIfNeeded()
         context.coordinator.syncFocusIfNeeded()
+        context.coordinator.syncFocusRequestIfNeeded()
         context.coordinator.recalculateHeight()
     }
-}
-
-@MainActor
-final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
-    var parent: AppKitTextEditorView
-    weak var textView: AppKitTextView?
-    weak var scrollView: AppKitTextEditorScrollView?
-    var suppressCallbacks = false
-    var lastLaidOutTextWidth: CGFloat = 0
-    private var selectionRestyleScheduled = false
-
-    init(parent: AppKitTextEditorView) {
-        self.parent = parent
-    }
-
-    func attach(textView: AppKitTextView, scrollView: AppKitTextEditorScrollView) {
-        self.textView = textView
-        self.scrollView = scrollView
-    }
-
-    func applyConfiguration(from parent: AppKitTextEditorView) {
-        guard let textView else {
-            return
-        }
-
-        textView.baseTextFont = .preferredFont(forTextStyle: .body)
-        textView.isEditable = !parent.isDisabled
-        textView.isSelectable = true
-        textView.textColor = .labelColor
-        textView.placeholder = parent.placeholder ?? ""
-        textView.inlineHint = parent.inlineHint
-        syncInlineCodePresentation(for: textView)
-        syncTextChipPresentation(for: textView)
-        textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
-        applyTextHighlights()
-        textView.refreshInlineHintView()
-        textView.needsDisplay = true
-    }
-
-    func syncTextIfNeeded() {
-        guard let textView, textView.string != parent.text else {
-            if let textView {
-                syncInlineCodePresentation(for: textView)
-            }
-            applyTextHighlights()
-            return
-        }
-
-        suppressCallbacks = true
-        textView.string = parent.text
-        suppressCallbacks = false
-        syncInlineCodePresentation(for: textView)
-        syncTextChipPresentation(for: textView)
-        applyTextHighlights()
-        textView.refreshInlineHintView()
-        textView.needsDisplay = true
-    }
-
-    func syncSelectionIfNeeded() {
-        guard let textView,
-              let selection = parent.selection else {
-            return
-        }
-
-        guard let nsRange = nsRange(for: selection.wrappedValue, in: parent.text) else {
-            syncSelectionBinding(with: textView)
-            return
-        }
-
-        guard textView.selectedRange() != nsRange else {
-            return
-        }
-
-        suppressCallbacks = true
-        textView.setSelectedRange(nsRange)
-        suppressCallbacks = false
-    }
-
-    func syncFocusIfNeeded() {
-        guard let textView, let focus = parent.focus, focus.wrappedValue else {
-            return
-        }
-
-        guard textView.window?.firstResponder !== textView else {
-            return
-        }
-
-        DispatchQueue.main.async {
-            textView.window?.makeFirstResponder(textView)
-        }
-    }
-
-    func handleFocusChange(_ isFocused: Bool) {
-        guard let focus = parent.focus, focus.wrappedValue != isFocused else {
-            return
-        }
-
-        focus.wrappedValue = isFocused
-    }
-
-    func textDidChange(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView else {
-            return
-        }
-
-        if !suppressCallbacks {
-            parent.text = textView.string
-        }
-        if let textView = textView as? AppKitTextView {
-            syncInlineCodePresentation(for: textView)
-            syncTextChipPresentation(for: textView)
-        }
-        applyTextHighlights()
-        recalculateHeight()
-        updateSelection(from: textView)
-    }
-
-    private func syncInlineCodePresentation(for textView: AppKitTextView) {
-        textView.inlineCodeBackgroundRanges = parent.inlineCodeBackgroundRanges?(textView.string) ?? []
-        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.inlineFillNSColor
-    }
-
-    func textViewDidChangeSelection(_ notification: Notification) {
-        guard let textView = notification.object as? NSTextView else {
-            return
-        }
-
-        updateSelection(from: textView)
-        refreshTypingAttributes()
-        scheduleSelectionRestyle()
-    }
-
-    func textDidBeginEditing(_ notification: Notification) {
-        handleFocusChange(true)
-    }
-
-    func textDidEndEditing(_ notification: Notification) {
-        handleFocusChange(false)
-    }
-
-    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        guard let key = AppTextEditorKey(selector: commandSelector),
-              parent.keyPressKeys.contains(key),
-              let handler = parent.onKeyPress else {
-            return false
-        }
-
-        let modifiers = NSApp.currentEvent?.modifierFlags.eventModifiers ?? []
-        let result = handler(AppTextEditorKeyPress(key: key, modifiers: modifiers))
-        return result == .handled
-    }
-
-    func recalculateHeight() {
-        guard let textView,
-              let scrollView,
-              let layoutManager = textView.layoutManager,
-              let textContainer = textView.textContainer else {
-            return
-        }
-
-        let availableWidth = scrollView.contentSize.width
-        guard availableWidth > 0 else {
-            return
-        }
-
-        if abs(textView.frame.width - availableWidth) > 0.5 {
-            textView.frame.size.width = availableWidth
-        }
-
-        layoutManager.ensureLayout(for: textContainer)
-        let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
-        let usedHeight = layoutManager.usedRect(for: textContainer).height
-        let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
-
-        if abs(textView.frame.height - max(contentHeight, scrollView.contentSize.height)) > 0.5 {
-            textView.frame.size.height = max(contentHeight, scrollView.contentSize.height)
-        }
-
-        if abs(parent.measuredTextHeight - contentHeight) > 0.5 {
-            parent.measuredTextHeight = contentHeight
-        }
-    }
-
-    private func updateSelection(from textView: NSTextView) {
-        guard !suppressCallbacks,
-              parent.selection != nil else {
-            return
-        }
-
-        syncSelectionBinding(with: textView)
-    }
-
-    private func scheduleSelectionRestyle() {
-        guard !selectionRestyleScheduled else {
-            return
-        }
-
-        selectionRestyleScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else {
-                return
-            }
-
-            self.selectionRestyleScheduled = false
-            self.applyTextHighlights()
-            self.textView?.needsDisplay = true
-        }
-    }
-
-    private func textSelection(for range: NSRange, in text: String) -> TextSelection? {
-        guard let stringRange = Range(range, in: text) else {
-            return nil
-        }
-
-        if range.length == 0 {
-            return TextSelection(insertionPoint: stringRange.lowerBound)
-        }
-        return TextSelection(range: stringRange)
-    }
-
-    private func syncSelectionBinding(with textView: NSTextView) {
-        guard let selection = parent.selection,
-              let textSelection = textSelection(for: textView.selectedRange(), in: textView.string) else {
-            return
-        }
-
-        if selection.wrappedValue != textSelection {
-            selection.wrappedValue = textSelection
-        }
-    }
-
-    private func nsRange(for selection: TextSelection?, in text: String) -> NSRange? {
-        guard let selection else {
-            return nil
-        }
-
-        switch selection.indices {
-        case .selection(let range):
-            return nsRange(for: range, in: text)
-        case .multiSelection(let rangeSet):
-            guard let firstRange = rangeSet.ranges.first else {
-                return nil
-            }
-            return nsRange(for: firstRange, in: text)
-        @unknown default:
-            return nil
-        }
-    }
-
-    private func nsRange(for range: Range<String.Index>, in text: String) -> NSRange? {
-        let utf16 = text.utf16
-        guard let lowerBound = range.lowerBound.samePosition(in: utf16),
-              let upperBound = range.upperBound.samePosition(in: utf16) else {
-            return nil
-        }
-
-        let location = utf16.distance(from: utf16.startIndex, to: lowerBound)
-        let length = utf16.distance(from: lowerBound, to: upperBound)
-        return NSRange(location: location, length: length)
-    }
-}
-
-extension AppKitTextEditorView {
-    typealias Coordinator = AppKitTextEditorCoordinator
 }
 
 final class AppKitTextEditorScrollView: NSScrollView {
@@ -424,51 +176,5 @@ final class AppKitTextEditorScrollView: NSScrollView {
 final class AppKitTextEditorContainerView: NSView {
     override var isFlipped: Bool {
         true
-    }
-}
-
-private extension AppTextEditorKey {
-    init?(selector: Selector) {
-        switch selector {
-        case #selector(NSResponder.moveUp(_:)):
-            self = .upArrow
-        case #selector(NSResponder.moveDown(_:)):
-            self = .downArrow
-        case #selector(NSResponder.insertTab(_:)):
-            self = .tab
-        case #selector(NSResponder.cancelOperation(_:)):
-            self = .escape
-        case #selector(NSResponder.insertNewline(_:)):
-            self = .return
-        default:
-            return nil
-        }
-    }
-}
-
-private extension NSEvent.ModifierFlags {
-    var eventModifiers: EventModifiers {
-        var modifiers: EventModifiers = []
-
-        if contains(.shift) {
-            modifiers.insert(.shift)
-        }
-        if contains(.control) {
-            modifiers.insert(.control)
-        }
-        if contains(.option) {
-            modifiers.insert(.option)
-        }
-        if contains(.command) {
-            modifiers.insert(.command)
-        }
-        if contains(.capsLock) {
-            modifiers.insert(.capsLock)
-        }
-        if contains(.numericPad) {
-            modifiers.insert(.numericPad)
-        }
-
-        return modifiers
     }
 }

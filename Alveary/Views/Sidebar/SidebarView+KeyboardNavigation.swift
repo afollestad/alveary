@@ -27,6 +27,16 @@ extension SidebarView {
     }
 
     func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        // Let the inline-rename TextField own the keyboard while editing so arrow keys,
+        // Return, and Delete don't leak into sidebar navigation or trigger a re-entrant
+        // rename. Re-enabling this path while `editingThreadID` is set produces key
+        // collisions — `handleRenameKey()` guards against re-entering edit mode, but
+        // the other cases still mutate `selectedSidebarItem`, leaving the TextField
+        // stranded on a different row.
+        if shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: editingThreadID) {
+            return .ignored
+        }
+
         switch keyPress.key {
         case .upArrow, .downArrow:
             return handleVerticalArrow(keyPress.key)
@@ -135,6 +145,14 @@ func shouldNavigateDownOnRightArrow(
     default:
         return false
     }
+}
+
+// While inline thread rename is active (the sidebar's `editingThreadID` matches a
+// visible row), the TextField must own the keyboard so typing/arrow/Delete don't
+// leak into sidebar navigation. Split out so tests can lock in the invariant
+// without needing to instantiate `SidebarView`.
+func shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: PersistentIdentifier?) -> Bool {
+    editingThreadID != nil
 }
 
 func renameThreadID(

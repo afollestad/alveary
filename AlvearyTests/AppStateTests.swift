@@ -138,6 +138,26 @@ final class AppStateTests: XCTestCase {
         XCTAssertNotEqual(secondRequest.id, firstRequest.id)
     }
 
+    func testPendingComposerFocusTokenDefaultsToNilUntilRequested() {
+        let state = AppState()
+
+        XCTAssertNil(state.pendingComposerFocusToken)
+    }
+
+    func testRequestComposerFocusProducesFreshTokenEachCall() {
+        let state = AppState()
+
+        state.requestComposerFocus()
+        let firstToken = state.pendingComposerFocusToken
+
+        state.requestComposerFocus()
+        let secondToken = state.pendingComposerFocusToken
+
+        XCTAssertNotNil(firstToken)
+        XCTAssertNotNil(secondToken)
+        XCTAssertNotEqual(firstToken, secondToken)
+    }
+
     func testTerminalPaneVisibilityHelpersDriveProgrammaticDrawerState() {
         let state = AppState()
 

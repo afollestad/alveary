@@ -16,6 +16,7 @@ These instructions apply to files under `AlvearyTests/`.
 - Keep `assertMacSnapshot()` window-backed. macOS SwiftUI snapshots that render sidebar `List` content with custom section headers can capture as a blank background if they are hosted in a bare `NSHostingController` without an `NSWindow` display pass.
 - `assertMacSnapshot()` supports dark-mode coverage via its `colorScheme:` argument; when adding dark-mode snapshots, keep the SwiftUI `colorScheme` and the hosting `NSAppearance` in sync or AppKit-backed colors such as `separatorColor` will render incorrectly.
 - Moving a snapshot test into a different file changes the baseline lookup path under `AlvearyTests/Snapshots/__Snapshots__/`; move or re-record the reference images to match the new companion file, and run `xcodegen generate` afterward if you added, removed, or renamed snapshot test source files.
+- `assertMacSnapshot()` positions its `NSWindow` *far* off-screen and flushes first responder before rendering. Don't revert those: a window positioned at on-screen coordinates sits inside the primary-display space and picks up the real cursor's position, which AppKit consults mid-render and applies as a hover highlight on whichever control happens to be under that point (e.g. a `Picker` rendering a gray rounded rect behind its selected label on only some runs). `window.makeFirstResponder(nil)` before `displayIfNeeded()` produces a deterministic, focus-free baseline — `NSHostingController` can settle on an initial first responder during its first layout pass.
 
 Examples:
 ```sh

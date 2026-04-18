@@ -25,6 +25,7 @@ struct ChatInputField: View {
     let workingDirectory: String?
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
+    @Binding var focusRequestToken: UUID?
 
     let knownModels = ["default", "opus", "sonnet", "haiku"]
     let maxAutocompleteResults = 50
@@ -73,7 +74,8 @@ struct ChatInputField: View {
         onDismissQueuedMessage: ((UUID) -> Void)? = nil,
         workingDirectory: String?,
         loadFileCompletions: @escaping @Sendable () async -> [String],
-        loadSkillCompletions: @escaping @Sendable () async -> [Skill]
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill],
+        focusRequestToken: Binding<UUID?> = .constant(nil)
     ) {
         _text = text
         self.mode = mode
@@ -99,6 +101,7 @@ struct ChatInputField: View {
         self.workingDirectory = workingDirectory
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
+        _focusRequestToken = focusRequestToken
     }
 
     var trimmedText: String {
@@ -221,7 +224,9 @@ struct ChatInputField: View {
                     inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges },
                     inlineHint: inlineSlashCommandHint,
                     keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
-                    onKeyPress: handleKeyPress
+                    onKeyPress: handleKeyPress,
+                    requestFirstResponder: focusRequestToken,
+                    onFocusRequestConsumed: { focusRequestToken = nil }
                 )
                 .overlay(alignment: .topLeading) {
                     if let autocomplete = activeAutocomplete {
@@ -398,6 +403,7 @@ struct ChatInputField: View {
         .sheet(isPresented: $isKeymapPresented) {
             ChatInputKeymapSheet(supportsMidTurnSteering: supportsMidTurnSteering)
         }
+        .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
     }
 }
 
