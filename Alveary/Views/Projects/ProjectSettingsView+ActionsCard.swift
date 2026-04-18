@@ -189,6 +189,7 @@ private struct ProjectSettingsActionIconOption: Identifiable {
         .init(symbolName: "shippingbox", label: "Package"),
         .init(symbolName: "wand.and.stars", label: "Generate"),
         .init(symbolName: "ladybug", label: "Debug"),
+        .init(symbolName: "safari", label: "Browser"),
         .init(symbolName: "sparkles", label: "Custom")
     ]
 
