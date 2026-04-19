@@ -100,12 +100,13 @@ internal let appMarkdownInlineStyle = InlineStyle.default
         .fontScale(markdownInlineCodeFontScale),
         .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.inlineFillNSColor))
     )
-    .link(.foregroundColor(Color.accentColor))
+    .link(.foregroundColor(Color.accentColor), .underlineStyle(.single))
 
 // Links inside user bubbles must not be accent-colored: the bubble fill is
 // `AppSelectionStyle.rowFill` (itself an accent tint), so accent-on-accent links would
 // clash with the fill in both schemes. Match the bubble's `.primary` body color so links
-// inherit the same label treatment as the rest of the bubble text.
+// inherit the same label treatment as the rest of the bubble text, and add a single
+// underline so links are still visually distinguishable without relying on color.
 private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
     .code(
         .monospaced,
@@ -113,7 +114,7 @@ private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
         .foregroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor)),
         .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor))
     )
-    .link(.foregroundColor(Color.primary))
+    .link(.foregroundColor(Color.primary), .underlineStyle(.single))
 
 struct AppMarkdownParser: MarkupParser {
     let baseURL: URL?
