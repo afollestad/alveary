@@ -153,6 +153,7 @@ struct ChatView: View {
                     viewModel: viewModel,
                     events: events,
                     promptSubmissionIsBusy: promptSubmissionIsBusy,
+                    workingDirectory: workingDirectory,
                     lastScrollTime: $lastScrollTime,
                     isFollowing: $isFollowing,
                     scrollToBottomRequest: $scrollToBottomRequest
