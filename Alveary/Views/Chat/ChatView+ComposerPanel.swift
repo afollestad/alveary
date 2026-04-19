@@ -21,6 +21,7 @@ struct ChatComposerPanel: View {
     let selectedPermissionMode: Binding<String>
     let selectedUseWorktree: Binding<Bool>
     let showWorktreePicker: Bool
+    let sessionLocationLabel: String?
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let onSubmit: () -> Void
@@ -97,6 +98,7 @@ struct ChatComposerPanel: View {
                 supportedPermissionModes: composerCapabilities.supportedPermissionModes,
                 supportedEffortLevels: composerCapabilities.supportedEffortLevels,
                 showWorktreePicker: showWorktreePicker,
+                sessionLocationLabel: sessionLocationLabel,
                 supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
                 queuedMessages: viewModel.messageQueue.pending,
                 isTurnActive: viewModel.state.turnState.isActive,

@@ -53,6 +53,54 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldIdleWithWorktreeSessionLabel() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Investigate the flaky login flow and summarize what changed."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                sessionLocationLabel: "Worktree (feature-abc123)",
+                supportsMidTurnSteering: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 240),
+            named: "chat_input_idle_worktree_session_label"
+        )
+    }
+
+    func testChatInputFieldIdleWithLocalSessionLabel() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Investigate the flaky login flow and summarize what changed."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("default"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                sessionLocationLabel: "Local",
+                supportsMidTurnSteering: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 240),
+            named: "chat_input_idle_local_session_label"
+        )
+    }
+
     func testChatInputFieldBusyStopHint() {
         assertMacSnapshot(
             ChatInputField(

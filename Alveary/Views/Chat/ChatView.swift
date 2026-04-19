@@ -98,6 +98,20 @@ struct ChatView: View {
         return project.isGitRepository && !thread.hasCompletedInitialSetup
     }
 
+    private var sessionLocationLabel: String? {
+        guard let thread = conversation.thread,
+              let project = thread.project,
+              project.isGitRepository,
+              thread.hasCompletedInitialSetup else {
+            return nil
+        }
+
+        return ChatInputFieldTextSupport.sessionLocationLabel(
+            useWorktree: thread.useWorktree,
+            worktreePath: thread.worktreePath
+        )
+    }
+
     init(
         viewModel: ConversationViewModel,
         conversation: Conversation,
@@ -161,6 +175,7 @@ struct ChatView: View {
                 selectedPermissionMode: selectedPermissionModeBinding,
                 selectedUseWorktree: selectedUseWorktreeBinding,
                 showWorktreePicker: showWorktreePicker,
+                sessionLocationLabel: sessionLocationLabel,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
                 onSubmit: sendDraft,

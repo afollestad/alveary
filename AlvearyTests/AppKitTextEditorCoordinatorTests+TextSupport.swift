@@ -173,6 +173,31 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(ChatInputFieldTextSupport.worktreeLocationLabel(for: true), "Worktree")
     }
 
+    func testSessionLocationLabelFormats() {
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.sessionLocationLabel(useWorktree: false, worktreePath: nil),
+            "Local"
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.sessionLocationLabel(
+                useWorktree: false,
+                worktreePath: "/tmp/worktrees/alveary/feature-abc123"
+            ),
+            "Local"
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.sessionLocationLabel(
+                useWorktree: true,
+                worktreePath: "/tmp/worktrees/alveary/feature-abc123"
+            ),
+            "Worktree (feature-abc123)"
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.sessionLocationLabel(useWorktree: true, worktreePath: nil),
+            "Worktree"
+        )
+    }
+
     func testActiveCompletionTokenIgnoresColonPrefixedMentions() {
         let text = "See:@file"
 

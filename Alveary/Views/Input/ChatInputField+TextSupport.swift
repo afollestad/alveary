@@ -288,6 +288,12 @@ enum ChatInputFieldTextSupport {
         usesWorktree ? "Worktree" : "Local"
     }
 
+    static func sessionLocationLabel(useWorktree: Bool, worktreePath: String?) -> String {
+        guard useWorktree else { return "Local" }
+        let identifier = worktreePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
+        return identifier.isEmpty ? "Worktree" : "Worktree (\(identifier))"
+    }
+
     static func progressLabel(for reason: ComposerMode.ProgressReason) -> String {
         switch reason {
         case .initialSetup:

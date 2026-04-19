@@ -15,6 +15,7 @@ struct ChatInputField: View {
     let supportedPermissionModes: [PermissionModeOption]
     let supportedEffortLevels: [String]
     let showWorktreePicker: Bool
+    let sessionLocationLabel: String?
     let supportsMidTurnSteering: Bool
     let queuedMessages: [QueuedMessage]
     let isTurnActive: Bool
@@ -74,6 +75,7 @@ struct ChatInputField: View {
         supportedPermissionModes: [PermissionModeOption],
         supportedEffortLevels: [String],
         showWorktreePicker: Bool = false,
+        sessionLocationLabel: String? = nil,
         supportsMidTurnSteering: Bool,
         queuedMessages: [QueuedMessage] = [],
         isTurnActive: Bool = false,
@@ -100,6 +102,7 @@ struct ChatInputField: View {
         self.supportedPermissionModes = supportedPermissionModes
         self.supportedEffortLevels = supportedEffortLevels
         self.showWorktreePicker = showWorktreePicker
+        self.sessionLocationLabel = sessionLocationLabel
         self.supportsMidTurnSteering = supportsMidTurnSteering
         self.queuedMessages = queuedMessages
         self.isTurnActive = isTurnActive
@@ -352,6 +355,13 @@ struct ChatInputField: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .disabled(areControlsDisabled)
+                } else if let sessionLocationLabel {
+                    Text(sessionLocationLabel)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(sessionLocationLabel)
                 }
 
                 Spacer()
