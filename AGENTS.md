@@ -3,6 +3,7 @@
 **WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md` files (including ones in sub-folders).
 **WHEN** making changes to dependencies, project structure, or lint, make sure `README.md` is kept up to date, as well as `AGENTS.md` files (including ones in sub-folders).
 **WHEN** adding or updating agent guidance, prefer the narrowest `AGENTS.md` whose scope covers the affected files. Keep instructions in the root `AGENTS.md` only when they are truly repo-wide or protect cross-cutting invariants.
+**WHEN** a single guidance bullet covers multiple discrete rules (e.g. "do X", "do not Y", "the reason is Z"), split it into scannable sub-bullets rather than letting it grow into a wall-of-text paragraph. One top-level bullet introduces the topic, each nested sub-bullet captures one rule. Lead the sub-bullet with a short bolded imperative so a reader scanning for a single rule can find it without parsing the whole section.
 
 ## Scoped AGENTS Files
 

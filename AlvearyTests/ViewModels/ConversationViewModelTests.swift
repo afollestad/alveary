@@ -236,7 +236,8 @@ struct ConversationViewModelTestFixture {
         reconfigureError: MockAgentsManager.MockError? = nil,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
         projectIsGitRepository: Bool = true,
-        pausesWorktreeCreate: Bool = false
+        pausesWorktreeCreate: Bool = false,
+        initialAgentIsRunning: Bool? = nil
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
 
@@ -256,7 +257,11 @@ struct ConversationViewModelTestFixture {
         try context.save()
 
         let settingsService = InMemorySettingsService(current: Self.testSettings())
-        let agentsManager = MockAgentsManager(isRunning: hasCompletedInitialSetup, sendError: sendError, reconfigureError: reconfigureError)
+        let agentsManager = MockAgentsManager(
+            isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
+            sendError: sendError,
+            reconfigureError: reconfigureError
+        )
         let runtimeStore = MockConversationRuntimeStore()
         let worktreeManager = MockWorktreeManager(
             worktreeInfo: worktreeInfo,

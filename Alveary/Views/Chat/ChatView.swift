@@ -5,8 +5,6 @@ import SwiftUI
 struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
-    let agentsManager: any AgentsManager
-    let modelContext: ModelContext
     let diffViewModel: DiffViewerViewModel
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
@@ -66,28 +64,28 @@ struct ChatView: View {
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: { viewModel.state.selectedModel ?? "default" },
-            set: { applyModelChange($0) }
+            set: { viewModel.applyModelChange($0) }
         )
     }
 
     private var selectedEffortBinding: Binding<String> {
         Binding(
             get: { AppSettings.normalizedEffortLevel(conversation.thread?.effort) },
-            set: { applyEffortChange($0) }
+            set: { viewModel.applyEffortChange($0) }
         )
     }
 
     private var selectedPermissionModeBinding: Binding<String> {
         Binding(
             get: { conversation.thread?.permissionMode ?? "default" },
-            set: { applyPermissionModeChange($0) }
+            set: { viewModel.applyPermissionModeChange($0) }
         )
     }
 
     private var selectedUseWorktreeBinding: Binding<Bool> {
         Binding(
             get: { conversation.thread?.useWorktree ?? false },
-            set: { applyWorktreePreferenceChange($0) }
+            set: { viewModel.applyWorktreePreferenceChange($0) }
         )
     }
 
@@ -103,8 +101,6 @@ struct ChatView: View {
     init(
         viewModel: ConversationViewModel,
         conversation: Conversation,
-        agentsManager: any AgentsManager,
-        modelContext: ModelContext,
         diffViewModel: DiffViewerViewModel,
         composerCapabilities: ComposerCapabilities,
         workingDirectory: String?,
@@ -114,8 +110,6 @@ struct ChatView: View {
     ) {
         self.viewModel = viewModel
         self.conversation = conversation
-        self.agentsManager = agentsManager
-        self.modelContext = modelContext
         self.diffViewModel = diffViewModel
         self.composerCapabilities = composerCapabilities
         self.workingDirectory = workingDirectory
@@ -174,7 +168,7 @@ struct ChatView: View {
                 onStop: {
                     Task { await viewModel.cancel() }
                 },
-                onApplyPermissionModeChange: applyPermissionModeChange,
+                onApplyPermissionModeChange: { viewModel.applyPermissionModeChange($0) },
                 appState: appState
             )
         }
@@ -269,132 +263,6 @@ private extension ChatView {
     func requestScrollToBottom() {
         isFollowing = true
         scrollToBottomRequest += 1
-    }
-
-    func applyModelChange(_ newValue: String) {
-        let previousValue = viewModel.state.selectedModel ?? "default"
-        guard previousValue != newValue else {
-            return
-        }
-
-        viewModel.state.selectedModel = newValue == "default" ? nil : newValue
-        viewModel.lastTurnError = nil
-
-        Task { @MainActor in
-            guard await agentsManager.isRunning(conversationId: conversation.id) else {
-                return
-            }
-
-            do {
-                try await viewModel.reconfigureSession()
-            } catch {
-                viewModel.state.selectedModel = previousValue == "default" ? nil : previousValue
-                viewModel.lastTurnError = error.localizedDescription
-            }
-        }
-    }
-
-    func applyEffortChange(_ newValue: String) {
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.model(for: threadID) as? AgentThread else {
-            return
-        }
-
-        let previousValue = dbThread.effort
-        guard previousValue != newValue else {
-            return
-        }
-
-        dbThread.effort = newValue
-        viewModel.lastTurnError = nil
-
-        do {
-            try modelContext.save()
-        } catch {
-            dbThread.effort = previousValue
-            viewModel.lastTurnError = error.localizedDescription
-            return
-        }
-
-        Task { @MainActor in
-            guard await agentsManager.isRunning(conversationId: conversation.id) else {
-                return
-            }
-
-            do {
-                try await viewModel.reconfigureSession()
-            } catch {
-                dbThread.effort = previousValue
-                try? modelContext.save()
-                viewModel.lastTurnError = error.localizedDescription
-            }
-        }
-    }
-
-    func applyPermissionModeChange(_ newValue: String) {
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.model(for: threadID) as? AgentThread else {
-            return
-        }
-
-        let previousValue = dbThread.permissionMode
-        guard previousValue != newValue else {
-            return
-        }
-
-        let previousBannerVisibility = viewModel.state.showPermissionBanner
-        let previousDeniedTools = viewModel.state.lastPermissionDeniedToolNames
-
-        dbThread.permissionMode = newValue
-        viewModel.lastTurnError = nil
-
-        do {
-            try modelContext.save()
-        } catch {
-            dbThread.permissionMode = previousValue
-            viewModel.lastTurnError = error.localizedDescription
-            return
-        }
-
-        Task { @MainActor in
-            guard await agentsManager.isRunning(conversationId: conversation.id) else {
-                viewModel.state.showPermissionBanner = false
-                viewModel.state.lastPermissionDeniedToolNames = []
-                return
-            }
-
-            do {
-                try await viewModel.reconfigureSession()
-            } catch {
-                dbThread.permissionMode = previousValue
-                try? modelContext.save()
-                viewModel.state.showPermissionBanner = previousBannerVisibility
-                viewModel.state.lastPermissionDeniedToolNames = previousDeniedTools
-                viewModel.lastTurnError = error.localizedDescription
-            }
-        }
-    }
-
-    func applyWorktreePreferenceChange(_ newValue: Bool) {
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.model(for: threadID) as? AgentThread,
-              dbThread.project?.isGitRepository == true else {
-            return
-        }
-
-        let previousValue = dbThread.useWorktree
-        guard previousValue != newValue else {
-            return
-        }
-
-        dbThread.useWorktree = newValue
-
-        do {
-            try modelContext.save()
-        } catch {
-            dbThread.useWorktree = previousValue
-            viewModel.lastTurnError = error.localizedDescription
-        }
     }
 
     func outboundMessage(from message: String) -> String {

@@ -83,8 +83,6 @@ struct ConversationView: View {
         ChatView(
             viewModel: viewModel,
             conversation: conversation,
-            agentsManager: agentsManager,
-            modelContext: modelContext,
             diffViewModel: diffViewModel,
             composerCapabilities: composerCapabilities,
             workingDirectory: activeWorkingDirectory,
