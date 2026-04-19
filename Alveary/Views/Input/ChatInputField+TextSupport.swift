@@ -136,6 +136,39 @@ enum ChatInputFieldTextSupport {
         CanonicalPath.normalizeMentionPath(path, relativeTo: workingDirectory)
     }
 
+    // Rewrite every `@<path>` mention in `message` to its canonical stored form:
+    // normalize (tilde expand + relative-to-CWD) then re-encode via
+    // `CanonicalPath.encodeStoredMentionPath(_:)`. The `@` is explicitly re-prefixed
+    // because `FileMentionMatch.highlightRange` starts *at* the `@` and `match.range`
+    // covers everything back to the preceding terminator char (group 1); the previous
+    // `prefix + normalizedPath` shape silently dropped the `@` from the outbound text.
+    // Keeping the stored form is load-bearing — `UserBubble`'s re-detection pipeline
+    // runs the same regex over the persisted message, which terminates on whitespace,
+    // so a raw-spaced path would chip only its leading run.
+    static func outboundMessage(from message: String, workingDirectory: String?) -> String {
+        guard message.contains("@") else {
+            return message
+        }
+
+        let matches = fileMentionMatches(in: message)
+        guard !matches.isEmpty else {
+            return message
+        }
+
+        let source = message as NSString
+        let mutable = NSMutableString(string: message)
+        for match in matches.reversed() {
+            let prefixLength = match.highlightRange.location - match.range.location
+            let prefixRange = NSRange(location: match.range.location, length: prefixLength)
+            let prefix = prefixLength > 0 ? source.substring(with: prefixRange) : ""
+            let normalized = normalizedMentionPath(for: match.path, relativeTo: workingDirectory)
+            let encoded = CanonicalPath.encodeStoredMentionPath(normalized)
+            mutable.replaceCharacters(in: match.range, with: prefix + "@" + encoded)
+        }
+
+        return mutable as String
+    }
+
     static func fileMentionMatches(in text: String) -> [FileMentionMatch] {
         guard text.contains("@"),
               let fileMentionRegex else {

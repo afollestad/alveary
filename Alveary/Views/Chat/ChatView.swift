@@ -282,29 +282,6 @@ private extension ChatView {
     }
 
     func outboundMessage(from message: String) -> String {
-        guard message.contains("@") else {
-            return message
-        }
-
-        let matches = ChatInputFieldTextSupport.fileMentionMatches(in: message)
-        guard !matches.isEmpty else {
-            return message
-        }
-
-        let source = message as NSString
-        let mutable = NSMutableString(string: message)
-        for match in matches.reversed() {
-            let prefixLength = match.highlightRange.location - match.range.location
-            let prefixRange = NSRange(location: match.range.location, length: prefixLength)
-            let prefix = prefixLength > 0 ? source.substring(with: prefixRange) : ""
-            let normalizedPath = normalizedMentionPath(match.path)
-            mutable.replaceCharacters(in: match.range, with: prefix + normalizedPath)
-        }
-
-        return mutable as String
-    }
-
-    func normalizedMentionPath(_ path: String) -> String {
-        CanonicalPath.normalizeMentionPath(path, relativeTo: workingDirectory)
+        ChatInputFieldTextSupport.outboundMessage(from: message, workingDirectory: workingDirectory)
     }
 }

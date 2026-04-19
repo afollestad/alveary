@@ -248,12 +248,50 @@ struct AppMarkdownParser: MarkupParser {
         let decodedDisplayText = chip.style == .fileMention
             ? CanonicalPath.decodeStoredMentionPath(chip.displayText)
             : chip.displayText
+        // Tag file-mention chips with their resolved file URL so the transcript's
+        // `openURL` handler can reveal the file on click. The chip's full path lives
+        // in the attributed string at `attributedRange` (stored percent-encoded), so
+        // we extract it BEFORE the `replaceSubrange` call discards the original run.
+        // No per-run style overrides are applied — SwiftUI's `.link` inline style
+        // (underline + primary color) intentionally composes with the `.code` chip
+        // styling so users can tell a chip is clickable. Non-file-mention chips skip
+        // the tagging; they are purely visual.
+        let fileMentionURL: URL? = chip.style == .fileMention
+            ? fileMentionClickURL(from: attributedString, range: attributedRange)
+            : nil
         var replacement = AttributedString(decodedDisplayText)
         replacement.inlinePresentationIntent = .code
         if let preservedPresentationIntent {
             replacement.presentationIntent = preservedPresentationIntent
         }
+        if let fileMentionURL {
+            replacement.link = fileMentionURL
+        }
         attributedString.replaceSubrange(attributedRange, with: replacement)
+    }
+
+    // Builds a `URL` for a file-mention chip's click target. Absolute paths become
+    // `file://` URLs (opened via `NSWorkspace` by the transcript's `openURL` handler).
+    // Relative paths (composer `outboundMessage` rebases absolute paths under the
+    // thread's working directory) stay schemeless so the transcript handler's
+    // `resolveMarkdownLinkURL(_:workingDirectory:)` branch resolves them at click
+    // time. `AttributedString[range]` carries the chip's stored (percent-encoded)
+    // text including the leading `@`.
+    private func fileMentionClickURL(
+        from attributedString: AttributedString,
+        range: Range<AttributedString.Index>
+    ) -> URL? {
+        let rawText = String(attributedString[range].characters)
+        let storedPath = rawText.hasPrefix("@") ? String(rawText.dropFirst()) : rawText
+        let decoded = CanonicalPath.decodeStoredMentionPath(storedPath)
+        guard !decoded.isEmpty else {
+            return nil
+        }
+        if decoded.hasPrefix("/") || decoded.hasPrefix("~") {
+            let expanded = (decoded as NSString).expandingTildeInPath
+            return URL(fileURLWithPath: expanded)
+        }
+        return URL(string: decoded)
     }
 }
 

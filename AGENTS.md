@@ -78,3 +78,17 @@ These are default structure and readability conventions for new code and routine
 - Add concise code comments where needed for human readers.
 - Large types may be split into companion files like `Type+Feature.swift`. When reading current behavior or adding new logic to an existing type, search for same-type extensions and treat those companion files as part of the canonical implementation before editing.
 - Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file. Also lean on companion files earlier to avoid files becoming too large, and use them to resolve lint warnings about file length.
+
+## Self Review and Auditing Changes
+
+**WHEN** I ask for a self review or audit, say "Performing a self review..." first. Then deeply look at uncommitted changes with a pair of fresh eyes, using these questions as a guide:
+- Are there any bugs?
+- Are there any edge cases?
+- Are there any performance issues?
+- Will the changes regress any behavior elsewhere?
+- Is there any dead or stale code?
+- Is there any missing test coverage (unit or snapshot)?
+- Were snapshots recorded again where needed?
+- Are AGENTS.md files up to date and accurate?
+
+Automatically resolve anything that's low risk, ask about others before making changes. When finished applying fixes, ask the user if they want to do another pass; if so, start at the top with a fresh pair of eyes.
