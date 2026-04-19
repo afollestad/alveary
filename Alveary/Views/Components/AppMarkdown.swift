@@ -146,131 +146,113 @@ struct AppMarkdownParser: MarkupParser {
         }
 
         var attributedString = try markdownParser.attributedString(for: input)
-        attachInlineCodeChips(to: &attributedString)
         attachComposerChips(to: &attributedString)
         return attributedString
-    }
-
-    private func attachInlineCodeChips(to attributedString: inout AttributedString) {
-        let inlineCodeRanges = attributedString.runs.compactMap { run -> (Range<AttributedString.Index>, AppMarkdownInlineCodeAttachment)? in
-            guard let intent = run.inlinePresentationIntent,
-                  intent.contains(.code) else {
-                return nil
-            }
-
-            let text = String(attributedString[run.range].characters)
-            guard !text.isEmpty else {
-                return nil
-            }
-
-            return (run.range, AppMarkdownInlineCodeAttachment(text: text, style: inlineCodeStyle))
-        }
-
-        for (range, attachment) in inlineCodeRanges {
-            attributedString[range].textual.attachment = AnyAttachment(attachment)
-        }
     }
 
     // Attach composer-style chips (leading `/command`, `@file/mention`) inside rendered user
     // messages. The markdown parser runs first, so `attributedString` is already stripped of
     // backtick delimiters — we detect on the flattened parsed string so NSRange offsets align
-    // directly with the attributed-string content. Ranges that already carry an inline-code
-    // attachment (from `attachInlineCodeChips`), a fenced-code-block presentation intent, or
-    // a markdown link are skipped so we don't clobber those renderings.
+    // directly with the attributed-string content.
+    //
+    // Rendering strategy mirrors inline code: replace the source range with the chip's
+    // display text and tag it with `.inlinePresentationIntent.code`. Textual's inline style
+    // then renders the run as a flat monospaced highlight — no attachment, no `Canvas`
+    // placeholder, so chips don't grow the line they sit on. This matches the inline-code
+    // treatment exactly and keeps multi-line user bubbles uniform.
+    //
+    // The conflict check skips ranges that already carry a Textual attachment (e.g. image or
+    // emoji attachments from `WithAttachments`), a markdown `.link`, a `.codeBlock`
+    // presentation intent (fenced code block), or a `.code` inline presentation intent
+    // (markdown inline code). The inline-code check is load-bearing: `composerTextChips` is
+    // called here with the *parsed* flat string (backticks already stripped), so the
+    // function's internal `codeRanges`-based exclusion finds nothing to exclude. Without
+    // this guard, a user writing `` `@path/to/file.swift` `` in a message would have their
+    // inline code clobbered by a composer chip that truncates the path to just `@file.swift`.
+    //
+    // Chips are processed in reverse order by `range.location` so each substitution can
+    // mutate characters after the chip without invalidating the NSRange of earlier
+    // (lower-indexed) chips. Indices into the attributed string are re-derived from the
+    // freshly flattened string on every iteration because the underlying
+    // `AttributedString.Index` values cannot be reused after a substitution shifts content.
     private func attachComposerChips(to attributedString: inout AttributedString) {
         guard let composerChipProvider else {
             return
         }
 
-        let flatString = String(attributedString.characters)
-        let chips = composerChipProvider(flatString)
+        let initialFlatString = String(attributedString.characters)
+        let chips = composerChipProvider(initialFlatString)
+            .sorted { $0.range.location > $1.range.location }
 
-        for chip in chips {
-            guard chip.range.length > 0,
-                  let swiftRange = Range(chip.range, in: flatString),
-                  let lowerScalar = swiftRange.lowerBound.samePosition(in: flatString.unicodeScalars),
-                  let upperScalar = swiftRange.upperBound.samePosition(in: flatString.unicodeScalars),
-                  let lowerAttr = AttributedString.Index(lowerScalar, within: attributedString),
-                  let upperAttr = AttributedString.Index(upperScalar, within: attributedString) else {
+        for chip in chips where chip.range.length > 0 {
+            guard let attributedRange = resolveAttributedRange(for: chip.range, in: attributedString),
+                  !runsConflictWithComposerChip(in: attributedString[attributedRange].runs) else {
                 continue
             }
-
-            let attributedRange = lowerAttr..<upperAttr
-            let conflictsWithExistingRun = attributedString[attributedRange].runs.contains { run in
-                if run.textual.attachment != nil {
-                    return true
-                }
-                if run.link != nil {
-                    return true
-                }
-                if let intent = run.presentationIntent,
-                   intent.components.contains(where: { component in
-                       if case .codeBlock = component.kind {
-                           return true
-                       }
-                       return false
-                   }) {
-                    return true
-                }
-                return false
-            }
-            guard !conflictsWithExistingRun else {
-                continue
-            }
-
-            let attachment = AppMarkdownInlineCodeAttachment(
-                text: chip.displayText,
-                style: inlineCodeStyle
-            )
-            attributedString[attributedRange].textual.attachment = AnyAttachment(attachment)
+            applyComposerChip(chip, to: &attributedString, at: attributedRange)
         }
     }
+
+    private func resolveAttributedRange(
+        for nsRange: NSRange,
+        in attributedString: AttributedString
+    ) -> Range<AttributedString.Index>? {
+        let flatString = String(attributedString.characters)
+        guard nsRange.location >= 0,
+              nsRange.location + nsRange.length <= (flatString as NSString).length,
+              let swiftRange = Range(nsRange, in: flatString),
+              let lowerScalar = swiftRange.lowerBound.samePosition(in: flatString.unicodeScalars),
+              let upperScalar = swiftRange.upperBound.samePosition(in: flatString.unicodeScalars),
+              let lowerAttr = AttributedString.Index(lowerScalar, within: attributedString),
+              let upperAttr = AttributedString.Index(upperScalar, within: attributedString) else {
+            return nil
+        }
+        return lowerAttr..<upperAttr
+    }
+
+    private func runsConflictWithComposerChip(
+        in runs: AttributedString.Runs
+    ) -> Bool {
+        runs.contains { run in
+            if run.textual.attachment != nil { return true }
+            if run.link != nil { return true }
+            if run.presentationIntent?.components.contains(where: { component in
+                if case .codeBlock = component.kind { return true }
+                return false
+            }) == true {
+                return true
+            }
+            if run.inlinePresentationIntent?.contains(.code) == true { return true }
+            return false
+        }
+    }
+
+    private func applyComposerChip(
+        _ chip: AppTextEditorChip,
+        to attributedString: inout AttributedString,
+        at attributedRange: Range<AttributedString.Index>
+    ) {
+        // Preserve the enclosing paragraph's block-level `presentationIntent` on the
+        // replacement so Textual doesn't treat the inserted run as a standalone block
+        // and break flow with a line break before or after the chip.
+        let preservedPresentationIntent = attributedString[attributedRange].runs
+            .compactMap { $0.presentationIntent }
+            .first
+        var replacement = AttributedString(chip.displayText)
+        replacement.inlinePresentationIntent = .code
+        if let preservedPresentationIntent {
+            replacement.presentationIntent = preservedPresentationIntent
+        }
+        attributedString.replaceSubrange(attributedRange, with: replacement)
+    }
 }
 
-// Renders an inline rounded chip for both parser-detected inline code runs and
-// composer-style chips (leading `/command`, `@file/mention`). Both call sites draw the
-// same chip view, so they share the attachment: inline code passes the backtick contents
-// as `text`, while composer chips pass the already-shortened display label.
-private struct AppMarkdownInlineCodeAttachment: Attachment {
-    let text: String
-    let style: AppMarkdownInlineCodeStyle
-
-    var description: String {
-        text
-    }
-
-    var selectionStyle: AttachmentSelectionStyle {
-        .text
-    }
-
-    var body: some View {
-        AppMarkdownInlineCodeChip(text: text, style: style, fontSize: inlineFont.pointSize)
-    }
-
-    func sizeThatFits(_: ProposedViewSize, in _: TextEnvironmentValues) -> CGSize {
-        let textSize = (text as NSString).size(withAttributes: [.font: inlineFont])
-        return CGSize(
-            width: ceil(textSize.width) + (appMarkdownInlineCodeHorizontalPadding * 2),
-            height: ceil(textSize.height) + (appMarkdownInlineCodeVerticalPadding * 2)
-        )
-    }
-
-    func baselineOffset(in _: TextEnvironmentValues) -> CGFloat {
-        -(inlineFontDescender + appMarkdownInlineCodeVerticalPadding)
-    }
-
-    private var inlineFont: NSFont {
-        NSFont.monospacedSystemFont(
-            ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize * markdownInlineCodeFontScale,
-            weight: .regular
-        )
-    }
-
-    private var inlineFontDescender: CGFloat {
-        abs(inlineFont.descender)
-    }
-}
-
+// Renders an inline rounded chip used by `AppMarkdownInlineLabel` — single-line surfaces
+// such as sidebar thread rows, conversation tab chips, and terminal session chips — where
+// the chip overflows into the parent's vertical padding without inflating row/tab height.
+// Multi-line bubble surfaces do *not* use this view; they render inline code and composer
+// chips as flat monospaced highlights via Textual's native inline-code styling, which
+// keeps line heights uniform (see `AppMarkdownParser.attachComposerChips(to:)`).
 struct AppMarkdownInlineCodeChip: View {
     let text: String
     let style: AppMarkdownInlineCodeStyle
@@ -324,6 +306,6 @@ struct AppMarkdownCodeBlockStyle: StructuredText.CodeBlockStyle {
             RoundedRectangle(cornerRadius: appMarkdownCodeBlockCornerRadius, style: .continuous)
                 .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
         )
-        .textual.blockSpacing(.init(top: 0, bottom: 12))
+        .textual.blockSpacing(.init(top: 8, bottom: 12))
     }
 }

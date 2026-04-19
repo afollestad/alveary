@@ -29,6 +29,26 @@ extension SnapshotTests {
         )
     }
 
+    // Regression guard: lines in a multi-line bubble must keep a uniform line height
+    // regardless of whether a line contains an inline-code chip. An over-tall chip
+    // placeholder previously expanded only the lines that contained chips, which was
+    // visible as extra space between chipped and non-chipped list items.
+    func testAssistantBubbleMixedInlineCodeLineHeight() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                Could you clarify what you'd like tested? Options I can think of:
+
+                1. Add a second action to `.alveary.json` that runs `code .` (open the project in VS Code)
+                2. Verify the existing `open index.html` command works
+                3. Something else
+                """
+            ),
+            size: CGSize(width: 520, height: 220),
+            named: "assistant_bubble_mixed_inline_code_line_height"
+        )
+    }
+
     func testUserBubbleInlineCode() {
         assertMacSnapshot(
             UserBubble(
@@ -38,6 +58,68 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 420, height: 180),
             named: "user_bubble_inline_code"
+        )
+    }
+
+    // Mirrors `testAssistantBubbleMixedInlineCodeLineHeight` for the user-bubble rendering
+    // path so a regression on either surface (bubble style, composer-chip pipeline,
+    // `AppMarkdownParser`) gets caught independently.
+    func testUserBubbleMixedInlineCodeLineHeight() {
+        assertMacSnapshot(
+            UserBubble(
+                text: """
+                Could you clarify what you'd like tested? Options I can think of:
+
+                1. Add a second action to `.alveary.json` that runs `code .` (open the project in VS Code)
+                2. Verify the existing `open index.html` command works
+                3. Something else
+                """,
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 520, height: 220),
+            named: "user_bubble_mixed_inline_code_line_height"
+        )
+    }
+
+    // Dark-mode user-bubble variant to keep the user-bubble inline-code palette (a neutral
+    // grayscale chip) distinct from the assistant-bubble palette (accent-tinted) and catch
+    // regressions in either.
+    func testUserBubbleMixedInlineCodeLineHeightDark() {
+        assertMacSnapshot(
+            UserBubble(
+                text: """
+                Could you clarify what you'd like tested? Options I can think of:
+
+                1. Add a second action to `.alveary.json` that runs `code .` (open the project in VS Code)
+                2. Verify the existing `open index.html` command works
+                3. Something else
+                """,
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 520, height: 220),
+            named: "user_bubble_mixed_inline_code_line_height_dark",
+            colorScheme: .dark
+        )
+    }
+
+    // Dark-mode variant so the inline-code highlight palette stays legible against the
+    // darker bubble fill. This previously rendered very low contrast.
+    func testAssistantBubbleMixedInlineCodeLineHeightDark() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                Could you clarify what you'd like tested? Options I can think of:
+
+                1. Add a second action to `.alveary.json` that runs `code .` (open the project in VS Code)
+                2. Verify the existing `open index.html` command works
+                3. Something else
+                """
+            ),
+            size: CGSize(width: 520, height: 220),
+            named: "assistant_bubble_mixed_inline_code_line_height_dark",
+            colorScheme: .dark
         )
     }
 
@@ -123,6 +205,24 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 620, height: 220),
             named: "user_bubble_slash_and_mention_chips"
+        )
+    }
+
+    // Regression guard: an `@path/to/file` wrapped in backticks must render verbatim as
+    // inline code rather than being clobbered by the composer-chip pipeline into a
+    // truncated `@file` chip. `composerTextChips` is invoked with the parsed flat string
+    // (backticks stripped), so its own code-range filter finds nothing to exclude; the
+    // inline-code `inlinePresentationIntent` guard in `attachComposerChips` is the only
+    // thing preventing the overwrite.
+    func testUserBubbleInlineCodePreservedAgainstComposerChip() {
+        assertMacSnapshot(
+            UserBubble(
+                text: "Inline code wins: `@Alveary/Views/Input/ChatInputField.swift` stays intact.",
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 620, height: 160),
+            named: "user_bubble_inline_code_preserved_against_composer_chip"
         )
     }
 }

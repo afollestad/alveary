@@ -34,23 +34,52 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertTrue(ranges.inlineDelimiterRanges.isEmpty)
     }
 
-    func testAppMarkdownParserAttachesInlineCodeChipsWithoutAffectingFencedBlocks() throws {
+    // Inline code is rendered through Textual's native styling (flat monospaced
+    // highlight) rather than a Textual attachment, so chip-lines don't grow taller
+    // than non-chip lines in multi-line bubbles. The parsed `AttributedString` marks
+    // inline code with `inlinePresentationIntent = .code` and fenced code blocks with
+    // a `.codeBlock` component on `presentationIntent`. Neither carries a Textual
+    // attachment.
+    func testAppMarkdownParserMarksInlineCodeWithoutAffectingFencedBlocks() throws {
         let parser = AppMarkdownParser(baseURL: nil, inlineCodeStyle: .standard)
         let attributedString = try parser.attributedString(
             for: "Use `git status` here.\n```swift\nlet count = 1\n```"
         )
 
-        let attachedInlineRanges = attributedString.runs.compactMap { run -> Range<AttributedString.Index>? in
-            guard run.textual.attachment != nil else {
+        let inlineCodeRanges = attributedString.runs.compactMap { run -> Range<AttributedString.Index>? in
+            guard let intent = run.inlinePresentationIntent, intent.contains(.code) else {
+                return nil
+            }
+            if let presentationIntent = run.presentationIntent,
+               presentationIntent.components.contains(where: { component in
+                   if case .codeBlock = component.kind { return true }
+                   return false
+               }) {
                 return nil
             }
             return run.range
         }
 
-        XCTAssertEqual(attachedInlineRanges.count, 1)
-        XCTAssertEqual(String(attributedString[attachedInlineRanges[0]].characters), "git status")
+        XCTAssertEqual(inlineCodeRanges.count, 1)
+        XCTAssertEqual(String(attributedString[inlineCodeRanges[0]].characters), "git status")
+
+        let fencedBlockRuns = attributedString.runs.filter { run in
+            guard let presentationIntent = run.presentationIntent else { return false }
+            return presentationIntent.components.contains { component in
+                if case .codeBlock = component.kind { return true }
+                return false
+            }
+        }
+        XCTAssertFalse(fencedBlockRuns.isEmpty)
+        XCTAssertEqual(
+            attributedString.runs.filter { $0.textual.attachment != nil }.count,
+            0
+        )
     }
 
+    // A file mention inside a fenced code block must not be re-styled as a composer chip —
+    // `attachComposerChips` skips ranges whose `presentationIntent` contains `.codeBlock`,
+    // so the block's content stays verbatim.
     func testAppMarkdownParserSkipsComposerChipsInsideFencedBlocks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
@@ -61,10 +90,13 @@ extension AppKitTextEditorCoordinatorTests {
             for: "```\n@Alveary/Views/Input/ChatInputField.swift\n```"
         )
 
-        let attachmentCount = attributedString.runs.filter { $0.textual.attachment != nil }.count
-        XCTAssertEqual(attachmentCount, 0)
+        let flatString = String(attributedString.characters)
+        XCTAssertTrue(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
+        XCTAssertFalse(flatString.contains("@ChatInputField.swift\n"))
     }
 
+    // A file mention used as a markdown link's visible text must stay linked rather than
+    // getting rewritten into a composer chip.
     func testAppMarkdownParserSkipsComposerChipsInsideMarkdownLinks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
@@ -75,11 +107,21 @@ extension AppKitTextEditorCoordinatorTests {
             for: "See [@Alveary/Views/Input/ChatInputField.swift](https://example.com) please."
         )
 
-        let attachmentCount = attributedString.runs.filter { $0.textual.attachment != nil }.count
-        XCTAssertEqual(attachmentCount, 0)
+        let linkedRuns = attributedString.runs.compactMap { run -> String? in
+            guard run.link != nil else { return nil }
+            return String(attributedString[run.range].characters)
+        }
+        XCTAssertEqual(linkedRuns, ["@Alveary/Views/Input/ChatInputField.swift"])
+
+        let flatString = String(attributedString.characters)
+        XCTAssertTrue(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
+        XCTAssertFalse(flatString.contains("@ChatInputField.swift "))
     }
 
-    func testAppMarkdownParserAttachesComposerChipsInPlainProse() throws {
+    // Plain-prose composer chips (leading `/command`, `@file`) are rewritten to their
+    // display text and tagged with `inlinePresentationIntent = .code`, giving them the
+    // same flat-highlight treatment as inline code.
+    func testAppMarkdownParserRewritesComposerChipsAsInlineCode() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
             inlineCodeStyle: .userBubble,
@@ -89,14 +131,48 @@ extension AppKitTextEditorCoordinatorTests {
             for: "/review-github-pr look at @Alveary/Views/Input/ChatInputField.swift next"
         )
 
-        let attachmentTexts = attributedString.runs.compactMap { run -> String? in
-            guard run.textual.attachment != nil else {
+        let chipTexts = attributedString.runs.compactMap { run -> String? in
+            guard let intent = run.inlinePresentationIntent, intent.contains(.code) else {
                 return nil
             }
             return String(attributedString[run.range].characters)
         }
+        XCTAssertEqual(chipTexts, ["/review-github-pr", "@ChatInputField.swift"])
 
-        XCTAssertEqual(attachmentTexts, ["/review-github-pr", "@Alveary/Views/Input/ChatInputField.swift"])
+        let flatString = String(attributedString.characters)
+        XCTAssertTrue(flatString.contains("@ChatInputField.swift"))
+        XCTAssertFalse(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
+
+        XCTAssertEqual(
+            attributedString.runs.filter { $0.textual.attachment != nil }.count,
+            0
+        )
+    }
+
+    // Regression guard for the fix in `attachComposerChips`: a file mention wrapped in
+    // backticks must stay as inline code and keep its full-path text. Without the
+    // `inlinePresentationIntent.code` conflict check, the composer chip pipeline would
+    // replace the backtick content with the shortened display text.
+    func testAppMarkdownParserPreservesInlineCodeAgainstComposerChip() throws {
+        let parser = AppMarkdownParser(
+            baseURL: nil,
+            inlineCodeStyle: .userBubble,
+            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+        )
+        let attributedString = try parser.attributedString(
+            for: "Inline code wins: `@Alveary/Views/Input/ChatInputField.swift` stays intact."
+        )
+
+        let codeRuns = attributedString.runs.compactMap { run -> String? in
+            guard let intent = run.inlinePresentationIntent, intent.contains(.code) else {
+                return nil
+            }
+            return String(attributedString[run.range].characters)
+        }
+        XCTAssertEqual(codeRuns, ["@Alveary/Views/Input/ChatInputField.swift"])
+
+        let flatString = String(attributedString.characters)
+        XCTAssertFalse(flatString.contains("@ChatInputField.swift "))
     }
 
     func testInlineCodeDelimiterStylingCollapsesDelimiterLayoutWidth() {

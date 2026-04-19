@@ -19,18 +19,21 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 
-    // Accent-tinted chip background; reads from the asset-catalog `AccentColor` via
-    // `NSColor.controlAccentColor` and layers at low opacity so chips tint their parent
-    // surface without overpowering surrounding text. Light mode bumps the opacity so the
-    // fill still reads as amber against a white parent background instead of washing out
-    // to near-white. Cached as a single dynamic NSColor so repeated accesses return the
-    // same instance — important for NSColor equality in attributed-string attributes.
+    // Accent-tinted chip background. Mirrors the foreground treatment: dark mode blends
+    // the accent toward black so the chip reads as a saturated deeper shade of the accent
+    // hue (rather than a low-opacity tint over the already-dark bubble fill, which sits
+    // only a few luminance points above it and looks muddy). Light mode keeps the tint
+    // approach because the bubble fill is bright, so a partially transparent accent lands
+    // as a clear highlight without needing the darkening step. Cached as a single dynamic
+    // `NSColor` so repeated accesses return the same instance — important for `NSColor`
+    // equality in attributed-string attributes.
     static let inlineFillNSColor: NSColor = .accentDerived { accent, appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
-            return accent.withAlphaComponent(0.22)
+            let darkened = accent.blended(withFraction: 0.70, of: .black) ?? accent
+            return darkened.withAlphaComponent(0.85)
         default:
-            return accent.withAlphaComponent(0.40)
+            return accent.withAlphaComponent(0.32)
         }
     }
 
@@ -66,7 +69,7 @@ enum AppMarkdownCodeBlockPalette {
     static let userBubbleInlineFillNSColor: NSColor = NSColor(name: nil, dynamicProvider: { appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
-            return NSColor(white: 0.25, alpha: 1.0)
+            return NSColor(white: 0.18, alpha: 1.0)
         default:
             return NSColor(white: 0.93, alpha: 1.0)
         }

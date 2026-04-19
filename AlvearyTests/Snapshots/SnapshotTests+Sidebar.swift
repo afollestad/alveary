@@ -38,6 +38,27 @@ extension SnapshotTests {
         )
     }
 
+    // Dark-mode coverage for the `.standard` chip palette. `AppMarkdownCodeBlockPalette`
+    // derives `inlineFillNSColor` from `NSColor.controlAccentColor` (shared with assistant
+    // bubble inline code), so this locks in how the chip reads on a dark sidebar.
+    func testSidebarThreadRowInlineCodeTitleDark() {
+        let thread = AgentThread(name: "Test `code block`")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .unread,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_inline_code_dark",
+            colorScheme: .dark
+        )
+    }
+
     func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyle() {
         let thread = AgentThread(name: "Test `code block`")
 
@@ -57,6 +78,28 @@ extension SnapshotTests {
             .background(AppSelectionStyle.rowFill),
             size: CGSize(width: 320, height: 52),
             named: "thread_row_selected_inline_code"
+        )
+    }
+
+    // Dark-mode coverage for the `.userBubble` chip palette on a selected row. Locks in
+    // the grayscale chip fill (`userBubbleInlineFillNSColor`) that contrasts against the
+    // accent-tinted `rowFill` in dark mode.
+    func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyleDark() {
+        let thread = AgentThread(name: "Test `code block`")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .unread,
+                isSelected: true,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14)
+            .background(AppSelectionStyle.rowFill),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_selected_inline_code_dark",
+            colorScheme: .dark
         )
     }
 
