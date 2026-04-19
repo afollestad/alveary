@@ -154,15 +154,15 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertTrue(chips.isEmpty)
     }
 
-    func testEffortLabelsIncludeEffortSuffix() {
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "low"), "Low effort")
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium effort (default)")
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "high"), "High effort")
-        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "max"), "Max effort")
+    func testEffortLabelsUseBareLevelNames() {
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "low"), "Low")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "medium"), "Medium")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "high"), "High")
+        XCTAssertEqual(ChatInputFieldTextSupport.effortLabel(for: "max"), "Max")
     }
 
     func testPermissionModeLabelsUseFriendlyNames() {
-        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "default"), "Default permissions")
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "default"), "Default")
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "plan"), "Plan")
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "acceptEdits"), "Accept edits")
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "auto"), "Automatic")

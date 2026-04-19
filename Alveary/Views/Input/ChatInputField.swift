@@ -307,8 +307,10 @@ struct ChatInputField: View {
             }
             HStack(spacing: 10) {
                 Picker("Model", selection: $selectedModel) {
-                    ForEach(modelOptions, id: \.self) { option in
-                        Text(ChatInputFieldTextSupport.modelLabel(for: option)).tag(option)
+                    Section(header: Text("Model")) {
+                        ForEach(modelOptions, id: \.self) { option in
+                            Text(ChatInputFieldTextSupport.modelLabel(for: option)).tag(option)
+                        }
                     }
                 }
                 .pickerStyle(.menu)
@@ -317,8 +319,10 @@ struct ChatInputField: View {
 
                 if !supportedEffortLevels.isEmpty {
                     Picker("Effort", selection: $selectedEffort) {
-                        ForEach(supportedEffortLevels, id: \.self) { option in
-                            Text(ChatInputFieldTextSupport.effortLabel(for: option)).tag(option)
+                        Section(header: Text("Effort")) {
+                            ForEach(supportedEffortLevels, id: \.self) { option in
+                                Text(ChatInputFieldTextSupport.effortLabel(for: option)).tag(option)
+                            }
                         }
                     }
                     .pickerStyle(.menu)
@@ -328,8 +332,10 @@ struct ChatInputField: View {
 
                 if !supportedPermissionModes.isEmpty {
                     Picker("Permissions", selection: $selectedPermissionMode) {
-                        ForEach(supportedPermissionModes, id: \.value) { option in
-                            Text(ChatInputFieldTextSupport.permissionModeLabel(for: option)).tag(option.value)
+                        Section(header: Text("Permissions")) {
+                            ForEach(supportedPermissionModes, id: \.value) { option in
+                                Text(ChatInputFieldTextSupport.permissionModeLabel(for: option)).tag(option.value)
+                            }
                         }
                     }
                     .pickerStyle(.menu)

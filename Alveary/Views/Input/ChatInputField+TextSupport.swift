@@ -238,7 +238,7 @@ enum ChatInputFieldTextSupport {
     static func modelLabel(for value: String) -> String {
         switch value {
         case "default":
-            return "Default model"
+            return "Default"
         case "opus":
             return "Opus"
         case "sonnet":
@@ -253,13 +253,13 @@ enum ChatInputFieldTextSupport {
     static func effortLabel(for value: String) -> String {
         switch value {
         case "low":
-            return "Low effort"
+            return "Low"
         case "medium":
-            return "Medium effort (default)"
+            return "Medium"
         case "high":
-            return "High effort"
+            return "High"
         case "max":
-            return "Max effort"
+            return "Max"
         default:
             return value.capitalized
         }
@@ -272,7 +272,7 @@ enum ChatInputFieldTextSupport {
     static func permissionModeLabel(for value: String, fallbackLabel: String? = nil) -> String {
         switch value {
         case "default":
-            return "Default permissions"
+            return "Default"
         case "plan":
             return "Plan"
         case "acceptEdits":
