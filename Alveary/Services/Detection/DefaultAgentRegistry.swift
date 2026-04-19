@@ -42,11 +42,6 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                         value: "auto",
                         label: "Automatic",
                         description: "Auto-approve most actions with safety checks."
-                    ),
-                    PermissionModeOption(
-                        value: "bypassPermissions",
-                        label: "Bypass permissions",
-                        description: "Bypass permission checks entirely."
                     )
                 ],
                 suggestedWriteEscalationMode: "acceptEdits",

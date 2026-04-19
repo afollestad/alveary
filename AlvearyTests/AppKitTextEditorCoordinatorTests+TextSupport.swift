@@ -163,9 +163,9 @@ extension AppKitTextEditorCoordinatorTests {
 
     func testPermissionModeLabelsUseFriendlyNames() {
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "default"), "Default permissions")
+        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "plan"), "Plan")
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "acceptEdits"), "Accept edits")
         XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "auto"), "Automatic")
-        XCTAssertEqual(ChatInputFieldTextSupport.permissionModeLabel(for: "bypassPermissions"), "Bypass permissions")
     }
 
     func testWorktreeLocationLabelsUseFriendlyNames() {

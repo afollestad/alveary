@@ -273,12 +273,12 @@ enum ChatInputFieldTextSupport {
         switch value {
         case "default":
             return "Default permissions"
+        case "plan":
+            return "Plan"
         case "acceptEdits":
             return "Accept edits"
         case "auto":
             return "Automatic"
-        case "bypassPermissions":
-            return "Bypass permissions"
         default:
             return fallbackLabel ?? value
         }

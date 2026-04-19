@@ -3,7 +3,7 @@ import SwiftData
 
 struct AppSettings: Codable, Sendable, Equatable {
     static let supportedProviderIDs = ["claude"]
-    static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "bypassPermissions"]
+    static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto"]
     static let defaultEffortLevel = "medium"
     static let supportedEffortLevels = ["low", "medium", "high", "max"]
     static let supportedThemes = ["system", "light", "dark"]

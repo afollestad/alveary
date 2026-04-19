@@ -102,7 +102,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         viewModel.defaultProvider = "claude"
-        viewModel.permissionMode = "bypassPermissions"
+        viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
         viewModel.deleteKeyAction = .delete
         viewModel.autoGenerateNames = false
@@ -121,7 +121,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.pushOnCreate = true
 
         XCTAssertEqual(service.current.defaultProvider, "claude")
-        XCTAssertEqual(service.current.permissionMode, "bypassPermissions")
+        XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.deleteKeyAction, .delete)
         XCTAssertFalse(service.current.autoGenerateNames)

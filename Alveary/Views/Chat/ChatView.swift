@@ -189,8 +189,6 @@ private extension ChatView {
             return "Switch to Accept edits"
         case "auto":
             return "Switch to Automatic"
-        case "bypassPermissions":
-            return "Switch to Bypass permissions"
         case let mode?:
             return "Switch to \(mode)"
         case nil:
