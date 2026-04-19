@@ -241,31 +241,6 @@ struct TurnInterruptedNote: View {
     }
 }
 
-struct ReconfigureStatusBanner: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.blue.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.blue.opacity(0.18), lineWidth: 1)
-        )
-    }
-}
-
 struct PermissionBanner: View {
     let canEscalate: Bool
     let isActionDisabled: Bool

@@ -38,10 +38,6 @@ struct ChatComposerPanel: View {
                 }
             }
 
-            if viewModel.state.isReconfiguringSession {
-                ReconfigureStatusBanner(message: "Applying session changes...")
-            }
-
             if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
                 InlineBanner(message: sessionContinuityNotice, severity: .warning, autoDismissAfter: nil) {
                     viewModel.sessionContinuityNotice = nil

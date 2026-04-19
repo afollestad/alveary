@@ -34,6 +34,7 @@ struct ChatInputField: View {
     let composerHorizontalPadding: CGFloat = 10
     let composerVerticalPadding: CGFloat = 10
     let composerBaseHeight: CGFloat = 68
+    let composerActionRowHeight: CGFloat = 30
     let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
 
     @FocusState var isInputFocused: Bool
@@ -403,9 +404,11 @@ struct ChatInputField: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(height: composerActionRowHeight)
                     }
                 }
             }
+            .frame(minHeight: composerActionRowHeight)
         }
         .padding(outerPadding)
         .zIndex(activeAutocomplete == nil ? 0 : 1)
