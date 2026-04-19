@@ -119,6 +119,7 @@ struct AppTextEditor: View {
     private let requestFirstResponder: UUID?
     private let onFocusRequestConsumed: (() -> Void)?
     private let isAppKitFirstResponder: Binding<Bool>?
+    private let disablesAppKitDragDestination: Bool
 
     init(
         text: Binding<String>,
@@ -147,7 +148,8 @@ struct AppTextEditor: View {
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
         requestFirstResponder: UUID? = nil,
         onFocusRequestConsumed: (() -> Void)? = nil,
-        isAppKitFirstResponder: Binding<Bool>? = nil
+        isAppKitFirstResponder: Binding<Bool>? = nil,
+        disablesAppKitDragDestination: Bool = false
     ) {
         self._text = text
         self.selection = nil
@@ -177,6 +179,7 @@ struct AppTextEditor: View {
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
         self.isAppKitFirstResponder = isAppKitFirstResponder
+        self.disablesAppKitDragDestination = disablesAppKitDragDestination
     }
 
     init(
@@ -207,7 +210,8 @@ struct AppTextEditor: View {
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)? = nil,
         requestFirstResponder: UUID? = nil,
         onFocusRequestConsumed: (() -> Void)? = nil,
-        isAppKitFirstResponder: Binding<Bool>? = nil
+        isAppKitFirstResponder: Binding<Bool>? = nil,
+        disablesAppKitDragDestination: Bool = false
     ) {
         self._text = text
         self.selection = selection
@@ -237,6 +241,7 @@ struct AppTextEditor: View {
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
         self.isAppKitFirstResponder = isAppKitFirstResponder
+        self.disablesAppKitDragDestination = disablesAppKitDragDestination
     }
 
     var body: some View {
@@ -267,7 +272,8 @@ struct AppTextEditor: View {
                 onKeyPress: onKeyPress,
                 requestFirstResponder: requestFirstResponder,
                 onFocusRequestConsumed: onFocusRequestConsumed,
-                isAppKitFirstResponder: isAppKitFirstResponder
+                isAppKitFirstResponder: isAppKitFirstResponder,
+                disablesAppKitDragDestination: disablesAppKitDragDestination
             )
             .frame(
                 maxWidth: .infinity,

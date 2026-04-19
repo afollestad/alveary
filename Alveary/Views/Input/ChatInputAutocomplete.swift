@@ -330,7 +330,7 @@ enum ComposerAutocompleteMatcher {
                     title: CanonicalPath.displayMentionPath(file, relativeTo: workingDirectory),
                     subtitle: nil,
                     trailingText: nil,
-                    replacementText: "@\(file)",
+                    replacementText: "@\(CanonicalPath.encodeStoredMentionPath(file))",
                     symbolName: "doc.text"
                 )
             },

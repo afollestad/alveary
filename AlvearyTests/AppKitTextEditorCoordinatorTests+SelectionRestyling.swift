@@ -13,11 +13,11 @@ extension AppKitTextEditorCoordinatorTests {
             style: .fileMention
         )
         let harness = makeSelectionRestyleHarness(chip: chip)
-        let hiddenPrefixOffset = chip.range.location + 1
+        let chipInteriorOffset = chip.range.location + 1
 
         let initialColor = harness.textView.textStorage?.attribute(
             .foregroundColor,
-            at: hiddenPrefixOffset,
+            at: chipInteriorOffset,
             effectiveRange: nil
         ) as? NSColor
         XCTAssertEqual(initialColor?.alphaComponent, 0)
@@ -35,7 +35,7 @@ extension AppKitTextEditorCoordinatorTests {
 
         let updatedColor = harness.textView.textStorage?.attribute(
             .foregroundColor,
-            at: hiddenPrefixOffset,
+            at: chipInteriorOffset,
             effectiveRange: nil
         ) as? NSColor
         XCTAssertGreaterThan(updatedColor?.alphaComponent ?? 0, 0)

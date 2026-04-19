@@ -171,10 +171,7 @@ enum AppTextEditorCodeBlockStyling {
 
             let compactDisplay = compactDisplayResolver(chip)
 
-            textStorage.addAttributes(
-                textChipAttributes(style: chip.style, compactDisplay: compactDisplay),
-                range: clampedRange
-            )
+            textStorage.addAttributes(textChipAttributes(), range: clampedRange)
 
             if compactDisplay, chip.style == .fileMention {
                 applyCompactFileMentionAttributes(
@@ -218,58 +215,50 @@ enum AppTextEditorCodeBlockStyling {
         textStorage.addAttribute(.kern, value: appTextEditorChipTrailingKern, range: lastCharacterRange)
     }
 
-    static func textChipAttributes(
-        style: AppTextEditorChipStyle,
-        compactDisplay: Bool
-    ) -> [NSAttributedString.Key: Any] {
+    static func textChipAttributes() -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(
                 ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize * 0.94,
                 weight: .regular
             ),
-            .foregroundColor: compactDisplay && style != .fileMention
-                ? NSColor.clear
-                : AppMarkdownCodeBlockPalette.inlineForegroundNSColor
+            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         ]
     }
 
+    // File-mention chips compact to an `@<basename>` label. The stored text may be
+    // percent-encoded (so the mention regex can hold paths with spaces and other
+    // terminators), which means the stored tail doesn't match the decoded display
+    // label. Hide the entire stored chip text via a clear foreground and apply a
+    // negative `.kern` to every stored char so their combined advances shrink to match
+    // the decoded label's width — `.kern` adjusts each glyph's trailing advance and
+    // `NSLayoutManager.enumerateEnclosingRects` reflects it, so the chip rect
+    // collapses to the decoded label size. `AppKitTextView.drawCompactChipLabels`
+    // then paints the decoded label over the shrunken chip rect.
     private static func applyCompactFileMentionAttributes(
         to textStorage: NSTextStorage,
         chipRange: NSRange,
         displayText: String
     ) {
-        let fullText = (textStorage.string as NSString).substring(with: chipRange)
-        let fullLength = (fullText as NSString).length
-        let displayLength = (displayText as NSString).length
-        let hiddenPrefixLength = fullLength - displayLength
-
-        guard fullLength > 1,
-              hiddenPrefixLength > 0 else {
+        guard chipRange.length > 0 else {
             return
         }
 
-        let hiddenPrefixRange = NSRange(location: chipRange.location + 1, length: hiddenPrefixLength)
-        let visibleSuffixRange = NSRange(
-            location: hiddenPrefixRange.location + hiddenPrefixLength,
-            length: chipRange.length - hiddenPrefixLength - 1
-        )
-        let visibleAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
-        ]
-        let baseFont = (textStorage.attribute(.font, at: chipRange.location, effectiveRange: nil) as? NSFont) ??
-            .preferredFont(forTextStyle: .body)
-
-        textStorage.addAttributes(hiddenFileMentionPrefixAttributes(baseFont: baseFont), range: hiddenPrefixRange)
-        textStorage.addAttributes(visibleAttributes, range: NSRange(location: chipRange.location, length: 1))
-        if visibleSuffixRange.length > 0 {
-            textStorage.addAttributes(visibleAttributes, range: visibleSuffixRange)
-        }
-    }
-
-    private static func hiddenFileMentionPrefixAttributes(baseFont: NSFont) -> [NSAttributedString.Key: Any] {
-        [
-            .font: NSFont.systemFont(ofSize: max(baseFont.pointSize * 0.01, 0.1)),
+        var attributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.clear
         ]
+
+        let decodedDisplayLength = (CanonicalPath.decodeStoredMentionPath(displayText) as NSString).length
+        let storedLength = chipRange.length
+        if storedLength > decodedDisplayLength,
+           decodedDisplayLength > 0,
+           let chipFont = textStorage.attribute(.font, at: chipRange.location, effectiveRange: nil) as? NSFont {
+            let charAdvance = chipFont.maximumAdvancement.width
+            let reductionPerChar = charAdvance * CGFloat(storedLength - decodedDisplayLength) / CGFloat(storedLength)
+            if reductionPerChar > 0 {
+                attributes[.kern] = -reductionPerChar
+            }
+        }
+
+        textStorage.addAttributes(attributes, range: chipRange)
     }
 }

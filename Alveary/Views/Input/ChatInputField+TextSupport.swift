@@ -400,6 +400,13 @@ enum ChatInputFieldTextSupport {
     // `relativeTo workingDirectory:` parameter and thread it from UserBubble and the
     // composer call sites — there's no live-state reason to keep the knob while nothing
     // reads it.
+    // Returns the stored (possibly percent-encoded) form of the filename. The two
+    // consumers of `AppTextEditorChip.displayText` both decode at render time:
+    // `AppKitTextView.drawCompactChipLabels` for the composer, and
+    // `AppMarkdownParser.applyComposerChip` for chat bubble substitution. Do the
+    // decode there rather than here so `mentionChipDisplayText` stays a pure
+    // path → stored-form mapping; a second representation is only needed when a
+    // render site chooses what to show.
     static func mentionChipDisplayText(for path: String) -> String {
         let fileName = (path as NSString).lastPathComponent
         return "@\((fileName.isEmpty ? path : fileName))"

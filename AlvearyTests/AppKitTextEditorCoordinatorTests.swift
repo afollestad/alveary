@@ -43,8 +43,8 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             return XCTFail("Expected mention range")
         }
 
-        let hiddenPrefixIndex = text.index(mentionRange.lowerBound, offsetBy: 1)
-        guard let mentionOffset = ChatInputFieldTextSupport.offset(of: hiddenPrefixIndex, in: text),
+        let chipInteriorIndex = text.index(mentionRange.lowerBound, offsetBy: 1)
+        guard let mentionOffset = ChatInputFieldTextSupport.offset(of: chipInteriorIndex, in: text),
               let initialColor = textView.textStorage?.attribute(.foregroundColor, at: mentionOffset, effectiveRange: nil) as? NSColor else {
             return XCTFail("Expected mention styling")
         }

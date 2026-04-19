@@ -234,7 +234,28 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertLessThan(fullRect.width - contentRect.width, 8)
     }
 
-    func testCompactFileMentionStylingHidesPathPrefixButKeepsFilenameVisible() {
+    // `disablesAppKitDragDestination` is the opt-in toggle that keeps NSTextView out of
+    // the drag-destination chain so a parent SwiftUI `.dropDestination` can receive
+    // drops. Default must stay false so editors without a parent drop target (Skills
+    // instructions, MCP headers/env) keep accepting drops. We stage some drag types
+    // directly (NSTextView's own default registration depends on window attachment and
+    // `isRichText` state that isn't present in a bare-test `frame: .zero` view); this
+    // test only verifies the override — `updateDragTypeRegistration` unregisters when
+    // the flag flips true and defers to `super.updateDragTypeRegistration()` when false.
+    func testDisablesAppKitDragDestinationUnregistersDragTypesWhenEnabled() {
+        let textView = AppKitTextView(frame: .zero)
+        textView.registerForDraggedTypes([.string, .fileURL])
+        XCTAssertEqual(Set(textView.registeredDraggedTypes), [.string, .fileURL])
+
+        textView.disablesAppKitDragDestination = true
+        XCTAssertTrue(textView.registeredDraggedTypes.isEmpty)
+    }
+
+    // Compact file-mention chips hide every stored glyph (clear foreground) and
+    // shrink the chip rect via negative `.kern` per char so `AppKitTextView.drawCompactChipLabels`
+    // can paint a decoded label over a tightly-sized rect. See
+    // `Alveary/Views/Components/AGENTS.md` for the rationale.
+    func testCompactFileMentionStylingHidesStoredTextAndShrinksAdvanceViaKern() {
         let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
         textView.font = .preferredFont(forTextStyle: .body)
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
@@ -261,13 +282,16 @@ extension AppKitTextEditorCoordinatorTests {
             compactDisplayResolver: { _ in true }
         )
 
-        let hiddenPrefixColor = textStorage.attribute(.foregroundColor, at: 9, effectiveRange: nil) as? NSColor
-        let hiddenPrefixFont = textStorage.attribute(.font, at: 9, effectiveRange: nil) as? NSFont
-        let visibleSuffixColor = textStorage.attribute(.foregroundColor, at: 30, effectiveRange: nil) as? NSColor
+        let prefixColor = textStorage.attribute(.foregroundColor, at: 9, effectiveRange: nil) as? NSColor
+        let suffixColor = textStorage.attribute(.foregroundColor, at: 30, effectiveRange: nil) as? NSColor
+        let prefixKern = textStorage.attribute(.kern, at: 9, effectiveRange: nil) as? CGFloat
+        let suffixKern = textStorage.attribute(.kern, at: 30, effectiveRange: nil) as? CGFloat
 
-        XCTAssertEqual(hiddenPrefixColor, .clear)
-        XCTAssertLessThan(hiddenPrefixFont?.pointSize ?? .greatestFiniteMagnitude, 1)
-        XCTAssertEqual(visibleSuffixColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor)
+        XCTAssertEqual(prefixColor, .clear)
+        XCTAssertEqual(suffixColor, .clear)
+        XCTAssertNotNil(prefixKern)
+        XCTAssertLessThan(prefixKern ?? 0, 0)
+        XCTAssertEqual(prefixKern, suffixKern)
     }
 
     func testTextChipUsesInlineCodeFontStyling() {

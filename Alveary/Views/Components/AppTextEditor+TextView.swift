@@ -62,6 +62,32 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    // When true, suppress NSTextView's built-in drag destination so a parent SwiftUI
+    // `.dropDestination` receives file/text drops instead. The composer opts in so it
+    // can prepend `@` and collapse dropped paths into mention chips; other editors
+    // (Skills instructions, MCP headers/env) leave this false so they keep NSTextView's
+    // default behavior of inserting dropped text inline.
+    var disablesAppKitDragDestination = false {
+        didSet {
+            guard oldValue != disablesAppKitDragDestination else { return }
+            updateDragTypeRegistration()
+        }
+    }
+
+    // `updateDragTypeRegistration()` is NSTextView's hook for re-registering drag
+    // types whenever state such as `isRichText` or `importsGraphics` changes.
+    // Overriding it gates registration on `disablesAppKitDragDestination` so the
+    // drag destination stays unregistered even across subsequent NSTextView state
+    // changes that would otherwise re-register the default types. Paste uses
+    // `readablePasteboardTypes` and is untouched.
+    override func updateDragTypeRegistration() {
+        if disablesAppKitDragDestination {
+            unregisterDraggedTypes()
+        } else {
+            super.updateDragTypeRegistration()
+        }
+    }
+
     var textChips: [AppTextEditorChip] = [] {
         didSet {
             needsDisplay = true
@@ -106,6 +132,9 @@ final class AppKitTextView: NSTextView {
             drawTextChipBackgrounds(in: dirtyRect)
         }
         super.draw(dirtyRect)
+        if !string.isEmpty {
+            drawCompactChipLabels(in: dirtyRect)
+        }
     }
 
     override func didChangeText() {

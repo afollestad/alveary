@@ -57,6 +57,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
     // that need to read "is the composer actively focused?" during body evaluation (e.g.
     // the inline slash-command hint) should drive off this plain binding.
     let isAppKitFirstResponder: Binding<Bool>?
+    let disablesAppKitDragDestination: Bool
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -80,7 +81,8 @@ struct AppKitTextEditorView: NSViewRepresentable {
         onKeyPress: ((AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result)?,
         requestFirstResponder: UUID? = nil,
         onFocusRequestConsumed: (() -> Void)? = nil,
-        isAppKitFirstResponder: Binding<Bool>? = nil
+        isAppKitFirstResponder: Binding<Bool>? = nil,
+        disablesAppKitDragDestination: Bool = false
     ) {
         _text = text
         self.selection = selection
@@ -102,6 +104,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         self.requestFirstResponder = requestFirstResponder
         self.onFocusRequestConsumed = onFocusRequestConsumed
         self.isAppKitFirstResponder = isAppKitFirstResponder
+        self.disablesAppKitDragDestination = disablesAppKitDragDestination
     }
 
     func makeCoordinator() -> Coordinator {

@@ -32,6 +32,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
         textView.inlineHint = parent.inlineHint
+        textView.disablesAppKitDragDestination = parent.disablesAppKitDragDestination
         syncInlineCodePresentation(for: textView)
         syncTextChipPresentation(for: textView)
         textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)

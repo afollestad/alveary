@@ -124,6 +124,30 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(ranges, [NSRange(location: 33, length: 41)])
     }
 
+    // Dropped paths with spaces are stored percent-encoded so the mention regex can
+    // hold them as a single token. The chip's `displayText` is the stored (encoded)
+    // last-path-component; render sites decode it.
+    func testComposerTextChipsStoreEncodedPathAndEncodedLastComponentForEncodedMention() {
+        let text = "Inspect @/Users/me/My%20File.png now"
+        guard let mentionRange = text.range(of: "@/Users/me/My%20File.png"),
+              let lowerOffset = ChatInputFieldTextSupport.offset(of: mentionRange.lowerBound, in: text),
+              let upperOffset = ChatInputFieldTextSupport.offset(of: mentionRange.upperBound, in: text) else {
+            return XCTFail("Expected mention range")
+        }
+
+        let chips = ChatInputFieldTextSupport.composerTextChips(in: text)
+
+        XCTAssertEqual(chips.count, 1)
+        XCTAssertEqual(
+            chips[0],
+            AppTextEditorChip(
+                range: NSRange(location: lowerOffset, length: upperOffset - lowerOffset),
+                displayText: "@My%20File.png",
+                style: .fileMention
+            )
+        )
+    }
+
     func testComposerTextChipsUseFilenameDisplayForFileMentions() {
         let text = "/review-github-pr inspect @/tmp/alveary/Alveary/Views/Input/ChatInputField.swift next"
         guard let mentionRange = text.range(of: "@/tmp/alveary/Alveary/Views/Input/ChatInputField.swift"),

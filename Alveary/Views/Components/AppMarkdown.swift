@@ -239,7 +239,16 @@ struct AppMarkdownParser: MarkupParser {
         let preservedPresentationIntent = attributedString[attributedRange].runs
             .compactMap { $0.presentationIntent }
             .first
-        var replacement = AttributedString(chip.displayText)
+        // `composerTextChips` keeps `displayText` in the stored (percent-encoded)
+        // form because composer storage itself is percent-encoded — the mention regex
+        // terminates on whitespace, so paths with spaces live as `@/foo/My%20File.png`.
+        // The composer's compact renderer decodes at draw time via
+        // `AppKitTextView.drawCompactChipLabels`; bubble rendering has to do the same
+        // on its own since it substitutes the whole chip range with `displayText`.
+        let decodedDisplayText = chip.style == .fileMention
+            ? CanonicalPath.decodeStoredMentionPath(chip.displayText)
+            : chip.displayText
+        var replacement = AttributedString(decodedDisplayText)
         replacement.inlinePresentationIntent = .code
         if let preservedPresentationIntent {
             replacement.presentationIntent = preservedPresentationIntent

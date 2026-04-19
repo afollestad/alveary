@@ -237,7 +237,8 @@ struct ChatInputField: View {
                     onKeyPress: handleKeyPress,
                     requestFirstResponder: focusRequestToken,
                     onFocusRequestConsumed: { focusRequestToken = nil },
-                    isAppKitFirstResponder: $isComposerFirstResponder
+                    isAppKitFirstResponder: $isComposerFirstResponder,
+                    disablesAppKitDragDestination: true
                 )
                 .overlay(alignment: .topLeading) {
                     if let autocomplete = activeAutocomplete {

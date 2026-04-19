@@ -354,7 +354,11 @@ extension ChatInputField {
         let droppedMentions = items
             .filter { $0.isFileURL }
             .map {
-                "@\(ChatInputFieldTextSupport.normalizedMentionPath(for: $0.path, relativeTo: workingDirectory))"
+                let normalized = ChatInputFieldTextSupport.normalizedMentionPath(
+                    for: $0.path,
+                    relativeTo: workingDirectory
+                )
+                return "@\(CanonicalPath.encodeStoredMentionPath(normalized))"
             }
         guard !droppedMentions.isEmpty else {
             return false

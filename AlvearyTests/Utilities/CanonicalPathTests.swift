@@ -89,6 +89,59 @@ final class CanonicalPathTests: XCTestCase {
         )
     }
 
+    func testEncodeStoredMentionPathEscapesSpacesAndPercent() {
+        XCTAssertEqual(
+            CanonicalPath.encodeStoredMentionPath("/Users/me/My File.png"),
+            "/Users/me/My%20File.png"
+        )
+        XCTAssertEqual(
+            CanonicalPath.encodeStoredMentionPath("/Users/me/100% done.txt"),
+            "/Users/me/100%25%20done.txt"
+        )
+    }
+
+    func testEncodeStoredMentionPathEscapesNarrowNoBreakSpace() {
+        // macOS screenshot filenames use U+202F (narrow no-break space). The mention
+        // regex treats it as whitespace, so storage must encode it.
+        XCTAssertEqual(
+            CanonicalPath.encodeStoredMentionPath("/Users/me/Screenshot\u{202F}PM.png"),
+            "/Users/me/Screenshot%E2%80%AFPM.png"
+        )
+    }
+
+    func testEncodeStoredMentionPathEscapesRegexTerminatorsNotCoveredByUrlPathAllowed() {
+        // `)` and `'` are in `urlPathAllowed` but terminate the mention regex.
+        XCTAssertEqual(
+            CanonicalPath.encodeStoredMentionPath("/tmp/weird(2)'file.txt"),
+            "/tmp/weird(2%29%27file.txt"
+        )
+    }
+
+    func testEncodeDecodeStoredMentionPathRoundTrips() {
+        let samples = [
+            "/Users/me/Screenshot 2026-04-19 at 6.46.48\u{202F}PM.png",
+            "/Users/me/100% done.txt",
+            "/tmp/weird(2)'file.txt",
+            "/Users/me/ordinary.txt"
+        ]
+        for sample in samples {
+            let roundTripped = CanonicalPath.decodeStoredMentionPath(
+                CanonicalPath.encodeStoredMentionPath(sample)
+            )
+            XCTAssertEqual(roundTripped, sample, "round-trip failed for \(sample)")
+        }
+    }
+
+    func testNormalizeMentionPathDecodesBeforeNormalizing() {
+        let workingDirectory = "/tmp/alveary/project"
+        let encodedPath = "/tmp/alveary/project/docs/My%20Notes.md"
+
+        XCTAssertEqual(
+            CanonicalPath.normalizeMentionPath(encodedPath, relativeTo: workingDirectory),
+            "docs/My Notes.md"
+        )
+    }
+
     private func makeTempDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
