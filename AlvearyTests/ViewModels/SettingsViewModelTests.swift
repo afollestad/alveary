@@ -44,6 +44,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
         XCTAssertEqual(viewModel.availableProviderIDs, ["claude"])
+        XCTAssertEqual(viewModel.supportedModels, AppSettings.supportedModels)
         XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes)
         XCTAssertEqual(viewModel.effortOptions(for: "claude"), AppSettings.supportedEffortLevels)
         XCTAssertEqual(viewModel.themeOptions, ["system", "light", "dark"])
@@ -55,6 +56,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testGettersReflectCurrentSettings() {
         let service = InMemorySettingsService()
         service.update {
+            $0.defaultModel = "opus"
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
@@ -77,6 +79,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         XCTAssertEqual(viewModel.defaultProvider, "claude")
+        XCTAssertEqual(viewModel.defaultModel, "opus")
         XCTAssertEqual(viewModel.permissionMode, "plan")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.deleteKeyAction, .delete)
@@ -102,6 +105,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         viewModel.defaultProvider = "claude"
+        viewModel.defaultModel = "sonnet"
         viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
         viewModel.deleteKeyAction = .delete
@@ -121,6 +125,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.pushOnCreate = true
 
         XCTAssertEqual(service.current.defaultProvider, "claude")
+        XCTAssertEqual(service.current.defaultModel, "sonnet")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.deleteKeyAction, .delete)

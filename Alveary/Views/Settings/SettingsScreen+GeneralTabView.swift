@@ -3,6 +3,7 @@ import SwiftUI
 struct GeneralSettingsTabView: View {
     let viewModel: SettingsViewModel
     @Binding var defaultProvider: String
+    @Binding var defaultModel: String
     @Binding var permissionMode: String
     @Binding var effort: String
     @Binding var deleteKeyAction: ThreadDeleteKeyAction
@@ -18,16 +19,16 @@ struct GeneralSettingsTabView: View {
     var body: some View {
         Form {
             Section("Thread Defaults") {
-                Picker("Default provider", selection: $defaultProvider) {
+                Picker("Provider", selection: $defaultProvider) {
                     ForEach(viewModel.availableProviderIDs, id: \.self) { providerID in
                         Text(providerID.capitalized).tag(providerID)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
 
-                Picker("Permission mode", selection: $permissionMode) {
-                    ForEach(viewModel.permissionModeOptions(for: viewModel.defaultProvider), id: \.self) { mode in
-                        Text(ChatInputFieldTextSupport.permissionModeLabel(for: mode)).tag(mode)
+                Picker("Model", selection: $defaultModel) {
+                    ForEach(viewModel.supportedModels, id: \.self) { model in
+                        Text(ChatInputFieldTextSupport.modelLabel(for: model)).tag(model)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
@@ -35,6 +36,13 @@ struct GeneralSettingsTabView: View {
                 Picker("Effort", selection: $effort) {
                     ForEach(viewModel.effortOptions(for: viewModel.defaultProvider), id: \.self) { effort in
                         Text(ChatInputFieldTextSupport.effortLabel(for: effort)).tag(effort)
+                    }
+                }
+                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
+
+                Picker("Permission mode", selection: $permissionMode) {
+                    ForEach(viewModel.permissionModeOptions(for: viewModel.defaultProvider), id: \.self) { mode in
+                        Text(ChatInputFieldTextSupport.permissionModeLabel(for: mode)).tag(mode)
                     }
                 }
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)

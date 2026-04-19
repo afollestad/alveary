@@ -81,10 +81,14 @@ final class SidebarViewModel {
 
     func createThread(project: Project, provider: String, permissionMode: String) async throws -> AgentThread {
         let dbProject = try requireProject(project)
+        let defaultModel = settingsService.current.defaultModel
+        let threadModel: String? = (defaultModel != AppSettings.defaultModelValue &&
+            AppSettings.supportedModels.contains(defaultModel)) ? defaultModel : nil
         let thread = AgentThread(
             name: "New thread",
             permissionMode: permissionMode,
             effort: settingsService.current.effort,
+            model: threadModel,
             useWorktree: settingsService.current.createWorktreeByDefault && dbProject.isGitRepository,
             project: dbProject
         )

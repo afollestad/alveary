@@ -3,7 +3,6 @@ import SwiftData
 
 private struct ConversationInitialSetupSnapshot {
     let draft: String
-    let selectedModel: String?
     let stagedContext: String?
 }
 
@@ -63,7 +62,7 @@ extension ConversationViewModel {
             providerId: providerId,
             workingDirectory: workingDirectory,
             permissionMode: dbConversation.thread?.permissionMode,
-            model: state.selectedModel,
+            model: dbConversation.thread?.model,
             effort: AppSettings.normalizedEffortLevel(dbConversation.thread?.effort),
             initialPrompt: initialPrompt
         )
@@ -142,7 +141,6 @@ extension ConversationViewModel {
 
         let snapshot = ConversationInitialSetupSnapshot(
             draft: message,
-            selectedModel: state.selectedModel,
             stagedContext: state.stagedContext
         )
 
@@ -273,7 +271,6 @@ private extension ConversationViewModel {
     ) {
         replaceState(with: runtimeStore.conversationState(for: conversation.id))
         state.inputDraft = snapshot.draft
-        state.selectedModel = snapshot.selectedModel
         state.stagedContext = snapshot.stagedContext
         thread.hasCompletedInitialSetup = false
     }

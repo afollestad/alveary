@@ -6,6 +6,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto"]
     static let defaultEffortLevel = "medium"
     static let supportedEffortLevels = ["low", "medium", "high", "max"]
+    static let supportedModels = ["default", "opus", "sonnet", "haiku"]
+    static let defaultModelValue = "default"
     static let supportedThemes = ["system", "light", "dark"]
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
@@ -14,6 +16,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultTerminalPaneHeight = 320.0
 
     var defaultProvider = "claude"
+    var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
     var deleteKeyAction = ThreadDeleteKeyAction.archive
@@ -42,6 +45,9 @@ struct AppSettings: Codable, Sendable, Equatable {
 
         if !Self.supportedProviderIDs.contains(copy.defaultProvider) {
             copy.defaultProvider = Self.supportedProviderIDs[0]
+        }
+        if !Self.supportedModels.contains(copy.defaultModel) {
+            copy.defaultModel = Self.defaultModelValue
         }
         if !Self.supportedPermissionModes.contains(copy.permissionMode) {
             copy.permissionMode = "default"
@@ -105,6 +111,7 @@ struct AppSettings: Codable, Sendable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case defaultProvider
+        case defaultModel
         case permissionMode
         case effort
         case deleteKeyAction
@@ -134,6 +141,7 @@ extension AppSettings {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
+        self.defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaults.defaultModel
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
         self.deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? defaults.deleteKeyAction

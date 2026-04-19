@@ -10,6 +10,10 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 
 - Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume. Restoring a thread should regenerate that summary from saved `ConversationEventRecord`s, hydrate it back into `ConversationState.stagedContext` when the conversation view model is recreated, send it only through the existing staged-context path on the next outbound message, and clear the persisted field when the user dismisses it or that send succeeds.
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
+- `AgentThread.model` is the per-thread model override. It mirrors the `permissionMode`/`effort` pattern for thread-scoped picker state, but with a different nil semantic:
+    - **Store `nil` for "use the provider's default model".** The composer picker's `"default"` value is a UI sentinel that `applyModelChange` translates to `nil` before persisting — never write the literal string `"default"` into `AgentThread.model`, or the adapter will pass `--model=default` to the CLI.
+    - **Seed from `AppSettings.defaultModel` at thread creation.** `SidebarViewModel.createThread` reads the app-wide default and maps `"default"`/unknown values back to `nil` on the new `AgentThread`, matching how it seeds `effort` and `permissionMode`.
+    - **Read the live DB field in bindings, not a transient state mirror.** `ChatView.selectedModelBinding` must read `conversation.thread?.model` so the picker reflects the persisted value across view-model re-inits and session forks; do not reintroduce a parallel `ConversationState.selectedModel` cache.
 
 ## Model Context Helpers
 

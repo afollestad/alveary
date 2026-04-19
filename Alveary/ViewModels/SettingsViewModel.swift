@@ -24,6 +24,10 @@ final class SettingsViewModel {
         AppSettings.supportedProviderIDs
     }
 
+    var supportedModels: [String] {
+        AppSettings.supportedModels
+    }
+
     func permissionModeOptions(for providerId: String) -> [String] {
         providerId == "claude" ? AppSettings.supportedPermissionModes : []
     }
@@ -119,6 +123,11 @@ final class SettingsViewModel {
     var defaultProvider: String {
         get { settingsService.current.defaultProvider }
         set { settingsService.update { $0.defaultProvider = newValue } }
+    }
+
+    var defaultModel: String {
+        get { settingsService.current.defaultModel }
+        set { settingsService.update { $0.defaultModel = newValue } }
     }
 
     var permissionMode: String {

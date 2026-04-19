@@ -21,7 +21,6 @@ final class ConversationState {
     var activeBufferGeneration: UUID?
     var activeSubscriptionToken: UUID?
     var inputDraft = ""
-    var selectedModel: String?
     var grouper = ChatItemGrouper()
     var respawnAttempts = 0
     var showPermissionBanner = false

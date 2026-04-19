@@ -19,6 +19,7 @@ struct SidebarTestFixture {
         gitHubInstalledVersion: String? = nil,
         gitHubAuthenticated: Bool = false,
         defaultEffort: String = AppSettings.defaultEffortLevel,
+        defaultModel: String = AppSettings.defaultModelValue,
         createWorktreeByDefault: Bool = false
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -40,6 +41,7 @@ struct SidebarTestFixture {
 
         var settings = AppSettings()
         settings.effort = defaultEffort
+        settings.defaultModel = defaultModel
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
         notificationManager = RecordingNotificationManager()

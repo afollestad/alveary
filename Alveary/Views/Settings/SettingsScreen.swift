@@ -52,6 +52,7 @@ struct SettingsScreen: View {
                         GeneralSettingsTabView(
                             viewModel: viewModel,
                             defaultProvider: binding(for: \.defaultProvider),
+                            defaultModel: binding(for: \.defaultModel),
                             permissionMode: binding(for: \.permissionMode),
                             effort: binding(for: \.effort),
                             deleteKeyAction: binding(for: \.deleteKeyAction),

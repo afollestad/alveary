@@ -63,7 +63,7 @@ struct ChatView: View {
 
     private var selectedModelBinding: Binding<String> {
         Binding(
-            get: { viewModel.state.selectedModel ?? "default" },
+            get: { conversation.thread?.model ?? AppSettings.defaultModelValue },
             set: { viewModel.applyModelChange($0) }
         )
     }

@@ -25,11 +25,24 @@ extension ConversationViewModel {
     @discardableResult
     func applyModelChange(_ newValue: String) -> Task<Void, Never> {
         guard canApplySettingsChange else { return .noop }
-        let previousValue = state.selectedModel ?? "default"
+        guard let threadID = conversation.thread?.persistentModelID,
+              let dbThread = modelContext.resolveThread(id: threadID) else {
+            return .noop
+        }
+
+        let previousValue = dbThread.model ?? AppSettings.defaultModelValue
         guard previousValue != newValue else { return .noop }
 
-        state.selectedModel = newValue == "default" ? nil : newValue
+        dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
         state.lastTurnError = nil
+
+        do {
+            try modelContext.save()
+        } catch {
+            dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
+            state.lastTurnError = error.localizedDescription
+            return .noop
+        }
 
         guard shouldReconfigureOnSettingChange() else { return .noop }
 
@@ -37,7 +50,8 @@ extension ConversationViewModel {
             do {
                 try await reconfigureSession()
             } catch {
-                state.selectedModel = previousValue == "default" ? nil : previousValue
+                dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
+                try? modelContext.save()
                 state.lastTurnError = error.localizedDescription
             }
         }

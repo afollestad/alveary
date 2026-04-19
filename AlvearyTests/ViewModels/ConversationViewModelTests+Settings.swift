@@ -48,7 +48,7 @@ final class ConversationViewModelSettingsTests: XCTestCase {
 
         await fixture.viewModel.applyModelChange("opus").value
 
-        XCTAssertEqual(fixture.viewModel.state.selectedModel, "opus")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(reconfigureCalls.first?.config.model, "opus")
@@ -102,12 +102,13 @@ final class ConversationViewModelSettingsTests: XCTestCase {
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true
         )
-        fixture.viewModel.state.selectedModel = "sonnet"
+        try fixture.dbThread().model = "sonnet"
+        try fixture.context.save()
         fixture.viewModel.state.turnState.beginTurn()
 
         await fixture.viewModel.applyModelChange("opus").value
 
-        XCTAssertEqual(fixture.viewModel.state.selectedModel, "sonnet")
+        XCTAssertEqual(try fixture.dbThread().model, "sonnet")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
@@ -145,11 +146,12 @@ final class ConversationViewModelSettingsTests: XCTestCase {
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: false
         )
-        fixture.viewModel.state.selectedModel = "sonnet"
+        try fixture.dbThread().model = "sonnet"
+        try fixture.context.save()
 
         await fixture.viewModel.applyModelChange("opus").value
 
-        XCTAssertEqual(fixture.viewModel.state.selectedModel, "sonnet")
+        XCTAssertEqual(try fixture.dbThread().model, "sonnet")
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
@@ -199,7 +201,7 @@ final class ConversationViewModelSettingsTests: XCTestCase {
 
         await fixture.viewModel.applyModelChange("opus").value
 
-        XCTAssertEqual(fixture.viewModel.state.selectedModel, "opus")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
@@ -265,7 +267,7 @@ final class ConversationViewModelSettingsTests: XCTestCase {
         )
 
         let task = fixture.viewModel.applyModelChange("opus")
-        XCTAssertEqual(fixture.viewModel.state.selectedModel, "opus")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
 
         await task.value
     }

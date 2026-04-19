@@ -11,6 +11,7 @@ final class AgentThread {
     var hasCompletedInitialSetup: Bool
     var permissionMode: String
     var effort: String
+    var model: String?
     var useWorktree: Bool
     var archivedAt: Date?
     var project: Project?
@@ -25,6 +26,7 @@ final class AgentThread {
         hasCompletedInitialSetup: Bool = false,
         permissionMode: String = "default",
         effort: String = AppSettings.defaultEffortLevel,
+        model: String? = nil,
         useWorktree: Bool = false,
         archivedAt: Date? = nil,
         project: Project? = nil,
@@ -38,6 +40,7 @@ final class AgentThread {
         self.hasCompletedInitialSetup = hasCompletedInitialSetup
         self.permissionMode = permissionMode
         self.effort = effort
+        self.model = model
         self.useWorktree = useWorktree
         self.archivedAt = archivedAt
         self.project = project

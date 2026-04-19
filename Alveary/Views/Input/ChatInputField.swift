@@ -27,7 +27,7 @@ struct ChatInputField: View {
     let loadSkillCompletions: @Sendable () async -> [Skill]
     @Binding var focusRequestToken: UUID?
 
-    let knownModels = ["default", "opus", "sonnet", "haiku"]
+    var knownModels: [String] { AppSettings.supportedModels }
     let maxAutocompleteResults = 50
     let autocompleteDebounceNanoseconds: UInt64 = 75_000_000
     let stopShortcutHintTimeoutNanoseconds: UInt64 = 1_000_000_000

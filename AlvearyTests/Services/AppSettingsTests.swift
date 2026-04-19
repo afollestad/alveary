@@ -61,4 +61,18 @@ final class AppSettingsTests: XCTestCase {
 
         XCTAssertEqual(settings.worktreesBaseDirectory, "~/Documents/worktrees")
     }
+
+    func testNormalizedClampsUnknownDefaultModelToSentinel() {
+        var settings = AppSettings()
+        settings.defaultModel = "gpt-9"
+
+        XCTAssertEqual(settings.normalized().defaultModel, AppSettings.defaultModelValue)
+    }
+
+    func testNormalizedPreservesSupportedDefaultModel() {
+        var settings = AppSettings()
+        settings.defaultModel = "opus"
+
+        XCTAssertEqual(settings.normalized().defaultModel, "opus")
+    }
 }
