@@ -53,9 +53,7 @@ struct ToolHeaderRow: View {
         HStack(alignment: .center, spacing: 10) {
             DisclosureChevron(isExpanded: isExpanded)
 
-            Image(systemName: statusIcon)
-                .foregroundStyle(statusColor)
-                .frame(width: 18, alignment: .center)
+            ToolStatusIndicator(isError: tool.isError, isComplete: tool.isComplete)
 
             // Parse the summary as Markdown so backticks become inline-code runs (with a
             // tinted background pill), and so `LocalizedStringKey`-only quirks with
@@ -70,25 +68,52 @@ struct ToolHeaderRow: View {
         }
         .contentShape(Rectangle())
     }
+}
 
-    private var statusIcon: String {
-        if tool.isError {
-            return "xmark.circle.fill"
-        }
-        if !tool.isComplete {
-            return "circle.dotted"
-        }
-        return "checkmark.circle.fill"
-    }
+/// Status indicator shared by single-tool headers (`ToolHeaderRow`) and the aggregate
+/// multi-entry `ToolGroupBlock` header. Rotation for the in-progress spinner runs on
+/// Core Animation (NSProgressIndicator on macOS), so it does not re-evaluate the
+/// SwiftUI view tree per frame and is safe to leave mounted during transcript scrolling.
+///
+/// Earlier iterations tried a custom `withAnimation(.repeatForever)` SwiftUI spinner
+/// to avoid `NSProgressIndicator`'s first-frame warmup and its timing-driven rotation
+/// (a potential source of snapshot flakes). That approach caused thread-open renders
+/// to land with a blank transcript until the user scrolled — a never-ending SwiftUI
+/// animation on a LazyVStack row interacted badly with `scrollPosition` /
+/// `defaultScrollAnchor` layout coordination. `ProgressView` stays in its own AppKit
+/// layer and does not disturb SwiftUI layout, so it is the more stable choice even
+/// though its first-frame appearance is briefly empty.
+///
+/// Branch animations are explicitly suppressed: the enclosing tool bubble applies
+/// `toolAnimationOverride(value: tools)` to ease its width/height reflow when tools
+/// stream in, but that transaction also propagates down and would cross-fade the
+/// status branches (or animate a newly-inserted `InlineToolRow` from whatever
+/// transient state SwiftUI picks). The status branches should snap — a spinner
+/// appearing *as* a spinner, not fading in from an ambiguous initial state.
+struct ToolStatusIndicator: View {
+    let isError: Bool
+    let isComplete: Bool
 
-    private var statusColor: Color {
-        if tool.isError {
-            return .red
+    var body: some View {
+        Group {
+            if isError {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            } else if isComplete {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.75)
+            }
         }
-        if !tool.isComplete {
-            return .secondary
-        }
-        return .green
+        // Width is constrained so chevron-icon-text columns line up across branches,
+        // but height is left to the indicator's intrinsic size so the enclosing HStack
+        // still hugs the semibold-subheadline text's line height. Pinning height to 18
+        // made rows ~1pt taller than the text-driven layout this replaced.
+        .frame(width: 18, alignment: .center)
+        .transaction { $0.animation = nil }
     }
 }
 

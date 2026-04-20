@@ -20,6 +20,30 @@ extension SnapshotTests {
         )
     }
 
+    func testToolGroupAggregateInProgress() {
+        assertMacSnapshot(
+            ToolGroupBlock(tools: sampleGroupToolsInProgress),
+            size: CGSize(width: 760, height: 80),
+            named: "tool_group_aggregate_in_progress"
+        )
+    }
+
+    func testToolGroupAggregateError() {
+        assertMacSnapshot(
+            ToolGroupBlock(tools: sampleGroupToolsWithError),
+            size: CGSize(width: 760, height: 80),
+            named: "tool_group_aggregate_error"
+        )
+    }
+
+    func testToolGroupExpandedIndentsChildren() {
+        assertMacSnapshot(
+            ToolGroupBlock(tools: sampleGroupTools, initiallyExpanded: true),
+            size: CGSize(width: 760, height: 220),
+            named: "tool_group_expanded_indents_children"
+        )
+    }
+
     func testStandaloneBashErrorCollapsed() {
         assertMacSnapshot(
             StandaloneToolRow(tool: sampleStandaloneBashErrorTool),

@@ -248,6 +248,68 @@ extension SnapshotTests {
         ]
     }
 
+    var sampleGroupToolsInProgress: [ToolEntry] {
+        [
+            ToolEntry(
+                id: "read-auth-pending",
+                name: "Read",
+                summary: "Read `auth.swift`",
+                input: "{\"file_path\":\"Sources/auth.swift\"}",
+                output: nil,
+                stderr: nil,
+                isComplete: true,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: false
+            ),
+            ToolEntry(
+                id: "grep-retry-pending",
+                name: "Grep",
+                summary: "Grep `retry(`",
+                input: "{\"pattern\":\"retry(\"}",
+                output: nil,
+                stderr: nil,
+                isComplete: false,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: false
+            )
+        ]
+    }
+
+    var sampleGroupToolsWithError: [ToolEntry] {
+        [
+            ToolEntry(
+                id: "read-missing",
+                name: "Read",
+                summary: "Read `missing.swift`",
+                input: "{\"file_path\":\"Sources/missing.swift\"}",
+                output: "File does not exist",
+                stderr: nil,
+                isComplete: true,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: true
+            ),
+            ToolEntry(
+                id: "read-session-ok",
+                name: "Read",
+                summary: "Read `session.swift`",
+                input: "{\"file_path\":\"Sources/session.swift\"}",
+                output: "1\timport Foundation",
+                stderr: nil,
+                isComplete: true,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: false
+            )
+        ]
+    }
+
     var sampleStandaloneEditTool: ToolEntry {
         ToolEntry(
             id: "edit-auth",

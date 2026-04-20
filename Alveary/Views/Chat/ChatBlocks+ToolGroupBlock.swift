@@ -2,16 +2,22 @@ import SwiftUI
 
 struct ToolGroupBlock: View {
     let tools: [ToolEntry]
-    @State private var isExpanded = false
+    @State private var isExpanded: Bool
     // The single-entry branch owns its own `@State` on this type rather than letting
     // a child view hold it. The `ForEach` in the transcript keys `ToolGroupBlock` on
     // `ChatItem.id`, and the group id is stable across stream re-emits (see
     // `ChatItemGrouper.ensureCurrentGroupId`). A child-owned `@State` inside the
     // `tools.count <= 1` branch would reset on some stream updates because its
     // structural identity inside the conditional is fragile.
-    @State private var singleEntryExpanded = false
+    @State private var singleEntryExpanded: Bool
 
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
+
+    init(tools: [ToolEntry], initiallyExpanded: Bool = false) {
+        self.tools = tools
+        _isExpanded = State(initialValue: initiallyExpanded)
+        _singleEntryExpanded = State(initialValue: initiallyExpanded)
+    }
 
     var body: some View {
         if tools.count <= 1, let only = tools.first {
@@ -56,12 +62,17 @@ struct ToolGroupBlock: View {
                     // defeats the hug-to-content behavior we want for the bubble. With the
                     // Spacer removed, `N failed` sits right after the summary and the
                     // whole bubble hugs its widest child (capped by `bubbleMaxWidth`).
-                    HStack(spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
                         DisclosureChevron(isExpanded: isExpanded)
 
+                        ToolStatusIndicator(
+                            isError: aggregateIsError,
+                            isComplete: aggregateIsComplete
+                        )
+
                         Text(summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(aggregateIsError ? .red : .primary)
 
                         if failureCount > 0 {
                             Text("\(failureCount) failed")
@@ -80,6 +91,10 @@ struct ToolGroupBlock: View {
                         }
                     }
                     .padding(.top, 12)
+                    // 22pt = chevron (12) + HStack spacing (10) so the nested chevrons
+                    // line up beneath the header's status icon rather than sitting flush
+                    // with the outer chevron.
+                    .padding(.leading, 22)
                 }
             }
             .padding(.horizontal, chatBlockPadding)
@@ -114,6 +129,14 @@ struct ToolGroupBlock: View {
 
     private var failureCount: Int {
         tools.filter(\.isError).count
+    }
+
+    private var aggregateIsError: Bool {
+        tools.contains(where: \.isError)
+    }
+
+    private var aggregateIsComplete: Bool {
+        tools.allSatisfy(\.isComplete)
     }
 
     /// Group tools by their category-level bucket (so Grep and Glob fold together), then

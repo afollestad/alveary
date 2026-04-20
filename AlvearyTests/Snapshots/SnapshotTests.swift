@@ -278,14 +278,6 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testToolGroupCollapsed() {
-        assertMacSnapshot(
-            ToolGroupBlock(tools: sampleGroupTools),
-            size: CGSize(width: 760, height: 120),
-            named: "tool_group_collapsed"
-        )
-    }
-
     func testSubAgentBlockMixedStates() {
         assertMacSnapshot(
             SubAgentBlock(agents: sampleSubAgents),
