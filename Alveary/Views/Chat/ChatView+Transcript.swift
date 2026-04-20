@@ -6,7 +6,6 @@ import SwiftUI
 private let transcriptTopInset: CGFloat = 20
 private let transcriptBottomInset: CGFloat = 8
 private let transcriptBottomSnapThreshold: CGFloat = 6
-private let transcriptFollowScrollDebounce: TimeInterval = 0.15
 private let transcriptProgrammaticScrollTimeout: TimeInterval = 0.4
 
 struct ChatTranscriptScrollMetrics: Equatable {
@@ -28,14 +27,20 @@ struct ChatTranscriptScrollMetrics: Equatable {
 }
 
 enum ChatTranscriptScrollBehavior {
+    /// Preserve follow mode when the *viewport* shrinks under the user (e.g. the composer
+    /// banner or changed-files strip appearing) and they were already near the bottom.
+    /// Content-size growth is deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
+    /// already pins the bottom during content growth, and new-message / streaming snaps are
+    /// handled by the dedicated `events.count` / `streamingText` onChange paths. Firing here
+    /// on content growth caused `scrollToBottom` to run on every frame of a bubble expand or
+    /// collapse animation, fighting the animation and producing jank.
     static func shouldPreserveFollowMode(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
     ) -> Bool {
-        let contentGrew = newMetrics.contentHeight > oldMetrics.contentHeight + 0.5
         let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
         let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
-        return oldMetrics.isNearBottom && (contentGrew || containerChanged) && !offsetChanged
+        return oldMetrics.isNearBottom && containerChanged && !offsetChanged
     }
 
     static func shouldCancelProgrammaticScroll(
@@ -60,24 +65,38 @@ enum ChatTranscriptScrollBehavior {
         return containerShrunk || contentGrew
     }
 
-    /// Once `shouldPreserveFollowMode` has fired, decide whether to actually re-scroll.
-    /// Container-size changes (e.g. composer banners or the changed-files strip appearing)
-    /// are rare and visually noticeable, so they bypass the streaming debounce; other
-    /// growth-driven re-scrolls still respect it to avoid fighting streaming cadence.
-    static func shouldReScrollOnPreserveFollow(
+    /// While a `preserveFollow` scroll is still pending (initiated by a container-size change
+    /// at the bottom), the composer banner or strip can continue animating its frame over
+    /// multiple layout passes. Re-issue `scrollTo` whenever the viewport shrinks further so
+    /// the transcript stays pinned through the full banner animation, not just at the initial
+    /// scrollTo + timeout snapshots. Unlike `shouldReissuePendingJumpToLatest`, content growth
+    /// is not considered here: `.defaultScrollAnchor(.bottom, for: .sizeChanges)` handles content
+    /// growth while `isFollowing` is true, and re-issuing on every streaming frame would
+    /// re-introduce the bubble-expand jank that the preserve-follow narrowing was meant to fix.
+    static func shouldReissuePendingPreserveFollow(
         oldMetrics: ChatTranscriptScrollMetrics,
-        newMetrics: ChatTranscriptScrollMetrics,
-        timeSinceLastScroll: TimeInterval,
-        debounce: TimeInterval
+        newMetrics: ChatTranscriptScrollMetrics
     ) -> Bool {
-        let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
-        return containerChanged || timeSinceLastScroll >= debounce
+        newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
     }
 }
 
 private enum PendingProgrammaticScrollMode {
     case preserveFollow
     case jumpToLatest
+}
+
+private enum ScrollToBottomRetries {
+    /// Immediate `scrollTo` only. Used by the container-change preserve-follow path
+    /// where continued layout shifts are re-issued via `shouldReissuePendingPreserveFollow`
+    /// on subsequent `onScrollGeometryChange` frames, so the deferred retries would be
+    /// redundant.
+    case single
+    /// Immediate + next-runloop + 150ms retries. Used for `jumpToLatest` (thread entry
+    /// with async composer layout shifts) and for content-growth preserve-follow paths
+    /// (new-message / streaming-chunk onChange handlers) where async bubble layout may
+    /// shift the bottom after the initial scrollTo lands.
+    case triple
 }
 
 struct ChatTranscriptView: View {
@@ -212,6 +231,15 @@ struct ChatTranscriptView: View {
                               newMetrics: newMetrics
                           ) {
                     scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
+                } else if pendingProgrammaticScrollMode == .preserveFollow,
+                          ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
+                              oldMetrics: oldMetrics,
+                              newMetrics: newMetrics
+                          ) {
+                    // Container continues shrinking across the banner animation.
+                    // Re-pin so the transcript tracks the viewport edge through every
+                    // intermediate frame, not just the initial scrollTo + timeout snapshots.
+                    scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
                 }
                 return
             }
@@ -221,15 +249,7 @@ struct ChatTranscriptView: View {
                 newMetrics: newMetrics
             ) {
                 isFollowing = true
-                let now = Date()
-                if ChatTranscriptScrollBehavior.shouldReScrollOnPreserveFollow(
-                    oldMetrics: oldMetrics,
-                    newMetrics: newMetrics,
-                    timeSinceLastScroll: now.timeIntervalSince(lastScrollTime),
-                    debounce: transcriptFollowScrollDebounce
-                ) {
-                    scrollToBottom(at: now)
-                }
+                scrollToBottom(retries: .single)
                 return
             }
 
@@ -270,6 +290,20 @@ struct ChatTranscriptView: View {
                 isFollowing = true
             } else {
                 viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
+                // Must re-pin after the rebuild even though `onChange(of: events.count)` also
+                // fires an `scrollToBottom()` at turn end — that earlier scroll gets neutered:
+                // the `forceFullRebuild` regenerates unstable item identities (e.g. tool-group
+                // UUIDs) and the streaming bubble (`id("streaming")`) unmounts as `streamingText`
+                // goes nil, producing geometry churn that either trips `shouldCancelProgrammaticScroll`
+                // (offset momentarily moves away from bottom) or transiently hits `isAtBottom`,
+                // either of which clears `pendingProgrammaticScrollMode` and disarms the
+                // remaining triple-fire retries. A fresh scroll after the rebuild lands against
+                // a settled baseline. Use `forceFollow: true` (jumpToLatest) so the wider
+                // `shouldReissuePendingJumpToLatest` predicate tracks the rebuild's content-size
+                // shifts — preserveFollow's container-only reissue would miss them.
+                if isFollowing {
+                    scrollToBottom(forceFollow: true)
+                }
             }
         }
         .onChange(of: scrollToBottomRequest) { _, _ in
@@ -332,6 +366,7 @@ struct ChatTranscriptView: View {
 private extension ChatTranscriptView {
     func scrollToBottom(
         forceFollow: Bool = false,
+        retries: ScrollToBottomRetries = .triple,
         at time: Date = Date()
     ) {
         pendingProgrammaticScrollMode = forceFollow ? .jumpToLatest : .preserveFollow
@@ -341,20 +376,22 @@ private extension ChatTranscriptView {
         lastScrollTime = time
         scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
 
-        // Re-issue the bound scroll position after layout settles so lazy rows
-        // and footer chrome changes still pin the transcript at the bottom.
-        DispatchQueue.main.async {
-            guard pendingProgrammaticScrollMode != nil else {
-                return
+        if retries == .triple {
+            // Re-issue the bound scroll position after layout settles so lazy rows
+            // and footer chrome changes still pin the transcript at the bottom.
+            DispatchQueue.main.async {
+                guard pendingProgrammaticScrollMode != nil else {
+                    return
+                }
+                scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
             }
-            scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
-        }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            guard pendingProgrammaticScrollMode != nil else {
-                return
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                guard pendingProgrammaticScrollMode != nil else {
+                    return
+                }
+                scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
             }
-            scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgrammaticScrollTimeout) {

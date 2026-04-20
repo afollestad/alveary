@@ -4,11 +4,16 @@ import XCTest
 
 @MainActor
 final class ChatTranscriptScrollBehaviorTests: XCTestCase {
-    func testPreservesFollowModeWhenContentGrowsAtBottomWithoutUserScroll() {
+    // Content growth (e.g. bubble expand/collapse, streaming text wrap) must NOT trigger
+    // preserve-follow re-scroll. `.defaultScrollAnchor(.bottom, for: .sizeChanges)` pins the
+    // bottom during size changes, and the dedicated `events.count` / `streamingText` onChange
+    // handlers snap to bottom when a new message or stream chunk arrives. Firing re-scrolls
+    // on every intermediate animation frame of a bubble expand caused scroll jank.
+    func testDoesNotPreserveFollowModeOnContentGrowthAlone() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_040, containerHeight: 460)
 
-        XCTAssertTrue(
+        XCTAssertFalse(
             ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
                 oldMetrics: oldMetrics,
                 newMetrics: newMetrics
@@ -16,9 +21,9 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    func testDoesNotPreserveFollowModeWhenOffsetChangesWithGrowth() {
+    func testDoesNotPreserveFollowModeWhenOffsetChangesWithContainerChange() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 470, contentHeight: 1_040, containerHeight: 460)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 470, contentHeight: 1_000, containerHeight: 360)
 
         XCTAssertFalse(
             ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
@@ -114,44 +119,41 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    func testReScrollOnPreserveFollowBypassesDebounceWhenContainerChanges() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 360)
+    func testReissuesPendingPreserveFollowWhenContainerShrinks() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
 
         XCTAssertTrue(
-            ChatTranscriptScrollBehavior.shouldReScrollOnPreserveFollow(
+            ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
                 oldMetrics: oldMetrics,
-                newMetrics: newMetrics,
-                timeSinceLastScroll: 0.01,
-                debounce: 0.15
+                newMetrics: newMetrics
             )
         )
     }
 
-    func testReScrollOnPreserveFollowSkipsWhenWithinDebounceAndContainerStable() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_040, containerHeight: 460)
+    // Content growth is intentionally excluded so streaming / bubble-expand frames do not
+    // re-issue `scrollTo` — `.defaultScrollAnchor(.bottom, for: .sizeChanges)` pins those,
+    // and re-issuing here would re-introduce the bubble-expand jank the narrowing fixed.
+    func testDoesNotReissuePendingPreserveFollowOnContentGrowth() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_080, containerHeight: 460)
 
         XCTAssertFalse(
-            ChatTranscriptScrollBehavior.shouldReScrollOnPreserveFollow(
+            ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
                 oldMetrics: oldMetrics,
-                newMetrics: newMetrics,
-                timeSinceLastScroll: 0.05,
-                debounce: 0.15
+                newMetrics: newMetrics
             )
         )
     }
 
-    func testReScrollOnPreserveFollowFiresWhenDebouncePasses() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_040, containerHeight: 460)
+    func testDoesNotReissuePendingPreserveFollowWhenContainerGrows() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
 
-        XCTAssertTrue(
-            ChatTranscriptScrollBehavior.shouldReScrollOnPreserveFollow(
+        XCTAssertFalse(
+            ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
                 oldMetrics: oldMetrics,
-                newMetrics: newMetrics,
-                timeSinceLastScroll: 0.2,
-                debounce: 0.15
+                newMetrics: newMetrics
             )
         )
     }
