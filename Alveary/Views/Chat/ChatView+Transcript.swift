@@ -4,87 +4,8 @@ import SwiftData
 import SwiftUI
 
 private let transcriptTopInset: CGFloat = 20
-private let transcriptBottomInset: CGFloat = 8
-private let transcriptBottomSnapThreshold: CGFloat = 6
+private let transcriptBottomInset: CGFloat = 14
 private let transcriptProgrammaticScrollTimeout: TimeInterval = 0.4
-
-struct ChatTranscriptScrollMetrics: Equatable {
-    let offsetY: CGFloat
-    let contentHeight: CGFloat
-    let containerHeight: CGFloat
-
-    var distanceFromBottom: CGFloat {
-        contentHeight - (offsetY + containerHeight)
-    }
-
-    var isNearBottom: Bool {
-        return distanceFromBottom < 60
-    }
-
-    var isAtBottom: Bool {
-        return distanceFromBottom < transcriptBottomSnapThreshold
-    }
-}
-
-enum ChatTranscriptScrollBehavior {
-    /// Preserve follow mode when the *viewport* shrinks under the user (e.g. the composer
-    /// banner or changed-files strip appearing) and they were already near the bottom.
-    /// Content-size growth is deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
-    /// already pins the bottom during content growth, and new-message / streaming snaps are
-    /// handled by the dedicated `events.count` / `streamingText` onChange paths. Firing here
-    /// on content growth caused `scrollToBottom` to run on every frame of a bubble expand or
-    /// collapse animation, fighting the animation and producing jank.
-    static func shouldPreserveFollowMode(
-        oldMetrics: ChatTranscriptScrollMetrics,
-        newMetrics: ChatTranscriptScrollMetrics
-    ) -> Bool {
-        let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
-        let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
-        return oldMetrics.isNearBottom && containerChanged && !offsetChanged
-    }
-
-    static func shouldCancelProgrammaticScroll(
-        oldMetrics: ChatTranscriptScrollMetrics,
-        newMetrics: ChatTranscriptScrollMetrics
-    ) -> Bool {
-        let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
-        let movedFurtherFromBottom = newMetrics.distanceFromBottom > oldMetrics.distanceFromBottom + 0.5
-        return offsetChanged && movedFurtherFromBottom
-    }
-
-    /// While a `jumpToLatest` scroll is still pending, composer-area changes that shrink the
-    /// transcript viewport (e.g. the changed-files strip appearing after an async diff load)
-    /// or content that grows below the current bottom move the real bottom out from under the
-    /// pending scroll. Re-issue `scrollTo` so we land at the new bottom instead of timing out.
-    static func shouldReissuePendingJumpToLatest(
-        oldMetrics: ChatTranscriptScrollMetrics,
-        newMetrics: ChatTranscriptScrollMetrics
-    ) -> Bool {
-        let containerShrunk = newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
-        let contentGrew = newMetrics.contentHeight > oldMetrics.contentHeight + 0.5
-        return containerShrunk || contentGrew
-    }
-
-    /// While a `preserveFollow` scroll is still pending (initiated by a container-size change
-    /// at the bottom), the composer banner or strip can continue animating its frame over
-    /// multiple layout passes. Re-issue `scrollTo` whenever the viewport shrinks further so
-    /// the transcript stays pinned through the full banner animation, not just at the initial
-    /// scrollTo + timeout snapshots. Unlike `shouldReissuePendingJumpToLatest`, content growth
-    /// is not considered here: `.defaultScrollAnchor(.bottom, for: .sizeChanges)` handles content
-    /// growth while `isFollowing` is true, and re-issuing on every streaming frame would
-    /// re-introduce the bubble-expand jank that the preserve-follow narrowing was meant to fix.
-    static func shouldReissuePendingPreserveFollow(
-        oldMetrics: ChatTranscriptScrollMetrics,
-        newMetrics: ChatTranscriptScrollMetrics
-    ) -> Bool {
-        newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
-    }
-}
-
-private enum PendingProgrammaticScrollMode {
-    case preserveFollow
-    case jumpToLatest
-}
 
 private enum ScrollToBottomRetries {
     /// Immediate `scrollTo` only. Used by the container-change preserve-follow path
@@ -110,6 +31,7 @@ struct ChatTranscriptView: View {
     @Binding var scrollToBottomRequest: Int
 
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
+    @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State private var latestMetrics: ChatTranscriptScrollMetrics?
     @State private var scrollPosition = ScrollPosition()
     @State private var transcriptContentWidth: CGFloat = 0
@@ -166,7 +88,6 @@ struct ChatTranscriptView: View {
                 if viewModel.turnState.isActive,
                    viewModel.streamingText == nil {
                     ActiveTurnThinkingIndicator()
-                        .id("active-turn-thinking-indicator")
                 }
 
                 if let streamingText = viewModel.streamingText {
@@ -178,14 +99,11 @@ struct ChatTranscriptView: View {
                    !viewModel.turnState.isActive {
                     TurnInterruptedNote()
                 }
-
-                Color.clear
-                    .frame(height: transcriptBottomInset)
-                    .id("chat-bottom")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.top, transcriptTopInset)
+            .padding(.bottom, transcriptBottomInset)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
             } action: { newValue in
@@ -212,34 +130,29 @@ struct ChatTranscriptView: View {
             latestMetrics = newMetrics
 
             if let pendingProgrammaticScrollMode {
-                if newMetrics.isAtBottom {
-                    isFollowing = true
-                    self.pendingProgrammaticScrollMode = nil
-                } else if ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
+                let action = ChatTranscriptScrollBehavior.pendingScrollAction(
+                    pending: pendingProgrammaticScrollMode,
                     oldMetrics: oldMetrics,
                     newMetrics: newMetrics
-                ) {
-                    // A user-initiated scroll away from the bottom beats any pending
-                    // programmatic scroll, including `jumpToLatest`. `scrollTo` landing
-                    // moves us toward the bottom and is not caught by this check, so
-                    // only a real user drag up cancels here.
+                )
+                switch action {
+                case .settleFollowingAndClear:
+                    isFollowing = true
+                    self.pendingProgrammaticScrollMode = nil
+                case .followWithoutClearing:
+                    isFollowing = true
+                case .cancelled:
                     self.pendingProgrammaticScrollMode = nil
                     isFollowing = false
-                } else if pendingProgrammaticScrollMode == .jumpToLatest,
-                          ChatTranscriptScrollBehavior.shouldReissuePendingJumpToLatest(
-                              oldMetrics: oldMetrics,
-                              newMetrics: newMetrics
-                          ) {
-                    scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
-                } else if pendingProgrammaticScrollMode == .preserveFollow,
-                          ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
-                              oldMetrics: oldMetrics,
-                              newMetrics: newMetrics
-                          ) {
-                    // Container continues shrinking across the banner animation.
-                    // Re-pin so the transcript tracks the viewport edge through every
-                    // intermediate frame, not just the initial scrollTo + timeout snapshots.
-                    scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
+                case .reissue:
+                    scrollPosition.scrollTo(edge: .bottom)
+                    // Refresh the timeout so slow-materializing `LazyVStack` content
+                    // (large threads on entry) can keep pinning to the growing bottom
+                    // instead of timing out and leaving the viewport above the true
+                    // content end.
+                    schedulePendingProgrammaticScrollTimeout()
+                case .noop:
+                    break
                 }
                 return
             }
@@ -253,7 +166,11 @@ struct ChatTranscriptView: View {
                 return
             }
 
-            isFollowing = newMetrics.isNearBottom
+            isFollowing = ChatTranscriptScrollBehavior.nextFollowingState(
+                currentIsFollowing: isFollowing,
+                oldMetrics: oldMetrics,
+                newMetrics: newMetrics
+            )
         }
         .onChange(of: events.count) {
             if !viewModel.turnState.isActive {
@@ -374,7 +291,7 @@ private extension ChatTranscriptView {
             isFollowing = true
         }
         lastScrollTime = time
-        scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
+        scrollPosition.scrollTo(edge: .bottom)
 
         if retries == .triple {
             // Re-issue the bound scroll position after layout settles so lazy rows
@@ -383,18 +300,39 @@ private extension ChatTranscriptView {
                 guard pendingProgrammaticScrollMode != nil else {
                     return
                 }
-                scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
+                scrollPosition.scrollTo(edge: .bottom)
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 guard pendingProgrammaticScrollMode != nil else {
                     return
                 }
-                scrollPosition.scrollTo(id: "chat-bottom", anchor: .bottom)
+                scrollPosition.scrollTo(edge: .bottom)
             }
         }
 
+        schedulePendingProgrammaticScrollTimeout()
+    }
+
+    /// Schedule — or reschedule — the watchdog that clears a pending programmatic
+    /// scroll after `transcriptProgrammaticScrollTimeout` of no further progress.
+    /// Each call stamps a fresh token and only fires if the token is still current
+    /// when the deadline lands, so a reissued `scrollTo` (from the jump-to-latest /
+    /// preserve-follow branches in `onScrollGeometryChange`) pushes the deadline
+    /// out. This matters on thread entry into a large transcript: `LazyVStack` can
+    /// take longer than 400ms to materialize enough rows for the real content size,
+    /// so a one-shot timeout from the kickoff moment would clear the pending mode
+    /// (and stop re-pinning) before the bottom had settled, leaving the viewport
+    /// above the true content end and the transcript appearing blank until the user
+    /// dragged up.
+    func schedulePendingProgrammaticScrollTimeout() {
+        let token = UUID()
+        pendingProgrammaticScrollTimeoutToken = token
         DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgrammaticScrollTimeout) {
+            guard pendingProgrammaticScrollTimeoutToken == token else {
+                return
+            }
+            pendingProgrammaticScrollTimeoutToken = nil
             guard let pendingProgrammaticScrollMode else {
                 return
             }

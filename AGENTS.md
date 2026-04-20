@@ -56,6 +56,7 @@ The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
 - Use `./scripts/snapshots.sh` for snapshot workflows, and verify snapshots before committing whenever UI is modified. See `AlvearyTests/AGENTS.md` for the focused snapshot-specific rules.
+- If temporary logging is added for debugging, observe logs yourself instead of instructing the user to open the Console app. Also remember to *remove* temporary logs after confirming a fix.
 
 ## Linting
 
@@ -86,10 +87,16 @@ These are default structure and readability conventions for new code and routine
 - Are there any edge cases?
 - Are there any performance issues?
 - Will the changes regress any behavior elsewhere?
-- Is there any dead or stale code?
+- Is there any dead code, or stale code?
 - Is there any missing test coverage (unit or snapshot)?
 - Were snapshots recorded again where needed?
-- Are AGENTS.md files up to date and accurate? Can any be split up into smaller sections or separate files?
+- Are AGENTS.md files up to date and accurate? 
+- Can any AGENTS.md files be split up into smaller sections, or into separate files?
+- If we fixed a bug, are we sure it won't regress later? What's stopping regression?
 - Are there any lint warnings or errors? Do any files need to be split up?
 
-Automatically resolve anything that's low risk, ask about others before making changes. When finished applying fixes, ask the user if they want to do another pass; if so, start at the top with a fresh pair of eyes.
+Double-check to make sure nothing is missed or inaccurate.
+
+Automatically resolve anything that's low risk, ask about others before making changes. 
+
+When finished applying fixes, ask the user if they want to do another pass; if so, start at the top with a fresh pair of eyes.
