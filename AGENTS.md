@@ -38,25 +38,31 @@ The XCode project (`Alveary.xcodeproj`) is generated from `project.yml` using Xc
 
 **DO NOT** commit `Alveary.xcodeproj/` — it is gitignored and regenerated from `project.yml`.
 
-## Building, Testing, and Running
+## Building and Running
 
 The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
 
 - First-time local setup: `./scripts/setup.sh` installs the required CLI tools, including `xcbeautify` for prettified wrapper-script output, generates `Alveary.xcodeproj`, and configures the repo-local Git hooks.
 - Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
 - Build from the command line with `./scripts/build.sh`.
-- Run the full test suite with `./scripts/test.sh`.
-- Run focused tests with `./scripts/test.sh AlvearyTests/AppDelegateTests` or multiple identifiers as separate arguments.
-- See `AlvearyTests/AGENTS.md` for snapshot verification details.
 - Run the already-built app from the command line with `./scripts/run.sh`.
 - The wrapper scripts use the same underlying commands as `xcodebuild -project Alveary.xcodeproj -scheme Alveary -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Alveary.app`.
 - For interactive development, you can also open `Alveary.xcodeproj` in Xcode and run the `Alveary` scheme directly.
 - Ordered validation workflows (build-then-run, build-then-test, record-then-verify) must run strictly serially — never in parallel, and never via `multi_tool_use.parallel`. Wait for `./scripts/build.sh` to exit successfully before starting `./scripts/run.sh` or any dependent command. When the user asks you to build-then-run after each iteration, treat that as a hard sequencing requirement.
 
+## Testing and Debugging
+
+- Understand `Building and Running` first.
+- Run the full test suite with `./scripts/test.sh`.
+  - Run focused tests with `./scripts/test.sh AlvearyTests/AppDelegateTests` or multiple identifiers as separate arguments.
+- Use `./scripts/snapshots.sh` for snapshot workflows, and verify snapshots before committing whenever UI is modified.
+  - See `AlvearyTests/AGENTS.md` for snapshot verification details and focused rules.
 - When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
 - When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
-- Use `./scripts/snapshots.sh` for snapshot workflows, and verify snapshots before committing whenever UI is modified. See `AlvearyTests/AGENTS.md` for the focused snapshot-specific rules.
-- If temporary logging is added for debugging, observe logs yourself instead of instructing the user to open the Console app. Also remember to *remove* temporary logs after confirming a fix.
+- Add temporary debug logging earlier rather than continuing to iterate through *theoretical* solutions that don't work out.
+  - If temporary logging is added for debugging, observe logs yourself instead of instructing the user to open the Console app. 
+  - Use fully qualified `/usr/bin/log` to pull Console logs, since zsh has a conflicting builtin.
+  - Remember to *remove* temporary logs after *confirming* a fix with the user. Don't jump the gun.
 
 ## Linting
 
@@ -91,7 +97,7 @@ These are default structure and readability conventions for new code and routine
 - Is there any missing test coverage (unit or snapshot)?
 - Were snapshots recorded again where needed?
 - Are AGENTS.md files up to date and accurate? 
-- Can any AGENTS.md files be split up into smaller sections, or into separate files?
+- Can any AGENTS.md files be split up into smaller sections, sub-bullets, or into separate files?
 - If we fixed a bug, are we sure it won't regress later? What's stopping regression?
 - Are there any lint warnings or errors? Do any files need to be split up?
 
