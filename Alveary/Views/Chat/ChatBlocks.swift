@@ -1,278 +1,65 @@
-import Foundation
 import SwiftUI
 
-private let chatBlockPadding: CGFloat = 14
-private let chatBlockCornerRadius: CGFloat = 12
+let chatBlockPadding: CGFloat = 14
+/// Shared vertical rhythm for chat surfaces — tool bubble headers *and* plain
+/// user/assistant text bubbles. Having tool rows match this keeps a collapsed
+/// tool bubble visually the same height as its neighboring text bubble (the
+/// 14pt all-sides default used to make tool rows ~8pt taller).
+let chatVerticalPadding: CGFloat = 10
+let chatBlockCornerRadius: CGFloat = 12
+let toolDetailLeadingInset: CGFloat = 42
 
-struct WorkingBlock: View {
-    let tools: [ToolEntry]
-    private let initiallyExpandedToolIDs: Set<String>
-    @State private var isExpanded = false
+/// Shared expand/collapse easing for tool bubbles. Centralized here so all bubbles
+/// ease at the same speed and a future tuning happens in one place.
+let toolExpansionAnimation: Animation = .easeInOut(duration: 0.22)
 
-    private var singleTool: ToolEntry? {
-        tools.count == 1 ? tools.first : nil
+/// Propagates the transcript's current content width down to tool bubbles so they can
+/// cap their growth near the window edge instead of a fixed 720pt ceiling.
+/// `ChatTranscriptView` sets this via `.environment(\.transcriptBubbleMaxWidth, ...)`
+/// after measuring its scroll container. A value of `.infinity` means "unbounded" and
+/// is used as the fallback when the transcript hasn't yet reported a size.
+private struct TranscriptBubbleMaxWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat = .infinity
+}
+
+extension EnvironmentValues {
+    var transcriptBubbleMaxWidth: CGFloat {
+        get { self[TranscriptBubbleMaxWidthKey.self] }
+        set { self[TranscriptBubbleMaxWidthKey.self] = newValue }
     }
+}
 
-    init(
-        tools: [ToolEntry],
-        initiallyExpanded: Bool = false,
-        initiallyExpandedToolIDs: Set<String> = []
-    ) {
-        self.tools = tools
-        self.initiallyExpandedToolIDs = initiallyExpandedToolIDs
-        _isExpanded = State(initialValue: initiallyExpanded)
-    }
-
-    private var editCount: Int {
-        tools.filter { ["Edit", "Write", "MultiEdit"].contains($0.name) }.count
-    }
-
-    private var failureCount: Int {
-        tools.filter(\.isError).count
-    }
-
-    private var interruptedCount: Int {
-        tools.filter(\.isInterrupted).count
-    }
-
-    private var isWorking: Bool {
-        tools.contains { !$0.isComplete }
-    }
-
-    private var title: String {
-        isWorking ? "Working" : "Done"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 10) {
-                    DisclosureChevron(isExpanded: isExpanded)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.headline)
-
-                        Text(summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                if let singleTool {
-                    ToolRow(
-                        tool: singleTool,
-                        initiallyExpanded: true,
-                        showsDisclosure: false
-                    )
-                    .padding(.top, 12)
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(tools) { tool in
-                            ToolRow(
-                                tool: tool,
-                                initiallyExpanded: initiallyExpandedToolIDs.contains(tool.id)
-                            )
-                        }
-                    }
-                    .padding(.top, 12)
-                }
-            }
-        }
-        .padding(chatBlockPadding)
-        .background(
+extension View {
+    /// Standard transcript-bubble chrome: rounded fill + width cap. Apply
+    /// `.padding(chatBlockPadding)` around the bubble's content *before* this
+    /// modifier when the whole bubble wants outer padding (multi-entry
+    /// `ToolGroupBlock`, `SubAgentBlock`, `TaskListBlock`). Variants whose
+    /// Button label absorbs the padding (`StandaloneToolRow`, single-entry
+    /// `ToolGroupBlock`) skip the outer padding — the label's own
+    /// `.padding(chatBlockPadding)` provides the inner spacing there.
+    func bubbleBackground(maxWidth: CGFloat) -> some View {
+        background(
             RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: maxWidth, alignment: .leading)
     }
 
-    private var summary: String {
-        let toolLabel = "tool" + (tools.count == 1 ? "" : "s")
-        if isWorking {
-            if editCount > 0 {
-                return "\(tools.count) \(toolLabel), \(editCount) update\(editCount == 1 ? "" : "s") so far"
-            }
-            return "\(tools.count) \(toolLabel)"
-        }
-
-        var parts = ["\(tools.count) \(toolLabel)"]
-        if editCount > 0 {
-            parts.append("\(editCount) update\(editCount == 1 ? "" : "s")")
-        }
-        if failureCount > 0 {
-            parts.append("\(failureCount) failed")
-        } else if interruptedCount > 0 {
-            parts.append("\(interruptedCount) interrupted")
-        }
-        return parts.joined(separator: ", ")
-    }
-}
-
-private struct ToolRow: View {
-    let tool: ToolEntry
-    let showsDisclosure: Bool
-    @State private var isExpanded = false
-
-    private let detailLeadingInset: CGFloat = 42
-    private let annotationLeadingInset: CGFloat = 42
-
-    init(tool: ToolEntry, initiallyExpanded: Bool = false, showsDisclosure: Bool = true) {
-        self.tool = tool
-        self.showsDisclosure = showsDisclosure
-        _isExpanded = State(initialValue: showsDisclosure ? initiallyExpanded : true)
-    }
-
-    private var annotation: String? {
-        guard let output = tool.output?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty else {
-            return nil
-        }
-
-        let lines = output.split(separator: "\n")
-        guard lines.count <= 3, let last = lines.last else {
-            return nil
-        }
-
-        return String(last)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if showsDisclosure {
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    toolHeader
-                }
-                .buttonStyle(.plain)
-            } else {
-                toolHeader
-            }
-
-            if let annotation {
-                Text("└ \(annotation)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 6)
-                    .padding(.leading, annotationLeadingInset)
-            }
-
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 10) {
-                    DetailCodeBlock(title: "Input", content: prettyPrintedJSON(tool.input))
-
-                    if let output = tool.output {
-                        if tool.isImage {
-                            Label("Image output isn't previewed yet.", systemImage: "photo")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            if !tool.noOutputExpected {
-                                Text("No output")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            DetailCodeBlock(title: "Output", content: output)
-                        }
-                    }
-
-                    if let stderr = tool.stderr,
-                       !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        DetailCodeBlock(title: "stderr", content: stderr, tint: .orange)
-                    }
-                }
-                .padding(.top, 10)
-                .padding(.leading, detailLeadingInset)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var toolHeader: some View {
-        HStack(alignment: .top, spacing: 0) {
-            HStack(spacing: 10) {
-                if showsDisclosure {
-                    DisclosureChevron(isExpanded: isExpanded)
-                } else {
-                    Color.clear
-                        .frame(width: 12, height: 12)
-                }
-
-                Image(systemName: tool.isError ? "xmark.circle.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(tool.isError ? .red : .green)
-                    .frame(width: 18, alignment: .center)
-            }
-            .frame(width: annotationLeadingInset, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 10) {
-                    Text(tool.summary)
-                        .font(.subheadline.weight(.semibold))
-
-                    if tool.isInterrupted {
-                        Text("Interrupted")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.orange.opacity(0.18)))
-                    }
-
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(.leading, 2)
-        }
-        .contentShape(Rectangle())
-    }
-}
-
-private struct DetailCodeBlock: View {
-    let title: String
-    let content: String
-    var tint: Color = .secondary
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 0) {
-                    Text(content)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.bottom, 8)
-
-                    Spacer(minLength: 0)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(tint.opacity(0.08))
-            )
+    /// Re-enable expand/collapse animation for a specific state transition while
+    /// the transcript's active-turn `.transaction { $0.disablesAnimations = true }`
+    /// is in effect. Without this override the bubble would snap to its new
+    /// height/width during streaming turns — the one time the animation matters.
+    /// Pair `value:` with whatever drives the layout shape (e.g. `isExpanded`,
+    /// the tool list).
+    func toolAnimationOverride<Value: Equatable>(value: Value) -> some View {
+        transaction(value: value) { transaction in
+            transaction.disablesAnimations = false
+            transaction.animation = toolExpansionAnimation
         }
     }
 }
 
-private struct DisclosureChevron: View {
+struct DisclosureChevron: View {
     let isExpanded: Bool
 
     var body: some View {
@@ -283,147 +70,37 @@ private struct DisclosureChevron: View {
     }
 }
 
-struct SubAgentBlock: View {
-    let agents: [SubAgentEntry]
-    @State private var isExpanded = false
-
-    private var runningCount: Int {
-        agents.filter { !$0.isComplete }.count
-    }
+struct DetailCodeBlock: View {
+    let title: String
+    let content: String
+    var tint: Color = .secondary
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 14) {
-                ForEach(agents) { agent in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(agent.isComplete ? Color.green : Color.blue)
-                                .frame(width: 8, height: 8)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
 
-                            Text(agent.description)
-                                .font(.subheadline.weight(.semibold))
-
-                            Spacer()
-
-                            Text(summary(for: agent))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let status = agent.statusDescription ?? agent.lastToolName {
-                            Text(status)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !agent.tools.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(agent.tools) { tool in
-                                    ToolRow(tool: tool)
-                                }
-                            }
-                        }
-
-                        if let result = agent.result,
-                           !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            DetailCodeBlock(title: "Result", content: result)
-                        }
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
-                            .fill(Color.secondary.opacity(0.06))
-                    )
-                }
+            // Neither the trailing `Spacer` nor the `.frame(maxWidth: .infinity)` belong
+            // here: Spacer makes the HStack greedy, and the infinity-cap on the ScrollView
+            // forces the enclosing bubble to grow to `bubbleMaxWidth` every time a short
+            // Input/Output snippet appears. Let ScrollView hug its content width; the
+            // parent bubble's own `.frame(maxWidth: bubbleMaxWidth)` still caps the outer
+            // width and makes oversized content scroll inside the bubble.
+            ScrollView(.horizontal) {
+                Text(content)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.bottom, 8)
             }
+            .padding(.horizontal, 12)
             .padding(.top, 12)
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(runningCount == 0 ? "Sub-agents finished" : "Running \(runningCount) of \(agents.count) sub-agents")
-                    .font(.headline)
-
-                Text("\(agents.count) agent\(agents.count == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(chatBlockPadding)
-        .background(
-            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .frame(maxWidth: 720, alignment: .leading)
-    }
-
-    private func summary(for agent: SubAgentEntry) -> String {
-        let tokens = tokenLabel(agent.totalTokens)
-        return "\(agent.toolUseCount) tools · \(tokens)"
-    }
-
-    private func tokenLabel(_ count: Int) -> String {
-        if count >= 1_000 {
-            return String(format: "%.1fk tokens", Double(count) / 1_000)
-        }
-        return "\(count) tokens"
-    }
-}
-
-struct TaskListBlock: View {
-    let tasks: [TaskEntry]
-
-    private var orderedTasks: [TaskEntry] {
-        tasks.sorted { lhs, rhs in
-            rank(lhs.status) < rank(rhs.status)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Tasks")
-                .font(.headline)
-
-            ForEach(orderedTasks) { task in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(icon(for: task.status))
-
-                    Text(task.status == .inProgress ? (task.activeForm ?? task.content) : task.content)
-                        .fontWeight(task.status == .inProgress ? .semibold : .regular)
-                        .foregroundStyle(task.status == .completed ? .secondary : .primary)
-                        .strikethrough(task.status == .completed)
-
-                    Spacer()
-                }
-                .font(.subheadline)
-            }
-        }
-        .padding(chatBlockPadding)
-        .background(
-            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .frame(maxWidth: 720, alignment: .leading)
-    }
-
-    private func rank(_ status: TaskEntry.Status) -> Int {
-        switch status {
-        case .inProgress:
-            return 0
-        case .pending:
-            return 1
-        case .completed:
-            return 2
-        }
-    }
-
-    private func icon(for status: TaskEntry.Status) -> String {
-        switch status {
-        case .inProgress:
-            return "■"
-        case .pending:
-            return "□"
-        case .completed:
-            return "✓"
+            .padding(.bottom, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(tint.opacity(0.08))
+            )
         }
     }
 }

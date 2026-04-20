@@ -89,6 +89,7 @@ These are default structure and readability conventions for new code and routine
 - Is there any dead or stale code?
 - Is there any missing test coverage (unit or snapshot)?
 - Were snapshots recorded again where needed?
-- Are AGENTS.md files up to date and accurate?
+- Are AGENTS.md files up to date and accurate? Can any be split up into smaller sections or separate files?
+- Are there any lint warnings or errors? Do any files need to be split up?
 
 Automatically resolve anything that's low risk, ask about others before making changes. When finished applying fixes, ask the user if they want to do another pass; if so, start at the top with a fresh pair of eyes.

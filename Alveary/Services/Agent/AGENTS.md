@@ -10,6 +10,20 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
 - Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.
 - Claude auto-denies `AskUserQuestion` in `-p --output-format stream-json` mode. Keep the app-native prompt/selection UI as the interaction path instead of expecting the CLI to pause for an answer.
 
+## ChatItem Grouping
+
+`ChatItemGrouper` turns the stream of `ConversationEventRecord`s into a list of `ChatItem`s rendered by `ChatTranscriptView`. Rules:
+
+- Generic tool calls split into two visual shapes via `ChatItemGrouper.groupability(forToolNamed:)`:
+    - **Groupable (`.toolGroup`):** `Read`, `Grep`, `Glob`, `WebFetch`, `WebSearch`, and MCP tools whose trailing segment starts with a read-only verb (`read_`, `list_`, `get_`, `search_`, `fetch_`, `describe_`, `query_`, `lookup_`, `show_`, `check_`).
+    - **Standalone (`.standaloneTool`):** `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Bash`, and anything unknown. Unknown defaults to standalone so a mutating tool can never be silently folded under a group header.
+    - **Skip the classifier for `TodoWrite`, `AskUserQuestion`, `Agent`.** Those route to `.taskListBlock` / `.promptBlock` / `.subAgentBlock` and bypass the generic tool pipeline.
+- **Do not auto-close a group when its last in-flight tool completes.** Claude's stream serializes sequential groupable tools as `call → result → call → result …` (even for "parallel" calls from the model's perspective). A completion-triggered seal fractures that burst into many single-entry groups, which is what users actually see on disk. Let groups close only on the explicit close paths below.
+- **`append(event:)` must re-emit without clearing.** Each streaming event calls `reemitPendingGroup()` (emit-only) rather than `flushGroup()` (emit + clear) at the end of the cycle — otherwise every tool call spawns its own single-entry group during streaming and they only coalesce on the forced full rebuild at turn end. Only close paths (assistant message when all tools done, user message, error, standalone tool, sub-agent, prompt, task list) may call `flushGroup()`.
+- **Never render `thinking` events.** `process(_:)` falls through on `type == "thinking"`. The active-turn spinner in `ChatTranscriptView` covers the "something is happening" affordance. Do not reintroduce a transcript row for thinking without an explicit product ask.
+- **Assistant messages close a group only when every pending tool has finished.** Completed batch → assistant is summarizing, so flush first and the message lands below the group. Still-running batch → Claude is introducing the next wave, so leave the group open and let `removeTrailingPendingBlocksIfNeeded` + outer `flushGroup()` re-emit the trailing `.toolGroup` below the message. Every other close-eligible event (user message, error, standalone tool, sub-agent, prompt, task list) always closes the group.
+- **Keep sub-agent logic in `ChatItemGrouper+SubAgent.swift`.** The file owns start/progress/complete handlers, agent tool-call routing, and sub-agent patching helpers. The split exists to keep `+Processing.swift` under the SwiftLint file-length limit.
+
 ## Runtime And Config Ownership
 
 - `ClaudeConfigStore` is the sole serialized writer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.

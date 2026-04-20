@@ -93,6 +93,7 @@ struct ChatTranscriptView: View {
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var latestMetrics: ChatTranscriptScrollMetrics?
     @State private var scrollPosition = ScrollPosition()
+    @State private var transcriptContentWidth: CGFloat = 0
 
     var body: some View {
         ScrollView {
@@ -119,8 +120,10 @@ struct ChatTranscriptView: View {
                         )
                     case .assistantMessage(_, let text):
                         AssistantBubble(markdown: text)
-                    case .workingBlock(_, let tools):
-                        WorkingBlock(tools: tools)
+                    case .toolGroup(_, let tools):
+                        ToolGroupBlock(tools: tools)
+                    case .standaloneTool(_, let tool):
+                        StandaloneToolRow(tool: tool)
                     case .subAgentBlock(_, let agents):
                         SubAgentBlock(agents: agents)
                     case .taskListBlock(_, let tasks):
@@ -136,8 +139,6 @@ struct ChatTranscriptView: View {
                                 return nil
                             }
                         }
-                    case .thinking(_, let text):
-                        ThinkingBlock(text: text)
                     case .error(_, let message):
                         ErrorBanner(message: message)
                     }
@@ -164,10 +165,16 @@ struct ChatTranscriptView: View {
                     .id("chat-bottom")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 24)
             .padding(.top, transcriptTopInset)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newValue in
+                transcriptContentWidth = newValue
+            }
             .scrollTargetLayout()
         }
+        .environment(\.transcriptBubbleMaxWidth, transcriptContentWidth > 0 ? transcriptContentWidth : .infinity)
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)
         .scrollPosition($scrollPosition, anchor: .bottom)

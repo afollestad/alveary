@@ -14,10 +14,10 @@ extension ChatItemGrouper {
             return fileMutationToolSummary(name: name, json: json)
         case "Bash":
             return bashToolSummary(from: json)
-        case "Grep":
-            return "Grep `\(json["pattern"] as? String ?? "")`"
-        case "Glob":
-            return "Glob `\(json["pattern"] as? String ?? "")`"
+        case "Grep", "Glob":
+            return "Searching for pattern `\(json["pattern"] as? String ?? "")`"
+        case "ToolSearch":
+            return toolSearchSummary(from: json)
         case "Agent":
             return json["description"] as? String ?? json["subagent_type"] as? String ?? "Sub-agent"
         case "TodoWrite":
@@ -114,13 +114,16 @@ private extension ChatItemGrouper {
 
     static func readToolSummary(from json: [String: Any]) -> String {
         let path = json["file_path"] as? String ?? ""
-        let fileName = (path as NSString).lastPathComponent
+        // Collapse the user's home directory to `~` for readability without losing the
+        // full canonical location (users want to see the directory context, not just the
+        // bare filename).
+        let display = (path as NSString).abbreviatingWithTildeInPath
         if let offset = json["offset"] as? Int,
            let limit = json["limit"] as? Int {
-            return "Read `\(fileName):\(offset)-\(offset + limit - 1)`"
+            return "Read `\(display):\(offset)-\(offset + limit - 1)`"
         }
 
-        return "Read `\(fileName)`"
+        return "Read `\(display)`"
     }
 
     static func fileMutationToolSummary(name: String, json: [String: Any]) -> String {
@@ -132,7 +135,21 @@ private extension ChatItemGrouper {
     static func bashToolSummary(from json: [String: Any]) -> String {
         let command = json["command"] as? String ?? ""
         let truncated = command.count > 60 ? String(command.prefix(57)) + "..." : command
-        return "`\(truncated)`"
+        return "Executing `\(truncated)`"
+    }
+
+    /// `ToolSearch.query` is either `select:<Name>[,<Name>...]` to pull specific tool schemas,
+    /// or a freeform keyword string. Strip the `select:` prefix when present so the transcript
+    /// shows the tool the search is resolving (e.g. `WebFetch`) rather than the raw query.
+    static func toolSearchSummary(from json: [String: Any]) -> String {
+        let query = json["query"] as? String ?? ""
+        let display: String
+        if query.hasPrefix("select:") {
+            display = String(query.dropFirst("select:".count))
+        } else {
+            display = query
+        }
+        return "Searching for tool `\(display)`"
     }
 
     static func todoWriteSummary(from json: [String: Any]) -> String {

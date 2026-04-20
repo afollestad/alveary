@@ -4,17 +4,18 @@ import Observation
 enum ChatItem: Identifiable, Equatable {
     case userMessage(id: String, text: String)
     case assistantMessage(id: String, text: String)
-    case workingBlock(id: String, tools: [ToolEntry])
+    case toolGroup(id: String, tools: [ToolEntry])
+    case standaloneTool(id: String, tool: ToolEntry)
     case subAgentBlock(id: String, agents: [SubAgentEntry])
     case taskListBlock(id: String, tasks: [TaskEntry])
     case promptBlock(id: String, prompt: PromptEntry)
-    case thinking(id: String, text: String)
     case error(id: String, message: String)
 
     var id: String {
         switch self {
-        case .userMessage(let id, _), .assistantMessage(let id, _), .workingBlock(let id, _), .subAgentBlock(let id, _),
-             .taskListBlock(let id, _), .promptBlock(let id, _), .thinking(let id, _), .error(let id, _):
+        case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
+             .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
+             .promptBlock(let id, _), .error(let id, _):
             id
         }
     }
@@ -84,8 +85,8 @@ struct TaskEntry: Identifiable, Equatable {
 final class ChatItemGrouper {
     var items: [ChatItem] = []
     var processedCount = 0
-    var pendingTools: [ToolEntry] = []
-    var workingBlockId: String?
+    var pendingGroupTools: [ToolEntry] = []
+    var currentGroupId: String?
     var summaryCache: [String: String] = [:]
     var activeSubAgents: [String: SubAgentEntry] = [:]
     var pendingSubAgentIds: [String] = []
@@ -103,7 +104,7 @@ final class ChatItemGrouper {
             process(event)
         }
 
-        flushTools()
+        reemitPendingGroup()
         flushSubAgents()
         processedCount += 1
     }
@@ -122,16 +123,27 @@ final class ChatItemGrouper {
             process(event)
         }
 
-        flushTools()
+        reemitPendingGroup()
         flushSubAgents()
         processedCount = events.count
+    }
+
+    /// Re-emit the in-flight group without clearing it. Called at the end of every
+    /// `append` / `update` cycle so the UI reflects the latest pending tools; the group
+    /// stays open so subsequent events keep folding into it. Close paths still use
+    /// `flushGroup()` to emit *and* clear.
+    func reemitPendingGroup() {
+        guard !pendingGroupTools.isEmpty else {
+            return
+        }
+        items.append(.toolGroup(id: currentGroupId ?? UUID().uuidString, tools: pendingGroupTools))
     }
 
     func resetInFlightStateForNewSession() {
         subAgentProgressRefreshTask?.cancel()
         subAgentProgressRefreshTask = nil
-        pendingTools = []
-        workingBlockId = nil
+        pendingGroupTools = []
+        currentGroupId = nil
         summaryCache = [:]
         activeSubAgents = [:]
         pendingSubAgentIds = []
@@ -161,7 +173,7 @@ final class ChatItemGrouper {
     }
 
     func appendLocalUserMessage(id: String, text: String) {
-        flushTools()
+        flushGroup()
         flushSubAgents()
         items.append(.userMessage(id: id, text: text))
         processedCount += 1

@@ -204,7 +204,7 @@ extension SnapshotTests {
         )
     }
 
-    var sampleTools: [ToolEntry] {
+    var sampleGroupTools: [ToolEntry] {
         [
             ToolEntry(
                 id: "read-auth",
@@ -220,13 +220,26 @@ extension SnapshotTests {
                 isError: false
             ),
             ToolEntry(
-                id: "edit-auth",
-                name: "Edit",
-                summary: "Edit `auth.swift`",
-                input: "{\"file_path\":\"Sources/auth.swift\",\"old_string\":\"old\",\"new_string\":\"new\"}",
-                output: nil,
+                id: "read-session",
+                name: "Read",
+                summary: "Read `session.swift`",
+                input: "{\"file_path\":\"Sources/session.swift\"}",
+                output: "1\timport Foundation",
                 stderr: nil,
-                isComplete: false,
+                isComplete: true,
+                isInterrupted: false,
+                isImage: false,
+                noOutputExpected: false,
+                isError: false
+            ),
+            ToolEntry(
+                id: "grep-retry",
+                name: "Grep",
+                summary: "Grep `retry(`",
+                input: "{\"pattern\":\"retry(\"}",
+                output: "Sources/session.swift: retry(after:)",
+                stderr: nil,
+                isComplete: true,
                 isInterrupted: false,
                 isImage: false,
                 noOutputExpected: false,
@@ -235,22 +248,36 @@ extension SnapshotTests {
         ]
     }
 
-    var sampleErrorTools: [ToolEntry] {
-        [
-            ToolEntry(
-                id: "sleep-10",
-                name: "Bash",
-                summary: "`sleep 10`",
-                input: "{\"command\":\"sleep 10\",\"description\":\"Sleep for 10 seconds\"}",
-                output: "<tool_use_error>Blocked: standalone sleep 10. Run blocking commands in the background with run_in_background",
-                stderr: nil,
-                isComplete: true,
-                isInterrupted: false,
-                isImage: false,
-                noOutputExpected: false,
-                isError: true
-            )
-        ]
+    var sampleStandaloneEditTool: ToolEntry {
+        ToolEntry(
+            id: "edit-auth",
+            name: "Edit",
+            summary: "Edit `auth.swift`",
+            input: "{\"file_path\":\"Sources/auth.swift\",\"old_string\":\"old\",\"new_string\":\"new\"}",
+            output: nil,
+            stderr: nil,
+            isComplete: false,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+    }
+
+    var sampleStandaloneBashErrorTool: ToolEntry {
+        ToolEntry(
+            id: "sleep-10",
+            name: "Bash",
+            summary: "Executing `sleep 10`",
+            input: "{\"command\":\"sleep 10\",\"description\":\"Sleep for 10 seconds\"}",
+            output: "<tool_use_error>Blocked: standalone sleep 10. Run blocking commands in the background with run_in_background",
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: true
+        )
     }
 
     var sampleSubAgents: [SubAgentEntry] {

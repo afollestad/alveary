@@ -1,7 +1,6 @@
 import SwiftUI
 
 private let chatBubbleHorizontalPadding: CGFloat = 12
-private let chatBubbleVerticalPadding: CGFloat = 10
 private let chatBubbleCornerRadius: CGFloat = 12
 
 struct EmptyThreadState: View {
@@ -110,7 +109,7 @@ struct UserBubble: View {
                     composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
                 )
                 .padding(.horizontal, chatBubbleHorizontalPadding)
-                .padding(.vertical, chatBubbleVerticalPadding)
+                .padding(.vertical, chatVerticalPadding)
                 .background(
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                         .fill(AppSelectionStyle.rowFill)
@@ -136,21 +135,25 @@ struct UserBubble: View {
 struct AssistantBubble: View {
     let markdown: String
 
+    @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
+
     var body: some View {
         AppMarkdownText(markdown: markdown)
             .padding(.horizontal, chatBubbleHorizontalPadding)
-            .padding(.vertical, chatBubbleVerticalPadding)
+            .padding(.vertical, chatVerticalPadding)
             .background(
                 RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                     .fill(Color.secondary.opacity(0.08))
             )
-            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
     }
 }
 
 struct StreamingBubble: View {
     let text: String
     @State private var cursorVisible = true
+
+    @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 2) {
@@ -162,12 +165,12 @@ struct StreamingBubble: View {
                 .frame(width: 2, height: 16)
         }
         .padding(.horizontal, chatBubbleHorizontalPadding)
-        .padding(.vertical, chatBubbleVerticalPadding)
+        .padding(.vertical, chatVerticalPadding)
         .background(
             RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
         .onAppear {
             cursorVisible = true
             withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) {
@@ -184,6 +187,8 @@ struct ActiveTurnThinkingIndicator: View {
     private let dotCount = 3
     private let cycleDuration: Double = 1.1
     private let dotPhaseOffset: Double = 0.22
+
+    @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
 
     init(isAnimated: Bool = true) {
         self.isAnimated = isAnimated
@@ -204,8 +209,8 @@ struct ActiveTurnThinkingIndicator: View {
             }
         }
         .padding(.horizontal, chatBubbleHorizontalPadding)
-        .padding(.vertical, chatBubbleVerticalPadding)
-        .frame(maxWidth: 720, alignment: .leading)
+        .padding(.vertical, chatVerticalPadding)
+        .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Assistant is thinking")
         .onAppear {
@@ -225,9 +230,11 @@ struct ActiveTurnThinkingIndicator: View {
 struct ErrorBanner: View {
     let message: String
 
+    @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
+
     var body: some View {
         InlineBanner(message: message, severity: .error, autoDismissAfter: nil)
-            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
     }
 }
 

@@ -2,8 +2,8 @@
 
 _An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
-This app is an agent orchestration tool for macOS, like a swarm of bees working towards a common goal. 
-It's built from the ground up in native Swift, with the help of agents! I took inspiration from other tools like Conductor and Codex.
+This app is a macOS agent orchestration tool designed like a swarm of bees working toward a common goal. Built from the ground up in native Swift—with help from the agents themselves!—it 
+takes inspiration from tools like Conductor and Codex. Rather than using agent APIs directly, it wraps around their CLI tooling.
 
 See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
 
@@ -19,7 +19,8 @@ Run the bootstrap script once per clone:
 ./scripts/setup.sh
 ```
 
-That script installs the required CLI tools with Homebrew and Mint, including `xcbeautify` for prettified `xcodebuild` output, generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
+That script installs the required CLI tools with Homebrew and Mint, including `xcbeautify` for prettified `xcodebuild` output, generates `Alveary.xcodeproj`, and configures the repo-local Git 
+hooks so commits touching Swift files run `swiftlint` automatically.
 
 ## Build, Test, and Run
 

@@ -278,11 +278,11 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testWorkingBlockCollapsed() {
+    func testToolGroupCollapsed() {
         assertMacSnapshot(
-            WorkingBlock(tools: sampleTools),
-            size: CGSize(width: 760, height: 180),
-            named: "working_block_collapsed"
+            ToolGroupBlock(tools: sampleGroupTools),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_group_collapsed"
         )
     }
 

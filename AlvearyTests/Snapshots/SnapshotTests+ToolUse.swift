@@ -4,52 +4,43 @@ import XCTest
 
 @MainActor
 extension SnapshotTests {
-    private var longThinkingText: String {
-        "The user is asking what context I have about this conversation and whether there were prior code changes in this thread."
-            + "\n"
-            + "I should summarize the repo, current branch, and recent actions."
-    }
-
-    func testThinkingBlockInlineShortText() {
+    func testToolGroupMultipleCollapsed() {
         assertMacSnapshot(
-            ThinkingBlock(text: "The user is asking what context I have about this conversation."),
-            size: CGSize(width: 760, height: 120),
-            named: "thinking_block_inline_short"
+            ToolGroupBlock(tools: sampleGroupTools),
+            size: CGSize(width: 760, height: 80),
+            named: "tool_group_multiple_collapsed"
         )
     }
 
-    func testThinkingBlockCollapsed() {
+    func testToolGroupSingleEntry() {
         assertMacSnapshot(
-            ThinkingBlock(text: longThinkingText),
-            size: CGSize(width: 760, height: 120),
-            named: "thinking_block_collapsed"
+            ToolGroupBlock(tools: [sampleGroupTools[0]]),
+            size: CGSize(width: 760, height: 80),
+            named: "tool_group_single_entry"
         )
     }
 
-    func testThinkingBlockExpanded() {
+    func testStandaloneBashErrorCollapsed() {
         assertMacSnapshot(
-            ThinkingBlock(text: longThinkingText),
-            size: CGSize(width: 760, height: 180),
-            named: "thinking_block_expanded"
+            StandaloneToolRow(tool: sampleStandaloneBashErrorTool),
+            size: CGSize(width: 760, height: 80),
+            named: "standalone_bash_error_collapsed"
         )
     }
 
-    func testWorkingBlockSingleErrorToolCollapsed() {
+    func testStandaloneEditRow() {
         assertMacSnapshot(
-            WorkingBlock(tools: sampleErrorTools),
-            size: CGSize(width: 760, height: 190),
-            named: "working_block_single_error_collapsed"
+            StandaloneToolRow(tool: sampleStandaloneEditTool),
+            size: CGSize(width: 760, height: 80),
+            named: "standalone_edit_row"
         )
     }
 
-    func testWorkingBlockExpandedErrorTool() {
+    func testStandaloneBashErrorExpanded() {
         assertMacSnapshot(
-            WorkingBlock(
-                tools: sampleErrorTools,
-                initiallyExpanded: true
-            ),
-            size: CGSize(width: 760, height: 260),
-            named: "working_block_expanded_error"
+            StandaloneToolRow(tool: sampleStandaloneBashErrorTool, initiallyExpanded: true),
+            size: CGSize(width: 760, height: 240),
+            named: "standalone_bash_error_expanded"
         )
     }
 }

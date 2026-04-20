@@ -14,6 +14,8 @@ struct PromptBlock: View {
     @State private var submittedSummary: String?
     @State private var isSubmitting = false
 
+    @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
+
     private var effectiveSummary: String? {
         prompt.submittedSummary ?? submittedSummary
     }
@@ -82,7 +84,7 @@ struct PromptBlock: View {
                 )
             }
         }
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
     }
 }
 
@@ -185,90 +187,6 @@ private extension PromptBlock {
         }
 
         submittedSummary = await onSubmit(answers)
-    }
-}
-
-struct ThinkingBlock: View {
-    let text: String
-    @State private var isExpanded = false
-
-    private var trimmedText: String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canExpand: Bool {
-        preview != trimmedText
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if canExpand {
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 12, alignment: .center)
-                            .foregroundStyle(.secondary)
-
-                        Text(isExpanded ? "Thinking" : preview)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "ellipsis.bubble")
-                            .font(.caption.weight(.semibold))
-
-                        Text("Thinking")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(.secondary)
-
-                    HStack(spacing: 10) {
-                        Text(trimmedText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Spacer(minLength: 0)
-                    }
-                }
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if canExpand && isExpanded {
-                Text(text)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 8)
-                    .padding(.leading, 22)
-                    .textSelection(.enabled)
-            }
-        }
-        .padding(promptBlockPadding)
-        .background(
-            RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .frame(maxWidth: 720, alignment: .leading)
-    }
-
-    private var preview: String {
-        let firstLine = trimmedText.split(separator: "\n").first.map(String.init) ?? "Thinking"
-        if firstLine.count > 80 {
-            return String(firstLine.prefix(77)) + "..."
-        }
-        return firstLine
     }
 }
 
