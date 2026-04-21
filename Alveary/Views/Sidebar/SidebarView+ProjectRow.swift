@@ -19,9 +19,11 @@ struct SidebarProjectRow: View {
                     .font(leadingSymbolFont)
                     .foregroundStyle(Color.primary)
                     .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(toggleAccessibilityLabel)
 
             ZStack(alignment: .trailing) {
                 Button(action: onActivate) {
@@ -99,6 +101,10 @@ struct SidebarProjectRow: View {
 
     private var disclosureSymbolName: String {
         isExpanded ? "chevron.down" : "chevron.right"
+    }
+
+    private var toggleAccessibilityLabel: String {
+        isExpanded ? "Collapse \(project.name)" : "Expand \(project.name)"
     }
 
     private var projectSubtitle: String {
