@@ -332,44 +332,6 @@ private extension ContentView {
         appState.selectedSidebarItem = .thread(thread)
     }
 
-    func updateDiffViewer(item: SidebarItem?) {
-        let thread: AgentThread?
-
-        switch item {
-        case .thread(let selectedThread):
-            thread = selectedThread
-        case .settings:
-            if case .threadId(let id) = appState.previousSelection,
-               let preservedThread = uiModelContext.model(for: id) as? AgentThread,
-               preservedThread.archivedAt == nil {
-                thread = preservedThread
-            } else {
-                thread = nil
-            }
-        default:
-            thread = nil
-        }
-
-        guard let thread,
-              let path = thread.worktreePath ?? thread.project?.path else {
-            diffViewModel.clear()
-            return
-        }
-
-        let baseRef = thread.project?.baseRef ?? "main"
-        let remoteName = thread.project?.remoteName
-        let conversationIds = Set(thread.conversations.map(\.id))
-
-        Task {
-            await diffViewModel.switchToDirectory(
-                path,
-                baseRef: baseRef,
-                remoteName: remoteName,
-                conversationIds: conversationIds
-            )
-        }
-    }
-
     func refreshToolbarProjectActions() async {
         guard let thread = selectedThread,
               let projectPath = thread.project?.path else {

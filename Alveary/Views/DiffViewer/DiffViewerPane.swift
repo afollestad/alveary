@@ -106,6 +106,7 @@ struct DiffViewerPane: View {
                         DiffViewerFileListSection(
                             files: viewModel.files,
                             isGitRepository: viewModel.isGitRepository,
+                            isLoading: viewModel.isLoadingFiles,
                             isSelected: isSelected,
                             fileDisplayName: fileDisplayName,
                             statusSymbol: statusSymbol,

@@ -140,6 +140,25 @@ extension SnapshotTests {
         )
     }
 
+    func testDiffViewerFileListSectionLoading() {
+        assertMacSnapshot(
+            DiffViewerFileListSection(
+                files: [],
+                isGitRepository: true,
+                isLoading: true,
+                isSelected: { _ in false },
+                fileDisplayName: { $0.path },
+                statusSymbol: { _ in "●" },
+                onSelectFile: { _ in },
+                onStageFile: { _ in },
+                onUnstageFile: { _ in },
+                onDiscardFile: { _ in }
+            ),
+            size: CGSize(width: 420, height: 240),
+            named: "diff_viewer_file_list_loading"
+        )
+    }
+
     func testDiffViewerPaneRenamedMetadata() async {
         let oldPath = "Alveary/Views/Input/ChatInputField.swift"
         let newPath = "Alveary/Views/Input/ComposerInputField.swift"

@@ -3,6 +3,7 @@ import SwiftUI
 struct DiffViewerFileListSection: View {
     let files: [FileStatus]
     let isGitRepository: Bool
+    let isLoading: Bool
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let statusSymbol: (FileStatus) -> String
@@ -53,7 +54,16 @@ struct DiffViewerFileListSection: View {
             }
         }
         .overlay {
-            if files.isEmpty {
+            if isLoading {
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+
+                    Text("Loading changes…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if files.isEmpty {
                 if isGitRepository {
                     EmptyStateView(
                         icon: "checkmark.circle",

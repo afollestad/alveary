@@ -17,6 +17,7 @@ final class DiffViewerViewModel {
     private(set) var selectedFile: FileStatus?
     private(set) var parsedDiff: DiffFile?
     private(set) var rawDiffContent = ""
+    private(set) var isLoadingFiles = false
     private(set) var isLoadingSelectedDiff = false
     private(set) var contextualAction: ContextualAction = .none
     private(set) var gitError: String?
@@ -171,6 +172,7 @@ final class DiffViewerViewModel {
             selectedFile = nil
             parsedDiff = nil
             rawDiffContent = ""
+            isLoadingFiles = true
             isLoadingSelectedDiff = false
             contextualAction = .none
             gitError = nil
@@ -216,6 +218,7 @@ final class DiffViewerViewModel {
         selectedFile = nil
         parsedDiff = nil
         rawDiffContent = ""
+        isLoadingFiles = false
         isLoadingSelectedDiff = false
         contextualAction = .none
         gitError = nil
@@ -384,6 +387,7 @@ private extension DiffViewerViewModel {
         files = refreshedFiles
         gitError = refreshedError
         isGitRepository = refreshedIsGitRepository
+        isLoadingFiles = false
 
         if refreshedError != nil {
             contextualAction = .none
