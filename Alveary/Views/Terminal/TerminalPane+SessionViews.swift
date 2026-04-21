@@ -24,9 +24,9 @@ private extension TerminalSessionChip {
     var statusColor: Color {
         switch session.status {
         case .running:
-            return .green
-        case .succeeded:
             return .blue
+        case .succeeded:
+            return .green
         case .failed:
             return .red
         case .cancelled:
@@ -143,9 +143,9 @@ private extension TerminalSessionStatusBadge {
     var foregroundColor: Color {
         switch status {
         case .running:
-            return .green
-        case .succeeded:
             return .blue
+        case .succeeded:
+            return .green
         case .failed:
             return .red
         case .cancelled:

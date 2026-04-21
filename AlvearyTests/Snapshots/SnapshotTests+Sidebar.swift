@@ -21,6 +21,24 @@ extension SnapshotTests {
         )
     }
 
+    // Pins `.busy` → blue; no other sidebar snapshot exercises `.busy`.
+    func testSidebarThreadRowBusyStatusDotVisible() {
+        let thread = AgentThread(name: AgentThread.untitledName)
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .busy,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_busy_dot"
+        )
+    }
+
     func testSidebarThreadRowInlineCodeTitle() {
         let thread = AgentThread(name: "Test `code block`")
 

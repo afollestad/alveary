@@ -232,9 +232,9 @@ private extension ConversationTabChip {
     var statusColor: Color {
         switch status {
         case .busy:
-            return .green
-        case .unread:
             return .blue
+        case .unread:
+            return .green
         case .error:
             return .red
         case .stopped, .archived:

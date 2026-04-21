@@ -9,6 +9,18 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 - For selectable list rows such as sidebar items, settings tabs, and diff file lists, use the `.appSelectableRow(isSelected:action:)` modifier from `Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows.
 - `InlineText` from Textual applies `TextSelectionInteraction()` internally, which consumes clicks and blocks `.onTapGesture` on any containing row (including `.appSelectableRow`). Add `.allowsHitTesting(false)` to `InlineText` when it is rendered inside a clickable row so taps reach the row's gesture. Plain `Text` does not need this.
 
+## Status Dot Colors
+
+Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `Terminal/`. Current surfaces: `SidebarThreadRow.statusColor`, `ConversationTabChip.statusColor`, `TerminalSessionChip.statusColor`, `TerminalSessionStatusBadge.foregroundColor`.
+
+- **Blue** = in-progress (`.busy`, `.running`).
+- **Green** = done / success (`.unread`, `.succeeded`). Matches the `ToolStatusIndicator` green check documented in `Alveary/Views/Chat/AGENTS.md`.
+- **Red** = error (`.error`, `.failed`).
+- **Orange** = user-cancelled (`.cancelled`).
+- **Secondary** = inert (`.stopped`, `.archived`).
+- **How to apply:** A new status-dot surface must follow this mapping — do not pick colors per surface. Cases mean the same thing across enums (a `.busy` thread and a `.running` terminal session are both "in-progress"), so they must share a color even though their enum case names differ.
+- **Why:** Before this was unified, `.busy` rendered green in sidebar and conversation tabs while `.succeeded` rendered blue in terminal chips — the same color meant opposite things on different surfaces. A green dot could mean "working" or "done" depending on where you looked.
+
 ## Focus And Keyboard Coordination
 
 **This section is the single source of truth for cross-surface focus and keyboard rules.** The nested `Sidebar/`, `Input/`, and `Chat/` AGENTS.md files each open with a "READ FIRST" callout pointing here instead of duplicating these rules — when you change anything below, keep those callouts accurate but do *not* re-inline the details into the nested files.
