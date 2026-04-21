@@ -48,7 +48,7 @@ struct TerminalPane: View {
                 if !terminalManager.sessions.isEmpty {
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                                 ForEach(terminalManager.sessions) { session in
                                     TerminalSessionChip(
                                         session: session,

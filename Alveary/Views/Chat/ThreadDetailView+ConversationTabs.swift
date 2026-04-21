@@ -37,7 +37,7 @@ struct ThreadDetailConversationTabs: View {
                         // HStack would then sit offscreen, leaving the last chip
                         // visually butted against the divider.
                         HStack(spacing: 0) {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 6) {
                                 ForEach(Array(conversations.enumerated()), id: \.element.persistentModelID) { index, conversation in
                                     ConversationTabChip(
                                         conversation: conversation,
