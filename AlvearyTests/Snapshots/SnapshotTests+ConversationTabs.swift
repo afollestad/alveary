@@ -176,6 +176,48 @@ extension SnapshotTests {
         )
     }
 
+    // Covers the overflow state: enough conversation tabs at a narrow pane width that
+    // the row must scroll. Pins the greedy ScrollView + trailing `New Conversation`
+    // button layout so a regression (e.g. reintroducing a sibling `Spacer()` alongside
+    // the flexible ScrollView) is caught. The trailing-edge divider is not captured in
+    // the baseline — `onScrollGeometryChange` dispatches its action asynchronously,
+    // after the snapshot pass's `displayIfNeeded()`. Unlike the terminal pane's
+    // equivalent test (which does capture its divider), the conversation-tab layout
+    // timing doesn't stabilize in time; see the `testConversationTabsOverflow` bullet
+    // in `Alveary/Views/Chat/AGENTS.md` for the full story.
+    func testConversationTabsOverflow() {
+        let thread = AgentThread(name: "Overflow Tab Coverage")
+        var conversations: [Conversation] = []
+        for index in 1...8 {
+            conversations.append(
+                Conversation(
+                    id: "conv-\(index)",
+                    title: "Conversation \(index)",
+                    provider: "claude",
+                    isMain: index == 1,
+                    displayOrder: index,
+                    thread: thread
+                )
+            )
+        }
+        thread.conversations = conversations
+
+        assertMacSnapshot(
+            ThreadDetailConversationTabs(
+                conversations: thread.conversations,
+                selectedConversation: conversations[0],
+                statusForConversation: { _ in .stopped },
+                onSelect: { _ in },
+                onCommitRename: { _, _ in },
+                onRemove: { _ in },
+                onCreate: {},
+                editingConversationID: .constant(nil)
+            ),
+            size: CGSize(width: 500, height: 72),
+            named: "conversation_tabs_overflow"
+        )
+    }
+
     func testConversationTabsEditingChip() {
         let thread = AgentThread(name: "Editing Chip Coverage")
         let mainConversation = Conversation(

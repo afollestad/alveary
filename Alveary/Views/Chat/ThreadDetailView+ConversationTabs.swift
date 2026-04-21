@@ -2,6 +2,12 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+/// Width of the trailing sentinel view at the end of the scrollable tab content and of
+/// the breathing gap between the `New Conversation` button and the trailing-edge divider.
+/// Shared across the sentinel frame, the button's leading padding, and the divider
+/// gating math so all three stay synchronized.
+private let tabsTrailingSentinelWidth: CGFloat = 12
+
 struct ThreadDetailConversationTabs: View {
     let conversations: [Conversation]
     let selectedConversation: Conversation
@@ -12,24 +18,94 @@ struct ThreadDetailConversationTabs: View {
     let onCreate: () -> Void
 
     @Binding var editingConversationID: PersistentIdentifier?
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var tabsScrollGeometry = ConversationTabsScrollGeometry()
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             if conversations.count > 1 {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(Array(conversations.enumerated()), id: \.element.persistentModelID) { index, conversation in
-                            ConversationTabChip(
-                                conversation: conversation,
-                                status: statusForConversation(conversation),
-                                isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
-                                tabIndex: index,
-                                editingConversationID: $editingConversationID,
-                                onSelect: { onSelect(conversation) },
-                                onCommitRename: { onCommitRename(conversation, $0) },
-                                onClose: { onRemove(conversation) }
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        // Outer wrapper HStack hosts the 12pt trailing sentinel as
+                        // its own view. The sentinel does double duty: it reserves
+                        // the 12pt breathing gap between the last chip and the
+                        // overlay divider at scroll-to-end, AND gives a scroll
+                        // target whose trailing edge is the content's absolute
+                        // trailing edge. Without it, `proxy.scrollTo(lastChip)`
+                        // stops when the chip's trailing hits the viewport — a
+                        // separate 12pt `.padding(.trailing, 12)` on the chip
+                        // HStack would then sit offscreen, leaving the last chip
+                        // visually butted against the divider.
+                        HStack(spacing: 0) {
+                            HStack(spacing: 10) {
+                                ForEach(Array(conversations.enumerated()), id: \.element.persistentModelID) { index, conversation in
+                                    ConversationTabChip(
+                                        conversation: conversation,
+                                        status: statusForConversation(conversation),
+                                        isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
+                                        tabIndex: index,
+                                        editingConversationID: $editingConversationID,
+                                        onSelect: { onSelect(conversation) },
+                                        onCommitRename: { onCommitRename(conversation, $0) },
+                                        onClose: { onRemove(conversation) }
+                                    )
+                                    .id(conversation.persistentModelID)
+                                }
+                            }
+                            // Leading pane-edge inset lives *inside* the scrollable
+                            // content so chips can scroll past the pane's visible
+                            // leading edge while the first chip still appears 20pt
+                            // in at `contentOffset == 0`.
+                            .padding(.leading, 20)
+
+                            Color.clear
+                                .frame(width: tabsTrailingSentinelWidth, height: 1)
+                                .id(ScrollTarget.trailingSentinel)
+                                .accessibilityHidden(true)
                         }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .onScrollGeometryChange(for: ConversationTabsScrollGeometry.self) { geometry in
+                        ConversationTabsScrollGeometry(
+                            contentWidth: geometry.contentSize.width,
+                            containerWidth: geometry.containerSize.width,
+                            contentOffset: geometry.contentOffset.x
+                        )
+                    } action: { _, newValue in
+                        tabsScrollGeometry = newValue
+                    }
+                    .overlay(alignment: .trailing) {
+                        if hasTabsBehindTrailingEdge {
+                            Rectangle()
+                                .fill(tabsDividerColor)
+                                .frame(width: 1, height: 18)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    // Scroll on selection change. For non-last chips a default
+                    // `nil`-anchor minimum-scroll-to-visible keeps already-visible
+                    // chips from jumping; for the last chip we target the trailing
+                    // sentinel so the 12pt trailing gap stays on-screen and the
+                    // chip keeps its breathing room before the divider.
+                    .onChange(of: selectedConversation.persistentModelID, initial: true) { _, newID in
+                        if conversations.last?.persistentModelID == newID {
+                            proxy.scrollTo(ScrollTarget.trailingSentinel, anchor: .trailing)
+                        } else {
+                            proxy.scrollTo(newID)
+                        }
+                    }
+                    // `createConversation` appends the new conversation, so any
+                    // count-grow should scroll all the way to the end. Targeting the
+                    // trailing sentinel (rather than `conversations.last?.id`) keeps
+                    // the sentinel's 12pt width on-screen — mirrors the terminal
+                    // pane's `sessions.count` hook in intent but adds the sentinel
+                    // because the conversation-tabs row has a trailing gap the
+                    // terminal row doesn't.
+                    .onChange(of: conversations.count) { oldCount, newCount in
+                        guard newCount > oldCount else {
+                            return
+                        }
+                        proxy.scrollTo(ScrollTarget.trailingSentinel, anchor: .trailing)
                     }
                 }
             } else {
@@ -37,9 +113,9 @@ struct ThreadDetailConversationTabs: View {
                     text: selectedConversation.displayName(),
                     textStyle: .headline
                 )
+                .padding(.leading, 20)
+                Spacer()
             }
-
-            Spacer()
 
             Button {
                 onCreate()
@@ -48,8 +124,9 @@ struct ThreadDetailConversationTabs: View {
             }
             .secondaryActionButtonStyle()
             .keyboardShortcut("t", modifiers: .command)
+            .padding(.leading, tabsTrailingSentinelWidth)
         }
-        .padding(.horizontal, 20)
+        .padding(.trailing, 20)
         .padding(.vertical, 14)
         .background(.bar)
         .background {
@@ -258,4 +335,49 @@ private extension ConversationTabChip {
     func cancelRename() {
         editingConversationID = nil
     }
+}
+
+private extension ThreadDetailConversationTabs {
+    /// Maximum distance the tab row can scroll given current content / container width.
+    var tabsMaxScrollableDistance: CGFloat {
+        max(0, tabsScrollGeometry.contentWidth - tabsScrollGeometry.containerWidth)
+    }
+
+    /// `true` when a tab chip is clipped by the trailing edge of the scroll area. Gates
+    /// the trailing divider so it only appears when a chip is actually hidden, and
+    /// hides once the last chip is flush with the viewport trailing. Mirrors the
+    /// terminal pane's gating, with an extra adjustment: the trailing sentinel adds
+    /// `tabsTrailingSentinelWidth` to `contentWidth` as reserved trailing space — the
+    /// last `tabsTrailingSentinelWidth` of scroll is the sentinel itself, not a chip.
+    /// Subtracting it from `maxScroll` means the divider hides as soon as the last
+    /// chip's trailing reaches the viewport, rather than hanging on while the sentinel
+    /// scrolls in, and avoids a false-positive divider when chips nearly fit the
+    /// viewport and only the sentinel overflows.
+    var hasTabsBehindTrailingEdge: Bool {
+        let effectiveMaxScroll = tabsMaxScrollableDistance - tabsTrailingSentinelWidth
+        return effectiveMaxScroll > 0.5
+            && tabsScrollGeometry.contentOffset < effectiveMaxScroll - 0.5
+    }
+
+    /// Matches the terminal pane's divider tint so the two surfaces stay visually aligned.
+    var tabsDividerColor: Color {
+        Color.primary.opacity(colorScheme == .dark ? 0.35 : 0.3)
+    }
+}
+
+/// Snapshot of the conversation-tab row's scroll state. Populated by
+/// `onScrollGeometryChange(for:of:action:)` so the trailing-edge divider can gate on
+/// whether there is off-screen content further right.
+private struct ConversationTabsScrollGeometry: Equatable {
+    var contentWidth: CGFloat = 0
+    var containerWidth: CGFloat = 0
+    var contentOffset: CGFloat = 0
+}
+
+/// `ScrollViewProxy` targets. Chips use their `persistentModelID`; the trailing
+/// sentinel is a 12pt-wide view at the very end of the scrollable content that
+/// provides both the visible gap before the overlay divider at scroll-to-end and a
+/// scroll target whose trailing edge equals the content's absolute trailing edge.
+private enum ScrollTarget: Hashable {
+    case trailingSentinel
 }

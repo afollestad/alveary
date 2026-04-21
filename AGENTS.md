@@ -103,6 +103,7 @@ These are default structure and readability conventions for new code and routine
 - Can any AGENTS.md files be split up into smaller sections, sub-bullets, or into separate files?
 - If we fixed a bug, are we sure it won't regress later? What's stopping regression?
 - Are there any lint warnings or errors? Do any files need to be split up?
+- Are there any accessibility issues?
 
 Double-check to make sure nothing is missed or inaccurate. **BE SURE** that any changes made as a result of the review do not regress any intentional behavior changes.
 
