@@ -171,9 +171,12 @@ final class CLIGitService: GitService {
     }
 
     func listFiles(in directory: String) async throws -> [String] {
+        // `-co --exclude-standard` returns tracked plus untracked-but-not-ignored
+        // files so agent-created files show up in @-mention autocomplete before
+        // they're committed.
         let result = try await shell.run(
             executable: "/usr/bin/git",
-            args: ["ls-files"],
+            args: ["ls-files", "-co", "--exclude-standard"],
             in: directory
         )
         guard result.succeeded else {
