@@ -3,12 +3,32 @@ import SnapshotTesting
 import SwiftUI
 import XCTest
 
+/// Default precision parameters applied to every `assertMacSnapshot` call. `0.99`
+/// corresponds to the Delta-E threshold SnapshotTesting documents as "mimics the
+/// precision of the human eye". The library's hard default of `1.0`/`1.0` requires a
+/// bit-exact decoded-pixel match, which Core Graphics' color-managed PNG decode path
+/// does not deliver reliably — tiny per-channel rounding differences survive the
+/// encoder round trip on larger, color-rich baselines (diff viewer with syntax
+/// highlighting, settings screens, composer autocomplete at scroll offset) even when
+/// the pixels are sub-visually identical to the baseline, and baselines have been
+/// re-recorded more than once with no code change. Both knobs need to move together:
+/// `perceptualPrecision` sets the per-pixel Delta-E tolerance, but with `precision` at
+/// `1.0` the test still fails if even one pixel exceeds it; lowering `precision` to
+/// `0.99` admits up to 1% of pixels crossing the Delta-E line, which is where
+/// channel-rounding drift tends to spread. Together they absorb sub-visible encoder
+/// noise without giving up coverage of anything a reviewer could actually see.
+/// Override per call site if a specific test wants stricter or looser matching.
+private let defaultPixelPrecision: Float = 0.99
+private let defaultPerceptualPrecision: Float = 0.99
+
 @MainActor
 func assertMacSnapshot<V: View>(
     _ view: V,
     size: CGSize,
     named: String? = nil,
     colorScheme: ColorScheme = .light,
+    precision: Float = defaultPixelPrecision,
+    perceptualPrecision: Float = defaultPerceptualPrecision,
     file: StaticString = #filePath,
     testName: String = #function,
     line: UInt = #line
@@ -56,7 +76,7 @@ func assertMacSnapshot<V: View>(
 
     assertSnapshot(
         of: controller,
-        as: .image,
+        as: .image(precision: precision, perceptualPrecision: perceptualPrecision),
         named: named,
         record: isRecordingSnapshots ? true : nil,
         file: file,
