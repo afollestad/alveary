@@ -98,9 +98,24 @@ struct ThreadDetailView: View {
                     presenting: pendingDeleteConversation
                 ) { conversation in
                     Button("Remove", role: .destructive) {
+                        // Snapshot both the `PersistentIdentifier` and the UUID-string
+                        // `id` synchronously here. `removeConversation` hops through
+                        // `await agentsManager.destroyRuntime(...)` and a stale re-fetch
+                        // via `modelContext.model(for:)` can return a zombie
+                        // `Conversation` that traps on any persisted-property read. The
+                        // dialog-message closure above (`conversation.displayName()`)
+                        // already read from this same model reference synchronously to
+                        // render the dialog, so reading `.id` at click time is on the
+                        // same known-live frame.
                         let conversationID = conversation.persistentModelID
+                        let conversationIDString = conversation.id
                         pendingDeleteConversation = nil
-                        Task { await removeConversation(id: conversationID) }
+                        Task {
+                            await removeConversation(
+                                id: conversationID,
+                                conversationIDString: conversationIDString
+                            )
+                        }
                     }
 
                     Button("Cancel", role: .cancel) {
@@ -191,13 +206,9 @@ private extension ThreadDetailView {
         }
     }
 
-    func removeConversation(id: PersistentIdentifier) async {
+    func removeConversation(id: PersistentIdentifier, conversationIDString: String) async {
         guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
             conversationActionError = "Couldn't remove conversation: thread no longer exists"
-            return
-        }
-        guard let dbConversation = uiModelContext.model(for: id) as? Conversation else {
-            conversationActionError = "Couldn't remove conversation: it no longer exists"
             return
         }
         guard dbThread.conversations.count > 1 else {
@@ -205,14 +216,36 @@ private extension ThreadDetailView {
             return
         }
 
+        // `conversationIDString` was snapshotted synchronously by the caller (the
+        // confirmation-dialog button) — deliberately do not refetch a `Conversation`
+        // reference here to re-read its `.id`. `modelContext.model(for:)` can return a
+        // zombie `@Model` reference whose backing store has already been invalidated,
+        // and the first persisted-property read on that zombie traps with
+        // `_assertionFailure`. Re-resolution post-await is still safe because by then
+        // the store has settled and the nil-return branch catches a real deletion.
         selectNeighborIfClosingSelected(id: id, in: dbThread)
 
+        let threadPersistentID = thread.persistentModelID
+
         do {
-            try await agentsManager.destroyRuntime(conversationId: dbConversation.id)
+            try await agentsManager.destroyRuntime(conversationId: conversationIDString)
+
+            // Re-resolve model references after the await for the same reason — the
+            // pre-await `dbThread` / `dbConversation` may have been invalidated.
+            guard let liveThread = uiModelContext.model(for: threadPersistentID) as? AgentThread else {
+                conversationActionError = nil
+                return
+            }
+            guard let liveConversation = uiModelContext.model(for: id) as? Conversation else {
+                conversationActionError = nil
+                appState.repairSelectedConversationIfNeeded(for: liveThread)
+                return
+            }
+
             // Dismiss any delivered banner and clear the unread count before the row disappears,
             // so the dock badge and Notification Center both stay consistent with the live DB.
-            notificationManager.markConversationRead(conversationId: dbConversation.id)
-            uiModelContext.delete(dbConversation)
+            notificationManager.markConversationRead(conversationId: conversationIDString)
+            uiModelContext.delete(liveConversation)
             try uiModelContext.save()
             conversationActionError = nil
 
@@ -220,12 +253,12 @@ private extension ThreadDetailView {
                 appState.pendingDiffAction = nil
             }
 
-            appState.repairSelectedConversationIfNeeded(for: dbThread)
+            appState.repairSelectedConversationIfNeeded(for: liveThread)
 
-            if let path = dbThread.worktreePath ?? dbThread.project?.path {
-                let baseRef = dbThread.project?.baseRef ?? "main"
-                let remoteName = dbThread.project?.remoteName
-                let conversationIds = Set(dbThread.conversations.map(\.id))
+            if let path = liveThread.worktreePath ?? liveThread.project?.path {
+                let baseRef = liveThread.project?.baseRef ?? "main"
+                let remoteName = liveThread.project?.remoteName
+                let conversationIds = Set(liveThread.conversations.map(\.id))
                 await diffViewModel.switchToDirectory(
                     path,
                     baseRef: baseRef,
