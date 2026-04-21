@@ -69,7 +69,7 @@ struct SidebarProjectRow: View {
                 }
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
                 .accessibilityLabel("New Thread")
-                .help("Create a new thread")
+                .help("New Thread (\(KeyboardShortcut.newThread.displayString))")
             }
             .frame(maxWidth: .infinity)
         }

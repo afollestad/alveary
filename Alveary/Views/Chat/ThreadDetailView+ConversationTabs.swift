@@ -123,7 +123,7 @@ struct ThreadDetailConversationTabs: View {
                 Label("New Conversation", systemImage: "plus")
             }
             .secondaryActionButtonStyle()
-            .keyboardShortcut("t", modifiers: .command)
+            .help("New Conversation (\(KeyboardShortcut.newConversation.displayString))")
             .padding(.leading, tabsTrailingSentinelWidth)
         }
         .padding(.trailing, 20)
@@ -151,7 +151,7 @@ struct ThreadDetailConversationTabs: View {
                 }
                 onRemove(selectedConversation)
             }
-            .keyboardShortcut("w", modifiers: .command)
+            .keyboardShortcut(.closeConversation)
             .buttonStyle(.plain)
             .accessibilityHidden(true)
             .opacity(0)
@@ -296,6 +296,7 @@ private extension ConversationTabChip {
             selectAccessibilityLabel: plainDisplayName,
             closeAccessibilityLabel: "Remove \(plainDisplayName)",
             selectShortcut: switchShortcut,
+            closeHelpText: "Close Conversation (\(KeyboardShortcut.closeConversation.displayString))",
             renameAccessibilityAction: renameAction,
             onSelect: onSelect,
             onClose: onClose

@@ -32,7 +32,7 @@ struct SidebarProjectsHeaderRow: View {
                 }
             }
             .accessibilityLabel("Add Project")
-            .help("Add a project")
+            .help("Add Project... (\(KeyboardShortcut.addProject.displayString))")
         }
         .padding(.leading, 8)
         .padding(.trailing, 16)

@@ -212,7 +212,7 @@ struct ContentView: View {
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .help("Open Settings")
+                .help("Open Settings (\(KeyboardShortcut.settings.displayString))")
             }
         }
         .onChange(of: appState.isLeftPaneVisible) { _, isVisible in

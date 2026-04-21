@@ -16,22 +16,24 @@ struct AlvearyApp: App {
         .defaultSize(width: 1440, height: 920)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Add a Project...") {
+                Button("Add Project...") {
                     appState.openNewProjectFlow()
                 }
-                .keyboardShortcut("o", modifiers: .command)
+                .keyboardShortcut(.addProject)
 
                 Button("New Thread") {
                     appState.startNewThreadFlow()
                 }
-                .keyboardShortcut("n", modifiers: .command)
+                .keyboardShortcut(.newThread)
+
+                NewConversationCommandButton()
             }
 
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
                     appState.openSettings()
                 }
-                .keyboardShortcut(",", modifiers: .command)
+                .keyboardShortcut(.settings)
             }
 
             CommandGroup(after: .toolbar) {
@@ -44,5 +46,21 @@ struct AlvearyApp: App {
             }
         }
         .modelContainer(AppDI.resolver.modelContainer())
+    }
+}
+
+/// Reads the thread-scoped `newConversationAction` focused value so the ⌘T
+/// menu item is automatically disabled when no `ThreadDetailView` is mounted.
+/// The binding lives here (rather than inline inside `commands`) so
+/// `@FocusedValue` can participate in view invalidation.
+private struct NewConversationCommandButton: View {
+    @FocusedValue(\.newConversationAction) private var newConversationAction
+
+    var body: some View {
+        Button("New Conversation") {
+            newConversationAction?()
+        }
+        .keyboardShortcut(.newConversation)
+        .disabled(newConversationAction == nil)
     }
 }

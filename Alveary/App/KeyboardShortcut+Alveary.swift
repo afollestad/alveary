@@ -8,6 +8,11 @@ import SwiftUI
 /// convention and the "Focus And Keyboard Coordination" section of
 /// `Alveary/Views/AGENTS.md` for why menu registration is the right surface.
 extension KeyboardShortcut {
+    static let addProject = KeyboardShortcut("o", modifiers: .command)
+    static let newThread = KeyboardShortcut("n", modifiers: .command)
+    static let newConversation = KeyboardShortcut("t", modifiers: .command)
+    static let closeConversation = KeyboardShortcut("w", modifiers: .command)
+    static let settings = KeyboardShortcut(",", modifiers: .command)
     static let toggleDiffViewer = KeyboardShortcut("d", modifiers: [.shift, .command])
 
     /// Human-readable rendering, e.g. "⇧⌘D" or "⌘↩". Drives tooltip text so it

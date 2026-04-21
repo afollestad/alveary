@@ -144,6 +144,13 @@ struct ThreadDetailView: View {
                 }
             }
         }
+        // Publish the thread-scoped create action so `AlvearyApp.commands`
+        // can render a ⌘T "New Conversation" menu item that is disabled
+        // when no thread is mounted (the focused value resolves to nil
+        // outside this view, so the menu button reads `action == nil`).
+        .focusedSceneValue(\.newConversationAction) {
+            Task { await createConversation() }
+        }
     }
 }
 

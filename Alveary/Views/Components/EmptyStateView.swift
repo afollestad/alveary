@@ -10,17 +10,20 @@ struct EmptyStateView: View {
         let title: String
         let systemImage: String?
         let style: EmptyStateActionStyle
+        let helpText: String?
         let action: () -> Void
 
         init(
             title: String,
             systemImage: String? = nil,
             style: EmptyStateActionStyle,
+            helpText: String? = nil,
             action: @escaping () -> Void
         ) {
             self.title = title
             self.systemImage = systemImage
             self.style = style
+            self.helpText = helpText
             self.action = action
         }
     }
@@ -55,12 +58,20 @@ struct EmptyStateView: View {
                             }
                         }
 
-                        if action.style == .primary {
-                            button
-                                .primaryActionButtonStyle()
+                        let styled = Group {
+                            if action.style == .primary {
+                                button
+                                    .primaryActionButtonStyle()
+                            } else {
+                                button
+                                    .secondaryActionButtonStyle()
+                            }
+                        }
+
+                        if let helpText = action.helpText {
+                            styled.help(helpText)
                         } else {
-                            button
-                                .secondaryActionButtonStyle()
+                            styled
                         }
                     }
                 }

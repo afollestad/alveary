@@ -40,6 +40,26 @@ final class KeyboardShortcutDisplayStringTests: XCTestCase {
         XCTAssertEqual(KeyboardShortcut(.clear, modifiers: []).displayString, "⌧")
     }
 
+    func testAddProjectConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.addProject.displayString, "⌘O")
+    }
+
+    func testNewThreadConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.newThread.displayString, "⌘N")
+    }
+
+    func testNewConversationConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.newConversation.displayString, "⌘T")
+    }
+
+    func testCloseConversationConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.closeConversation.displayString, "⌘W")
+    }
+
+    func testSettingsConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.settings.displayString, "⌘,")
+    }
+
     func testToggleDiffViewerConstantMatches() {
         XCTAssertEqual(KeyboardShortcut.toggleDiffViewer.displayString, "⇧⌘D")
     }

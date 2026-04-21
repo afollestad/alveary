@@ -86,10 +86,36 @@ private struct ProminentActionButtonStyle: ButtonStyle {
         self.borderColor = borderColor
     }
 
+    func makeBody(configuration: Configuration) -> some View {
+        ProminentActionButtonBody(
+            configuration: configuration,
+            fillColor: fillColor,
+            foregroundColor: foregroundColor,
+            borderColor: borderColor
+        )
+    }
+}
+
+/// Extracted from the `ButtonStyle` so it can own an `@State` hover flag. The
+/// hover overlay is a translucent fill in the style's own `foregroundColor` on
+/// top of the resolved background, so it always leans toward the label color:
+/// `.primary` for the primary/secondary variants (darkens in light mode,
+/// lightens in dark) and `.white` for the destructive variant (slight lift on
+/// the dark red). That's the opposite direction of the pressed state (which
+/// uses `.opacity(0.84)` to fade the fill toward the window background), so
+/// hover reads as "emphasize toward label" and press reads as "soften toward
+/// window" on every theme without needing per-variant branches.
+private struct ProminentActionButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let fillColor: Color
+    let foregroundColor: Color
+    let borderColor: Color?
+
     @Environment(\.controlSize) private var controlSize
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
 
-    func makeBody(configuration: Configuration) -> some View {
+    var body: some View {
         configuration.label
             .font(.body.weight(.semibold))
             .foregroundStyle(foregroundColor.opacity(isEnabled ? 1 : 0.78))
@@ -98,8 +124,13 @@ private struct ProminentActionButtonStyle: ButtonStyle {
             .padding(.horizontal, horizontalPadding)
             .frame(height: controlHeight)
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(backgroundColor(isPressed: configuration.isPressed))
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(foregroundColor.opacity(0.06))
+                        .opacity(showsHoverOverlay ? 1 : 0)
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -107,6 +138,14 @@ private struct ProminentActionButtonStyle: ButtonStyle {
             )
             .opacity(configuration.isPressed && isEnabled ? 0.94 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+            .onHover { hovering in
+                isHovering = hovering
+            }
+    }
+
+    private var showsHoverOverlay: Bool {
+        isHovering && isEnabled && !configuration.isPressed
     }
 
     private var resolvedBorderColor: Color {

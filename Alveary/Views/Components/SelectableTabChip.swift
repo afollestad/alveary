@@ -18,6 +18,11 @@ struct SelectableTabChip: View {
     let selectAccessibilityLabel: String
     let closeAccessibilityLabel: String
     var selectShortcut: KeyboardShortcut?
+    /// Optional tooltip text for the trailing `×` close button. Conversation tabs
+    /// pass `"Close Conversation (⌘W)"` here; terminal session chips leave it nil
+    /// because terminal close has no modifier-key shortcut yet. Nil suppresses the
+    /// `.help(...)` modifier entirely so SwiftUI doesn't render an empty tooltip.
+    var closeHelpText: String?
     /// Optional "Rename" custom accessibility action attached to the select button
     /// (surfaced via the VoiceOver rotor). Set by surfaces that support inline rename
     /// — conversation tabs do; terminal session chips do not. Routing this through
@@ -32,6 +37,7 @@ struct SelectableTabChip: View {
     var body: some View {
         selectButton.tabChipShell(
             closeAccessibilityLabel: closeAccessibilityLabel,
+            closeHelpText: closeHelpText,
             onClose: onClose
         )
     }
@@ -84,32 +90,71 @@ extension View {
     /// whether clicking it commits, cancels, or deletes the conversation.
     func tabChipShell(
         closeAccessibilityLabel: String,
+        closeHelpText: String? = nil,
         onClose: @escaping () -> Void,
         showsCloseButton: Bool = true
     ) -> some View {
         ZStack(alignment: .trailing) {
             self
             if showsCloseButton {
-                tabChipCloseButton(accessibilityLabel: closeAccessibilityLabel, action: onClose)
-                    .padding(.trailing, 12)
+                TabChipCloseButton(
+                    accessibilityLabel: closeAccessibilityLabel,
+                    helpText: closeHelpText,
+                    action: onClose
+                )
+                .padding(.trailing, 12)
             }
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 }
 
-private func tabChipCloseButton(
-    accessibilityLabel: String,
-    action: @escaping () -> Void
-) -> some View {
-    Button(action: action) {
-        Image(systemName: "xmark")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(4)
-            .contentShape(Rectangle())
+/// Shared trailing `×` affordance for `SelectableTabChip` and the
+/// `ConversationTabChip` editing variant. Extracted into a view (rather than a
+/// free function) so it can track its own `@State` hover state and lighten the
+/// icon / draw a subtle circular background on hover, matching the
+/// `SidebarProjectsHeaderRow` +-button treatment for parity across surfaces.
+private struct TabChipCloseButton: View {
+    let accessibilityLabel: String
+    let helpText: String?
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary.opacity(isHovering ? 1 : 0.8))
+                .padding(4)
+                .background(
+                    Circle()
+                        .fill(Color.primary.opacity(isHovering ? 0.12 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .accessibilityLabel(accessibilityLabel)
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .modifier(OptionalHelp(text: helpText))
     }
-    .buttonStyle(.plain)
-    .focusEffectDisabled()
-    .accessibilityLabel(accessibilityLabel)
+}
+
+/// Applies `.help(text)` only when `text` is non-nil. A plain `.help(text ?? "")`
+/// would hand SwiftUI an empty tooltip string, which on macOS renders an
+/// empty-looking popover after the hover delay.
+private struct OptionalHelp: ViewModifier {
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if let text {
+            content.help(text)
+        } else {
+            content
+        }
+    }
 }
