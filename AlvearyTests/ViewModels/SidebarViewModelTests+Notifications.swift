@@ -5,7 +5,7 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-final class SidebarViewModelNotificationTests: XCTestCase {
+extension SidebarViewModelTests {
     func testArchiveThreadMarksEveryConversationReadBeforeMutatingTheThread() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(

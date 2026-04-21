@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-final class ConversationViewModelSettingsTests: XCTestCase {
+extension ConversationViewModelTests {
     // Regression test for the composer-dropdown bug where `applyEffortChange`
     // silently dropped the session fork whenever the Claude CLI process had
     // exited between turns. The fork must still happen as long as the thread

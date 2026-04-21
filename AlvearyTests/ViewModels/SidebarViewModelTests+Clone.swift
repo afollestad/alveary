@@ -29,7 +29,7 @@ private actor DirectoryCreatingShellRunner: ShellRunner {
 }
 
 @MainActor
-final class SidebarViewModelCloneTests: XCTestCase {
+extension SidebarViewModelTests {
     func testCloneRepositoryInvokesGitCloneAndPersistsProject() async throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.0.0", gitHubAuthenticated: false)
         let parent = try makeParentDirectory()
