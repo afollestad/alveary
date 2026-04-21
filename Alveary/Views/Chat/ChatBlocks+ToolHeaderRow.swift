@@ -60,7 +60,7 @@ struct ToolHeaderRow: View {
             // runtime strings don't silently strip the formatting.
             Text(attributedToolSummary(tool.summary))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(tool.isError ? .red : .primary)
+                .foregroundStyle(.primary)
 
             if tool.isInterrupted {
                 InterruptedTag()
@@ -108,11 +108,18 @@ struct ToolStatusIndicator: View {
                     .scaleEffect(0.75)
             }
         }
-        // Width is constrained so chevron-icon-text columns line up across branches,
-        // but height is left to the indicator's intrinsic size so the enclosing HStack
-        // still hugs the semibold-subheadline text's line height. Pinning height to 18
-        // made rows ~1pt taller than the text-driven layout this replaced.
-        .frame(width: 18, alignment: .center)
+        // Width *and height* are pinned so the enclosing HStack doesn't reflow when
+        // the branch swaps. `ProgressView().controlSize(.small)` reserves ~16pt of
+        // intrinsic layout height (scaleEffect only transforms the render — it doesn't
+        // shrink the layout box), while the SF Symbol at the ambient body font is
+        // intrinsically ~13pt tall. Without a fixed height, the HStack grew during
+        // the in-progress state and then shrank on spinner→checkmark, which caused a
+        // visible vertical nudge in the enclosing bubble whenever a tool group rapidly
+        // toggled between working and success as additional tool calls streamed in.
+        // 16pt matches the spinner's natural layout size, so pinning there keeps rows
+        // at the height they already had while the spinner was present; icons render
+        // centered within that slot at their intrinsic ~13pt size.
+        .frame(width: 18, height: 16, alignment: .center)
         .transaction { $0.animation = nil }
     }
 }

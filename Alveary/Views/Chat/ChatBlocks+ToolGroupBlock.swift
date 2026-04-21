@@ -72,7 +72,7 @@ struct ToolGroupBlock: View {
 
                         Text(summary)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(aggregateIsError ? .red : .primary)
+                            .foregroundStyle(.primary)
 
                         if failureCount > 0 {
                             Text("\(failureCount) failed")
