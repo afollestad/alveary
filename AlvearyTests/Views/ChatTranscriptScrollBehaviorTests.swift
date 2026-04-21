@@ -45,6 +45,43 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
+    // REGRESSION: the changed-files strip (on thread open with async diff loading)
+    // and error banners (appearing while thread is visible) both take vertical
+    // space in the composer panel, shrinking the transcript's viewport. When that
+    // happens with the user at bottom, `.scrollPosition(_, anchor: .bottom)` bumps
+    // offsetY *up* to keep the content-bottom aligned to the viewport-bottom — so
+    // offsetY CHANGED but the user didn't scroll. The old `!offsetChanged` guard
+    // excluded this case and left the transcript above the bottom once the strip/
+    // banner appeared. `!offsetDecreased` correctly allows anchor-driven offset
+    // increases while still rejecting real user drags.
+    func testPreservesFollowModeOnContainerShrinkWithAnchorDrivenOffsetIncrease() {
+        // Was at bottom (distance=0), container shrinks by 100, anchor bumps offsetY
+        // from 540 to 640 to keep content-bottom at viewport-bottom.
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 640, contentHeight: 1_000, containerHeight: 360)
+
+        XCTAssertTrue(
+            ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+                oldMetrics: oldMetrics,
+                newMetrics: newMetrics
+            )
+        )
+    }
+
+    // Container growth is not what preserve-follow is for — a growing viewport
+    // pulls the user toward the bottom on its own.
+    func testDoesNotPreserveFollowModeOnContainerGrowth() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 360)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
+
+        XCTAssertFalse(
+            ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+                oldMetrics: oldMetrics,
+                newMetrics: newMetrics
+            )
+        )
+    }
+
     func testCancelsProgrammaticScrollWhenUserMovesFurtherFromBottom() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 470, contentHeight: 1_000, containerHeight: 400)
@@ -71,26 +108,8 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    // REGRESSION: during streaming, `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
-    // catches up to content growth by *increasing* offsetY, but if content grew by
-    // more than the anchor bumped on the same tick, `distanceFromBottom` also grows.
-    // The old `offsetChanged && movedFurtherFromBottom` check read that as a user
-    // drag and tripped `.cancelled`, briefly flipping `isFollowing` to false and
-    // flashing the jump-to-latest button mid-stream. A user drag decreases offsetY;
-    // anchor catch-up increases it — requiring `offsetDecreased` fixes this.
-    func testDoesNotCancelProgrammaticScrollOnAnchorCatchUpDuringStreaming() {
-        // offsetY increased (anchor catch-up toward bottom), distance grew
-        // (content grew by more than the catch-up).
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 620, contentHeight: 1_100, containerHeight: 400)
-
-        XCTAssertFalse(
-            ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
-    }
+    // Cancel-predicate regression tests covering SwiftUI-initiated false
+    // positives live in `ChatTranscriptScrollBehaviorTests+CancelGuards.swift`.
 
     func testReissuesPendingJumpToLatestWhenContainerShrinks() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
@@ -401,13 +420,15 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
 
     func testPendingScrollActionNoopOnStableGeometry() {
         // Tiny offset adjustment toward the bottom (not user drag, not content
-        // growth, not `isAtBottom`). Mode should be left alone.
+        // growth, not `isAtBottom`). With `.jumpToLatest`, the near-bottom
+        // backstop kicks in — this covers the preserveFollow case where the
+        // backstop is intentionally *not* applied, so the mode is left alone.
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 201, contentHeight: 1_000, containerHeight: 460)
 
         XCTAssertEqual(
             ChatTranscriptScrollBehavior.pendingScrollAction(
-                pending: .jumpToLatest,
+                pending: .preserveFollow,
                 oldMetrics: oldMetrics,
                 newMetrics: newMetrics
             ),

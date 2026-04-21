@@ -7,6 +7,28 @@ private let transcriptTopInset: CGFloat = 20
 private let transcriptBottomInset: CGFloat = 14
 private let transcriptProgrammaticScrollTimeout: TimeInterval = 0.4
 
+/// Distance from bottom at which the `jumpToLatest` path switches from a
+/// single `scrollTo(edge: .bottom)` (fast, for short distances) to a
+/// progressive stepped scroll (slower, gives `LazyVStack` frames to
+/// materialize rows as the viewport passes through).
+private let transcriptProgressiveScrollThreshold: CGFloat = 400
+
+/// Per-step offset jump for the progressive scroll. Sized below a typical
+/// viewport height so each step materializes a fresh slice of content.
+private let transcriptProgressiveScrollStep: CGFloat = 300
+
+/// Delay between progressive scroll steps. Long enough for a `LazyVStack`
+/// render pass to materialize the current visible range before we advance.
+private let transcriptProgressiveScrollStepDelay: TimeInterval = 0.04
+
+/// Safety cap on the number of progressive steps for a single scroll
+/// sequence. With a 300pt step this covers ~9000pt of content (far beyond
+/// any realistic transcript), but guarantees the recursion terminates even
+/// if content keeps growing faster than we step through it or the scroll
+/// refuses to advance. Once the cap is hit we finish with a single
+/// `scrollTo(edge: .bottom)` and let the reissue predicates converge.
+private let transcriptProgressiveScrollMaxSteps: Int = 30
+
 private enum ScrollToBottomRetries {
     /// Immediate `scrollTo` only. Used by the container-change preserve-follow path
     /// where continued layout shifts are re-issued via `shouldReissuePendingPreserveFollow`
@@ -35,6 +57,7 @@ struct ChatTranscriptView: View {
     @State private var latestMetrics: ChatTranscriptScrollMetrics?
     @State private var scrollPosition = ScrollPosition()
     @State private var transcriptContentWidth: CGFloat = 0
+    @State private var isProgressiveScrolling = false
 
     var body: some View {
         ScrollView {
@@ -109,7 +132,16 @@ struct ChatTranscriptView: View {
             } action: { newValue in
                 transcriptContentWidth = newValue
             }
-            .scrollTargetLayout()
+            // `.scrollTargetLayout()` is intentionally omitted. That modifier
+            // marks the stack's children as scroll targets, which causes
+            // `.scrollPosition` and `.defaultScrollAnchor` to anchor on "the
+            // last scroll target's bottom = viewport bottom". That alignment
+            // ignores the outer `.padding(.bottom, ...)` (outside the targets)
+            // and silently drifts offsetY up by 14pt a few frames after a
+            // scroll lands — rendering the transcript with the bottom padding
+            // partially cut off. We don't use `scrollTargetBehavior(.viewAligned)`
+            // so `.scrollTargetLayout()` provides no benefit here; removing it
+            // eliminates the drift. Don't add it back.
         }
         .environment(\.transcriptBubbleMaxWidth, transcriptContentWidth > 0 ? transcriptContentWidth : .infinity)
         .defaultScrollAnchor(.bottom)
@@ -145,7 +177,16 @@ struct ChatTranscriptView: View {
                     self.pendingProgrammaticScrollMode = nil
                     isFollowing = false
                 case .reissue:
-                    scrollPosition.scrollTo(edge: .bottom)
+                    // Suppress reissue's `scrollTo(edge: .bottom)` while the
+                    // progressive-scroll scheduler is running. Its stepped
+                    // `scrollTo(y:)` calls and the reissue's edge-scroll race
+                    // each other and prevent `LazyVStack` from materializing
+                    // rows at the intermediate viewport positions. Still
+                    // refresh the watchdog so pending stays alive through the
+                    // progressive sequence.
+                    if !isProgressiveScrolling {
+                        scrollPosition.scrollTo(edge: .bottom)
+                    }
                     // Refresh the timeout so slow-materializing `LazyVStack` content
                     // (large threads on entry) can keep pinning to the growing bottom
                     // instead of timing out and leaving the viewport above the true
@@ -243,41 +284,8 @@ struct ChatTranscriptView: View {
         })
     }
 
-    // Foundation's markdown parser preserves schemeless links like `[text](Alveary/DI/AGENTS.md)`
-    // or `[text](~/Desktop/file.png)` as relative URLs (scheme == nil). SwiftUI's default
-    // `openURL` hands those straight to `NSWorkspace.shared.open(_:)`, which silently no-ops
-    // without a `file://` scheme — so the link does nothing. Handle both shapes here:
-    // `~`/`~user` prefixes expand via `NSString.expandingTildeInPath` (URLs don't know about
-    // shell home-directory shortcuts), and other relative paths resolve against the thread's
-    // working directory. Absolute URLs (https, file, mailto, etc.) pass through unchanged.
-    static func resolveMarkdownLinkURL(_ url: URL, workingDirectory: String?) -> URL {
-        guard url.scheme == nil else {
-            return url
-        }
-        let relativePath = url.relativeString
-        // Fragment-only references (`[top](#section)`) have no path to resolve. Naively
-        // feeding them into the workingDirectory branch produces `file:///.../cwd/#section`,
-        // which opens the cwd in Finder. Pass through unchanged so NSWorkspace no-ops.
-        if relativePath.hasPrefix("#") {
-            return url
-        }
-        if relativePath.hasPrefix("~") {
-            // The markdown parser percent-encodes path characters (e.g. spaces → `%20`).
-            // `expandingTildeInPath` operates literally, so decode first or filenames with
-            // spaces land on disk as `foo%20bar` and the file lookup misses.
-            let decoded = relativePath.removingPercentEncoding ?? relativePath
-            let expanded = (decoded as NSString).expandingTildeInPath
-            guard expanded != decoded else {
-                return url
-            }
-            return URL(fileURLWithPath: expanded)
-        }
-        guard let workingDirectory, !workingDirectory.isEmpty else {
-            return url
-        }
-        let baseURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
-        return URL(string: relativePath, relativeTo: baseURL)?.absoluteURL ?? url
-    }
+    // Markdown link resolution (`resolveMarkdownLinkURL`) lives in
+    // `ChatView+Transcript+LinkResolution.swift`.
 }
 
 private extension ChatTranscriptView {
@@ -291,9 +299,45 @@ private extension ChatTranscriptView {
             isFollowing = true
         }
         lastScrollTime = time
-        scrollPosition.scrollTo(edge: .bottom)
 
-        if retries == .triple {
+        // Progressive warmup: if `forceFollow` and we're far from bottom,
+        // issue intermediate scrollTo(y:) calls so `LazyVStack` materializes
+        // rows as the viewport passes through them. SwiftUI's scrollTo(edge:)
+        // jumps the viewport in a single frame — bottom rows may never
+        // materialize, leaving the transcript blank until the user drags.
+        // Stepping through intermediate y positions mimics a user scroll,
+        // giving the stack multiple rendering opportunities to realize rows.
+        let usingProgressiveScroll = forceFollow
+            && !isProgressiveScrolling
+            && (latestMetrics?.distanceFromBottom ?? 0) > transcriptProgressiveScrollThreshold
+            && (latestMetrics?.contentHeight ?? 0) > (latestMetrics?.containerHeight ?? 0)
+        if usingProgressiveScroll, let metrics = latestMetrics {
+            // `!isProgressiveScrolling` guard above means rapid repeat
+            // forceFollow calls (double-tap jump-to-latest, send-while-mid-progressive)
+            // don't start a second concurrent chain. The in-flight chain
+            // reads `latestMetrics` on each step so it adapts to any content
+            // growth that happened after it started — redundant chains would
+            // just race each other's `scrollTo(y:)` calls.
+            isProgressiveScrolling = true
+            performProgressiveScrollToBottom(
+                fromOffsetY: metrics.offsetY,
+                stepsRemaining: transcriptProgressiveScrollMaxSteps
+            )
+        } else if !isProgressiveScrolling {
+            // Skip edge-scroll if progressive is already driving — it owns
+            // the scroll flow and its stepped calls would race with this one.
+            scrollPosition.scrollTo(edge: .bottom)
+        }
+
+        // Skip the retry ladder when the progressive path is driving — its
+        // own stepped scheduler replaces it. Otherwise the triple-retry
+        // `scrollTo(edge: .bottom)` calls race with the progressive steps
+        // and the viewport ends up jumping between targets. `isProgressiveScrolling`
+        // (not just `usingProgressiveScroll`) is the right guard: a repeat
+        // call during an in-flight chain has `usingProgressiveScroll == false`
+        // (we skipped starting a second chain above), but the existing chain
+        // is still driving the scroll — retries here would still race it.
+        if retries == .triple, !isProgressiveScrolling {
             // Re-issue the bound scroll position after layout settles so lazy rows
             // and footer chrome changes still pin the transcript at the bottom.
             DispatchQueue.main.async {
@@ -312,6 +356,54 @@ private extension ChatTranscriptView {
         }
 
         schedulePendingProgrammaticScrollTimeout()
+    }
+
+    /// Step through intermediate y positions toward the bottom. Each step
+    /// gives `LazyVStack` a render pass to materialize rows in the current
+    /// visible range. Without this, a single `scrollTo(edge: .bottom)` from
+    /// far-away lands on rows `LazyVStack` never materialized and the
+    /// viewport renders blank until the user drags.
+    func performProgressiveScrollToBottom(fromOffsetY startOffsetY: CGFloat, stepsRemaining: Int) {
+        let nextOffsetY = startOffsetY + transcriptProgressiveScrollStep
+        scrollPosition.scrollTo(y: nextOffsetY)
+        // Refresh the watchdog on every step. The reissue predicate
+        // (`shouldReissuePendingJumpToLatest`) only fires on container-shrink /
+        // content-grow ticks, and the `.noop` path doesn't refresh — so during
+        // a progressive sequence where content has already materialized enough
+        // for `LazyVStack` to stop growing its reported contentHeight, the
+        // watchdog would fire mid-sequence (400ms after the last reissue),
+        // clear `pendingProgrammaticScrollMode`, and the next step's
+        // `guard pendingProgrammaticScrollMode != nil` would exit the chain
+        // partway through — leaving the transcript stranded mid-scroll.
+        schedulePendingProgrammaticScrollTimeout()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgressiveScrollStepDelay) {
+            guard pendingProgrammaticScrollMode != nil else {
+                isProgressiveScrolling = false
+                return
+            }
+            guard let metrics = latestMetrics else {
+                isProgressiveScrolling = false
+                scrollPosition.scrollTo(edge: .bottom)
+                return
+            }
+            let withinFinalHop = metrics.distanceFromBottom <= transcriptProgressiveScrollStep
+            let outOfSteps = stepsRemaining <= 1
+            if withinFinalHop || outOfSteps {
+                // Close enough, or safety cap hit — final hop to the edge so
+                // the reissue predicates take over to converge to the exact
+                // bottom. The step cap guarantees termination even if content
+                // keeps growing faster than we step or the scroll refuses to
+                // advance.
+                isProgressiveScrolling = false
+                scrollPosition.scrollTo(edge: .bottom)
+            } else {
+                performProgressiveScrollToBottom(
+                    fromOffsetY: metrics.offsetY,
+                    stepsRemaining: stepsRemaining - 1
+                )
+            }
+        }
     }
 
     /// Schedule — or reschedule — the watchdog that clears a pending programmatic
@@ -333,15 +425,30 @@ private extension ChatTranscriptView {
                 return
             }
             pendingProgrammaticScrollTimeoutToken = nil
-            guard let pendingProgrammaticScrollMode else {
+            guard pendingProgrammaticScrollMode != nil else {
                 return
             }
 
-            self.pendingProgrammaticScrollMode = nil
-
-            if pendingProgrammaticScrollMode == .jumpToLatest {
-                isFollowing = latestMetrics?.isNearBottom ?? false
-            }
+            // Clear the pending mode. Do NOT overwrite `isFollowing` here:
+            //   - It was set to `true` at `scrollToBottom(forceFollow:)` kickoff.
+            //   - `.cancelled` is the only path that flips it to `false` during the
+            //     pending window, and that clears `pendingProgrammaticScrollMode`
+            //     early, so we wouldn't have made it here.
+            //   - A raw `isFollowing = latestMetrics?.isNearBottom ?? false` fallback
+            //     caused the jump-to-latest button to flash briefly on app launch to
+            //     a preselected thread: `onScrollGeometryChange` hadn't fired yet
+            //     when the watchdog landed (`latestMetrics` was nil → `?? false`),
+            //     so `isFollowing` flipped to `false` for one frame until a later
+            //     geometry tick restored it via `nextFollowingState`.
+            //
+            // Do NOT call `scrollPosition.scrollTo(edge: .bottom)` here either. An
+            // earlier iteration added a "final corrective scrollTo" for the
+            // near-but-not-at-bottom case (distance ∈ (6, 60)), but that explicit
+            // position write interacted badly with `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
+            // during LazyVStack calibration on app launch to large threads — the
+            // transcript ended up scrolled well above the bottom with the jump-to-
+            // latest button visible. The watchdog stays side-effect-free.
+            pendingProgrammaticScrollMode = nil
         }
     }
 

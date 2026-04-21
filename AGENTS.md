@@ -4,6 +4,7 @@
 **WHEN** making changes to dependencies, project structure, or lint, make sure `README.md` is kept up to date, as well as `AGENTS.md` files (including ones in sub-folders).
 **WHEN** adding or updating agent guidance, prefer the narrowest `AGENTS.md` whose scope covers the affected files. Keep instructions in the root `AGENTS.md` only when they are truly repo-wide or protect cross-cutting invariants.
 **WHEN** a single guidance bullet covers multiple discrete rules (e.g. "do X", "do not Y", "the reason is Z"), split it into scannable sub-bullets rather than letting it grow into a wall-of-text paragraph. One top-level bullet introduces the topic, each nested sub-bullet captures one rule. Lead the sub-bullet with a short bolded imperative so a reader scanning for a single rule can find it without parsing the whole section.
+**BE ON THE LOOKOUT** for AGENTS.md files that are getting too large, or that have too many bullets in a single section. If you believe a file could be split into smaller sections, sub-sections of sections, or smaller files, then call it out.
 
 ## Scoped AGENTS Files
 
@@ -101,7 +102,7 @@ These are default structure and readability conventions for new code and routine
 - If we fixed a bug, are we sure it won't regress later? What's stopping regression?
 - Are there any lint warnings or errors? Do any files need to be split up?
 
-Double-check to make sure nothing is missed or inaccurate.
+Double-check to make sure nothing is missed or inaccurate. **BE SURE** that any changes made as a result of the review do not regress any intentional behavior changes.
 
 Automatically resolve anything that's low risk, ask about others before making changes. 
 

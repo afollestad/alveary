@@ -2,6 +2,14 @@ import Foundation
 
 private let transcriptBottomSnapThreshold: CGFloat = 6
 
+/// Maximum single-tick offsetY drop that can plausibly be a user drag-away.
+/// Anything larger is treated as a programmatic scroll-state disturbance (e.g.
+/// the turn-end `forceFullRebuild` making the ScrollView lose its anchor view
+/// mid-diff and snap offset to a stale value — a 347pt single-tick drop was
+/// observed). 250pt is loose enough to admit very fast trackpad flings while
+/// rejecting the multi-hundred-pt programmatic snaps.
+private let transcriptCancelMaxPerTickDrop: CGFloat = 250
+
 struct ChatTranscriptScrollMetrics: Equatable {
     let offsetY: CGFloat
     let contentHeight: CGFloat
@@ -43,8 +51,22 @@ enum PendingProgrammaticScrollAction: Equatable {
 
 enum ChatTranscriptScrollBehavior {
     /// Preserve follow mode when the *viewport* shrinks under the user (e.g. the composer
-    /// banner or changed-files strip appearing) and they were already near the bottom.
-    /// Content-size growth is deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
+    /// banner or the changed-files strip appearing) and they were already near the bottom.
+    ///
+    /// The predicate is deliberately asymmetric on both axes:
+    /// - **Container shrinks, not any change.** Container *growth* pulls the user toward
+    ///   the bottom on its own (more viewport, less to scroll) and doesn't need a re-pin.
+    ///   `shouldReissuePendingPreserveFollow` already uses the same shrunk-only rule.
+    /// - **Offset didn't *decrease*, not "didn't change".** `.scrollPosition(_, anchor: .bottom)`
+    ///   bumps `offsetY` *up* when the container shrinks to keep the content-bottom aligned
+    ///   to the viewport-bottom. That anchor-driven offset increase is not a user scroll —
+    ///   excluding all offset changes (the old `!offsetChanged`) made us miss the diff-strip
+    ///   case where the strip loads *after* the initial thread-open scroll has settled and
+    ///   `.jumpToLatest` pending has timed out. A real user drag up *decreases* offsetY, so
+    ///   `!offsetDecreased` is the correct guard: it rejects user drags but allows anchor
+    ///   adjustments.
+    ///
+    /// Content-size growth is still deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
     /// already pins the bottom during content growth, and new-message / streaming snaps are
     /// handled by the dedicated `events.count` / `streamingText` onChange paths. Firing here
     /// on content growth caused `scrollToBottom` to run on every frame of a bubble expand or
@@ -53,27 +75,44 @@ enum ChatTranscriptScrollBehavior {
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
     ) -> Bool {
-        let containerChanged = abs(newMetrics.containerHeight - oldMetrics.containerHeight) > 0.5
-        let offsetChanged = abs(newMetrics.offsetY - oldMetrics.offsetY) > 0.5
-        return oldMetrics.isNearBottom && containerChanged && !offsetChanged
+        let containerShrunk = newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
+        let offsetDecreased = newMetrics.offsetY < oldMetrics.offsetY - 0.5
+        return oldMetrics.isNearBottom && containerShrunk && !offsetDecreased
     }
 
     /// A user scroll-away should cancel a pending programmatic scroll, but normal
-    /// `.defaultScrollAnchor(.bottom, for: .sizeChanges)` catch-up during streaming
-    /// must not. The catch-up path moves `offsetY` *toward* the bottom (offset
-    /// increases) while `contentHeight` grew by more, so `distanceFromBottom` can
-    /// also grow in the same tick — `offsetChanged && movedFurtherFromBottom` was
-    /// not enough signal to distinguish them, and briefly tripping this check mid-
-    /// stream flipped `isFollowing` to `false` (jump-to-latest button flickering).
-    /// A real user drag up decreases `offsetY`; anchor catch-up increases it.
-    /// Require `offsetY` to have *decreased* before treating the change as a cancel.
+    /// `.defaultScrollAnchor(.bottom, for: .sizeChanges)` catch-up during streaming,
+    /// `.scrollPosition(anchor: .bottom)` anchor adjustments, and turn-end rebuild
+    /// scroll-state disturbances must not.
+    ///
+    /// Three guards working together:
+    /// - **offsetDecreased**: a real user drag up decreases offsetY; anchor catch-up
+    ///   during content growth *increases* it. Rejecting catch-up requires the
+    ///   offset to have actually decreased.
+    /// - **clearlyAwayFromBottom** (`!newMetrics.isNearBottom`): when content fits
+    ///   the viewport, `.scrollPosition(anchor: .bottom)` uses *negative* offsetY
+    ///   to pin content to the viewport bottom. A programmatic `scrollTo(edge: .bottom)`
+    ///   in that state causes a large offsetY decrease (e.g. 0 → -377) that looks
+    ///   like a user drag per the offset-decrease rule, but `distanceFromBottom`
+    ///   lands within the near-bottom band (e.g. 12pt). A real user drag-away moves
+    ///   past 60pt; anchor adjustments don't.
+    /// - **plausibleUserVelocity** (`offsetDrop < transcriptCancelMaxPerTickDrop`):
+    ///   turn-end `forceFullRebuild` regenerates tool-group identities, so the
+    ///   ScrollView loses its anchor view mid-diff and offsetY can snap to a stale
+    ///   value in a single geometry tick (e.g. 893 → 546 = 347pt drop in 1ms). No
+    ///   user can drag that fast between ticks — a 347pt single-tick offset decrease
+    ///   is programmatic disturbance, not user intent. Capping cancel to a plausible
+    ///   per-tick user drag magnitude rejects this case.
     static func shouldCancelProgrammaticScroll(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
     ) -> Bool {
-        let offsetDecreased = newMetrics.offsetY < oldMetrics.offsetY - 0.5
+        let offsetDrop = oldMetrics.offsetY - newMetrics.offsetY
+        let offsetDecreased = offsetDrop > 0.5
         let movedFurtherFromBottom = newMetrics.distanceFromBottom > oldMetrics.distanceFromBottom + 0.5
-        return offsetDecreased && movedFurtherFromBottom
+        let clearlyAwayFromBottom = !newMetrics.isNearBottom
+        let plausibleUserVelocity = offsetDrop < transcriptCancelMaxPerTickDrop
+        return offsetDecreased && movedFurtherFromBottom && clearlyAwayFromBottom && plausibleUserVelocity
     }
 
     /// While a `jumpToLatest` scroll is still pending, composer-area changes that shrink the
