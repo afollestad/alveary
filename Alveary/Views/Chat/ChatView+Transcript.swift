@@ -124,7 +124,7 @@ struct ChatTranscriptView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 20)
             .padding(.top, transcriptTopInset)
             .padding(.bottom, transcriptBottomInset)
             .onGeometryChange(for: CGFloat.self) { proxy in
