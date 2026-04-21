@@ -46,11 +46,22 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.availableProviderIDs, ["claude"])
         XCTAssertEqual(viewModel.supportedModels, AppSettings.supportedModels)
         XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes)
-        XCTAssertEqual(viewModel.effortOptions(for: "claude"), AppSettings.supportedEffortLevels)
+        XCTAssertEqual(
+            viewModel.effortOptions(for: "claude", model: "opus"),
+            ["low", "medium", "high", "xhigh", "max"]
+        )
+        XCTAssertEqual(
+            viewModel.effortOptions(for: "claude", model: "sonnet"),
+            ["low", "medium", "high", "max"]
+        )
+        XCTAssertEqual(
+            viewModel.effortOptions(for: "claude", model: "default"),
+            ["low", "medium", "high", "max"]
+        )
         XCTAssertEqual(viewModel.themeOptions, ["system", "light", "dark"])
         XCTAssertEqual(viewModel.availableSoundNames, ["Glass", "Pop", "Tink", "Purr"])
         XCTAssertTrue(viewModel.permissionModeOptions(for: "unknown").isEmpty)
-        XCTAssertTrue(viewModel.effortOptions(for: "unknown").isEmpty)
+        XCTAssertTrue(viewModel.effortOptions(for: "unknown", model: "opus").isEmpty)
     }
 
     func testGettersReflectCurrentSettings() {
@@ -143,6 +154,51 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.notifications.soundName, "Pop")
         XCTAssertEqual(service.current.branchPrefix, "feature")
         XCTAssertTrue(service.current.pushOnCreate)
+    }
+
+    // Settings Effort picker must not silently retain a value the new model
+    // rejects (e.g. `xhigh` when switching off Opus).
+    func testDefaultModelSetterCoercesEffortWhenNewModelDoesNotSupportIt() {
+        let service = InMemorySettingsService()
+        service.update {
+            $0.defaultModel = "opus"
+            $0.effort = "xhigh"
+        }
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        viewModel.defaultModel = "sonnet"
+
+        XCTAssertEqual(service.current.defaultModel, "sonnet")
+        XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
+    }
+
+    func testDefaultModelSetterPreservesEffortWhenNewModelStillSupportsIt() {
+        let service = InMemorySettingsService()
+        service.update {
+            $0.defaultModel = "sonnet"
+            $0.effort = "high"
+        }
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        viewModel.defaultModel = "opus"
+
+        XCTAssertEqual(service.current.defaultModel, "opus")
+        XCTAssertEqual(service.current.effort, "high")
+    }
+
+    // Switching the default model to Opus while effort is still at the universal
+    // default (i.e. the user never touched the picker) should bump to Opus's
+    // preferred `xhigh`, so the Settings picker reflects the same default a
+    // fresh thread will actually receive.
+    func testDefaultModelSetterUpgradesUntouchedEffortToPerModelDefault() {
+        let service = InMemorySettingsService()
+        let viewModel = SettingsViewModel(settingsService: service)
+        XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
+
+        viewModel.defaultModel = "opus"
+
+        XCTAssertEqual(service.current.defaultModel, "opus")
+        XCTAssertEqual(service.current.effort, "xhigh")
     }
 
     func testProviderConfigHelpersCreateEntriesAndPreserveOtherProviders() {

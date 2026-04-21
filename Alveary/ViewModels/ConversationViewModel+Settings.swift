@@ -34,12 +34,24 @@ extension ConversationViewModel {
         guard previousValue != newValue else { return .noop }
 
         dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
+
+        // Model-specific efforts (e.g. `xhigh` for Opus 4.7) must fall back when
+        // switching to a model that does not support them; otherwise the CLI
+        // would reject the flag on the next spawn. The fallback uses the new
+        // model's preferred default so switching back into Opus lands on
+        // `xhigh` rather than the universal `medium`.
+        let previousEffort = dbThread.effort
+        if !AppSettings.effortLevel(previousEffort, isSupportedByModel: newValue) {
+            dbThread.effort = AppSettings.defaultEffortLevel(forModel: newValue)
+        }
+
         state.lastTurnError = nil
 
         do {
             try modelContext.save()
         } catch {
             dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
+            dbThread.effort = previousEffort
             state.lastTurnError = error.localizedDescription
             return .noop
         }
@@ -51,6 +63,7 @@ extension ConversationViewModel {
                 try await reconfigureSession()
             } catch {
                 dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
+                dbThread.effort = previousEffort
                 try? modelContext.save()
                 state.lastTurnError = error.localizedDescription
             }

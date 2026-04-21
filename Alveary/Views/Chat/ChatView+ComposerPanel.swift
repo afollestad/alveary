@@ -30,6 +30,15 @@ struct ChatComposerPanel: View {
     let onApplyPermissionModeChange: (String) -> Void
     @Bindable var appState: AppState
 
+    // Filter the provider's full effort list to those that the current model
+    // supports (e.g. Opus 4.7's `xhigh`). Intersect with the provider list
+    // instead of replacing it so a provider that ships a narrower set (future
+    // adapters) stays authoritative.
+    private var visibleEffortLevels: [String] {
+        let modelSupported = Set(AppSettings.supportedEffortLevels(forModel: selectedModel.wrappedValue))
+        return composerCapabilities.supportedEffortLevels.filter(modelSupported.contains)
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             if let lastTurnError = viewModel.lastTurnError,
@@ -96,7 +105,7 @@ struct ChatComposerPanel: View {
                 selectedPermissionMode: selectedPermissionMode,
                 selectedUseWorktree: selectedUseWorktree,
                 supportedPermissionModes: composerCapabilities.supportedPermissionModes,
-                supportedEffortLevels: composerCapabilities.supportedEffortLevels,
+                supportedEffortLevels: visibleEffortLevels,
                 showWorktreePicker: showWorktreePicker,
                 sessionLocationLabel: sessionLocationLabel,
                 supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,

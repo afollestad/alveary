@@ -140,6 +140,42 @@ extension ConversationViewModelTests {
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
+    // Opus 4.7-only efforts (currently `xhigh`) must fall back to the default
+    // when the user switches to a model that does not accept them; otherwise
+    // the next spawn would pass a flag the CLI rejects.
+    func testApplyModelChangeResetsEffortWhenNewModelDoesNotSupportIt() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.dbThread().effort = "xhigh"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyModelChange("sonnet").value
+
+        XCTAssertEqual(try fixture.dbThread().model, "sonnet")
+        XCTAssertEqual(try fixture.dbThread().effort, AppSettings.defaultEffortLevel)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.effort, AppSettings.defaultEffortLevel)
+    }
+
+    func testApplyModelChangePreservesEffortWhenNewModelStillSupportsIt() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "sonnet"
+        try fixture.dbThread().effort = "high"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyModelChange("opus").value
+
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
+        XCTAssertEqual(try fixture.dbThread().effort, "high")
+    }
+
     func testApplyModelChangeRollsBackOnReconfigureFailure() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,

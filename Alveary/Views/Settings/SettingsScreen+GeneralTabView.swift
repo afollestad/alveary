@@ -34,7 +34,10 @@ struct GeneralSettingsTabView: View {
                 .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
 
                 Picker("Effort", selection: $effort) {
-                    ForEach(viewModel.effortOptions(for: viewModel.defaultProvider), id: \.self) { effort in
+                    ForEach(
+                        viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel),
+                        id: \.self
+                    ) { effort in
                         Text(ChatInputFieldTextSupport.effortLabel(for: effort)).tag(effort)
                     }
                 }

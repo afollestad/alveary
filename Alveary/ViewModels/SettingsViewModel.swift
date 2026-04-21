@@ -108,8 +108,8 @@ final class SettingsViewModel {
         }
     }
 
-    func effortOptions(for providerId: String) -> [String] {
-        providerId == "claude" ? AppSettings.supportedEffortLevels : []
+    func effortOptions(for providerId: String, model: String?) -> [String] {
+        providerId == "claude" ? AppSettings.supportedEffortLevels(forModel: model) : []
     }
 
     var themeOptions: [String] {
@@ -127,7 +127,21 @@ final class SettingsViewModel {
 
     var defaultModel: String {
         get { settingsService.current.defaultModel }
-        set { settingsService.update { $0.defaultModel = newValue } }
+        set {
+            settingsService.update { settings in
+                let previousEffort = settings.effort
+                settings.defaultModel = newValue
+                // Mirror the per-thread coercion in `ConversationViewModel.applyModelChange`
+                // so the Settings Effort picker can never leave a value selected that the
+                // new model doesn't support, and so the "didn't customize effort" case
+                // lands on the new model's preferred default (e.g. Opus → `xhigh`).
+                let needsFallback = !AppSettings.effortLevel(previousEffort, isSupportedByModel: newValue)
+                    || previousEffort == AppSettings.defaultEffortLevel
+                if needsFallback {
+                    settings.effort = AppSettings.defaultEffortLevel(forModel: newValue)
+                }
+            }
+        }
     }
 
     var permissionMode: String {

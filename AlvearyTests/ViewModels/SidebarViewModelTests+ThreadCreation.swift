@@ -85,6 +85,40 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedThread.effort, AppSettings.defaultEffortLevel)
     }
 
+    // Opus 4.7's preferred default is `xhigh`, so a fresh Opus-default install
+    // must seed new threads to `xhigh` rather than dragging the universal
+    // `medium` across from the untouched Settings field.
+    func testCreateThreadSeedsPerModelDefaultEffortWhenUserHasNotCustomized() async throws {
+        let fixture = try SidebarTestFixture(defaultModel: "opus")
+        let project = try fixture.insertProject(name: "Opus Project", path: "/tmp/opus-default")
+
+        let thread = try await fixture.viewModel.createThread(
+            project: project,
+            provider: "claude",
+            permissionMode: "default"
+        )
+
+        let savedThread = try fixture.requireThread(thread)
+        XCTAssertEqual(savedThread.model, "opus")
+        XCTAssertEqual(savedThread.effort, "xhigh")
+    }
+
+    // A user who explicitly picked a non-default effort in Settings (e.g. "high")
+    // expects that choice to win over the per-model default, as long as the
+    // value is valid for the new thread's model.
+    func testCreateThreadPrefersCustomizedSettingsEffortOverPerModelDefault() async throws {
+        let fixture = try SidebarTestFixture(defaultEffort: "high", defaultModel: "opus")
+        let project = try fixture.insertProject(name: "Opus Project", path: "/tmp/opus-high")
+
+        let thread = try await fixture.viewModel.createThread(
+            project: project,
+            provider: "claude",
+            permissionMode: "default"
+        )
+
+        XCTAssertEqual(try fixture.requireThread(thread).effort, "high")
+    }
+
     func testCreateThreadDisablesWorktreeDefaultForNonGitProjects() async throws {
         let fixture = try SidebarTestFixture(defaultEffort: "max", createWorktreeByDefault: true)
         let project = try fixture.insertProject(name: "Plain Folder", path: "/tmp/plain-folder")
