@@ -19,3 +19,11 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
 ## Command Dispatch
 
 `handlePendingCommand(_:)` in `ContentView+Commands.swift` wraps every `AppState.CommandRequest` branch in one `Task { @MainActor in … }` with a shared `defer` that clears `appState.pendingCommand` only if its id still matches the captured `commandID`. Do not clear `pendingCommand` inline inside a specific branch — even for synchronous work like presenting a sheet — or stale-id semantics diverge between command kinds and racing commands can nil out a newer one. When adding a new `CommandRequest` case, delegate any async work to a helper that accepts the captured `commandID` and checks it after each `await` before mutating `appState.selectedSidebarItem` or surfacing errors.
+
+## Keyboard Shortcuts
+
+App-wide modifier-key shortcuts live in `KeyboardShortcut+Alveary.swift` as static extensions on `KeyboardShortcut`. The **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md` still owns the placement rule (menu registration beats toolbar-button registration because menu items dispatch through the scene responder chain and stay focus-independent); this section covers *how* to define and reference a shortcut so the binding and its tooltip cannot drift.
+
+- **Define each shortcut once as a `static let` on `KeyboardShortcut`.** `static let toggleDiffViewer = KeyboardShortcut("d", modifiers: [.shift, .command])`. Reference the constant from the `CommandGroup(...)` menu entry and from the matching toolbar button's tooltip — do not hand-write `KeyEquivalent` + `EventModifiers` literals at the call site. Rebinding then touches a single line.
+- **Register the shortcut on a menu entry in `AlvearyApp.commands`, not on the toolbar button.** The toolbar button's `.help(...)` tooltip is the only place that renders the binding to the user; do not also attach `.keyboardShortcut(...)` there or the shortcut has two owners.
+- **Build tooltips with `KeyboardShortcut.displayString`.** `"\(label) (\(KeyboardShortcut.toggleDiffViewer.displayString))"` renders as `"Hide Diff Viewer (⇧⌘D)"`. `displayString` reads the binding's modifiers and key directly (via `KeyEquivalent.displaySymbol` for special keys like `.return`, `.escape`, arrows, etc.), so the displayed literal is derived from the active binding instead of a hand-written string.

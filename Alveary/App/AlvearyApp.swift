@@ -33,6 +33,15 @@ struct AlvearyApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+
+            CommandGroup(after: .toolbar) {
+                Button(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer") {
+                    appState.isRightPaneVisible.toggle()
+                }
+                .keyboardShortcut(.toggleDiffViewer)
+
+                Divider()
+            }
         }
         .modelContainer(AppDI.resolver.modelContainer())
     }

@@ -153,6 +153,7 @@ struct ContentView: View {
                         .frame(width: diffViewerWidth)
                     }
                 }
+                .animation(.easeInOut(duration: 0.25), value: appState.isRightPaneVisible)
 
                 if appState.isTerminalPaneVisible {
                     TerminalPane(
@@ -194,17 +195,17 @@ struct ContentView: View {
                 .help(appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal")
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        appState.isRightPaneVisible.toggle()
-                    }
+                    appState.isRightPaneVisible.toggle()
                 } label: {
                     Label(
                         appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
                         systemImage: "sidebar.trailing"
                     )
                 }
-                .help(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
-                .keyboardShortcut("\\", modifiers: [.command, .shift])
+                .help(
+                    (appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
+                        + " (\(KeyboardShortcut.toggleDiffViewer.displayString))"
+                )
 
                 Button {
                     appState.openSettings()
