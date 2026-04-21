@@ -67,11 +67,11 @@ extension SnapshotTests {
                     symbolName: "doc.text"
                 ),
                 ComposerAutocompleteSuggestion(
-                    id: "Alveary/Views/Chat/ChatBlocks.swift",
-                    title: "Alveary/Views/Chat/ChatBlocks.swift",
+                    id: "Alveary/Views/Chat/Blocks/ChatBlocks.swift",
+                    title: "Alveary/Views/Chat/Blocks/ChatBlocks.swift",
                     subtitle: nil,
                     trailingText: nil,
-                    replacementText: "@Alveary/Views/Chat/ChatBlocks.swift",
+                    replacementText: "@Alveary/Views/Chat/Blocks/ChatBlocks.swift",
                     symbolName: "doc.text"
                 ),
                 ComposerAutocompleteSuggestion(

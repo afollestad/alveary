@@ -22,6 +22,7 @@ Use nested `AGENTS.md` files to keep local guidance close to the code it governs
 - `Alveary/Views/AGENTS.md` covers shared SwiftUI view composition rules.
 - `Alveary/Views/Components/AGENTS.md` covers shared component and `AppTextEditor` implementation details.
 - `Alveary/Views/Chat/AGENTS.md` covers chat-specific view chrome, tab behavior, and conversation interaction contracts.
+- `Alveary/Views/Chat/Blocks/AGENTS.md` covers transcript block views (`ChatBlocks*`), tool bubble chrome, and expand/collapse animation invariants.
 - `Alveary/Views/Input/AGENTS.md` covers composer autocomplete, slash-command hints, and worktree picker behavior.
 - `Alveary/Views/Projects/AGENTS.md` covers the project settings editor and toolbar action surfacing.
 - `Alveary/Views/Sidebar/AGENTS.md` covers sidebar-specific interaction patterns.
