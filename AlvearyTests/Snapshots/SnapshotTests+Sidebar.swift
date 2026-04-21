@@ -140,6 +140,23 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowMentionTitleRendersChip() {
+        let thread = AgentThread(name: "@.alveary.json")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .unread,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_mention_only"
+        )
+    }
+
     func testSidebarThreadRowChipAndPlainShareHeight() {
         let plainThread = AgentThread(name: "New thread")
         let chipThread = AgentThread(name: "Test `code block`")

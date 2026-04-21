@@ -75,6 +75,41 @@ extension SnapshotTests {
         )
     }
 
+    func testConversationTabsMentionChip() {
+        let thread = AgentThread(name: "Mention Tab Coverage")
+        let mentionConversation = Conversation(
+            id: "mention",
+            title: "@.alveary.json",
+            provider: "claude",
+            isMain: true,
+            displayOrder: 0,
+            thread: thread
+        )
+        let plainConversation = Conversation(
+            id: "plain",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: thread
+        )
+        thread.conversations = [mentionConversation, plainConversation]
+
+        assertMacSnapshot(
+            ThreadDetailConversationTabs(
+                conversations: thread.conversations,
+                selectedConversation: mentionConversation,
+                statusForConversation: { _ in .unread },
+                onSelect: { _ in },
+                onCommitRename: { _, _ in },
+                onRemove: { _ in },
+                onCreate: {},
+                editingConversationID: .constant(nil)
+            ),
+            size: CGSize(width: 640, height: 72),
+            named: "conversation_tabs_mention"
+        )
+    }
+
     func testConversationTabsSingleInlineCode() {
         let thread = AgentThread(name: "Single Conversation Inline Code")
         let onlyConversation = Conversation(

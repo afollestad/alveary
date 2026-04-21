@@ -1,14 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// Renders a single-line string that may contain inline markdown code spans. Plain segments
-/// render as `Text`; inline-code segments render via `AppMarkdownInlineCodeChip` clamped to
-/// the `textStyle`'s line height so the chip's rounded background visually overflows into
-/// the surrounding vertical padding without inflating the parent row or tab height.
+/// Renders a single-line string that may contain inline markdown code spans and/or
+/// `@file` mentions (in the composer's stored percent-encoded form). Plain segments render
+/// as `Text`; inline-code and mention segments render via `AppMarkdownInlineCodeChip`
+/// clamped to the `textStyle`'s line height so each chip's rounded background visually
+/// overflows into the surrounding vertical padding without inflating the parent row or
+/// tab height.
 ///
 /// Use in place of `Text(...)` for surfaces like sidebar thread rows and conversation tab
-/// chips where the source string may contain `` ` backticks `` but the row/tab must keep a
-/// uniform height regardless of whether any code is present.
+/// chips where the source string may contain `` ` backticks `` or mentions but the
+/// row/tab must keep a uniform height regardless of whether any chip is present.
 struct AppMarkdownInlineLabel: View {
     let text: String
     /// The text style that drives both the SwiftUI text font and the inline-code chip
@@ -17,8 +19,9 @@ struct AppMarkdownInlineLabel: View {
 
     var body: some View {
         let segments = InlineSegment.segments(for: text)
-        // Fast-path: no inline code, render a plain `Text` so environment modifiers like
-        // `.fixedSize` and `.lineLimit` behave exactly as they would on a bare `Text`.
+        // Fast-path: no inline code or mentions, render a plain `Text` so environment
+        // modifiers like `.fixedSize` and `.lineLimit` behave exactly as they would on a
+        // bare `Text`.
         if segments.count == 1, case .text(let value) = segments[0] {
             Text(value)
                 .font(swiftUIFont)
@@ -29,7 +32,7 @@ struct AppMarkdownInlineLabel: View {
                     switch segment {
                     case .text(let value):
                         Text(value).font(swiftUIFont)
-                    case .code(let value):
+                    case .code(let value), .mention(let value):
                         AppMarkdownInlineCodeChip(text: value, style: .standard, fontSize: chipFontSize)
                             .fixedSize()
                             .frame(height: textLineHeight, alignment: .center)
@@ -68,36 +71,22 @@ struct AppMarkdownInlineLabel: View {
 }
 
 extension AppMarkdownInlineLabel {
-    /// Returns `markdown` with inline-code backtick delimiters stripped so the result
-    /// reads cleanly in non-markdown contexts like VoiceOver accessibility labels.
-    /// Non-delimiter content (including the code span's text) is preserved verbatim.
+    /// Returns `markdown` with inline-code backtick delimiters stripped and `@` mentions
+    /// decoded to their human-readable form (`@<basename>`) so the result reads cleanly in
+    /// non-markdown contexts like VoiceOver accessibility labels. Non-chip content is
+    /// preserved verbatim.
     static func plainText(from markdown: String) -> String {
-        let delimiterRanges = AppMarkdownCodeBlockParser
-            .codeRanges(in: markdown)
-            .inlineDelimiterRanges
-            .sorted { $0.location < $1.location }
-        guard !delimiterRanges.isEmpty else {
-            return markdown
+        let segments = InlineSegment.segments(for: markdown)
+        if segments.count == 1, case .text(let value) = segments[0] {
+            return value
         }
-
-        let nsMarkdown = markdown as NSString
         var result = ""
         result.reserveCapacity(markdown.count)
-        var cursor = 0
-        for delimiterRange in delimiterRanges {
-            if delimiterRange.location > cursor {
-                result += nsMarkdown.substring(with: NSRange(
-                    location: cursor,
-                    length: delimiterRange.location - cursor
-                ))
+        for segment in segments {
+            switch segment {
+            case .text(let value), .code(let value), .mention(let value):
+                result += value
             }
-            cursor = NSMaxRange(delimiterRange)
-        }
-        if cursor < nsMarkdown.length {
-            result += nsMarkdown.substring(with: NSRange(
-                location: cursor,
-                length: nsMarkdown.length - cursor
-            ))
         }
         return result
     }
@@ -106,27 +95,30 @@ extension AppMarkdownInlineLabel {
 private enum InlineSegment {
     case text(String)
     case code(String)
+    /// A decoded `@<basename>` display label for a file mention. The underlying stored
+    /// form may be percent-encoded (e.g. `@/Users/me/My%20File.png`); the decoded
+    /// basename is cached on the segment so render and `plainText` don't redo the work.
+    case mention(String)
 
     static func segments(for markdown: String) -> [InlineSegment] {
-        let ranges = AppMarkdownCodeBlockParser.codeRanges(in: markdown)
-        let pairs = zip(ranges.inlineFullRanges, ranges.inlineContentRanges)
-            .sorted { $0.0.location < $1.0.location }
-        guard !pairs.isEmpty else {
+        let events = chipEvents(in: markdown)
+        guard !events.isEmpty else {
             return [.text(markdown)]
         }
 
         let source = markdown as NSString
         var result: [InlineSegment] = []
         var cursor = 0
-        for (fullRange, contentRange) in pairs {
-            if fullRange.location > cursor {
-                let prefix = source.substring(with: NSRange(location: cursor, length: fullRange.location - cursor))
+        for event in events {
+            let range = event.fullRange
+            if range.location > cursor {
+                let prefix = source.substring(with: NSRange(location: cursor, length: range.location - cursor))
                 if !prefix.isEmpty {
                     result.append(.text(prefix))
                 }
             }
-            result.append(.code(source.substring(with: contentRange)))
-            cursor = NSMaxRange(fullRange)
+            result.append(event.asSegment(source: source))
+            cursor = NSMaxRange(range)
         }
         if cursor < source.length {
             let suffix = source.substring(with: NSRange(location: cursor, length: source.length - cursor))
@@ -135,5 +127,54 @@ private enum InlineSegment {
             }
         }
         return result
+    }
+
+    private static func chipEvents(in markdown: String) -> [ChipEvent] {
+        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: markdown)
+
+        // Mentions that land inside a fenced block or inline-code span are part of the
+        // code literal, not a file reference — skip them so they render as regular
+        // code instead of getting double-stylized as a separate mention chip.
+        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
+        let mentions = ChatInputFieldTextSupport.fileMentionMatches(in: markdown)
+            .filter { match in
+                !excludedRanges.contains { NSIntersectionRange($0, match.highlightRange).length > 0 }
+            }
+
+        var events: [ChipEvent] = []
+        events.reserveCapacity(codeRanges.inlineFullRanges.count + mentions.count)
+        events.append(contentsOf: zip(codeRanges.inlineFullRanges, codeRanges.inlineContentRanges)
+            .map { .code(fullRange: $0.0, contentRange: $0.1) })
+        events.append(contentsOf: mentions.map { match in
+            ChipEvent.mention(
+                range: match.highlightRange,
+                displayText: CanonicalPath.decodeStoredMentionPath(
+                    ChatInputFieldTextSupport.mentionChipDisplayText(for: match.path)
+                )
+            )
+        })
+        events.sort { $0.fullRange.location < $1.fullRange.location }
+        return events
+    }
+}
+
+private enum ChipEvent {
+    case code(fullRange: NSRange, contentRange: NSRange)
+    case mention(range: NSRange, displayText: String)
+
+    var fullRange: NSRange {
+        switch self {
+        case .code(let fullRange, _): return fullRange
+        case .mention(let range, _): return range
+        }
+    }
+
+    func asSegment(source: NSString) -> InlineSegment {
+        switch self {
+        case .code(_, let contentRange):
+            return .code(source.substring(with: contentRange))
+        case .mention(_, let displayText):
+            return .mention(displayText)
+        }
     }
 }
