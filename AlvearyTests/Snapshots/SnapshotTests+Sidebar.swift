@@ -39,8 +39,8 @@ extension SnapshotTests {
     }
 
     // Dark-mode coverage for the `.standard` chip palette. `AppMarkdownCodeBlockPalette`
-    // derives `inlineFillNSColor` from `NSColor.controlAccentColor` (shared with assistant
-    // bubble inline code), so this locks in how the chip reads on a dark sidebar.
+    // uses a theme-aware grayscale `inlineFillNSColor` (shared with assistant bubble
+    // inline code), so this locks in how the chip reads on a dark sidebar.
     func testSidebarThreadRowInlineCodeTitleDark() {
         let thread = AgentThread(name: "Test `code block`")
 
@@ -63,9 +63,10 @@ extension SnapshotTests {
         let thread = AgentThread(name: "Test `code block`")
 
         // Render the row over an `AppSelectionStyle.rowFill` background so the snapshot
-        // captures the on-accent-surface chip styling that `isSelected: true` activates.
-        // A standard-palette chip on a rowFill background would be accent-on-accent and
-        // wash out; this baseline locks in the `.userBubble` chip palette switch.
+        // captures how the chip reads against a selected-row's accent-tinted parent.
+        // `AppMarkdownInlineLabel` always renders the `.standard` chip palette, so the
+        // chip keeps its gray fill regardless of row selection — this baseline locks in
+        // the uniform-across-selection behavior.
         assertMacSnapshot(
             SidebarThreadRow(
                 thread: thread,
@@ -81,9 +82,9 @@ extension SnapshotTests {
         )
     }
 
-    // Dark-mode coverage for the `.userBubble` chip palette on a selected row. Locks in
-    // the grayscale chip fill (`userBubbleInlineFillNSColor`) that contrasts against the
-    // accent-tinted `rowFill` in dark mode.
+    // Dark-mode coverage for the selected-row chip treatment. Sidebar thread rows keep
+    // the `.standard` grayscale chip fill for both selected and unselected states; this
+    // baseline locks in how that gray reads against a dark-mode accent-tinted `rowFill`.
     func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyleDark() {
         let thread = AgentThread(name: "Test `code block`")
 

@@ -184,7 +184,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
     private func syncInlineCodePresentation(for textView: AppKitTextView) {
         textView.inlineCodeBackgroundRanges = parent.inlineCodeBackgroundRanges?(textView.string) ?? []
-        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.inlineFillNSColor
+        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.composerChipFillNSColor
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {

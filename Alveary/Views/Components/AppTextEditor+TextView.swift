@@ -261,7 +261,7 @@ final class AppKitTextView: NSTextView {
 
     private func drawTextChipBackgrounds(in dirtyRect: NSRect) {
         let cornerRadius: CGFloat = 4
-        AppMarkdownCodeBlockPalette.inlineFillNSColor.setFill()
+        AppMarkdownCodeBlockPalette.composerChipFillNSColor.setFill()
 
         for resolvedChip in resolvedTextChips() {
             for rect in resolvedChip.rects where rect.intersects(dirtyRect) {

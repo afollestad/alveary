@@ -59,7 +59,7 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             return XCTFail("Expected wrapped mention styling")
         }
 
-        XCTAssertEqual(wrappedColor, AppMarkdownCodeBlockPalette.inlineForegroundNSColor)
+        XCTAssertEqual(wrappedColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)
     }
 
     func testSyncFocusRequestIfNeededFiresConsumedCallbackForNewToken() {

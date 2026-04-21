@@ -97,7 +97,11 @@ private struct ChatInputQueuedMessageRow: View {
                 VStack(alignment: .leading, spacing: message.stagedContext == nil ? 0 : 5) {
                     Group {
                         if containsMarkdownCode {
-                            AppMarkdownText(markdown: message.text)
+                            // Queue items are composer chrome — render through the
+                            // `.composer` palette so their code chips match the live
+                            // input field's amber treatment rather than the neutral
+                            // gray used for historical/chrome surfaces.
+                            AppMarkdownText(markdown: message.text, inlineCodeStyle: .composer)
                         } else {
                             Text(message.text)
                                 .foregroundStyle(.primary)

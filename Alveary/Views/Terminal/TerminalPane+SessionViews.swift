@@ -7,38 +7,16 @@ struct TerminalSessionChip: View {
     let onClose: () -> Void
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            Button(action: action) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
-
-                    AppMarkdownInlineLabel(text: session.chipLabel, isSelected: isSelected)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                .padding(.leading, 12)
-                .padding(.vertical, 8)
-                .padding(.trailing, 36)
-            }
-            .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
-            .focusEffectDisabled()
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(4)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .focusEffectDisabled()
-            .accessibilityLabel("Close \(plainChipLabel)")
-            .padding(.trailing, 12)
-        }
-        .fixedSize(horizontal: true, vertical: false)
+        SelectableTabChip(
+            displayName: session.chipLabel,
+            statusColor: statusColor,
+            isSelected: isSelected,
+            selectAccessibilityLabel: accessibilityLabel,
+            closeAccessibilityLabel: "Close \(plainChipLabel)",
+            selectShortcut: nil,
+            onSelect: action,
+            onClose: onClose
+        )
     }
 }
 

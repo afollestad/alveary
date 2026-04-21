@@ -115,8 +115,19 @@ struct SidebarView: View {
                                             pendingArchiveThread = thread
                                         }
 
-                                        Button("Rename") {
-                                            editingThreadID = thread.persistentModelID
+                                        // Hide "Rename..." when *any* row is being edited. Swapping
+                                        // `editingThreadID` directly from one row to another left
+                                        // the target row stuck "in editing state without an input
+                                        // field" — the simultaneous unmount of A's TextField and
+                                        // mount of B's within a single SwiftUI update pass didn't
+                                        // converge. Force users to finish the in-flight rename first,
+                                        // matching the invariant the keyboard rename already enforces
+                                        // in `renameThreadID(for:editingThreadID:)`
+                                        // (`SidebarView+KeyboardNavigation.swift`).
+                                        if editingThreadID == nil {
+                                            Button("Rename...") {
+                                                editingThreadID = thread.persistentModelID
+                                            }
                                         }
 
                                         Button("Delete...", role: .destructive) {

@@ -125,7 +125,7 @@ enum AppTextEditorCodeBlockStyling {
     static func inlineCodeAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedSystemFont(ofSize: font.pointSize * 0.94, weight: .regular),
-            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
+            .foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
         ]
     }
 
@@ -221,7 +221,7 @@ enum AppTextEditorCodeBlockStyling {
                 ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize * 0.94,
                 weight: .regular
             ),
-            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
+            .foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
         ]
     }
 

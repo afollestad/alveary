@@ -123,8 +123,18 @@ private struct ConversationTabChip: View {
             }
         }
         .contextMenu {
-            Button("Rename...") {
-                editingConversationID = conversation.persistentModelID
+            // Hide "Rename..." when *any* tab is being edited. Swapping
+            // `editingConversationID` directly from one chip to another left the
+            // target chip stuck in editing state without an input field — the
+            // simultaneous unmount of the in-flight chip's TextField and mount
+            // of the target chip's within a single SwiftUI update pass didn't
+            // converge. Force users to finish the in-flight rename first —
+            // mirrors the same guard on sidebar thread rows. Empty ViewBuilder
+            // result suppresses the menu entirely on macOS.
+            if editingConversationID == nil {
+                Button("Rename...") {
+                    editingConversationID = conversation.persistentModelID
+                }
             }
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -151,79 +161,68 @@ private struct ConversationTabChip: View {
 
 private extension ConversationTabChip {
     var editingChip: some View {
-        // Match the selectable chip's ZStack + trailing-padded capsule geometry so
-        // toggling between display and rename doesn't resize the chip.
-        ZStack(alignment: .trailing) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
+        // Inner layout + outer shell come from `SelectableTabChip`'s shared
+        // `.tabChipContentLayout()` / `.tabChipShell(...)` modifiers so toggling
+        // between display and rename cannot resize the chip. Editing mode uses:
+        //   • `NSColor.textBackgroundColor` as the capsule fill (system text-input
+        //     surface) so the chip clearly reads as an input field — the previous
+        //     `secondary.opacity(0.08)` matched an unselected tab and gave no
+        //     visual signal that the user was typing into a field.
+        //   • a 1pt accent-colored stroke as a focus indicator, matching macOS
+        //     Finder's inline-rename treatment.
+        //   • `showsCloseButton: false` on the shell so the `×` hides during
+        //     rename — the close button's role (commit? cancel? delete?) is
+        //     ambiguous while editing. The shell still reserves the trailing
+        //     36pt so the chip width does not jump as the user enters/leaves
+        //     edit mode.
+        HStack(spacing: 8) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
 
-                TextField("Conversation name", text: $editText)
-                    .textFieldStyle(.plain)
-                    .focused($isFieldFocused)
-                    .onSubmit { commitRename() }
-                    .onExitCommand { cancelRename() }
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.leading, 12)
-            .padding(.vertical, 8)
-            .padding(.trailing, 36)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-            )
-
-            closeButton
-                .padding(.trailing, 12)
+            TextField("Conversation name", text: $editText)
+                .textFieldStyle(.plain)
+                .focused($isFieldFocused)
+                .onSubmit { commitRename() }
+                .onExitCommand { cancelRename() }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
+        .tabChipContentLayout()
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color(nsColor: .textBackgroundColor))
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.accentColor, lineWidth: 1)
+        )
+        .tabChipShell(
+            closeAccessibilityLabel: "Remove \(plainDisplayName)",
+            onClose: onClose,
+            showsCloseButton: false
+        )
     }
 
     var selectableChip: some View {
-        ZStack(alignment: .trailing) {
-            selectButton
-
-            closeButton
-                .padding(.trailing, 12)
-        }
-    }
-
-    var selectButton: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
-
-                AppMarkdownInlineLabel(text: conversation.displayName(), isSelected: isSelected)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.leading, 12)
-            .padding(.vertical, 8)
-            .padding(.trailing, 36)
-        }
-        .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
-        .focusEffectDisabled()
-        .accessibilityLabel(plainDisplayName)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(named: Text("Rename")) {
-            editingConversationID = conversation.persistentModelID
-        }
-        .keyboardShortcut(switchShortcut)
-    }
-
-    var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(4)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusEffectDisabled()
-        .accessibilityLabel("Remove \(plainDisplayName)")
+        // Gate the rename accessibility action on `editingConversationID == nil`,
+        // matching the context-menu button's gate above. Passing `nil` when another
+        // tab is editing suppresses the rotor entry entirely (see the `if let`
+        // inside `SelectableTabChip`'s `.accessibilityActions` builder).
+        let renameAction: (() -> Void)? = editingConversationID == nil
+            ? { editingConversationID = conversation.persistentModelID }
+            : nil
+        return SelectableTabChip(
+            displayName: conversation.displayName(),
+            statusColor: statusColor,
+            isSelected: isSelected,
+            selectAccessibilityLabel: plainDisplayName,
+            closeAccessibilityLabel: "Remove \(plainDisplayName)",
+            selectShortcut: switchShortcut,
+            renameAccessibilityAction: renameAction,
+            onSelect: onSelect,
+            onClose: onClose
+        )
     }
 
     var plainDisplayName: String {

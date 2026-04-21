@@ -19,15 +19,51 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 
-    // Accent-tinted chip background. Mirrors the foreground treatment: dark mode blends
-    // the accent toward black so the chip reads as a saturated deeper shade of the accent
-    // hue (rather than a low-opacity tint over the already-dark bubble fill, which sits
-    // only a few luminance points above it and looks muddy). Light mode keeps the tint
-    // approach because the bubble fill is bright, so a partially transparent accent lands
-    // as a clear highlight without needing the darkening step. Cached as a single dynamic
-    // `NSColor` so repeated accesses return the same instance — important for `NSColor`
-    // equality in attributed-string attributes.
-    static let inlineFillNSColor: NSColor = .accentDerived { accent, appearance in
+    // Neutral-gray chip background used on standard app chrome (unselected sidebar rows,
+    // unselected conversation tabs, assistant bubbles). Previously derived from
+    // `controlAccentColor`, which made the chip track the system accent — visually
+    // noisy on the default amber accent and inconsistent with the code-block fill. The
+    // grayscale swatch reads as a neutral "this is code" signal regardless of accent.
+    // Light mode uses a mid-gray that stands out against the near-white window chrome
+    // and the `AppMarkdownCodeBlockStyle` block fill (~0.96 luminance); dark mode uses
+    // a mid-gray that stands out against the dark window chrome (~0.12) and the dark
+    // block fill (~0.17). `.labelColor` foreground (`inlineForegroundNSColor` below)
+    // supplies the contrasting text in both modes.
+    //
+    // Note: the composer input field and queued-message rows use the accent-derived
+    // palette below (`composerChipFillNSColor` / `composerChipForegroundNSColor`), not
+    // this grayscale swatch — those surfaces are composer chrome and benefit from the
+    // brighter accent highlight to reinforce "this is live-input territory."
+    //
+    // Built with a raw `NSColor(name:dynamicProvider:)` rather than `.accentDerived(...)`
+    // because the resolved value does not depend on the system accent. Cached as a single
+    // dynamic `NSColor` so repeated accesses return the same instance — important for
+    // `NSColor` equality in attributed-string attributes (tests round-trip these colors
+    // through `NSAttributedString`).
+    static let inlineFillNSColor: NSColor = NSColor(name: nil, dynamicProvider: { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(white: 0.36, alpha: 1.0)
+        default:
+            return NSColor(white: 0.88, alpha: 1.0)
+        }
+    })
+
+    // Use `.labelColor` so the chip text tracks the system's primary label color and
+    // stays legible against the neutral-gray fill in both schemes.
+    static let inlineForegroundNSColor: NSColor = NSColor.labelColor
+
+    // Accent-derived chip background for composer surfaces — the live chips drawn over
+    // the composer `NSTextView` (inline code, `/command`, `@mention`) and the chips
+    // that appear inside queued-message rows rendered via `AppMarkdownText(inlineCodeStyle: .composer)`.
+    // Composer chrome benefits from the brighter accent treatment so chips pop against
+    // the composer's `.bar + secondary.opacity(0.08)` surface as the user is composing;
+    // the rest of the app (thread rows, tabs, assistant bubbles) uses the neutral
+    // grayscale `inlineFillNSColor` above. Dark mode blends the accent toward black for
+    // a saturated deeper shade; light mode uses a partially-transparent tint. Cached as
+    // a single dynamic `NSColor` so repeated accesses return the same instance —
+    // important for `NSColor` equality in attributed-string attributes.
+    static let composerChipFillNSColor: NSColor = .accentDerived { accent, appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
             let darkened = accent.blended(withFraction: 0.70, of: .black) ?? accent
@@ -37,12 +73,12 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 
-    // Solid accent in dark mode reads well against the low-opacity tint, but in light
-    // mode the same bright accent over a tinted fill loses contrast; blend the accent
-    // toward black so the chip text stays legible. Deriving from `controlAccentColor`
-    // keeps the foreground in sync with the `AccentColor` asset — swapping the asset to
-    // a different hue produces a matching darkened foreground automatically.
-    static let inlineForegroundNSColor: NSColor = .accentDerived { accent, appearance in
+    // Solid accent in dark mode reads well against the low-opacity tint; in light mode
+    // the same bright accent over a tinted fill loses contrast, so blend toward black.
+    // Deriving from `controlAccentColor` keeps the foreground in sync with the
+    // `AccentColor` asset — swapping the asset to a different hue produces a matching
+    // darkened foreground automatically.
+    static let composerChipForegroundNSColor: NSColor = .accentDerived { accent, appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
             return accent

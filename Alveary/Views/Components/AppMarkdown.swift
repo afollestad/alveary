@@ -14,6 +14,11 @@ private let appMarkdownInlineCodeVerticalPadding: CGFloat = 2
 enum AppMarkdownInlineCodeStyle {
     case standard
     case userBubble
+    /// Accent-derived (amber on the default accent) palette used by composer surfaces —
+    /// the live input field draws chips directly from `AppMarkdownCodeBlockPalette.composerChip*`,
+    /// and queue items render through this style so their chips match the composer rather than
+    /// the neutral gray used for historical/chrome surfaces.
+    case composer
 }
 
 enum AppMarkdownParsingMode {
@@ -64,6 +69,8 @@ struct AppMarkdownText: View {
             return appMarkdownInlineStyle
         case .userBubble:
             return appMarkdownUserBubbleInlineStyle
+        case .composer:
+            return appMarkdownComposerInlineStyle
         }
     }
 }
@@ -115,6 +122,19 @@ private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
         .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor))
     )
     .link(.foregroundColor(Color.primary), .underlineStyle(.single))
+
+// Composer-surface style (queue items). Uses the same accent-derived palette the live
+// composer NSTextView draws chips from, so queued rendered messages keep the "this is
+// live-input chrome" feel instead of switching to the neutral grayscale `.standard`
+// chip that historical/chrome surfaces use.
+private let appMarkdownComposerInlineStyle = InlineStyle.default
+    .code(
+        .monospaced,
+        .fontScale(markdownInlineCodeFontScale),
+        .foregroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)),
+        .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.composerChipFillNSColor))
+    )
+    .link(.foregroundColor(Color.accentColor), .underlineStyle(.single))
 
 struct AppMarkdownParser: MarkupParser {
     let baseURL: URL?
@@ -322,6 +342,8 @@ struct AppMarkdownInlineCodeChip: View {
             return AppMarkdownCodeBlockPalette.inlineFillNSColor
         case .userBubble:
             return AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor
+        case .composer:
+            return AppMarkdownCodeBlockPalette.composerChipFillNSColor
         }
     }
 
@@ -331,6 +353,8 @@ struct AppMarkdownInlineCodeChip: View {
             return AppMarkdownCodeBlockPalette.inlineForegroundNSColor
         case .userBubble:
             return AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor
+        case .composer:
+            return AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
         }
     }
 }

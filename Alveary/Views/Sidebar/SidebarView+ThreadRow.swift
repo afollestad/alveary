@@ -34,7 +34,7 @@ struct SidebarThreadRow: View {
                     .onExitCommand { cancelRename() }
                     .lineLimit(1)
             } else {
-                AppMarkdownInlineLabel(text: displayName, isSelected: isSelected)
+                AppMarkdownInlineLabel(text: displayName)
                     .allowsHitTesting(false)
             }
 
@@ -52,8 +52,17 @@ struct SidebarThreadRow: View {
                 commitRename()
             }
         }
-        .accessibilityAction(named: Text("Rename")) {
-            editingThreadID = thread.persistentModelID
+        .accessibilityActions {
+            // Gate the VoiceOver "Rename..." rotor action on `editingThreadID == nil`,
+            // matching the context-menu button's gate (see `SidebarView.swift`). Without
+            // this, VoiceOver users could bypass the guard and hit the SwiftUI unmount/
+            // mount race that leaves the target row stuck in editing state without an
+            // input field.
+            if editingThreadID == nil {
+                Button("Rename...") {
+                    editingThreadID = thread.persistentModelID
+                }
+            }
         }
     }
 

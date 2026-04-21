@@ -28,7 +28,7 @@ extension AppKitTextView {
         )
         let attributes: [NSAttributedString.Key: Any] = [
             .font: chipFont,
-            .foregroundColor: AppMarkdownCodeBlockPalette.inlineForegroundNSColor
+            .foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
         ]
 
         for chip in textChips where chip.style == .fileMention {
