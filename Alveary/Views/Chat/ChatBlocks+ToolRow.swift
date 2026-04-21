@@ -11,7 +11,13 @@ struct InlineToolRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                isExpanded.toggle()
+                // See note in `StandaloneToolRow`: `withAnimation` propagates the
+                // animation to the surrounding layout (the expanded `ToolGroupBlock`
+                // list or a `SubAgentBlock`) so nested sibling rows reflow in step
+                // with this row's expansion instead of snapping.
+                withAnimation(toolExpansionAnimation) {
+                    isExpanded.toggle()
+                }
             } label: {
                 ToolHeaderRow(tool: tool, isExpanded: isExpanded)
             }

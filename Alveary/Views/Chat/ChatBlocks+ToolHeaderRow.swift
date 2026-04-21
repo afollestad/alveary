@@ -120,7 +120,21 @@ struct ToolStatusIndicator: View {
         // at the height they already had while the spinner was present; icons render
         // centered within that slot at their intrinsic ~13pt size.
         .frame(width: 18, height: 16, alignment: .center)
-        .transaction { $0.animation = nil }
+        // Snap the *branch swap* (spinner → checkmark → xmark) so it doesn't
+        // cross-fade from whatever transient state SwiftUI picks. Crucially this is
+        // scoped to `value: branchKey` — a bare `.transaction { $0.animation = nil }`
+        // also nulled out layout-driven updates, so when a neighboring bubble expanded
+        // or collapsed and the transcript's animation propagated through the
+        // `LazyVStack`, this indicator snapped to its new position while the rest of
+        // its row eased. Scoping to branch identity suppresses only the branch
+        // transition; surrounding layout still animates at the parent's cadence.
+        .transaction(value: branchKey) { $0.animation = nil }
+    }
+
+    private var branchKey: Int {
+        if isError { return 0 }
+        if isComplete { return 1 }
+        return 2
     }
 }
 

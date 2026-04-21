@@ -47,10 +47,14 @@ extension View {
 
     /// Re-enable expand/collapse animation for a specific state transition while
     /// the transcript's active-turn `.transaction { $0.disablesAnimations = true }`
-    /// is in effect. Without this override the bubble would snap to its new
-    /// height/width during streaming turns — the one time the animation matters.
-    /// Pair `value:` with whatever drives the layout shape (e.g. `isExpanded`,
-    /// the tool list).
+    /// is in effect. During inactive turns the per-toggle
+    /// `withAnimation(toolExpansionAnimation)` in each bubble's Button action is
+    /// what drives both the bubble's own reflow *and* the surrounding
+    /// `LazyVStack`'s sibling animation; this override is specifically the
+    /// within-bubble fallback for active turns, where the outer transaction would
+    /// otherwise snap the bubble during streaming. Pair `value:` with whatever
+    /// drives the layout shape (e.g. `isExpanded`, the tool list). See the
+    /// **Expand/Collapse Animation** section in `AGENTS.md` for the full contract.
     func toolAnimationOverride<Value: Equatable>(value: Value) -> some View {
         transaction(value: value) { transaction in
             transaction.disablesAnimations = false

@@ -31,7 +31,12 @@ struct ToolGroupBlock: View {
             // selection freeze that a bubble-wide gesture hit.
             VStack(alignment: .leading, spacing: 0) {
                 Button {
-                    singleEntryExpanded.toggle()
+                    // See note in `StandaloneToolRow`: `withAnimation` is required so the
+                    // enclosing `LazyVStack`'s sibling reflow animates with the bubble's
+                    // own shrink, instead of snapping while the bubble is mid-animation.
+                    withAnimation(toolExpansionAnimation) {
+                        singleEntryExpanded.toggle()
+                    }
                 } label: {
                     ToolHeaderRow(tool: only, isExpanded: singleEntryExpanded)
                         .padding(.horizontal, chatBlockPadding)
@@ -56,7 +61,12 @@ struct ToolGroupBlock: View {
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 Button {
-                    isExpanded.toggle()
+                    // See note in `StandaloneToolRow`: `withAnimation` propagates the
+                    // animation to `LazyVStack` sibling reflow so the next transcript
+                    // item eases up in sync with this bubble's collapse.
+                    withAnimation(toolExpansionAnimation) {
+                        isExpanded.toggle()
+                    }
                 } label: {
                     // No trailing `Spacer` here — Spacer makes the HStack greedy, which
                     // defeats the hug-to-content behavior we want for the bubble. With the

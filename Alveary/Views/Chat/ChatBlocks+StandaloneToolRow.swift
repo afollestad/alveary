@@ -21,7 +21,15 @@ struct StandaloneToolRow: View {
         // avoids the tap/text-selection contention that a bubble-wide gesture had.
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                isExpanded.toggle()
+                // `withAnimation` is load-bearing for sibling layout: `.toolAnimationOverride`
+                // only scopes the transaction to this bubble's subtree, so the enclosing
+                // `LazyVStack`'s sibling positions would snap to their new locations while
+                // this bubble's frame was still shrinking, briefly overlapping the next item.
+                // `withAnimation` sets the animation on the transaction globally for this
+                // state change so the LazyVStack's reflow eases in lockstep with the bubble.
+                withAnimation(toolExpansionAnimation) {
+                    isExpanded.toggle()
+                }
             } label: {
                 ToolHeaderRow(tool: tool, isExpanded: isExpanded)
                     .padding(.horizontal, chatBlockPadding)
