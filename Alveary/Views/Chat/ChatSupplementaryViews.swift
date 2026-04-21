@@ -112,7 +112,7 @@ struct UserBubble: View {
                 .padding(.vertical, chatVerticalPadding)
                 .background(
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
-                        .fill(AppSelectionStyle.rowFill)
+                        .fill(AppAccentFill.primary)
                 )
 
                 if showsRetry, let onRetry {

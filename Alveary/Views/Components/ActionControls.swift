@@ -39,7 +39,12 @@ extension View {
     }
 
     func primaryActionButtonStyle() -> some View {
-        buttonStyle(ProminentActionButtonStyle(fillColor: .accentColor, foregroundColor: .onAccent))
+        // Use `AppAccentFill.primary` (the muted accent token shared with
+        // selected sidebar rows, conversation tabs, user bubbles, and the
+        // scroll-to-latest button) so every prominent affordance in the app
+        // speaks with one accent voice. `.primary` as foreground adapts to
+        // both schemes against the muted fill.
+        buttonStyle(ProminentActionButtonStyle(fillColor: AppAccentFill.primary, foregroundColor: .primary))
     }
 
     func secondaryActionButtonStyle() -> some View {

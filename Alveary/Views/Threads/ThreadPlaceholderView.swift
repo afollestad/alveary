@@ -61,7 +61,7 @@ struct ThreadPlaceholderView: View {
                                         .font(.caption.weight(.semibold))
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 4)
-                                        .background(Capsule().fill(AppSelectionStyle.rowFill))
+                                        .background(Capsule().fill(AppAccentFill.primary))
                                 }
                             }
                             .padding(14)

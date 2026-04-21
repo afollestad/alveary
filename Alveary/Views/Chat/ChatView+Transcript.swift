@@ -468,11 +468,11 @@ private struct ScrollToLatestButton: View {
         Button(action: action) {
             Image(systemName: "arrow.down")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.onAccent)
+                .foregroundStyle(Color.primary)
                 .frame(width: 32, height: 32)
                 .background(
                     Circle()
-                        .fill(Color.accentColor)
+                        .fill(AppAccentFill.primary)
                 )
         }
         .buttonStyle(.plain)

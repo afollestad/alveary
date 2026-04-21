@@ -301,7 +301,10 @@ final class AppKitTextView: NSTextView {
 
         let drawingOffset = textContainerOrigin
         let desiredInset: CGFloat = 3
-        let verticalInset: CGFloat = 2
+        // Match `drawInlineCodeBackgrounds`'s `verticalInset` so `/command` and
+        // `@mention` chips render at the same apparent height as inline-code chips
+        // — a previous `2` was 2pt taller overall and read as a visual mismatch.
+        let verticalInset: CGFloat = 1
         let leftInset = chipLeadingInset(
             for: clampedRange,
             layoutManager: layoutManager,

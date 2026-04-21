@@ -62,7 +62,7 @@ extension SnapshotTests {
     func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyle() {
         let thread = AgentThread(name: "Test `code block`")
 
-        // Render the row over an `AppSelectionStyle.rowFill` background so the snapshot
+        // Render the row over an `AppAccentFill.primary` background so the snapshot
         // captures how the chip reads against a selected-row's accent-tinted parent.
         // `AppMarkdownInlineLabel` always renders the `.standard` chip palette, so the
         // chip keeps its gray fill regardless of row selection — this baseline locks in
@@ -76,7 +76,7 @@ extension SnapshotTests {
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
-            .background(AppSelectionStyle.rowFill),
+            .background(AppAccentFill.primary),
             size: CGSize(width: 320, height: 52),
             named: "thread_row_selected_inline_code"
         )
@@ -84,7 +84,8 @@ extension SnapshotTests {
 
     // Dark-mode coverage for the selected-row chip treatment. Sidebar thread rows keep
     // the `.standard` grayscale chip fill for both selected and unselected states; this
-    // baseline locks in how that gray reads against a dark-mode accent-tinted `rowFill`.
+    // baseline locks in how that gray reads against a dark-mode accent-tinted
+    // `AppAccentFill.primary`.
     func testSidebarThreadRowSelectedInlineCodeUsesOnAccentChipStyleDark() {
         let thread = AgentThread(name: "Test `code block`")
 
@@ -97,7 +98,7 @@ extension SnapshotTests {
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
-            .background(AppSelectionStyle.rowFill),
+            .background(AppAccentFill.primary),
             size: CGSize(width: 320, height: 52),
             named: "thread_row_selected_inline_code_dark",
             colorScheme: .dark

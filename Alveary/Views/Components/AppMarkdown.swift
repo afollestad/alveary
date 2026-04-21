@@ -110,7 +110,7 @@ internal let appMarkdownInlineStyle = InlineStyle.default
     .link(.foregroundColor(Color.accentColor), .underlineStyle(.single))
 
 // Links inside user bubbles must not be accent-colored: the bubble fill is
-// `AppSelectionStyle.rowFill` (itself an accent tint), so accent-on-accent links would
+// `AppAccentFill.primary` (itself an accent tint), so accent-on-accent links would
 // clash with the fill in both schemes. Match the bubble's `.primary` body color so links
 // inherit the same label treatment as the rest of the bubble text, and add a single
 // underline so links are still visually distinguishable without relying on color.
@@ -118,7 +118,7 @@ private let appMarkdownUserBubbleInlineStyle = InlineStyle.default
     .code(
         .monospaced,
         .fontScale(markdownInlineCodeFontScale),
-        .foregroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor)),
+        .foregroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor)),
         .backgroundColor(dynamicColor(from: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor))
     )
     .link(.foregroundColor(Color.primary), .underlineStyle(.single))
@@ -349,10 +349,10 @@ struct AppMarkdownInlineCodeChip: View {
 
     private var foregroundColor: NSColor {
         switch style {
-        case .standard:
-            return AppMarkdownCodeBlockPalette.inlineForegroundNSColor
-        case .userBubble:
-            return AppMarkdownCodeBlockPalette.userBubbleInlineForegroundNSColor
+        case .standard, .userBubble:
+            // Both grayscale fills pair with `.labelColor`; the shared token
+            // collapses what used to be two identical `static let`s.
+            return AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor
         case .composer:
             return AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
         }

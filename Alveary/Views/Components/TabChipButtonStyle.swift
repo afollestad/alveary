@@ -18,10 +18,10 @@ struct TabChipButtonStyle: ButtonStyle {
 
     private func backgroundColor(isPressed: Bool) -> Color {
         if isPressed {
-            return AppSelectionStyle.pressedFill
+            return AppAccentFill.pressed
         }
         if isSelected {
-            return AppSelectionStyle.rowFill
+            return AppAccentFill.primary
         }
         return Color.secondary.opacity(0.08)
     }

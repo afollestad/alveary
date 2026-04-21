@@ -1,35 +1,4 @@
-import AppKit
 import SwiftUI
-
-enum AppSelectionStyle {
-    /// Selection fill used behind sidebar rows, settings rows, conversation tab chips,
-    /// and the user chat bubble. The fill is a scheme-aware tint of `controlAccentColor`:
-    /// dark mode layers at low opacity so selections feel like a subtle accent wash over
-    /// the dark window background, while light mode layers at high opacity so the fill
-    /// reads as a rich amber against the white window background. Callers that place
-    /// foreground content on top should use scheme-adapting colors like `Color.primary`
-    /// / `NSColor.labelColor` rather than hard-coded `.white`; the rowFill is dark enough
-    /// for white text only in dark mode.
-    static let rowFill: Color = accentTint(darkAlpha: 0.26, lightAlpha: 0.80)
-
-    // Pressed-state deltas are widened in light mode (0.80 → 0.95) so the press feedback
-    // is actually visible against the already-saturated `rowFill`; a tighter bump like
-    // 0.88 is perceptually identical to 0.80 once the accent saturates the surface. Dark
-    // mode keeps a narrower bump (0.26 → 0.38) because the tint starts low enough that a
-    // small alpha change is still perceptible.
-    static let pressedFill: Color = accentTint(darkAlpha: 0.38, lightAlpha: 0.95)
-
-    private static func accentTint(darkAlpha: CGFloat, lightAlpha: CGFloat) -> Color {
-        Color(nsColor: .accentDerived { accent, appearance in
-            switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-            case .darkAqua:
-                return accent.withAlphaComponent(darkAlpha)
-            default:
-                return accent.withAlphaComponent(lightAlpha)
-            }
-        })
-    }
-}
 
 struct AppSelectionRowBackground: View {
     let isSelected: Bool
@@ -47,9 +16,9 @@ struct AppSelectionRowBackground: View {
 
     private var fillColor: Color {
         if isPressed {
-            return AppSelectionStyle.pressedFill
+            return AppAccentFill.pressed
         } else if isSelected {
-            return AppSelectionStyle.rowFill
+            return AppAccentFill.primary
         } else {
             return .clear
         }

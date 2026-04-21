@@ -1,22 +1,4 @@
 import AppKit
-import SwiftUI
-
-extension Color {
-    /// Foreground color paired with `Color.accentColor` for contrast on filled surfaces.
-    /// Resolves to near-black or white at draw time based on the resolved accent color's
-    /// luminance so it stays legible whether the asset-catalog `AccentColor` is in use
-    /// (default "Multicolor" accent preference) or macOS is tracking a different system
-    /// accent like graphite or blue. A fixed-dark asset would fail against dark system
-    /// accents; a fixed-white asset would fail against a bright asset-catalog accent.
-    static let onAccent = Color(nsColor: .accentDerived { accent, _ in
-        let luminance = 0.2126 * accent.redComponent
-                      + 0.7152 * accent.greenComponent
-                      + 0.0722 * accent.blueComponent
-        return luminance > 0.6
-            ? NSColor(white: 0.102, alpha: 1)
-            : .white
-    })
-}
 
 extension NSColor {
     /// Builds a dynamic `NSColor` whose provider resolves `NSColor.controlAccentColor`

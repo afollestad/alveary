@@ -100,7 +100,7 @@ private struct PromptQuestionCard: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(AppSelectionStyle.rowFill))
+                    .background(Capsule().fill(AppAccentFill.primary))
             }
 
             Text(question.question)
