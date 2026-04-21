@@ -26,6 +26,7 @@ Use nested `AGENTS.md` files to keep local guidance close to the code it governs
 - `Alveary/Views/Input/AGENTS.md` covers composer autocomplete, slash-command hints, and worktree picker behavior.
 - `Alveary/Views/Projects/AGENTS.md` covers the project settings editor and toolbar action surfacing.
 - `Alveary/Views/Sidebar/AGENTS.md` covers sidebar-specific interaction patterns.
+- `Alveary/Views/Terminal/AGENTS.md` covers the terminal pane's unified background invariant and tab-row edge-divider behavior.
 - `AlvearyTests/AGENTS.md` covers snapshot and test-organization guidance.
 
 **WHEN** creating a new nested `AGENTS.md`, also add a sibling `CLAUDE.md` symlink to it (`ln -s AGENTS.md CLAUDE.md` from inside that directory) so Claude Code picks up the scoped guidance, and add a line for the new file to the list above. The root `project.yml` already excludes `**/CLAUDE.md` from Xcode sources, so no project regeneration is required.

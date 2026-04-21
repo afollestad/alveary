@@ -43,22 +43,6 @@ private extension TerminalSessionChip {
     }
 }
 
-struct TerminalSessionMenuRow: View {
-    let session: TerminalSession
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(session.chipLabel)
-
-            if let detail = session.projectName ?? session.currentDirectory {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
 struct TerminalSessionContextRow: View {
     let projectName: String?
     let currentDirectory: String?

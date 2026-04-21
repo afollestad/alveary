@@ -64,7 +64,7 @@ final class TerminalManagerTests: XCTestCase {
         let first = manager.createSession(title: "Build", projectName: "Alveary", select: false)
         let second = manager.createSession(title: "Lint", projectName: "Docs")
 
-        XCTAssertEqual(manager.sessions.map(\.id), [second, first])
+        XCTAssertEqual(manager.sessions.map(\.id), [first, second])
         XCTAssertEqual(manager.selectedSessionID, second)
         XCTAssertEqual(manager.selectedSession?.title, "Lint")
     }
@@ -79,6 +79,32 @@ final class TerminalManagerTests: XCTestCase {
 
         XCTAssertEqual(manager.sessions.map(\.id), [first])
         XCTAssertEqual(manager.selectedSessionID, first)
+    }
+
+    func testCloseSelectedMiddleSessionPicksNextNeighbor() {
+        let manager = TerminalManager()
+
+        let first = manager.createSession(title: "A", select: false)
+        let second = manager.createSession(title: "B")
+        let third = manager.createSession(title: "C", select: false)
+        manager.selectSession(id: second)
+
+        manager.closeSession(id: second)
+
+        XCTAssertEqual(manager.sessions.map(\.id), [first, third])
+        XCTAssertEqual(manager.selectedSessionID, third)
+    }
+
+    func testCloseNonSelectedSessionPreservesSelection() {
+        let manager = TerminalManager()
+
+        let first = manager.createSession(title: "A", select: false)
+        let second = manager.createSession(title: "B")
+
+        manager.closeSession(id: first)
+
+        XCTAssertEqual(manager.sessions.map(\.id), [second])
+        XCTAssertEqual(manager.selectedSessionID, second)
     }
 
     func testCloseSessionCancelsRegisteredTask() {

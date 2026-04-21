@@ -76,4 +76,31 @@ extension SnapshotTests {
             named: "terminal_pane_session_chip_inline_code"
         )
     }
+
+    // Covers the overflow state: enough tab chips at a narrow pane width that the
+    // row must scroll. Captures the trailing-edge divider at initial scroll (tabs
+    // visible past the right edge) and that the fixed terminal icon + close button
+    // sit 8pt from the respective dividers / scrolling tabs.
+    func testTerminalPaneSessionsOverflow() {
+        let terminalManager = TerminalManager()
+        for index in 1...8 {
+            terminalManager.createSession(
+                title: "Task \(index)",
+                projectName: "Alveary",
+                threadName: "Thread \(index)",
+                currentDirectory: "/Users/alice/Development/alveary",
+                command: "./scripts/task\(index).sh",
+                output: "",
+                status: .running,
+                select: index == 1
+            )
+        }
+
+        assertMacSnapshot(
+            TerminalPane(onClose: {})
+                .environment(terminalManager),
+            size: CGSize(width: 600, height: 240),
+            named: "terminal_pane_sessions_overflow"
+        )
+    }
 }

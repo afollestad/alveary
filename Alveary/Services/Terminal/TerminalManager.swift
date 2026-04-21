@@ -144,10 +144,10 @@ final class TerminalManager {
         }
 
         guard let selectedSessionID else {
-            return sessions.first
+            return sessions.last
         }
 
-        return sessions.first(where: { $0.id == selectedSessionID }) ?? sessions.first
+        return sessions.first(where: { $0.id == selectedSessionID }) ?? sessions.last
     }
 
     func ensureSelection() {
@@ -156,7 +156,7 @@ final class TerminalManager {
             return
         }
 
-        selectedSessionID = sessions.first?.id
+        selectedSessionID = sessions.last?.id
     }
 
     @discardableResult
@@ -182,7 +182,7 @@ final class TerminalManager {
             status: status,
             endedAt: status == .running ? nil : Date()
         )
-        sessions.insert(session, at: 0)
+        sessions.append(session)
 
         if select || selectedSessionID == nil {
             selectedSessionID = session.id
@@ -238,8 +238,26 @@ final class TerminalManager {
     func closeSession(id: UUID) {
         sessionTasks[id]?.cancel()
         sessionTasks[id] = nil
+
+        // Close-adjacent: if the closing session was selected, pick the next (same index
+        // after shift) session, falling back to the previous when the last tab is
+        // closed. Mirrors `ThreadDetailView.selectNeighborIfClosingSelected`'s
+        // "next, else previous" behavior so terminal-tab close UX matches the
+        // conversation-tab UX.
+        let closingIndex = sessions.firstIndex(where: { $0.id == id })
+        let wasSelected = selectedSessionID == id
         sessions.removeAll { $0.id == id }
-        ensureSelection()
+
+        guard wasSelected else {
+            ensureSelection()
+            return
+        }
+
+        if let closingIndex, closingIndex < sessions.count {
+            selectedSessionID = sessions[closingIndex].id
+        } else {
+            selectedSessionID = sessions.last?.id
+        }
     }
 
     private func updateSession(id: UUID, mutation: (inout TerminalSession) -> Void) {

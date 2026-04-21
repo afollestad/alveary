@@ -12,8 +12,9 @@ struct TerminalPane: View {
     @Environment(TerminalManager.self) private var terminalManager
     @Environment(\.colorScheme) private var colorScheme
 
+    @State private var tabsScrollGeometry = TerminalTabsScrollGeometry()
+
     private let cornerRadius: CGFloat = 18
-    private let maxVisibleSessionChips = 3
 
     init(
         height: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultTerminalPaneHeight)),
@@ -39,21 +40,16 @@ struct TerminalPane: View {
                 onCommit: onHeightCommit
             )
 
-            VStack(alignment: .leading, spacing: terminalManager.sessions.isEmpty ? 0 : 12) {
-                HStack(alignment: .center, spacing: 12) {
-                    Label("Terminal", systemImage: "terminal")
-                        .font(.headline)
-
-                    Spacer()
-
-                    ModalCloseButton("Hide terminal", action: onClose)
-                }
+            HStack(alignment: .center, spacing: 0) {
+                Image(systemName: "terminal")
+                    .font(.headline)
+                    .accessibilityLabel("Terminal")
 
                 if !terminalManager.sessions.isEmpty {
-                    HStack(spacing: 8) {
+                    ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(visibleSessions) { session in
+                                ForEach(terminalManager.sessions) { session in
                                     TerminalSessionChip(
                                         session: session,
                                         isSelected: session.id == terminalManager.selectedSession?.id,
@@ -64,34 +60,65 @@ struct TerminalPane: View {
                                             terminalManager.closeSession(id: session.id)
                                         }
                                     )
+                                    .id(session.id)
                                 }
                             }
                         }
-
-                        if !overflowSessions.isEmpty {
-                            Menu {
-                                ForEach(overflowSessions) { session in
-                                    Button {
-                                        terminalManager.selectSession(id: session.id)
-                                    } label: {
-                                        TerminalSessionMenuRow(session: session)
-                                    }
-                                }
-                            } label: {
-                                Label("More sessions", systemImage: "ellipsis.circle")
-                                    .labelStyle(.iconOnly)
-                                    .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .onScrollGeometryChange(for: TerminalTabsScrollGeometry.self) { geometry in
+                            TerminalTabsScrollGeometry(
+                                contentWidth: geometry.contentSize.width,
+                                containerWidth: geometry.containerSize.width,
+                                contentOffset: geometry.contentOffset.x
+                            )
+                        } action: { _, newValue in
+                            tabsScrollGeometry = newValue
+                        }
+                        .overlay(alignment: .leading) {
+                            if hasTabsBehindLeadingEdge {
+                                Rectangle()
+                                    .fill(tabsDividerColor)
+                                    .frame(width: 1, height: 18)
                             }
-                            .menuStyle(.borderlessButton)
-                            .accessibilityLabel("More terminal sessions")
+                        }
+                        .overlay(alignment: .trailing) {
+                            if hasTabsBehindTrailingEdge {
+                                Rectangle()
+                                    .fill(tabsDividerColor)
+                                    .frame(width: 1, height: 18)
+                            }
+                        }
+                        // Minimum-scroll-to-visible on selection change. `nil` anchor
+                        // means already-visible chips don't jump, while off-screen
+                        // chips (e.g. selected session after opening a dense pane)
+                        // scroll into view with just enough delta.
+                        .onChange(of: terminalManager.selectedSession?.id, initial: true) { _, newID in
+                            guard let newID else { return }
+                            proxy.scrollTo(newID)
+                        }
+                        // Programmatically-added sessions (e.g. a tool run spawning a
+                        // terminal) append to the end of the list. When the count grows
+                        // we scroll to the new trailing session so it surfaces, even
+                        // when it didn't become the selected session.
+                        .onChange(of: terminalManager.sessions.count) { oldCount, newCount in
+                            guard newCount > oldCount,
+                                  let lastID = terminalManager.sessions.last?.id else {
+                                return
+                            }
+                            proxy.scrollTo(lastID)
                         }
                     }
+                    .padding(.leading, 8)
+                } else {
+                    Spacer(minLength: 0)
                 }
+
+                ModalCloseButton("Hide terminal", action: onClose)
+                    .padding(.leading, 8)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 14)
-            .background(headerBackground)
 
             Divider()
 
@@ -154,7 +181,6 @@ struct TerminalPane: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(18)
             }
-            .background(bodyBackground)
         }
         .frame(maxWidth: .infinity)
         .frame(height: clampedHeight)
@@ -183,26 +209,24 @@ private extension TerminalPane {
         terminalManager.selectedSession
     }
 
-    var visibleSessions: [TerminalSession] {
-        var sessions = Array(terminalManager.sessions.prefix(maxVisibleSessionChips))
-
-        guard let selectedSession,
-              !sessions.contains(where: { $0.id == selectedSession.id }) else {
-            return sessions
-        }
-
-        if sessions.count == maxVisibleSessionChips {
-            sessions[sessions.count - 1] = selectedSession
-        } else {
-            sessions.append(selectedSession)
-        }
-
-        return sessions
+    /// Maximum distance the tab row can scroll given current content / container width.
+    var tabsMaxScrollableDistance: CGFloat {
+        max(0, tabsScrollGeometry.contentWidth - tabsScrollGeometry.containerWidth)
     }
 
-    var overflowSessions: [TerminalSession] {
-        let visibleIDs = Set(visibleSessions.map(\.id))
-        return terminalManager.sessions.filter { !visibleIDs.contains($0.id) }
+    /// `true` when a tab chip is clipped by, or sitting under, the leading edge of the
+    /// scroll area — i.e. the user has scrolled forward from the start. Gates the
+    /// left-edge divider so it only appears when there is content to indicate.
+    var hasTabsBehindLeadingEdge: Bool {
+        tabsScrollGeometry.contentOffset > 0.5
+    }
+
+    /// `true` when a tab chip extends beyond the trailing edge of the scroll area,
+    /// i.e. there is still more content further to the right. Gates the right-edge
+    /// divider so it only appears when there is content to indicate.
+    var hasTabsBehindTrailingEdge: Bool {
+        tabsMaxScrollableDistance > 0.5
+            && tabsScrollGeometry.contentOffset < tabsMaxScrollableDistance - 0.5
     }
 
     func handleSessionActivation(_ session: TerminalSession) {
@@ -220,19 +244,9 @@ private extension TerminalPane {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
+    /// Single background for the whole pane — drag handle, header, and body all share
+    /// this color so the three regions can't drift apart in light or dark themes.
     var panelBackground: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .windowBackgroundColor)
-            : Color(red: 0.91, green: 0.91, blue: 0.92)
-    }
-
-    var headerBackground: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .windowBackgroundColor)
-            : Color(red: 0.86, green: 0.86, blue: 0.87)
-    }
-
-    var bodyBackground: Color {
         colorScheme == .dark
             ? Color(nsColor: .textBackgroundColor)
             : Color(red: 0.97, green: 0.97, blue: 0.975)
@@ -252,6 +266,12 @@ private extension TerminalPane {
 
     var borderOpacity: Double {
         colorScheme == .dark ? 0.55 : 0.2
+    }
+
+    /// Tab-scroll divider — intentionally darker than the default `Divider` separator so
+    /// it reads as an edge between the fixed terminal icon and the scrolling tabs.
+    var tabsDividerColor: Color {
+        Color.primary.opacity(colorScheme == .dark ? 0.35 : 0.3)
     }
 
     var placeholderDescription: String {
@@ -278,4 +298,14 @@ private extension TerminalPane {
 
         return "Captured output will appear here as the command finishes or reports errors."
     }
+}
+
+/// Snapshot of the tab row's scroll state. Populated by
+/// `onScrollGeometryChange(for:of:action:)` so the view can gate the leading / trailing
+/// edge dividers on whether there is off-screen content in that direction, instead of
+/// cobbling the same signals together from GeometryReader-based preference keys.
+private struct TerminalTabsScrollGeometry: Equatable {
+    var contentWidth: CGFloat = 0
+    var containerWidth: CGFloat = 0
+    var contentOffset: CGFloat = 0
 }
