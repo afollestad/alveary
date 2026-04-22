@@ -260,6 +260,62 @@ final class AgentsManagerTests: XCTestCase {
         }
     }
 
+    func testUnknownSlashCommandNotificationUsesErrorMessageInsteadOfSuccessTokens() async throws {
+        let executable = try TempExecutable()
+        defer { executable.cleanup() }
+
+        let notificationManager = RecordingNotificationManager()
+        let manager = DefaultAgentsManager(
+            sessionManager: InMemorySessionManager(),
+            providerDetection: StubProviderDetectionService(),
+            environmentBuilder: DefaultAgentEnvironmentBuilder(),
+            providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
+            settingsService: makeSettings(cliPath: executable.url.path),
+            notificationManager: notificationManager,
+            adapterFactory: { _ in
+                SlashCommandTokenAdapter(
+                    input: 0,
+                    output: 0,
+                    cacheRead: 0,
+                    isError: false,
+                    stopReason: nil,
+                    durationMs: 5,
+                    costUsd: 0,
+                    permissionDenials: []
+                )
+            }
+        )
+        let conversationId = "conversation-slash-command-notification"
+        let config = AgentSpawnConfig(
+            providerId: "claude",
+            workingDirectory: executable.workingDirectory.path,
+            permissionMode: nil,
+            model: nil,
+            effort: nil,
+            initialPrompt: nil
+        )
+
+        defer {
+            Task {
+                await manager.kill(conversationId: conversationId)
+            }
+        }
+
+        let state = manager.conversationState(for: conversationId)
+        state.grouper.appendLocalUserMessage(id: "user-1", text: "/test-command")
+
+        try await manager.spawn(id: conversationId, config: config, forkSession: false)
+        try await manager.sendMessage("/test-command", conversationId: conversationId)
+
+        try await waitUntil("expected rewritten slash-command notification") {
+            notificationManager.handleEventCalls.count == 1
+        }
+
+        let recordedEvent = try XCTUnwrap(notificationManager.handleEventCalls.first)
+        XCTAssertEqual(recordedEvent.conversationId, conversationId)
+        XCTAssertEqual(recordedEvent.event, .error(message: "Unknown command: /test-command"))
+    }
+
     private func assertSessionLaunchCalls(_ launchCalls: [RecordingLaunchAdapter.SessionLaunchCall]) {
         XCTAssertEqual(launchCalls.count, 2)
         XCTAssertEqual(launchCalls.map(\.isResuming), [false, true])
@@ -297,6 +353,93 @@ final class AgentsManagerTests: XCTestCase {
             let isRunning = await manager.isRunning(conversationId: conversationId)
             return !hasTrackedProcess && !isRunning
         }
+    }
+}
+
+private final class SlashCommandTokenAdapter: AgentAdapter, @unchecked Sendable {
+    let supportsBidirectionalStreaming = true
+    let supportsMidTurnSteering = false
+
+    private let input: Int
+    private let output: Int
+    private let cacheRead: Int
+    private let isError: Bool
+    private let stopReason: String?
+    private let durationMs: Int
+    private let costUsd: Double
+    private let permissionDenials: [PermissionDenialSummary]
+
+    init(
+        input: Int,
+        output: Int,
+        cacheRead: Int,
+        isError: Bool,
+        stopReason: String?,
+        durationMs: Int,
+        costUsd: Double,
+        permissionDenials: [PermissionDenialSummary]
+    ) {
+        self.input = input
+        self.output = output
+        self.cacheRead = cacheRead
+        self.isError = isError
+        self.stopReason = stopReason
+        self.durationMs = durationMs
+        self.costUsd = costUsd
+        self.permissionDenials = permissionDenials
+    }
+
+    func buildArgs(config: AgentConfig) -> [String] {
+        []
+    }
+
+    func envOverrides(config: AgentConfig) -> [String: String] {
+        [:]
+    }
+
+    func decode(_ json: [String: Any]) -> [ConversationEvent] {
+        guard json["type"] as? String == "tokens" else {
+            return []
+        }
+
+        return [
+            .tokens(
+                input: input,
+                output: output,
+                cacheRead: cacheRead,
+                isError: isError,
+                stopReason: stopReason,
+                durationMs: durationMs,
+                costUsd: costUsd,
+                permissionDenials: permissionDenials
+            )
+        ]
+    }
+
+    func finalize() -> [ConversationEvent] {
+        []
+    }
+
+    func sendMessage(_ message: String, to process: Process) throws {
+        guard let stdin = process.standardInput as? Pipe else {
+            throw AgentError.stdinClosed
+        }
+
+        let payload: [String: Any] = ["type": "tokens"]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try stdin.fileHandleForWriting.write(contentsOf: data + Data("\n".utf8))
+    }
+
+    func sessionFilePath(sessionId: String, cwd: String) -> String? {
+        nil
+    }
+
+    func canResumeSession(sessionId: String, cwd: String) -> Bool {
+        false
+    }
+
+    func sessionLaunch(sessionId: String, cwd: String, isResuming: Bool, forkSession: Bool) -> SessionLaunchDecision {
+        SessionLaunchDecision(args: [], continuity: .preserved)
     }
 }
 

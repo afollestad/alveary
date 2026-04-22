@@ -108,6 +108,12 @@ extension ChatInputField {
             guard !keyPress.modifiers.contains(.shift) else {
                 return false
             }
+            if Self.shouldSubmitExactSkillAutocomplete(
+                text: text,
+                autocomplete: autocomplete
+            ) {
+                return false
+            }
             return applyHighlightedAutocompleteSuggestion()
         }
     }
@@ -405,5 +411,27 @@ extension ChatInputField {
                 hints[skill.id] = argumentHint
             }
         }
+    }
+
+    nonisolated static func shouldSubmitExactSkillAutocomplete(
+        text: String,
+        autocomplete: ComposerAutocompleteState
+    ) -> Bool {
+        guard autocomplete.kind == .skill,
+              let suggestion = autocomplete.suggestions[safe: autocomplete.highlightedIndex],
+              autocomplete.replacementOffsets.lowerBound >= 0,
+              autocomplete.replacementOffsets.upperBound <= text.utf16.count else {
+            return false
+        }
+
+        let lowerIndex = ChatInputFieldTextSupport.index(
+            at: autocomplete.replacementOffsets.lowerBound,
+            in: text
+        )
+        let upperIndex = ChatInputFieldTextSupport.index(
+            at: autocomplete.replacementOffsets.upperBound,
+            in: text
+        )
+        return String(text[lowerIndex..<upperIndex]) == suggestion.replacementText
     }
 }

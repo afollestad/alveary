@@ -9,6 +9,9 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
 - Do not switch `DefaultAgentsManager.readAgentOutput` back to `FileHandle.AsyncBytes.lines` for Claude's stream-json pipe. Keep the `readabilityHandler`-based `PipeLinePump` so final EOF-delimited JSON records without a trailing newline still flush and the UI does not get stuck in a busy/Stop state.
 - Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.
 - Claude auto-denies `AskUserQuestion` in `-p --output-format stream-json` mode. Keep the app-native prompt/selection UI as the interaction path instead of expecting the CLI to pause for an answer.
+- Claude `type: "user"` text events can carry local-command caveat wrappers. Strip only the surrounding `<local-command-caveat>` / `</local-command-caveat>` tags before surfacing the text.
+- After caveat-tag stripping, drop the event entirely if the payload is empty before or after stripping so wrapper-only noise never reaches the transcript.
+- Streamed top-level `type: "user"` text should surface as an assistant transcript message, not a user bubble. The real user prompt is already inserted locally; any streamed user-text payload is runtime output and should be treated as assistant content after caveat stripping.
 
 ## ChatItem Grouping
 

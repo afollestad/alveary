@@ -118,6 +118,179 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.streamingText)
     }
 
+    func testSubscriptionPersistsAssistantFailureMessage() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(
+            .message(
+                role: "assistant",
+                content: "Unknown command: /test-command",
+                parentToolUseId: nil
+            )
+        )
+        await fixture.agentsManager.yieldSubscriptionEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "Unknown command: /test-command",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+        await fixture.agentsManager.finishSubscription()
+
+        try await waitUntil("assistant failure message is persisted", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            let assistantMessages = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+                $0.conversationId == fixture.conversation.id && $0.role == "assistant"
+            }
+            return assistantMessages.map(\.content) == ["Unknown command: /test-command"]
+        }
+
+        let assistantMessages = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id && $0.role == "assistant"
+        }
+        XCTAssertEqual(assistantMessages.map(\.content), ["Unknown command: /test-command"])
+    }
+
+    func testZeroTokenSlashCommandTurnSynthesizesAssistantNotice() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        _ = fixture.viewModel.insertLocalUserMessage(
+            "/test-command",
+            into: conversation,
+            shouldAutoNameThread: false
+        )
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                isError: false,
+                stopReason: nil,
+                durationMs: 5,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        let assistantMessages = persistedEvents.filter { $0.role == "assistant" }
+        let tokenEvents = persistedEvents.filter { $0.type == "tokens" }
+
+        XCTAssertEqual(assistantMessages.map(\.content), ["Unknown command: /test-command"])
+        XCTAssertTrue(tokenEvents.isEmpty)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
+    func testZeroTokenSlashCommandTurnDoesNotSynthesizeNoticeAfterToolActivity() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        _ = fixture.viewModel.insertLocalUserMessage(
+            "/test-command",
+            into: conversation,
+            shouldAutoNameThread: false
+        )
+        fixture.viewModel.handleEvent(
+            .toolCall(
+                id: "tool-1",
+                name: "Read",
+                input: "{\"filePath\":\"README.md\"}",
+                parentToolUseId: nil,
+                callerAgent: nil
+            )
+        )
+        fixture.viewModel.handleEvent(
+            .toolResult(
+                id: "tool-1",
+                output: "stdout",
+                isError: false,
+                parentToolUseId: nil,
+                metadata: nil
+            )
+        )
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                isError: false,
+                stopReason: nil,
+                durationMs: 5,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        let assistantMessages = persistedEvents.filter { $0.role == "assistant" }
+        let tokenEvents = persistedEvents.filter { $0.type == "tokens" }
+
+        XCTAssertTrue(assistantMessages.isEmpty)
+        XCTAssertEqual(tokenEvents.count, 1)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
+    func testZeroTokenSlashCommandTurnDoesNotSynthesizeNoticeAfterStreamingChunkActivity() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        _ = fixture.viewModel.insertLocalUserMessage(
+            "/test-command",
+            into: conversation,
+            shouldAutoNameThread: false
+        )
+        fixture.viewModel.handleEvent(
+            .messageChunk(
+                text: "Working on it...",
+                parentToolUseId: nil
+            )
+        )
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                isError: false,
+                stopReason: nil,
+                durationMs: 5,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        let assistantMessages = persistedEvents.filter { $0.role == "assistant" }
+        let tokenEvents = persistedEvents.filter { $0.type == "tokens" }
+
+        XCTAssertTrue(assistantMessages.isEmpty)
+        XCTAssertEqual(tokenEvents.count, 1)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
     func testCancellationMarksTurnInterruptedInsteadOfSettingError() throws {
         let fixture = try ConversationViewModelTestFixture()
 

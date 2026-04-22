@@ -300,11 +300,16 @@ private extension ConversationViewModel {
             state.clearStreamingText()
             return true
 
-        case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
+        case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials):
             return shouldPersistTokenEvent(
-                isError: isError,
-                stopReason: stopReason,
-                permissionDenials: permissionDenials
+                TokenEventPayload(
+                    input: input,
+                    output: output,
+                    cacheRead: cacheRead,
+                    isError: isError,
+                    stopReason: stopReason,
+                    permissionDenials: permissionDenials
+                )
             )
 
         case .stop:
@@ -319,16 +324,26 @@ private extension ConversationViewModel {
         }
     }
 
-    func handleTokenEvent(
-        isError: Bool,
-        stopReason: String?,
-        permissionDenials: [PermissionDenialSummary]
-    ) -> TokenEventPersistence {
+    func handleTokenEvent(_ payload: TokenEventPayload) -> TokenEventPersistence {
+        let hadStreamingText = state.streamingText != nil
         state.clearStreamingText()
+        if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
+            for: payload,
+            hadStreamingText: hadStreamingText
+        ) {
+            state.isCancellingTurn = false
+            state.lastTurnInterrupted = false
+            state.lastTurnError = nil
+            state.lastPermissionDeniedToolNames = []
+            state.showPermissionBanner = false
+            handleTurnCompleted()
+            return .persistSyntheticAssistant(message: slashCommandNotice)
+        }
+
         if isConfirmedTurnInterruption(
-            isError: isError,
-            stopReason: stopReason,
-            permissionDenials: permissionDenials
+            isError: payload.isError,
+            stopReason: payload.stopReason,
+            permissionDenials: payload.permissionDenials
         ) {
             state.isCancellingTurn = false
             state.lastTurnError = nil
@@ -340,14 +355,14 @@ private extension ConversationViewModel {
         }
 
         state.isCancellingTurn = false
-        if isError {
+        if payload.isError {
             state.lastTurnInterrupted = false
-            state.lastTurnError = stopReason ?? "Agent turn failed"
+            state.lastTurnError = payload.stopReason ?? "Agent turn failed"
         }
-        state.lastPermissionDeniedToolNames = Set(permissionDenials.map(\.toolName))
-        state.showPermissionBanner = !permissionDenials.isEmpty
+        state.lastPermissionDeniedToolNames = Set(payload.permissionDenials.map { $0.toolName })
+        state.showPermissionBanner = !payload.permissionDenials.isEmpty
 
-        if !isError && permissionDenials.isEmpty {
+        if !payload.isError && payload.permissionDenials.isEmpty {
             handleTurnCompleted()
         } else {
             state.turnState.endTurn()
@@ -356,20 +371,15 @@ private extension ConversationViewModel {
         return .persistTokens
     }
 
-    func shouldPersistTokenEvent(
-        isError: Bool,
-        stopReason: String?,
-        permissionDenials: [PermissionDenialSummary]
-    ) -> Bool {
-        switch handleTokenEvent(
-            isError: isError,
-            stopReason: stopReason,
-            permissionDenials: permissionDenials
-        ) {
+    func shouldPersistTokenEvent(_ payload: TokenEventPayload) -> Bool {
+        switch handleTokenEvent(payload) {
         case .persistTokens:
             return true
         case .persistSyntheticStop(let message):
             persistSyntheticStopRecord(message: message)
+            return false
+        case .persistSyntheticAssistant(let message):
+            persistSyntheticAssistantRecord(message: message)
             return false
         }
     }
@@ -387,6 +397,18 @@ private extension ConversationViewModel {
     func persistSyntheticStopRecord(message: String) {
         guard let dbConversation = dbConversation(),
               let record = ConversationEvent.stop(message: message).toRecord(conversation: dbConversation) else {
+            return
+        }
+
+        modelContext.insert(record)
+        state.grouper.append(event: record)
+        scheduleSave()
+    }
+
+    func persistSyntheticAssistantRecord(message: String) {
+        guard let dbConversation = dbConversation(),
+              let record = ConversationEvent.message(role: "assistant", content: message, parentToolUseId: nil)
+                .toRecord(conversation: dbConversation) else {
             return
         }
 
@@ -462,9 +484,4 @@ private extension ConversationViewModel {
         needsFollowUpSave = false
         scheduleSave()
     }
-}
-
-private enum TokenEventPersistence {
-    case persistTokens
-    case persistSyntheticStop(message: String)
 }

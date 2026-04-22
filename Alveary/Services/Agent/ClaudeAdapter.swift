@@ -3,6 +3,8 @@ import Foundation
 final class ClaudeAdapter: AgentAdapter, Sendable {
     let supportsBidirectionalStreaming = true
     let supportsMidTurnSteering = true
+    private let localCommandCaveatStartTag = "<local-command-caveat>"
+    private let localCommandCaveatEndTag = "</local-command-caveat>"
 
     func buildArgs(config: AgentConfig) -> [String] {
         var args = [
@@ -200,34 +202,72 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         let toolUseResult = json["tool_use_result"] as? [String: Any]
 
         return content.compactMap { block in
-            guard block["type"] as? String == "tool_result" else {
+            switch block["type"] as? String {
+            case "text":
+                guard let sanitizedText = sanitizedUserMessageText(block["text"] as? String) else {
+                    return nil
+                }
+                return .message(
+                    role: sanitizedText.role,
+                    content: sanitizedText.content,
+                    parentToolUseId: parentToolUseId
+                )
+            case "tool_result":
+                guard let toolUseId = requiredString(block["tool_use_id"]) else {
+                    return .error(message: "Malformed Claude event: missing tool_use_id in tool_result")
+                }
+
+                let output = (block["content"] as? String)
+                    ?? (toolUseResult?["stdout"] as? String)
+                    ?? ""
+
+                let metadata = toolUseResult.map {
+                    ToolResultMetadata(
+                        stderr: $0["stderr"] as? String,
+                        interrupted: $0["interrupted"] as? Bool ?? false,
+                        isImage: $0["isImage"] as? Bool ?? false,
+                        noOutputExpected: $0["noOutputExpected"] as? Bool ?? false
+                    )
+                }
+
+                return .toolResult(
+                    id: toolUseId,
+                    output: output,
+                    isError: block["is_error"] as? Bool ?? false,
+                    parentToolUseId: parentToolUseId,
+                    metadata: metadata
+                )
+            default:
                 return nil
             }
-            guard let toolUseId = requiredString(block["tool_use_id"]) else {
-                return .error(message: "Malformed Claude event: missing tool_use_id in tool_result")
-            }
-
-            let output = (block["content"] as? String)
-                ?? (toolUseResult?["stdout"] as? String)
-                ?? ""
-
-            let metadata = toolUseResult.map {
-                ToolResultMetadata(
-                    stderr: $0["stderr"] as? String,
-                    interrupted: $0["interrupted"] as? Bool ?? false,
-                    isImage: $0["isImage"] as? Bool ?? false,
-                    noOutputExpected: $0["noOutputExpected"] as? Bool ?? false
-                )
-            }
-
-            return .toolResult(
-                id: toolUseId,
-                output: output,
-                isError: block["is_error"] as? Bool ?? false,
-                parentToolUseId: parentToolUseId,
-                metadata: metadata
-            )
         }
+    }
+
+    private func sanitizedUserMessageText(_ rawText: String?) -> (role: String, content: String)? {
+        guard let trimmedText = rawText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedText.isEmpty else {
+            return nil
+        }
+
+        var strippedText = trimmedText
+        if let startRange = strippedText.range(of: localCommandCaveatStartTag),
+           let endRange = strippedText.range(
+               of: localCommandCaveatEndTag,
+               range: startRange.upperBound..<strippedText.endIndex
+           ) {
+            strippedText.removeSubrange(endRange)
+            strippedText.removeSubrange(startRange)
+        }
+        strippedText = strippedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !strippedText.isEmpty else {
+            return nil
+        }
+
+        return (
+            role: "assistant",
+            content: strippedText
+        )
     }
 
     private func decodeStreamEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {

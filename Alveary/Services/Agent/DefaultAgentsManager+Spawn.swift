@@ -418,23 +418,14 @@ extension DefaultAgentsManager {
             return
         }
 
-        let shouldNotify: Bool
-        if case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
-           !isError,
-           permissionDenials.isEmpty {
-            shouldNotify = await MainActor.run {
-                let state = conversationState(for: conversationId)
-                return state.messageQueue.peekNext() == nil && state.inFlightQueuedMessageID == nil
-            }
-        } else {
-            shouldNotify = true
-        }
+        let notificationEvent = await notificationEvent(for: event, conversationId: conversationId)
+        let shouldNotify = await shouldNotify(for: event, notificationEvent: notificationEvent, conversationId: conversationId)
 
         guard shouldNotify else {
             return
         }
 
-        await notificationManager.handleEvent(event, conversationId: conversationId)
+        await notificationManager.handleEvent(notificationEvent, conversationId: conversationId)
     }
 
     private func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {
@@ -442,6 +433,46 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.finishAll()
+    }
+}
+
+private extension DefaultAgentsManager {
+    func notificationEvent(for event: ConversationEvent, conversationId: String) async -> ConversationEvent {
+        guard case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials) = event else {
+            return event
+        }
+
+        let payload = TokenEventPayload(
+            input: input,
+            output: output,
+            cacheRead: cacheRead,
+            isError: isError,
+            stopReason: stopReason,
+            permissionDenials: permissionDenials
+        )
+
+        return await MainActor.run {
+            let state = conversationState(for: conversationId)
+            return state.synthesizedSlashCommandFailureNotice(for: payload).map { .error(message: $0) } ?? event
+        }
+    }
+
+    func shouldNotify(
+        for event: ConversationEvent,
+        notificationEvent: ConversationEvent,
+        conversationId: String
+    ) async -> Bool {
+        guard notificationEvent == event,
+              case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
+              !isError,
+              permissionDenials.isEmpty else {
+            return true
+        }
+
+        return await MainActor.run {
+            let state = conversationState(for: conversationId)
+            return state.messageQueue.peekNext() == nil && state.inFlightQueuedMessageID == nil
+        }
     }
 }
 
