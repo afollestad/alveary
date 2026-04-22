@@ -71,7 +71,7 @@ extension ChatItemGrouper {
 
         let agents = pendingSubAgentIds.compactMap { activeSubAgents[$0] }
         if let firstAgent = agents.first {
-            items.append(.subAgentBlock(id: "subagents-\(firstAgent.id)", agents: agents))
+            appendTranscriptItem(.subAgentBlock(id: "subagents-\(firstAgent.id)", agents: agents))
         }
 
         pendingSubAgentIds = pendingSubAgentIds.filter { id in

@@ -103,6 +103,12 @@ struct TaskEntry: Identifiable, Equatable {
     }
 }
 
+extension TaskEntry {
+    var normalizedContentForMatching: String {
+        content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 @MainActor
 @Observable
 final class ChatItemGrouper {
@@ -116,7 +122,6 @@ final class ChatItemGrouper {
     var subAgentIdsReadyForEviction: Set<String> = []
     var evictedSubAgentIds: Set<String> = []
     var currentTasks: [TaskEntry] = []
-    var taskListBlockId: String?
     var promptToolIds: Set<String> = []
     var subAgentProgressRefreshTask: Task<Void, Never>?
 
@@ -159,7 +164,7 @@ final class ChatItemGrouper {
         guard !pendingGroupTools.isEmpty else {
             return
         }
-        items.append(.toolGroup(id: currentGroupId ?? UUID().uuidString, tools: pendingGroupTools))
+        appendTranscriptItem(.toolGroup(id: currentGroupId ?? UUID().uuidString, tools: pendingGroupTools))
     }
 
     func resetInFlightStateForNewSession() {
@@ -198,7 +203,34 @@ final class ChatItemGrouper {
     func appendLocalUserMessage(id: String, text: String) {
         flushGroup()
         flushSubAgents()
-        items.append(.userMessage(id: id, text: text))
+        appendTranscriptItem(.userMessage(id: id, text: text))
         processedCount += 1
+    }
+
+    func appendTranscriptItem(_ item: ChatItem) {
+        guard !item.isTaskListBlock,
+              let latestTaskListIndex = items.lastIndex(where: \.isTaskListBlock),
+              items[latestTaskListIndex].isIncompleteTaskListBlock else {
+            items.append(item)
+            return
+        }
+
+        items.insert(item, at: latestTaskListIndex)
+    }
+}
+
+private extension ChatItem {
+    var isTaskListBlock: Bool {
+        if case .taskListBlock = self {
+            return true
+        }
+        return false
+    }
+
+    var isIncompleteTaskListBlock: Bool {
+        guard case .taskListBlock(_, let tasks) = self else {
+            return false
+        }
+        return tasks.contains { $0.status != .completed }
     }
 }

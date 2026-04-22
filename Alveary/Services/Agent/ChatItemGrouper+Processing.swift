@@ -6,7 +6,7 @@ extension ChatItemGrouper {
         case "message" where event.role == "user":
             flushGroup()
             flushSubAgents()
-            items.append(.userMessage(id: event.id, text: event.content ?? ""))
+            appendTranscriptItem(.userMessage(id: event.id, text: event.content ?? ""))
         case "message" where event.role == "assistant":
             flushSubAgents()
             // When every tool in the open group has already produced a result, the
@@ -18,7 +18,7 @@ extension ChatItemGrouper {
             if pendingGroupTools.allSatisfy(\.isComplete) {
                 flushGroup()
             }
-            items.append(.assistantMessage(id: event.id, text: event.content ?? ""))
+            appendTranscriptItem(.assistantMessage(id: event.id, text: event.content ?? ""))
         case "tool_call":
             handleToolCall(event)
         case "tool_result":
@@ -26,11 +26,11 @@ extension ChatItemGrouper {
         case "error":
             flushGroup()
             flushSubAgents()
-            items.append(.error(id: event.id, message: event.content ?? "Unknown error"))
+            appendTranscriptItem(.error(id: event.id, message: event.content ?? "Unknown error"))
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             flushGroup()
             flushSubAgents()
-            items.append(.turnInterruptedNote(id: event.id))
+            appendTranscriptItem(.turnInterruptedNote(id: event.id))
         default:
             // `thinking` events are intentionally not rendered — they add little for the
             // user and clutter transcripts. The active-turn "Thinking…" spinner in
@@ -52,7 +52,6 @@ extension ChatItemGrouper {
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
         currentTasks = []
-        taskListBlockId = nil
         promptToolIds = []
     }
 
@@ -71,7 +70,7 @@ extension ChatItemGrouper {
             return
         }
 
-        items.append(.toolGroup(id: currentGroupId ?? UUID().uuidString, tools: pendingGroupTools))
+        appendTranscriptItem(.toolGroup(id: currentGroupId ?? UUID().uuidString, tools: pendingGroupTools))
         pendingGroupTools = []
         currentGroupId = nil
     }
@@ -148,11 +147,11 @@ private extension ChatItemGrouper {
     func handleTodoWriteToolCall(_ event: ConversationEventRecord) {
         flushGroup()
         currentTasks = parseTodoWriteInput(event.toolInput)
-
-        let blockId = taskListBlockId ?? "tasks-\(event.id)"
-        taskListBlockId = blockId
-        removeLastTaskListBlockIfNeeded()
-        items.append(.taskListBlock(id: blockId, tasks: currentTasks))
+        let blockId = "tasks-\(event.toolId ?? event.id)"
+        if replaceMatchingTaskListBlock(id: blockId, tasks: currentTasks) {
+            return
+        }
+        appendTranscriptItem(.taskListBlock(id: blockId, tasks: currentTasks))
     }
 
     func handleAskUserQuestionToolCall(_ event: ConversationEventRecord) {
@@ -161,7 +160,7 @@ private extension ChatItemGrouper {
 
         let toolId = event.toolId ?? event.id
         promptToolIds.insert(toolId)
-        items.append(
+        appendTranscriptItem(
             .promptBlock(
                 id: "prompt-\(toolId)",
                 prompt: PromptEntry(
@@ -184,16 +183,7 @@ private extension ChatItemGrouper {
             pendingGroupTools.append(pendingTool)
         case .standalone:
             flushGroup()
-            items.append(.standaloneTool(id: "tool-\(toolId)", tool: pendingTool))
-        }
-    }
-
-    func removeLastTaskListBlockIfNeeded() {
-        if let index = items.lastIndex(where: { item in
-            if case .taskListBlock = item { return true }
-            return false
-        }) {
-            items.remove(at: index)
+            appendTranscriptItem(.standaloneTool(id: "tool-\(toolId)", tool: pendingTool))
         }
     }
 
@@ -205,6 +195,43 @@ private extension ChatItemGrouper {
         return renderedToolEntry(for: toolId).map { tool in
             completedToolEntry(from: tool, event: event)
         }
+    }
+
+    func replaceMatchingTaskListBlock(id: String, tasks: [TaskEntry]) -> Bool {
+        guard let index = items.lastIndex(where: { $0.id == id }) else {
+            return replaceTaskListBlockMatchingTasks(tasks)
+        }
+        items[index] = .taskListBlock(id: id, tasks: tasks)
+        return true
+    }
+
+    func replaceTaskListBlockMatchingTasks(_ tasks: [TaskEntry]) -> Bool {
+        guard let index = items.lastIndex(where: { item in
+            if case .taskListBlock = item {
+                return true
+            }
+            return false
+        }),
+              case .taskListBlock(let id, let existingTasks) = items[index],
+              existingTasks.contains(where: { $0.status != .completed }),
+              taskListsMatchByContent(existingTasks, tasks) else {
+            return false
+        }
+
+        items[index] = .taskListBlock(id: id, tasks: tasks)
+        return true
+    }
+
+    func taskListsMatchByContent(_ lhs: [TaskEntry], _ rhs: [TaskEntry]) -> Bool {
+        let lhsContents = Set(lhs.map(\.normalizedContentForMatching).filter { !$0.isEmpty })
+        let rhsContents = Set(rhs.map(\.normalizedContentForMatching).filter { !$0.isEmpty })
+        guard !lhsContents.isEmpty, !rhsContents.isEmpty else {
+            return false
+        }
+
+        let sharedCount = lhsContents.intersection(rhsContents).count
+        let smallerCount = min(lhsContents.count, rhsContents.count)
+        return sharedCount == smallerCount || sharedCount >= 2
     }
 
     func renderedToolEntry(for toolId: String) -> ToolEntry? {
