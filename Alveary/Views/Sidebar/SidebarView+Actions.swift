@@ -47,12 +47,14 @@ extension SidebarView {
             return
         }
 
+        let previousDisplayName = dbThread.displayName()
+
         dbThread.name = newName
         dbThread.hasCustomName = true
 
         if let mainConversation = dbThread.conversations.first(where: { $0.isMain }),
-           mainConversation.customTitle == nil {
-            mainConversation.title = newName
+           mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousDisplayName) {
+            mainConversation.title = mainConversation.persistedTitle(from: newName)
         }
 
         do {

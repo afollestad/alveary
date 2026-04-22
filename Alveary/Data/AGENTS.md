@@ -2,7 +2,13 @@
 
 These instructions cover the SwiftData models under `Alveary/Data/`.
 
-- `AgentThread.name` stores the visible thread label, while `AgentThread.hasCustomName` distinguishes a manual rename from the default untitled state. Manual thread rename flows must set `hasCustomName`, and thread auto-naming should only fire while the thread is still effectively untitled (`!hasCustomName && trimmedName == "New thread"`). Conversation auto-titling is a separate rule: the first user message may set `Conversation.title` whenever `customTitle == nil`, even if the thread already has a non-default name. Thread rename cascades to the main conversation's `title` when it still has its default name (`customTitle == nil`); do not add a separate rename affordance for the sole conversation when only one exists.
+- Thread and main-conversation naming rules:
+    - **Store the visible thread label on `AgentThread.name`, manual-rename state on `hasCustomName`.** `hasCustomName` distinguishes a deliberate rename from the default untitled state and must be set to `true` by any manual rename flow.
+    - **Only auto-name a thread while it is effectively untitled.** The gate is `!hasCustomName && trimmedName == "New thread"` — a thread that has been manually renamed must never be overwritten by the auto-namer.
+    - **Auto-title a conversation whenever `customTitle == nil`, independently of the thread.** The first user message may set `Conversation.title` even if the thread already has a non-default name.
+    - **Cascade a thread rename into the main conversation's `title` when the user hasn't explicitly diverged it.** The predicate lives at `Conversation.shouldFollowThreadRename(previousThreadDisplayName:)` and fires either when `customTitle == nil` *or* when the conversation's visible `displayName()` still matches the thread's previous `displayName()`. The second clause is what keeps repeated thread renames in sync after the first cascade has populated the conversation's title.
+    - **Do not add a separate rename affordance for the sole conversation when only one exists.** The thread rename cascade covers it.
+    - **Read the main conversation's default display name from `Conversation.defaultDisplayName()`, which returns `AgentThread.untitledName` (`"New thread"`).** Do not hard-code `"Main"` as a fallback in rendering or comparison code.
 
 ## Persistence Invariants
 

@@ -70,7 +70,7 @@ extension ConversationViewModelTests {
         let third = Conversation(title: nil, provider: "claude", isMain: false, displayOrder: 2)
         let custom = Conversation(title: "Planning", provider: "claude", isMain: false, displayOrder: 2)
 
-        XCTAssertEqual(main.displayName(), "Main")
+        XCTAssertEqual(main.displayName(), AgentThread.untitledName)
         XCTAssertEqual(second.displayName(), "Conversation (2)")
         XCTAssertEqual(third.displayName(), "Conversation (3)")
         XCTAssertEqual(custom.displayName(), "Planning")
@@ -94,5 +94,31 @@ extension ConversationViewModelTests {
         XCTAssertEqual(untitled.persistedTitle(from: "  Investigate auth race  "), "Investigate auth race")
         XCTAssertEqual(renamed.persistedTitle(from: "Conversation (3)"), "Conversation (3)")
         XCTAssertNil(renamed.persistedTitle(from: "   "))
+    }
+
+    func testShouldFollowThreadRenameCascadesForUntitledAndMatchingTitlesOnly() {
+        let untitledFreshConversation = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
+        XCTAssertTrue(
+            untitledFreshConversation.shouldFollowThreadRename(previousThreadDisplayName: AgentThread.untitledName),
+            "Fresh main conversation should follow its thread's first rename"
+        )
+
+        let syncedConversation = Conversation(title: "Investigate auth race", provider: "claude", isMain: true, displayOrder: 0)
+        XCTAssertTrue(
+            syncedConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
+            "A conversation whose custom title still matches the thread's previous name should stay in sync"
+        )
+
+        let divergedConversation = Conversation(title: "Planning", provider: "claude", isMain: true, displayOrder: 0)
+        XCTAssertFalse(
+            divergedConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
+            "A conversation the user has intentionally renamed should not follow the thread rename"
+        )
+
+        let legacyUntitledConversation = Conversation(title: nil, provider: "claude", isMain: true, displayOrder: 0)
+        XCTAssertTrue(
+            legacyUntitledConversation.shouldFollowThreadRename(previousThreadDisplayName: "Investigate auth race"),
+            "A main conversation with no custom title should still follow renames, even when the thread's previous display name diverged"
+        )
     }
 }

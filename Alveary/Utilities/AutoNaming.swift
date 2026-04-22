@@ -75,7 +75,7 @@ extension Conversation {
 
     func defaultDisplayName() -> String {
         if isMain {
-            return "Main"
+            return AgentThread.untitledName
         }
 
         return "Conversation (\(displayOrder + 1))"
@@ -108,5 +108,12 @@ extension Conversation {
 
     func displayName() -> String {
         customTitle ?? defaultDisplayName()
+    }
+
+    // Thread rename cascades into the main conversation's title when the user hasn't explicitly
+    // diverged it — either it still uses its default fallback, or its visible name still matches
+    // the thread's previous visible name. See `Alveary/Data/AGENTS.md`.
+    func shouldFollowThreadRename(previousThreadDisplayName: String) -> Bool {
+        customTitle == nil || displayName() == previousThreadDisplayName
     }
 }
