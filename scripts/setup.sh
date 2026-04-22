@@ -36,7 +36,10 @@ xcodegen generate
 echo "Installing Git hooks..."
 "$repo_root/scripts/install-git-hooks.sh"
 
+green=$(printf '\033[32m')
+reset=$(printf '\033[0m')
+
 echo "Setup complete. Next steps:"
-echo "  1. If you want to view the project in XCode: open Alveary.xcodeproj"
-echo "  2. Re-run 'xcodegen generate' any time you change project structure or dependencies, then re-open Alveary.xcodeproj."
-echo "  3. Build with './scripts/build.sh', test with './scripts/test.sh', verify snapshots with './scripts/snapshots.sh verify', or launch with './scripts/run.sh'."
+echo "  1. If you want to view the project in XCode: ${green}open Alveary.xcodeproj${reset}"
+echo "  2. Re-run ${green}xcodegen generate${reset} any time you change project structure or dependencies, then re-open Alveary.xcodeproj."
+echo "  3. Build with ${green}./scripts/build.sh${reset}, test with ${green}./scripts/test.sh${reset}, verify snapshots with ${green}./scripts/snapshots.sh verify${reset}, or launch with ${green}./scripts/run.sh${reset}."
