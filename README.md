@@ -2,8 +2,7 @@
 
 _An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
-This app is a macOS agent orchestration tool designed like a swarm of bees working toward a common goal. Built from the ground up in native Swift—with help from the agents themselves!—it 
-takes inspiration from tools like Conductor and Codex. Rather than using agent APIs directly, it wraps around their CLI tooling.
+Alveary is a native macOS app for orchestrating AI coding agents in parallel. Inspired by Conductor and Codex, and built in Swift with help from the agents themselves.
 
 See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
 
@@ -11,7 +10,7 @@ See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
 
 ## Setup
 
-Alveary is developed as a macOS app with Xcode 26.3, XcodeGen, `xcbeautify`, SwiftLint, and `knit-cli`.
+Alveary is built with XcodeGen, `xcbeautify`, SwiftLint, and `knit-cli`.
 
 Run the bootstrap script once per clone:
 
@@ -19,8 +18,7 @@ Run the bootstrap script once per clone:
 ./scripts/setup.sh
 ```
 
-That script installs the required CLI tools with Homebrew and Mint, including `xcbeautify` for prettified `xcodebuild` output, generates `Alveary.xcodeproj`, and configures the repo-local Git 
-hooks so commits touching Swift files run `swiftlint` automatically.
+It installs the required CLI tools via Homebrew and Mint (including `xcbeautify` for prettified `xcodebuild` output), generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
 
 ## Build, Test, and Run
 
@@ -42,7 +40,7 @@ Run the app:
 ./scripts/run.sh
 ```
 
-The wrapper scripts use the same underlying build output path as the longer commands below.
+The wrapper scripts share the same build output path as the underlying `xcodebuild` commands.
 
 Run the full test suite:
 
@@ -71,7 +69,7 @@ Verify or record a focused snapshot test:
 ./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
 ```
 
-`./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests` when no test identifier is provided.
+When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
 
 # License
 
