@@ -1,6 +1,6 @@
 ## Chat Block Rendering
 
-These instructions cover transcript block view code under `Alveary/Views/Chat/Blocks/` — `ChatBlocks.swift` and its `ChatBlocks+*.swift` companions. Broader chat-specific conventions (transcript scrolling, composer chrome, interaction contracts) live in `Alveary/Views/Chat/AGENTS.md`.
+These instructions cover transcript block view code under `Alveary/Views/Chat/Blocks/` — `ChatBlocks.swift` and its `ChatBlocks+*.swift` companions. Broader chat-specific conventions live in sibling docs: bubble and composer rendering / interaction contracts in `Alveary/Views/Chat/AGENTS.md`; transcript scrolling and follow-mode in `Alveary/Views/Chat/Transcript/AGENTS.md`.
 
 ## Tool Transcript Blocks
 
