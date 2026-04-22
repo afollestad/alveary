@@ -30,10 +30,13 @@ enum AppMarkdownCodeBlockPalette {
     // block fill (~0.17). `.labelColor` foreground (`inlineChipForegroundNSColor`
     // below) supplies the contrasting text in both modes.
     //
-    // Note: the composer input field and queued-message rows use the accent-derived
+    // Note: the composer input field and queued-message rows use the accent-backed
     // palette below (`composerChipFillNSColor` / `composerChipForegroundNSColor`), not
     // this grayscale swatch — those surfaces are composer chrome and benefit from the
-    // brighter accent highlight to reinforce "this is live-input territory."
+    // accent-tinted highlight to reinforce "this is live-input territory." The
+    // foreground is `.labelColor`, not accent-derived, so the chip stays visually
+    // aligned with other `AppAccentFill.primary` surfaces (see the **Accent Color
+    // Surfaces** bullet in `Alveary/Views/Components/AGENTS.md`).
     //
     // Built with a raw `NSColor(name:dynamicProvider:)` rather than `.accentDerived(...)`
     // because the resolved value does not depend on the system accent. Cached as a single
@@ -71,19 +74,14 @@ enum AppMarkdownCodeBlockPalette {
     // that round-trip the value through `NSAttributedString` attributes.
     static let composerChipFillNSColor: NSColor = AppAccentFill.primaryNSColor
 
-    // Solid accent in dark mode reads well against the darker blended-accent fill;
-    // in light mode the same bright accent over a muted-accent fill loses contrast,
-    // so blend toward black. Deriving from `controlAccentColor` keeps the foreground
-    // in sync with the `AccentColor` asset — swapping the asset to a different hue
-    // produces a matching darkened foreground automatically.
-    static let composerChipForegroundNSColor: NSColor = .accentDerived { accent, appearance in
-        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-        case .darkAqua:
-            return accent
-        default:
-            return accent.blended(withFraction: 0.70, of: .black) ?? accent
-        }
-    }
+    // `.labelColor` is the canonical foreground pairing for `AppAccentFill.primary`
+    // surfaces (see the **Accent Color Surfaces** bullet in
+    // `Alveary/Views/Components/AGENTS.md`). User bubbles, selected sidebar rows, and
+    // selected tab chips all use it, so composer chips now read at the same weight as
+    // those surfaces instead of an accent-on-accent "all yellow" stack. White text in
+    // dark mode / black text in light mode — both legible against the muted-amber
+    // blended fill.
+    static let composerChipForegroundNSColor: NSColor = .labelColor
 
     // Neutral-gray chip fill used when the chip sits on an accent-tinted surface —
     // currently the user chat bubble is the only consumer (sidebar thread rows and

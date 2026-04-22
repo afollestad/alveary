@@ -124,6 +124,18 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    // The composer hosts this text view inside a SwiftUI card whose background is
+    // `.fill(.bar)` — an `NSVisualEffectView`-backed material. `NSTextView` opts into
+    // vibrancy by default, so `setFill()` / `NSBezierPath.fill()` calls in `draw(_:)`
+    // composite against that backdrop and shift the inline-code / slash / `@mention`
+    // chip fill away from the literal `NSColor`. User bubbles, primary buttons, and
+    // selected rows use pure SwiftUI shapes with `.fill(AppAccentFill.primary)` and
+    // don't go through vibrancy, so the same accent token renders visibly brighter
+    // over the composer than it does elsewhere. Forcing `allowsVibrancy` off keeps
+    // the AppKit-drawn chip fill aligned with every other `AppAccentFill.primary`
+    // surface. Editors not embedded in a material backdrop are unaffected.
+    override var allowsVibrancy: Bool { false }
+
     override func draw(_ dirtyRect: NSRect) {
         if string.isEmpty, !placeholder.isEmpty {
             drawPlaceholder(in: dirtyRect)
