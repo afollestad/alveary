@@ -27,6 +27,10 @@ extension ChatItemGrouper {
             flushGroup()
             flushSubAgents()
             items.append(.error(id: event.id, message: event.content ?? "Unknown error"))
+        case "stop" where ConversationInterruption.isDisplayMessage(event.content):
+            flushGroup()
+            flushSubAgents()
+            items.append(.turnInterruptedNote(id: event.id))
         default:
             // `thinking` events are intentionally not rendered — they add little for the
             // user and clutter transcripts. The active-turn "Thinking…" spinner in

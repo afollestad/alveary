@@ -312,8 +312,8 @@ private extension ConversationViewModel {
                 )
             )
 
-        case .stop:
-            return shouldPersistStopEvent()
+        case .stop(let message):
+            return shouldPersistStopEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             state.grouper.handleSubAgentControl(event)
@@ -351,7 +351,16 @@ private extension ConversationViewModel {
             state.lastPermissionDeniedToolNames = []
             state.showPermissionBanner = false
             state.turnState.endTurn()
-            return .persistSyntheticStop(message: "Interrupted")
+            return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
+        }
+
+        if state.lastTurnInterrupted, payload.isError, payload.permissionDenials.isEmpty {
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.lastPermissionDeniedToolNames = []
+            state.showPermissionBanner = false
+            state.turnState.endTurn()
+            return .dropTokens
         }
 
         state.isCancellingTurn = false
@@ -375,6 +384,9 @@ private extension ConversationViewModel {
         switch handleTokenEvent(payload) {
         case .persistTokens:
             return true
+        case .dropTokens:
+            scheduleSave()
+            return false
         case .persistSyntheticStop(let message):
             persistSyntheticStopRecord(message: message)
             return false
@@ -384,8 +396,8 @@ private extension ConversationViewModel {
         }
     }
 
-    func shouldPersistStopEvent() -> Bool {
-        if state.isCancellingTurn {
+    func shouldPersistStopEvent(message: String?) -> Bool {
+        if state.isCancellingTurn || ConversationInterruption.isDisplayMessage(message) {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.lastTurnInterrupted = true

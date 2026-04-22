@@ -267,6 +267,51 @@ final class ClaudeAdapterTests: XCTestCase {
         )
     }
 
+    func testDecodeRequestInterruptedUserTextEventBecomesStopEvent() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "user",
+            "message": [
+                "role": "user",
+                "content": [[
+                    "type": "text",
+                    "text": " [Request Interrupted by user] "
+                ]]
+            ]
+        ]
+
+        XCTAssertEqual(
+            adapter.decode(json),
+            [
+                .stop(message: ConversationInterruption.displayMessage)
+            ]
+        )
+    }
+
+    func testDecodeRequestInterruptedForToolUseUserTextEventBecomesStopEvent() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "user",
+            "message": [
+                "role": "user",
+                "content": [[
+                    "type": "text",
+                    "text": " [Request interrupted by user for tool use] "
+                ]]
+            ]
+        ]
+
+        XCTAssertEqual(
+            adapter.decode(json),
+            [
+                .stop(message: ConversationInterruption.displayMessage)
+            ]
+        )
+        XCTAssertTrue(
+            ConversationInterruption.isRequestInterruptedByUserReason("[Request interrupted by user for tool use]")
+        )
+    }
+
     func testSendMessageWritesStructuredJSONLineToStdin() throws {
         let adapter = ClaudeAdapter()
         let process = Process()

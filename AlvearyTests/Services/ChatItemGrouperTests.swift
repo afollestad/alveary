@@ -109,6 +109,31 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertTrue(grouper.items.isEmpty, "Thinking events should not be rendered")
     }
 
+    func testInterruptedStopEventRendersTurnInterruptedNote() {
+        let grouper = ChatItemGrouper()
+        let stop = ConversationEventRecord(
+            id: "stop-1",
+            conversationId: "conversation-1",
+            type: "stop",
+            content: ConversationInterruption.displayMessage
+        )
+
+        grouper.update(events: [stop])
+
+        XCTAssertEqual(grouper.items, [.turnInterruptedNote(id: "stop-1")])
+    }
+
+    func testInterruptedNoteLookupOnlyConsidersCurrentTurn() {
+        let items: [ChatItem] = [
+            .userMessage(id: "user-1", text: "First turn"),
+            .turnInterruptedNote(id: "stop-1"),
+            .userMessage(id: "user-2", text: "Second turn")
+        ]
+
+        XCTAssertFalse(items.hasInterruptedNoteAfterLatestUserMessage)
+        XCTAssertTrue((items + [.turnInterruptedNote(id: "stop-2")]).hasInterruptedNoteAfterLatestUserMessage)
+    }
+
     func testStandaloneAfterGroupClosesAndStartsNewGroup() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

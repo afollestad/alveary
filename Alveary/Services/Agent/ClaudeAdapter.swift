@@ -207,6 +207,9 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
                 guard let sanitizedText = sanitizedUserMessageText(block["text"] as? String) else {
                     return nil
                 }
+                if ConversationInterruption.isRequestInterruptedByUserMarker(sanitizedText.content) {
+                    return .stop(message: ConversationInterruption.displayMessage)
+                }
                 return .message(
                     role: sanitizedText.role,
                     content: sanitizedText.content,

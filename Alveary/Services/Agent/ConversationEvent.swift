@@ -1,6 +1,39 @@
 import Foundation
 import SwiftData
 
+enum ConversationInterruption {
+    static let requestInterruptedByUserMarker = "[Request interrupted by user]"
+    static let requestInterruptedByUserForToolUseMarker = "[Request interrupted by user for tool use]"
+    static let requestInterruptedByUserReason = "Request interrupted by user"
+    static let displayMessage = "Interrupted"
+
+    static func isRequestInterruptedByUserMarker(_ text: String) -> Bool {
+        isRequestInterruptedByUserText(text)
+    }
+
+    static func isRequestInterruptedByUserReason(_ text: String?) -> Bool {
+        guard let text else {
+            return false
+        }
+
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedText.caseInsensitiveCompare(requestInterruptedByUserReason) == .orderedSame ||
+            isRequestInterruptedByUserText(normalizedText)
+    }
+
+    static func isDisplayMessage(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == displayMessage
+    }
+
+    private static func isRequestInterruptedByUserText(_ text: String) -> Bool {
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [
+            requestInterruptedByUserMarker,
+            requestInterruptedByUserForToolUseMarker
+        ].contains { normalizedText.caseInsensitiveCompare($0) == .orderedSame }
+    }
+}
+
 struct ToolResultMetadata: Sendable, Equatable {
     let stderr: String?
     let interrupted: Bool

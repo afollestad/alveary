@@ -9,15 +9,38 @@ enum ChatItem: Identifiable, Equatable {
     case subAgentBlock(id: String, agents: [SubAgentEntry])
     case taskListBlock(id: String, tasks: [TaskEntry])
     case promptBlock(id: String, prompt: PromptEntry)
+    case turnInterruptedNote(id: String)
     case error(id: String, message: String)
 
     var id: String {
         switch self {
         case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
              .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
-             .promptBlock(let id, _), .error(let id, _):
+             .promptBlock(let id, _), .turnInterruptedNote(let id), .error(let id, _):
             id
         }
+    }
+
+    var isUserMessage: Bool {
+        if case .userMessage = self {
+            return true
+        }
+        return false
+    }
+
+    var isTurnInterruptedNote: Bool {
+        if case .turnInterruptedNote = self {
+            return true
+        }
+        return false
+    }
+}
+
+extension [ChatItem] {
+    var hasInterruptedNoteAfterLatestUserMessage: Bool {
+        let latestUserIndex = lastIndex(where: \.isUserMessage)
+        let searchStart = latestUserIndex.map { index(after: $0) } ?? startIndex
+        return self[searchStart...].contains(where: \.isTurnInterruptedNote)
     }
 }
 

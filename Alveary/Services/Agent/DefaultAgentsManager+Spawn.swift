@@ -406,15 +406,18 @@ extension DefaultAgentsManager {
         }
 
         switch event {
-        case .tokens(_, _, _, let isError, _, _, _, _):
-            updateStatus(isError ? .error : .idle, for: conversationId)
+        case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
+            updateStatus(
+                tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
+                for: conversationId
+            )
         case .error:
             updateStatus(.error, for: conversationId)
         default:
             break
         }
 
-        guard event.canTriggerNotification else {
+        guard canTriggerNotification(event) else {
             return
         }
 
@@ -433,56 +436,5 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.finishAll()
-    }
-}
-
-private extension DefaultAgentsManager {
-    func notificationEvent(for event: ConversationEvent, conversationId: String) async -> ConversationEvent {
-        guard case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials) = event else {
-            return event
-        }
-
-        let payload = TokenEventPayload(
-            input: input,
-            output: output,
-            cacheRead: cacheRead,
-            isError: isError,
-            stopReason: stopReason,
-            permissionDenials: permissionDenials
-        )
-
-        return await MainActor.run {
-            let state = conversationState(for: conversationId)
-            return state.synthesizedSlashCommandFailureNotice(for: payload).map { .error(message: $0) } ?? event
-        }
-    }
-
-    func shouldNotify(
-        for event: ConversationEvent,
-        notificationEvent: ConversationEvent,
-        conversationId: String
-    ) async -> Bool {
-        guard notificationEvent == event,
-              case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
-              !isError,
-              permissionDenials.isEmpty else {
-            return true
-        }
-
-        return await MainActor.run {
-            let state = conversationState(for: conversationId)
-            return state.messageQueue.peekNext() == nil && state.inFlightQueuedMessageID == nil
-        }
-    }
-}
-
-private extension ConversationEvent {
-    var canTriggerNotification: Bool {
-        switch self {
-        case .tokens, .stop, .notification, .error:
-            return true
-        default:
-            return false
-        }
     }
 }

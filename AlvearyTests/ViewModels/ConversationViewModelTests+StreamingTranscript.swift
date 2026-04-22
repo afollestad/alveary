@@ -319,7 +319,7 @@ extension ConversationViewModelTests {
             $0.conversationId == fixture.conversation.id
         }
         XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
-        XCTAssertEqual(persistedEvents.first?.content, "Interrupted")
+        XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
     func testCancellationDuringToolUseMarksTurnInterrupted() throws {
@@ -352,7 +352,41 @@ extension ConversationViewModelTests {
             $0.conversationId == fixture.conversation.id
         }
         XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
-        XCTAssertEqual(persistedEvents.first?.content, "Interrupted")
+        XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
+    }
+
+    func testExplicitInterruptedMarkerPersistsStopAndSuppressesTrailingErrorTokens() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(.stop(message: ConversationInterruption.displayMessage))
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 0,
+                cacheRead: 0,
+                isError: true,
+                stopReason: ConversationInterruption.requestInterruptedByUserReason,
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        guard case .turnInterruptedNote = fixture.viewModel.state.grouper.items.first else {
+            return XCTFail("Expected an interrupted transcript note")
+        }
+        XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 1)
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
+        XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
     func testCancellationDoesNotMaskRealTurnFailures() throws {

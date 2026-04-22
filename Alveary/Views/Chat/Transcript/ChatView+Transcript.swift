@@ -59,6 +59,10 @@ struct ChatTranscriptView: View {
     @State private var transcriptContentWidth: CGFloat = 0
     @State private var isProgressiveScrolling = false
 
+    private var shouldShowTransientInterruptedNote: Bool {
+        !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
@@ -105,6 +109,8 @@ struct ChatTranscriptView: View {
                         }
                     case .error(_, let message):
                         ErrorBanner(message: message)
+                    case .turnInterruptedNote:
+                        TurnInterruptedNote()
                     }
                 }
 
@@ -119,7 +125,8 @@ struct ChatTranscriptView: View {
                 }
 
                 if viewModel.state.lastTurnInterrupted,
-                   !viewModel.turnState.isActive {
+                   !viewModel.turnState.isActive,
+                   shouldShowTransientInterruptedNote {
                     TurnInterruptedNote()
                 }
             }

@@ -11,6 +11,7 @@ struct TokenEventPayload {
 
 enum TokenEventPersistence {
     case persistTokens
+    case dropTokens
     case persistSyntheticStop(message: String)
     case persistSyntheticAssistant(message: String)
 }
