@@ -355,6 +355,38 @@ extension ConversationViewModelTests {
         XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
+    func testPermissionDeniedToolUseShowsPermissionBannerOnly() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "tool_use",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")]
+            )
+        )
+
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertEqual(fixture.viewModel.state.lastPermissionDeniedToolNames, ["Bash"])
+        XCTAssertTrue(fixture.viewModel.state.showPermissionBanner)
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["tokens"])
+        XCTAssertEqual(persistedEvents.first?.stopReason, "tool_use")
+    }
+
     func testExplicitInterruptedMarkerPersistsStopAndSuppressesTrailingErrorTokens() throws {
         let fixture = try ConversationViewModelTestFixture()
 

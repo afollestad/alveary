@@ -364,9 +364,9 @@ private extension ConversationViewModel {
         }
 
         state.isCancellingTurn = false
-        if payload.isError {
+        if payload.isError || !payload.permissionDenials.isEmpty {
             state.lastTurnInterrupted = false
-            state.lastTurnError = payload.stopReason ?? "Agent turn failed"
+            state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
         }
         state.lastPermissionDeniedToolNames = Set(payload.permissionDenials.map { $0.toolName })
         state.showPermissionBanner = !payload.permissionDenials.isEmpty
