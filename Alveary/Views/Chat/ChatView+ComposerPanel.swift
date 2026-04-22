@@ -80,7 +80,7 @@ struct ChatComposerPanel: View {
                 ChangedFilesStrip(
                     files: diffViewModel.files,
                     onOpenDiff: { file in
-                        appState.isRightPaneVisible = true
+                        appState.showRightPane()
                         guard let directory = diffViewModel.activeDirectory else {
                             return
                         }

@@ -192,10 +192,13 @@ struct ContentView: View {
                         systemImage: "terminal"
                     )
                 }
-                .help(appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal")
+                .help(
+                    (appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal")
+                        + " (\(KeyboardShortcut.toggleTerminalPane.displayString))"
+                )
 
                 Button {
-                    appState.isRightPaneVisible.toggle()
+                    appState.toggleRightPane()
                 } label: {
                     Label(
                         appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
@@ -219,7 +222,7 @@ struct ContentView: View {
             splitVisibility = isVisible ? .all : .detailOnly
         }
         .onChange(of: splitVisibility) { _, visibility in
-            appState.isLeftPaneVisible = visibility != .detailOnly
+            appState.setLeftPaneVisible(visibility != .detailOnly)
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             updateDiffViewer(item: selection)
@@ -275,6 +278,11 @@ struct ContentView: View {
             // observer once the restored selection propagates; just sync the dock badge on launch.
             notificationManager.refreshBadgeCount()
         }
+        // Publish the terminal-toggle action so the ⇧⌘T menu item in
+        // `AlvearyApp.commands` runs the same `ensureSelection()`-then-flip
+        // sequence as the toolbar button — `terminalManager` is view-local
+        // `@State`, so the menu needs a `FocusedValue` hop to reach it.
+        .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
     }
 }
 

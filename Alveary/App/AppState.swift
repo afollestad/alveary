@@ -6,9 +6,9 @@ import SwiftData
 @Observable
 final class AppState {
     var selectedSidebarItem: SidebarItem?
-    var isRightPaneVisible = false
-    var isLeftPaneVisible = true
-    var isTerminalPaneVisible = false
+    private(set) var isRightPaneVisible = false
+    private(set) var isLeftPaneVisible = true
+    private(set) var isTerminalPaneVisible = false
     var pendingCommand: CommandRequest?
     var pendingDiffAction: DiffActionRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
@@ -47,6 +47,22 @@ final class AppState {
 
     func hideTerminalPane() {
         isTerminalPaneVisible = false
+    }
+
+    func toggleRightPane() {
+        isRightPaneVisible.toggle()
+    }
+
+    func showRightPane() {
+        isRightPaneVisible = true
+    }
+
+    func hideRightPane() {
+        isRightPaneVisible = false
+    }
+
+    func setLeftPaneVisible(_ isVisible: Bool) {
+        isLeftPaneVisible = isVisible
     }
 
     func requestDiffAction(message: String, conversationID: PersistentIdentifier) {

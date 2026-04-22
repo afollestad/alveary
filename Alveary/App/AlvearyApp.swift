@@ -38,9 +38,11 @@ struct AlvearyApp: App {
 
             CommandGroup(after: .toolbar) {
                 Button(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer") {
-                    appState.isRightPaneVisible.toggle()
+                    appState.toggleRightPane()
                 }
                 .keyboardShortcut(.toggleDiffViewer)
+
+                ToggleTerminalPaneCommandButton(appState: appState)
 
                 Divider()
             }
@@ -62,5 +64,27 @@ private struct NewConversationCommandButton: View {
         }
         .keyboardShortcut(.newConversation)
         .disabled(newConversationAction == nil)
+    }
+}
+
+/// Reads the root-scoped `toggleTerminalPaneAction` focused value so the ⇧⌘T
+/// menu item dispatches through the same `ensureSelection()`-then-flip helper
+/// as the toolbar button. The publisher is `ContentView`, which is always the
+/// main window's content, so the button is only disabled before the window
+/// mounts.
+private struct ToggleTerminalPaneCommandButton: View {
+    // Plain stored property, not `@Bindable`: the menu button only reads
+    // `appState.isTerminalPaneVisible` to flip its title and never creates a
+    // `$`-binding, and `@Observable` tracking in `body` already invalidates the
+    // view on change.
+    var appState: AppState
+    @FocusedValue(\.toggleTerminalPaneAction) private var toggleAction
+
+    var body: some View {
+        Button(appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal") {
+            toggleAction?()
+        }
+        .keyboardShortcut(.toggleTerminalPane)
+        .disabled(toggleAction == nil)
     }
 }

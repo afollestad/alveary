@@ -63,4 +63,8 @@ final class KeyboardShortcutDisplayStringTests: XCTestCase {
     func testToggleDiffViewerConstantMatches() {
         XCTAssertEqual(KeyboardShortcut.toggleDiffViewer.displayString, "⇧⌘D")
     }
+
+    func testToggleTerminalPaneConstantMatches() {
+        XCTAssertEqual(KeyboardShortcut.toggleTerminalPane.displayString, "⇧⌘T")
+    }
 }

@@ -176,6 +176,36 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.isTerminalPaneVisible)
     }
 
+    func testRightPaneVisibilityHelpersDriveProgrammaticDrawerState() {
+        let state = AppState()
+
+        XCTAssertFalse(state.isRightPaneVisible)
+
+        state.showRightPane()
+        XCTAssertTrue(state.isRightPaneVisible)
+
+        state.toggleRightPane()
+        XCTAssertFalse(state.isRightPaneVisible)
+
+        state.toggleRightPane()
+        XCTAssertTrue(state.isRightPaneVisible)
+
+        state.hideRightPane()
+        XCTAssertFalse(state.isRightPaneVisible)
+    }
+
+    func testLeftPaneVisibilityHelperMirrorsProvidedBoolean() {
+        let state = AppState()
+
+        XCTAssertTrue(state.isLeftPaneVisible)
+
+        state.setLeftPaneVisible(false)
+        XCTAssertFalse(state.isLeftPaneVisible)
+
+        state.setLeftPaneVisible(true)
+        XCTAssertTrue(state.isLeftPaneVisible)
+    }
+
     private func makeFixture(
         primaryConversations: [Conversation],
         secondaryConversations: [Conversation] = []
