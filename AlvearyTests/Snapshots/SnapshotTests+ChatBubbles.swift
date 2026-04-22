@@ -29,6 +29,22 @@ extension SnapshotTests {
         )
     }
 
+    func testAssistantBubbleWideTranscriptUsesAdaptiveWidthCap() {
+        assertMacSnapshot(
+            transcriptSizedAssistantBubble(width: 1_200),
+            size: CGSize(width: 1_200, height: 260),
+            named: "assistant_bubble_wide_transcript_uses_adaptive_width_cap"
+        )
+    }
+
+    func testAssistantBubbleCompactTranscriptFallsBackToNearEdgeWidth() {
+        assertMacSnapshot(
+            transcriptSizedAssistantBubble(width: 620),
+            size: CGSize(width: 620, height: 260),
+            named: "assistant_bubble_compact_transcript_falls_back_to_near_edge_width"
+        )
+    }
+
     // Regression guard: lines in a multi-line bubble must keep a uniform line height
     // regardless of whether a line contains an inline-code chip. An over-tall chip
     // placeholder previously expanded only the lines that contained chips, which was
@@ -224,5 +240,21 @@ extension SnapshotTests {
             size: CGSize(width: 620, height: 160),
             named: "user_bubble_inline_code_preserved_against_composer_chip"
         )
+    }
+
+    private func transcriptSizedAssistantBubble(width: CGFloat) -> some View {
+        AssistantBubble(
+            markdown: """
+            The lighthouse had stood on the cliff for nearly two hundred years, and in that time it had seen every kind
+            of weather the North Atlantic could muster. On clear nights, its beam swept the dark water in patient, even
+            arcs, each rotation a quiet reassurance to the fishing boats scattered along the coast. On storm nights, the
+            same beam fought through curtains of rain and spray, catching glimpses of whitecaps and gulls tumbling
+            sideways in the wind.
+            """
+        )
+        .environment(\.transcriptBubbleMaxWidth, adaptiveTranscriptBubbleMaxWidth(for: width))
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

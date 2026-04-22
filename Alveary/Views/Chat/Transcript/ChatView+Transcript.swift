@@ -143,7 +143,7 @@ struct ChatTranscriptView: View {
             // so `.scrollTargetLayout()` provides no benefit here; removing it
             // eliminates the drift. Don't add it back.
         }
-        .environment(\.transcriptBubbleMaxWidth, transcriptContentWidth > 0 ? transcriptContentWidth : .infinity)
+        .environment(\.transcriptBubbleMaxWidth, adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth))
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)
         .scrollPosition($scrollPosition, anchor: .bottom)

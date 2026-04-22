@@ -75,9 +75,8 @@ struct ToolGroupBlock: View {
                     HStack(alignment: .center, spacing: 10) {
                         DisclosureChevron(isExpanded: isExpanded)
 
-                        ToolStatusIndicator(
-                            isError: aggregateIsError,
-                            isComplete: aggregateIsComplete
+                        DebouncedToolStatusIndicator(
+                            phase: aggregateStatusPhase
                         )
 
                         Text(summary)
@@ -147,6 +146,10 @@ struct ToolGroupBlock: View {
 
     private var aggregateIsComplete: Bool {
         tools.allSatisfy(\.isComplete)
+    }
+
+    private var aggregateStatusPhase: ToolStatusPhase {
+        ToolStatusPhase(isError: aggregateIsError, isComplete: aggregateIsComplete)
     }
 
     /// Group tools by their category-level bucket (so Grep and Glob fold together), then

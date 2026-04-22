@@ -8,16 +8,33 @@ let chatBlockPadding: CGFloat = 14
 let chatVerticalPadding: CGFloat = 10
 let chatBlockCornerRadius: CGFloat = 12
 let toolDetailLeadingInset: CGFloat = 42
+let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
+let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
+let transcriptBubbleCompactTrailingInset: CGFloat = 24
 
 /// Shared expand/collapse easing for tool bubbles. Centralized here so all bubbles
 /// ease at the same speed and a future tuning happens in one place.
 let toolExpansionAnimation: Animation = .easeInOut(duration: 0.22)
 
-/// Propagates the transcript's current content width down to tool bubbles so they can
-/// cap their growth near the window edge instead of a fixed 720pt ceiling.
-/// `ChatTranscriptView` sets this via `.environment(\.transcriptBubbleMaxWidth, ...)`
-/// after measuring its scroll container. A value of `.infinity` means "unbounded" and
-/// is used as the fallback when the transcript hasn't yet reported a size.
+/// Wide transcripts look better when inbound bubbles stop around two-thirds of the
+/// available width, but once that cap would squeeze below a comfortable reading width
+/// we stop shrinking and only yield when the window itself gets tighter. On compact
+/// windows the cap bottoms out at the previous "near the trailing edge" behavior by
+/// leaving a 24pt gutter.
+func adaptiveTranscriptBubbleMaxWidth(for transcriptContentWidth: CGFloat) -> CGFloat {
+    guard transcriptContentWidth > 0 else {
+        return .infinity
+    }
+
+    let preferredWidth = transcriptContentWidth * transcriptBubblePreferredWidthRatio
+    let compactWidth = max(transcriptContentWidth - transcriptBubbleCompactTrailingInset, 0)
+    return min(compactWidth, max(preferredWidth, transcriptBubbleMinimumPreferredWidth))
+}
+
+/// Propagates the transcript's current width cap down to transcript bubbles.
+/// `ChatTranscriptView` computes it with `adaptiveTranscriptBubbleMaxWidth(for:)`
+/// after measuring the scroll container. A value of `.infinity` means "unbounded"
+/// and is used as the fallback when the transcript hasn't yet reported a size.
 private struct TranscriptBubbleMaxWidthKey: EnvironmentKey {
     static let defaultValue: CGFloat = .infinity
 }

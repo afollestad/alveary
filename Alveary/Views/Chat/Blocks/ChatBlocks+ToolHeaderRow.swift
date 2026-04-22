@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+private let toolGroupStatusIndicatorDebounce: Duration = .milliseconds(250)
+
 /// Parse a tool summary (e.g. ``"Read `~/foo.swift`"``) as Markdown and tint any
 /// inline-code runs so the backticked span visually reads as a code pill rather than
 /// a bare monospaced slice. Parsing + run-walking on every body evaluation showed up
@@ -70,6 +72,116 @@ struct ToolHeaderRow: View {
     }
 }
 
+enum ToolStatusPhase: Equatable {
+    case loading
+    case success
+    case error
+
+    init(isError: Bool, isComplete: Bool) {
+        if isError {
+            self = .error
+        } else if isComplete {
+            self = .success
+        } else {
+            self = .loading
+        }
+    }
+
+    var isTerminal: Bool {
+        self != .loading
+    }
+
+    var branchKey: Int {
+        switch self {
+        case .error:
+            return 0
+        case .success:
+            return 1
+        case .loading:
+            return 2
+        }
+    }
+}
+
+@MainActor
+final class ToolStatusIndicatorDebouncer: ObservableObject {
+    @Published private(set) var displayedPhase: ToolStatusPhase
+
+    private let debounceDelay: Duration
+    private var pendingTask: Task<Void, Never>?
+    private var pendingPhaseVersion = 0
+
+    init(initialPhase: ToolStatusPhase, debounceDelay: Duration = toolGroupStatusIndicatorDebounce) {
+        displayedPhase = initialPhase
+        self.debounceDelay = debounceDelay
+    }
+
+    deinit {
+        pendingTask?.cancel()
+    }
+
+    func update(to phase: ToolStatusPhase) {
+        pendingTask?.cancel()
+        pendingTask = nil
+        pendingPhaseVersion &+= 1
+
+        let phaseVersion = pendingPhaseVersion
+
+        guard phase != displayedPhase else {
+            return
+        }
+
+        guard phase.isTerminal else {
+            displayedPhase = .loading
+            return
+        }
+
+        pendingTask = Task { @MainActor [debounceDelay] in
+            do {
+                try await Task.sleep(for: debounceDelay)
+            } catch {
+                return
+            }
+
+            guard phaseVersion == pendingPhaseVersion else {
+                return
+            }
+
+            displayedPhase = phase
+            pendingTask = nil
+        }
+    }
+
+    func cancelPendingUpdate() {
+        pendingTask?.cancel()
+        pendingTask = nil
+    }
+}
+
+/// Multi-entry tool groups can briefly look "done" before another tool call streams
+/// into the group. Delay terminal icons slightly so the aggregate header stays on the
+/// spinner unless the group has actually settled.
+struct DebouncedToolStatusIndicator: View {
+    let phase: ToolStatusPhase
+
+    @StateObject private var debouncer: ToolStatusIndicatorDebouncer
+
+    init(phase: ToolStatusPhase) {
+        self.phase = phase
+        _debouncer = StateObject(wrappedValue: ToolStatusIndicatorDebouncer(initialPhase: phase))
+    }
+
+    var body: some View {
+        ToolStatusIndicator(phase: debouncer.displayedPhase)
+            .onChange(of: phase) { _, newValue in
+                debouncer.update(to: newValue)
+            }
+            .onDisappear {
+                debouncer.cancelPendingUpdate()
+            }
+    }
+}
+
 /// Status indicator shared by single-tool headers (`ToolHeaderRow`) and the aggregate
 /// multi-entry `ToolGroupBlock` header. Rotation for the in-progress spinner runs on
 /// Core Animation (NSProgressIndicator on macOS), so it does not re-evaluate the
@@ -91,15 +203,22 @@ struct ToolHeaderRow: View {
 /// transient state SwiftUI picks). The status branches should snap — a spinner
 /// appearing *as* a spinner, not fading in from an ambiguous initial state.
 struct ToolStatusIndicator: View {
-    let isError: Bool
-    let isComplete: Bool
+    let phase: ToolStatusPhase
+
+    init(phase: ToolStatusPhase) {
+        self.phase = phase
+    }
+
+    init(isError: Bool, isComplete: Bool) {
+        phase = ToolStatusPhase(isError: isError, isComplete: isComplete)
+    }
 
     var body: some View {
         Group {
-            if isError {
+            if phase == .error {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
-            } else if isComplete {
+            } else if phase == .success {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
@@ -132,9 +251,7 @@ struct ToolStatusIndicator: View {
     }
 
     private var branchKey: Int {
-        if isError { return 0 }
-        if isComplete { return 1 }
-        return 2
+        phase.branchKey
     }
 }
 
