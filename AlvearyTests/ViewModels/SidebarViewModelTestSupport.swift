@@ -104,7 +104,7 @@ struct SidebarTestFixture {
     }
 
     func requireThread(_ thread: AgentThread) throws -> AgentThread {
-        guard let dbThread = context.model(for: thread.persistentModelID) as? AgentThread else {
+        guard let dbThread = context.resolveThread(id: thread.persistentModelID) else {
             throw SidebarFixtureError.threadMissing
         }
         return dbThread
@@ -136,9 +136,14 @@ actor SidebarMockAgentsManager: AgentsManager {
     private let statuses = SidebarLockedStatusStore()
     private var destroyFailures: [String: MockError] = [:]
     private var recordedDestroyCalls: [String] = []
+    private var destroyObserver: (@Sendable @MainActor (String) -> Void)?
 
     func setDestroyError(_ error: MockError, for conversationId: String) {
         destroyFailures[conversationId] = error
+    }
+
+    func setDestroyObserver(_ observer: (@Sendable @MainActor (String) -> Void)?) {
+        destroyObserver = observer
     }
 
     func setStatus(_ status: ActivitySignal, for conversationId: String) {
@@ -157,6 +162,9 @@ actor SidebarMockAgentsManager: AgentsManager {
 
     func destroyRuntime(conversationId: String) async throws {
         recordedDestroyCalls.append(conversationId)
+        if let destroyObserver {
+            await destroyObserver(conversationId)
+        }
         if let error = destroyFailures[conversationId] {
             throw error
         }

@@ -156,7 +156,7 @@ struct ThreadDetailView: View {
 
 private extension ThreadDetailView {
     func renameConversation(_ conversation: Conversation, to newName: String) {
-        guard let dbConversation = uiModelContext.model(for: conversation.persistentModelID) as? Conversation else {
+        guard let dbConversation = uiModelContext.resolveConversation(id: conversation.persistentModelID) else {
             conversationActionError = "Couldn't rename conversation: it no longer exists"
             return
         }
@@ -172,7 +172,7 @@ private extension ThreadDetailView {
     }
 
     func createConversation() async {
-        guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
+        guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             conversationActionError = "Couldn't create conversation: thread no longer exists"
             return
         }
@@ -214,7 +214,7 @@ private extension ThreadDetailView {
     }
 
     func removeConversation(id: PersistentIdentifier, conversationIDString: String) async {
-        guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
+        guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             conversationActionError = "Couldn't remove conversation: thread no longer exists"
             return
         }
@@ -239,11 +239,11 @@ private extension ThreadDetailView {
 
             // Re-resolve model references after the await for the same reason — the
             // pre-await `dbThread` / `dbConversation` may have been invalidated.
-            guard let liveThread = uiModelContext.model(for: threadPersistentID) as? AgentThread else {
+            guard let liveThread = uiModelContext.resolveThread(id: threadPersistentID) else {
                 conversationActionError = nil
                 return
             }
-            guard let liveConversation = uiModelContext.model(for: id) as? Conversation else {
+            guard let liveConversation = uiModelContext.resolveConversation(id: id) else {
                 conversationActionError = nil
                 appState.repairSelectedConversationIfNeeded(for: liveThread)
                 return

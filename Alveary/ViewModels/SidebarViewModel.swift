@@ -136,9 +136,12 @@ final class SidebarViewModel {
     }
 
     func archiveThread(_ thread: AgentThread) async throws {
-        let dbThread = try requireThread(thread)
-        try await quiesceThreadConversations(dbThread)
-        notificationManager.forgetConversations(in: [dbThread])
+        let snapshot = try makeThreadArchiveSnapshot(thread)
+        try await quiesceConversationIDs(snapshot.conversationIDs)
+        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
+        guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
+            return
+        }
         dbThread.archivedAt = Date()
         try modelContext.save()
     }
@@ -151,77 +154,73 @@ final class SidebarViewModel {
     }
 
     func deleteThread(_ thread: AgentThread) async throws {
-        let dbThread = try requireThread(thread)
-        guard let projectPath = dbThread.project?.path else {
-            throw SidebarViewModelError.threadMissingParentProject
+        let snapshot = try makeThreadCleanupSnapshot(thread)
+        try await cleanupThreadResources(snapshot)
+        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
+        guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
+            return
         }
-
-        try await cleanupThreadResources(dbThread, projectPath: projectPath)
-
-        notificationManager.forgetConversations(in: [dbThread])
-
         modelContext.delete(dbThread)
         try modelContext.save()
     }
 
     func deleteProject(_ project: Project) async throws {
-        let dbProject = try requireProject(project)
-        let threads = Array(dbProject.threads)
-        let projectDirectoryExists = directoryExists(at: dbProject.path)
+        let snapshot = try makeProjectDeletionSnapshot(project)
+        let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
 
-        for thread in threads {
+        for thread in snapshot.threadSnapshots {
             try await cleanupThreadResources(
                 thread,
-                projectPath: dbProject.path,
                 skipGitCleanupWhenProjectMissing: !projectDirectoryExists
             )
         }
 
-        try await worktreeManager.removeAll(projectPath: dbProject.path)
+        try await worktreeManager.removeAll(projectPath: snapshot.projectPath)
 
-        notificationManager.forgetConversations(in: threads)
+        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
+        guard let dbProject = modelContext.resolveProject(id: snapshot.projectID) else {
+            return
+        }
         modelContext.delete(dbProject)
         try modelContext.save()
     }
 
-    func cleanupThreadResources(
-        _ thread: AgentThread,
-        projectPath: String,
+    private func cleanupThreadResources(
+        _ snapshot: ThreadCleanupSnapshot,
         skipGitCleanupWhenProjectMissing: Bool = false
     ) async throws {
-        try await quiesceThreadConversations(thread)
+        try await quiesceConversationIDs(snapshot.conversationIDs)
 
-        if skipGitCleanupWhenProjectMissing, !directoryExists(at: projectPath) {
+        if skipGitCleanupWhenProjectMissing, !directoryExists(at: snapshot.projectPath) {
             return
         }
 
-        for pendingCleanupBranch in thread.pendingCleanupBranches
-        where pendingCleanupBranch != thread.branch {
+        for pendingCleanupBranch in snapshot.pendingCleanupBranches
+        where pendingCleanupBranch != snapshot.branch {
             try await worktreeManager.deleteBranch(
-                projectPath: projectPath,
+                projectPath: snapshot.projectPath,
                 branch: pendingCleanupBranch
             )
         }
 
-        let requiresCompletedWorktreeCleanup = thread.useWorktree && thread.hasCompletedInitialSetup
-        if requiresCompletedWorktreeCleanup {
-            guard let worktreePath = thread.worktreePath,
-                  let branch = thread.branch else {
+        if snapshot.requiresCompletedWorktreeCleanup {
+            guard let worktreePath = snapshot.worktreePath,
+                  let branch = snapshot.branch else {
                 throw SidebarViewModelError.threadMissingDeletionMetadata
             }
             try await worktreeManager.remove(
-                projectPath: projectPath,
+                projectPath: snapshot.projectPath,
                 worktreePath: worktreePath,
                 branch: branch
             )
-        } else if let worktreePath = thread.worktreePath {
+        } else if let worktreePath = snapshot.worktreePath {
             try await worktreeManager.remove(
-                projectPath: projectPath,
+                projectPath: snapshot.projectPath,
                 worktreePath: worktreePath,
-                branch: thread.branch
+                branch: snapshot.branch
             )
-        } else if thread.branch != nil {
+        } else if snapshot.branch != nil {
             throw SidebarViewModelError.threadMissingDeletionMetadata
         }
     }
@@ -247,7 +246,7 @@ extension SidebarViewModel {
     }
 
     func requireThread(_ thread: AgentThread) throws -> AgentThread {
-        guard let dbThread = modelContext.model(for: thread.persistentModelID) as? AgentThread else {
+        guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID) else {
             throw SidebarViewModelError.threadMissing
         }
         return dbThread
@@ -257,11 +256,10 @@ extension SidebarViewModel {
         try await agentsManager.destroyRuntime(conversationId: conversationId)
     }
 
-    func quiesceThreadConversations(_ thread: AgentThread) async throws {
-        let conversationIds = thread.conversations.map(\.id)
+    private func quiesceConversationIDs(_ conversationIDs: [String]) async throws {
         var firstError: Error?
 
-        for conversationId in conversationIds {
+        for conversationId in conversationIDs {
             do {
                 try await quiesceConversation(conversationId)
             } catch {
@@ -387,6 +385,67 @@ extension SidebarViewModel {
         )
         return exists && isDirectory.boolValue
     }
+
+    private func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
+        let dbThread = try requireThread(thread)
+        return ThreadArchiveSnapshot(
+            threadID: dbThread.persistentModelID,
+            conversationIDs: dbThread.conversations.map(\.id)
+        )
+    }
+
+    private func makeThreadCleanupSnapshot(_ thread: AgentThread) throws -> ThreadCleanupSnapshot {
+        let dbThread = try requireThread(thread)
+        return try makeThreadCleanupSnapshot(from: dbThread)
+    }
+
+    private func makeThreadCleanupSnapshot(from thread: AgentThread) throws -> ThreadCleanupSnapshot {
+        guard let projectPath = thread.project?.path else {
+            throw SidebarViewModelError.threadMissingParentProject
+        }
+
+        return ThreadCleanupSnapshot(
+            threadID: thread.persistentModelID,
+            projectPath: projectPath,
+            conversationIDs: thread.conversations.map(\.id),
+            pendingCleanupBranches: thread.pendingCleanupBranches,
+            branch: thread.branch,
+            worktreePath: thread.worktreePath,
+            requiresCompletedWorktreeCleanup: thread.useWorktree && thread.hasCompletedInitialSetup
+        )
+    }
+
+    private func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
+        let dbProject = try requireProject(project)
+        return ProjectDeletionSnapshot(
+            projectID: dbProject.persistentModelID,
+            projectPath: dbProject.path,
+            conversationIDs: dbProject.threads.flatMap(\.conversations).map(\.id),
+            threadSnapshots: try dbProject.threads.map(makeThreadCleanupSnapshot(from:))
+        )
+    }
+}
+
+private struct ThreadArchiveSnapshot {
+    let threadID: PersistentIdentifier
+    let conversationIDs: [String]
+}
+
+private struct ThreadCleanupSnapshot {
+    let threadID: PersistentIdentifier
+    let projectPath: String
+    let conversationIDs: [String]
+    let pendingCleanupBranches: [String]
+    let branch: String?
+    let worktreePath: String?
+    let requiresCompletedWorktreeCleanup: Bool
+}
+
+private struct ProjectDeletionSnapshot {
+    let projectID: PersistentIdentifier
+    let projectPath: String
+    let conversationIDs: [String]
+    let threadSnapshots: [ThreadCleanupSnapshot]
 }
 
 private enum SidebarViewModelError: LocalizedError {

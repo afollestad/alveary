@@ -19,6 +19,13 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$build_first" -eq 1 ]; then
+  "$repo_root/scripts/build.sh"
+elif [ ! -d "$app_path" ]; then
+  echo "Alveary.app not found, building first..."
+  "$repo_root/scripts/build.sh"
+fi
+
 if pgrep -x "$app_name" >/dev/null 2>&1; then
   pkill -x "$app_name"
 
@@ -31,13 +38,6 @@ if pgrep -x "$app_name" >/dev/null 2>&1; then
   if pgrep -x "$app_name" >/dev/null 2>&1; then
     pkill -9 -x "$app_name"
   fi
-fi
-
-if [ "$build_first" -eq 1 ]; then
-  "$repo_root/scripts/build.sh"
-elif [ ! -d "$app_path" ]; then
-  echo "Alveary.app not found, building first..."
-  "$repo_root/scripts/build.sh"
 fi
 
 open "$app_path"

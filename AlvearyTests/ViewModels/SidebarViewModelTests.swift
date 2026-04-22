@@ -226,6 +226,30 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertTrue(try fixture.threadExists(thread))
     }
 
+    func testDeleteThreadTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project",
+            conversationIDs: ["main"]
+        )
+        let threadID = thread.persistentModelID
+
+        await fixture.agentsManager.setDestroyObserver { conversationId in
+            guard conversationId == "main",
+                  let dbThread = fixture.context.resolveThread(id: threadID) else {
+                return
+            }
+            fixture.context.delete(dbThread)
+            try? fixture.context.save()
+        }
+
+        try await fixture.viewModel.deleteThread(thread)
+
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
+    }
+
     func testDeleteProjectDeletesChildThreadsAndRemainingWorktreesBeforeDeletingModel() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
@@ -295,6 +319,33 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 1)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 1)
+    }
+
+    func testDeleteProjectTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let thread = AgentThread(name: "Primary", project: project)
+        thread.conversations = [
+            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
+        ]
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let projectID = project.persistentModelID
+
+        await fixture.agentsManager.setDestroyObserver { conversationId in
+            guard conversationId == "main",
+                  let dbProject = fixture.context.resolveProject(id: projectID) else {
+                return
+            }
+            fixture.context.delete(dbProject)
+            try? fixture.context.save()
+        }
+
+        try await fixture.viewModel.deleteProject(project)
+
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
+        XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
     }
 
     func testDeleteProjectSucceedsWhenProjectFolderIsAlreadyMissing() async throws {

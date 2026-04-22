@@ -38,6 +38,30 @@ extension SidebarViewModelTests {
         XCTAssertTrue(fixture.notificationManager.markReadCalls.isEmpty)
     }
 
+    func testArchiveThreadTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "P",
+            projectPath: "/tmp/p-archive-delete",
+            conversationIDs: ["main"]
+        )
+        let threadID = thread.persistentModelID
+
+        await fixture.agentsManager.setDestroyObserver { conversationId in
+            guard conversationId == "main",
+                  let dbThread = fixture.context.resolveThread(id: threadID) else {
+                return
+            }
+            fixture.context.delete(dbThread)
+            try? fixture.context.save()
+        }
+
+        try await fixture.viewModel.archiveThread(thread)
+
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
+    }
+
     func testRestoreThreadRefreshesBadgeCount() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(projectName: "P", projectPath: "/tmp/p-restore")

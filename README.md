@@ -40,6 +40,12 @@ Run the app:
 ./scripts/run.sh
 ```
 
+Force a fresh build before launching:
+
+```sh
+./scripts/run.sh -b
+```
+
 The wrapper scripts share the same build output path as the underlying `xcodebuild` commands.
 
 Run the full test suite:

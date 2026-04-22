@@ -36,6 +36,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     preBuildScripts:
       - name: Knit Code Generation
+        basedOnDependencyAnalysis: false
         script: |
           KNIT_CLI=""
           if command -v knit-cli &> /dev/null; then
@@ -54,10 +55,9 @@ targets:
           chmod u+w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
           python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Alveary/DI/Generated/KnitExtensions.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
           chmod a-w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
-        inputFiles: []
-        outputFiles: []
     postBuildScripts:
       - name: SwiftLint
+        basedOnDependencyAnalysis: false
         script: |
           if command -v swiftlint &> /dev/null; then
             swiftlint
