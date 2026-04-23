@@ -18,13 +18,13 @@
       "hidden" : false,
       "layers" : [
         {
-          "image-name" : "robotic_bee_icon.png",
-          "name" : "robotic_bee_icon",
+          "image-name" : "ig_05e07d1f139002250169e9a86e2b5c8198a2014816003df757.png",
+          "name" : "main",
           "position" : {
-            "scale" : 0.9,
+            "scale" : 0.95,
             "translation-in-points" : [
-              0,
-              0
+              -1.1368683772161603e-13,
+              -12.3515625
             ]
           }
         }
