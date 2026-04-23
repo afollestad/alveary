@@ -1,10 +1,15 @@
 import SwiftUI
 
 struct SidebarProjectRow: View {
+    static let horizontalPadding: CGFloat = 6
+    static let leadingIconWidth: CGFloat = 16
+    static let leadingIconFontSize: CGFloat = 11
+    static let leadingSpacing: CGFloat = 10
+    static let projectNameLeadingInset: CGFloat = horizontalPadding + leadingIconWidth + leadingSpacing
+
     let project: Project
     let isExpanded: Bool
     let isSelected: Bool
-    let isActive: Bool
     let onToggleExpanded: () -> Void
     let onActivate: () -> Void
     let onCreateThread: () -> Void
@@ -13,14 +18,13 @@ struct SidebarProjectRow: View {
     @State private var isHoveringCreateThread = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Self.leadingSpacing) {
             Button(action: onToggleExpanded) {
-                Image(systemName: leadingSymbolName)
-                    .font(leadingSymbolFont)
-                    .foregroundStyle(Color.primary)
-                    .frame(width: 16, height: 16)
+                Image(systemName: "folder")
+                    .font(.system(size: Self.leadingIconFontSize, weight: .medium))
+                    .foregroundStyle(subtleForegroundColor)
+                    .frame(width: Self.leadingIconWidth, height: Self.leadingIconWidth)
                     .contentShape(Rectangle())
-                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(toggleAccessibilityLabel)
@@ -28,15 +32,10 @@ struct SidebarProjectRow: View {
             ZStack(alignment: .trailing) {
                 Button(action: onActivate) {
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(project.name)
-                                .font(.headline)
-
-                            Text(projectSubtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                        Text(project.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(subtleForegroundColor)
+                            .lineLimit(1)
 
                         Spacer(minLength: 0)
                     }
@@ -73,8 +72,14 @@ struct SidebarProjectRow: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .padding(.horizontal, Self.horizontalPadding)
+        .background {
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onActivate)
+        }
         .onHover { isHovering in
             withAnimation(.easeInOut(duration: 0.12)) {
                 self.isHovering = isHovering
@@ -87,31 +92,11 @@ struct SidebarProjectRow: View {
         .animation(.easeInOut(duration: 0.12), value: isHovering)
     }
 
-    private var showDisclosure: Bool {
-        isHovering || isActive
-    }
-
-    private var leadingSymbolName: String {
-        showDisclosure ? disclosureSymbolName : "folder"
-    }
-
-    private var leadingSymbolFont: Font {
-        showDisclosure ? .caption.weight(.semibold) : .body
-    }
-
-    private var disclosureSymbolName: String {
-        isExpanded ? "chevron.down" : "chevron.right"
+    private var subtleForegroundColor: Color {
+        Color.primary.opacity(isSelected ? 0.76 : 0.62)
     }
 
     private var toggleAccessibilityLabel: String {
         isExpanded ? "Collapse \(project.name)" : "Expand \(project.name)"
-    }
-
-    private var projectSubtitle: String {
-        if project.isGitRepository {
-            project.baseRef ?? CanonicalPath.abbreviateHomeDirectory(project.path)
-        } else {
-            "local"
-        }
     }
 }

@@ -58,13 +58,10 @@ struct SidebarView: View {
                         let isExpanded = expandedProjects.contains(project.path)
                         let activeProjectThreads = activeThreads(for: project)
 
-                        let isProjectActive = isProjectActive(project, selection: appState.selectedSidebarItem)
-
                         SidebarProjectRow(
                             project: project,
                             isExpanded: isExpanded,
                             isSelected: appState.selectedSidebarItem == .project(project),
-                            isActive: isProjectActive,
                             onToggleExpanded: {
                                 toggleExpansion(for: project.path, in: &expandedProjects)
                                 claimSidebarFocus()
@@ -90,6 +87,15 @@ struct SidebarView: View {
                         }
 
                         if isExpanded {
+                            if activeProjectThreads.isEmpty {
+                                Text("No threads")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 6.75)
+                                    .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
+                                    .allowsHitTesting(false)
+                            }
+
                             ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
                                 let isSelected = appState.selectedSidebarItem == .thread(thread)
                                 SidebarThreadRow(

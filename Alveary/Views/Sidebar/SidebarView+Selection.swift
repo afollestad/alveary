@@ -5,17 +5,6 @@ extension SidebarView {
         viewModel.activeThreads(for: project)
     }
 
-    func isProjectActive(_ project: Project, selection: SidebarItem?) -> Bool {
-        switch selection {
-        case .project(let selected):
-            return selected.path == project.path
-        case .thread(let thread):
-            return uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path == project.path
-        default:
-            return false
-        }
-    }
-
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
         Label(title, systemImage: systemImage)
             .frame(maxWidth: .infinity, alignment: .leading)

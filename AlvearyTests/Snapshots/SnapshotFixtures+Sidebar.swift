@@ -6,6 +6,7 @@ import XCTest
 struct SnapshotSidebarFixture {
     let fixture: SidebarTestFixture
     let project: Project
+    let emptyProject: Project
     let activeThread: AgentThread
 }
 
@@ -35,6 +36,7 @@ func makeSidebarSnapshotFixture() async throws -> SnapshotSidebarFixture {
     return SnapshotSidebarFixture(
         fixture: fixture,
         project: project,
+        emptyProject: secondaryProject,
         activeThread: activeThread
     )
 }
