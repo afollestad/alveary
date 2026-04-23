@@ -13,6 +13,7 @@ final class ConversationEventRecord {
     var toolId: String?
     var toolName: String?
     var toolInput: String?
+    var toolApprovalStatus: String?
     var toolOutput: String?
     var toolOutputStderr: String?
     var toolOutputInterrupted: Bool
@@ -40,6 +41,7 @@ final class ConversationEventRecord {
         toolId: String? = nil,
         toolName: String? = nil,
         toolInput: String? = nil,
+        toolApprovalStatus: String? = nil,
         toolOutput: String? = nil,
         toolOutputStderr: String? = nil,
         toolOutputInterrupted: Bool = false,
@@ -73,6 +75,7 @@ final class ConversationEventRecord {
         self.toolId = toolId
         self.toolName = toolName
         self.toolInput = toolInput
+        self.toolApprovalStatus = toolApprovalStatus
         self.toolOutput = toolOutput
         self.toolOutputStderr = toolOutputStderr
         self.toolOutputInterrupted = toolOutputInterrupted

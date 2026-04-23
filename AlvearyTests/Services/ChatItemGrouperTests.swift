@@ -353,12 +353,34 @@ final class ChatItemGrouperTests: XCTestCase {
             return XCTFail("Expected the open Read group to close before approval")
         }
         XCTAssertEqual(tools.map(\.id), ["r1"])
-        guard case .toolApproval(_, let request) = grouper.items[1] else {
+        guard case .toolApproval(_, let request, let status) = grouper.items[1] else {
             return XCTFail("Expected a standalone tool approval block")
         }
         XCTAssertEqual(request.sessionId, "session-123")
         XCTAssertEqual(request.toolUseId, "tool-1")
         XCTAssertEqual(request.toolName, "Bash")
+        XCTAssertNil(status)
+    }
+
+    func testToolApprovalCarriesPersistedResolutionStatus() {
+        let grouper = ChatItemGrouper()
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: "conversation-1",
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"swift test\"}",
+            toolApprovalStatus: ToolApprovalStatus.approved.rawValue
+        )
+
+        grouper.update(events: [approval])
+
+        guard case .toolApproval(_, _, let status) = grouper.items.first else {
+            return XCTFail("Expected a standalone tool approval block")
+        }
+        XCTAssertEqual(status, .approved)
     }
 
     func testSequentialAppendKeepsGroupableToolsInSameGroup() {

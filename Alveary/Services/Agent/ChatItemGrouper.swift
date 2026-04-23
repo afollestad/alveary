@@ -9,7 +9,7 @@ enum ChatItem: Identifiable, Equatable {
     case subAgentBlock(id: String, agents: [SubAgentEntry])
     case taskListBlock(id: String, tasks: [TaskEntry])
     case promptBlock(id: String, prompt: PromptEntry)
-    case toolApproval(id: String, approval: ToolApprovalRequest)
+    case toolApproval(id: String, approval: ToolApprovalRequest, status: ToolApprovalStatus?)
     case turnInterruptedNote(id: String)
     case error(id: String, message: String)
 
@@ -17,7 +17,7 @@ enum ChatItem: Identifiable, Equatable {
         switch self {
         case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
              .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
-             .promptBlock(let id, _), .toolApproval(let id, _), .turnInterruptedNote(let id), .error(let id, _):
+             .promptBlock(let id, _), .toolApproval(let id, _, _), .turnInterruptedNote(let id), .error(let id, _):
             id
         }
     }

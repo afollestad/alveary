@@ -20,6 +20,7 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
 - Streamed top-level `type: "user"` text should surface as an assistant transcript message, not a user bubble. The real user prompt is already inserted locally; any streamed user-text payload is runtime output and should be treated as assistant content after caveat stripping.
 - Claude tool deferral is a normal turn stop:
     - **Persist the approval request.** Decode `stop_reason == "tool_deferred"` plus `deferred_tool_use` into a concise `tool_approval` record so restart can restore the pending action.
+    - **Persist final approval state on the same row.** Once a resumed deferred turn resolves, write the final approve/deny status to the associated `tool_approval` record; do not add sidecar approval state.
     - **Do not treat it as an error.** End the active turn without setting `lastTurnError`; queued messages must remain paused until the approval resumes and finishes the deferred turn.
     - **Resume same session.** Approval/denial records a one-shot hook decision keyed by Claude `session_id + tool_use_id`, then respawns the same session without forking.
 

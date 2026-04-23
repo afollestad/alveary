@@ -77,10 +77,12 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     }
 }
 
-enum ToolApprovalStatus: Sendable, Equatable {
+enum ToolApprovalStatus: String, Sendable, Equatable {
     case pending
     case approving
     case denying
+    case approved
+    case denied
 }
 
 struct PendingToolApproval: Sendable, Equatable {

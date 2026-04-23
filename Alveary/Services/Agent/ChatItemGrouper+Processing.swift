@@ -201,7 +201,8 @@ private extension ChatItemGrouper {
                     toolUseId: toolUseId,
                     toolName: event.toolName ?? "Tool",
                     toolInput: event.toolInput ?? "{}"
-                )
+                ),
+                status: event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:))
             )
         )
     }

@@ -2,10 +2,10 @@ import SwiftUI
 
 extension ChatTranscriptView {
     @ViewBuilder
-    func toolApprovalBlock(_ approval: ToolApprovalRequest) -> some View {
+    func toolApprovalBlock(_ approval: ToolApprovalRequest, persistedStatus: ToolApprovalStatus?) -> some View {
         ToolApprovalBlock(
             approval: approval,
-            status: approvalStatus(for: approval)
+            status: approvalStatus(for: approval, persistedStatus: persistedStatus)
         ) {
             resolveToolApproval(approval, approve: true)
         } onDeny: {
@@ -13,13 +13,13 @@ extension ChatTranscriptView {
         }
     }
 
-    func approvalStatus(for approval: ToolApprovalRequest) -> ToolApprovalStatus? {
-        guard let pending = viewModel.state.pendingToolApproval,
-              pending.request.sessionId == approval.sessionId,
-              pending.request.toolUseId == approval.toolUseId else {
-            return nil
+    func approvalStatus(for approval: ToolApprovalRequest, persistedStatus: ToolApprovalStatus?) -> ToolApprovalStatus? {
+        if let pending = viewModel.state.pendingToolApproval,
+           pending.request.sessionId == approval.sessionId,
+           pending.request.toolUseId == approval.toolUseId {
+            return pending.status
         }
-        return pending.status
+        return persistedStatus
     }
 
     func resolveToolApproval(_ approval: ToolApprovalRequest, approve: Bool) {

@@ -38,21 +38,25 @@ struct ToolApprovalBlock: View {
             }
 
             HStack(spacing: 8) {
-                Button {
-                    onApprove()
-                } label: {
-                    actionLabel(title: approveTitle, systemImage: approveIcon)
+                if !isDenied {
+                    Button {
+                        onApprove()
+                    } label: {
+                        actionLabel(title: approveTitle, systemImage: approveIcon)
+                    }
+                    .primaryActionButtonStyle()
+                    .disabled(actionsAreDisabled)
                 }
-                .primaryActionButtonStyle()
-                .disabled(actionsAreDisabled)
 
-                Button {
-                    onDeny()
-                } label: {
-                    actionLabel(title: denyTitle, systemImage: denyIcon)
+                if !isApproved {
+                    Button {
+                        onDeny()
+                    } label: {
+                        actionLabel(title: denyTitle, systemImage: denyIcon)
+                    }
+                    .secondaryActionButtonStyle()
+                    .disabled(actionsAreDisabled)
                 }
-                .secondaryActionButtonStyle()
-                .disabled(actionsAreDisabled)
             }
             .controlSize(.small)
         }
@@ -62,19 +66,27 @@ struct ToolApprovalBlock: View {
     }
 
     private var approveTitle: String {
-        status == .approving ? "Approving" : "Approve"
+        isApproved ? "Approved" : "Approve"
     }
 
     private var denyTitle: String {
-        status == .denying ? "Denying" : "Deny"
+        isDenied ? "Denied" : "Deny"
     }
 
     private var approveIcon: String {
-        status == .approving ? "hourglass" : "checkmark"
+        "checkmark"
     }
 
     private var denyIcon: String {
-        status == .denying ? "hourglass" : "xmark"
+        "xmark"
+    }
+
+    private var isApproved: Bool {
+        status == .approving || status == .approved
+    }
+
+    private var isDenied: Bool {
+        status == .denying || status == .denied
     }
 
     private func actionLabel(title: String, systemImage: String) -> some View {

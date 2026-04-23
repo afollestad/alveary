@@ -15,6 +15,9 @@ These instructions cover the SwiftData models under `Alveary/Data/`.
 These are persistence contracts backed by SwiftData fields. Treat them as hard constraints unless the work explicitly includes a coordinated migration.
 
 - Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume. Restoring a thread should regenerate that summary from saved `ConversationEventRecord`s, hydrate it back into `ConversationState.stagedContext` when the conversation view model is recreated, send it only through the existing staged-context path on the next outbound message, and clear the persisted field when the user dismisses it or that send succeeds.
+- Tool approval resolution belongs on the associated transcript row:
+    - **Use the existing row.** Store approve/deny state on the `tool_approval` `ConversationEventRecord` via `toolApprovalStatus`.
+    - **Do not add a separate model.** Keeping status on the transcript row preserves the associated button state across rebuilds and app restarts.
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
 - `AgentThread.model` is the per-thread model override. It mirrors the `permissionMode`/`effort` pattern for thread-scoped picker state, but with a different nil semantic:
     - **Store `nil` for "use the provider's default model".** The composer picker's `"default"` value is a UI sentinel that `applyModelChange` translates to `nil` before persisting — never write the literal string `"default"` into `AgentThread.model`, or the adapter will pass `--model=default` to the CLI.

@@ -41,6 +41,7 @@ extension ConversationViewModel {
             return
         }
 
+        persistResolvedToolApproval(pendingApproval)
         state.pendingToolApproval = nil
     }
 }
@@ -99,6 +100,47 @@ private extension ConversationViewModel {
         state.activeSubscriptionToken = nil
     }
 
+    func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval) {
+        guard let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
+            return
+        }
+        let conversationID = conversation.id
+        let toolUseId = pendingApproval.request.toolUseId
+        let sessionId = pendingApproval.request.sessionId
+        let approvalRecords = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.type == "tool_approval" &&
+                        $0.toolId == toolUseId &&
+                        $0.content == sessionId
+                },
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+        )) ?? []
+
+        guard let approvalRecord = approvalRecords.first else {
+            return
+        }
+        approvalRecord.toolApprovalStatus = resolvedStatus.rawValue
+        do {
+            try modelContext.save()
+        } catch {
+            // Best-effort: the live pending state already showed the chosen action.
+        }
+    }
+
+    func resolvedStatus(for status: ToolApprovalStatus) -> ToolApprovalStatus? {
+        switch status {
+        case .approving, .approved:
+            return .approved
+        case .denying, .denied:
+            return .denied
+        case .pending:
+            return nil
+        }
+    }
+
     func latestUnresolvedToolApproval() -> ToolApprovalRequest? {
         let conversationID = conversation.id
         guard let approvalRecord = latestToolApprovalRecord(conversationID: conversationID) else {
@@ -106,6 +148,9 @@ private extension ConversationViewModel {
         }
 
         let toolUseId = approvalRecord.toolId ?? approvalRecord.id
+        guard approvalRecord.toolApprovalStatus == nil else {
+            return nil
+        }
         guard !hasResolutionAfterApproval(conversationID: conversationID, toolUseId: toolUseId, approvalRecord: approvalRecord) else {
             return nil
         }
