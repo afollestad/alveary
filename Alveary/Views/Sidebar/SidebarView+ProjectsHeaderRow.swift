@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct SidebarProjectsHeaderRow: View {
+    private static let actionButtonSize: CGFloat = 24
+    private static let trailingPadding: CGFloat = 16
+
     @State private var isHoveringAddProject = false
 
     let onAddProject: () -> Void
@@ -18,7 +21,7 @@ struct SidebarProjectsHeaderRow: View {
                 Image(systemName: "folder.badge.plus")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary.opacity(isHoveringAddProject ? 0.95 : 0.8))
-                    .frame(width: 24, height: 24)
+                    .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)
                     .background(
                         Circle()
                             .fill(Color.primary.opacity(isHoveringAddProject ? 0.12 : 0))
@@ -35,7 +38,7 @@ struct SidebarProjectsHeaderRow: View {
             .help("Add Project... (\(KeyboardShortcut.addProject.displayString))")
         }
         .padding(.leading, 8)
-        .padding(.trailing, 16)
+        .padding(.trailing, Self.trailingPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)
     }

@@ -3,6 +3,8 @@ import SwiftUI
 
 struct SidebarThreadRow: View {
     private static let statusIndicatorSize: CGFloat = 8
+    private static let trailingStatusPadding = SidebarProjectRow.horizontalPadding
+        + statusIndicatorSize / 2
 
     let thread: AgentThread
     let status: ThreadStatus
@@ -23,9 +25,8 @@ struct SidebarThreadRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            statusIndicator
+            Color.clear
                 .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
-                .offset(x: -3)
 
             if isEditing {
                 TextField("Thread name", text: $editText)
@@ -40,8 +41,13 @@ struct SidebarThreadRow: View {
             }
 
             Spacer(minLength: 0)
+
+            statusIndicator
+                .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
         }
         .padding(.vertical, 6)
+        .padding(.trailing, Self.trailingStatusPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: isEditing) { _, editing in
             if editing {
                 editText = displayName
