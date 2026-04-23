@@ -36,9 +36,7 @@ struct MCPScreen: View {
                 }
 
                 if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {
-                    MCPIntroCard {
-                        formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
-                    }
+                    NoMCPServersAddedLabel()
                 }
 
                 if !viewModel.filteredServers.isEmpty {
@@ -130,6 +128,16 @@ private extension MCPScreen {
     }
 }
 
+private struct NoMCPServersAddedLabel: View {
+    var body: some View {
+        Text("No MCP servers added")
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 16)
+    }
+}
+
 private func makeServerRemovalConfirmation(
     for server: MCPServer,
     confirm: @escaping () -> Void
@@ -198,6 +206,7 @@ private struct RecommendedMCPCard: View {
             HStack {
                 Text(server.template.name)
                     .font(.headline)
+                    .lineLimit(2)
 
                 Spacer()
 
@@ -218,7 +227,7 @@ private struct RecommendedMCPCard: View {
                 .primaryActionButtonStyle()
         }
         .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 220, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))

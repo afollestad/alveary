@@ -19,6 +19,7 @@ struct SkillCard: View {
                     } ?? "Local")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
 
                 Spacer()
@@ -45,6 +46,8 @@ struct SkillCard: View {
                     .foregroundStyle(.secondary)
             }
 
+            Spacer(minLength: 0)
+
             HStack {
                 Button("Details", action: onOpen)
                     .secondaryActionButtonStyle()
@@ -59,7 +62,7 @@ struct SkillCard: View {
             }
         }
         .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 220, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))

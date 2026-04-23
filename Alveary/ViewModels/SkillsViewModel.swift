@@ -6,10 +6,12 @@ import Observation
 final class SkillsViewModel {
     private let skillsService: any SkillsService
     private var searchTask: Task<Void, Never>?
+    private var searchGeneration = 0
 
     private(set) var installed: [Skill] = []
     private(set) var catalog: [Skill] = []
     private(set) var searchResults: [Skill] = []
+    private(set) var isSearchingSkillsSh = false
 
     var searchQuery: String = "" {
         didSet {
@@ -23,6 +25,14 @@ final class SkillsViewModel {
 
     var filteredCatalog: [Skill] {
         filter(skills: catalog)
+    }
+
+    var filteredRecommended: [Skill] {
+        filteredCatalog.filter { !$0.isInstalled }
+    }
+
+    var searchDisplayResults: [Skill] {
+        uniqueSkills(filteredInstalled + filteredRecommended + searchResults)
     }
 
     var hasActiveSearch: Bool {
@@ -47,25 +57,32 @@ final class SkillsViewModel {
 
     func search() {
         searchTask?.cancel()
+        searchGeneration += 1
+        isSearchingSkillsSh = false
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard query.count >= 2 else {
             searchResults = []
             return
         }
 
+        let generation = searchGeneration
         searchTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled,
-                  let self else {
+                  let self,
+                  self.searchGeneration == generation else {
                 return
             }
 
+            self.isSearchingSkillsSh = true
             let results = (try? await self.skillsService.searchSkillsSh(query: query)) ?? []
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled,
+                  self.searchGeneration == generation else {
                 return
             }
 
-            self.searchResults = results.filter { !self.visibleIDs.contains($0.id) }
+            self.searchResults = self.uniqueSkills(results.filter { !self.visibleIDs.contains($0.id) })
+            self.isSearchingSkillsSh = false
         }
     }
 
@@ -133,6 +150,13 @@ private extension SkillsViewModel {
     }
 
     func filterVisibleSearchResults() {
-        searchResults = searchResults.filter { !visibleIDs.contains($0.id) }
+        searchResults = uniqueSkills(searchResults.filter { !visibleIDs.contains($0.id) })
+    }
+
+    func uniqueSkills(_ skills: [Skill]) -> [Skill] {
+        var seenIDs: Set<String> = []
+        return skills.filter { skill in
+            seenIDs.insert(skill.id).inserted
+        }
     }
 }

@@ -40,22 +40,51 @@ struct SkillsScreen: View {
                     }
                 }
 
-                if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty {
-                    SkillsIntroCard {
-                        isCreateSheetPresented = true
-                    }
+                if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty && !viewModel.hasActiveSearch {
+                    NoSkillsInstalledLabel()
                 }
 
                 let filteredInstalled = viewModel.filteredInstalled
-                let filteredRecommended = viewModel.filteredCatalog.filter { !$0.isInstalled }
+                let filteredRecommended = viewModel.filteredRecommended
+                let combinedSearchResults = viewModel.searchDisplayResults
 
-                if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
+                if viewModel.hasActiveSearch {
+                    if combinedSearchResults.isEmpty && hasLoaded {
+                        if viewModel.isSearchingSkillsSh {
+                            SearchingSkillsLabel()
+                        } else {
+                            CenteredSkillsStatusLabel("No search results")
+                        }
+                    }
+                    if !combinedSearchResults.isEmpty {
+                        SkillsSection(
+                            title: "Results",
+                            skills: combinedSearchResults,
+                            columns: columns,
+                            onOpen: { skill in
+                                selectedSkill = skill
+                            },
+                            onPrimaryAction: { skill in
+                                if skill.isInstalled {
+                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                        Task { await uninstall(skill) }
+                                    }
+                                } else {
+                                    Task {
+                                        await install(skill)
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    if viewModel.isSearchingSkillsSh {
+                        SearchingSkillsLabel()
+                    }
+                } else if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
                     EmptyStateView(
                         icon: "puzzlepiece.extension",
-                        heading: viewModel.hasActiveSearch ? "No matching skills" : "No skills available",
-                        subtext: viewModel.hasActiveSearch
-                            ? "Try a different search or create a new skill."
-                            : "Install or create a skill once catalog data is available.",
+                        heading: "No skills available",
+                        subtext: "Install or create a skill once catalog data is available.",
                         actions: [
                             .init(title: "New Skill", systemImage: "plus", style: .primary) {
                                 isCreateSheetPresented = true
@@ -168,6 +197,37 @@ struct SkillsScreen: View {
             }
         }
         .destructiveConfirmation($uninstallConfirmation)
+    }
+}
+
+private struct NoSkillsInstalledLabel: View {
+    var body: some View {
+        CenteredSkillsStatusLabel("No skills installed")
+    }
+}
+
+private struct CenteredSkillsStatusLabel: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 22, alignment: .center)
+            .padding(.vertical, 16)
+    }
+}
+
+private struct SearchingSkillsLabel: View {
+    var body: some View {
+        ProgressView()
+            .controlSize(.small)
+            .frame(maxWidth: .infinity, minHeight: 22, alignment: .center)
+            .padding(.vertical, 16)
     }
 }
 

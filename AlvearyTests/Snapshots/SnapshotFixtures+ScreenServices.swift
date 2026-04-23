@@ -3,58 +3,36 @@ import XCTest
 @testable import Alveary
 
 actor SnapshotSkillsService: SkillsService {
+    private let installed: [Skill]
+    private let catalog: [Skill]
+    private let searchResults: [Skill]
+    private let searchDelay: Duration
+
+    init(
+        installed: [Skill]? = nil,
+        catalog: [Skill]? = nil,
+        searchResults: [Skill]? = nil,
+        searchDelay: Duration = .zero
+    ) {
+        self.installed = installed ?? [Self.accessibilitySkill]
+        self.catalog = catalog ?? [Self.walkthroughSkill]
+        self.searchResults = searchResults ?? [Self.uiSnapshotsSkill]
+        self.searchDelay = searchDelay
+    }
+
     func loadInstalled() async throws -> [Skill] {
-        [
-            Skill(
-                id: "skill-ios-accessibility",
-                name: "ios-accessibility",
-                description: "Audit SwiftUI screens for VoiceOver and Dynamic Type issues.",
-                version: "1.4.0",
-                source: .local,
-                isInstalled: true,
-                syncedAgentIDs: ["claude"],
-                owner: "squareup",
-                repo: "agents",
-                sourceUrl: "https://example.com/ios-accessibility",
-                installs: nil
-            )
-        ]
+        installed
     }
 
     func loadCatalog() async throws -> [Skill] {
-        [
-            Skill(
-                id: "skill-walkthrough",
-                name: "walkthrough",
-                description: "Explain architecture and visualize code paths for a feature area.",
-                version: "2.0.1",
-                source: .catalog,
-                isInstalled: false,
-                syncedAgentIDs: [],
-                owner: "squareup",
-                repo: "agents",
-                sourceUrl: "https://example.com/walkthrough",
-                installs: 1_284
-            )
-        ]
+        catalog
     }
 
     func searchSkillsSh(query: String) async throws -> [Skill] {
-        [
-            Skill(
-                id: "skill-ui-snapshots",
-                name: "ui-snapshots",
-                description: "Generate snapshot tests for macOS SwiftUI screens.",
-                version: "0.9.0",
-                source: .skillsSh,
-                isInstalled: false,
-                syncedAgentIDs: [],
-                owner: "community",
-                repo: "skills",
-                sourceUrl: "https://example.com/ui-snapshots",
-                installs: 312
-            )
-        ]
+        if searchDelay != .zero {
+            try await Task.sleep(for: searchDelay)
+        }
+        return searchResults
     }
 
     func fetchSkillMd(skill: Skill) async throws -> SkillMarkdownDocument {
@@ -76,40 +54,75 @@ actor SnapshotSkillsService: SkillsService {
     }
 }
 
+private extension SnapshotSkillsService {
+    static var accessibilitySkill: Skill {
+        Skill(
+            id: "skill-ios-accessibility",
+            name: "ios-accessibility",
+            description: "Audit SwiftUI screens for VoiceOver and Dynamic Type issues.",
+            version: "1.4.0",
+            source: .local,
+            isInstalled: true,
+            syncedAgentIDs: ["claude"],
+            owner: "squareup",
+            repo: "agents",
+            sourceUrl: "https://example.com/ios-accessibility",
+            installs: nil
+        )
+    }
+
+    static var walkthroughSkill: Skill {
+        Skill(
+            id: "skill-walkthrough",
+            name: "walkthrough",
+            description: "Explain architecture and visualize code paths for a feature area.",
+            version: "2.0.1",
+            source: .catalog,
+            isInstalled: false,
+            syncedAgentIDs: [],
+            owner: "squareup",
+            repo: "agents",
+            sourceUrl: "https://example.com/walkthrough",
+            installs: 1_284
+        )
+    }
+
+    static var uiSnapshotsSkill: Skill {
+        Skill(
+            id: "skill-ui-snapshots",
+            name: "ui-snapshots",
+            description: "Generate snapshot tests for macOS SwiftUI screens.",
+            version: "0.9.0",
+            source: .skillsSh,
+            isInstalled: false,
+            syncedAgentIDs: [],
+            owner: "community",
+            repo: "skills",
+            sourceUrl: "https://example.com/ui-snapshots",
+            installs: 312
+        )
+    }
+}
+
 @MainActor
 final class SnapshotMCPService: MCPService {
+    private let servers: [MCPServer]
+    private let recommended: [RecommendedMCPServer]
+
+    init(
+        servers: [MCPServer]? = nil,
+        recommended: [RecommendedMCPServer]? = nil
+    ) {
+        self.servers = servers ?? [Self.context7Server]
+        self.recommended = recommended ?? [Self.playwrightServer]
+    }
+
     func loadAll() async throws -> [MCPServer] {
-        [
-            MCPServer(
-                name: "context7",
-                transport: .http,
-                command: nil,
-                args: nil,
-                url: "https://mcp.context7.com/mcp",
-                headers: ["Authorization": "Bearer ***"],
-                env: nil,
-                providers: ["claude"]
-            )
-        ]
+        servers
     }
 
     func loadRecommended() async throws -> [RecommendedMCPServer] {
-        [
-            RecommendedMCPServer(
-                template: MCPServer(
-                    name: "playwright",
-                    transport: .stdio,
-                    command: "npx",
-                    args: ["-y", "@anthropic/mcp-playwright"],
-                    url: nil,
-                    headers: nil,
-                    env: ["PLAYWRIGHT_BROWSERS_PATH": "0"],
-                    providers: []
-                ),
-                description: "Browser automation for UI validation and screenshot capture.",
-                headerPrompts: ["PLAYWRIGHT_TOKEN"]
-            )
-        ]
+        recommended
     }
 
     func addServer(_ server: MCPServer, for agents: [String]) async throws {}
@@ -121,5 +134,37 @@ final class SnapshotMCPService: MCPService {
             MCPAgentAvailability(agentId: "claude", name: "Claude Code", supportedTransports: [.stdio, .http]),
             MCPAgentAvailability(agentId: "amp", name: "Amp", supportedTransports: [.http])
         ]
+    }
+}
+
+private extension SnapshotMCPService {
+    static var context7Server: MCPServer {
+        MCPServer(
+            name: "context7",
+            transport: .http,
+            command: nil,
+            args: nil,
+            url: "https://mcp.context7.com/mcp",
+            headers: ["Authorization": "Bearer ***"],
+            env: nil,
+            providers: ["claude"]
+        )
+    }
+
+    static var playwrightServer: RecommendedMCPServer {
+        RecommendedMCPServer(
+            template: MCPServer(
+                name: "playwright",
+                transport: .stdio,
+                command: "npx",
+                args: ["-y", "@anthropic/mcp-playwright"],
+                url: nil,
+                headers: nil,
+                env: ["PLAYWRIGHT_BROWSERS_PATH": "0"],
+                providers: []
+            ),
+            description: "Browser automation for UI validation and screenshot capture.",
+            headerPrompts: ["PLAYWRIGHT_TOKEN"]
+        )
     }
 }
