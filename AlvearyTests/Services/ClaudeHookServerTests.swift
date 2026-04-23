@@ -8,8 +8,8 @@ final class ClaudeHookServerTests: XCTestCase {
     func testPrepareLaunchSkipsAutomaticPermissionModes() async {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
 
-        let automatic = await server.prepareLaunch(permissionMode: "auto")
-        let bypass = await server.prepareLaunch(permissionMode: "bypassPermissions")
+        let automatic = await server.prepareLaunch(permissionMode: "auto", conversationId: "conversation-1")
+        let bypass = await server.prepareLaunch(permissionMode: "bypassPermissions", conversationId: "conversation-1")
 
         XCTAssertNil(automatic)
         XCTAssertNil(bypass)
@@ -17,7 +17,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointRejectsInvalidToken() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        _ = await server.prepareLaunch(permissionMode: "default")
+        _ = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
 
         let response = await server.handle(request(token: "wrong-token", toolName: "Bash"))
         let decision = try hookDecision(from: response)
@@ -27,7 +27,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointDeniesMalformedRequestWithValidToken() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -43,7 +43,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointNoOpsForReadTool() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -54,7 +54,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointRejectsInvalidatedToken() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -66,7 +66,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointDefersApprovalWorthyTool() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -78,7 +78,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointAllowsEditToolsInAcceptEditsMode() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "acceptEdits")
+        let launchConfig = await server.prepareLaunch(permissionMode: "acceptEdits", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -89,7 +89,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointStillDefersBashInAcceptEditsMode() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "acceptEdits")
+        let launchConfig = await server.prepareLaunch(permissionMode: "acceptEdits", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -100,7 +100,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointDefersMutatingMCPTool() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -111,7 +111,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointNoOpsForReadOnlyMCPTool() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
 
@@ -122,7 +122,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointConsumesOneShotAllowDecision() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
         let key = ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")
@@ -137,7 +137,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointConsumesOneShotDenyDecision() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
         let key = ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")
@@ -150,7 +150,7 @@ final class ClaudeHookServerTests: XCTestCase {
 
     func testHookEndpointDoesNotConsumeDiscardedDecision() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
-        let launchConfig = await server.prepareLaunch(permissionMode: "default")
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
         let launch = try XCTUnwrap(launchConfig)
         let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
         let key = ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")
@@ -244,13 +244,17 @@ final class ClaudeHookServerTests: XCTestCase {
         XCTAssertEqual(try hookDecision(from: httpBody(from: responseData)), "deny")
     }
 
-    private func request(token: String, toolName: String) -> ClaudeHookHTTPRequest {
+    func request(
+        token: String,
+        toolName: String,
+        toolInput: [String: Any] = [:]
+    ) -> ClaudeHookHTTPRequest {
         let body: [String: Any] = [
             "hook_event_name": "PreToolUse",
             "session_id": "session-123",
             "tool_use_id": "tool-1",
             "tool_name": toolName,
-            "tool_input": [:]
+            "tool_input": toolInput
         ]
         let data = try? JSONSerialization.data(withJSONObject: body)
         return ClaudeHookHTTPRequest(
@@ -259,12 +263,12 @@ final class ClaudeHookServerTests: XCTestCase {
         )
     }
 
-    private func hookDecision(from response: ClaudeHookHTTPResponse) throws -> String? {
+    func hookDecision(from response: ClaudeHookHTTPResponse) throws -> String? {
         let body = try XCTUnwrap(response.body)
         return try hookDecision(from: body)
     }
 
-    private func hookDecision(from body: Data) throws -> String? {
+    func hookDecision(from body: Data) throws -> String? {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let output = try XCTUnwrap(object["hookSpecificOutput"] as? [String: Any])
         return output["permissionDecision"] as? String
@@ -325,7 +329,7 @@ final class ClaudeHookServerTests: XCTestCase {
         POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
 
-    private func temporarySupportDirectory() -> URL {
+    func temporarySupportDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
     }

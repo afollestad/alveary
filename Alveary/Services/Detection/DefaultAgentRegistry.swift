@@ -44,8 +44,6 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                         description: "Auto-approve most actions with safety checks."
                     )
                 ],
-                suggestedWriteEscalationMode: "acceptEdits",
-                writeEscalationEligibleTools: ["Write", "Edit", "MultiEdit"],
                 effortFlag: "--effort",
                 supportedEffortLevels: AppSettings.supportedEffortLevels
             ),

@@ -238,6 +238,13 @@ extension DefaultAgentsManager {
     }
 
     func finalizeSessionRemoval(for conversationId: String) async {
+        if await sessionManager.hasSession(for: conversationId) {
+            let sessionId = await sessionManager.sessionId(for: conversationId)
+            await claudeHookServer.removeSessionApprovals(
+                conversationId: conversationId,
+                sessionId: sessionId
+            )
+        }
         do {
             try await sessionManager.removeEntry(for: conversationId)
         } catch {

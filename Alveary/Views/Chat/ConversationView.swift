@@ -4,8 +4,6 @@ import SwiftUI
 struct ComposerCapabilities: Sendable {
     let supportedEffortLevels: [String]
     let supportedPermissionModes: [PermissionModeOption]
-    let suggestedWriteEscalationMode: String?
-    let writeEscalationEligibleTools: Set<String>
     let supportsMidTurnSteering: Bool
 }
 
@@ -36,8 +34,6 @@ struct ConversationView: View {
         return ComposerCapabilities(
             supportedEffortLevels: provider?.supportedEffortLevels ?? [],
             supportedPermissionModes: provider?.supportedPermissionModes ?? [],
-            suggestedWriteEscalationMode: provider?.suggestedWriteEscalationMode,
-            writeEscalationEligibleTools: provider?.writeEscalationEligibleTools ?? [],
             supportsMidTurnSteering: provider?.supportsMidTurnSteering ?? false
         )
     }

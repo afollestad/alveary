@@ -216,8 +216,6 @@ final class ConversationViewModel {
         await flushPendingSaveIfNeeded()
         await prepareForSpawn(config: config)
         try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
-        state.showPermissionBanner = false
-        state.lastPermissionDeniedToolNames = []
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil

@@ -55,15 +55,6 @@ struct ChatView: View {
         return .idle
     }
 
-    private var canShowWriteEscalation: Bool {
-        guard let suggestedMode = composerCapabilities.suggestedWriteEscalationMode,
-              suggestedMode != selectedPermissionModeBinding.wrappedValue else {
-            return false
-        }
-
-        return !viewModel.state.lastPermissionDeniedToolNames.isDisjoint(with: composerCapabilities.writeEscalationEligibleTools)
-    }
-
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: { conversation.thread?.model ?? AppSettings.defaultModelValue },
@@ -172,8 +163,6 @@ struct ChatView: View {
                 showsCenteredPreHistoryRetry: showsCenteredPreHistoryRetry,
                 composerMode: composerMode,
                 composerIsBusy: composerIsBusy,
-                canShowWriteEscalation: canShowWriteEscalation,
-                permissionEscalationLabel: permissionEscalationLabel,
                 selectedModel: selectedModelBinding,
                 selectedEffort: selectedEffortBinding,
                 selectedPermissionMode: selectedPermissionModeBinding,
@@ -187,7 +176,6 @@ struct ChatView: View {
                 onStop: {
                     Task { await viewModel.cancel() }
                 },
-                onApplyPermissionModeChange: { viewModel.applyPermissionModeChange($0) },
                 appState: appState
             )
         }
@@ -196,19 +184,6 @@ struct ChatView: View {
 }
 
 private extension ChatView {
-    var permissionEscalationLabel: String {
-        switch composerCapabilities.suggestedWriteEscalationMode {
-        case "acceptEdits":
-            return "Switch to Accept edits"
-        case "auto":
-            return "Switch to Automatic"
-        case let mode?:
-            return "Switch to \(mode)"
-        case nil:
-            return "Update permissions"
-        }
-    }
-
     func retryDraft() {
         let message = viewModel.state.inputDraft
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

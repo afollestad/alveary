@@ -79,12 +79,18 @@ struct WaitTimeoutError: LocalizedError {
 actor StubClaudeHookServer: ClaudeHookServer {
     enum Event: Equatable {
         case recordDecision(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)
+        case recordSessionApproval(AgentSessionApprovalGrant)
+        case discardSessionApproval(AgentSessionApprovalGrant)
+        case removeSessionApprovals(conversationId: String, sessionId: String)
         case discardDecision(ClaudeToolApprovalKey)
         case invalidateToken(String)
     }
 
     private var launchConfigs: [ClaudeHookLaunchConfig?]
     private var recordedDecisions: [(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)] = []
+    private var recordedSessionApprovals: [AgentSessionApprovalGrant] = []
+    private var discardedSessionApprovalStorage: [AgentSessionApprovalGrant] = []
+    private var removedSessionApprovalIDStorage: [(conversationId: String, sessionId: String)] = []
     private var discardedDecisions: [ClaudeToolApprovalKey] = []
     private var invalidatedTokens: [String] = []
     private var recordedEvents: [Event] = []
@@ -97,7 +103,10 @@ actor StubClaudeHookServer: ClaudeHookServer {
         self.launchConfigs = launchConfigs
     }
 
-    func prepareLaunch(permissionMode: String?) async -> ClaudeHookLaunchConfig? {
+    func prepareLaunch(
+        permissionMode: String?,
+        conversationId: String
+    ) async -> ClaudeHookLaunchConfig? {
         guard launchConfigs.count > 1 else {
             return launchConfigs.first ?? nil
         }
@@ -107,6 +116,34 @@ actor StubClaudeHookServer: ClaudeHookServer {
     func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async {
         recordedDecisions.append((decision, key))
         recordedEvents.append(.recordDecision(decision, key))
+    }
+
+    func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult {
+        recordedSessionApprovals.append(approval)
+        recordedEvents.append(.recordSessionApproval(approval))
+        return SessionApprovalRecordResult(isEffective: true, wasInserted: true)
+    }
+
+    func sessionApprovals() -> [AgentSessionApprovalGrant] {
+        recordedSessionApprovals
+    }
+
+    func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {
+        discardedSessionApprovalStorage.append(approval)
+        recordedEvents.append(.discardSessionApproval(approval))
+    }
+
+    func discardedSessionApprovals() -> [AgentSessionApprovalGrant] {
+        discardedSessionApprovalStorage
+    }
+
+    func removeSessionApprovals(conversationId: String, sessionId: String) async {
+        removedSessionApprovalIDStorage.append((conversationId: conversationId, sessionId: sessionId))
+        recordedEvents.append(.removeSessionApprovals(conversationId: conversationId, sessionId: sessionId))
+    }
+
+    func removedSessionApprovalIDs() -> [(conversationId: String, sessionId: String)] {
+        removedSessionApprovalIDStorage
     }
 
     func decisions() -> [(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)] {

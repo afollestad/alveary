@@ -23,8 +23,6 @@ final class ConversationState {
     var inputDraft = ""
     var grouper = ChatItemGrouper()
     var respawnAttempts = 0
-    var showPermissionBanner = false
-    var lastPermissionDeniedToolNames: Set<String> = []
     var inFlightQueuedMessageID: UUID?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?

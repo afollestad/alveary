@@ -220,8 +220,11 @@ actor DiffViewerMockAgentsManager: AgentsManager {
         conversationId: String,
         approval: ToolApprovalRequest,
         decision: ClaudeToolApprovalDecision,
+        sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
-    ) async throws {}
+    ) async throws -> Bool {
+        false
+    }
 
     func cancelTurn(conversationId: String) {}
 

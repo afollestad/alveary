@@ -22,8 +22,6 @@ struct ProviderDefinition: Sendable, Equatable {
     let supportsMidTurnSteering: Bool
     let permissionModeFlag: String?
     let supportedPermissionModes: [PermissionModeOption]?
-    let suggestedWriteEscalationMode: String?
-    let writeEscalationEligibleTools: Set<String>
     let effortFlag: String?
     let supportedEffortLevels: [String]?
 }

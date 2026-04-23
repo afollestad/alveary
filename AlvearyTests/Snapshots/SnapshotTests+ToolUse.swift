@@ -74,6 +74,7 @@ extension SnapshotTests {
                 approval: sampleBashApproval,
                 status: .pending,
                 onApprove: {},
+                onApproveForSession: { _ in },
                 onDeny: {}
             ),
             size: CGSize(width: 760, height: 120),
@@ -87,6 +88,7 @@ extension SnapshotTests {
                 approval: sampleEditApproval,
                 status: .pending,
                 onApprove: {},
+                onApproveForSession: { _ in },
                 onDeny: {}
             ),
             size: CGSize(width: 760, height: 120),
@@ -100,6 +102,7 @@ extension SnapshotTests {
                 approval: sampleBashApproval,
                 status: .pending,
                 onApprove: {},
+                onApproveForSession: { _ in },
                 onDeny: {}
             ),
             size: CGSize(width: 340, height: 140),
@@ -113,6 +116,7 @@ extension SnapshotTests {
                 approval: sampleBashApproval,
                 status: .approving,
                 onApprove: {},
+                onApproveForSession: { _ in },
                 onDeny: {}
             ),
             size: CGSize(width: 760, height: 120),
@@ -126,10 +130,53 @@ extension SnapshotTests {
                 approval: sampleBashApproval,
                 status: .denying,
                 onApprove: {},
+                onApproveForSession: { _ in },
                 onDeny: {}
             ),
             size: CGSize(width: 760, height: 120),
             named: "tool_approval_denying"
+        )
+    }
+
+    func testToolApprovalApprovedGroup() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .approvedForSessionGroup,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_approved_group"
+        )
+    }
+
+    func testToolApprovalApprovedForSession() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleEditApproval,
+                status: .approvedForSessionExact,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_approved_for_session"
+        )
+    }
+
+    func testToolApprovalSuperseded() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .superseded,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_superseded"
         )
     }
 }

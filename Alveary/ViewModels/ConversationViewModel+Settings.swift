@@ -116,9 +116,6 @@ extension ConversationViewModel {
         let previousValue = dbThread.permissionMode
         guard previousValue != newValue else { return .noop }
 
-        let previousBannerVisibility = state.showPermissionBanner
-        let previousDeniedTools = state.lastPermissionDeniedToolNames
-
         dbThread.permissionMode = newValue
         state.lastTurnError = nil
 
@@ -138,8 +135,6 @@ extension ConversationViewModel {
             } catch {
                 dbThread.permissionMode = previousValue
                 try? modelContext.save()
-                state.showPermissionBanner = previousBannerVisibility
-                state.lastPermissionDeniedToolNames = previousDeniedTools
                 state.lastTurnError = error.localizedDescription
             }
         }

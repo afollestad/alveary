@@ -14,8 +14,6 @@ struct ChatComposerPanel: View {
     let showsCenteredPreHistoryRetry: Bool
     let composerMode: ComposerMode
     let composerIsBusy: Bool
-    let canShowWriteEscalation: Bool
-    let permissionEscalationLabel: String
     let selectedModel: Binding<String>
     let selectedEffort: Binding<String>
     let selectedPermissionMode: Binding<String>
@@ -27,7 +25,6 @@ struct ChatComposerPanel: View {
     let onSubmit: () -> Void
     let onSteer: () -> Void
     let onStop: () -> Void
-    let onApplyPermissionModeChange: (String) -> Void
     @Bindable var appState: AppState
 
     // Filter the provider's full effort list to those that the current model
@@ -52,22 +49,6 @@ struct ChatComposerPanel: View {
                 InlineBanner(message: sessionContinuityNotice, severity: .warning, autoDismissAfter: nil) {
                     viewModel.sessionContinuityNotice = nil
                 }
-            }
-
-            if viewModel.state.showPermissionBanner {
-                PermissionBanner(
-                    canEscalate: canShowWriteEscalation,
-                    isActionDisabled: composerIsBusy || viewModel.state.isReconfiguringSession,
-                    escalationLabel: permissionEscalationLabel,
-                    onDismiss: {
-                        viewModel.state.showPermissionBanner = false
-                    },
-                    onEscalate: {
-                        if let escalationMode = composerCapabilities.suggestedWriteEscalationMode {
-                            onApplyPermissionModeChange(escalationMode)
-                        }
-                    }
-                )
             }
 
             if let stagedContext = viewModel.stagedContext {

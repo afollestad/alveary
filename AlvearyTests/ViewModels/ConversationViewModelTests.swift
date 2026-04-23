@@ -6,10 +6,8 @@ import XCTest
 
 @MainActor
 final class ConversationViewModelTests: XCTestCase {
-    func testReconfigureSessionClearsPermissionBannerAfterSuccessfulUpdate() async throws {
+    func testReconfigureSessionResetsSubscriptionTrackingAfterSuccessfulUpdate() async throws {
         let fixture = try ConversationViewModelTestFixture()
-        fixture.viewModel.state.showPermissionBanner = true
-        fixture.viewModel.state.lastPermissionDeniedToolNames = ["Write", "Edit"]
         fixture.viewModel.state.lastObservedEventIndex = 7
         fixture.viewModel.state.lastPersistedEventIndex = 5
         fixture.viewModel.state.activeBufferGeneration = UUID()
@@ -33,18 +31,14 @@ final class ConversationViewModelTests: XCTestCase {
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls, [.init(conversationId: fixture.conversation.id, config: config)])
-        XCTAssertFalse(fixture.viewModel.state.showPermissionBanner)
-        XCTAssertTrue(fixture.viewModel.state.lastPermissionDeniedToolNames.isEmpty)
         XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 0)
         XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 0)
         XCTAssertNil(fixture.viewModel.state.activeBufferGeneration)
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
     }
 
-    func testReconfigureSessionPreservesPermissionBannerWhenUpdateFails() async throws {
+    func testReconfigureSessionPreservesSubscriptionTrackingWhenUpdateFails() async throws {
         let fixture = try ConversationViewModelTestFixture(reconfigureError: .reconfigureFailed)
-        fixture.viewModel.state.showPermissionBanner = true
-        fixture.viewModel.state.lastPermissionDeniedToolNames = ["Write"]
         fixture.viewModel.state.lastObservedEventIndex = 7
         fixture.viewModel.state.lastPersistedEventIndex = 5
 
@@ -64,8 +58,6 @@ final class ConversationViewModelTests: XCTestCase {
             XCTAssertEqual(error, .reconfigureFailed)
         }
 
-        XCTAssertTrue(fixture.viewModel.state.showPermissionBanner)
-        XCTAssertEqual(fixture.viewModel.state.lastPermissionDeniedToolNames, ["Write"])
         XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 7)
         XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 5)
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
@@ -235,6 +227,7 @@ struct ConversationViewModelTestFixture {
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
         approvalError: MockAgentsManager.MockError? = nil,
+        sessionApprovalEffective: Bool = true,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
         projectIsGitRepository: Bool = true,
         pausesWorktreeCreate: Bool = false,
@@ -262,7 +255,8 @@ struct ConversationViewModelTestFixture {
             isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
             sendError: sendError,
             reconfigureError: reconfigureError,
-            approvalError: approvalError
+            approvalError: approvalError,
+            sessionApprovalEffective: sessionApprovalEffective
         )
         let runtimeStore = MockConversationRuntimeStore()
         let worktreeManager = MockWorktreeManager(

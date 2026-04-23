@@ -23,6 +23,85 @@ extension ConversationViewModelTests {
         XCTAssertEqual(records.last?.toolId, "tool-1")
     }
 
+    func testNewDeferredApprovalSupersedesOlderUnresolvedApprovalRow() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let oldApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"ls old.txt\"}"
+        )
+        let oldApprovalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: oldApproval.sessionId,
+            toolId: oldApproval.toolUseId,
+            toolName: oldApproval.toolName,
+            toolInput: oldApproval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(oldApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: oldApproval, status: .pending)
+
+        let newApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-2",
+            toolName: "Write",
+            toolInput: "{\"file_path\":\"test-permission-2.txt\"}"
+        )
+
+        fixture.viewModel.handleEvent(.toolApprovalRequested(newApproval))
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, newApproval)
+        XCTAssertEqual(oldApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        let approvalItems = fixture.viewModel.state.grouper.items.compactMap { item -> (String, ToolApprovalStatus?)? in
+            guard case .toolApproval(_, let approval, let status) = item else {
+                return nil
+            }
+            return (approval.toolUseId, status)
+        }
+        XCTAssertEqual(approvalItems.count, 2)
+        XCTAssertEqual(approvalItems.first(where: { $0.0 == "tool-1" })?.1, .superseded)
+        XCTAssertNil(approvalItems.first(where: { $0.0 == "tool-2" })?.1)
+    }
+
+    func testNewDeferredApprovalPersistsPreviousResolvedChoiceBeforeReplacingPendingApproval() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let oldApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"ls old.txt\"}"
+        )
+        let oldApprovalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: oldApproval.sessionId,
+            toolId: oldApproval.toolUseId,
+            toolName: oldApproval.toolName,
+            toolInput: oldApproval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(oldApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: oldApproval, status: .approving)
+
+        let newApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-2",
+            toolName: "Write",
+            toolInput: "{\"file_path\":\"test-permission-2.txt\"}"
+        )
+
+        fixture.viewModel.handleEvent(.toolApprovalRequested(newApproval))
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, newApproval)
+        XCTAssertEqual(oldApprovalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+    }
+
     func testToolDeferredTokenEndsTurnWithoutError() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.turnState.beginTurn()
@@ -42,7 +121,6 @@ extension ConversationViewModelTests {
 
         XCTAssertFalse(fixture.viewModel.state.turnState.isActive)
         XCTAssertNil(fixture.viewModel.lastTurnError)
-        XCTAssertFalse(fixture.viewModel.state.showPermissionBanner)
     }
 
     func testApproveToolUseRecordsDecisionAndResumesSession() async throws {

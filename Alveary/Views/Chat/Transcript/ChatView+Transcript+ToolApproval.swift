@@ -8,6 +8,8 @@ extension ChatTranscriptView {
             status: approvalStatus(for: approval, persistedStatus: persistedStatus)
         ) {
             resolveToolApproval(approval, approve: true)
+        } onApproveForSession: { scope in
+            resolveToolApprovalForSession(approval, scope: scope)
         } onDeny: {
             resolveToolApproval(approval, approve: false)
         }
@@ -30,6 +32,21 @@ extension ChatTranscriptView {
                 } else {
                     try await viewModel.denyToolUse(toolUseId: approval.toolUseId)
                 }
+            } catch {
+                if viewModel.lastTurnError == nil {
+                    viewModel.lastTurnError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func resolveToolApprovalForSession(_ approval: ToolApprovalRequest, scope: ToolApprovalSessionScope) {
+        Task {
+            do {
+                try await viewModel.approveToolUseForSession(
+                    toolUseId: approval.toolUseId,
+                    scope: scope
+                )
             } catch {
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription

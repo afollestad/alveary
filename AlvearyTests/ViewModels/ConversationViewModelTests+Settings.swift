@@ -223,14 +223,10 @@ extension ConversationViewModelTests {
         )
         try fixture.dbThread().permissionMode = "default"
         try fixture.context.save()
-        fixture.viewModel.state.showPermissionBanner = true
-        fixture.viewModel.state.lastPermissionDeniedToolNames = ["Edit"]
 
         await fixture.viewModel.applyPermissionModeChange("acceptEdits").value
 
         XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
-        XCTAssertTrue(fixture.viewModel.state.showPermissionBanner)
-        XCTAssertEqual(fixture.viewModel.state.lastPermissionDeniedToolNames, ["Edit"])
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 

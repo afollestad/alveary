@@ -13,8 +13,9 @@ protocol AgentsManager: Actor {
         conversationId: String,
         approval: ToolApprovalRequest,
         decision: ClaudeToolApprovalDecision,
+        sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
-    ) async throws
+    ) async throws -> Bool
     func cancelTurn(conversationId: String)
     func destroyRuntime(conversationId: String) async throws
     func kill(conversationId: String)

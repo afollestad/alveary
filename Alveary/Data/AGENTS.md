@@ -18,6 +18,10 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 - Tool approval resolution belongs on the associated transcript row:
     - **Use the existing row.** Store approve/deny state on the `tool_approval` `ConversationEventRecord` via `toolApprovalStatus`.
     - **Do not add a separate model.** Keeping status on the transcript row preserves the associated button state across rebuilds and app restarts.
+- Session-scoped tool approvals are the exception:
+    - **Use `AgentSessionApprovalRule` for hook-owned session grants.** This model stores provider-scoped, session-scoped approval rules such as exact Bash commands, Bash command groups, or exact file paths.
+    - **Do not mix it into transcript persistence.** The row exists to let the hook server answer future `PreToolUse` requests for the same Claude session; transcript rendering still reads the final button state from `ConversationEventRecord.toolApprovalStatus`.
+    - **Keep lifecycle bounded by conversation and provider session.** These rows are keyed by provider, conversation ID, and Claude `sessionId`, and should be removed when that conversation's runtime session is replaced or destroyed.
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
 - `AgentThread.model` is the per-thread model override. It mirrors the `permissionMode`/`effort` pattern for thread-scoped picker state, but with a different nil semantic:
     - **Store `nil` for "use the provider's default model".** The composer picker's `"default"` value is a UI sentinel that `applyModelChange` translates to `nil` before persisting — never write the literal string `"default"` into `AgentThread.model`, or the adapter will pass `--model=default` to the CLI.

@@ -10,9 +10,51 @@ struct ClaudeToolApprovalKey: Sendable, Hashable {
     let toolUseId: String
 }
 
+enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
+    case exact
+    case group
+
+    var pendingTitle: String {
+        switch self {
+        case .exact:
+            return "Approve exactly"
+        case .group:
+            return "Approve group"
+        }
+    }
+
+    var resolvedTitle: String {
+        switch self {
+        case .exact:
+            return "Approved exactly"
+        case .group:
+            return "Approved group"
+        }
+    }
+}
+
 enum ClaudeToolApprovalDecision: String, Sendable, Equatable {
     case allow
     case deny
+}
+
+enum AgentSessionApprovalRuleKind: String, Sendable, Equatable {
+    case bashExact
+    case bashCommandGroup
+    case filePathExact
+}
+
+struct AgentSessionApprovalGrant: Sendable, Equatable {
+    let providerId: String
+    let conversationId: String
+    let sessionId: String
+    let matchKind: AgentSessionApprovalRuleKind
+    let matchValue: String
+}
+
+struct SessionApprovalRecordResult: Sendable, Equatable {
+    let isEffective: Bool
+    let wasInserted: Bool
 }
 
 struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
@@ -39,7 +81,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     }
 
     var conciseSummary: String {
-        let parsedInput = Self.parseInput(toolInput)
+        let parsedInput = parsedInput
         let candidate: String?
         switch toolName {
         case "Bash":
@@ -54,6 +96,103 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             candidate?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
                 ?? "Review requested tool input"
         )
+    }
+
+    var supportedSessionApprovalScopes: [ToolApprovalSessionScope] {
+        switch toolName {
+        case "Bash":
+            var scopes: [ToolApprovalSessionScope] = []
+            if sessionApprovalMatch(for: .exact) != nil {
+                scopes.append(.exact)
+            }
+            if sessionApprovalMatch(for: .group) != nil {
+                scopes.append(.group)
+            }
+            return scopes
+        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+            return sessionApprovalMatch(for: .exact) == nil ? [] : [.exact]
+        default:
+            return []
+        }
+    }
+
+    func sessionApprovalGrant(
+        conversationId: String,
+        providerId: String,
+        scope: ToolApprovalSessionScope
+    ) -> AgentSessionApprovalGrant? {
+        guard let match = sessionApprovalMatch(for: scope) else {
+            return nil
+        }
+
+        return AgentSessionApprovalGrant(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: sessionId,
+            matchKind: match.kind,
+            matchValue: match.value
+        )
+    }
+
+    func sessionApprovalMatch(
+        for scope: ToolApprovalSessionScope
+    ) -> (kind: AgentSessionApprovalRuleKind, value: String)? {
+        switch (toolName, scope) {
+        case ("Bash", .exact):
+            guard let command = normalizedBashCommand else {
+                return nil
+            }
+            return (.bashExact, command)
+        case ("Bash", .group):
+            guard let commandGroup = bashCommandGroup else {
+                return nil
+            }
+            return (.bashCommandGroup, commandGroup)
+        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact):
+            guard let path = normalizedApprovalPath else {
+                return nil
+            }
+            return (.filePathExact, path)
+        default:
+            return nil
+        }
+    }
+
+    private var parsedInput: [String: String] {
+        Self.parseInput(toolInput)
+    }
+
+    private var normalizedBashCommand: String? {
+        parsedInput["command"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    private var normalizedApprovalPath: String? {
+        (parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    private var bashCommandGroup: String? {
+        guard let command = normalizedBashCommand else {
+            return nil
+        }
+        guard !Self.containsShellControlOperator(command) else {
+            return nil
+        }
+
+        let tokens = (try? parseExtraArgs(command)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.fallbackCommandTokens(command)
+        guard let executable = tokens.first?.nilIfEmpty else {
+            return nil
+        }
+
+        guard let groupToken = tokens.dropFirst().first(where: Self.isCommandGroupToken)?.nilIfEmpty else {
+            return nil
+        }
+        return [executable, groupToken]
+            .joined(separator: " ")
+            .nilIfEmpty
     }
 
     private static func parseInput(_ input: String) -> [String: String] {
@@ -75,14 +214,71 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
         return String(value.prefix(limit - 1)) + "..."
     }
+
+    private static func fallbackCommandTokens(_ command: String) -> [String] {
+        command
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+    }
+
+    private static func isCommandGroupToken(_ token: String) -> Bool {
+        guard !token.isEmpty, !token.hasPrefix("-") else {
+            return false
+        }
+
+        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./")) == nil
+    }
+
+    private static func containsShellControlOperator(_ command: String) -> Bool {
+        let controlCharacters = CharacterSet(charactersIn: "&;|<>")
+        var activeQuote: Character?
+        var isEscaping = false
+
+        for character in command {
+            if isEscaping {
+                isEscaping = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaping = true
+                continue
+            }
+
+            if character == "\"" || character == "'" {
+                if activeQuote == character {
+                    activeQuote = nil
+                } else if activeQuote == nil {
+                    activeQuote = character
+                }
+                continue
+            }
+
+            guard activeQuote == nil else {
+                continue
+            }
+
+            if let scalar = character.unicodeScalars.first,
+               controlCharacters.contains(scalar) {
+                return true
+            }
+        }
+
+        return false
+    }
 }
 
 enum ToolApprovalStatus: String, Sendable, Equatable {
     case pending
     case approving
     case denying
+    case approvingForSessionExact
+    case approvingForSessionGroup
     case approved
+    case approvedForSessionExact
+    case approvedForSessionGroup
     case denied
+    case superseded
 }
 
 struct PendingToolApproval: Sendable, Equatable {
@@ -91,18 +287,32 @@ struct PendingToolApproval: Sendable, Equatable {
 }
 
 protocol ClaudeHookServer: Actor {
-    func prepareLaunch(permissionMode: String?) async -> ClaudeHookLaunchConfig?
+    func prepareLaunch(
+        permissionMode: String?,
+        conversationId: String
+    ) async -> ClaudeHookLaunchConfig?
     func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async
+    func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult
+    func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async
+    func removeSessionApprovals(conversationId: String, sessionId: String) async
     func discardDecision(for key: ClaudeToolApprovalKey) async
     func invalidateToken(_ token: String) async
 }
 
 actor DisabledClaudeHookServer: ClaudeHookServer {
-    func prepareLaunch(permissionMode: String?) async -> ClaudeHookLaunchConfig? {
+    func prepareLaunch(
+        permissionMode: String?,
+        conversationId: String
+    ) async -> ClaudeHookLaunchConfig? {
         nil
     }
 
     func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async {}
+    func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult {
+        SessionApprovalRecordResult(isEffective: false, wasInserted: false)
+    }
+    func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {}
+    func removeSessionApprovals(conversationId: String, sessionId: String) async {}
     func discardDecision(for key: ClaudeToolApprovalKey) async {}
     func invalidateToken(_ token: String) async {}
 }

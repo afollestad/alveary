@@ -12,5 +12,12 @@ These instructions cover Alveary-owned Claude hook support under `Alveary/Servic
 - Invalidate the old launch token before recording an approval decision for a resume. A one-shot `allow` / `deny` must only be visible to the new resume launch, not to the deferred launch being torn down.
 - Use `PreToolUse` for Alveary approvals. `PermissionRequest` does not fire in Claude `-p` mode because there is no interactive permission dialog.
 - `ClaudeHookPolicy.swift` is the source of truth for the allow/defer matrix by permission mode and tool name. Keep policy changes covered by `ClaudeHookServerTests`.
-- Consume stored approval decisions once. Decisions are keyed by Claude `session_id` plus `tool_use_id` and must be removed after returning `allow` or `deny`.
-- Discard stored approval decisions if approval resume fails or resumes without hook settings before Claude can consume the hook. Retrying from the UI should create a fresh decision.
+- Approval lookups are ordered:
+    - **Consume one-shot decisions first.** Decisions are keyed by Claude `session_id` plus `tool_use_id` and must be removed after returning `allow` or `deny`.
+    - **Check stored session approvals next.** Session approvals are generic `AgentSessionApprovalRule` rows matched by provider, conversation ID, Claude `session_id`, and a normalized rule payload such as exact Bash command, Bash command group, or exact file path.
+    - **Keep Bash group matching conservative.** Only derive a group when the command has a clear subcommand-like token and does not contain shell control operators such as `&&`, `;`, `|`, `>`, or `<`; otherwise fall back to exact-only approval.
+    - **Run policy last.** Only fall back to `ClaudeHookPolicy.shouldDefer(...)` when neither a one-shot decision nor a stored session approval matched.
+- Keep session approvals in Alveary-owned hook storage. Persist `AgentSessionApprovalRule` in the dedicated hook-support SwiftData store under the Claude hooks app-support directory, not in the main conversation transcript store.
+- Clean up stored approvals with runtime lifecycle:
+    - **Discard the just-recorded session approval** if the approval resume fails or resumes without hook settings before Claude can consume it.
+    - **Remove all approvals for the old Claude `session_id` in that conversation** when the runtime is destroyed or a resumed stream reports that the conversation is now on a new session ID.

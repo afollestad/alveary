@@ -288,9 +288,7 @@ private extension ConversationViewModel {
             )
 
         case .toolApprovalRequested(let approval):
-            state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
-            state.showPermissionBanner = false
-            state.lastPermissionDeniedToolNames = []
+            replacePendingToolApproval(with: approval)
             return true
 
         case .stop(let message):
@@ -318,8 +316,6 @@ private extension ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnInterrupted = false
             state.lastTurnError = nil
-            state.lastPermissionDeniedToolNames = []
-            state.showPermissionBanner = false
             handleTurnCompleted()
             return .persistSyntheticAssistant(message: slashCommandNotice)
         }
@@ -332,8 +328,6 @@ private extension ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.lastTurnInterrupted = true
-            state.lastPermissionDeniedToolNames = []
-            state.showPermissionBanner = false
             state.turnState.endTurn()
             return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
         }
@@ -341,8 +335,6 @@ private extension ConversationViewModel {
         if state.lastTurnInterrupted, payload.isError, payload.permissionDenials.isEmpty {
             state.isCancellingTurn = false
             state.lastTurnError = nil
-            state.lastPermissionDeniedToolNames = []
-            state.showPermissionBanner = false
             state.turnState.endTurn()
             return .dropTokens
         }
@@ -352,8 +344,6 @@ private extension ConversationViewModel {
             state.lastTurnInterrupted = false
             state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
         }
-        state.lastPermissionDeniedToolNames = Set(payload.permissionDenials.map { $0.toolName })
-        state.showPermissionBanner = !payload.permissionDenials.isEmpty
 
         if !payload.isError && payload.permissionDenials.isEmpty {
             handleTurnCompleted()

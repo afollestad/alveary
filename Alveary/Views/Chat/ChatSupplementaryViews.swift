@@ -248,52 +248,6 @@ struct TurnInterruptedNote: View {
     }
 }
 
-struct PermissionBanner: View {
-    let canEscalate: Bool
-    let isActionDisabled: Bool
-    let escalationLabel: String
-    let onDismiss: () -> Void
-    let onEscalate: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lock.slash.fill")
-                .foregroundStyle(.orange)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("The last turn hit a permission denial.")
-                    .font(.subheadline.weight(.medium))
-
-                if canEscalate {
-                    HStack(spacing: 10) {
-                        Button(escalationLabel, action: onEscalate)
-                            .primaryActionButtonStyle()
-                            .disabled(isActionDisabled)
-
-                        Button("Dismiss", action: onDismiss)
-                            .secondaryActionButtonStyle()
-                    }
-                } else {
-                    Button("Dismiss", action: onDismiss)
-                        .secondaryActionButtonStyle()
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.orange.opacity(0.28), lineWidth: 1)
-        )
-    }
-}
-
 struct StagedContextBanner: View {
     let context: String
     let onDismiss: () -> Void

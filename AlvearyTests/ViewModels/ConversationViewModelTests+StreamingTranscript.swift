@@ -355,7 +355,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
-    func testPermissionDeniedToolUseShowsPermissionBannerOnly() throws {
+    func testPermissionDeniedToolUseEndsTurnWithoutSettingError() throws {
         let fixture = try ConversationViewModelTestFixture()
 
         fixture.viewModel.state.turnState.beginTurn()
@@ -377,8 +377,6 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
         XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
         XCTAssertNil(fixture.viewModel.lastTurnError)
-        XCTAssertEqual(fixture.viewModel.state.lastPermissionDeniedToolNames, ["Bash"])
-        XCTAssertTrue(fixture.viewModel.state.showPermissionBanner)
 
         let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
             $0.conversationId == fixture.conversation.id

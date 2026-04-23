@@ -29,6 +29,7 @@ actor MockAgentsManager: AgentsManager {
         let conversationId: String
         let approval: ToolApprovalRequest
         let decision: ClaudeToolApprovalDecision
+        let sessionApproval: AgentSessionApprovalGrant?
         let config: AgentSpawnConfig
     }
 
@@ -36,6 +37,7 @@ actor MockAgentsManager: AgentsManager {
     private let sendError: MockError?
     private let reconfigureError: MockError?
     private let approvalError: MockError?
+    private let sessionApprovalEffective: Bool
     private var queuedSendResults: [Result<Void, MockError>] = []
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
@@ -47,11 +49,18 @@ actor MockAgentsManager: AgentsManager {
     private var subscribeCallCount = 0
     private var subscriptionTerminationCount = 0
 
-    init(isRunning: Bool, sendError: MockError?, reconfigureError: MockError?, approvalError: MockError?) {
+    init(
+        isRunning: Bool,
+        sendError: MockError?,
+        reconfigureError: MockError?,
+        approvalError: MockError?,
+        sessionApprovalEffective: Bool = true
+    ) {
         self.isRunningValue = isRunning
         self.sendError = sendError
         self.reconfigureError = reconfigureError
         self.approvalError = approvalError
+        self.sessionApprovalEffective = sessionApprovalEffective
     }
 
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
@@ -98,13 +107,15 @@ actor MockAgentsManager: AgentsManager {
         conversationId: String,
         approval: ToolApprovalRequest,
         decision: ClaudeToolApprovalDecision,
+        sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
-    ) async throws {
+    ) async throws -> Bool {
         recordedApprovalCalls.append(
             ApprovalCall(
                 conversationId: conversationId,
                 approval: approval,
                 decision: decision,
+                sessionApproval: sessionApproval,
                 config: config
             )
         )
@@ -112,6 +123,7 @@ actor MockAgentsManager: AgentsManager {
             throw approvalError
         }
         isRunningValue = true
+        return sessionApprovalEffective
     }
 
     func enqueueSendResult(_ result: Result<Void, MockError>) {

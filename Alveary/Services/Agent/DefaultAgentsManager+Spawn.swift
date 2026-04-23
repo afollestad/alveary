@@ -6,43 +6,6 @@ extension DefaultAgentsManager {
         try await spawnImpl(id: id, config: config, forkSession: forkSession, allowReconfigureInFlight: false)
     }
 
-    func resolveToolApproval(
-        conversationId: String,
-        approval: ToolApprovalRequest,
-        decision: ClaudeToolApprovalDecision,
-        config: AgentSpawnConfig
-    ) async throws {
-        let key = ClaudeToolApprovalKey(sessionId: approval.sessionId, toolUseId: approval.toolUseId)
-        let oldPID = processes[conversationId]?.processIdentifier
-        suppressExitStatus(for: conversationId, pid: oldPID)
-        await teardownProcess(
-            for: conversationId,
-            awaitExit: true,
-            preserveBufferForDurabilityGrace: false,
-            graceSeconds: 1.0
-        )
-        await claudeHookServer.recordDecision(decision, for: key)
-
-        await MainActor.run {
-            conversationState(for: conversationId).turnState.beginTurn()
-        }
-        updateStatus(.busy, for: conversationId)
-
-        do {
-            try await spawnImpl(id: conversationId, config: config, forkSession: false, allowReconfigureInFlight: false)
-            if hookTokens[conversationId] == nil {
-                await claudeHookServer.discardDecision(for: key)
-            }
-            updateStatus(.busy, for: conversationId)
-        } catch {
-            await claudeHookServer.discardDecision(for: key)
-            await MainActor.run {
-                conversationState(for: conversationId).turnState.endTurn()
-            }
-            throw error
-        }
-    }
-
     func subscribe(conversationId: String, afterIndex: Int = 0) -> AgentEventSubscription? {
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.allowsReplay else {
             return nil
@@ -178,36 +141,33 @@ extension DefaultAgentsManager {
         )
         let sessionID = await sessionManager.sessionId(for: id)
 
-        let agentConfig = AgentConfig(
-            providerId: config.providerId,
-            sessionId: sessionID,
-            workingDirectory: config.workingDirectory,
-            permissionMode: config.permissionMode,
-            model: config.model,
-            effort: config.effort,
-            initialPrompt: config.initialPrompt
-        )
-
-        var arguments = adapter.buildArgs(config: agentConfig)
+        let agentConfig = agentConfig(config: config, sessionId: sessionID)
         let sessionLaunch = adapter.sessionLaunch(
             sessionId: sessionID,
             cwd: sessionCwd,
             isResuming: isResuming,
             forkSession: forkSession
         )
-        arguments += sessionLaunch.args
-        if let extraArgs = customConfig?.extraArgs, !extraArgs.isEmpty {
-            arguments += try parseExtraArgs(extraArgs)
-        }
+        var arguments = try preparedArguments(
+            adapter: adapter,
+            agentConfig: agentConfig,
+            sessionLaunch: sessionLaunch,
+            extraArgs: customConfig?.extraArgs
+        )
 
-        var providerEnv = adapter.envOverrides(config: agentConfig)
-        if let customEnv = customConfig?.env {
-            providerEnv.merge(customEnv) { _, custom in custom }
-        }
-        if config.providerId == "claude",
-           let hookLaunchConfig = await claudeHookServer.prepareLaunch(permissionMode: config.permissionMode) {
-            arguments += hookLaunchConfig.arguments
-            providerEnv.merge(hookLaunchConfig.environment) { _, hook in hook }
+        let hookLaunchConfig = await hookLaunchConfigIfNeeded(
+            providerId: config.providerId,
+            permissionMode: config.permissionMode,
+            conversationId: id
+        )
+        let providerEnv = mergedProviderEnvironment(
+            adapter: adapter,
+            agentConfig: agentConfig,
+            customEnv: customConfig?.env,
+            hookLaunchEnvironment: hookLaunchConfig?.environment
+        )
+        if let hookLaunchArguments = hookLaunchConfig?.arguments {
+            arguments += hookLaunchArguments
         }
 
         return PreparedSpawnContext(
@@ -446,6 +406,15 @@ extension DefaultAgentsManager {
         managedBuffer.buffer.push(event)
 
         if case .sessionInit(let sessionId) = event, let sessionId {
+            if await sessionManager.hasSession(for: conversationId) {
+                let previousSessionId = await sessionManager.sessionId(for: conversationId)
+                if previousSessionId != sessionId {
+                    await claudeHookServer.removeSessionApprovals(
+                        conversationId: conversationId,
+                        sessionId: previousSessionId
+                    )
+                }
+            }
             do {
                 try await sessionManager.updateSessionId(for: conversationId, newSessionId: sessionId)
             } catch {

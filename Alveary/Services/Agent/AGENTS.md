@@ -21,8 +21,10 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
 - Claude tool deferral is a normal turn stop:
     - **Persist the approval request.** Decode `stop_reason == "tool_deferred"` plus `deferred_tool_use` into a concise `tool_approval` record so restart can restore the pending action.
     - **Persist final approval state on the same row.** Once a resumed deferred turn resolves, write the final approve/deny status to the associated `tool_approval` record; do not add sidecar approval state.
+    - **Downgrade replaced approval rows.** If a newer deferred tool use arrives before an older unresolved `tool_approval` row is resolved, persist the older row as `superseded` unless it already had a concrete local decision that should be preserved as approved/denied.
     - **Do not treat it as an error.** End the active turn without setting `lastTurnError`; queued messages must remain paused until the approval resumes and finishes the deferred turn.
     - **Resume same session.** Approval/denial records a one-shot hook decision keyed by Claude `session_id + tool_use_id`, then respawns the same session without forking.
+    - **Session approval is additive.** `Approve for session` also records a generic session approval grant keyed by provider, conversation ID, and Claude `session_id`, but it still records the one-shot decision for the currently deferred tool use so the in-flight resume can proceed immediately.
 
 ## ChatItem Grouping
 
