@@ -2,6 +2,10 @@
 
 These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The pane has three stacked regions — drag handle, header row (icon + scrolling tab row + close button), body ScrollView with the selected session's output.
 
+## Session Chips
+
+- Terminal session chips render through the shared `SelectableTabChip` shell. Keep `.running` on `TabChipStatusIndicator.spinner(.blue)` in the same fixed `8×8` status slot as terminal success/failure dots so a session starting or finishing does not change chip height.
+
 ## Unified Pane Background
 
 - **Drive all three regions from a single `panelBackground`.** The drag handle, the header row, and the body ScrollView must all share the same background — do not reintroduce separate `headerBackground` or `bodyBackground` computed properties, and do not add per-region `.background(...)` modifiers.

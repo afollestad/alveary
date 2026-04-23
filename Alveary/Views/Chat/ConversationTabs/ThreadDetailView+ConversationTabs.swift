@@ -11,6 +11,7 @@ private let tabsTrailingSentinelWidth: CGFloat = 12
 struct ThreadDetailConversationTabs: View {
     let conversations: [Conversation]
     let selectedConversation: Conversation
+    let statusVersion: Int
     let statusForConversation: (Conversation) -> ThreadStatus
     let onSelect: (Conversation) -> Void
     let onCommitRename: (Conversation, String) -> Void
@@ -125,6 +126,16 @@ struct ThreadDetailConversationTabs: View {
             .secondaryActionButtonStyle()
             .help("New Conversation (\(KeyboardShortcut.newConversation.displayString))")
             .padding(.leading, tabsTrailingSentinelWidth)
+        }
+        .background {
+            // Invisible dependency anchor for runtime-status refreshes. `statusForConversation`
+            // reads `agentsManager.status(for:)` synchronously, so the tab row needs a real
+            // input tied to `ThreadDetailView`'s `.agentStatusChanged` observer; otherwise the
+            // selected chip can stay stale until some unrelated render invalidates the header.
+            Color.clear
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+                .id(statusVersion)
         }
         .padding(.trailing, 20)
         .padding(.vertical, 14)
@@ -253,8 +264,7 @@ private extension ConversationTabChip {
         //     36pt so the chip width does not jump as the user enters/leaves
         //     edit mode.
         HStack(spacing: 8) {
-            Circle()
-                .fill(statusColor)
+            TabChipStatusIndicatorView(indicator: statusIndicator)
                 .frame(width: 8, height: 8)
 
             TextField("Conversation name", text: $editText)
@@ -291,7 +301,7 @@ private extension ConversationTabChip {
             : nil
         return SelectableTabChip(
             displayName: conversation.displayName(),
-            statusColor: statusColor,
+            statusIndicator: statusIndicator,
             isSelected: isSelected,
             selectAccessibilityLabel: plainDisplayName,
             closeAccessibilityLabel: "Remove \(plainDisplayName)",
@@ -307,16 +317,16 @@ private extension ConversationTabChip {
         AppMarkdownInlineLabel.plainText(from: conversation.displayName())
     }
 
-    var statusColor: Color {
+    var statusIndicator: TabChipStatusIndicator {
         switch status {
         case .busy:
-            return .blue
+            return .spinner(.blue)
         case .unread:
-            return .green
+            return .dot(.green)
         case .error:
-            return .red
+            return .dot(.red)
         case .stopped, .archived:
-            return .secondary
+            return .dot(.secondary)
         }
     }
 

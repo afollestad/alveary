@@ -9,7 +9,7 @@ struct TerminalSessionChip: View {
     var body: some View {
         SelectableTabChip(
             displayName: session.chipLabel,
-            statusColor: statusColor,
+            statusIndicator: statusIndicator,
             isSelected: isSelected,
             selectAccessibilityLabel: accessibilityLabel,
             closeAccessibilityLabel: "Close \(plainChipLabel)",
@@ -21,16 +21,16 @@ struct TerminalSessionChip: View {
 }
 
 private extension TerminalSessionChip {
-    var statusColor: Color {
+    var statusIndicator: TabChipStatusIndicator {
         switch session.status {
         case .running:
-            return .blue
+            return .spinner(.blue)
         case .succeeded:
-            return .green
+            return .dot(.green)
         case .failed:
-            return .red
+            return .dot(.red)
         case .cancelled:
-            return .orange
+            return .dot(.orange)
         }
     }
 

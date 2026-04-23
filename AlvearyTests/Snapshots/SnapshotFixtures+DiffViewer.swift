@@ -106,12 +106,14 @@ actor SnapshotMockFileListManager: FileListManager {
 }
 
 actor SnapshotMockAgentsManager: AgentsManager {
+    private let statusStore = LockedState([String: ActivitySignal]())
+
     nonisolated func status(for conversationId: String) -> ActivitySignal {
-        .neutral
+        statusStore.withLock { $0[conversationId] ?? .neutral }
     }
 
     nonisolated var allStatuses: [String: ActivitySignal] {
-        [:]
+        statusStore.withLock { $0 }
     }
 
     nonisolated func beginShutdown() {}
@@ -158,4 +160,8 @@ actor SnapshotMockAgentsManager: AgentsManager {
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
 
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
+
+    func setStatus(_ status: ActivitySignal, for conversationId: String) {
+        statusStore.withLock { $0[conversationId] = status }
+    }
 }

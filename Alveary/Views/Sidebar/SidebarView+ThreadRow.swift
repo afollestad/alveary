@@ -2,6 +2,8 @@ import SwiftData
 import SwiftUI
 
 struct SidebarThreadRow: View {
+    private static let statusIndicatorSize: CGFloat = 8
+
     let thread: AgentThread
     let status: ThreadStatus
     let isSelected: Bool
@@ -21,9 +23,8 @@ struct SidebarThreadRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+            statusIndicator
+                .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
                 .offset(x: -3)
 
             if isEditing {
@@ -63,6 +64,19 @@ struct SidebarThreadRow: View {
                     editingThreadID = thread.persistentModelID
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        if status == .busy {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.5)
+                .tint(.blue)
+        } else {
+            Circle()
+                .fill(statusColor)
         }
     }
 

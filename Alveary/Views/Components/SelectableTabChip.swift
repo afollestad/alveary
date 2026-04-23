@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum TabChipStatusIndicator {
+    case dot(Color)
+    case spinner(Color)
+}
+
 /// Selectable capsule chip with a leading status dot, markdown-aware label, and a
 /// trailing `×` close button. Used as the canonical shape for conversation tabs and
 /// terminal session chips so the two surfaces stay pixel-identical — extracting the
@@ -12,8 +17,10 @@ import SwiftUI
 /// rationale — keeping the chip uniform across selection avoids a distracting color
 /// shift as the user moves selection across tabs.
 struct SelectableTabChip: View {
+    private static let statusIndicatorSize: CGFloat = 8
+
     let displayName: String
-    let statusColor: Color
+    let statusIndicator: TabChipStatusIndicator
     let isSelected: Bool
     let selectAccessibilityLabel: String
     let closeAccessibilityLabel: String
@@ -45,9 +52,8 @@ struct SelectableTabChip: View {
     private var selectButton: some View {
         Button(action: onSelect) {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 8, height: 8)
+                TabChipStatusIndicatorView(indicator: statusIndicator)
+                    .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
 
                 AppMarkdownInlineLabel(text: displayName)
                     .fixedSize(horizontal: true, vertical: false)
@@ -64,6 +70,23 @@ struct SelectableTabChip: View {
             }
         }
         .keyboardShortcut(selectShortcut)
+    }
+}
+
+struct TabChipStatusIndicatorView: View {
+    let indicator: TabChipStatusIndicator
+
+    var body: some View {
+        switch indicator {
+        case .dot(let color):
+            Circle()
+                .fill(color)
+        case .spinner(let color):
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.5)
+                .tint(color)
+        }
     }
 }
 

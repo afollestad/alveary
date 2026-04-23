@@ -21,8 +21,8 @@ extension SnapshotTests {
         )
     }
 
-    // Pins `.busy` → blue; no other sidebar snapshot exercises `.busy`.
-    func testSidebarThreadRowBusyStatusDotVisible() {
+    // Pins `.busy` to the fixed-size spinner; no other sidebar snapshot exercises `.busy`.
+    func testSidebarThreadRowBusyStatusSpinnerVisible() {
         let thread = AgentThread(name: AgentThread.untitledName)
 
         assertMacSnapshot(
@@ -35,7 +35,7 @@ extension SnapshotTests {
             )
             .padding(.leading, 14),
             size: CGSize(width: 280, height: 52),
-            named: "thread_row_busy_dot"
+            named: "thread_row_busy_spinner"
         )
     }
 

@@ -20,6 +20,7 @@ struct ThreadDetailView: View {
     @State private var conversationActionError: String?
     @State private var editingConversationID: PersistentIdentifier?
     @State private var pendingDeleteConversation: Conversation?
+    @State private var statusVersion = 0
 
     private var conversations: [Conversation] {
         let threadID = thread.persistentModelID
@@ -44,6 +45,7 @@ struct ThreadDetailView: View {
         let conversations = conversations
         let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
         let selectedConversationID = selectedConversation?.persistentModelID
+        let conversationIDs = Set(conversations.map(\.id))
 
         return Group {
             if let conversation = selectedConversation {
@@ -59,6 +61,7 @@ struct ThreadDetailView: View {
                     ThreadDetailConversationTabs(
                         conversations: conversations,
                         selectedConversation: conversation,
+                        statusVersion: statusVersion,
                         statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
                         onSelect: { appState.selectConversation($0, in: thread) },
                         onCommitRename: { renameConversation($0, to: $1) },
@@ -150,6 +153,18 @@ struct ThreadDetailView: View {
                     cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .agentStatusChanged)) { notification in
+            guard let conversationId = notification.userInfo?["conversationId"] as? String,
+                  conversationIDs.contains(conversationId) else {
+                return
+            }
+
+            // Tabs read `agentsManager.status(for:)` synchronously, so they need an
+            // explicit invalidation when a conversation in this thread starts or
+            // finishes work; otherwise the header can stay visually stale until some
+            // unrelated state change happens to re-render the parent view.
+            statusVersion += 1
         }
         // Publish the thread-scoped create action so `AlvearyApp.commands`
         // can render a ⌘T "New Conversation" menu item that is disabled
