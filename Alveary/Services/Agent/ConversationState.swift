@@ -27,6 +27,7 @@ final class ConversationState {
     var lastPermissionDeniedToolNames: Set<String> = []
     var inFlightQueuedMessageID: UUID?
     var setupPhase: SetupPhase?
+    var pendingToolApproval: PendingToolApproval?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
 

@@ -26,6 +26,11 @@ final class AgentAssembly: AutoInitModuleAssembly {
         }
         .inObjectScope(.container)
 
+        container.register(ClaudeHookServer.self) { _ in
+            DefaultClaudeHookServer()
+        }
+        .inObjectScope(.container)
+
         container.register(DefaultAgentsManager.self) { resolver in
             return DefaultAgentsManager(
                 sessionManager: resolver.sessionManager(),
@@ -33,7 +38,8 @@ final class AgentAssembly: AutoInitModuleAssembly {
                 environmentBuilder: resolver.agentEnvironmentBuilder(),
                 providerRegistry: resolver.providerRegistry(),
                 settingsService: resolver.settingsService(),
-                notificationManager: resolver.notificationManager()
+                notificationManager: resolver.notificationManager(),
+                claudeHookServer: resolver.claudeHookServer()
             )
         }
         .inObjectScope(.container)

@@ -107,6 +107,8 @@ struct ChatTranscriptView: View {
                                 return nil
                             }
                         }
+                    case .toolApproval(_, let approval):
+                        toolApprovalBlock(approval)
                     case .error(_, let message):
                         ErrorBanner(message: message)
                     case .turnInterruptedNote:

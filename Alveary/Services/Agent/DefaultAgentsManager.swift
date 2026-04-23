@@ -1,5 +1,7 @@
 import Foundation
 
+let claudeHookTokenEnvironmentKey = "ALVEARY_HOOK_TOKEN"
+
 actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let sessionManager: SessionManager
     let providerDetection: ProviderDetectionService
@@ -7,10 +9,12 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let providerRegistry: ProviderRegistry
     let settingsService: SettingsService
     let notificationManager: NotificationManager
+    let claudeHookServer: any ClaudeHookServer
     let adapterFactory: @Sendable (String) -> AgentAdapter
 
     var processes: [String: Process] = [:]
     var adapters: [String: AgentAdapter] = [:]
+    var hookTokens: [String: String] = [:]
     var streamTasks: [String: Task<Void, Never>] = [:]
     var eventBuffers: [String: ManagedEventBuffer] = [:]
     var stdinWriteTails: [String: PendingStdinWrite] = [:]
@@ -34,6 +38,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         providerRegistry: ProviderRegistry,
         settingsService: SettingsService,
         notificationManager: NotificationManager,
+        claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
         adapterFactory: @escaping @Sendable (String) -> AgentAdapter = { providerID in
             switch providerID {
             case "claude":
@@ -49,6 +54,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         self.providerRegistry = providerRegistry
         self.settingsService = settingsService
         self.notificationManager = notificationManager
+        self.claudeHookServer = claudeHookServer
         self.adapterFactory = adapterFactory
     }
 

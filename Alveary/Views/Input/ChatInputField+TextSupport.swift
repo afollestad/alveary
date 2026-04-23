@@ -337,6 +337,21 @@ enum ChatInputFieldTextSupport {
             return "Cancelling setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
+        case .toolApproval:
+            return "Waiting for approval..."
+        }
+    }
+
+    static func placeholder(for reason: ComposerMode.ProgressReason) -> String {
+        switch reason {
+        case .initialSetup:
+            return "Preparing the conversation for its first turn..."
+        case .cancellingInitialSetup:
+            return "Cancelling the conversation setup..."
+        case .reconfiguringSession:
+            return "Applying session changes..."
+        case .toolApproval:
+            return "Waiting for tool approval..."
         }
     }
 

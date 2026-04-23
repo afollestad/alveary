@@ -97,6 +97,30 @@ extension ConversationViewModelTests {
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
+    func testApplyPermissionModeChangeIsRejectedDuringPendingToolApproval() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "default"
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(
+            request: ToolApprovalRequest(
+                sessionId: "session-123",
+                toolUseId: "tool-1",
+                toolName: "Bash",
+                toolInput: "{\"command\":\"swift test\"}"
+            ),
+            status: .pending
+        )
+
+        await fixture.viewModel.applyPermissionModeChange("acceptEdits").value
+
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
     func testApplyModelChangeIsRejectedDuringActiveTurn() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,

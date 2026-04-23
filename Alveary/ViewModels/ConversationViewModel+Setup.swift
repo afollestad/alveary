@@ -81,6 +81,9 @@ extension ConversationViewModel {
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Session changes are still being applied")
         }
+        guard state.pendingToolApproval == nil else {
+            throw AgentError.spawnFailed("Approve or deny the pending tool use before sending another message")
+        }
         guard !state.isSendingMessage else {
             throw AgentError.spawnFailed("Another message is already being sent")
         }

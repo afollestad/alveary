@@ -163,12 +163,8 @@ struct ChatInputField: View {
                 return "Enter to queue for the next turn, or Opt+Enter to steer..."
             }
             return "Type a message to queue for the next turn..."
-        case .progressOnly(.initialSetup):
-            return "Preparing the conversation for its first turn..."
-        case .progressOnly(.cancellingInitialSetup):
-            return "Cancelling the conversation setup..."
-        case .progressOnly(.reconfiguringSession):
-            return "Applying session changes..."
+        case .progressOnly(let reason):
+            return ChatInputFieldTextSupport.placeholder(for: reason)
         }
     }
 

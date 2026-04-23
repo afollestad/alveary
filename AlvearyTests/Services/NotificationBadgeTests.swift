@@ -148,6 +148,7 @@ final class NotificationBadgeTests: XCTestCase {
         let spy = NotificationSpy()
         let context = try NotificationManagerTestFactory.makeContext()
         let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let conversationId = conversation.id
         let manager = NotificationManagerTestFactory.makeManager(
             settingsService: service,
             modelContainer: context.container,
@@ -162,13 +163,13 @@ final class NotificationBadgeTests: XCTestCase {
             object: nil,
             queue: .main
         ) { notification in
-            if notification.userInfo?["conversationId"] as? String == conversation.id {
+            if notification.userInfo?["conversationId"] as? String == conversationId {
                 expectation.fulfill()
             }
         }
         defer { NotificationCenter.default.removeObserver(observer) }
 
-        manager.handleEvent(.stop(message: nil), conversationId: conversation.id)
+        manager.handleEvent(.stop(message: nil), conversationId: conversationId)
 
         wait(for: [expectation], timeout: 0.5)
     }
@@ -182,11 +183,12 @@ final class NotificationBadgeTests: XCTestCase {
             threadName: "Thread",
             isUnread: true
         )
+        let conversationId = conversation.id
         let manager = NotificationManagerTestFactory.makeManager(
             settingsService: service,
             modelContainer: context.container,
             isAppInForeground: true,
-            activeConversationId: conversation.id,
+            activeConversationId: conversationId,
             spy: spy
         )
 
@@ -196,13 +198,13 @@ final class NotificationBadgeTests: XCTestCase {
             object: nil,
             queue: .main
         ) { notification in
-            if notification.userInfo?["conversationId"] as? String == conversation.id {
+            if notification.userInfo?["conversationId"] as? String == conversationId {
                 expectation.fulfill()
             }
         }
         defer { NotificationCenter.default.removeObserver(observer) }
 
-        manager.markConversationRead(conversationId: conversation.id)
+        manager.markConversationRead(conversationId: conversationId)
 
         wait(for: [expectation], timeout: 0.5)
     }

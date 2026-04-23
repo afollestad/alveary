@@ -75,7 +75,7 @@ extension AppMarkdownInlineLabel {
     /// decoded to their human-readable form (`@<basename>`) so the result reads cleanly in
     /// non-markdown contexts like VoiceOver accessibility labels. Non-chip content is
     /// preserved verbatim.
-    static func plainText(from markdown: String) -> String {
+    nonisolated static func plainText(from markdown: String) -> String {
         let segments = InlineSegment.segments(for: markdown)
         if segments.count == 1, case .text(let value) = segments[0] {
             return value

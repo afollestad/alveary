@@ -177,6 +177,8 @@ extension DefaultAgentsManager {
         preserveBufferForDurabilityGrace: Bool,
         graceSeconds: TimeInterval = 5
     ) async {
+        await invalidateTrackedHookToken(for: conversationId)
+
         stdinWriteTails[conversationId]?.cancel()
         stdinWriteTails.removeValue(forKey: conversationId)
 
@@ -244,12 +246,25 @@ extension DefaultAgentsManager {
         pendingSessionRemovalIds.remove(conversationId)
     }
 
+    func invalidateTrackedHookToken(for conversationId: String) async {
+        let token = hookTokens.removeValue(forKey: conversationId)
+        await invalidateHookToken(token)
+    }
+
+    func invalidateHookToken(_ token: String?) async {
+        guard let token else {
+            return
+        }
+
+        await claudeHookServer.invalidateToken(token)
+    }
+
     func handleProcessExit(
         id: String,
         pid: Int32,
         terminationReason: Process.TerminationReason,
         terminationStatus: Int32
-    ) {
+    ) async {
         guard processes[id]?.processIdentifier == pid else {
             _ = consumeSuppressedExit(for: id, pid: pid)
             return
@@ -257,6 +272,7 @@ extension DefaultAgentsManager {
 
         processes.removeValue(forKey: id)
         adapters.removeValue(forKey: id)
+        await invalidateTrackedHookToken(for: id)
         stdinWriteTails[id]?.cancel()
         stdinWriteTails.removeValue(forKey: id)
 
@@ -347,6 +363,11 @@ extension DefaultAgentsManager {
 
         state.turnState.endTurn()
         state.clearStreamingText()
+        if var pendingToolApproval = state.pendingToolApproval,
+           pendingToolApproval.status != .pending {
+            pendingToolApproval.status = .pending
+            state.pendingToolApproval = pendingToolApproval
+        }
 
         if state.isCancellingTurn {
             state.isCancellingTurn = false

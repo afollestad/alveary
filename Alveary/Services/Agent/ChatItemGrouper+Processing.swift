@@ -23,6 +23,8 @@ extension ChatItemGrouper {
             handleToolCall(event)
         case "tool_result":
             handleToolResult(event)
+        case "tool_approval":
+            handleToolApproval(event)
         case "error":
             flushGroup()
             flushSubAgents()
@@ -185,6 +187,23 @@ private extension ChatItemGrouper {
             flushGroup()
             appendTranscriptItem(.standaloneTool(id: "tool-\(toolId)", tool: pendingTool))
         }
+    }
+
+    func handleToolApproval(_ event: ConversationEventRecord) {
+        let toolUseId = event.toolId ?? event.id
+        flushGroup()
+        flushSubAgents()
+        appendTranscriptItem(
+            .toolApproval(
+                id: "approval-\(toolUseId)",
+                approval: ToolApprovalRequest(
+                    sessionId: event.content ?? "",
+                    toolUseId: toolUseId,
+                    toolName: event.toolName ?? "Tool",
+                    toolInput: event.toolInput ?? "{}"
+                )
+            )
+        )
     }
 
     func makeCompletedToolEntry(for toolId: String, event: ConversationEventRecord) -> ToolEntry? {

@@ -134,35 +134,36 @@ final class NotificationForegroundTests: XCTestCase {
             in: context.container,
             threadName: "Thread"
         )
+        let conversationId = conversation.id
         let center = NotificationCenter()
         let manager = DefaultNotificationManager(
             settingsService: service,
             modelContainer: context.container,
             systemNotificationCenter: center
         )
-        var inForeground = true
-        manager.isAppInForeground = { inForeground }
-        manager.setActiveConversationProvider { conversation.id }
+        let foregroundState = LockedState(true)
+        manager.isAppInForeground = { foregroundState.withLock { $0 } }
+        manager.setActiveConversationProvider { conversationId }
         let dismissed = DismissalTracker()
         manager.onDismissDelivered = { dismissed.record($0) }
         manager.setBadgeCount = { _ in }
         manager.onPostNotification = { _, _, _ in }
 
         // Step 1: user is viewing the tab; agent finishes — no unread.
-        manager.handleEvent(.stop(message: nil), conversationId: conversation.id)
+        manager.handleEvent(.stop(message: nil), conversationId: conversationId)
         XCTAssertFalse(
-            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? true
+            NotificationManagerTestFactory.fetchConversation(id: conversationId, in: context.container)?.isUnread ?? true
         )
 
         // Step 2: user minimizes, agent finishes again.
-        inForeground = false
-        manager.handleEvent(.stop(message: nil), conversationId: conversation.id)
+        foregroundState.withLock { $0 = false }
+        manager.handleEvent(.stop(message: nil), conversationId: conversationId)
         XCTAssertTrue(
-            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? false
+            NotificationManagerTestFactory.fetchConversation(id: conversationId, in: context.container)?.isUnread ?? false
         )
 
         // Step 3: user un-minimizes — occlusion state change with app in foreground.
-        inForeground = true
+        foregroundState.withLock { $0 = true }
         let dismissExpectation = expectation(description: "notification dismissed after unminimize")
         dismissed.onRecord = { _ in
             dismissExpectation.fulfill()
@@ -171,9 +172,9 @@ final class NotificationForegroundTests: XCTestCase {
         await fulfillment(of: [dismissExpectation], timeout: 0.5)
 
         XCTAssertFalse(
-            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? true
+            NotificationManagerTestFactory.fetchConversation(id: conversationId, in: context.container)?.isUnread ?? true
         )
-        XCTAssertEqual(dismissed.ids.last, conversation.id)
+        XCTAssertEqual(dismissed.ids.last, conversationId)
     }
 
     private func assertObservedVisibilityEventMarksRead(notificationName: Notification.Name) throws {

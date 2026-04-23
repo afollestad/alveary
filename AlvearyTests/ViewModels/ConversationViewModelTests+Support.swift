@@ -11,6 +11,7 @@ actor MockAgentsManager: AgentsManager {
     enum MockError: Error, Sendable, Equatable {
         case sendFailed
         case reconfigureFailed
+        case approvalFailed
     }
 
     struct SpawnCall: Sendable, Equatable {
@@ -24,23 +25,33 @@ actor MockAgentsManager: AgentsManager {
         let config: AgentSpawnConfig
     }
 
+    struct ApprovalCall: Sendable, Equatable {
+        let conversationId: String
+        let approval: ToolApprovalRequest
+        let decision: ClaudeToolApprovalDecision
+        let config: AgentSpawnConfig
+    }
+
     private var isRunningValue: Bool
     private let sendError: MockError?
     private let reconfigureError: MockError?
+    private let approvalError: MockError?
     private var queuedSendResults: [Result<Void, MockError>] = []
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
+    private var recordedApprovalCalls: [ApprovalCall] = []
     private var subscriptionEnabled = false
     private let subscriptionGeneration = UUID()
     private var subscriptionContinuation: AsyncStream<ConversationEvent>.Continuation?
     private var subscribeCallCount = 0
     private var subscriptionTerminationCount = 0
 
-    init(isRunning: Bool, sendError: MockError?, reconfigureError: MockError?) {
+    init(isRunning: Bool, sendError: MockError?, reconfigureError: MockError?, approvalError: MockError?) {
         self.isRunningValue = isRunning
         self.sendError = sendError
         self.reconfigureError = reconfigureError
+        self.approvalError = approvalError
     }
 
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
@@ -81,6 +92,26 @@ actor MockAgentsManager: AgentsManager {
             throw sendError
         }
         recordedSentMessages.append(message)
+    }
+
+    func resolveToolApproval(
+        conversationId: String,
+        approval: ToolApprovalRequest,
+        decision: ClaudeToolApprovalDecision,
+        config: AgentSpawnConfig
+    ) async throws {
+        recordedApprovalCalls.append(
+            ApprovalCall(
+                conversationId: conversationId,
+                approval: approval,
+                decision: decision,
+                config: config
+            )
+        )
+        if let approvalError {
+            throw approvalError
+        }
+        isRunningValue = true
     }
 
     func enqueueSendResult(_ result: Result<Void, MockError>) {
@@ -172,6 +203,10 @@ actor MockAgentsManager: AgentsManager {
 
     func reconfigureCalls() -> [ReconfigureCall] {
         recordedReconfigureCalls
+    }
+
+    func approvalCalls() -> [ApprovalCall] {
+        recordedApprovalCalls
     }
 
     private func recordSubscriptionTermination() {

@@ -2,6 +2,8 @@
 
 These instructions cover the agent runtime and Claude CLI adapter under `Alveary/Services/Agent/`.
 
+- Claude HTTP hook listener, settings generation, and approval policy code lives under `Hooks/`; follow `Hooks/AGENTS.md` for that subsystem.
+
 ## Claude CLI Streaming And Resume
 
 - Claude structured streaming requires `--verbose` alongside `--output-format stream-json`; dropping `--verbose` produces no structured output.
@@ -16,6 +18,10 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
     - **Do not surface raw marker text.** The persisted `stop` event renders the centered `Interrupted` transcript note after restore.
     - **Suppress trailing token noise.** Claude may follow the stop marker with an error token whose stop reason is the same interruption. Do not persist or notify that token as an error.
 - Streamed top-level `type: "user"` text should surface as an assistant transcript message, not a user bubble. The real user prompt is already inserted locally; any streamed user-text payload is runtime output and should be treated as assistant content after caveat stripping.
+- Claude tool deferral is a normal turn stop:
+    - **Persist the approval request.** Decode `stop_reason == "tool_deferred"` plus `deferred_tool_use` into a concise `tool_approval` record so restart can restore the pending action.
+    - **Do not treat it as an error.** End the active turn without setting `lastTurnError`; queued messages must remain paused until the approval resumes and finishes the deferred turn.
+    - **Resume same session.** Approval/denial records a one-shot hook decision keyed by Claude `session_id + tool_use_id`, then respawns the same session without forking.
 
 ## ChatItem Grouping
 
@@ -37,6 +43,7 @@ These instructions cover the agent runtime and Claude CLI adapter under `Alveary
     - **Route appends through `appendTranscriptItem(_:)`.** User, assistant, tool, sub-agent, prompt, error, and interrupted-note rows should insert above the latest incomplete `.taskListBlock`.
     - **Pin only the latest incomplete list.** Once a newer task list arrives, older lists stay in transcript history behind it. If the latest task list is complete, later rows append below it in normal transcript order.
 - **Keep sub-agent logic in `ChatItemGrouper+SubAgent.swift`.** The file owns start/progress/complete handlers, agent tool-call routing, and sub-agent patching helpers. The split exists to keep `+Processing.swift` under the SwiftLint file-length limit.
+- **Render `tool_approval` as its own assistant-side block.** Flush any pending tool group/sub-agent block first, keep the block concise, and leave detailed tool input to existing tool rows rather than dumping JSON into the approval surface.
 
 ## Runtime And Config Ownership
 

@@ -13,6 +13,7 @@ func makeSettings(cliPath: String, extraArgs: String? = nil) -> InMemorySettings
 func makeTestManager(
     settings: InMemorySettingsService,
     sessionManager: InMemorySessionManager = InMemorySessionManager(),
+    claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
     adapterFactory: @escaping @Sendable (String) -> AgentAdapter
 ) -> DefaultAgentsManager {
     DefaultAgentsManager(
@@ -22,6 +23,7 @@ func makeTestManager(
         providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
         settingsService: settings,
         notificationManager: StubNotificationManager(),
+        claudeHookServer: claudeHookServer,
         adapterFactory: adapterFactory
     )
 }
@@ -71,6 +73,66 @@ struct WaitTimeoutError: LocalizedError {
 
     var errorDescription: String? {
         description
+    }
+}
+
+actor StubClaudeHookServer: ClaudeHookServer {
+    enum Event: Equatable {
+        case recordDecision(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)
+        case discardDecision(ClaudeToolApprovalKey)
+        case invalidateToken(String)
+    }
+
+    private var launchConfigs: [ClaudeHookLaunchConfig?]
+    private var recordedDecisions: [(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)] = []
+    private var discardedDecisions: [ClaudeToolApprovalKey] = []
+    private var invalidatedTokens: [String] = []
+    private var recordedEvents: [Event] = []
+
+    init(launchConfig: ClaudeHookLaunchConfig?) {
+        self.launchConfigs = [launchConfig]
+    }
+
+    init(launchConfigs: [ClaudeHookLaunchConfig?]) {
+        self.launchConfigs = launchConfigs
+    }
+
+    func prepareLaunch(permissionMode: String?) async -> ClaudeHookLaunchConfig? {
+        guard launchConfigs.count > 1 else {
+            return launchConfigs.first ?? nil
+        }
+        return launchConfigs.removeFirst()
+    }
+
+    func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async {
+        recordedDecisions.append((decision, key))
+        recordedEvents.append(.recordDecision(decision, key))
+    }
+
+    func decisions() -> [(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)] {
+        recordedDecisions
+    }
+
+    func discardDecision(for key: ClaudeToolApprovalKey) {
+        discardedDecisions.append(key)
+        recordedEvents.append(.discardDecision(key))
+    }
+
+    func discards() -> [ClaudeToolApprovalKey] {
+        discardedDecisions
+    }
+
+    func invalidateToken(_ token: String) {
+        invalidatedTokens.append(token)
+        recordedEvents.append(.invalidateToken(token))
+    }
+
+    func invalidations() -> [String] {
+        invalidatedTokens
+    }
+
+    func events() -> [Event] {
+        recordedEvents
     }
 }
 

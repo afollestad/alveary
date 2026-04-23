@@ -312,6 +312,54 @@ final class ClaudeAdapterTests: XCTestCase {
         )
     }
 
+    func testDecodeResultEventEmitsDeferredToolApproval() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "result",
+            "session_id": "session-123",
+            "stop_reason": "tool_deferred",
+            "is_error": false,
+            "usage": [
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "cache_read_input_tokens": 4
+            ],
+            "duration_ms": 42,
+            "total_cost_usd": 0.01,
+            "deferred_tool_use": [
+                "id": "tool-1",
+                "name": "Bash",
+                "input": [
+                    "command": "swift test"
+                ]
+            ]
+        ]
+
+        XCTAssertEqual(
+            adapter.decode(json),
+            [
+                .toolApprovalRequested(
+                    ToolApprovalRequest(
+                        sessionId: "session-123",
+                        toolUseId: "tool-1",
+                        toolName: "Bash",
+                        toolInput: "{\"command\":\"swift test\"}"
+                    )
+                ),
+                .tokens(
+                    input: 10,
+                    output: 2,
+                    cacheRead: 4,
+                    isError: false,
+                    stopReason: "tool_deferred",
+                    durationMs: 42,
+                    costUsd: 0.01,
+                    permissionDenials: []
+                )
+            ]
+        )
+    }
+
     func testSendMessageWritesStructuredJSONLineToStdin() throws {
         let adapter = ClaudeAdapter()
         let process = Process()

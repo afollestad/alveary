@@ -67,4 +67,69 @@ extension SnapshotTests {
             named: "standalone_bash_error_expanded"
         )
     }
+
+    func testToolApprovalBash() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .pending,
+                onApprove: {},
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_bash"
+        )
+    }
+
+    func testToolApprovalEdit() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleEditApproval,
+                status: .pending,
+                onApprove: {},
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_edit"
+        )
+    }
+
+    func testToolApprovalCompact() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .pending,
+                onApprove: {},
+                onDeny: {}
+            ),
+            size: CGSize(width: 340, height: 140),
+            named: "tool_approval_compact"
+        )
+    }
+
+    func testToolApprovalApproving() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .approving,
+                onApprove: {},
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_approving"
+        )
+    }
+
+    func testToolApprovalDenying() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .denying,
+                onApprove: {},
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_denying"
+        )
+    }
 }

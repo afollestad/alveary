@@ -75,6 +75,7 @@ final class ConversationViewModel {
 
         hasActivatedViewLifecycle = true
         hydratePendingRestoreContextIfNeeded()
+        hydratePendingToolApprovalIfNeeded()
         subscribe()
     }
 
@@ -201,6 +202,9 @@ final class ConversationViewModel {
     func reconfigureSession(config: AgentSpawnConfig) async throws {
         guard !state.turnState.isActive, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before applying session changes")
+        }
+        guard state.pendingToolApproval == nil else {
+            throw AgentError.spawnFailed("Approve or deny the pending tool use before applying session changes")
         }
         guard !state.isReconfiguringSession else {
             return

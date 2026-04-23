@@ -128,6 +128,13 @@ actor SnapshotMockAgentsManager: AgentsManager {
 
     func sendMessage(_ message: String, conversationId: String) async throws {}
 
+    func resolveToolApproval(
+        conversationId: String,
+        approval: ToolApprovalRequest,
+        decision: ClaudeToolApprovalDecision,
+        config: AgentSpawnConfig
+    ) async throws {}
+
     func cancelTurn(conversationId: String) {}
 
     func destroyRuntime(conversationId: String) async throws {}

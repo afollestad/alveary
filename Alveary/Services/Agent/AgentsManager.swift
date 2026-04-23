@@ -9,6 +9,12 @@ protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
     func sendMessage(_ message: String, conversationId: String) async throws
+    func resolveToolApproval(
+        conversationId: String,
+        approval: ToolApprovalRequest,
+        decision: ClaudeToolApprovalDecision,
+        config: AgentSpawnConfig
+    ) async throws
     func cancelTurn(conversationId: String)
     func destroyRuntime(conversationId: String) async throws
     func kill(conversationId: String)

@@ -6,6 +6,43 @@ extension DefaultAgentsManager {
         try await spawnImpl(id: id, config: config, forkSession: forkSession, allowReconfigureInFlight: false)
     }
 
+    func resolveToolApproval(
+        conversationId: String,
+        approval: ToolApprovalRequest,
+        decision: ClaudeToolApprovalDecision,
+        config: AgentSpawnConfig
+    ) async throws {
+        let key = ClaudeToolApprovalKey(sessionId: approval.sessionId, toolUseId: approval.toolUseId)
+        let oldPID = processes[conversationId]?.processIdentifier
+        suppressExitStatus(for: conversationId, pid: oldPID)
+        await teardownProcess(
+            for: conversationId,
+            awaitExit: true,
+            preserveBufferForDurabilityGrace: false,
+            graceSeconds: 1.0
+        )
+        await claudeHookServer.recordDecision(decision, for: key)
+
+        await MainActor.run {
+            conversationState(for: conversationId).turnState.beginTurn()
+        }
+        updateStatus(.busy, for: conversationId)
+
+        do {
+            try await spawnImpl(id: conversationId, config: config, forkSession: false, allowReconfigureInFlight: false)
+            if hookTokens[conversationId] == nil {
+                await claudeHookServer.discardDecision(for: key)
+            }
+            updateStatus(.busy, for: conversationId)
+        } catch {
+            await claudeHookServer.discardDecision(for: key)
+            await MainActor.run {
+                conversationState(for: conversationId).turnState.endTurn()
+            }
+            throw error
+        }
+    }
+
     func subscribe(conversationId: String, afterIndex: Int = 0) -> AgentEventSubscription? {
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.allowsReplay else {
             return nil
@@ -69,10 +106,15 @@ extension DefaultAgentsManager {
         }
 
         let prepared = try await prepareSpawnContext(id: id, config: config, forkSession: forkSession)
-        let launched = try await launchProcess(id: id, config: config, prepared: prepared)
-        try await ensureUnpublishedLaunchStillAllowed(id: id, launched: launched)
-        let runtime = try await publishRuntime(id: id, config: config, prepared: prepared, launched: launched)
-        try await sendInitialPromptIfNeeded(id: id, config: config, prepared: prepared, runtime: runtime)
+        do {
+            let launched = try await launchProcess(id: id, config: config, prepared: prepared)
+            try await ensureUnpublishedLaunchStillAllowed(id: id, launched: launched)
+            let runtime = try await publishRuntime(id: id, config: config, prepared: prepared, launched: launched)
+            try await sendInitialPromptIfNeeded(id: id, config: config, prepared: prepared, runtime: runtime)
+        } catch {
+            await invalidateHookToken(prepared.environment[claudeHookTokenEnvironmentKey])
+            throw error
+        }
     }
 
     private func assertSpawnAllowed(id: String, allowReconfigureInFlight: Bool) throws {
@@ -161,6 +203,11 @@ extension DefaultAgentsManager {
         var providerEnv = adapter.envOverrides(config: agentConfig)
         if let customEnv = customConfig?.env {
             providerEnv.merge(customEnv) { _, custom in custom }
+        }
+        if config.providerId == "claude",
+           let hookLaunchConfig = await claudeHookServer.prepareLaunch(permissionMode: config.permissionMode) {
+            arguments += hookLaunchConfig.arguments
+            providerEnv.merge(hookLaunchConfig.environment) { _, hook in hook }
         }
 
         return PreparedSpawnContext(
@@ -262,6 +309,7 @@ extension DefaultAgentsManager {
         let generation = UUID()
         processes[id] = launched.process
         adapters[id] = prepared.adapter
+        hookTokens[id] = prepared.environment[claudeHookTokenEnvironmentKey]
         processSnapshot.withLock { $0 = Array(processes.values) }
         publishManagedProcessesChanged()
 
@@ -280,7 +328,7 @@ extension DefaultAgentsManager {
         }
 
         if !launched.process.isRunning {
-            handleProcessExit(
+            await handleProcessExit(
                 id: id,
                 pid: pid,
                 terminationReason: launched.process.terminationReason,

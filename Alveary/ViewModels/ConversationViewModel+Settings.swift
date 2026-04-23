@@ -2,12 +2,12 @@ import Foundation
 import SwiftData
 
 extension ConversationViewModel {
-    // Reject dropdown changes while the agent is working. The composer pickers
+    // Reject dropdown changes while the agent is working or waiting on approval. The composer pickers
     // are already `.disabled` in busy modes, but gate at the view-model entry
     // point too so any stray binding write (programmatic, race on mode flip)
-    // can't silently persist to the DB or fork the session mid-turn.
+    // can't silently persist to the DB or fork the session mid-turn or mid-approval.
     var canApplySettingsChange: Bool {
-        !state.turnState.isActive && !state.isSendingMessage
+        !state.turnState.isActive && !state.isSendingMessage && state.pendingToolApproval == nil
     }
 
     // Reconfigure (fork the provider session) whenever the thread already has a

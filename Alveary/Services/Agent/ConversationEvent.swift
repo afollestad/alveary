@@ -63,6 +63,7 @@ enum ConversationEvent: Sendable, Equatable {
         costUsd: Double,
         permissionDenials: [PermissionDenialSummary]
     )
+    case toolApprovalRequested(ToolApprovalRequest)
     case subAgentStarted(toolUseId: String, description: String, taskType: String?)
     case subAgentProgress(toolUseId: String, description: String?, lastToolName: String?, toolUses: Int, totalTokens: Int, durationMs: Int)
     case subAgentCompleted(toolUseId: String, status: String, toolUses: Int, totalTokens: Int, durationMs: Int)
@@ -71,6 +72,7 @@ enum ConversationEvent: Sendable, Equatable {
     case error(message: String)
 
     @MainActor
+    // swiftlint:disable:next cyclomatic_complexity
     func toRecord(conversation: Conversation) -> ConversationEventRecord? {
         switch self {
         case .message:
@@ -83,6 +85,8 @@ enum ConversationEvent: Sendable, Equatable {
             return thinkingRecord(conversation: conversation)
         case .tokens:
             return tokensRecord(conversation: conversation)
+        case .toolApprovalRequested:
+            return toolApprovalRecord(conversation: conversation)
         case .notification:
             return notificationRecord(conversation: conversation)
         case .stop:
@@ -191,6 +195,23 @@ private extension ConversationEvent {
         )
         record.stopReason = stopReason
         return record
+    }
+
+    @MainActor
+    func toolApprovalRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .toolApprovalRequested(request) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: request.sessionId,
+            toolId: request.toolUseId,
+            toolName: request.toolName,
+            toolInput: request.toolInput,
+            conversation: conversation
+        )
     }
 
     @MainActor

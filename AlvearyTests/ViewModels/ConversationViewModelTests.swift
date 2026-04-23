@@ -234,6 +234,7 @@ struct ConversationViewModelTestFixture {
         pendingRestoreContext: String? = nil,
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
+        approvalError: MockAgentsManager.MockError? = nil,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
         projectIsGitRepository: Bool = true,
         pausesWorktreeCreate: Bool = false,
@@ -260,7 +261,8 @@ struct ConversationViewModelTestFixture {
         let agentsManager = MockAgentsManager(
             isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
             sendError: sendError,
-            reconfigureError: reconfigureError
+            reconfigureError: reconfigureError,
+            approvalError: approvalError
         )
         let runtimeStore = MockConversationRuntimeStore()
         let worktreeManager = MockWorktreeManager(

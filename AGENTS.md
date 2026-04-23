@@ -14,6 +14,7 @@ Use nested `AGENTS.md` files to keep local guidance close to the code it governs
 - `Alveary/Data/AGENTS.md` covers SwiftData model invariants (`AgentThread`, `Conversation`, `Project`).
 - `Alveary/DI/AGENTS.md` covers Knit assemblies, generated DI output, and the SwiftData store location.
 - `Alveary/Services/Agent/AGENTS.md` covers the agent runtime and Claude CLI adapter.
+- `Alveary/Services/Agent/Hooks/AGENTS.md` covers Claude HTTP hook listener, settings, and approval-policy support.
 - `Alveary/Services/Detection/AGENTS.md` covers `AgentRegistry` and provider detection.
 - `Alveary/Services/Git/AGENTS.md` covers worktree lifecycle and the GitHub CLI adapter.
 - `Alveary/Services/Notification/AGENTS.md` covers the notification manager, badge-count chaining, and OS notification tap routing.

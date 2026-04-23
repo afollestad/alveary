@@ -9,6 +9,11 @@ private struct ConversationSaveSnapshot {
 
 extension ConversationViewModel {
     func handleTurnCompleted() {
+        guard state.pendingToolApproval == nil else {
+            state.turnState.endTurn()
+            return
+        }
+
         guard state.messageQueue.peekNext() != nil else {
             state.turnState.endTurn()
             return
@@ -194,21 +199,6 @@ extension ConversationViewModel {
         await saveTask.value
     }
 
-    func hydratePendingRestoreContextIfNeeded() {
-        guard let pendingRestoreContext = dbConversation()?.pendingRestoreContext else {
-            return
-        }
-
-        if state.stagedContext == pendingRestoreContext {
-            return
-        }
-
-        guard !state.messageQueue.pending.contains(where: { $0.stagedContext == pendingRestoreContext }) else {
-            return
-        }
-
-        state.stagedContext = pendingRestoreContext
-    }
 }
 
 private extension ConversationViewModel {
@@ -267,21 +257,6 @@ private extension ConversationViewModel {
         return message
     }
 
-    func clearConsumedPendingRestoreContext(using stagedContext: String?) {
-        guard let stagedContext,
-              let dbConversation = dbConversation(),
-              dbConversation.pendingRestoreContext == stagedContext else {
-            return
-        }
-
-        dbConversation.pendingRestoreContext = nil
-        do {
-            try modelContext.save()
-        } catch {
-            // Best-effort only; the next save will retry persisting the cleared restore context.
-        }
-    }
-
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         switch event {
         case .sessionInit:
@@ -312,6 +287,12 @@ private extension ConversationViewModel {
                 )
             )
 
+        case .toolApprovalRequested(let approval):
+            state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+            state.showPermissionBanner = false
+            state.lastPermissionDeniedToolNames = []
+            return true
+
         case .stop(let message):
             return shouldPersistStopEvent(message: message)
 
@@ -327,6 +308,9 @@ private extension ConversationViewModel {
     func handleTokenEvent(_ payload: TokenEventPayload) -> TokenEventPersistence {
         let hadStreamingText = state.streamingText != nil
         state.clearStreamingText()
+        guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
+        clearResolvedPendingToolApprovalIfNeeded()
+
         if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
             for: payload,
             hadStreamingText: hadStreamingText

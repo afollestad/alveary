@@ -298,7 +298,8 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
             return PermissionDenialSummary(toolName: toolName, toolUseId: entry["tool_use_id"] as? String)
         } ?? []
 
-        return [
+        var events = deferredToolApprovalEvent(from: json) ?? []
+        events.append(
             .tokens(
                 input: usage?["input_tokens"] as? Int ?? 0,
                 output: usage?["output_tokens"] as? Int ?? 0,
@@ -308,6 +309,32 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
                 durationMs: json["duration_ms"] as? Int ?? 0,
                 costUsd: json["total_cost_usd"] as? Double ?? 0,
                 permissionDenials: permissionDenials
+            )
+        )
+        return events
+    }
+
+    private func deferredToolApprovalEvent(from json: [String: Any]) -> [ConversationEvent]? {
+        guard json["stop_reason"] as? String == "tool_deferred",
+              let deferredToolUse = json["deferred_tool_use"] as? [String: Any],
+              let sessionId = requiredString(json["session_id"]),
+              let toolUseId = requiredString(deferredToolUse["id"]),
+              let toolName = requiredString(deferredToolUse["name"]) else {
+            return nil
+        }
+
+        let input = (deferredToolUse["input"] as? [String: Any])
+            .flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+        return [
+            .toolApprovalRequested(
+                ToolApprovalRequest(
+                    sessionId: sessionId,
+                    toolUseId: toolUseId,
+                    toolName: toolName,
+                    toolInput: input
+                )
             )
         ]
     }
