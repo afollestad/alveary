@@ -20,9 +20,13 @@ func resolvedLastOpenThreadSelection(
         thread.persistentModelID == threadID && thread.archivedAt == nil
     })
 
+    let conversationDescriptor = FetchDescriptor<Conversation>(predicate: #Predicate { conversation in
+        conversation.persistentModelID == conversationID && conversation.thread?.persistentModelID == threadID
+    })
+
     guard let threads = try? modelContext.fetch(threadDescriptor),
           let thread = threads.first,
-          thread.conversations.contains(where: { $0.persistentModelID == conversationID }) else {
+          (try? modelContext.fetch(conversationDescriptor).first) != nil else {
         return nil
     }
 
@@ -52,14 +56,19 @@ extension ContentView {
     }
 
     func persistLastOpenThreadSelection(for item: SidebarItem?) {
-        guard case .thread(let thread) = item,
+        guard case .thread(let selectedThread) = item,
+              let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
               thread.archivedAt == nil else {
             return
         }
 
         settingsService.update {
             $0.lastOpenThreadID = thread.persistentModelID
-            $0.lastOpenConversationID = appState.selectedConversation(in: thread)?.persistentModelID
+            $0.lastOpenConversationID = selectedConversation(
+                in: thread,
+                modelContext: uiModelContext,
+                appState: appState
+            )?.persistentModelID
         }
     }
 

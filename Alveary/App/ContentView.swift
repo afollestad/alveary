@@ -287,23 +287,31 @@ struct ContentView: View {
 }
 
 private extension ContentView {
-    var selectedThread: AgentThread? {
+    var selectedThreadID: PersistentIdentifier? {
         guard case .thread(let thread) = appState.selectedSidebarItem else {
             return nil
         }
 
-        return thread
+        return thread.persistentModelID
+    }
+
+    var selectedThread: AgentThread? {
+        guard let selectedThreadID else {
+            return nil
+        }
+
+        return uiModelContext.resolveThread(id: selectedThreadID)
     }
 
     var visibleThreadID: PersistentIdentifier? {
-        selectedThread?.persistentModelID
+        selectedThreadID
     }
 
     var activeConversationId: String? {
         guard let selectedThread else {
             return nil
         }
-        return appState.selectedConversation(in: selectedThread)?.id
+        return selectedConversation(in: selectedThread, modelContext: uiModelContext, appState: appState)?.id
     }
 
     func colorScheme(for theme: String) -> ColorScheme? {

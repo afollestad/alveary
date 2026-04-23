@@ -2,9 +2,18 @@ import SwiftUI
 
 extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
-        project.threads
-            .filter { $0.archivedAt == nil }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        viewModel.activeThreads(for: project)
+    }
+
+    func isProjectActive(_ project: Project, selection: SidebarItem?) -> Bool {
+        switch selection {
+        case .project(let selected):
+            return selected.path == project.path
+        case .thread(let thread):
+            return uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path == project.path
+        default:
+            return false
+        }
     }
 
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
@@ -48,7 +57,7 @@ extension SidebarView {
         case .project(let project):
             expandedProjects.insert(project.path)
         case .thread(let thread):
-            if let projectPath = thread.project?.path {
+            if let projectPath = uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path {
                 expandedProjects.insert(projectPath)
             }
         default:

@@ -52,8 +52,8 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
     }
 
     func testActiveConversationProviderReturnsNilWhenNoThreadSelected() throws {
-        let appState = AppState()
-        let provider = makeActiveConversationProvider(for: appState)
+        let fixture = try RoutingTestFixture()
+        let provider = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
 
         XCTAssertNil(provider())
     }
@@ -65,7 +65,7 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         fixture.appState.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
         fixture.appState.selectedSidebarItem = .thread(thread)
 
-        let provider = makeActiveConversationProvider(for: fixture.appState)
+        let provider = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)
 
         XCTAssertEqual(provider(), conversation.id)
     }
@@ -79,7 +79,7 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         strongAppState?.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
         strongAppState?.selectedSidebarItem = .thread(thread)
 
-        let provider = makeActiveConversationProvider(for: strongAppState!)
+        let provider = makeActiveConversationProvider(for: strongAppState!, modelContext: fixture.context)
         XCTAssertEqual(provider(), conversation.id)
 
         strongAppState = nil

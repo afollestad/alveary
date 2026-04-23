@@ -1,14 +1,17 @@
+import Foundation
 import SwiftData
 
 extension SidebarView {
     func createThread(in project: Project) async {
+        let projectPath = project.path
+
         do {
             let createdThread = try await viewModel.createThread(project: project)
             guard let resolvedThread = uiModelContext.resolveThread(id: createdThread.persistentModelID) else {
                 return
             }
 
-            expandedProjects.insert(project.path)
+            expandedProjects.insert(projectPath)
             appState.requestComposerFocus()
             appState.selectedSidebarItem = .thread(resolvedThread)
         } catch {
@@ -42,7 +45,7 @@ extension SidebarView {
     }
 
     func renameThread(_ thread: AgentThread, to newName: String) {
-        guard let dbThread = uiModelContext.model(for: thread.persistentModelID) as? AgentThread else {
+        guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             viewModel.presentSidebarError(SidebarThreadActionError.renameTargetMissing)
             return
         }
@@ -52,7 +55,7 @@ extension SidebarView {
         dbThread.name = newName
         dbThread.hasCustomName = true
 
-        if let mainConversation = dbThread.conversations.first(where: { $0.isMain }),
+        if let mainConversation = mainConversation(in: dbThread),
            mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousDisplayName) {
             mainConversation.title = mainConversation.persistedTitle(from: newName)
         }
@@ -67,23 +70,24 @@ extension SidebarView {
     func confirmDeleteThread(_ thread: AgentThread) async {
         pendingDeleteThread = nil
 
+        let threadID = thread.persistentModelID
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
         let replacementItem = selectionAfterDeletingThread(thread)
 
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
-           selectedThread.persistentModelID == thread.persistentModelID {
+           selectedThread.persistentModelID == threadID {
             appState.selectedSidebarItem = replacementItem
         }
 
         if case .threadId(let bookmarkedID) = appState.previousSelection,
-           bookmarkedID == thread.persistentModelID {
+           bookmarkedID == threadID {
             appState.previousSelection = replacementItem.flatMap(AppState.SidebarBookmark.init)
         }
 
         do {
             try await viewModel.deleteThread(thread)
-            appState.selectedConversationIDs.removeValue(forKey: thread.persistentModelID)
+            appState.selectedConversationIDs.removeValue(forKey: threadID)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
@@ -94,16 +98,17 @@ extension SidebarView {
     func confirmDeleteProject(_ project: Project) async {
         pendingDeleteProject = nil
 
+        let projectPath = project.path
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
         let previousConversationIDs = appState.selectedConversationIDs
         let previousDiffAction = appState.pendingDiffAction
 
-        let threadIDs = Set(project.threads.map(\.persistentModelID))
-        let conversationIDs = Set(project.threads.flatMap(\.conversations).map(\.persistentModelID))
+        let threadIDs = liveThreadIDs(in: project)
+        let conversationIDs = liveConversationIDs(in: project)
 
         switch appState.selectedSidebarItem {
-        case .project(let selectedProject) where selectedProject.path == project.path:
+        case .project(let selectedProject) where selectedProject.path == projectPath:
             appState.selectedSidebarItem = nil
         case .thread(let selectedThread) where threadIDs.contains(selectedThread.persistentModelID):
             appState.selectedSidebarItem = nil
@@ -112,7 +117,7 @@ extension SidebarView {
         }
 
         switch appState.previousSelection {
-        case .projectPath(let projectPath) where projectPath == project.path:
+        case .projectPath(let selectedProjectPath) where selectedProjectPath == projectPath:
             appState.previousSelection = nil
         case .threadId(let threadID) where threadIDs.contains(threadID):
             appState.previousSelection = nil
@@ -131,7 +136,7 @@ extension SidebarView {
 
         do {
             try await viewModel.deleteProject(project)
-            expandedProjects.remove(project.path)
+            expandedProjects.remove(projectPath)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
@@ -161,5 +166,37 @@ extension SidebarView {
         }
 
         return .project(project)
+    }
+
+    func liveThreadIDs(in project: Project) -> Set<PersistentIdentifier> {
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.project?.path == projectPath
+            }
+        )
+        let threads = (try? uiModelContext.fetch(descriptor)) ?? []
+        return Set(threads.map(\.persistentModelID))
+    }
+
+    func liveConversationIDs(in project: Project) -> Set<PersistentIdentifier> {
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.project?.path == projectPath
+            }
+        )
+        let conversations = (try? uiModelContext.fetch(descriptor)) ?? []
+        return Set(conversations.map(\.persistentModelID))
+    }
+
+    func mainConversation(in thread: AgentThread) -> Conversation? {
+        let threadID = thread.persistentModelID
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID && conversation.isMain
+            }
+        )
+        return try? uiModelContext.fetch(descriptor).first
     }
 }

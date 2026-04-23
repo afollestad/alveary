@@ -3,8 +3,9 @@ import SwiftUI
 
 extension ContentView {
     func activeDiffActionTarget() -> (thread: AgentThread, conversation: Conversation)? {
-        guard case .thread(let thread) = appState.selectedSidebarItem,
-              let conversation = appState.selectedConversation(in: thread) else {
+        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+              let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
+              let conversation = selectedConversation(in: thread, modelContext: uiModelContext, appState: appState) else {
             return nil
         }
 

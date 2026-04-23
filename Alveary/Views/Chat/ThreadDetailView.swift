@@ -22,7 +22,14 @@ struct ThreadDetailView: View {
     @State private var pendingDeleteConversation: Conversation?
 
     private var conversations: [Conversation] {
-        thread.conversations.sorted {
+        let threadID = thread.persistentModelID
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID
+            }
+        )
+        let conversations = (try? modelContext.fetch(descriptor)) ?? []
+        return conversations.sorted {
             if $0.displayOrder != $1.displayOrder {
                 return $0.displayOrder < $1.displayOrder
             }
@@ -33,13 +40,13 @@ struct ThreadDetailView: View {
         }
     }
 
-    private var selectedConversationID: PersistentIdentifier? {
-        appState.selectedConversation(in: thread)?.persistentModelID
-    }
-
     var body: some View {
-        Group {
-            if let conversation = appState.selectedConversation(in: thread) {
+        let conversations = conversations
+        let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
+        let selectedConversationID = selectedConversation?.persistentModelID
+
+        return Group {
+            if let conversation = selectedConversation {
                 VStack(spacing: 0) {
                     if let conversationActionError {
                         InlineBanner(message: conversationActionError, severity: .error, autoDismissAfter: nil) {
@@ -80,10 +87,10 @@ struct ThreadDetailView: View {
                     .id(conversation.id)
                 }
                 .task(id: thread.persistentModelID) {
-                    appState.repairSelectedConversationIfNeeded(for: thread)
+                    appState.repairSelectedConversationIfNeeded(for: thread, conversations: conversations)
                 }
                 .task(id: selectedConversationID) {
-                    cancelPendingDiffActionIfNeeded()
+                    cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
                 }
                 .confirmationDialog(
                     "Remove conversation?",
@@ -137,10 +144,10 @@ struct ThreadDetailView: View {
                     ]
                 )
                 .task(id: thread.persistentModelID) {
-                    appState.repairSelectedConversationIfNeeded(for: thread)
+                    appState.repairSelectedConversationIfNeeded(for: thread, conversations: conversations)
                 }
                 .task(id: selectedConversationID) {
-                    cancelPendingDiffActionIfNeeded()
+                    cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
                 }
             }
         }
@@ -177,10 +184,11 @@ private extension ThreadDetailView {
             return
         }
 
+        let existingConversations = conversations
         let conversation = Conversation(
-            provider: dbThread.conversations.first(where: { $0.isMain })?.provider ?? dbThread.conversations.first?.provider,
+            provider: existingConversations.first(where: { $0.isMain })?.provider ?? existingConversations.first?.provider,
             isMain: false,
-            displayOrder: (dbThread.conversations.map(\.displayOrder).max() ?? -1) + 1,
+            displayOrder: (existingConversations.map(\.displayOrder).max() ?? -1) + 1,
             thread: dbThread
         )
 
@@ -200,7 +208,7 @@ private extension ThreadDetailView {
             if let path = dbThread.worktreePath ?? dbThread.project?.path {
                 let baseRef = dbThread.project?.baseRef ?? "main"
                 let remoteName = dbThread.project?.remoteName
-                let conversationIds = Set(dbThread.conversations.map(\.id))
+                let conversationIds = Set(existingConversations.map(\.id)).union([conversation.id])
                 await diffViewModel.switchToDirectory(
                     path,
                     baseRef: baseRef,
@@ -218,7 +226,7 @@ private extension ThreadDetailView {
             conversationActionError = "Couldn't remove conversation: thread no longer exists"
             return
         }
-        guard dbThread.conversations.count > 1 else {
+        guard conversations.count > 1 else {
             conversationActionError = "Couldn't remove conversation: threads must keep at least one conversation"
             return
         }
@@ -245,7 +253,7 @@ private extension ThreadDetailView {
             }
             guard let liveConversation = uiModelContext.resolveConversation(id: id) else {
                 conversationActionError = nil
-                appState.repairSelectedConversationIfNeeded(for: liveThread)
+                appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
                 return
             }
 
@@ -260,12 +268,12 @@ private extension ThreadDetailView {
                 appState.pendingDiffAction = nil
             }
 
-            appState.repairSelectedConversationIfNeeded(for: liveThread)
+            appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
 
             if let path = liveThread.worktreePath ?? liveThread.project?.path {
                 let baseRef = liveThread.project?.baseRef ?? "main"
                 let remoteName = liveThread.project?.remoteName
-                let conversationIds = Set(liveThread.conversations.map(\.id))
+                let conversationIds = Set(conversations.map(\.id))
                 await diffViewModel.switchToDirectory(
                     path,
                     baseRef: baseRef,
@@ -284,7 +292,7 @@ private extension ThreadDetailView {
     // selection to the first tab rather than the adjacent one.
     func selectNeighborIfClosingSelected(id: PersistentIdentifier, in dbThread: AgentThread) {
         let order = conversations
-        guard appState.selectedConversation(in: dbThread)?.persistentModelID == id,
+        guard appState.selectedConversation(in: dbThread, conversations: order)?.persistentModelID == id,
               let removedIndex = order.firstIndex(where: { $0.persistentModelID == id }) else {
             return
         }
@@ -300,7 +308,7 @@ private extension ThreadDetailView {
         }
     }
 
-    func cancelPendingDiffActionIfNeeded() {
+    func cancelPendingDiffActionIfNeeded(selectedConversationID: PersistentIdentifier?) {
         guard let request = appState.pendingDiffAction else {
             return
         }

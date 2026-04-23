@@ -24,15 +24,31 @@ func openConversationInAppState(
 }
 
 @MainActor
-func makeActiveConversationProvider(for appState: AppState) -> @MainActor () -> String? {
-    { [weak appState] in
+func selectedConversation(
+    in thread: AgentThread,
+    modelContext: ModelContext,
+    appState: AppState
+) -> Conversation? {
+    let threadID = thread.persistentModelID
+    let descriptor = FetchDescriptor<Conversation>(
+        predicate: #Predicate { conversation in
+            conversation.thread?.persistentModelID == threadID
+        }
+    )
+    let conversations = (try? modelContext.fetch(descriptor)) ?? []
+    return appState.selectedConversation(in: thread, conversations: conversations)
+}
+
+@MainActor
+func makeActiveConversationProvider(for appState: AppState, modelContext: ModelContext) -> @MainActor () -> String? {
+    { [weak appState, modelContext] in
         guard let appState else {
             return nil
         }
         guard case .thread(let thread) = appState.selectedSidebarItem else {
             return nil
         }
-        return appState.selectedConversation(in: thread)?.id
+        return selectedConversation(in: thread, modelContext: modelContext, appState: appState)?.id
     }
 }
 
@@ -46,6 +62,6 @@ extension ContentView {
     }
 
     func wireNotificationManager() {
-        notificationManager.setActiveConversationProvider(makeActiveConversationProvider(for: appState))
+        notificationManager.setActiveConversationProvider(makeActiveConversationProvider(for: appState, modelContext: uiModelContext))
     }
 }

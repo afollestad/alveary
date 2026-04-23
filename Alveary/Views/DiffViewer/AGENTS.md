@@ -9,9 +9,9 @@ The routing switch lives in `ContentView+DiffViewerRouting.swift` and delegates 
 - **`forThread` prefers `worktreePath` over `project.path`.**
     - **Why:** a thread with a worktree must read its own diffs, not the project root. A thread without a worktree falls back to the project path because that's where its agent writes.
     - **How to apply:** never pass the project path directly when building a thread target. Let the factory decide.
-- **`forProject` filters `project.threads` to `archivedAt == nil && (worktreePath == nil || worktreePath == project.path)` when building `conversationIds`.**
+- **`forProject` filters candidate threads to `archivedAt == nil && (worktreePath == nil || worktreePath == project.path)` when building `conversationIds`.**
     - **Why:** `DiffViewerViewModel.activeConversationIds` gates the `.agentStatusChanged` observer's rescan. Worktree-threads mutate a separate directory on disk, so their completion signals must not trigger a rescan of the project root — they'd just be a wasted `git status`. External mutations to the project root (merges, CLI commits) still come through the FSEvents watcher.
-    - **How to apply:** if you add a new thread-location flag (e.g. "side-worktree"), extend this filter rather than the observer. Keep the "what counts as an agent that writes here" decision in one place.
+    - **How to apply:** production routing should pass fetch-backed live thread rows into `candidateThreads` and fetch-backed IDs into `candidateConversationIDs` instead of walking `project.threads` / `thread.conversations` from SwiftUI selection state. If you add a new thread-location flag (e.g. "side-worktree"), extend this filter rather than the observer. Keep the "what counts as an agent that writes here" decision in one place.
 
 ## Loading State
 

@@ -172,7 +172,11 @@ func restoreProjectSettingsArchivedThread(
     modelContext: ModelContext,
     notificationManager: any NotificationManager
 ) throws {
-    thread.prepareForRestore()
+    guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID) else {
+        return
+    }
+
+    dbThread.prepareForRestore()
     try modelContext.save()
     // SwiftData does not emit `.agentStatusChanged` on restore, so the dock badge would miss the
     // newly-unarchived unread conversations without this explicit refresh.
@@ -186,13 +190,18 @@ func projectSettingsRestoreConfirmationMessage(for thread: AgentThread) -> Strin
 
 private extension ProjectSettingsView {
     var archivedThreads: [AgentThread] {
-        project.threads
-            .filter { $0.archivedAt != nil }
-            .sorted { lhs, rhs in
-                let leftDate = lhs.archivedAt ?? .distantPast
-                let rightDate = rhs.archivedAt ?? .distantPast
-                return leftDate > rightDate
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt != nil && thread.project?.path == projectPath
             }
+        )
+        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        return threads.sorted { lhs, rhs in
+            let leftDate = lhs.archivedAt ?? .distantPast
+            let rightDate = rhs.archivedAt ?? .distantPast
+            return leftDate > rightDate
+        }
     }
 
     var setupScriptBinding: Binding<String> {

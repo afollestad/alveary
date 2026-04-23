@@ -228,6 +228,18 @@ final class SidebarViewModel {
     func threadStatus(for thread: AgentThread) -> ThreadStatus {
         thread.displayStatus { agentsManager.status(for: $0.id) }
     }
+
+    func activeThreads(for project: Project) -> [AgentThread] {
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.project?.path == projectPath
+            }
+        )
+
+        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        return threads.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
 }
 
 extension SidebarViewModel {
@@ -388,9 +400,10 @@ extension SidebarViewModel {
 
     private func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
         let dbThread = try requireThread(thread)
+        let threadID = dbThread.persistentModelID
         return ThreadArchiveSnapshot(
-            threadID: dbThread.persistentModelID,
-            conversationIDs: dbThread.conversations.map(\.id)
+            threadID: threadID,
+            conversationIDs: liveConversationIDs(for: threadID)
         )
     }
 
@@ -404,10 +417,11 @@ extension SidebarViewModel {
             throw SidebarViewModelError.threadMissingParentProject
         }
 
+        let threadID = thread.persistentModelID
         return ThreadCleanupSnapshot(
-            threadID: thread.persistentModelID,
+            threadID: threadID,
             projectPath: projectPath,
-            conversationIDs: thread.conversations.map(\.id),
+            conversationIDs: liveConversationIDs(for: threadID),
             pendingCleanupBranches: thread.pendingCleanupBranches,
             branch: thread.branch,
             worktreePath: thread.worktreePath,
@@ -417,53 +431,31 @@ extension SidebarViewModel {
 
     private func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
         let dbProject = try requireProject(project)
+        let projectPath = dbProject.path
+        let threadSnapshots = try liveThreads(forProjectPath: projectPath).map(makeThreadCleanupSnapshot(from:))
         return ProjectDeletionSnapshot(
             projectID: dbProject.persistentModelID,
-            projectPath: dbProject.path,
-            conversationIDs: dbProject.threads.flatMap(\.conversations).map(\.id),
-            threadSnapshots: try dbProject.threads.map(makeThreadCleanupSnapshot(from:))
+            projectPath: projectPath,
+            conversationIDs: threadSnapshots.flatMap(\.conversationIDs),
+            threadSnapshots: threadSnapshots
         )
     }
-}
 
-private struct ThreadArchiveSnapshot {
-    let threadID: PersistentIdentifier
-    let conversationIDs: [String]
-}
+    private func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.project?.path == projectPath
+            }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
 
-private struct ThreadCleanupSnapshot {
-    let threadID: PersistentIdentifier
-    let projectPath: String
-    let conversationIDs: [String]
-    let pendingCleanupBranches: [String]
-    let branch: String?
-    let worktreePath: String?
-    let requiresCompletedWorktreeCleanup: Bool
-}
-
-private struct ProjectDeletionSnapshot {
-    let projectID: PersistentIdentifier
-    let projectPath: String
-    let conversationIDs: [String]
-    let threadSnapshots: [ThreadCleanupSnapshot]
-}
-
-private enum SidebarViewModelError: LocalizedError {
-    case projectMissing
-    case threadMissing
-    case threadMissingParentProject
-    case threadMissingDeletionMetadata
-
-    var errorDescription: String? {
-        switch self {
-        case .projectMissing:
-            return "Project no longer exists"
-        case .threadMissing:
-            return "Thread no longer exists"
-        case .threadMissingParentProject:
-            return "Thread is missing its parent project"
-        case .threadMissingDeletionMetadata:
-            return "Thread is missing worktree cleanup metadata needed for deletion"
-        }
+    private func liveConversationIDs(for threadID: PersistentIdentifier) -> [String] {
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID
+            }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).map(\.id)
     }
 }

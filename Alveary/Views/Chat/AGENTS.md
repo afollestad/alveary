@@ -19,6 +19,7 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 
 These capture conversation-view interaction patterns. Keep new UI aligned with them unless intentionally redesigning.
 
+- `ThreadDetailView` should fetch live conversations for the selected thread before sorting/rendering tabs. Do not sort `thread.conversations` directly in its render path; stale relationship entries can trap when SwiftUI refreshes after a conversation delete.
 - Session reconfiguration is a between-turn action. Agent/session setting changes must not reconfigure a conversation while a turn is active or a send is in flight; they wait until the current turn finishes.
 - Composer-dropdown `apply*Change` handlers live on `ConversationViewModel` in `ConversationViewModel+Settings.swift`. The three fork-triggering handlers (`applyModelChange` / `applyEffortChange` / `applyPermissionModeChange`) run their state/DB write synchronously and return a `@discardableResult Task<Void, Never>` carrying the async fork; `applyWorktreePreferenceChange` is a plain `Void`-returning DB write (no fork, only editable before first send). Rules:
     - **Do not inline the handler logic back into `ChatView`.** The view-model home is what makes them unit-testable against a `MockAgentsManager`; `ConversationViewModelTests+Settings.swift` depends on that entry point.

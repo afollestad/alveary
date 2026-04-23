@@ -110,11 +110,13 @@ struct ConversationView: View {
                 return
             }
 
+            let threadID = thread.persistentModelID
+            let baseRef = thread.project?.baseRef ?? "main"
+            let remoteName = thread.project?.remoteName
+            let conversationIds = liveConversationIDs(for: threadID)
+
             Task {
                 await fileListManager.warmCache(for: newPath)
-                let baseRef = thread.project?.baseRef ?? "main"
-                let remoteName = thread.project?.remoteName
-                let conversationIds = Set(thread.conversations.map(\.id))
                 await diffViewModel.switchToDirectory(
                     newPath,
                     baseRef: baseRef,
@@ -140,7 +142,11 @@ struct ConversationView: View {
                 guard appState.pendingDiffAction?.id == request.id,
                       case .thread(let selectedThread) = appState.selectedSidebarItem,
                       selectedThread.persistentModelID == conversation.thread?.persistentModelID,
-                      appState.selectedConversation(in: selectedThread)?.persistentModelID == conversation.persistentModelID else {
+                      selectedConversation(
+                          in: selectedThread,
+                          modelContext: modelContext,
+                          appState: appState
+                      )?.persistentModelID == conversation.persistentModelID else {
                     return
                 }
 
@@ -154,6 +160,15 @@ struct ConversationView: View {
                 }
             }
         }
+    }
+
+    func liveConversationIDs(for threadID: PersistentIdentifier) -> Set<String> {
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID
+            }
+        )
+        return Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
     }
 }
 

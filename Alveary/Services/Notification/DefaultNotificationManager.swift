@@ -255,7 +255,7 @@ final class DefaultNotificationManager: NotificationManager {
         }
 
         let thread = conversation.thread
-        let siblingCount = thread?.conversations.count ?? 1
+        let siblingCount = thread.map { conversationCount(in: $0) } ?? 1
         let conversationName = siblingCount > 1 ? conversation.displayName() : nil
 
         return ConversationNotificationContext(
@@ -264,6 +264,14 @@ final class DefaultNotificationManager: NotificationManager {
             threadName: thread?.displayName(),
             conversationName: conversationName
         )
+    }
+
+    private func conversationCount(in thread: AgentThread) -> Int {
+        let threadID = thread.persistentModelID
+        let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { conversation in
+            conversation.thread?.persistentModelID == threadID
+        })
+        return (try? modelContainer.mainContext.fetchCount(descriptor)) ?? 1
     }
 
     private func appendContextSuffix(to baseMessage: String, context: ConversationNotificationContext) -> String {

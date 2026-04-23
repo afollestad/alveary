@@ -15,12 +15,4 @@ extension NotificationManager {
             markConversationRead(conversationId: conversationId)
         }
     }
-
-    /// Dismiss any delivered banners and clear unread flags for every conversation in the given
-    /// threads. Callers that archive or delete a thread or project must call this *before* the
-    /// SwiftData mutation so the post-mark-read unread count lands on the chained badge task and
-    /// no banner is orphaned in Notification Center.
-    func forgetConversations(in threads: [AgentThread]) {
-        forgetConversations(withIDs: threads.flatMap(\.conversations).map(\.id))
-    }
 }

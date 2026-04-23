@@ -73,16 +73,8 @@ final class AppState {
         )
     }
 
-    func selectedConversation(in thread: AgentThread) -> Conversation? {
-        let sortedConversations = thread.conversations.sorted {
-            if $0.displayOrder != $1.displayOrder {
-                return $0.displayOrder < $1.displayOrder
-            }
-            if $0.isMain != $1.isMain {
-                return $0.isMain && !$1.isMain
-            }
-            return $0.id < $1.id
-        }
+    func selectedConversation(in thread: AgentThread, conversations: [Conversation]) -> Conversation? {
+        let sortedConversations = sortedConversationList(conversations)
 
         if let selectedID = selectedConversationIDs[thread.persistentModelID],
            let selectedConversation = sortedConversations.first(where: { $0.persistentModelID == selectedID }) {
@@ -92,10 +84,14 @@ final class AppState {
         return sortedConversations.first(where: { $0.isMain }) ?? sortedConversations.first
     }
 
-    func repairSelectedConversationIfNeeded(for thread: AgentThread) {
+    func repairSelectedConversationIfNeeded(for thread: AgentThread, conversations: [Conversation]) {
         let threadID = thread.persistentModelID
-        let resolvedConversationID = selectedConversation(in: thread)?.persistentModelID
+        let resolvedConversationID = selectedConversation(in: thread, conversations: conversations)?.persistentModelID
 
+        repairSelectedConversation(threadID: threadID, resolvedConversationID: resolvedConversationID)
+    }
+
+    private func repairSelectedConversation(threadID: PersistentIdentifier, resolvedConversationID: PersistentIdentifier?) {
         if let resolvedConversationID {
             if selectedConversationIDs[threadID] != resolvedConversationID {
                 selectedConversationIDs[threadID] = resolvedConversationID
@@ -110,6 +106,18 @@ final class AppState {
             pendingDiffAction = nil
         }
         selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
+    }
+
+    private func sortedConversationList(_ conversations: [Conversation]) -> [Conversation] {
+        conversations.sorted {
+            if $0.displayOrder != $1.displayOrder {
+                return $0.displayOrder < $1.displayOrder
+            }
+            if $0.isMain != $1.isMain {
+                return $0.isMain && !$1.isMain
+            }
+            return $0.id < $1.id
+        }
     }
 
     enum SidebarBookmark: Hashable {

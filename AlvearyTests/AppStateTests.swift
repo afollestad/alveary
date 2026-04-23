@@ -29,7 +29,10 @@ final class AppStateTests: XCTestCase {
         let fixture = try makeFixture(primaryConversations: [sideConversation, mainConversation])
         let state = AppState()
 
-        let selectedConversation = state.selectedConversation(in: fixture.primaryThread)
+        let selectedConversation = state.selectedConversation(
+            in: fixture.primaryThread,
+            conversations: fixture.primaryConversations
+        )
 
         XCTAssertEqual(selectedConversation?.persistentModelID, mainConversation.persistentModelID)
         XCTAssertTrue(state.selectedConversationIDs.isEmpty)
@@ -41,7 +44,10 @@ final class AppStateTests: XCTestCase {
         let fixture = try makeFixture(primaryConversations: [laterID, earlierID])
         let state = AppState()
 
-        let selectedConversation = state.selectedConversation(in: fixture.primaryThread)
+        let selectedConversation = state.selectedConversation(
+            in: fixture.primaryThread,
+            conversations: fixture.primaryConversations
+        )
 
         XCTAssertEqual(selectedConversation?.id, earlierID.id)
     }
@@ -57,7 +63,10 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
 
         state.selectedConversationIDs[fixture.primaryThread.persistentModelID] = wrongConversation.persistentModelID
-        state.repairSelectedConversationIfNeeded(for: fixture.primaryThread)
+        state.repairSelectedConversationIfNeeded(
+            for: fixture.primaryThread,
+            conversations: fixture.primaryConversations
+        )
 
         XCTAssertEqual(
             state.selectedConversationIDs[fixture.primaryThread.persistentModelID],
@@ -76,7 +85,10 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
 
         state.selectedConversationIDs[fixture.primaryThread.persistentModelID] = wrongConversation.persistentModelID
-        state.repairSelectedConversationIfNeeded(for: fixture.primaryThread)
+        state.repairSelectedConversationIfNeeded(
+            for: fixture.primaryThread,
+            conversations: fixture.primaryConversations
+        )
 
         XCTAssertEqual(
             state.selectedConversationIDs[fixture.primaryThread.persistentModelID],
@@ -93,7 +105,10 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
 
         state.selectedConversationIDs[fixture.primaryThread.persistentModelID] = wrongConversation.persistentModelID
-        state.repairSelectedConversationIfNeeded(for: fixture.primaryThread)
+        state.repairSelectedConversationIfNeeded(
+            for: fixture.primaryThread,
+            conversations: fixture.primaryConversations
+        )
 
         XCTAssertNil(state.selectedConversationIDs[fixture.primaryThread.persistentModelID])
     }

@@ -8,7 +8,7 @@ private struct ConversationInitialSetupSnapshot {
 
 extension ConversationViewModel {
     func dbConversation() -> Conversation? {
-        modelContext.model(for: conversationModelID) as? Conversation
+        modelContext.resolveConversation(id: conversationModelID)
     }
 
     func dbThread() -> AgentThread? {

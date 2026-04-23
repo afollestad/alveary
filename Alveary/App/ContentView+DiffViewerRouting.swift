@@ -7,9 +7,9 @@ extension ContentView {
 
         switch item {
         case .thread(let thread):
-            target = DiffViewerSwitchTarget.forThread(thread)
+            target = resolvedDiffViewerTarget(for: thread)
         case .project(let project):
-            target = DiffViewerSwitchTarget.forProject(project)
+            target = resolvedDiffViewerTarget(for: project)
         case .settings:
             target = diffViewerTargetForPreservedBookmark()
         default:
@@ -34,19 +34,67 @@ extension ContentView {
     func diffViewerTargetForPreservedBookmark() -> DiffViewerSwitchTarget? {
         switch appState.previousSelection {
         case .threadId(let id):
-            guard let thread = uiModelContext.model(for: id) as? AgentThread,
+            guard let thread = uiModelContext.resolveThread(id: id),
                   thread.archivedAt == nil else {
                 return nil
             }
-            return DiffViewerSwitchTarget.forThread(thread)
+            return DiffViewerSwitchTarget.forThread(
+                thread,
+                candidateConversationIDs: liveDiffViewerConversationIDs(for: thread)
+            )
         case .projectPath(let path):
             let descriptor = FetchDescriptor<Project>(predicate: #Predicate { $0.path == path })
             guard let project = try? uiModelContext.fetch(descriptor).first else {
                 return nil
             }
-            return DiffViewerSwitchTarget.forProject(project)
+            return resolvedDiffViewerTarget(for: project)
         default:
             return nil
         }
+    }
+
+    private func resolvedDiffViewerTarget(for thread: AgentThread) -> DiffViewerSwitchTarget? {
+        guard let liveThread = uiModelContext.resolveThread(id: thread.persistentModelID),
+              liveThread.archivedAt == nil else {
+            return nil
+        }
+        return DiffViewerSwitchTarget.forThread(
+            liveThread,
+            candidateConversationIDs: liveDiffViewerConversationIDs(for: liveThread)
+        )
+    }
+
+    private func resolvedDiffViewerTarget(for project: Project) -> DiffViewerSwitchTarget {
+        let threads = liveDiffViewerThreads(for: project)
+        return DiffViewerSwitchTarget.forProject(
+            project,
+            candidateThreads: threads,
+            candidateConversationIDs: liveDiffViewerConversationIDs(for: project, threads: threads)
+        )
+    }
+
+    private func liveDiffViewerThreads(for project: Project) -> [AgentThread] {
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.project?.path == projectPath
+            }
+        )
+        return (try? uiModelContext.fetch(descriptor)) ?? []
+    }
+
+    private func liveDiffViewerConversationIDs(for thread: AgentThread) -> Set<String> {
+        let threadID = thread.persistentModelID
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID
+            }
+        )
+        return Set(((try? uiModelContext.fetch(descriptor)) ?? []).map(\.id))
+    }
+
+    private func liveDiffViewerConversationIDs(for project: Project, threads: [AgentThread]) -> Set<String> {
+        let qualifyingThreads = threads.filter { $0.worktreePath == nil || $0.worktreePath == project.path }
+        return Set(qualifyingThreads.flatMap { liveDiffViewerConversationIDs(for: $0) })
     }
 }

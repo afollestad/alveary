@@ -98,7 +98,7 @@ func resolveSidebarSelectionBookmark(
         }
         return .project(project)
     case .threadId(let id):
-        guard let thread = modelContext.model(for: id) as? AgentThread else {
+        guard let thread = modelContext.resolveThread(id: id) else {
             return nil
         }
 

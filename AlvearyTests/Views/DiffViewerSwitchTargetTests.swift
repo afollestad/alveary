@@ -33,6 +33,22 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         XCTAssertEqual(target.conversationIds, ["conv-a", "conv-b"])
     }
 
+    func testForThreadUsesCandidateConversationIDsWhenProvided() throws {
+        let fixture = try Fixture()
+        let project = try fixture.insertProject(path: "/tmp/alveary-project")
+        let thread = try fixture.insertThread(
+            project: project,
+            conversationIDs: ["relationship-conv"]
+        )
+
+        let target = try XCTUnwrap(DiffViewerSwitchTarget.forThread(
+            thread,
+            candidateConversationIDs: ["fetched-conv"]
+        ))
+
+        XCTAssertEqual(target.conversationIds, ["fetched-conv"])
+    }
+
     func testForThreadPrefersWorktreePathOverProjectPath() throws {
         let fixture = try Fixture()
         let project = try fixture.insertProject(path: "/tmp/alveary-project")
@@ -92,6 +108,23 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         let target = DiffViewerSwitchTarget.forProject(project)
 
         XCTAssertEqual(target.conversationIds, ["self-worktree-conv"])
+    }
+
+    func testForProjectUsesCandidateConversationIDsWhenProvided() throws {
+        let fixture = try Fixture()
+        let project = try fixture.insertProject(path: "/tmp/alveary-project")
+        _ = try fixture.insertThread(
+            project: project,
+            conversationIDs: ["relationship-conv"]
+        )
+
+        let target = DiffViewerSwitchTarget.forProject(
+            project,
+            candidateThreads: [],
+            candidateConversationIDs: ["fetched-conv"]
+        )
+
+        XCTAssertEqual(target.conversationIds, ["fetched-conv"])
     }
 
     func testForProjectCarriesRemoteAndBaseRefFromProject() throws {

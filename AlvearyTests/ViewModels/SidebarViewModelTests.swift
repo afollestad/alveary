@@ -111,6 +111,21 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 0)
     }
 
+    func testActiveThreadsFetchesUnarchivedThreadsSortedByName() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let zulu = AgentThread(name: "Zulu", archivedAt: nil, project: project)
+        let alpha = AgentThread(name: "alpha", archivedAt: nil, project: project)
+        let archived = AgentThread(name: "Archived", archivedAt: Date(), project: project)
+        project.threads = [zulu, alpha, archived]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        let activeThreads = fixture.viewModel.activeThreads(for: project)
+
+        XCTAssertEqual(activeThreads.map(\.persistentModelID), [alpha.persistentModelID, zulu.persistentModelID])
+    }
+
     func testArchiveThreadAttemptsAllConversationTeardownsBeforeFailing() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(

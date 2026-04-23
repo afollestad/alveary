@@ -58,11 +58,7 @@ struct SidebarView: View {
                         let isExpanded = expandedProjects.contains(project.path)
                         let activeProjectThreads = activeThreads(for: project)
 
-                        let isProjectActive: Bool = switch appState.selectedSidebarItem {
-                        case .project(let selected) where selected.path == project.path: true
-                        case .thread(let thread) where thread.project?.path == project.path: true
-                        default: false
-                        }
+                        let isProjectActive = isProjectActive(project, selection: appState.selectedSidebarItem)
 
                         SidebarProjectRow(
                             project: project,
