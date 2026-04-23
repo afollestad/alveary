@@ -15,8 +15,8 @@ struct SidebarProjectsHeaderRow: View {
             Spacer()
 
             Button(action: onAddProject) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary.opacity(isHoveringAddProject ? 0.95 : 0.8))
                     .frame(width: 24, height: 24)
                     .background(
