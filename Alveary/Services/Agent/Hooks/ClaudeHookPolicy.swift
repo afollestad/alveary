@@ -11,6 +11,14 @@ enum ClaudeHookPolicy {
     }
 
     static func shouldDefer(toolName: String, permissionMode: String?) -> Bool {
+        if toolName == "AskUserQuestion" {
+            return true
+        }
+
+        if toolName == "ExitPlanMode" {
+            return permissionMode == "plan"
+        }
+
         switch permissionMode {
         case "auto", "bypassPermissions", "dontAsk":
             return false

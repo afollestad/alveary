@@ -138,6 +138,114 @@ extension AgentsManagerTests {
         }
     }
 
+    func testClaudeStreamPermissionModeChangeUpdatesHookServerConversationMode() async throws {
+        let executable = try TempExecutable()
+        defer { executable.cleanup() }
+        let hookServer = StubClaudeHookServer(
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "token"]
+            )
+        )
+        let manager = makeTestManager(
+            settings: makeSettings(cliPath: executable.url.path),
+            claudeHookServer: hookServer,
+            adapterFactory: { _ in PermissionModeEchoAgentAdapter() }
+        )
+        let conversationId = "conversation-hook-permission-mode"
+        defer {
+            Task { await manager.kill(conversationId: conversationId) }
+        }
+
+        try await manager.spawn(
+            id: conversationId,
+            config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path),
+            forkSession: false
+        )
+
+        try await manager.sendMessage("plan", conversationId: conversationId)
+
+        try await waitUntil("expected hook server permission-mode update event") {
+            await hookServer.events().contains(
+                .updatePermissionMode(permissionMode: "plan", conversationId: conversationId)
+            )
+        }
+    }
+
+    func testClaudeToolDeferredStopsCurrentRuntimeButPreservesSession() async throws {
+        let executable = try TempDeferredToolExecutable()
+        defer { executable.cleanup() }
+        let sessionManager = InMemorySessionManager()
+        let manager = makeTestManager(
+            settings: makeSettings(cliPath: executable.url.path),
+            sessionManager: sessionManager,
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-hook-tool-deferred-stop"
+
+        try await manager.spawn(
+            id: conversationId,
+            config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path),
+            forkSession: false
+        )
+
+        try await waitUntil("expected manager to stop the deferred runtime") {
+            let isRunning = await manager.isRunning(conversationId: conversationId)
+            let status = manager.status(for: conversationId)
+            return !isRunning && status == .stopped
+        }
+
+        let hasSession = await sessionManager.hasSession(for: conversationId)
+        XCTAssertTrue(hasSession)
+    }
+
+    func testClaudeToolDeferredDropsTrailingEventsFromSameRuntime() async throws {
+        let executable = try TempDeferredToolExecutable(emitsTrailingAssistantMessage: true)
+        defer { executable.cleanup() }
+        let manager = makeTestManager(
+            settings: makeSettings(cliPath: executable.url.path),
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-hook-tool-deferred-drop-trailing-events"
+
+        try await manager.spawn(
+            id: conversationId,
+            config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path),
+            forkSession: false
+        )
+
+        guard let subscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0) else {
+            return XCTFail("Expected live event subscription")
+        }
+        async let events = collectedEvents(from: subscription.stream)
+
+        try await waitUntil("expected manager to stop the deferred runtime") {
+            let isRunning = await manager.isRunning(conversationId: conversationId)
+            return !isRunning
+        }
+
+        let collected = await events
+
+        XCTAssertTrue(collected.contains { event in
+            if case .toolApprovalRequested(let request) = event {
+                return request.toolName == "AskUserQuestion"
+            }
+            return false
+        })
+        XCTAssertTrue(collected.contains { event in
+            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+                return stopReason == "tool_deferred"
+            }
+            return false
+        })
+        XCTAssertFalse(collected.contains { event in
+            if case .message(role: "assistant", content: let content, parentToolUseId: _) = event {
+                return content.contains("returning internal errors")
+            }
+            return false
+        })
+    }
+
     func hookSpawnConfig(workingDirectory: String) -> AgentSpawnConfig {
         AgentSpawnConfig(
             providerId: "claude",

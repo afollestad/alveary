@@ -2,12 +2,17 @@ import Foundation
 import SwiftData
 
 extension ConversationViewModel {
-    // Reject dropdown changes while the agent is working or waiting on approval. The composer pickers
-    // are already `.disabled` in busy modes, but gate at the view-model entry
-    // point too so any stray binding write (programmatic, race on mode flip)
-    // can't silently persist to the DB or fork the session mid-turn or mid-approval.
+    // Reject dropdown changes while the agent is working or while the conversation
+    // is waiting on another interaction. The composer pickers are already
+    // `.disabled` in busy modes, but gate at the view-model entry point too so
+    // any stray binding write (programmatic, race on mode flip) can't silently
+    // persist to the DB or fork the session mid-turn, mid-approval, or ahead of
+    // an unanswered prompt.
     var canApplySettingsChange: Bool {
-        !state.turnState.isActive && !state.isSendingMessage && state.pendingToolApproval == nil
+        !state.turnState.isActive &&
+            !state.isSendingMessage &&
+            state.pendingToolApproval == nil &&
+            !hasUnansweredPrompt
     }
 
     // Reconfigure (fork the provider session) whenever the thread already has a
@@ -116,13 +121,25 @@ extension ConversationViewModel {
         let previousValue = dbThread.permissionMode
         guard previousValue != newValue else { return .noop }
 
+        let previousRuntimePermissionMode = state.runtimePermissionMode
+        let previousLastNonPlanPermissionMode = state.lastNonPlanPermissionMode
         dbThread.permissionMode = newValue
+        state.runtimePermissionMode = newValue
+        if newValue == "plan" {
+            if previousValue != "plan" {
+                state.lastNonPlanPermissionMode = previousValue
+            }
+        } else {
+            state.lastNonPlanPermissionMode = newValue
+        }
         state.lastTurnError = nil
 
         do {
             try modelContext.save()
         } catch {
             dbThread.permissionMode = previousValue
+            state.runtimePermissionMode = previousRuntimePermissionMode
+            state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
             state.lastTurnError = error.localizedDescription
             return .noop
         }
@@ -134,6 +151,8 @@ extension ConversationViewModel {
                 try await reconfigureSession()
             } catch {
                 dbThread.permissionMode = previousValue
+                state.runtimePermissionMode = previousRuntimePermissionMode
+                state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
                 try? modelContext.save()
                 state.lastTurnError = error.localizedDescription
             }

@@ -110,6 +110,35 @@ extension SnapshotTests {
         )
     }
 
+    func testToolApprovalExitPlanMode() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleExitPlanModeApproval,
+                status: .pending,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_exit_plan_mode"
+        )
+    }
+
+    func testToolApprovalBlockedByPrompt() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashApproval,
+                status: .pending,
+                isBlocked: true,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_blocked_by_prompt"
+        )
+    }
+
     func testToolApprovalApproving() {
         assertMacSnapshot(
             ToolApprovalBlock(

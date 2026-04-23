@@ -78,7 +78,8 @@ struct WaitTimeoutError: LocalizedError {
 
 actor StubClaudeHookServer: ClaudeHookServer {
     enum Event: Equatable {
-        case recordDecision(ClaudeToolApprovalDecision, ClaudeToolApprovalKey)
+        case updatePermissionMode(permissionMode: String?, conversationId: String)
+        case recordDecision(ClaudeToolApprovalResolution, ClaudeToolApprovalKey)
         case recordSessionApproval(AgentSessionApprovalGrant)
         case discardSessionApproval(AgentSessionApprovalGrant)
         case removeSessionApprovals(conversationId: String, sessionId: String)
@@ -113,9 +114,13 @@ actor StubClaudeHookServer: ClaudeHookServer {
         return launchConfigs.removeFirst()
     }
 
-    func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async {
-        recordedDecisions.append((decision, key))
-        recordedEvents.append(.recordDecision(decision, key))
+    func updatePermissionMode(_ permissionMode: String?, for conversationId: String) async {
+        recordedEvents.append(.updatePermissionMode(permissionMode: permissionMode, conversationId: conversationId))
+    }
+
+    func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) async {
+        recordedDecisions.append((resolution.decision, key))
+        recordedEvents.append(.recordDecision(resolution, key))
     }
 
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult {
@@ -341,6 +346,56 @@ final class EchoAgentAdapter: AgentAdapter, @unchecked Sendable {
     }
 }
 
+final class PermissionModeEchoAgentAdapter: AgentAdapter, @unchecked Sendable {
+    let supportsBidirectionalStreaming = true
+    let supportsMidTurnSteering = false
+
+    func buildArgs(config: AgentConfig) -> [String] {
+        []
+    }
+
+    func envOverrides(config: AgentConfig) -> [String: String] {
+        [:]
+    }
+
+    func decode(_ json: [String: Any]) -> [ConversationEvent] {
+        guard json["type"] as? String == "permission_mode",
+              let permissionMode = json["value"] as? String else {
+            return []
+        }
+        return [.permissionModeChanged(permissionMode)]
+    }
+
+    func finalize() -> [ConversationEvent] {
+        []
+    }
+
+    func sendMessage(_ message: String, to process: Process) throws {
+        guard let stdin = process.standardInput as? Pipe else {
+            throw AgentError.stdinClosed
+        }
+
+        let payload: [String: String] = [
+            "type": "permission_mode",
+            "value": message
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try stdin.fileHandleForWriting.write(contentsOf: data + Data("\n".utf8))
+    }
+
+    func sessionFilePath(sessionId: String, cwd: String) -> String? {
+        nil
+    }
+
+    func canResumeSession(sessionId: String, cwd: String) -> Bool {
+        false
+    }
+
+    func sessionLaunch(sessionId: String, cwd: String, isResuming: Bool, forkSession: Bool) -> SessionLaunchDecision {
+        SessionLaunchDecision(args: [], continuity: .preserved)
+    }
+}
+
 final class RecordingLaunchAdapter: AgentAdapter, @unchecked Sendable {
     struct SessionLaunchCall: Equatable {
         let sessionId: String
@@ -422,7 +477,6 @@ final class RecordingLaunchAdapter: AgentAdapter, @unchecked Sendable {
         return SessionLaunchDecision(args: ["--session-id", sessionId], continuity: .preserved)
     }
 }
-
 @MainActor
 final class StubNotificationManager: NotificationManager {
     func handleEvent(_ event: ConversationEvent, conversationId: String) {}

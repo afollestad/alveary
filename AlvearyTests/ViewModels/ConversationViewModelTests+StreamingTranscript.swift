@@ -407,7 +407,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.turnState.isActive)
         XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
         XCTAssertNil(fixture.viewModel.lastTurnError)
-        guard case .turnInterruptedNote = fixture.viewModel.state.grouper.items.first else {
+        guard case .centeredNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
             return XCTFail("Expected an interrupted transcript note")
         }
         XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 1)

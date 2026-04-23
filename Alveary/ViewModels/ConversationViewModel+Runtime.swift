@@ -1,5 +1,4 @@
 import Foundation
-
 private struct ConversationSaveSnapshot {
     let observedIndex: Int
     let generation: UUID?
@@ -198,10 +197,9 @@ extension ConversationViewModel {
         }
         await saveTask.value
     }
-
 }
 
-private extension ConversationViewModel {
+extension ConversationViewModel {
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
 
@@ -256,27 +254,25 @@ private extension ConversationViewModel {
         }
         return message
     }
+}
 
+private extension ConversationViewModel {
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         switch event {
         case .sessionInit:
             return false
 
+        case .permissionModeChanged(let permissionMode):
+            return handlePermissionModeChanged(permissionMode)
+
         case .messageChunk(let text, let parentToolUseId):
-            if parentToolUseId == nil {
-                state.appendStreamingChunk(text)
-            }
-            return false
+            return handleMessageChunk(text, parentToolUseId: parentToolUseId)
 
-        case .message(let role, _, _) where role == "user":
-            return false
-
-        case .message(let role, _, _) where role == "assistant":
-            state.clearStreamingText()
-            return true
+        case .message(let role, _, _):
+            return shouldPersistMessageEvent(role: role)
 
         case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials):
-            return shouldPersistTokenEvent(
+            return shouldPersistTokensEvent(
                 TokenEventPayload(
                     input: input,
                     output: output,
@@ -288,21 +284,52 @@ private extension ConversationViewModel {
             )
 
         case .toolApprovalRequested(let approval):
-            replacePendingToolApproval(with: approval)
-            return true
+            return handleToolApprovalRequested(approval)
 
         case .stop(let message):
             return shouldPersistStopEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
-            state.grouper.handleSubAgentControl(event)
-            return false
+            return handleSubAgentControlEvent(event)
 
         default:
             return true
         }
     }
 
+    func handlePermissionModeChanged(_ permissionMode: String) -> Bool {
+        syncRuntimePermissionMode(permissionMode)
+        return false
+    }
+
+    func handleMessageChunk(_ text: String, parentToolUseId: String?) -> Bool {
+        if parentToolUseId == nil {
+            state.appendStreamingChunk(text)
+        }
+        return false
+    }
+
+    func shouldPersistMessageEvent(role: String) -> Bool {
+        if role == "assistant" {
+            state.clearStreamingText()
+            return true
+        }
+        return false
+    }
+
+    func shouldPersistTokensEvent(_ payload: TokenEventPayload) -> Bool {
+        shouldPersistTokenEvent(payload)
+    }
+
+    func handleToolApprovalRequested(_ approval: ToolApprovalRequest) -> Bool {
+        replacePendingToolApproval(with: approval)
+        return true
+    }
+
+    func handleSubAgentControlEvent(_ event: ConversationEvent) -> Bool {
+        state.grouper.handleSubAgentControl(event)
+        return false
+    }
     func handleTokenEvent(_ payload: TokenEventPayload) -> TokenEventPersistence {
         let hadStreamingText = state.streamingText != nil
         state.clearStreamingText()

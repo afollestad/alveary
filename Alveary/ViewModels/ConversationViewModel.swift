@@ -48,6 +48,10 @@ final class ConversationViewModel {
         set { state.setupPhase = newValue }
     }
 
+    var hasUnansweredPrompt: Bool {
+        state.grouper.hasUnansweredPrompt
+    }
+
     init(
         conversation: Conversation,
         agentsManager: any AgentsManager,
@@ -66,6 +70,10 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.state = runtimeStore.conversationState(for: conversation.id)
+        if self.state.lastNonPlanPermissionMode == nil,
+           conversation.thread?.permissionMode != "plan" {
+            self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
+        }
     }
 
     func activateViewLifecycle() {
@@ -166,12 +174,24 @@ final class ConversationViewModel {
         guard state.messageQueue.peekNext() == nil else {
             throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before answering the prompt")
         }
+        guard !state.isReconfiguringSession else {
+            throw AgentError.spawnFailed("Wait for session changes to finish before answering the prompt")
+        }
 
         let message = Self.formatPromptAnswers(answers: answers)
         let summary = Self.promptSummary(answers: answers)
+        let pendingApproval = state.pendingToolApproval
 
-        try await withOutboundReservation {
+        state.isSendingMessage = true
+        defer { state.isSendingMessage = false }
+
+        if let pendingApproval,
+           pendingApproval.request.toolName == "AskUserQuestion",
+           pendingApproval.request.toolUseId == promptId {
+            try await answerDeferredAskUserQuestion(pendingApproval, answers: answers)
+        } else {
             try await deliverMessageReserved(message)
+            supersedePendingToolApprovalAfterPromptAnswer(pendingApproval)
         }
 
         let conversationID = conversation.id

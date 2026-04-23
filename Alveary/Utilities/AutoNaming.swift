@@ -31,9 +31,9 @@ extension ConversationViewModel {
     static func promptSummary(answers: [(question: String, answer: String)]) -> String {
         answers.map { question, answer in
             let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(trimmedQuestion): \(answer)"
+            return "Q: \(trimmedQuestion)\nA: \(answer)"
         }
-        .joined(separator: "\n")
+        .joined(separator: "\n\n")
     }
 }
 

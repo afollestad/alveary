@@ -3,6 +3,7 @@ import Foundation
 struct ManagedEventBuffer: Sendable {
     let generation: UUID
     var allowsReplay: Bool
+    var acceptsLiveEvents: Bool
     let buffer: EventBuffer
 }
 

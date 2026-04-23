@@ -18,7 +18,7 @@ extension AgentsManagerTests {
         _ = try await fixture.manager.resolveToolApproval(
             conversationId: fixture.conversationId,
             approval: bashApprovalRequest(command: "swift test"),
-            decision: .allow,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
             sessionApproval: nil,
             config: fixture.config
         )
@@ -56,7 +56,7 @@ extension AgentsManagerTests {
         _ = try await fixture.manager.resolveToolApproval(
             conversationId: conversationId,
             approval: bashApprovalRequest(command: "git add foo.swift"),
-            decision: .allow,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
             sessionApproval: sessionApproval,
             config: fixture.config
         )
@@ -66,57 +66,38 @@ extension AgentsManagerTests {
     }
 
     func testResolveToolApprovalInvalidatesOldHookTokenBeforeResumeSpawn() async throws {
-        let executable = try TempExecutable()
-        let hookServer = StubClaudeHookServer(
-            launchConfigs: [
-                ClaudeHookLaunchConfig(
-                    arguments: [],
-                    environment: ["ALVEARY_HOOK_TOKEN": "old-token"]
-                ),
-                ClaudeHookLaunchConfig(
-                    arguments: [],
-                    environment: ["ALVEARY_HOOK_TOKEN": "new-token"]
-                )
-            ]
-        )
-        let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
-            claudeHookServer: hookServer,
-            adapterFactory: { _ in RecordingLaunchAdapter() }
-        )
-        let conversationId = "conversation-hook-token-resume"
-        let config = hookSpawnConfig(workingDirectory: executable.workingDirectory.path)
-        defer {
-            executable.cleanup()
-            Task { await manager.kill(conversationId: conversationId) }
-        }
+        let fixture = try makeTokenRotationFixture()
+        defer { fixture.cleanup() }
 
-        try await manager.spawn(id: conversationId, config: config, forkSession: false)
+        try await fixture.manager.spawn(id: fixture.conversationId, config: fixture.config, forkSession: false)
         try await waitUntil("expected initial launch before approval resume") {
-            try executable.recordedLaunchArguments().count == 1
+            try fixture.executable.recordedLaunchArguments().count == 1
         }
 
-        _ = try await manager.resolveToolApproval(
-            conversationId: conversationId,
+        _ = try await fixture.manager.resolveToolApproval(
+            conversationId: fixture.conversationId,
             approval: bashApprovalRequest(command: "swift test"),
-            decision: .allow,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
             sessionApproval: nil,
-            config: config
+            config: fixture.config
         )
 
         try await waitUntil("expected old hook token invalidation before resume") {
-            await hookServer.invalidations().contains("old-token")
+            await fixture.hookServer.invalidations().contains("old-token")
         }
         try await waitUntil("expected resumed launch after token invalidation") {
-            try executable.recordedLaunchArguments().count == 2
+            try fixture.executable.recordedLaunchArguments().count == 2
         }
 
-        let events = await hookServer.events()
+        let events = await fixture.hookServer.events()
         XCTAssertEqual(
             Array(events.prefix(2)),
             [
                 .invalidateToken("old-token"),
-                .recordDecision(.allow, ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1"))
+                .recordDecision(
+                    ClaudeToolApprovalResolution(decision: .allow),
+                    ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")
+                )
             ]
         )
     }
@@ -148,7 +129,7 @@ extension AgentsManagerTests {
             _ = try await fixture.manager.resolveToolApproval(
                 conversationId: conversationId,
                 approval: bashApprovalRequest(command: "swift test"),
-                decision: .allow,
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
                 sessionApproval: sessionApproval,
                 config: hookSpawnConfig(workingDirectory: missingDirectory)
             )
@@ -199,7 +180,7 @@ extension AgentsManagerTests {
         _ = try await manager.resolveToolApproval(
             conversationId: conversationId,
             approval: bashApprovalRequest(command: "swift test"),
-            decision: .allow,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
             sessionApproval: sessionApproval,
             config: config
         )
@@ -236,12 +217,36 @@ private extension AgentsManagerTests {
         }
     }
 
+    func makeTokenRotationFixture() throws -> ApprovalFixture {
+        let launchConfigs = [
+            ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "old-token"]
+            ),
+            ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "new-token"]
+            )
+        ]
+        return try makeApprovalFixture(
+            conversationId: "conversation-hook-token-resume",
+            launchConfigs: launchConfigs
+        )
+    }
+
     func makeApprovalFixture(
         conversationId: String,
         launchConfig: ClaudeHookLaunchConfig
     ) throws -> ApprovalFixture {
+        try makeApprovalFixture(conversationId: conversationId, launchConfigs: [launchConfig])
+    }
+
+    func makeApprovalFixture(
+        conversationId: String,
+        launchConfigs: [ClaudeHookLaunchConfig?]
+    ) throws -> ApprovalFixture {
         let executable = try TempExecutable()
-        let hookServer = StubClaudeHookServer(launchConfig: launchConfig)
+        let hookServer = StubClaudeHookServer(launchConfigs: launchConfigs)
         let manager = makeTestManager(
             settings: makeSettings(cliPath: executable.url.path),
             claudeHookServer: hookServer,

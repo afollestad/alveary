@@ -58,10 +58,17 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Cannot spawn agent: no working directory")
         }
 
+        let permissionModeOverride: String?
+        if state.pendingToolApproval?.request.toolName == "ExitPlanMode" {
+            permissionModeOverride = "plan"
+        } else {
+            permissionModeOverride = state.runtimePermissionMode
+        }
+
         return AgentSpawnConfig(
             providerId: providerId,
             workingDirectory: workingDirectory,
-            permissionMode: dbConversation.thread?.permissionMode,
+            permissionMode: permissionModeOverride ?? dbConversation.thread?.permissionMode,
             model: dbConversation.thread?.model,
             effort: AppSettings.normalizedEffortLevel(dbConversation.thread?.effort),
             initialPrompt: initialPrompt
@@ -80,6 +87,9 @@ extension ConversationViewModel {
     func withOutboundReservation<T>(_ body: () async throws -> T) async throws -> T {
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Session changes are still being applied")
+        }
+        guard !hasUnansweredPrompt else {
+            throw AgentError.spawnFailed("Answer the pending question before sending another message")
         }
         guard state.pendingToolApproval == nil else {
             throw AgentError.spawnFailed("Approve or deny the pending tool use before sending another message")

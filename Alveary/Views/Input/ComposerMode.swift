@@ -7,7 +7,7 @@ enum ComposerMode: Sendable {
         case initialSetup
         case cancellingInitialSetup
         case reconfiguringSession
-        case toolApproval
+        case toolApproval(DeferredToolComposerStatusText)
 
         var canStop: Bool {
             switch self {

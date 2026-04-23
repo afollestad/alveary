@@ -32,7 +32,7 @@ extension ChatItemGrouper {
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.turnInterruptedNote(id: event.id))
+            appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))
         default:
             // `thinking` events are intentionally not rendered — they add little for the
             // user and clutter transcripts. The active-turn "Thinking…" spinner in
@@ -55,6 +55,8 @@ extension ChatItemGrouper {
         evictedSubAgentIds = []
         currentTasks = []
         promptToolIds = []
+        centeredNoteToolKinds = [:]
+        toolApprovalStatusesByToolId = [:]
     }
 
     func removeTrailingPendingBlocksIfNeeded() {
@@ -82,6 +84,10 @@ extension ChatItemGrouper {
             return
         }
         guard !promptToolIds.contains(toolId) else {
+            return
+        }
+        if let centeredNoteKind = centeredNoteToolKinds.removeValue(forKey: toolId) {
+            handleCenteredNoteToolResult(toolId: toolId, kind: centeredNoteKind, event: event)
             return
         }
         guard !handleSubAgentToolResult(toolId: toolId, event: event) else {
@@ -139,6 +145,8 @@ private extension ChatItemGrouper {
             handleTodoWriteToolCall(event)
         case "AskUserQuestion":
             handleAskUserQuestionToolCall(event)
+        case "EnterPlanMode", "ExitPlanMode":
+            handleCenteredNoteToolCall(event)
         case "Agent":
             handleAgentToolCall(event)
         default:
@@ -162,16 +170,37 @@ private extension ChatItemGrouper {
 
         let toolId = event.toolId ?? event.id
         promptToolIds.insert(toolId)
+        let prompt = PromptEntry(
+            id: toolId,
+            questions: parseAskUserQuestionInput(event.toolInput),
+            submittedSummary: event.content?.isEmpty == false ? event.content : nil
+        )
+        if replaceExistingPromptIfPresent(with: prompt) {
+            return
+        }
+        if ignoreDuplicateAnsweredPromptReplay(prompt) {
+            return
+        }
+        if replaceLatestUnansweredPrompt(with: prompt) {
+            return
+        }
+
         appendTranscriptItem(
             .promptBlock(
                 id: "prompt-\(toolId)",
-                prompt: PromptEntry(
-                    id: toolId,
-                    questions: parseAskUserQuestionInput(event.toolInput),
-                    submittedSummary: event.content?.isEmpty == false ? event.content : nil
-                )
+                prompt: prompt
             )
         )
+    }
+
+    func handleCenteredNoteToolCall(_ event: ConversationEventRecord) {
+        guard let toolName = event.toolName,
+              let noteKind = centeredTranscriptNoteKind(forToolNamed: toolName) else {
+            return
+        }
+
+        let toolId = event.toolId ?? event.id
+        centeredNoteToolKinds[toolId] = noteKind
     }
 
     func handleGenericToolCall(_ event: ConversationEventRecord) {
@@ -191,6 +220,16 @@ private extension ChatItemGrouper {
 
     func handleToolApproval(_ event: ConversationEventRecord) {
         let toolUseId = event.toolId ?? event.id
+        if let status = event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:)) {
+            toolApprovalStatusesByToolId[toolUseId] = status
+        }
+
+        markEarlierPendingToolsComplete(excluding: toolUseId)
+
+        if event.toolName == "AskUserQuestion" {
+            return
+        }
+
         flushGroup()
         flushSubAgents()
         appendTranscriptItem(
@@ -205,6 +244,66 @@ private extension ChatItemGrouper {
                 status: event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:))
             )
         )
+    }
+
+    func handleCenteredNoteToolResult(
+        toolId: String,
+        kind: CenteredTranscriptNoteKind,
+        event: ConversationEventRecord
+    ) {
+        if kind == .exitedPlanMode,
+           toolApprovalStatusesByToolId[toolId] == .denied {
+            flushGroup()
+            flushSubAgents()
+            appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: .stayingInPlanMode))
+            return
+        }
+
+        if event.isError {
+            flushGroup()
+            flushSubAgents()
+            let pendingTool = makePendingToolEntry(id: toolId, event: ConversationEventRecord(
+                id: toolId,
+                conversationId: event.conversationId,
+                type: "tool_call",
+                toolId: toolId,
+                toolName: centeredToolName(for: kind),
+                toolInput: "{}"
+            ))
+            appendTranscriptItem(
+                .standaloneTool(
+                    id: "tool-\(toolId)",
+                    tool: completedToolEntry(from: pendingTool, event: event)
+                )
+            )
+            return
+        }
+
+        flushGroup()
+        flushSubAgents()
+        appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: kind))
+    }
+
+    func centeredTranscriptNoteKind(forToolNamed toolName: String) -> CenteredTranscriptNoteKind? {
+        switch toolName {
+        case "EnterPlanMode":
+            return .enteredPlanMode
+        case "ExitPlanMode":
+            return .exitedPlanMode
+        default:
+            return nil
+        }
+    }
+
+    func centeredToolName(for kind: CenteredTranscriptNoteKind) -> String {
+        switch kind {
+        case .enteredPlanMode:
+            return "EnterPlanMode"
+        case .exitedPlanMode, .stayingInPlanMode:
+            return "ExitPlanMode"
+        case .interrupted:
+            return "Tool"
+        }
     }
 
     func makeCompletedToolEntry(for toolId: String, event: ConversationEventRecord) -> ToolEntry? {
@@ -307,5 +406,52 @@ private extension ChatItemGrouper {
                 continue
             }
         }
+    }
+
+    func markEarlierPendingToolsComplete(excluding excludedToolId: String) {
+        pendingGroupTools = pendingGroupTools.map { tool in
+            guard tool.id != excludedToolId, !tool.isComplete else {
+                return tool
+            }
+            return implicitlyCompletedToolEntry(from: tool)
+        }
+
+        for index in items.indices {
+            switch items[index] {
+            case .toolGroup(let blockId, let tools):
+                let updatedTools = tools.map { tool in
+                    guard tool.id != excludedToolId, !tool.isComplete else {
+                        return tool
+                    }
+                    return implicitlyCompletedToolEntry(from: tool)
+                }
+                if updatedTools != tools {
+                    items[index] = .toolGroup(id: blockId, tools: updatedTools)
+                }
+            case .standaloneTool(let rowId, let tool):
+                guard tool.id != excludedToolId, !tool.isComplete else {
+                    continue
+                }
+                items[index] = .standaloneTool(id: rowId, tool: implicitlyCompletedToolEntry(from: tool))
+            default:
+                continue
+            }
+        }
+    }
+
+    func implicitlyCompletedToolEntry(from tool: ToolEntry) -> ToolEntry {
+        ToolEntry(
+            id: tool.id,
+            name: tool.name,
+            summary: tool.summary,
+            input: tool.input,
+            output: tool.output,
+            stderr: tool.stderr,
+            isComplete: true,
+            isInterrupted: tool.isInterrupted,
+            isImage: tool.isImage,
+            noOutputExpected: tool.noOutputExpected,
+            isError: tool.isError
+        )
     }
 }

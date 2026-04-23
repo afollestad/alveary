@@ -360,6 +360,15 @@ extension SnapshotTests {
         )
     }
 
+    var sampleExitPlanModeApproval: ToolApprovalRequest {
+        ToolApprovalRequest(
+            sessionId: "session-snapshot",
+            toolUseId: "tool-exit-plan",
+            toolName: "ExitPlanMode",
+            toolInput: "{\"plan\":\"Summarize the agreed approach and leave plan mode.\"}"
+        )
+    }
+
     var sampleSubAgents: [SubAgentEntry] {
         [
             SubAgentEntry(
@@ -422,7 +431,62 @@ extension SnapshotTests {
         PromptEntry(
             id: "prompt-framework-answered",
             questions: samplePrompt.questions,
-            submittedSummary: "Which framework should we use for the new snapshots?: SnapshotTesting"
+            submittedSummary: "Q: Which framework should we use for the new snapshots?\nA: SnapshotTesting"
+        )
+    }
+
+    var customResponsePrompt: PromptEntry {
+        PromptEntry(
+            id: "prompt-custom-response",
+            questions: [
+                PromptEntry.PromptQuestion(
+                    question: "Which framework should we use for the new snapshots?",
+                    header: "Framework",
+                    options: [
+                        .init(label: "SnapshotTesting", description: "Point-Free's cross-platform snapshot library."),
+                        .init(label: "Custom Harness", description: "Roll our own image-based assertions."),
+                        .init(label: "Skip Snapshots", description: "Rely only on unit coverage for UI logic.")
+                    ],
+                    multiSelect: false
+                )
+            ],
+            submittedSummary: nil
+        )
+    }
+
+    var planModePrompt: PromptEntry {
+        PromptEntry(
+            id: "prompt-plan-mode",
+            questions: [
+                PromptEntry.PromptQuestion(
+                    question: "Where should a new contact section go?",
+                    header: "Placement",
+                    options: [
+                        .init(label: "Bottom of page", description: "After the photo gallery."),
+                        .init(label: "Between intro and experience", description: "Higher on the page.")
+                    ],
+                    multiSelect: false
+                ),
+                PromptEntry.PromptQuestion(
+                    question: "How should contact be surfaced?",
+                    header: "Contact UI",
+                    options: [
+                        .init(label: "Email link", description: "Simple mailto link."),
+                        .init(label: "Social icons", description: "Row of social icon links.")
+                    ],
+                    multiSelect: false
+                ),
+                PromptEntry.PromptQuestion(
+                    question: "Which button style?",
+                    header: "Style",
+                    options: [
+                        .init(label: "Existing button pattern", description: "Match scroll-to-* buttons."),
+                        .init(label: "Spectre card", description: "Use a card component.")
+                    ],
+                    multiSelect: false
+                )
+            ],
+            submittedSummary: nil
         )
     }
 }

@@ -222,6 +222,38 @@ extension AppKitTextEditorCoordinatorTests {
         )
     }
 
+    func testDeferredToolComposerStatusTextUsesRequestOverrides() {
+        let askUserQuestion = ToolApprovalRequest(
+            sessionId: "session-1",
+            toolUseId: "tool-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[]}"#
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.progressLabel(for: .toolApproval(askUserQuestion.composerStatusText)),
+            "Waiting for question response..."
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.placeholder(for: .toolApproval(askUserQuestion.composerStatusText)),
+            "Answer the pending question in the transcript..."
+        )
+
+        let bash = ToolApprovalRequest(
+            sessionId: "session-1",
+            toolUseId: "tool-2",
+            toolName: "Bash",
+            toolInput: #"{"command":"ls"}"#
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.progressLabel(for: .toolApproval(bash.composerStatusText)),
+            "Waiting for approval..."
+        )
+        XCTAssertEqual(
+            ChatInputFieldTextSupport.placeholder(for: .toolApproval(bash.composerStatusText)),
+            "Waiting for tool approval..."
+        )
+    }
+
     func testActiveCompletionTokenIgnoresColonPrefixedMentions() {
         let text = "See:@file"
 

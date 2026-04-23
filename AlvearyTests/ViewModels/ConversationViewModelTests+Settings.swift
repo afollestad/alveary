@@ -121,6 +121,32 @@ extension ConversationViewModelTests {
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
+    func testApplyPermissionModeChangeIsRejectedWhilePromptIsUnanswered() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "default"
+        try fixture.context.save()
+        let conversation = try fixture.dbConversation()
+        let promptRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_call",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#,
+            conversation: conversation
+        )
+        fixture.context.insert(promptRecord)
+        fixture.viewModel.state.grouper.append(event: promptRecord)
+
+        await fixture.viewModel.applyPermissionModeChange("acceptEdits").value
+
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
     func testApplyModelChangeIsRejectedDuringActiveTurn() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
@@ -228,6 +254,33 @@ extension ConversationViewModelTests {
 
         XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
+    }
+
+    func testApplyPermissionModeChangeTracksPreviousNonPlanModeWhenEnteringPlan() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyPermissionModeChange("plan").value
+
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, "acceptEdits")
+    }
+
+    func testRuntimePermissionModeChangePersistsLiveModeToThread() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        try fixture.dbThread().permissionMode = "default"
+        try fixture.context.save()
+
+        fixture.viewModel.handleEvent(.permissionModeChanged("plan"))
+
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
     }
 
     // A concurrent fork attempt (`isReconfiguringSession` already set) must

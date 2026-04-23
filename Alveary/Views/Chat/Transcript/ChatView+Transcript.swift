@@ -111,8 +111,8 @@ struct ChatTranscriptView: View {
                         toolApprovalBlock(approval, persistedStatus: status)
                     case .error(_, let message):
                         ErrorBanner(message: message)
-                    case .turnInterruptedNote:
-                        TurnInterruptedNote()
+                    case .centeredNote(_, let kind):
+                        CenteredTranscriptNote(kind: kind)
                     }
                 }
 
@@ -129,7 +129,7 @@ struct ChatTranscriptView: View {
                 if viewModel.state.lastTurnInterrupted,
                    !viewModel.turnState.isActive,
                    shouldShowTransientInterruptedNote {
-                    TurnInterruptedNote()
+                    CenteredTranscriptNote(kind: .interrupted)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -360,6 +360,40 @@ final class ClaudeAdapterTests: XCTestCase {
         )
     }
 
+    func testDecodeSystemInitEmitsPermissionModeChangedEventWhenPresent() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "system",
+            "subtype": "init",
+            "session_id": "session-123",
+            "permissionMode": "plan"
+        ]
+
+        XCTAssertEqual(
+            adapter.decode(json),
+            [
+                .sessionInit(sessionId: "session-123"),
+                .permissionModeChanged("plan")
+            ]
+        )
+    }
+
+    func testDecodeSystemStatusEmitsPermissionModeChangedEventWhenPresent() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "system",
+            "subtype": "status",
+            "permissionMode": "acceptEdits"
+        ]
+
+        XCTAssertEqual(
+            adapter.decode(json),
+            [
+                .permissionModeChanged("acceptEdits")
+            ]
+        )
+    }
+
     func testSendMessageWritesStructuredJSONLineToStdin() throws {
         let adapter = ClaudeAdapter()
         let process = Process()

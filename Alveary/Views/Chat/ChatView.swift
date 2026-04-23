@@ -43,8 +43,8 @@ struct ChatView: View {
         if viewModel.state.isReconfiguringSession {
             return .progressOnly(.reconfiguringSession)
         }
-        if viewModel.state.pendingToolApproval != nil {
-            return .progressOnly(.toolApproval)
+        if let pendingToolApproval = viewModel.state.pendingToolApproval {
+            return .progressOnly(.toolApproval(pendingToolApproval.request.composerStatusText))
         }
         if viewModel.turnState.isActive {
             return .busy(canStop: true)

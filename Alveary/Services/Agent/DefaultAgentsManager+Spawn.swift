@@ -1,6 +1,5 @@
 import Darwin
 import Foundation
-
 extension DefaultAgentsManager {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
         try await spawnImpl(id: id, config: config, forkSession: forkSession, allowReconfigureInFlight: false)
@@ -10,7 +9,6 @@ extension DefaultAgentsManager {
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.allowsReplay else {
             return nil
         }
-
         let subscription = managedBuffer.buffer.subscribe(afterIndex: afterIndex)
         return AgentEventSubscription(generation: managedBuffer.generation, stream: subscription.stream)
     }
@@ -23,7 +21,6 @@ extension DefaultAgentsManager {
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
             return
         }
-
         managedBuffer.buffer.markPersisted(upTo: index)
 
         if processes[conversationId] == nil,
@@ -267,25 +264,8 @@ extension DefaultAgentsManager {
         launched: LaunchedProcess
     ) async throws -> PublishedRuntime {
         let generation = UUID()
-        processes[id] = launched.process
-        adapters[id] = prepared.adapter
-        hookTokens[id] = prepared.environment[claudeHookTokenEnvironmentKey]
-        processSnapshot.withLock { $0 = Array(processes.values) }
-        publishManagedProcessesChanged()
-
         let pid = launched.process.processIdentifier
-        launched.process.terminationHandler = { [weak self] proc in
-            let terminationReason = proc.terminationReason
-            let terminationStatus = proc.terminationStatus
-            Task {
-                await self?.handleProcessExit(
-                    id: id,
-                    pid: pid,
-                    terminationReason: terminationReason,
-                    terminationStatus: terminationStatus
-                )
-            }
-        }
+        publishSpawnedProcess(id: id, prepared: prepared, process: launched.process, pid: pid)
 
         if !launched.process.isRunning {
             await handleProcessExit(
@@ -309,7 +289,12 @@ extension DefaultAgentsManager {
         }
 
         let buffer = EventBuffer()
-        eventBuffers[id] = ManagedEventBuffer(generation: generation, allowsReplay: true, buffer: buffer)
+        eventBuffers[id] = ManagedEventBuffer(
+            generation: generation,
+            allowsReplay: true,
+            acceptsLiveEvents: true,
+            buffer: buffer
+        )
         await configureSpawnedState(id: id, config: config, continuity: prepared.sessionLaunch.continuity)
         startStreamTask(
             id: id,
@@ -319,6 +304,32 @@ extension DefaultAgentsManager {
             launched: launched
         )
         return PublishedRuntime(pid: pid, generation: generation)
+    }
+
+    private func publishSpawnedProcess(
+        id: String,
+        prepared: PreparedSpawnContext,
+        process: Process,
+        pid: Int32
+    ) {
+        processes[id] = process
+        adapters[id] = prepared.adapter
+        hookTokens[id] = prepared.environment[claudeHookTokenEnvironmentKey]
+        processSnapshot.withLock { $0 = Array(processes.values) }
+        publishManagedProcessesChanged()
+
+        process.terminationHandler = { [weak self] proc in
+            let terminationReason = proc.terminationReason
+            let terminationStatus = proc.terminationStatus
+            Task {
+                await self?.handleProcessExit(
+                    id: id,
+                    pid: pid,
+                    terminationReason: terminationReason,
+                    terminationStatus: terminationStatus
+                )
+            }
+        }
     }
 
     private func configureSpawnedState(id: String, config: AgentSpawnConfig, continuity: SessionContinuity) async {
@@ -400,27 +411,14 @@ extension DefaultAgentsManager {
         generation: UUID,
         providerId: String
     ) async {
-        guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
+        guard let managedBuffer = eventBuffers[conversationId],
+              managedBuffer.generation == generation,
+              managedBuffer.acceptsLiveEvents else {
             return
         }
         managedBuffer.buffer.push(event)
 
-        if case .sessionInit(let sessionId) = event, let sessionId {
-            if await sessionManager.hasSession(for: conversationId) {
-                let previousSessionId = await sessionManager.sessionId(for: conversationId)
-                if previousSessionId != sessionId {
-                    await claudeHookServer.removeSessionApprovals(
-                        conversationId: conversationId,
-                        sessionId: previousSessionId
-                    )
-                }
-            }
-            do {
-                try await sessionManager.updateSessionId(for: conversationId, newSessionId: sessionId)
-            } catch {
-                print("[AgentsManager] Failed to persist updated session ID for \(conversationId): \(error)")
-            }
-        }
+        await handleConversationLifecycleEvent(event, conversationId: conversationId)
 
         switch event {
         case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
@@ -428,6 +426,17 @@ extension DefaultAgentsManager {
                 tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
                 for: conversationId
             )
+            if stopReason == "tool_deferred",
+               let pid = processes[conversationId]?.processIdentifier {
+                eventBuffers[conversationId]?.acceptsLiveEvents = false
+                Task { [weak self] in
+                    await self?.stopDeferredRuntimeIfCurrent(
+                        conversationId: conversationId,
+                        generation: generation,
+                        pid: pid
+                    )
+                }
+            }
         case .error:
             updateStatus(.error, for: conversationId)
         default:
@@ -453,5 +462,38 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.finishAll()
+    }
+
+    private func handleConversationLifecycleEvent(
+        _ event: ConversationEvent,
+        conversationId: String
+    ) async {
+        if case .sessionInit(let sessionId) = event, let sessionId {
+            await updateConversationSessionID(sessionId, conversationId: conversationId)
+        }
+
+        if case .permissionModeChanged(let permissionMode) = event {
+            await claudeHookServer.updatePermissionMode(permissionMode, for: conversationId)
+        }
+    }
+
+    private func updateConversationSessionID(
+        _ sessionId: String,
+        conversationId: String
+    ) async {
+        if await sessionManager.hasSession(for: conversationId) {
+            let previousSessionId = await sessionManager.sessionId(for: conversationId)
+            if previousSessionId != sessionId {
+                await claudeHookServer.removeSessionApprovals(
+                    conversationId: conversationId,
+                    sessionId: previousSessionId
+                )
+            }
+        }
+        do {
+            try await sessionManager.updateSessionId(for: conversationId, newSessionId: sessionId)
+        } catch {
+            print("[AgentsManager] Failed to persist updated session ID for \(conversationId): \(error)")
+        }
     }
 }

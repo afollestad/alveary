@@ -147,6 +147,22 @@ extension SnapshotTests {
         )
     }
 
+    func testEnteredPlanModeNote() {
+        assertMacSnapshot(
+            CenteredTranscriptNote(kind: .enteredPlanMode),
+            size: CGSize(width: 320, height: 80),
+            named: "entered_plan_mode_note"
+        )
+    }
+
+    func testStayingInPlanModeNote() {
+        assertMacSnapshot(
+            CenteredTranscriptNote(kind: .stayingInPlanMode),
+            size: CGSize(width: 320, height: 80),
+            named: "staying_in_plan_mode_note"
+        )
+    }
+
     func testStreamingBubble() {
         assertMacSnapshot(
             StreamingBubble(text: "Working through the repo now."),

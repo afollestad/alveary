@@ -120,18 +120,18 @@ final class ChatItemGrouperTests: XCTestCase {
 
         grouper.update(events: [stop])
 
-        XCTAssertEqual(grouper.items, [.turnInterruptedNote(id: "stop-1")])
+        XCTAssertEqual(grouper.items, [.centeredNote(id: "stop-1", kind: .interrupted)])
     }
 
     func testInterruptedNoteLookupOnlyConsidersCurrentTurn() {
         let items: [ChatItem] = [
             .userMessage(id: "user-1", text: "First turn"),
-            .turnInterruptedNote(id: "stop-1"),
+            .centeredNote(id: "stop-1", kind: .interrupted),
             .userMessage(id: "user-2", text: "Second turn")
         ]
 
         XCTAssertFalse(items.hasInterruptedNoteAfterLatestUserMessage)
-        XCTAssertTrue((items + [.turnInterruptedNote(id: "stop-2")]).hasInterruptedNoteAfterLatestUserMessage)
+        XCTAssertTrue((items + [.centeredNote(id: "stop-2", kind: .interrupted)]).hasInterruptedNoteAfterLatestUserMessage)
     }
 
     func testStandaloneAfterGroupClosesAndStartsNewGroup() {
@@ -180,38 +180,6 @@ final class ChatItemGrouperTests: XCTestCase {
         } else {
             XCTFail("Expected Grep to start a new tool group after Write")
         }
-    }
-
-    func testPromptToolResultIsSuppressedAndMarkPromptAnsweredPatchesPrompt() {
-        let grouper = ChatItemGrouper()
-        let conversationId = "conversation-1"
-        let promptCall = ConversationEventRecord(
-            id: "prompt-call",
-            conversationId: conversationId,
-            type: "tool_call",
-            toolId: "prompt-1",
-            toolName: "AskUserQuestion",
-            toolInput: "{\"questions\":[{\"question\":\"Pick one\",\"options\":[{\"label\":\"A\",\"description\":\"First\"}]}]}"
-        )
-        let suppressedResult = ConversationEventRecord(
-            id: "prompt-result",
-            conversationId: conversationId,
-            type: "tool_result",
-            toolId: "prompt-1",
-            toolOutput: "Answer questions?",
-            isError: true
-        )
-
-        grouper.update(events: [promptCall, suppressedResult])
-        grouper.markPromptAnswered(promptId: "prompt-1", summary: "A")
-
-        XCTAssertEqual(grouper.items.count, 1)
-        guard case .promptBlock(_, let prompt) = grouper.items[0] else {
-            return XCTFail("Expected a prompt block")
-        }
-        XCTAssertEqual(prompt.id, "prompt-1")
-        XCTAssertEqual(prompt.questions.first?.question, "Pick one")
-        XCTAssertEqual(prompt.submittedSummary, "A")
     }
 
     func testAssistantMessageClosesGroupWhenAllToolsDone() {

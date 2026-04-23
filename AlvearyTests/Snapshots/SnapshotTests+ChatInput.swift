@@ -125,6 +125,29 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldWaitingForQuestionResponse() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant(""),
+                mode: .progressOnly(.toolApproval(.askUserQuestion)),
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("plan"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_waiting_for_question_response"
+        )
+    }
+
     func testChatInputFieldCodeBlocks() {
         assertMacSnapshot(
             ChatInputField(

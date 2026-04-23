@@ -102,4 +102,70 @@ extension ChatItemGrouperTests {
         }
         XCTAssertEqual(status, .superseded)
     }
+
+    func testAskUserQuestionApprovalDoesNotRenderToolApprovalBlock() {
+        let grouper = ChatItemGrouper()
+        let promptCall = ConversationEventRecord(
+            id: "prompt-call",
+            conversationId: "conversation-1",
+            type: "tool_call",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: "conversation-1",
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        )
+
+        grouper.update(events: [promptCall, approval])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .promptBlock(_, let prompt) = grouper.items.first else {
+            return XCTFail("Expected only the prompt block")
+        }
+        XCTAssertEqual(prompt.id, "prompt-1")
+        XCTAssertNil(prompt.submittedSummary)
+    }
+
+    func testToolApprovalMarksEarlierPendingStandaloneToolComplete() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let write = ConversationEventRecord(
+            id: "write",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "write-1",
+            toolName: "Write",
+            toolInput: #"{"file_path":"plan.md"}"#
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+
+        grouper.update(events: [write, approval])
+
+        XCTAssertEqual(grouper.items.count, 2)
+        guard case .standaloneTool(_, let tool) = grouper.items[0] else {
+            return XCTFail("Expected the write tool row to remain visible")
+        }
+        XCTAssertEqual(tool.id, "write-1")
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertFalse(tool.isError)
+        guard case .toolApproval(_, let request, _) = grouper.items[1] else {
+            return XCTFail("Expected the later approval row")
+        }
+        XCTAssertEqual(request.toolUseId, "tool-exit")
+    }
 }

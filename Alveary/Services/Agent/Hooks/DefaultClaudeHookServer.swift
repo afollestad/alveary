@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-
 actor DefaultClaudeHookServer: ClaudeHookServer {
     private static let tokenEnvironmentKey = "ALVEARY_HOOK_TOKEN"
     private static let settingsFileName = "claude-hooks-settings.json"
@@ -12,9 +11,11 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     private var listener: ClaudeHookHTTPListener?
     private var listenerID: UUID?
     private var listenerPort: UInt16?
-    private var validTokens: Set<String> = []
-    private var launchContextByToken: [String: HookLaunchContext] = [:]
-    private var decisions: [ClaudeToolApprovalKey: ClaudeToolApprovalDecision] = [:]
+    var validTokens: Set<String> = []
+    var launchContextByToken: [String: HookLaunchContext] = [:]
+    var livePermissionModeByConversation: [String: String] = [:]
+    var decisions: [ClaudeToolApprovalKey: ClaudeToolApprovalDecision] = [:]
+    var updatedInputs: [ClaudeToolApprovalKey: String] = [:]
 
     init(supportDirectory: URL? = nil) {
         let supportDirectory = supportDirectory ?? Self.defaultSupportDirectory()
@@ -35,6 +36,9 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
             let settingsURL = try writeSettings(port: port)
             let token = UUID().uuidString
             validTokens.insert(token)
+            if let permissionMode {
+                livePermissionModeByConversation[conversationId] = permissionMode
+            }
             launchContextByToken[token] = HookLaunchContext(
                 conversationId: conversationId,
                 permissionMode: permissionMode
@@ -48,10 +52,22 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         }
     }
 
-    func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) {
-        decisions[key] = decision
+    func updatePermissionMode(_ permissionMode: String?, for conversationId: String) {
+        if let permissionMode {
+            livePermissionModeByConversation[conversationId] = permissionMode
+        } else {
+            livePermissionModeByConversation.removeValue(forKey: conversationId)
+        }
     }
 
+    func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) {
+        decisions[key] = resolution.decision
+        if let updatedInput = resolution.updatedInput {
+            updatedInputs[key] = updatedInput
+        } else {
+            updatedInputs.removeValue(forKey: key)
+        }
+    }
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) -> SessionApprovalRecordResult {
         guard let context = sessionApprovalContext() else {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
@@ -152,8 +168,8 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
 
     func discardDecision(for key: ClaudeToolApprovalKey) {
         decisions.removeValue(forKey: key)
+        updatedInputs.removeValue(forKey: key)
     }
-
     func invalidateToken(_ token: String) {
         validTokens.remove(token)
         launchContextByToken.removeValue(forKey: token)
@@ -210,70 +226,11 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         listenerPort = nil
         validTokens.removeAll()
         launchContextByToken.removeAll()
+        livePermissionModeByConversation.removeAll()
         decisions.removeAll()
+        updatedInputs.removeAll()
     }
-
-    func handle(_ request: ClaudeHookHTTPRequest) -> ClaudeHookHTTPResponse {
-        guard let token = authorizationToken(from: request.authorization),
-              validTokens.contains(token),
-              let launchContext = launchContextByToken[token] else {
-            return decisionResponse(
-                .deny,
-                reason: "Invalid Alveary hook token"
-            )
-        }
-
-        guard let payload = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any] else {
-            return decisionResponse(
-                .deny,
-                reason: "Invalid Alveary hook request"
-            )
-        }
-
-        guard let hookEventName = payload["hook_event_name"] as? String else {
-            return decisionResponse(
-                .deny,
-                reason: "Incomplete Alveary hook request"
-            )
-        }
-
-        guard hookEventName == "PreToolUse" else {
-            return .empty()
-        }
-
-        guard let sessionId = payload["session_id"] as? String,
-              let toolUseId = payload["tool_use_id"] as? String,
-              let toolName = payload["tool_name"] as? String else {
-            return decisionResponse(
-                .deny,
-                reason: "Incomplete Alveary hook request"
-            )
-        }
-
-        let key = ClaudeToolApprovalKey(sessionId: sessionId, toolUseId: toolUseId)
-        if let decision = decisions.removeValue(forKey: key) {
-            return decisionResponse(decision, reason: reason(for: decision))
-        }
-
-        if let toolInput = serializedToolInput(payload["tool_input"]),
-           shouldAllowForStoredSessionApproval(
-               conversationId: launchContext.conversationId,
-               sessionId: sessionId,
-               toolName: toolName,
-               toolInput: toolInput
-           ) {
-            return decisionResponse(.allow, reason: "Approved for session in Alveary")
-        }
-
-        let permissionMode = payload["permission_mode"] as? String ?? launchContext.permissionMode
-        guard ClaudeHookPolicy.shouldDefer(toolName: toolName, permissionMode: permissionMode) else {
-            return .empty()
-        }
-
-        return decisionResponse(.defer)
-    }
-
-    private func authorizationToken(from authorization: String?) -> String? {
+    func authorizationToken(from authorization: String?) -> String? {
         guard let authorization,
               authorization.hasPrefix("Bearer ") else {
             return nil
@@ -298,7 +255,7 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         let settings: [String: Any] = [
             "hooks": [
                 "PreToolUse": [[
-                    "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+                    "matcher": "AskUserQuestion|Bash|Write|Edit|MultiEdit|NotebookEdit|EnterPlanMode|ExitPlanMode|mcp__.*",
                     "hooks": [[
                         "type": "http",
                         "url": "http://127.0.0.1:\(port)/claude/hooks/pre-tool-use",
@@ -316,9 +273,10 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         return settingsURL
     }
 
-    private func decisionResponse(
+    func decisionResponse(
         _ decision: ClaudeHookResponseDecision,
-        reason: String? = nil
+        reason: String? = nil,
+        updatedInput: Any? = nil
     ) -> ClaudeHookHTTPResponse {
         var output: [String: Any] = [
             "hookEventName": "PreToolUse",
@@ -327,22 +285,39 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         if let reason {
             output["permissionDecisionReason"] = reason
         }
+        if let updatedInput {
+            output["updatedInput"] = updatedInput
+        }
         return .json(["hookSpecificOutput": output])
     }
 
-    private func decisionResponse(
+    func decisionResponse(
         _ decision: ClaudeToolApprovalDecision,
-        reason: String
+        reason: String,
+        toolName: String,
+        rawToolInput: Any?,
+        updatedInput: Any? = nil
     ) -> ClaudeHookHTTPResponse {
         switch decision {
         case .allow:
-            return decisionResponse(ClaudeHookResponseDecision.allow, reason: reason)
+            return decisionResponse(
+                ClaudeHookResponseDecision.allow,
+                reason: reason,
+                updatedInput: updatedInput ?? (requiresUpdatedInput(toolName: toolName) ? rawToolInput : nil)
+            )
         case .deny:
             return decisionResponse(ClaudeHookResponseDecision.deny, reason: reason)
         }
     }
 
-    private func reason(for decision: ClaudeToolApprovalDecision) -> String {
+    private func requiresUpdatedInput(toolName: String) -> Bool {
+        [
+            "AskUserQuestion",
+            "ExitPlanMode"
+        ].contains(toolName)
+    }
+
+    func reason(for decision: ClaudeToolApprovalDecision) -> String {
         switch decision {
         case .allow:
             return "Approved in Alveary"
@@ -351,7 +326,7 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         }
     }
 
-    private func serializedToolInput(_ rawToolInput: Any?) -> String? {
+    func serializedToolInput(_ rawToolInput: Any?) -> String? {
         if let rawToolInput {
             if let data = try? JSONSerialization.data(withJSONObject: rawToolInput, options: [.sortedKeys]),
                let text = String(data: data, encoding: .utf8) {
@@ -364,7 +339,15 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         return "{}"
     }
 
-    private func shouldAllowForStoredSessionApproval(
+    func deserializedJSONObject(from serialized: String?) -> Any? {
+        guard let serialized,
+              let data = serialized.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    func shouldAllowForStoredSessionApproval(
         conversationId: String,
         sessionId: String,
         toolName: String,
@@ -433,12 +416,23 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     }
 }
 
-private struct HookLaunchContext {
+extension DefaultClaudeHookServer {
+    func handle(_ request: ClaudeHookHTTPRequest) -> ClaudeHookHTTPResponse {
+        switch validatedPreToolUsePayload(from: request) {
+        case .payload(let payload):
+            return handlePreToolUsePayload(payload)
+        case .response(let response):
+            return response
+        }
+    }
+}
+
+struct HookLaunchContext {
     let conversationId: String
     let permissionMode: String?
 }
 
-private enum ClaudeHookResponseDecision: String {
+enum ClaudeHookResponseDecision: String {
     case allow
     case deny
     case `defer`

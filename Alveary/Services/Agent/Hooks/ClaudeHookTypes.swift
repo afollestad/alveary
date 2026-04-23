@@ -38,6 +38,16 @@ enum ClaudeToolApprovalDecision: String, Sendable, Equatable {
     case deny
 }
 
+struct ClaudeToolApprovalResolution: Sendable, Equatable {
+    let decision: ClaudeToolApprovalDecision
+    let updatedInput: String?
+
+    init(decision: ClaudeToolApprovalDecision, updatedInput: String? = nil) {
+        self.decision = decision
+        self.updatedInput = updatedInput
+    }
+}
+
 enum AgentSessionApprovalRuleKind: String, Sendable, Equatable {
     case bashExact
     case bashCommandGroup
@@ -57,6 +67,53 @@ struct SessionApprovalRecordResult: Sendable, Equatable {
     let wasInserted: Bool
 }
 
+struct DeferredToolComposerStatusText: Sendable, Equatable {
+    let progressLabel: String
+    let placeholder: String
+
+    static let genericApproval = DeferredToolComposerStatusText(
+        progressLabel: "Waiting for approval...",
+        placeholder: "Waiting for tool approval..."
+    )
+
+    static let askUserQuestion = DeferredToolComposerStatusText(
+        progressLabel: "Waiting for question response...",
+        placeholder: "Answer the pending question in the transcript..."
+    )
+
+    static let exitPlanMode = DeferredToolComposerStatusText(
+        progressLabel: "Waiting for plan approval...",
+        placeholder: "Approve or deny the plan exit in the transcript..."
+    )
+}
+
+struct ToolApprovalPromptCopy: Sendable, Equatable {
+    let title: String
+    let showsDisplayName: Bool
+    let approveTitle: String
+    let approvedTitle: String
+    let denyTitle: String
+    let deniedTitle: String
+
+    static let generic = ToolApprovalPromptCopy(
+        title: "Approve tool use?",
+        showsDisplayName: true,
+        approveTitle: "Approve",
+        approvedTitle: "Approved",
+        denyTitle: "Deny",
+        deniedTitle: "Denied"
+    )
+
+    static let exitPlanMode = ToolApprovalPromptCopy(
+        title: "Ready to leave plan mode?",
+        showsDisplayName: false,
+        approveTitle: "Leave plan mode",
+        approvedTitle: "Leaving plan mode",
+        denyTitle: "Keep planning",
+        deniedTitle: "Continuing plan mode"
+    )
+}
+
 struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     let sessionId: String
     let toolUseId: String
@@ -64,6 +121,26 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     let toolInput: String
 
     var id: String { toolUseId }
+
+    var composerStatusText: DeferredToolComposerStatusText {
+        switch toolName {
+        case "AskUserQuestion":
+            return .askUserQuestion
+        case "ExitPlanMode":
+            return .exitPlanMode
+        default:
+            return .genericApproval
+        }
+    }
+
+    var approvalPromptCopy: ToolApprovalPromptCopy {
+        switch toolName {
+        case "ExitPlanMode":
+            return .exitPlanMode
+        default:
+            return .generic
+        }
+    }
 
     var displayName: String {
         switch toolName {
@@ -75,6 +152,10 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return "Edit file"
         case "NotebookEdit":
             return "Edit notebook"
+        case "EnterPlanMode":
+            return "Enter plan mode"
+        case "ExitPlanMode":
+            return "Exit plan mode"
         default:
             return toolName
         }
@@ -88,6 +169,10 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             candidate = parsedInput["command"]
         case "Write", "Edit", "MultiEdit", "NotebookEdit":
             candidate = parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"]
+        case "EnterPlanMode":
+            candidate = "Switch the session into plan mode"
+        case "ExitPlanMode":
+            candidate = "Present the plan and leave plan mode"
         default:
             candidate = parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["command"]
         }
@@ -132,6 +217,27 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             matchKind: match.kind,
             matchValue: match.value
         )
+    }
+
+    func askUserQuestionUpdatedInput(
+        answers: [(question: String, answer: String)]
+    ) -> String? {
+        guard toolName == "AskUserQuestion",
+              let data = toolInput.data(using: .utf8),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+
+        var answerMap: [String: String] = [:]
+        for answer in answers {
+            answerMap[answer.question] = answer.answer
+        }
+        object["answers"] = answerMap
+
+        guard let updatedData = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
+            return nil
+        }
+        return String(data: updatedData, encoding: .utf8)
     }
 
     func sessionApprovalMatch(
@@ -291,7 +397,8 @@ protocol ClaudeHookServer: Actor {
         permissionMode: String?,
         conversationId: String
     ) async -> ClaudeHookLaunchConfig?
-    func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async
+    func updatePermissionMode(_ permissionMode: String?, for conversationId: String) async
+    func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) async
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async
     func removeSessionApprovals(conversationId: String, sessionId: String) async
@@ -307,7 +414,8 @@ actor DisabledClaudeHookServer: ClaudeHookServer {
         nil
     }
 
-    func recordDecision(_ decision: ClaudeToolApprovalDecision, for key: ClaudeToolApprovalKey) async {}
+    func updatePermissionMode(_ permissionMode: String?, for conversationId: String) async {}
+    func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) async {}
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult {
         SessionApprovalRecordResult(isEffective: false, wasInserted: false)
     }

@@ -4,7 +4,7 @@ extension DefaultAgentsManager {
     func resolveToolApproval(
         conversationId: String,
         approval: ToolApprovalRequest,
-        decision: ClaudeToolApprovalDecision,
+        resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
     ) async throws -> Bool {
@@ -17,7 +17,7 @@ extension DefaultAgentsManager {
             preserveBufferForDurabilityGrace: false,
             graceSeconds: 1.0
         )
-        await claudeHookServer.recordDecision(decision, for: key)
+        await claudeHookServer.recordDecision(resolution, for: key)
         let sessionApprovalRecordResult: SessionApprovalRecordResult
         if let sessionApproval {
             sessionApprovalRecordResult = await claudeHookServer.recordSessionApproval(sessionApproval)

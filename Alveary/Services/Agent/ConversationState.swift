@@ -26,6 +26,8 @@ final class ConversationState {
     var inFlightQueuedMessageID: UUID?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
+    var runtimePermissionMode: String?
+    var lastNonPlanPermissionMode: String?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
 

@@ -238,13 +238,21 @@ struct ErrorBanner: View {
     }
 }
 
-struct TurnInterruptedNote: View {
+struct CenteredTranscriptNote: View {
+    let kind: CenteredTranscriptNoteKind
+
     var body: some View {
-        Text("Interrupted")
+        Text(kind.text)
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 6)
+    }
+}
+
+struct TurnInterruptedNote: View {
+    var body: some View {
+        CenteredTranscriptNote(kind: .interrupted)
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct ToolApprovalBlock: View {
     let approval: ToolApprovalRequest
     let status: ToolApprovalStatus?
+    let isBlocked: Bool
     let onApprove: () -> Void
     let onApproveForSession: (ToolApprovalSessionScope) -> Void
     let onDeny: () -> Void
@@ -13,12 +14,14 @@ struct ToolApprovalBlock: View {
     init(
         approval: ToolApprovalRequest,
         status: ToolApprovalStatus?,
+        isBlocked: Bool = false,
         onApprove: @escaping () -> Void,
         onApproveForSession: @escaping (ToolApprovalSessionScope) -> Void,
         onDeny: @escaping () -> Void
     ) {
         self.approval = approval
         self.status = status
+        self.isBlocked = isBlocked
         self.onApprove = onApprove
         self.onApproveForSession = onApproveForSession
         self.onDeny = onDeny
@@ -26,7 +29,7 @@ struct ToolApprovalBlock: View {
     }
 
     private var actionsAreDisabled: Bool {
-        status != .pending
+        status != .pending || isBlocked
     }
 
     private var sessionApprovalScopes: [ToolApprovalSessionScope] {
@@ -43,12 +46,14 @@ struct ToolApprovalBlock: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Approve tool use?")
+                    Text(approval.approvalPromptCopy.title)
                         .font(.subheadline.weight(.semibold))
 
-                    Text(approval.displayName)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    if approval.approvalPromptCopy.showsDisplayName {
+                        Text(approval.displayName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
 
                     Text(approval.conciseSummary)
                         .font(.caption)
@@ -82,21 +87,21 @@ struct ToolApprovalBlock: View {
     @ViewBuilder
     private var actionButtons: some View {
         if isDenied {
-            denyButton(title: "Denied")
+            denyButton(title: approval.approvalPromptCopy.deniedTitle)
         } else if isSuperseded {
             supersededButton
         } else if isOneShotApproved {
-            approveButton(title: "Approved")
+            approveButton(title: approval.approvalPromptCopy.approvedTitle)
         } else if let resolvedSessionTitle {
             sessionApprovalButton(title: resolvedSessionTitle, isResolved: true)
         } else {
-            approveButton(title: "Approve")
+            approveButton(title: approval.approvalPromptCopy.approveTitle)
 
             if !sessionApprovalScopes.isEmpty {
                 sessionApprovalButton(title: pendingSessionApprovalTitle, isResolved: false)
             }
 
-            denyButton(title: "Deny")
+            denyButton(title: approval.approvalPromptCopy.denyTitle)
         }
     }
 

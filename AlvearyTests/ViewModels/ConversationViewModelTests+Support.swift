@@ -28,9 +28,12 @@ actor MockAgentsManager: AgentsManager {
     struct ApprovalCall: Sendable, Equatable {
         let conversationId: String
         let approval: ToolApprovalRequest
-        let decision: ClaudeToolApprovalDecision
+        let resolution: ClaudeToolApprovalResolution
         let sessionApproval: AgentSessionApprovalGrant?
         let config: AgentSpawnConfig
+
+        var decision: ClaudeToolApprovalDecision { resolution.decision }
+        var updatedInput: String? { resolution.updatedInput }
     }
 
     private var isRunningValue: Bool
@@ -106,7 +109,7 @@ actor MockAgentsManager: AgentsManager {
     func resolveToolApproval(
         conversationId: String,
         approval: ToolApprovalRequest,
-        decision: ClaudeToolApprovalDecision,
+        resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
     ) async throws -> Bool {
@@ -114,7 +117,7 @@ actor MockAgentsManager: AgentsManager {
             ApprovalCall(
                 conversationId: conversationId,
                 approval: approval,
-                decision: decision,
+                resolution: resolution,
                 sessionApproval: sessionApproval,
                 config: config
             )

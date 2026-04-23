@@ -48,6 +48,7 @@ struct PermissionDenialSummary: Sendable, Equatable {
 
 enum ConversationEvent: Sendable, Equatable {
     case sessionInit(sessionId: String?)
+    case permissionModeChanged(String)
     case message(role: String, content: String, parentToolUseId: String?)
     case messageChunk(text: String, parentToolUseId: String?)
     case toolCall(id: String, name: String, input: String, parentToolUseId: String?, callerAgent: String?)
@@ -95,7 +96,7 @@ enum ConversationEvent: Sendable, Equatable {
             return sessionInitRecord(conversation: conversation)
         case .error:
             return errorRecord(conversation: conversation)
-        case .messageChunk, .subAgentStarted, .subAgentProgress, .subAgentCompleted:
+        case .messageChunk, .subAgentStarted, .subAgentProgress, .subAgentCompleted, .permissionModeChanged:
             return nil
         }
     }

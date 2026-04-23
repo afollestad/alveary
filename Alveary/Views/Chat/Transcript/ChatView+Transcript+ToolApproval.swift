@@ -5,7 +5,8 @@ extension ChatTranscriptView {
     func toolApprovalBlock(_ approval: ToolApprovalRequest, persistedStatus: ToolApprovalStatus?) -> some View {
         ToolApprovalBlock(
             approval: approval,
-            status: approvalStatus(for: approval, persistedStatus: persistedStatus)
+            status: approvalStatus(for: approval, persistedStatus: persistedStatus),
+            isBlocked: viewModel.hasUnansweredPrompt
         ) {
             resolveToolApproval(approval, approve: true)
         } onApproveForSession: { scope in

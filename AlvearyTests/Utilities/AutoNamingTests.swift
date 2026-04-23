@@ -62,7 +62,7 @@ final class AutoNamingTests: XCTestCase {
         )
         XCTAssertEqual(
             ConversationViewModel.promptSummary(answers: answers),
-            "Language: Swift\nFramework: SwiftUI"
+            "Q: Language\nA: Swift\n\nQ: Framework\nA: SwiftUI"
         )
     }
 }

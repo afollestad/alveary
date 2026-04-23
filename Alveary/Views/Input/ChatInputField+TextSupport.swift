@@ -337,8 +337,8 @@ enum ChatInputFieldTextSupport {
             return "Cancelling setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
-        case .toolApproval:
-            return "Waiting for approval..."
+        case .toolApproval(let statusText):
+            return statusText.progressLabel
         }
     }
 
@@ -350,8 +350,8 @@ enum ChatInputFieldTextSupport {
             return "Cancelling the conversation setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
-        case .toolApproval:
-            return "Waiting for tool approval..."
+        case .toolApproval(let statusText):
+            return statusText.placeholder
         }
     }
 

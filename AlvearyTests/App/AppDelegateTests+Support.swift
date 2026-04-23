@@ -221,7 +221,7 @@ actor AppDelegateMockAgentsManager: AgentsManager {
     func resolveToolApproval(
         conversationId: String,
         approval: ToolApprovalRequest,
-        decision: ClaudeToolApprovalDecision,
+        resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
     ) async throws -> Bool {

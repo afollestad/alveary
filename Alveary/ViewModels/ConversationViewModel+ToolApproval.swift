@@ -47,6 +47,7 @@ extension ConversationViewModel {
             return
         }
 
+        restorePermissionModeAfterPlanExitIfNeeded(pendingApproval)
         persistResolvedToolApproval(pendingApproval)
         state.pendingToolApproval = nil
     }
@@ -66,6 +67,50 @@ extension ConversationViewModel {
         refreshTranscriptForToolApprovalStatusChanges()
         state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
     }
+
+    func supersedePendingToolApprovalAfterPromptAnswer(_ pendingApproval: PendingToolApproval?) {
+        guard let pendingApproval,
+              pendingApproval.status == .pending,
+              state.pendingToolApproval?.request.toolUseId == pendingApproval.request.toolUseId else {
+            return
+        }
+
+        persistToolApprovalStatus(
+            .superseded,
+            toolUseId: pendingApproval.request.toolUseId,
+            sessionId: pendingApproval.request.sessionId,
+            refreshTranscript: false
+        )
+        state.pendingToolApproval = nil
+        refreshTranscriptForToolApprovalStatusChanges()
+    }
+
+    func answerDeferredAskUserQuestion(
+        _ pendingApproval: PendingToolApproval,
+        answers: [(question: String, answer: String)]
+    ) async throws {
+        guard let updatedToolInput = pendingApproval.request.askUserQuestionUpdatedInput(answers: answers) else {
+            throw AgentError.spawnFailed("Question prompt can no longer be answered")
+        }
+
+        state.pendingToolApproval = PendingToolApproval(
+            request: pendingApproval.request,
+            status: .approving
+        )
+
+        do {
+            try await resumeDeferredToolUse(
+                pendingApproval,
+                decision: .allow,
+                sessionApprovalScope: nil,
+                updatedToolInput: updatedToolInput
+            )
+        } catch {
+            state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
+            state.lastTurnError = "Prompt answer failed: \(error.localizedDescription)"
+            throw error
+        }
+    }
 }
 
 private extension ConversationViewModel {
@@ -74,6 +119,9 @@ private extension ConversationViewModel {
         decision: ClaudeToolApprovalDecision,
         sessionApprovalScope: ToolApprovalSessionScope? = nil
     ) async throws {
+        guard !hasUnansweredPrompt else {
+            throw AgentError.spawnFailed("Answer the pending question before resolving tool approval")
+        }
         guard var pendingApproval = state.pendingToolApproval,
               pendingApproval.request.toolUseId == toolUseId else {
             return
@@ -97,7 +145,8 @@ private extension ConversationViewModel {
             try await resumeDeferredToolUse(
                 pendingApproval,
                 decision: decision,
-                sessionApprovalScope: sessionApprovalScope
+                sessionApprovalScope: sessionApprovalScope,
+                updatedToolInput: nil
             )
         } catch {
             state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
@@ -109,7 +158,8 @@ private extension ConversationViewModel {
     func resumeDeferredToolUse(
         _ pendingApproval: PendingToolApproval,
         decision: ClaudeToolApprovalDecision,
-        sessionApprovalScope: ToolApprovalSessionScope?
+        sessionApprovalScope: ToolApprovalSessionScope?,
+        updatedToolInput: String?
     ) async throws {
         let config = try makeSpawnConfig()
         let sessionApproval = sessionApprovalScope.flatMap {
@@ -125,7 +175,10 @@ private extension ConversationViewModel {
         let sessionApprovalEffective = try await agentsManager.resolveToolApproval(
             conversationId: conversation.id,
             approval: pendingApproval.request,
-            decision: decision,
+            resolution: ClaudeToolApprovalResolution(
+                decision: decision,
+                updatedInput: updatedToolInput
+            ),
             sessionApproval: sessionApproval,
             config: config
         )
@@ -190,6 +243,17 @@ private extension ConversationViewModel {
         case .pending, .superseded:
             return nil
         }
+    }
+
+    func restorePermissionModeAfterPlanExitIfNeeded(_ pendingApproval: PendingToolApproval) {
+        guard pendingApproval.request.toolName == "ExitPlanMode",
+              pendingApproval.status != .denying,
+              pendingApproval.status != .denied,
+              effectivePermissionMode == "plan" else {
+            return
+        }
+
+        syncRuntimePermissionMode(state.lastNonPlanPermissionMode ?? "default")
     }
 
     func supersedeUnresolvedToolApprovalRecords() {
