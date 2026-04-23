@@ -3,3 +3,4 @@
 .build/
 .claude/
 *.profraw
+.DS_Store
