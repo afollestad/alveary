@@ -29,10 +29,6 @@ struct ChatView: View {
         viewModel.turnState.isActive || viewModel.state.isSendingMessage
     }
 
-    private var promptSubmissionIsBusy: Bool {
-        composerIsBusy || viewModel.state.isReconfiguringSession
-    }
-
     private var composerMode: ComposerMode {
         if !hasVisibleChatContent, viewModel.state.isCancellingInitialSetup {
             return .progressOnly(.cancellingInitialSetup)
@@ -146,7 +142,6 @@ struct ChatView: View {
                 ChatTranscriptView(
                     viewModel: viewModel,
                     events: events,
-                    promptSubmissionIsBusy: promptSubmissionIsBusy,
                     workingDirectory: workingDirectory,
                     lastScrollTime: $lastScrollTime,
                     isFollowing: $isFollowing,

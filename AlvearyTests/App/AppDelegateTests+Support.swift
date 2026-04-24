@@ -218,15 +218,24 @@ actor AppDelegateMockAgentsManager: AgentsManager {
 
     func sendMessage(_ message: String, conversationId: String) async throws {}
 
-    func resolveToolApproval(
-        conversationId: String,
-        approval: ToolApprovalRequest,
-        resolution: ClaudeToolApprovalResolution,
-        sessionApproval: AgentSessionApprovalGrant?,
-        config: AgentSpawnConfig
-    ) async throws -> Bool {
+    func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         false
     }
+
+    func toolApprovalSelection(
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) async -> ToolApprovalSelection? {
+        nil
+    }
+
+    func recordToolApprovalSelection(
+        _ selection: ToolApprovalSelection,
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) async {}
 
     func cancelTurn(conversationId: String) {}
 

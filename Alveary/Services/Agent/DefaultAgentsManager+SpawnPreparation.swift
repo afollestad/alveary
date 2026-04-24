@@ -36,6 +36,9 @@ extension DefaultAgentsManager {
             return nil
         }
 
+        await claudeHookServer.setDeferredToolRequestHandler { [weak self] deferredToolRequest in
+            await self?.handleDeferredToolRequestFromHookServer(deferredToolRequest)
+        }
         return await claudeHookServer.prepareLaunch(
             permissionMode: permissionMode,
             conversationId: conversationId

@@ -155,10 +155,11 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
                     return false
                 }
 
-                for event in adapter.decode(json) {
+                let events = adapter.decode(json)
+                for event in events {
                     continuation.yield(event)
                 }
-                return true
+                return !events.contains(where: isToolDeferredEvent)
             } onFinish: {
                 coordinator.markStdoutFinished()
             }
@@ -177,6 +178,13 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
 private func utf8String(from data: Data) -> String {
     String(bytes: data, encoding: .utf8) ?? ""
+}
+
+private func isToolDeferredEvent(_ event: ConversationEvent) -> Bool {
+    guard case .tokens(_, _, _, _, let stopReason, _, _, _) = event else {
+        return false
+    }
+    return stopReason == "tool_deferred"
 }
 
 private final class AgentStreamCoordinator: @unchecked Sendable {

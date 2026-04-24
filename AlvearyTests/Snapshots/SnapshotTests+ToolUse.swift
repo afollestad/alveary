@@ -82,6 +82,36 @@ extension SnapshotTests {
         )
     }
 
+    func testToolApprovalBatchBash() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleBashBatchApprovals[0],
+                approvals: sampleBashBatchApprovals,
+                status: .pending,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 150),
+            named: "tool_approval_batch_bash"
+        )
+    }
+
+    func testToolApprovalBatchWrite() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleWriteBatchApprovals[0],
+                approvals: sampleWriteBatchApprovals,
+                status: .pending,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 150),
+            named: "tool_approval_batch_write"
+        )
+    }
+
     func testToolApprovalEdit() {
         assertMacSnapshot(
             ToolApprovalBlock(

@@ -10,6 +10,7 @@ enum ChatItem: Identifiable, Equatable {
     case taskListBlock(id: String, tasks: [TaskEntry])
     case promptBlock(id: String, prompt: PromptEntry)
     case toolApproval(id: String, approval: ToolApprovalRequest, status: ToolApprovalStatus?)
+    case toolApprovalBatch(id: String, approvals: [ToolApprovalRequest], status: ToolApprovalStatus?)
     case centeredNote(id: String, kind: CenteredTranscriptNoteKind)
     case error(id: String, message: String)
 
@@ -17,7 +18,8 @@ enum ChatItem: Identifiable, Equatable {
         switch self {
         case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
              .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
-             .promptBlock(let id, _), .toolApproval(let id, _, _), .centeredNote(let id, _), .error(let id, _):
+             .promptBlock(let id, _), .toolApproval(let id, _, _), .toolApprovalBatch(let id, _, _),
+             .centeredNote(let id, _), .error(let id, _):
             id
         }
     }
@@ -172,6 +174,12 @@ struct TaskEntry: Identifiable, Equatable {
     }
 }
 
+struct ToolApprovalBatchState: Equatable {
+    let itemId: String
+    let sessionId: String
+    let status: ToolApprovalStatus?
+}
+
 extension TaskEntry {
     var normalizedContentForMatching: String {
         content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -194,6 +202,7 @@ final class ChatItemGrouper {
     var promptToolIds: Set<String> = []
     var centeredNoteToolKinds: [String: CenteredTranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
+    var currentToolApprovalBatch: ToolApprovalBatchState?
     var subAgentProgressRefreshTask: Task<Void, Never>?
 
     func append(event: ConversationEventRecord) {
@@ -251,6 +260,7 @@ final class ChatItemGrouper {
         promptToolIds = []
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
+        currentToolApprovalBatch = nil
     }
 
     func markPromptAnswered(promptId: String, summary: String) {

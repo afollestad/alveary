@@ -46,6 +46,13 @@ struct PermissionDenialSummary: Sendable, Equatable {
     let toolUseId: String?
 }
 
+struct ToolApprovalFailure: Sendable, Equatable {
+    let sessionId: String?
+    let toolUseId: String?
+    let toolName: String?
+    let message: String
+}
+
 enum ConversationEvent: Sendable, Equatable {
     case sessionInit(sessionId: String?)
     case permissionModeChanged(String)
@@ -65,6 +72,7 @@ enum ConversationEvent: Sendable, Equatable {
         permissionDenials: [PermissionDenialSummary]
     )
     case toolApprovalRequested(ToolApprovalRequest)
+    case toolApprovalFailed(ToolApprovalFailure)
     case subAgentStarted(toolUseId: String, description: String, taskType: String?)
     case subAgentProgress(toolUseId: String, description: String?, lastToolName: String?, toolUses: Int, totalTokens: Int, durationMs: Int)
     case subAgentCompleted(toolUseId: String, status: String, toolUses: Int, totalTokens: Int, durationMs: Int)
@@ -88,6 +96,8 @@ enum ConversationEvent: Sendable, Equatable {
             return tokensRecord(conversation: conversation)
         case .toolApprovalRequested:
             return toolApprovalRecord(conversation: conversation)
+        case .toolApprovalFailed:
+            return toolApprovalFailureRecord(conversation: conversation)
         case .notification:
             return notificationRecord(conversation: conversation)
         case .stop:
@@ -211,6 +221,22 @@ private extension ConversationEvent {
             toolId: request.toolUseId,
             toolName: request.toolName,
             toolInput: request.toolInput,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func toolApprovalFailureRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .toolApprovalFailed(failure) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "error",
+            content: failure.message,
+            toolId: failure.toolUseId,
+            toolName: failure.toolName,
             conversation: conversation
         )
     }

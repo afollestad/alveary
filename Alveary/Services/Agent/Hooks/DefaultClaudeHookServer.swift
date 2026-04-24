@@ -5,8 +5,10 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     private static let settingsFileName = "claude-hooks-settings.json"
     private static let sessionApprovalStoreName = "session-approvals.store"
     private static let maxStartAttempts = 3
+    private static let hookTimeoutSeconds = 600
 
     private let supportDirectory: URL
+    private let pendingApprovalTimeout: Duration
     private let sessionApprovalContainer: ModelContainer?
     private var listener: ClaudeHookHTTPListener?
     private var listenerID: UUID?
@@ -16,11 +18,22 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     var livePermissionModeByConversation: [String: String] = [:]
     var decisions: [ClaudeToolApprovalKey: ClaudeToolApprovalDecision] = [:]
     var updatedInputs: [ClaudeToolApprovalKey: String] = [:]
+    var pendingApprovalContinuations: [ClaudeToolApprovalKey: CheckedContinuation<ClaudeToolApprovalResolution?, Never>] = [:]
+    var pendingApprovalContinuationTokens: [ClaudeToolApprovalKey: String] = [:]
+    var transientApprovalDecisions: [AgentSessionApprovalGrant: ClaudeToolApprovalDecision] = [:]
+    var deferredToolRequestHandler: (@Sendable (ClaudeDeferredToolRequest) async -> Void)?
 
-    init(supportDirectory: URL? = nil) {
+    init(supportDirectory: URL? = nil, pendingApprovalTimeout: Duration = .seconds(595)) {
         let supportDirectory = supportDirectory ?? Self.defaultSupportDirectory()
         self.supportDirectory = supportDirectory
+        self.pendingApprovalTimeout = pendingApprovalTimeout
         self.sessionApprovalContainer = try? Self.makeSessionApprovalContainer(supportDirectory: supportDirectory)
+    }
+
+    func setDeferredToolRequestHandler(
+        _ handler: (@Sendable (ClaudeDeferredToolRequest) async -> Void)?
+    ) {
+        deferredToolRequestHandler = handler
     }
 
     func prepareLaunch(
@@ -38,6 +51,8 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
             validTokens.insert(token)
             if let permissionMode {
                 livePermissionModeByConversation[conversationId] = permissionMode
+            } else {
+                livePermissionModeByConversation.removeValue(forKey: conversationId)
             }
             launchContextByToken[token] = HookLaunchContext(
                 conversationId: conversationId,
@@ -61,6 +76,12 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     }
 
     func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) {
+        if let continuation = pendingApprovalContinuations.removeValue(forKey: key) {
+            pendingApprovalContinuationTokens.removeValue(forKey: key)
+            continuation.resume(returning: resolution)
+            return
+        }
+
         decisions[key] = resolution.decision
         if let updatedInput = resolution.updatedInput {
             updatedInputs[key] = updatedInput
@@ -68,111 +89,55 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
             updatedInputs.removeValue(forKey: key)
         }
     }
-    func recordSessionApproval(_ approval: AgentSessionApprovalGrant) -> SessionApprovalRecordResult {
-        guard let context = sessionApprovalContext() else {
-            return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
-        }
-
-        let providerId = approval.providerId
-        let conversationId = approval.conversationId
-        let sessionId = approval.sessionId
-        let matchKind = approval.matchKind.rawValue
-        let matchValue = approval.matchValue
-        let existingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId &&
-                        $0.matchKind == matchKind &&
-                        $0.matchValue == matchValue
-                }
-            )
-        )) ?? []
-        guard existingRules.isEmpty else {
-            return SessionApprovalRecordResult(isEffective: true, wasInserted: false)
-        }
-
-        let rule = AgentSessionApprovalRule(
-            providerId: approval.providerId,
-            conversationId: approval.conversationId,
-            sessionId: approval.sessionId,
-            matchKind: approval.matchKind.rawValue,
-            matchValue: approval.matchValue
-        )
-        context.insert(rule)
-        do {
-            try context.save()
-            return SessionApprovalRecordResult(isEffective: true, wasInserted: true)
-        } catch {
-            context.delete(rule)
-            return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
-        }
+    func recordTransientApprovalDecision(
+        _ resolution: ClaudeToolApprovalResolution,
+        for approval: AgentSessionApprovalGrant
+    ) {
+        transientApprovalDecisions[approval] = resolution.decision
     }
-
-    func discardSessionApproval(_ approval: AgentSessionApprovalGrant) {
-        guard let context = sessionApprovalContext() else {
-            return
-        }
-
-        let providerId = approval.providerId
-        let conversationId = approval.conversationId
-        let sessionId = approval.sessionId
-        let matchKind = approval.matchKind.rawValue
-        let matchValue = approval.matchValue
-        let matchingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId &&
-                        $0.matchKind == matchKind &&
-                        $0.matchValue == matchValue
-                }
-            )
-        )) ?? []
-        guard !matchingRules.isEmpty else {
-            return
-        }
-
-        for rule in matchingRules {
-            context.delete(rule)
-        }
-        try? context.save()
+    func discardTransientApprovalDecision(for approval: AgentSessionApprovalGrant) {
+        transientApprovalDecisions.removeValue(forKey: approval)
     }
-
-    func removeSessionApprovals(conversationId: String, sessionId: String) {
-        guard let context = sessionApprovalContext() else {
-            return
-        }
-
-        let providerId = "claude"
-        let existingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId
-                }
-            )
-        )) ?? []
-        guard !existingRules.isEmpty else {
-            return
-        }
-
-        for rule in existingRules {
-            context.delete(rule)
-        }
-        try? context.save()
-    }
-
     func discardDecision(for key: ClaudeToolApprovalKey) {
+        if let continuation = pendingApprovalContinuations.removeValue(forKey: key) {
+            pendingApprovalContinuationTokens.removeValue(forKey: key)
+            continuation.resume(returning: nil)
+        }
         decisions.removeValue(forKey: key)
         updatedInputs.removeValue(forKey: key)
+    }
+    func waitForPendingApprovalDecision(
+        for key: ClaudeToolApprovalKey,
+        launchToken: String
+    ) async -> ClaudeToolApprovalResolution? {
+        await withCheckedContinuation { continuation in
+            if let existingContinuation = pendingApprovalContinuations[key] {
+                existingContinuation.resume(returning: nil)
+            }
+            pendingApprovalContinuations[key] = continuation
+            pendingApprovalContinuationTokens[key] = launchToken
+            Task { [pendingApprovalTimeout] in
+                try? await Task.sleep(for: pendingApprovalTimeout)
+                self.expirePendingApprovalDecision(for: key)
+            }
+        }
+    }
+    func expirePendingApprovalDecision(for key: ClaudeToolApprovalKey) {
+        guard let continuation = pendingApprovalContinuations.removeValue(forKey: key) else {
+            return
+        }
+        pendingApprovalContinuationTokens.removeValue(forKey: key)
+        continuation.resume(returning: nil)
     }
     func invalidateToken(_ token: String) {
         validTokens.remove(token)
         launchContextByToken.removeValue(forKey: token)
+        let expiredKeys = pendingApprovalContinuationTokens.compactMap { key, launchToken in
+            launchToken == token ? key : nil
+        }
+        for key in expiredKeys {
+            expirePendingApprovalDecision(for: key)
+        }
     }
 
     private func ensureListenerStarted() async throws -> UInt16 {
@@ -229,6 +194,12 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         livePermissionModeByConversation.removeAll()
         decisions.removeAll()
         updatedInputs.removeAll()
+        for continuation in pendingApprovalContinuations.values {
+            continuation.resume(returning: nil)
+        }
+        pendingApprovalContinuations.removeAll()
+        pendingApprovalContinuationTokens.removeAll()
+        transientApprovalDecisions.removeAll()
     }
     func authorizationToken(from authorization: String?) -> String? {
         guard let authorization,
@@ -238,7 +209,7 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         return String(authorization.dropFirst("Bearer ".count))
     }
 
-    private func sessionApprovalContext() -> ModelContext? {
+    func sessionApprovalContext() -> ModelContext? {
         guard let sessionApprovalContainer else {
             return nil
         }
@@ -255,11 +226,11 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         let settings: [String: Any] = [
             "hooks": [
                 "PreToolUse": [[
-                    "matcher": "AskUserQuestion|Bash|Write|Edit|MultiEdit|NotebookEdit|EnterPlanMode|ExitPlanMode|mcp__.*",
+                    "matcher": ClaudeHookPolicy.preToolUseMatcher,
                     "hooks": [[
                         "type": "http",
                         "url": "http://127.0.0.1:\(port)/claude/hooks/pre-tool-use",
-                        "timeout": 30,
+                        "timeout": Self.hookTimeoutSeconds,
                         "headers": [
                             "Authorization": "Bearer $\(Self.tokenEnvironmentKey)"
                         ],
@@ -320,9 +291,9 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
     func reason(for decision: ClaudeToolApprovalDecision) -> String {
         switch decision {
         case .allow:
-            return "Approved in Alveary"
+            return "The user approved this permission prompt in Alveary"
         case .deny:
-            return "Denied in Alveary"
+            return "The user denied this permission prompt in Alveary"
         }
     }
 
@@ -409,6 +380,7 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         )
         return try ModelContainer(
             for: AgentSessionApprovalRule.self,
+            AgentSessionApprovalSelection.self,
             configurations: ModelConfiguration(
                 url: supportDirectory.appendingPathComponent(Self.sessionApprovalStoreName)
             )
@@ -417,10 +389,10 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
 }
 
 extension DefaultClaudeHookServer {
-    func handle(_ request: ClaudeHookHTTPRequest) -> ClaudeHookHTTPResponse {
+    func handle(_ request: ClaudeHookHTTPRequest) async -> ClaudeHookHTTPResponse {
         switch validatedPreToolUsePayload(from: request) {
         case .payload(let payload):
-            return handlePreToolUsePayload(payload)
+            return await handlePreToolUsePayload(payload)
         case .response(let response):
             return response
         }

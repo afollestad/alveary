@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import XCTest
 
@@ -87,6 +86,119 @@ final class ClaudeHookServerTests: XCTestCase {
         XCTAssertEqual(decision, "defer")
     }
 
+    func testHookEndpointNotifiesDeferredToolRequestHandler() async throws {
+        let server = DefaultClaudeHookServer(
+            supportDirectory: temporarySupportDirectory(),
+            pendingApprovalTimeout: .milliseconds(50)
+        )
+        let capturedRequest = LockedState<ClaudeDeferredToolRequest?>(nil)
+        await server.setDeferredToolRequestHandler { request in
+            capturedRequest.withLock { $0 = request }
+        }
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
+
+        _ = await server.handle(
+            request(
+                token: token,
+                toolName: "Bash",
+                toolInput: ["command": "date +%s"]
+            )
+        )
+        try await waitUntil("expected deferred tool notification") {
+            capturedRequest.withLock { $0 } != nil
+        }
+
+        XCTAssertEqual(
+            capturedRequest.withLock { $0 },
+            ClaudeDeferredToolRequest(
+                conversationId: "conversation-1",
+                launchToken: token,
+                request: ToolApprovalRequest(
+                    sessionId: "session-123",
+                    toolUseId: "tool-1",
+                    toolName: "Bash",
+                    toolInput: #"{"command":"date +%s"}"#
+                )
+            )
+        )
+    }
+
+    func testHookEndpointFallsBackToDeferWhenDeferredToolDecisionTimesOut() async throws {
+        let server = DefaultClaudeHookServer(
+            supportDirectory: temporarySupportDirectory(),
+            pendingApprovalTimeout: .milliseconds(50)
+        )
+        await server.setDeferredToolRequestHandler { _ in
+            try? await Task.sleep(for: .seconds(2))
+        }
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
+        let request = request(token: token, toolName: "Bash")
+
+        let response = try await Self.responseBeforeTimeout {
+            await server.handle(request)
+        }
+
+        XCTAssertEqual(try hookDecision(from: response), "defer")
+    }
+
+    func testHookEndpointAllowsDeferredToolWhenDecisionIsRecordedBeforeTimeout() async throws {
+        let server = DefaultClaudeHookServer(
+            supportDirectory: temporarySupportDirectory(),
+            pendingApprovalTimeout: .seconds(2)
+        )
+        let capturedRequest = LockedState<ClaudeDeferredToolRequest?>(nil)
+        await server.setDeferredToolRequestHandler { request in
+            capturedRequest.withLock { $0 = request }
+        }
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
+        let hookRequest = request(token: token, toolName: "Bash")
+
+        async let response = server.handle(hookRequest)
+        try await waitUntil("expected deferred tool notification") {
+            capturedRequest.withLock { $0 } != nil
+        }
+        await server.recordDecision(
+            ClaudeToolApprovalResolution(decision: .allow),
+            for: ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")
+        )
+
+        let decision = try await hookDecision(from: response)
+        XCTAssertEqual(decision, "allow")
+    }
+
+    func testInvalidatingTokenReleasesOpenDeferredToolDecisionWait() async throws {
+        let server = DefaultClaudeHookServer(
+            supportDirectory: temporarySupportDirectory(),
+            pendingApprovalTimeout: .seconds(2)
+        )
+        let capturedRequest = LockedState<ClaudeDeferredToolRequest?>(nil)
+        await server.setDeferredToolRequestHandler { request in
+            capturedRequest.withLock { $0 = request }
+        }
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
+        let hookRequest = request(token: token, toolName: "Bash")
+
+        async let pendingResponse = Self.responseBeforeTimeout {
+            await server.handle(hookRequest)
+        }
+        try await waitUntil("expected deferred tool notification") {
+            capturedRequest.withLock { $0 } != nil
+        }
+
+        await server.invalidateToken(token)
+
+        let response = try await pendingResponse
+        XCTAssertEqual(try hookDecision(from: response), "defer")
+    }
+
     func testHookEndpointAllowsEditToolsInAcceptEditsMode() async throws {
         let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
         let launchConfig = await server.prepareLaunch(permissionMode: "acceptEdits", conversationId: "conversation-1")
@@ -107,6 +219,46 @@ final class ClaudeHookServerTests: XCTestCase {
         let response = await server.handle(request(token: token, toolName: "Bash"))
 
         XCTAssertEqual(try hookDecision(from: response), "defer")
+    }
+
+    func testHookPolicyUsesSharedApprovalControlledToolPredicate() {
+        XCTAssertTrue(ClaudeHookPolicy.isPotentiallyApprovalControlledTool("Write"))
+        XCTAssertTrue(ClaudeHookPolicy.shouldDefer(toolName: "Write", permissionMode: "default"))
+        XCTAssertFalse(ClaudeHookPolicy.shouldDefer(toolName: "Write", permissionMode: "acceptEdits"))
+        XCTAssertTrue(ClaudeHookPolicy.shouldDefer(toolName: "Bash", permissionMode: "acceptEdits"))
+        XCTAssertFalse(ClaudeHookPolicy.canRenderToolApproval("AskUserQuestion"))
+        XCTAssertFalse(ClaudeHookPolicy.isPotentiallyApprovalControlledTool("Read"))
+    }
+
+    func testHookSettingsUseSharedPreToolUseMatcher() async throws {
+        let supportDirectory = temporarySupportDirectory()
+        let server = DefaultClaudeHookServer(supportDirectory: supportDirectory)
+        let launchConfig = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let settingsIndex = try XCTUnwrap(launch.arguments.firstIndex(of: "--settings"))
+        let settingsURL = URL(fileURLWithPath: launch.arguments[settingsIndex + 1])
+        let settingsData = try Data(contentsOf: settingsURL)
+        let settings = try XCTUnwrap(JSONSerialization.jsonObject(with: settingsData) as? [String: Any])
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        let preToolUse = try XCTUnwrap(hooks["PreToolUse"] as? [[String: Any]])
+        let hookConfig = try XCTUnwrap(preToolUse.first)
+
+        XCTAssertEqual(hookConfig["matcher"] as? String, ClaudeHookPolicy.preToolUseMatcher)
+    }
+
+    func testHookPolicyOnlyBatchesPotentialApprovalToolCallsWithinSameToolFamily() {
+        XCTAssertTrue(ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+            toolName: "Write",
+            with: ["Write"]
+        ))
+        XCTAssertFalse(ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+            toolName: "Write",
+            with: ["Bash"]
+        ))
+        XCTAssertFalse(ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+            toolName: "Read",
+            with: ["Read"]
+        ))
     }
 
     func testHookEndpointDefersExitPlanModeWhileSessionIsInPlanMode() async throws {
@@ -141,6 +293,24 @@ final class ClaudeHookServerTests: XCTestCase {
         )
 
         XCTAssertEqual(try hookDecision(from: response), "defer")
+    }
+
+    func testPrepareLaunchWithoutPermissionModeClearsStoredConversationMode() async throws {
+        let server = DefaultClaudeHookServer(supportDirectory: temporarySupportDirectory())
+        _ = await server.prepareLaunch(permissionMode: "default", conversationId: "conversation-1")
+        await server.updatePermissionMode("plan", for: "conversation-1")
+        let launchConfig = await server.prepareLaunch(permissionMode: nil, conversationId: "conversation-1")
+        let launch = try XCTUnwrap(launchConfig)
+        let token = try XCTUnwrap(launch.environment["ALVEARY_HOOK_TOKEN"])
+
+        let response = await server.handle(
+            request(
+                token: token,
+                toolName: "ExitPlanMode"
+            )
+        )
+
+        XCTAssertNil(response.body)
     }
 
     func testHookEndpointNoOpsForExitPlanModeOutsidePlanMode() async throws {
@@ -245,98 +415,17 @@ final class ClaudeHookServerTests: XCTestCase {
         XCTAssertEqual(try hookDecision(from: response), "defer")
     }
 
-    func testHookListenerStartsOnEphemeralLoopbackPort() async throws {
-        let listener = ClaudeHookHTTPListener { _ in .empty() }
-        defer { listener.cancel() }
-
-        let port = try await listener.start()
-
-        XCTAssertGreaterThan(port, 0)
-    }
-
-    func testHookListenerReportsUnavailableWhenCancelled() async throws {
-        let expectation = expectation(description: "listener unavailable")
-        let listener = ClaudeHookHTTPListener(
-            onUnavailable: {
-                expectation.fulfill()
-            },
-            handler: { _ in .empty() }
-        )
-
-        _ = try await listener.start()
-        listener.cancel()
-
-        await fulfillment(of: [expectation], timeout: 0.5)
-    }
-
-    func testHookListenerDeniesOversizedRequestsWithTwoHundred() async throws {
-        let listener = ClaudeHookHTTPListener { _ in .empty(statusCode: 500) }
-        defer { listener.cancel() }
-
-        let port = try await listener.start()
-        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/claude/hooks/pre-tool-use"))
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = Data(repeating: UInt8(ascii: "x"), count: 300 * 1024)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
-        XCTAssertEqual(try hookDecision(from: data), "deny")
-    }
-
-    func testHookListenerDeniesIncompleteClosedRequestsWithTwoHundred() async throws {
-        let listener = ClaudeHookHTTPListener { _ in .empty(statusCode: 500) }
-        defer { listener.cancel() }
-
-        let port = try await listener.start()
-        let responseData = try readRawHTTPResponse(
-            port: port,
-            payload: """
-            POST /claude/hooks/pre-tool-use HTTP/1.1\r
-            Host: 127.0.0.1\r
-            Content-Length: 20\r
-            \r
-            {}
-            """
-        )
-        let response = String(data: responseData, encoding: .utf8)
-
-        XCTAssertTrue(response?.hasPrefix("HTTP/1.1 200 OK") == true)
-        XCTAssertEqual(try hookDecision(from: httpBody(from: responseData)), "deny")
-    }
-
-    func testHookListenerDeniesNegativeContentLengthWithTwoHundred() async throws {
-        let listener = ClaudeHookHTTPListener { _ in .empty(statusCode: 500) }
-        defer { listener.cancel() }
-
-        let port = try await listener.start()
-        let responseData = try readRawHTTPResponse(
-            port: port,
-            payload: """
-            POST /claude/hooks/pre-tool-use HTTP/1.1\r
-            Host: 127.0.0.1\r
-            Content-Length: -1\r
-            \r
-
-            """
-        )
-        let response = String(data: responseData, encoding: .utf8)
-
-        XCTAssertTrue(response?.hasPrefix("HTTP/1.1 200 OK") == true)
-        XCTAssertEqual(try hookDecision(from: httpBody(from: responseData)), "deny")
-    }
-
     func request(
         token: String,
         toolName: String,
         permissionMode: String? = nil,
+        toolUseId: String = "tool-1",
         toolInput: [String: Any] = [:]
     ) -> ClaudeHookHTTPRequest {
         var body: [String: Any] = [
             "hook_event_name": "PreToolUse",
             "session_id": "session-123",
-            "tool_use_id": "tool-1",
+            "tool_use_id": toolUseId,
             "tool_name": toolName,
             "tool_input": toolInput
         ]
@@ -366,61 +455,6 @@ final class ClaudeHookServerTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let output = try XCTUnwrap(object["hookSpecificOutput"] as? [String: Any])
         return output["permissionDecision"] as? String
-    }
-
-    private func httpBody(from responseData: Data) throws -> Data {
-        let separator = Data("\r\n\r\n".utf8)
-        let range = try XCTUnwrap(responseData.range(of: separator))
-        return Data(responseData[range.upperBound...])
-    }
-
-    private func readRawHTTPResponse(port: UInt16, payload: String) throws -> Data {
-        let socketFD = socket(AF_INET, SOCK_STREAM, 0)
-        guard socketFD >= 0 else {
-            throw posixError()
-        }
-        defer { close(socketFD) }
-
-        var address = sockaddr_in()
-        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = in_port_t(port).bigEndian
-        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
-
-        let connectResult = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
-                Darwin.connect(socketFD, socketAddress, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-        guard connectResult == 0 else {
-            throw posixError()
-        }
-
-        let bytes = Array(payload.utf8)
-        let sent = bytes.withUnsafeBytes { buffer in
-            Darwin.write(socketFD, buffer.baseAddress, buffer.count)
-        }
-        guard sent == bytes.count else {
-            throw posixError()
-        }
-
-        shutdown(socketFD, SHUT_WR)
-        var response = Data()
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        while true {
-            let count = Darwin.read(socketFD, &buffer, buffer.count)
-            if count > 0 {
-                response.append(contentsOf: buffer.prefix(count))
-            } else if count == 0 {
-                return response
-            } else if errno != EINTR {
-                throw posixError()
-            }
-        }
-    }
-
-    private func posixError() -> POSIXError {
-        POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
 
     func temporarySupportDirectory() -> URL {

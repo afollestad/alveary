@@ -5,17 +5,27 @@ struct AgentEventSubscription: Sendable {
     let stream: AsyncStream<ConversationEvent>
 }
 
+struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
+    let conversationId: String
+    let approval: ToolApprovalRequest
+    let resolution: ClaudeToolApprovalResolution
+    let additionalApprovals: [ToolApprovalRequest]
+    let sessionApproval: AgentSessionApprovalGrant?
+    let config: AgentSpawnConfig
+}
+
 protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
     func sendMessage(_ message: String, conversationId: String) async throws
-    func resolveToolApproval(
+    func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
+    func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
+    func recordToolApprovalSelection(
+        _ selection: ToolApprovalSelection,
+        providerId: String,
         conversationId: String,
-        approval: ToolApprovalRequest,
-        resolution: ClaudeToolApprovalResolution,
-        sessionApproval: AgentSessionApprovalGrant?,
-        config: AgentSpawnConfig
-    ) async throws -> Bool
+        sessionId: String
+    ) async
     func cancelTurn(conversationId: String)
     func destroyRuntime(conversationId: String) async throws
     func kill(conversationId: String)

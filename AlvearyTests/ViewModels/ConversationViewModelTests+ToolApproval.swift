@@ -23,6 +23,24 @@ extension ConversationViewModelTests {
         XCTAssertEqual(records.last?.toolId, "tool-1")
     }
 
+    func testDuplicateToolApprovalEventDoesNotPersistDuplicateRecord() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"swift test\"}"
+        )
+
+        fixture.viewModel.handleEvent(.toolApprovalRequested(approval))
+        fixture.viewModel.handleEvent(.toolApprovalRequested(approval))
+
+        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        let approvalRecords = records.filter { $0.type == "tool_approval" }
+        XCTAssertEqual(approvalRecords.count, 1)
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, approval)
+    }
+
     func testNewDeferredApprovalSupersedesOlderUnresolvedApprovalRow() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
@@ -65,6 +83,121 @@ extension ConversationViewModelTests {
         XCTAssertEqual(approvalItems.count, 2)
         XCTAssertEqual(approvalItems.first(where: { $0.0 == "tool-1" })?.1, .superseded)
         XCTAssertNil(approvalItems.first(where: { $0.0 == "tool-2" })?.1)
+    }
+
+    func testLiveParallelApprovalKeepsOlderUnresolvedApprovalRowAvailableForBatchApproval() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let oldApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"date\"}"
+        )
+        let oldApprovalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: oldApproval.sessionId,
+            toolId: oldApproval.toolUseId,
+            toolName: oldApproval.toolName,
+            toolInput: oldApproval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(oldApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: oldApproval, status: .pending)
+
+        let newApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-2",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"pwd\"}"
+        )
+
+        fixture.viewModel.handleEvent(.toolApprovalRequested(newApproval))
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, newApproval)
+        XCTAssertNil(oldApprovalRecord.toolApprovalStatus)
+    }
+
+    func testToolApprovalFailureSupersedesMatchingPendingApproval() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"pwd\"}"
+        )
+        let approvalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: approval.sessionId,
+            toolId: approval.toolUseId,
+            toolName: approval.toolName,
+            toolInput: approval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        fixture.viewModel.handleEvent(.toolApprovalFailed(ToolApprovalFailure(
+            sessionId: approval.sessionId,
+            toolUseId: approval.toolUseId,
+            toolName: approval.toolName,
+            message: "Claude hook failed (PreToolUse:Bash): socket closed"
+        )))
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Claude hook failed (PreToolUse:Bash): socket closed")
+        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        let errorRecord = try XCTUnwrap(records.first { $0.type == "error" })
+        XCTAssertEqual(errorRecord.type, "error")
+        XCTAssertEqual(errorRecord.toolId, approval.toolUseId)
+        XCTAssertEqual(errorRecord.toolName, approval.toolName)
+    }
+
+    func testToolApprovalFailureSupersedesMatchingStoredApprovalEvenWhenPendingDiffers() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let failedApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"pwd\"}"
+        )
+        let currentApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-2",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"date\"}"
+        )
+        let failedApprovalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: failedApproval.sessionId,
+            toolId: failedApproval.toolUseId,
+            toolName: failedApproval.toolName,
+            toolInput: failedApproval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(failedApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: currentApproval, status: .pending)
+
+        fixture.viewModel.handleEvent(.toolApprovalFailed(ToolApprovalFailure(
+            sessionId: nil,
+            toolUseId: failedApproval.toolUseId,
+            toolName: failedApproval.toolName,
+            message: "Claude hook failed (PreToolUse:Bash): socket closed"
+        )))
+
+        XCTAssertEqual(failedApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, currentApproval)
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Claude hook failed (PreToolUse:Bash): socket closed")
     }
 
     func testNewDeferredApprovalPersistsPreviousResolvedChoiceBeforeReplacingPendingApproval() throws {
@@ -140,6 +273,29 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)
         XCTAssertEqual(calls.first?.approval, approval)
+    }
+
+    func testApproveToolUseDuringActiveTurnRecordsLiveHookDecisionWithoutResubscribing() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"swift test\"}"
+        )
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+        await fixture.agentsManager.enableSubscription()
+
+        try await fixture.viewModel.approveToolUse(toolUseId: "tool-1")
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertTrue(fixture.viewModel.state.turnState.isActive)
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.decision, .allow)
+        let subscribeCalls = await fixture.agentsManager.subscribeCalls()
+        XCTAssertEqual(subscribeCalls, 0)
     }
 
     func testDenyToolUseRecordsDecisionAndResumesSession() async throws {
@@ -321,134 +477,4 @@ extension ConversationViewModelTests {
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
-    func testHydratesPendingApprovalFromUnresolvedRecord() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        let conversation = try fixture.dbConversation()
-        let record = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tool_approval",
-            content: "session-123",
-            toolId: "tool-1",
-            toolName: "Edit",
-            toolInput: "{\"file_path\":\"Sources/Auth.swift\"}",
-            conversation: conversation
-        )
-        fixture.context.insert(record)
-        try fixture.context.save()
-
-        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
-
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolName, "Edit")
-    }
-
-    func testDoesNotHydratePendingApprovalFromResolvedApprovalRecord() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        let conversation = try fixture.dbConversation()
-        let record = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tool_approval",
-            content: "session-123",
-            toolId: "tool-1",
-            toolName: "Edit",
-            toolInput: "{\"file_path\":\"Sources/Auth.swift\"}",
-            toolApprovalStatus: ToolApprovalStatus.approved.rawValue,
-            conversation: conversation
-        )
-        fixture.context.insert(record)
-        try fixture.context.save()
-
-        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
-
-        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
-    }
-
-    func testDoesNotHydratePendingApprovalAfterDenyResolvesWithLaterToken() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        let conversation = try fixture.dbConversation()
-        let approvalTime = Date()
-        let approval = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tool_approval",
-            content: "session-123",
-            toolId: "tool-1",
-            toolName: "Bash",
-            toolInput: "{\"command\":\"swift test\"}",
-            timestamp: approvalTime,
-            conversation: conversation
-        )
-        let resolvedToken = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tokens",
-            stopReason: "end_turn",
-            timestamp: approvalTime.addingTimeInterval(1),
-            conversation: conversation
-        )
-        fixture.context.insert(approval)
-        fixture.context.insert(resolvedToken)
-        try fixture.context.save()
-
-        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
-
-        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
-    }
-
-    func testHydratesPendingApprovalWhenOnlyDeferredTokenExistsAfterApproval() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        let conversation = try fixture.dbConversation()
-        let approvalTime = Date()
-        let approval = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tool_approval",
-            content: "session-123",
-            toolId: "tool-1",
-            toolName: "Bash",
-            toolInput: "{\"command\":\"swift test\"}",
-            timestamp: approvalTime,
-            conversation: conversation
-        )
-        let deferredToken = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tokens",
-            stopReason: "tool_deferred",
-            timestamp: approvalTime.addingTimeInterval(1),
-            conversation: conversation
-        )
-        fixture.context.insert(approval)
-        fixture.context.insert(deferredToken)
-        try fixture.context.save()
-
-        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
-
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
-    }
-
-    func testHydratesPendingApprovalWhenLaterTokenHasNoStopReason() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        let conversation = try fixture.dbConversation()
-        let approvalTime = Date()
-        let approval = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tool_approval",
-            content: "session-123",
-            toolId: "tool-1",
-            toolName: "Bash",
-            toolInput: "{\"command\":\"swift test\"}",
-            timestamp: approvalTime,
-            conversation: conversation
-        )
-        let incompleteToken = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "tokens",
-            timestamp: approvalTime.addingTimeInterval(1),
-            conversation: conversation
-        )
-        fixture.context.insert(approval)
-        fixture.context.insert(incompleteToken)
-        try fixture.context.save()
-
-        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
-
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
-    }
 }

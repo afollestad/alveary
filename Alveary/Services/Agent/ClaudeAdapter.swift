@@ -5,6 +5,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
     let supportsMidTurnSteering = true
     private let localCommandCaveatStartTag = "<local-command-caveat>"
     private let localCommandCaveatEndTag = "</local-command-caveat>"
+    private let hasDeferredTool = LockedState(false)
 
     func buildArgs(config: AgentConfig) -> [String] {
         var args = [
@@ -33,6 +34,20 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
     }
 
     func decode(_ json: [String: Any]) -> [ConversationEvent] {
+        hasDeferredTool.withLock { hasDeferredTool in
+            guard !hasDeferredTool else {
+                return []
+            }
+
+            let events = decodeEvent(json)
+            if events.contains(where: isToolDeferredEvent) {
+                hasDeferredTool = true
+            }
+            return events
+        }
+    }
+
+    private func decodeEvent(_ json: [String: Any]) -> [ConversationEvent] {
         guard let type = json["type"] as? String else {
             return []
         }
@@ -50,6 +65,8 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
             return decodeStreamEvent(json, parentToolUseId: parentToolUseId)
         case "result":
             return decodeResultEvent(json)
+        case "attachment":
+            return decodeAttachmentEvent(json)
         default:
             return []
         }
@@ -289,37 +306,89 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
     private func deferredToolApprovalEvent(from json: [String: Any]) -> [ConversationEvent]? {
         guard json["stop_reason"] as? String == "tool_deferred",
               let deferredToolUse = json["deferred_tool_use"] as? [String: Any],
-              let sessionId = requiredString(json["session_id"]),
+              let sessionId = sessionId(from: json),
               let toolUseId = requiredString(deferredToolUse["id"]),
               let toolName = requiredString(deferredToolUse["name"]) else {
             return nil
         }
 
-        let input = (deferredToolUse["input"] as? [String: Any])
-            .flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return deferredToolApprovalEvents(
+            sessionId: sessionId,
+            toolUseId: toolUseId,
+            toolName: toolName,
+            toolInput: serializedToolInput(deferredToolUse["input"]),
+            includesSyntheticTokenStop: false
+        )
+    }
 
-        return [
+    func deferredToolApprovalEvents(
+        sessionId: String,
+        toolUseId: String,
+        toolName: String,
+        toolInput: String,
+        includesSyntheticTokenStop: Bool
+    ) -> [ConversationEvent] {
+        var events: [ConversationEvent] = [
             .toolApprovalRequested(
                 ToolApprovalRequest(
                     sessionId: sessionId,
                     toolUseId: toolUseId,
                     toolName: toolName,
-                    toolInput: input
+                    toolInput: toolInput
                 )
             )
         ]
+
+        if includesSyntheticTokenStop {
+            events.append(
+                .tokens(
+                    input: 0,
+                    output: 0,
+                    cacheRead: 0,
+                    isError: false,
+                    stopReason: "tool_deferred",
+                    durationMs: 0,
+                    costUsd: 0,
+                    permissionDenials: []
+                )
+            )
+        }
+
+        return events
     }
 
-    private func requiredString(_ value: Any?) -> String? {
+    func sessionId(from json: [String: Any]) -> String? {
+        requiredString(json["session_id"]) ?? requiredString(json["sessionId"])
+    }
+
+    func serializedToolInput(_ input: Any?) -> String {
+        if let input = input as? String, !input.isEmpty {
+            return input
+        }
+        guard let input, JSONSerialization.isValidJSONObject(input),
+              let data = try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return text
+    }
+
+    func requiredString(_ value: Any?) -> String? {
         guard let value = value as? String, !value.isEmpty else {
             return nil
         }
         return value
     }
 
-    private func malformed(_ detail: String) -> [ConversationEvent] {
+    func malformed(_ detail: String) -> [ConversationEvent] {
         [.error(message: "Malformed Claude event: \(detail)")]
+    }
+
+    private func isToolDeferredEvent(_ event: ConversationEvent) -> Bool {
+        guard case .tokens(_, _, _, _, let stopReason, _, _, _) = event else {
+            return false
+        }
+        return stopReason == "tool_deferred"
     }
 }
 

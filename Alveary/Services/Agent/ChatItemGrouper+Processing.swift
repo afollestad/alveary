@@ -4,10 +4,12 @@ extension ChatItemGrouper {
     func process(_ event: ConversationEventRecord) {
         switch event.type {
         case "message" where event.role == "user":
+            currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.userMessage(id: event.id, text: event.content ?? ""))
         case "message" where event.role == "assistant":
+            currentToolApprovalBatch = nil
             flushSubAgents()
             // When every tool in the open group has already produced a result, the
             // assistant message is summarizing the completed batch and should sit *below*
@@ -26,10 +28,12 @@ extension ChatItemGrouper {
         case "tool_approval":
             handleToolApproval(event)
         case "error":
+            currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.error(id: event.id, message: event.content ?? "Unknown error"))
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
+            currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))
@@ -57,6 +61,7 @@ extension ChatItemGrouper {
         promptToolIds = []
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
+        currentToolApprovalBatch = nil
     }
 
     func removeTrailingPendingBlocksIfNeeded() {
@@ -80,6 +85,8 @@ extension ChatItemGrouper {
     }
 
     func handleToolResult(_ event: ConversationEventRecord) {
+        currentToolApprovalBatch = nil
+
         guard let toolId = event.toolId else {
             return
         }
@@ -214,6 +221,9 @@ private extension ChatItemGrouper {
             pendingGroupTools.append(pendingTool)
         case .standalone:
             flushGroup()
+            if appendStandaloneToolToCurrentApprovalBatchIfNeeded(pendingTool) {
+                return
+            }
             appendTranscriptItem(.standaloneTool(id: "tool-\(toolId)", tool: pendingTool))
         }
     }
@@ -224,7 +234,9 @@ private extension ChatItemGrouper {
             toolApprovalStatusesByToolId[toolUseId] = status
         }
 
-        markEarlierPendingToolsComplete(excluding: toolUseId)
+        if currentToolApprovalBatch?.sessionId != event.content {
+            markEarlierPendingToolsComplete(excluding: toolUseId)
+        }
 
         if event.toolName == "AskUserQuestion" {
             return
@@ -232,17 +244,14 @@ private extension ChatItemGrouper {
 
         flushGroup()
         flushSubAgents()
-        appendTranscriptItem(
-            .toolApproval(
-                id: "approval-\(toolUseId)",
-                approval: ToolApprovalRequest(
-                    sessionId: event.content ?? "",
-                    toolUseId: toolUseId,
-                    toolName: event.toolName ?? "Tool",
-                    toolInput: event.toolInput ?? "{}"
-                ),
-                status: event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:))
-            )
+        appendToolApproval(
+            ToolApprovalRequest(
+                sessionId: event.content ?? "",
+                toolUseId: toolUseId,
+                toolName: event.toolName ?? "Tool",
+                toolInput: event.toolInput ?? "{}"
+            ),
+            status: event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:))
         )
     }
 
@@ -409,14 +418,10 @@ private extension ChatItemGrouper {
     }
 
     func markEarlierPendingToolsComplete(excluding excludedToolId: String) {
-        pendingGroupTools = pendingGroupTools.map { tool in
-            guard tool.id != excludedToolId, !tool.isComplete else {
-                return tool
-            }
-            return implicitlyCompletedToolEntry(from: tool)
-        }
+        markEarlierPendingGroupToolsComplete(excluding: excludedToolId)
 
-        for index in items.indices {
+        let upperBound = renderedItemIndex(containingToolId: excludedToolId) ?? items.endIndex
+        for index in items[..<upperBound].indices {
             switch items[index] {
             case .toolGroup(let blockId, let tools):
                 let updatedTools = tools.map { tool in
@@ -435,6 +440,30 @@ private extension ChatItemGrouper {
                 items[index] = .standaloneTool(id: rowId, tool: implicitlyCompletedToolEntry(from: tool))
             default:
                 continue
+            }
+        }
+    }
+
+    func markEarlierPendingGroupToolsComplete(excluding excludedToolId: String) {
+        let upperBound = pendingGroupTools.firstIndex(where: { $0.id == excludedToolId }) ?? pendingGroupTools.endIndex
+        for index in pendingGroupTools[..<upperBound].indices {
+            let tool = pendingGroupTools[index]
+            guard !tool.isComplete else {
+                continue
+            }
+            pendingGroupTools[index] = implicitlyCompletedToolEntry(from: tool)
+        }
+    }
+
+    func renderedItemIndex(containingToolId toolId: String) -> Array<ChatItem>.Index? {
+        items.firstIndex { item in
+            switch item {
+            case .toolGroup(_, let tools):
+                tools.contains { $0.id == toolId }
+            case .standaloneTool(_, let tool):
+                tool.id == toolId
+            default:
+                false
             }
         }
     }

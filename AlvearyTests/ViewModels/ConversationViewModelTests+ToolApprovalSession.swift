@@ -69,6 +69,42 @@ extension ConversationViewModelTests {
         )
     }
 
+    func testToolApprovalSelectionLoadsStoredSessionSelection() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git add foo.swift\"}"
+        )
+        await fixture.agentsManager.recordToolApprovalSelection(
+            .sessionGroup,
+            providerId: "claude",
+            conversationId: fixture.conversation.id,
+            sessionId: approval.sessionId
+        )
+
+        let selection = await fixture.viewModel.toolApprovalSelection(for: approval)
+
+        XCTAssertEqual(selection, .sessionGroup)
+    }
+
+    func testRecordToolApprovalSelectionStoresSessionSelection() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git add foo.swift\"}"
+        )
+
+        fixture.viewModel.recordToolApprovalSelection(.sessionExact, for: approval)
+
+        try await waitUntil("expected tool approval selection to be stored") {
+            await fixture.viewModel.toolApprovalSelection(for: approval) == .sessionExact
+        }
+    }
+
     func testResolvedApprovalPersistsApprovedForSessionGroupStatusOnApprovalRecord() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()

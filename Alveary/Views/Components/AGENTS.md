@@ -10,6 +10,13 @@ These rules cover shared UI components under `Alveary/Views/Components/`.
 
 - Use `TabChipButtonStyle(isSelected:)` from `TabChipButtonStyle.swift` for any pill/capsule-shaped select affordance (conversation tab chips, terminal session chips, etc.) so the whole capsule is the hit area — not just the text. Pair it with a trailing `ZStack`-overlaid close button (with `focusEffectDisabled()`) and outer padding on the button's content rather than the chip's HStack, so the capsule's pressed fill covers the full visual bounds. Do not revert to wrapping the label in a `.plain` `Button` inside a separate `HStack` with a capsule `.background`; that collapses the hit area to the text and leaves the rest of the capsule dead.
 
+## SplitActionButton
+
+- Use `SplitActionButton` for primary split-button actions that need one main click target plus a trailing caret menu inside the same button chrome.
+    - **Keep the main action direct.** The left side should immediately run the currently selected option's action; the menu should only switch the selected option.
+    - **Keep the chrome shared.** Do not hand-roll another HStack with a divider and `Menu` when a surface needs the same accent-backed split-button affordance.
+    - **Keep SwiftUI `Menu` out of the chrome.** `SplitActionButton` uses an AppKit `NSMenu` trigger behind the custom caret because SwiftUI `Menu` can leak its native indicator into snapshots and inflate the control height.
+
 ## SelectableTabChip
 
 - `SelectableTabChip` (`SelectableTabChip.swift`) is the shared shell that `ConversationTabChip.selectableChip` and `TerminalSessionChip` both render. It owns the leading status indicator + markdown label + close-button capsule and the `TabChipButtonStyle(isSelected:)` wiring, so the two surfaces cannot drift on padding, accessibility traits, or chip-color rules. Status semantics (blue = in-progress, green = done, etc.) are owned by the **Status Dot Colors** section in `Alveary/Views/AGENTS.md`.

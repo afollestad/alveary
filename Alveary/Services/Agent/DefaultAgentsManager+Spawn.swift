@@ -290,9 +290,11 @@ extension DefaultAgentsManager {
 
         let buffer = EventBuffer()
         eventBuffers[id] = ManagedEventBuffer(
-            generation: generation,
-            allowsReplay: true,
-            acceptsLiveEvents: true,
+            generation: generation, allowsReplay: true,
+            acceptsLiveEvents: true, hasDeferredToolStop: false,
+            pendingLiveToolApprovals: 0,
+            resolvedLiveToolApprovals: [],
+            deferredToolStopSessionId: nil, deferredToolStopToolUseId: nil,
             buffer: buffer
         )
         await configureSpawnedState(id: id, config: config, continuity: prepared.sessionLaunch.continuity)
@@ -405,15 +407,16 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func handleStreamEvent(
+    func handleStreamEvent(
         _ event: ConversationEvent,
         conversationId: String,
         generation: UUID,
-        providerId: String
+        providerId: String,
+        allowAfterDeferredStop: Bool = false
     ) async {
         guard let managedBuffer = eventBuffers[conversationId],
               managedBuffer.generation == generation,
-              managedBuffer.acceptsLiveEvents else {
+              managedBuffer.acceptsLiveEvents || allowAfterDeferredStop else {
             return
         }
         managedBuffer.buffer.push(event)
@@ -428,6 +431,10 @@ extension DefaultAgentsManager {
             )
             if stopReason == "tool_deferred",
                let pid = processes[conversationId]?.processIdentifier {
+                guard eventBuffers[conversationId]?.hasDeferredToolStop != true else {
+                    break
+                }
+                eventBuffers[conversationId]?.hasDeferredToolStop = true
                 eventBuffers[conversationId]?.acceptsLiveEvents = false
                 Task { [weak self] in
                     await self?.stopDeferredRuntimeIfCurrent(
@@ -436,6 +443,10 @@ extension DefaultAgentsManager {
                         pid: pid
                     )
                 }
+            }
+        case .toolApprovalFailed(let failure):
+            if failure.toolUseId != nil {
+                decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
             }
         case .error:
             updateStatus(.error, for: conversationId)
@@ -477,23 +488,4 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func updateConversationSessionID(
-        _ sessionId: String,
-        conversationId: String
-    ) async {
-        if await sessionManager.hasSession(for: conversationId) {
-            let previousSessionId = await sessionManager.sessionId(for: conversationId)
-            if previousSessionId != sessionId {
-                await claudeHookServer.removeSessionApprovals(
-                    conversationId: conversationId,
-                    sessionId: previousSessionId
-                )
-            }
-        }
-        do {
-            try await sessionManager.updateSessionId(for: conversationId, newSessionId: sessionId)
-        } catch {
-            print("[AgentsManager] Failed to persist updated session ID for \(conversationId): \(error)")
-        }
-    }
 }

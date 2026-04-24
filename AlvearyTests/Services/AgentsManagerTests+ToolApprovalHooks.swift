@@ -16,11 +16,14 @@ extension AgentsManagerTests {
 
         try await fixture.start()
         _ = try await fixture.manager.resolveToolApproval(
-            conversationId: fixture.conversationId,
-            approval: bashApprovalRequest(command: "swift test"),
-            resolution: ClaudeToolApprovalResolution(decision: .allow),
-            sessionApproval: nil,
-            config: fixture.config
+            AgentToolApprovalResolutionRequest(
+                conversationId: fixture.conversationId,
+                approval: bashApprovalRequest(command: "swift test"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: nil,
+                config: fixture.config
+            )
         )
 
         try await waitUntil("expected resumed launch") {
@@ -54,15 +57,178 @@ extension AgentsManagerTests {
             matchValue: "git add"
         )
         _ = try await fixture.manager.resolveToolApproval(
-            conversationId: conversationId,
-            approval: bashApprovalRequest(command: "git add foo.swift"),
-            resolution: ClaudeToolApprovalResolution(decision: .allow),
-            sessionApproval: sessionApproval,
-            config: fixture.config
+            AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: bashApprovalRequest(command: "git add foo.swift"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: sessionApproval,
+                config: fixture.config
+            )
         )
 
         let sessionApprovals = await fixture.hookServer.sessionApprovals()
         XCTAssertEqual(sessionApprovals, [sessionApproval])
+    }
+
+    func testResolveToolApprovalRecordsTransientExactApprovalsForAllRelatedBatchTools() async throws {
+        let conversationId = "conversation-hook-batch-approval"
+        let fixture = try makeApprovalFixture(
+            conversationId: conversationId,
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "approval-token"]
+            )
+        )
+        defer { fixture.cleanup() }
+
+        try await fixture.start(description: "expected initial launch before batch approval resume")
+        _ = try await fixture.manager.resolveToolApproval(
+            AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: bashApprovalRequest(command: "uname", toolUseId: "tool-4"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [
+                    bashApprovalRequest(command: "date", toolUseId: "tool-1"),
+                    bashApprovalRequest(command: "pwd", toolUseId: "tool-2"),
+                    bashApprovalRequest(command: "whoami", toolUseId: "tool-3")
+                ],
+                sessionApproval: nil,
+                config: fixture.config
+            )
+        )
+
+        let transientApprovals = await fixture.hookServer.transientApprovalDecisions()
+        XCTAssertTrue(transientApprovals.allSatisfy { $0.0 == .allow })
+        XCTAssertEqual(
+            transientApprovals.map { $0.1 },
+            [
+                exactBashGrant(conversationId: conversationId, command: "date"),
+                exactBashGrant(conversationId: conversationId, command: "pwd"),
+                exactBashGrant(conversationId: conversationId, command: "whoami")
+            ]
+        )
+    }
+
+    func testResolveToolApprovalRecordsSessionApprovalsForAllRelatedBatchTools() async throws {
+        let conversationId = "conversation-hook-batch-session-approval"
+        let fixture = try makeApprovalFixture(
+            conversationId: conversationId,
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "approval-token"]
+            )
+        )
+        defer { fixture.cleanup() }
+
+        try await fixture.start(description: "expected initial launch before batch session approval resume")
+        _ = try await fixture.manager.resolveToolApproval(
+            AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: bashApprovalRequest(command: "uname", toolUseId: "tool-3"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [
+                    bashApprovalRequest(command: "date", toolUseId: "tool-1"),
+                    bashApprovalRequest(command: "pwd", toolUseId: "tool-2")
+                ],
+                sessionApproval: exactBashGrant(conversationId: conversationId, command: "uname"),
+                config: fixture.config
+            )
+        )
+
+        let sessionApprovals = await fixture.hookServer.sessionApprovals()
+        XCTAssertEqual(
+            sessionApprovals,
+            [
+                exactBashGrant(conversationId: conversationId, command: "uname"),
+                exactBashGrant(conversationId: conversationId, command: "date"),
+                exactBashGrant(conversationId: conversationId, command: "pwd")
+            ]
+        )
+    }
+
+    func testResolveToolApprovalRecordsDecisionWithoutResumeSpawnForLiveHookRequest() async throws {
+        let fixture = try makeApprovalFixture(
+            conversationId: "conversation-hook-live-approval",
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "approval-token"]
+            )
+        )
+        defer { fixture.cleanup() }
+
+        try await fixture.start(description: "expected initial launch before live approval")
+        let approval = bashApprovalRequest(command: "date")
+        await fixture.hookServer.emitDeferredToolRequest(
+            ClaudeDeferredToolRequest(
+                conversationId: fixture.conversationId,
+                launchToken: "approval-token",
+                request: approval
+            )
+        )
+
+        _ = try await fixture.manager.resolveToolApproval(
+            AgentToolApprovalResolutionRequest(
+                conversationId: fixture.conversationId,
+                approval: approval,
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: nil,
+                config: fixture.config
+            )
+        )
+
+        XCTAssertEqual(try fixture.executable.recordedLaunchArguments().count, 1)
+        let decisions = await fixture.hookServer.decisions().map { $0.0 }
+        XCTAssertEqual(decisions, [.allow])
+        let isRunning = await fixture.manager.isRunning(conversationId: fixture.conversationId)
+        XCTAssertTrue(isRunning)
+    }
+
+    func testResolveToolApprovalDoesNotRecordTransientExactApprovalsForLiveBatch() async throws {
+        let fixture = try makeApprovalFixture(
+            conversationId: "conversation-hook-live-batch-approval",
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "approval-token"]
+            )
+        )
+        defer { fixture.cleanup() }
+
+        try await fixture.start(description: "expected initial launch before live batch approval")
+        let firstApproval = bashApprovalRequest(command: "date", toolUseId: "tool-1")
+        let secondApproval = bashApprovalRequest(command: "pwd", toolUseId: "tool-2")
+        await fixture.hookServer.emitDeferredToolRequest(
+            ClaudeDeferredToolRequest(
+                conversationId: fixture.conversationId,
+                launchToken: "approval-token",
+                request: firstApproval
+            )
+        )
+        await fixture.hookServer.emitDeferredToolRequest(
+            ClaudeDeferredToolRequest(
+                conversationId: fixture.conversationId,
+                launchToken: "approval-token",
+                request: secondApproval
+            )
+        )
+
+        _ = try await fixture.manager.resolveToolApproval(
+            AgentToolApprovalResolutionRequest(
+                conversationId: fixture.conversationId,
+                approval: secondApproval,
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [firstApproval],
+                sessionApproval: nil,
+                config: fixture.config
+            )
+        )
+
+        XCTAssertEqual(try fixture.executable.recordedLaunchArguments().count, 1)
+        let decisions = await fixture.hookServer.decisions()
+        XCTAssertEqual(decisions.map { $0.0 }, [.allow, .allow])
+        let transientApprovals = await fixture.hookServer.transientApprovalDecisions()
+        XCTAssertTrue(transientApprovals.isEmpty)
     }
 
     func testResolveToolApprovalInvalidatesOldHookTokenBeforeResumeSpawn() async throws {
@@ -75,11 +241,14 @@ extension AgentsManagerTests {
         }
 
         _ = try await fixture.manager.resolveToolApproval(
-            conversationId: fixture.conversationId,
-            approval: bashApprovalRequest(command: "swift test"),
-            resolution: ClaudeToolApprovalResolution(decision: .allow),
-            sessionApproval: nil,
-            config: fixture.config
+            AgentToolApprovalResolutionRequest(
+                conversationId: fixture.conversationId,
+                approval: bashApprovalRequest(command: "swift test"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: nil,
+                config: fixture.config
+            )
         )
 
         try await waitUntil("expected old hook token invalidation before resume") {
@@ -127,11 +296,14 @@ extension AgentsManagerTests {
 
         do {
             _ = try await fixture.manager.resolveToolApproval(
-                conversationId: conversationId,
-                approval: bashApprovalRequest(command: "swift test"),
-                resolution: ClaudeToolApprovalResolution(decision: .allow),
-                sessionApproval: sessionApproval,
-                config: hookSpawnConfig(workingDirectory: missingDirectory)
+                AgentToolApprovalResolutionRequest(
+                    conversationId: conversationId,
+                    approval: bashApprovalRequest(command: "swift test"),
+                    resolution: ClaudeToolApprovalResolution(decision: .allow),
+                    additionalApprovals: [],
+                    sessionApproval: sessionApproval,
+                    config: hookSpawnConfig(workingDirectory: missingDirectory)
+                )
             )
             XCTFail("Expected approval resume spawn to fail")
         } catch {}
@@ -178,11 +350,14 @@ extension AgentsManagerTests {
         }
 
         _ = try await manager.resolveToolApproval(
-            conversationId: conversationId,
-            approval: bashApprovalRequest(command: "swift test"),
-            resolution: ClaudeToolApprovalResolution(decision: .allow),
-            sessionApproval: sessionApproval,
-            config: config
+            AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: bashApprovalRequest(command: "swift test"),
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: sessionApproval,
+                config: config
+            )
         )
 
         try await waitUntil("expected hookless approval resume launch") {
@@ -196,7 +371,7 @@ extension AgentsManagerTests {
 }
 
 @MainActor
-private extension AgentsManagerTests {
+extension AgentsManagerTests {
     struct ApprovalFixture {
         let executable: TempExecutable
         let hookServer: StubClaudeHookServer
@@ -261,12 +436,22 @@ private extension AgentsManagerTests {
         )
     }
 
-    func bashApprovalRequest(command: String) -> ToolApprovalRequest {
+    func bashApprovalRequest(command: String, toolUseId: String = "tool-1") -> ToolApprovalRequest {
         ToolApprovalRequest(
             sessionId: "session-123",
-            toolUseId: "tool-1",
+            toolUseId: toolUseId,
             toolName: "Bash",
             toolInput: "{\"command\":\"\(command)\"}"
+        )
+    }
+
+    func exactBashGrant(conversationId: String, command: String) -> AgentSessionApprovalGrant {
+        AgentSessionApprovalGrant(
+            providerId: "claude",
+            conversationId: conversationId,
+            sessionId: "session-123",
+            matchKind: .bashExact,
+            matchValue: command
         )
     }
 }

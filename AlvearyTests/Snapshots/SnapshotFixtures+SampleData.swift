@@ -342,33 +342,6 @@ extension SnapshotTests {
         )
     }
 
-    var sampleBashApproval: ToolApprovalRequest {
-        ToolApprovalRequest(
-            sessionId: "session-snapshot",
-            toolUseId: "tool-bash",
-            toolName: "Bash",
-            toolInput: "{\"command\":\"swift test --filter ClaudeAdapterTests\"}"
-        )
-    }
-
-    var sampleEditApproval: ToolApprovalRequest {
-        ToolApprovalRequest(
-            sessionId: "session-snapshot",
-            toolUseId: "tool-edit",
-            toolName: "Edit",
-            toolInput: "{\"file_path\":\"Alveary/Services/Agent/ClaudeAdapter.swift\"}"
-        )
-    }
-
-    var sampleExitPlanModeApproval: ToolApprovalRequest {
-        ToolApprovalRequest(
-            sessionId: "session-snapshot",
-            toolUseId: "tool-exit-plan",
-            toolName: "ExitPlanMode",
-            toolInput: "{\"plan\":\"Summarize the agreed approach and leave plan mode.\"}"
-        )
-    }
-
     var sampleSubAgents: [SubAgentEntry] {
         [
             SubAgentEntry(

@@ -177,7 +177,7 @@ extension DefaultAgentsManager {
         preserveBufferForDurabilityGrace: Bool,
         graceSeconds: TimeInterval = 5
     ) async {
-        await invalidateTrackedHookToken(for: conversationId)
+        let hookToken = hookTokens.removeValue(forKey: conversationId)
 
         stdinWriteTails[conversationId]?.cancel()
         stdinWriteTails.removeValue(forKey: conversationId)
@@ -194,12 +194,14 @@ extension DefaultAgentsManager {
         }
 
         guard let process = processes[conversationId] else {
+            await invalidateHookToken(hookToken)
             return
         }
 
         process.terminate()
 
         guard awaitExit else {
+            await invalidateHookToken(hookToken)
             return
         }
 
@@ -214,6 +216,8 @@ extension DefaultAgentsManager {
                 try? await Task.sleep(for: .milliseconds(20))
             }
         }
+
+        await invalidateHookToken(hookToken)
     }
 
     func suppressExitStatus(for conversationId: String, pid: Int32?) {
@@ -264,6 +268,24 @@ extension DefaultAgentsManager {
         }
 
         await claudeHookServer.invalidateToken(token)
+    }
+
+    func updateConversationSessionID(
+        _ sessionId: String,
+        conversationId: String
+    ) async {
+        if await sessionManager.hasSession(for: conversationId) {
+            let previousSessionId = await sessionManager.sessionId(for: conversationId)
+            if previousSessionId != sessionId {
+                await claudeHookServer.removeSessionApprovals(
+                    conversationId: conversationId,
+                    sessionId: previousSessionId
+                )
+            }
+        }
+        do {
+            try await sessionManager.updateSessionId(for: conversationId, newSessionId: sessionId)
+        } catch {}
     }
 
     func handleProcessExit(

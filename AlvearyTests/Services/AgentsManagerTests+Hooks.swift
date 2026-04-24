@@ -246,6 +246,88 @@ extension AgentsManagerTests {
         })
     }
 
+    func testClaudeHookDeferredToolAttachmentStopsCurrentRuntimeAndDropsTrailingEvents() async throws {
+        let executable = try TempDeferredToolExecutable(
+            eventStyle: .hookAttachment,
+            emitsTrailingAssistantMessage: true,
+            trailingDelaySeconds: 0
+        )
+        defer { executable.cleanup() }
+        let manager = makeTestManager(
+            settings: makeSettings(cliPath: executable.url.path),
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-hook-deferred-attachment-drop-trailing-events"
+
+        try await manager.spawn(
+            id: conversationId,
+            config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path),
+            forkSession: false
+        )
+
+        guard let subscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0) else {
+            return XCTFail("Expected live event subscription")
+        }
+        async let events = collectedEvents(from: subscription.stream)
+
+        try await waitUntil("expected manager to stop the deferred runtime") {
+            let isRunning = await manager.isRunning(conversationId: conversationId)
+            let status = manager.status(for: conversationId)
+            return !isRunning && status == .stopped
+        }
+
+        let collected = await events
+
+        XCTAssertTrue(collected.contains { event in
+            if case .toolApprovalRequested(let request) = event {
+                return request.toolName == "AskUserQuestion"
+            }
+            return false
+        })
+        XCTAssertTrue(collected.contains { event in
+            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+                return stopReason == "tool_deferred"
+            }
+            return false
+        })
+        XCTAssertFalse(collected.contains { event in
+            if case .message(role: "assistant", content: let content, parentToolUseId: _) = event {
+                return content.contains("returning internal errors")
+            }
+            return false
+        })
+    }
+
+    func testClaudeHookServerDeferredToolKeepsRuntimeAliveForLaterStdoutEventsFromHookServer() async throws {
+        let fixture = try hookServerDeferredToolRaceFixture()
+        defer { cleanupHookServerDeferredToolRaceFixture(fixture) }
+
+        let collected = try await collectHookServerDeferredToolRaceEvents(fixture)
+        assertHookServerLiveDeferredToolRaceEvents(collected)
+    }
+
+    func testClaudeHookServerDeferredToolIgnoresStaleLaunchToken() async throws {
+        let fixture = try hookServerDeferredToolRaceFixture()
+        defer { cleanupHookServerDeferredToolRaceFixture(fixture) }
+
+        try await fixture.manager.spawn(
+            id: fixture.conversationId,
+            config: hookSpawnConfig(workingDirectory: fixture.executable.workingDirectory.path),
+            forkSession: false
+        )
+        try await waitUntil("expected first tool call before stale hook deferral") {
+            await fixture.manager.retainedEventCount(conversationId: fixture.conversationId) >= 1
+        }
+
+        await emitHookServerDeferredToolRequest(fixture, launchToken: "stale-token")
+        try await Task.sleep(for: .milliseconds(100))
+
+        let isRunning = await fixture.manager.isRunning(conversationId: fixture.conversationId)
+        let retainedEventCount = await fixture.manager.retainedEventCount(conversationId: fixture.conversationId)
+        XCTAssertTrue(isRunning)
+        XCTAssertEqual(retainedEventCount, 1)
+    }
+
     func hookSpawnConfig(workingDirectory: String) -> AgentSpawnConfig {
         AgentSpawnConfig(
             providerId: "claude",
@@ -255,5 +337,145 @@ extension AgentsManagerTests {
             effort: nil,
             initialPrompt: nil
         )
+    }
+}
+
+@MainActor
+extension AgentsManagerTests {
+    struct HookServerDeferredToolRaceFixture {
+        let executable: TempHookServerDeferredToolExecutable
+        let hookServer: StubClaudeHookServer
+        let manager: DefaultAgentsManager
+        let conversationId: String
+    }
+
+    func hookServerDeferredToolRaceFixture() throws -> HookServerDeferredToolRaceFixture {
+        let executable = try TempHookServerDeferredToolExecutable()
+        let hookServer = StubClaudeHookServer(
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "token"]
+            )
+        )
+        let manager = makeTestManager(
+            settings: makeSettings(cliPath: executable.url.path),
+            claudeHookServer: hookServer,
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-hook-server-deferred-tool-stop"
+
+        return HookServerDeferredToolRaceFixture(
+            executable: executable,
+            hookServer: hookServer,
+            manager: manager,
+            conversationId: conversationId
+        )
+    }
+
+    func cleanupHookServerDeferredToolRaceFixture(_ fixture: HookServerDeferredToolRaceFixture) {
+        fixture.executable.cleanup()
+        Task { await fixture.manager.kill(conversationId: fixture.conversationId) }
+    }
+
+    func collectHookServerDeferredToolRaceEvents(_ fixture: HookServerDeferredToolRaceFixture) async throws -> [ConversationEvent] {
+        try await fixture.manager.spawn(
+            id: fixture.conversationId,
+            config: hookSpawnConfig(workingDirectory: fixture.executable.workingDirectory.path),
+            forkSession: false
+        )
+        guard let subscription = await fixture.manager.subscribe(
+            conversationId: fixture.conversationId,
+            afterIndex: 0
+        ) else {
+            XCTFail("Expected live event subscription")
+            return []
+        }
+        async let events = collectedEvents(from: subscription.stream)
+
+        try await waitUntil("expected first tool call before hook deferral") {
+            await fixture.manager.retainedEventCount(conversationId: fixture.conversationId) >= 1
+        }
+        await emitHookServerDeferredToolRequest(fixture, launchToken: "token")
+
+        try await waitUntil("expected manager to keep accepting live events after hook server deferral") {
+            await fixture.manager.retainedEventCount(conversationId: fixture.conversationId) >= 3
+        }
+        await fixture.manager.kill(conversationId: fixture.conversationId)
+
+        return await events
+    }
+
+    func emitHookServerDeferredToolRequest(
+        _ fixture: HookServerDeferredToolRaceFixture,
+        launchToken: String
+    ) async {
+        await emitHookServerDeferredToolRequest(
+            fixture,
+            toolUseId: "toolu_first",
+            command: "date +%s",
+            launchToken: launchToken
+        )
+    }
+
+    func emitHookServerDeferredToolRequest(
+        _ fixture: HookServerDeferredToolRaceFixture,
+        toolUseId: String,
+        command: String,
+        launchToken: String
+    ) async {
+        await fixture.hookServer.emitDeferredToolRequest(
+            ClaudeDeferredToolRequest(
+                conversationId: fixture.conversationId,
+                launchToken: launchToken,
+                request: ToolApprovalRequest(
+                    sessionId: "session-deferred",
+                    toolUseId: toolUseId,
+                    toolName: "Bash",
+                    toolInput: #"{"command":"\#(command)"}"#
+                )
+            )
+        )
+    }
+
+    func assertHookServerDeferredToolRaceEvents(_ collected: [ConversationEvent]) {
+        XCTAssertTrue(collected.contains { event in
+            if case .toolApprovalRequested(let request) = event {
+                return request.toolUseId == "toolu_first"
+            }
+            return false
+        })
+        XCTAssertTrue(collected.contains { event in
+            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+                return stopReason == "tool_deferred"
+            }
+            return false
+        })
+        XCTAssertFalse(collected.contains { event in
+            if case .toolCall(id: "toolu_second", name: _, input: _, parentToolUseId: _, callerAgent: _) = event {
+                return true
+            }
+            return false
+        })
+        XCTAssertFalse(collected.contains { event in
+            if case .message(role: "assistant", content: let content, parentToolUseId: _) = event {
+                return content.contains("returning internal errors")
+            }
+            return false
+        })
+    }
+
+    func assertHookServerLiveDeferredToolRaceEvents(_ collected: [ConversationEvent]) {
+        XCTAssertTrue(collected.contains { event in
+            if case .toolApprovalRequested(let request) = event {
+                return request.toolUseId == "toolu_first"
+            }
+            return false
+        })
+        XCTAssertTrue(collected.contains { event in
+            if case .toolCall(id: "toolu_second", name: _, input: _, parentToolUseId: _, callerAgent: _) = event {
+                return true
+            }
+            return false
+        })
     }
 }

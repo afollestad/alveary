@@ -45,7 +45,6 @@ private enum ScrollToBottomRetries {
 struct ChatTranscriptView: View {
     let viewModel: ConversationViewModel
     let events: [ConversationEventRecord]
-    let promptSubmissionIsBusy: Bool
     let workingDirectory: String?
 
     @Binding var lastScrollTime: Date
@@ -97,7 +96,7 @@ struct ChatTranscriptView: View {
                     case .taskListBlock(_, let tasks):
                         TaskListBlock(tasks: tasks)
                     case .promptBlock(_, let prompt):
-                        PromptBlock(prompt: prompt, isBusy: promptSubmissionIsBusy) { answers in
+                        PromptBlock(prompt: prompt, isBusy: !viewModel.canSubmitPromptAnswer(promptId: prompt.id)) { answers in
                             do {
                                 return try await viewModel.answerPrompt(promptId: prompt.id, answers: answers)
                             } catch {
@@ -109,6 +108,8 @@ struct ChatTranscriptView: View {
                         }
                     case .toolApproval(_, let approval, let status):
                         toolApprovalBlock(approval, persistedStatus: status)
+                    case .toolApprovalBatch(_, let approvals, let status):
+                        toolApprovalBlock(approvals, persistedStatus: status)
                     case .error(_, let message):
                         ErrorBanner(message: message)
                     case .centeredNote(_, let kind):

@@ -29,6 +29,7 @@ actor MockAgentsManager: AgentsManager {
         let conversationId: String
         let approval: ToolApprovalRequest
         let resolution: ClaudeToolApprovalResolution
+        let additionalApprovals: [ToolApprovalRequest]
         let sessionApproval: AgentSessionApprovalGrant?
         let config: AgentSpawnConfig
 
@@ -46,6 +47,7 @@ actor MockAgentsManager: AgentsManager {
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
+    private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
     private var subscriptionEnabled = false
     private let subscriptionGeneration = UUID()
     private var subscriptionContinuation: AsyncStream<ConversationEvent>.Continuation?
@@ -106,20 +108,15 @@ actor MockAgentsManager: AgentsManager {
         recordedSentMessages.append(message)
     }
 
-    func resolveToolApproval(
-        conversationId: String,
-        approval: ToolApprovalRequest,
-        resolution: ClaudeToolApprovalResolution,
-        sessionApproval: AgentSessionApprovalGrant?,
-        config: AgentSpawnConfig
-    ) async throws -> Bool {
+    func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         recordedApprovalCalls.append(
             ApprovalCall(
-                conversationId: conversationId,
-                approval: approval,
-                resolution: resolution,
-                sessionApproval: sessionApproval,
-                config: config
+                conversationId: request.conversationId,
+                approval: request.approval,
+                resolution: request.resolution,
+                additionalApprovals: request.additionalApprovals,
+                sessionApproval: request.sessionApproval,
+                config: request.config
             )
         )
         if let approvalError {
@@ -127,6 +124,31 @@ actor MockAgentsManager: AgentsManager {
         }
         isRunningValue = true
         return sessionApprovalEffective
+    }
+
+    func toolApprovalSelection(
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) -> ToolApprovalSelection? {
+        toolApprovalSelectionStorage[toolApprovalSelectionKey(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: sessionId
+        )]
+    }
+
+    func recordToolApprovalSelection(
+        _ selection: ToolApprovalSelection,
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) {
+        toolApprovalSelectionStorage[toolApprovalSelectionKey(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: sessionId
+        )] = selection
     }
 
     func enqueueSendResult(_ result: Result<Void, MockError>) {
@@ -222,6 +244,10 @@ actor MockAgentsManager: AgentsManager {
 
     func approvalCalls() -> [ApprovalCall] {
         recordedApprovalCalls
+    }
+
+    private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {
+        "\(providerId)|\(conversationId)|\(sessionId)"
     }
 
     private func recordSubscriptionTermination() {

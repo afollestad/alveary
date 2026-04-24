@@ -4,6 +4,11 @@ struct ManagedEventBuffer: Sendable {
     let generation: UUID
     var allowsReplay: Bool
     var acceptsLiveEvents: Bool
+    var hasDeferredToolStop: Bool
+    var pendingLiveToolApprovals: Int
+    var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
+    var deferredToolStopSessionId: String?
+    var deferredToolStopToolUseId: String?
     let buffer: EventBuffer
 }
 

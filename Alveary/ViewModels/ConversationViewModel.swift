@@ -52,6 +52,15 @@ final class ConversationViewModel {
         state.grouper.hasUnansweredPrompt
     }
 
+    func canSubmitPromptAnswer(promptId: String) -> Bool {
+        guard !state.isSendingMessage,
+              state.messageQueue.peekNext() == nil,
+              !state.isReconfiguringSession else {
+            return false
+        }
+        return !state.turnState.isActive || canAnswerLiveAskUserQuestion(promptId: promptId)
+    }
+
     init(
         conversation: Conversation,
         agentsManager: any AgentsManager,
@@ -168,7 +177,9 @@ final class ConversationViewModel {
     }
 
     func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {
-        guard !state.turnState.isActive, !state.isSendingMessage else {
+        let canAnswerLivePrompt = canAnswerLiveAskUserQuestion(promptId: promptId)
+        guard !state.turnState.isActive || canAnswerLivePrompt,
+              !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn to finish before answering the prompt")
         }
         guard state.messageQueue.peekNext() == nil else {
@@ -188,35 +199,60 @@ final class ConversationViewModel {
         if let pendingApproval,
            pendingApproval.request.toolName == "AskUserQuestion",
            pendingApproval.request.toolUseId == promptId {
-            try await answerDeferredAskUserQuestion(pendingApproval, answers: answers)
+            if let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(pendingApproval.request) {
+                if resolvedStatus != .approved {
+                    try await deliverMessageReserved(message)
+                }
+            } else {
+                try await answerDeferredAskUserQuestion(pendingApproval, answers: answers)
+            }
         } else {
             try await deliverMessageReserved(message)
             supersedePendingToolApprovalAfterPromptAnswer(pendingApproval)
         }
 
+        recordPromptAnswerSummary(promptId: promptId, summary: summary)
+        return summary
+    }
+
+    private func recordPromptAnswerSummary(promptId: String, summary: String) {
         let conversationID = conversation.id
         let promptEvents = try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                    $0.type == "tool_call" &&
-                    $0.toolId == promptId &&
-                    $0.toolName == "AskUserQuestion"
-                }
+                        $0.type == "tool_call" &&
+                        $0.toolId == promptId &&
+                        $0.toolName == "AskUserQuestion"
+                },
+                sortBy: [
+                    SortDescriptor(\.timestamp),
+                    SortDescriptor(\.id)
+                ]
             )
         )
 
-        if let promptRecord = promptEvents?.last {
-            promptRecord.content = summary
-            do {
-                try modelContext.save()
-                state.grouper.markPromptAnswered(promptId: promptId, summary: summary)
-            } catch {
-                // Best-effort only; the live prompt block already updated.
-            }
+        guard let promptRecord = promptEvents?.last else {
+            return
         }
 
-        return summary
+        promptRecord.content = summary
+        do {
+            try modelContext.save()
+            state.grouper.markPromptAnswered(promptId: promptId, summary: summary)
+        } catch {
+            // Best-effort only; the live prompt block already updated.
+        }
+    }
+
+    private func canAnswerLiveAskUserQuestion(promptId: String) -> Bool {
+        guard let pendingApproval = state.pendingToolApproval,
+              pendingApproval.status == .pending,
+              pendingApproval.request.toolName == "AskUserQuestion",
+              pendingApproval.request.toolUseId == promptId else {
+            return false
+        }
+        return true
     }
 
     func reconfigureSession(config: AgentSpawnConfig) async throws {

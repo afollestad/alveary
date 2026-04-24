@@ -103,6 +103,7 @@ These are default structure and readability conventions for new code and routine
 - Is there any dead code, or stale code?
 - Is there any missing test coverage (unit or snapshot)?
 - Were snapshots recorded again where needed?
+- Could the code changes use concise comments/documentation *outside* of AGENTS.md files?
 - Are AGENTS.md files up to date and accurate? 
 - Can any AGENTS.md files be split up into smaller sections, sub-bullets, or into separate files?
 - If we fixed a bug, are we sure it won't regress later? What's stopping regression?

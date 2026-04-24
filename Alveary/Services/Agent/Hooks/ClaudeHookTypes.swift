@@ -33,6 +33,45 @@ enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
     }
 }
 
+enum ToolApprovalSelection: String, Sendable, Equatable, Hashable {
+    case once
+    case sessionExact
+    case sessionGroup
+
+    init(sessionScope: ToolApprovalSessionScope) {
+        switch sessionScope {
+        case .exact:
+            self = .sessionExact
+        case .group:
+            self = .sessionGroup
+        }
+    }
+
+    var sessionScope: ToolApprovalSessionScope? {
+        switch self {
+        case .once:
+            return nil
+        case .sessionExact:
+            return .exact
+        case .sessionGroup:
+            return .group
+        }
+    }
+
+    func normalized(for availableScopes: [ToolApprovalSessionScope]) -> ToolApprovalSelection {
+        guard let sessionScope else {
+            return .once
+        }
+        if availableScopes.contains(sessionScope) {
+            return self
+        }
+        if let firstScope = availableScopes.first {
+            return ToolApprovalSelection(sessionScope: firstScope)
+        }
+        return .once
+    }
+}
+
 enum ClaudeToolApprovalDecision: String, Sendable, Equatable {
     case allow
     case deny
@@ -48,13 +87,13 @@ struct ClaudeToolApprovalResolution: Sendable, Equatable {
     }
 }
 
-enum AgentSessionApprovalRuleKind: String, Sendable, Equatable {
+enum AgentSessionApprovalRuleKind: String, Sendable, Equatable, Hashable {
     case bashExact
     case bashCommandGroup
     case filePathExact
 }
 
-struct AgentSessionApprovalGrant: Sendable, Equatable {
+struct AgentSessionApprovalGrant: Sendable, Equatable, Hashable {
     let providerId: String
     let conversationId: String
     let sessionId: String
@@ -293,7 +332,12 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return nil
         }
 
-        guard let groupToken = tokens.dropFirst().first(where: Self.isCommandGroupToken)?.nilIfEmpty else {
+        guard tokens.count >= 2 else {
+            return nil
+        }
+
+        let groupToken = tokens[1]
+        guard Self.isCommandGroupToken(groupToken) else {
             return nil
         }
         return [executable, groupToken]
@@ -392,37 +436,39 @@ struct PendingToolApproval: Sendable, Equatable {
     var status: ToolApprovalStatus
 }
 
+struct ClaudeDeferredToolRequest: Sendable, Equatable {
+    let conversationId: String
+    let launchToken: String?
+    let request: ToolApprovalRequest
+}
+
 protocol ClaudeHookServer: Actor {
+    func setDeferredToolRequestHandler(
+        _ handler: (@Sendable (ClaudeDeferredToolRequest) async -> Void)?
+    ) async
     func prepareLaunch(
         permissionMode: String?,
         conversationId: String
     ) async -> ClaudeHookLaunchConfig?
     func updatePermissionMode(_ permissionMode: String?, for conversationId: String) async
     func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) async
+    func recordTransientApprovalDecision(
+        _ resolution: ClaudeToolApprovalResolution,
+        for approval: AgentSessionApprovalGrant
+    ) async
+    func discardTransientApprovalDecision(for approval: AgentSessionApprovalGrant) async
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async
+    func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
+    func recordToolApprovalSelection(
+        _ selection: ToolApprovalSelection,
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) async
     func removeSessionApprovals(conversationId: String, sessionId: String) async
     func discardDecision(for key: ClaudeToolApprovalKey) async
     func invalidateToken(_ token: String) async
-}
-
-actor DisabledClaudeHookServer: ClaudeHookServer {
-    func prepareLaunch(
-        permissionMode: String?,
-        conversationId: String
-    ) async -> ClaudeHookLaunchConfig? {
-        nil
-    }
-
-    func updatePermissionMode(_ permissionMode: String?, for conversationId: String) async {}
-    func recordDecision(_ resolution: ClaudeToolApprovalResolution, for key: ClaudeToolApprovalKey) async {}
-    func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult {
-        SessionApprovalRecordResult(isEffective: false, wasInserted: false)
-    }
-    func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {}
-    func removeSessionApprovals(conversationId: String, sessionId: String) async {}
-    func discardDecision(for key: ClaudeToolApprovalKey) async {}
-    func invalidateToken(_ token: String) async {}
 }
 
 private extension String {

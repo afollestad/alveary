@@ -2,30 +2,40 @@ import SwiftUI
 
 struct ToolApprovalBlock: View {
     let approval: ToolApprovalRequest
+    let approvals: [ToolApprovalRequest]
     let status: ToolApprovalStatus?
     let isBlocked: Bool
     let onApprove: () -> Void
     let onApproveForSession: (ToolApprovalSessionScope) -> Void
+    let loadApprovalSelection: () async -> ToolApprovalSelection?
+    let onSelectApprovalSelection: (ToolApprovalSelection) -> Void
     let onDeny: () -> Void
 
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
-    @State private var selectedSessionScope: ToolApprovalSessionScope
+    @State private var selectedApprovalSelection: ToolApprovalSelection
+    @State private var selectionGeneration = 0
 
     init(
         approval: ToolApprovalRequest,
+        approvals: [ToolApprovalRequest]? = nil,
         status: ToolApprovalStatus?,
         isBlocked: Bool = false,
         onApprove: @escaping () -> Void,
         onApproveForSession: @escaping (ToolApprovalSessionScope) -> Void,
-        onDeny: @escaping () -> Void
+        onDeny: @escaping () -> Void,
+        loadApprovalSelection: @escaping () async -> ToolApprovalSelection? = { nil },
+        onSelectApprovalSelection: @escaping (ToolApprovalSelection) -> Void = { _ in }
     ) {
         self.approval = approval
+        self.approvals = approvals ?? [approval]
         self.status = status
         self.isBlocked = isBlocked
         self.onApprove = onApprove
         self.onApproveForSession = onApproveForSession
+        self.loadApprovalSelection = loadApprovalSelection
+        self.onSelectApprovalSelection = onSelectApprovalSelection
         self.onDeny = onDeny
-        _selectedSessionScope = State(initialValue: approval.supportedSessionApprovalScopes.first ?? .exact)
+        _selectedApprovalSelection = State(initialValue: .once)
     }
 
     private var actionsAreDisabled: Bool {
@@ -33,7 +43,40 @@ struct ToolApprovalBlock: View {
     }
 
     private var sessionApprovalScopes: [ToolApprovalSessionScope] {
-        approval.supportedSessionApprovalScopes
+        let allApprovalScopes = approvals.map { Set($0.supportedSessionApprovalScopes) }
+        guard !allApprovalScopes.isEmpty else {
+            return approval.supportedSessionApprovalScopes
+        }
+        return approval.supportedSessionApprovalScopes.filter { scope in
+            allApprovalScopes.allSatisfy { $0.contains(scope) }
+        }
+    }
+
+    private var isBatch: Bool {
+        approvals.count > 1
+    }
+
+    private var title: String {
+        isBatch ? "Approve tool uses?" : approval.approvalPromptCopy.title
+    }
+
+    private var displayName: String {
+        guard isBatch else {
+            return approval.displayName
+        }
+
+        let names = Set(approvals.map(\.displayName))
+        guard names.count == 1,
+              let name = names.first else {
+            return "\(approvals.count) tool uses"
+        }
+
+        switch name {
+        case "Bash command":
+            return "\(approvals.count) Bash commands"
+        default:
+            return "\(approvals.count) tool uses"
+        }
     }
 
     var body: some View {
@@ -46,20 +89,24 @@ struct ToolApprovalBlock: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(approval.approvalPromptCopy.title)
+                    Text(title)
                         .font(.subheadline.weight(.semibold))
 
                     if approval.approvalPromptCopy.showsDisplayName {
-                        Text(approval.displayName)
+                        Text(displayName)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
 
-                    Text(approval.conciseSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(approvals) { approval in
+                            Text(approval.conciseSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
                 }
             }
 
@@ -69,6 +116,12 @@ struct ToolApprovalBlock: View {
         .padding(.horizontal, chatBlockPadding)
         .padding(.vertical, chatVerticalPadding)
         .bubbleBackground(maxWidth: bubbleMaxWidth)
+        .onChange(of: approvalSelectionIdentityID) { _, _ in
+            resetSelection()
+        }
+        .task(id: approvalSelectionLoadID) {
+            await loadPersistedSelection()
+        }
     }
 
     @ViewBuilder
@@ -95,21 +148,40 @@ struct ToolApprovalBlock: View {
         } else if let resolvedSessionTitle {
             sessionApprovalButton(title: resolvedSessionTitle, isResolved: true)
         } else {
-            approveButton(title: approval.approvalPromptCopy.approveTitle)
-
-            if !sessionApprovalScopes.isEmpty {
-                sessionApprovalButton(title: pendingSessionApprovalTitle, isResolved: false)
-            }
-
+            pendingApproveButton
             denyButton(title: approval.approvalPromptCopy.denyTitle)
         }
     }
 
-    private var pendingSessionApprovalTitle: String {
+    private var normalizedSelectedApprovalSelection: ToolApprovalSelection {
+        selectedApprovalSelection.normalized(for: sessionApprovalScopes)
+    }
+
+    private var pendingApprovalTitle: String {
+        pendingApprovalMenuTitle(for: normalizedSelectedApprovalSelection)
+    }
+
+    private func pendingSessionApprovalTitle(for scope: ToolApprovalSessionScope) -> String {
         if sessionApprovalScopes.count == 1 {
             return "Approve for session"
         }
-        return selectedSessionScope.pendingTitle
+        return scope.pendingTitle
+    }
+
+    private var pendingApprovalMenuModes: [ToolApprovalSelection] {
+        [.once] + sessionApprovalScopes.map(ToolApprovalSelection.init(sessionScope:))
+    }
+
+    private var approvalSelectionIdentityID: String {
+        approval.sessionId + "\u{0}" + approval.toolUseId
+    }
+
+    private var approvalSelectionLoadID: String {
+        approvalSelectionIdentityID + "\u{0}" + (status?.rawValue ?? "none")
+    }
+
+    private var shouldLoadApprovalSelection: Bool {
+        !sessionApprovalScopes.isEmpty && status == .pending
     }
 
     private var resolvedSessionTitle: String? {
@@ -140,31 +212,36 @@ struct ToolApprovalBlock: View {
     }
 
     @ViewBuilder
-    private func sessionApprovalButton(title: String, isResolved: Bool) -> some View {
-        if sessionApprovalScopes.count > 1 && !isResolved {
-            ToolApprovalSessionSplitButton(
-                title: title,
-                selectedScope: selectedSessionScope,
-                availableScopes: sessionApprovalScopes,
-                action: {
-                    onApproveForSession(selectedSessionScope)
-                },
-                selectScope: { scope in
-                    selectedSessionScope = scope
+    private var pendingApproveButton: some View {
+        if sessionApprovalScopes.isEmpty {
+            approveButton(title: approval.approvalPromptCopy.approveTitle)
+        } else {
+            SplitActionButton(
+                title: pendingApprovalTitle,
+                systemImage: "checkmark",
+                selectedOption: normalizedSelectedApprovalSelection,
+                options: pendingApprovalMenuModes,
+                optionTitle: pendingApprovalMenuTitle(for:),
+                action: submitPendingApproval,
+                selectOption: { selection in
+                    selectApprovalSelection(selection)
                 }
             )
             .disabled(actionsAreDisabled)
-        } else {
-            Button {
-                if let scope = sessionApprovalScopes.first {
-                    onApproveForSession(scope)
-                }
-            } label: {
-                actionLabel(title: title, systemImage: "clock.badge.checkmark")
-            }
-            .secondaryActionButtonStyle()
-            .disabled(isResolved || actionsAreDisabled || sessionApprovalScopes.isEmpty)
         }
+    }
+
+    @ViewBuilder
+    private func sessionApprovalButton(title: String, isResolved: Bool) -> some View {
+        Button {
+            if let scope = sessionApprovalScopes.first {
+                onApproveForSession(scope)
+            }
+        } label: {
+            actionLabel(title: title, systemImage: "clock.badge.checkmark")
+        }
+        .secondaryActionButtonStyle()
+        .disabled(isResolved || actionsAreDisabled || sessionApprovalScopes.isEmpty)
     }
 
     private func approveButton(title: String) -> some View {
@@ -198,135 +275,50 @@ struct ToolApprovalBlock: View {
     private func actionLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
     }
-}
 
-private struct ToolApprovalSessionSplitButton: View {
-    let title: String
-    let selectedScope: ToolApprovalSessionScope
-    let availableScopes: [ToolApprovalSessionScope]
-    let action: () -> Void
-    let selectScope: (ToolApprovalSessionScope) -> Void
-
-    @Environment(\.controlSize) private var controlSize
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Button(action: action) {
-                Label(title, systemImage: "clock.badge.checkmark")
-                    .lineLimit(1)
-                    .padding(.horizontal, horizontalPadding)
-                    .frame(height: controlHeight)
+    private func pendingApprovalMenuTitle(for selection: ToolApprovalSelection) -> String {
+        switch selection {
+        case .once:
+            return "Approve once"
+        case .sessionExact, .sessionGroup:
+            guard let scope = selection.sessionScope else {
+                return "Approve for session"
             }
-            .buttonStyle(.plain)
-
-            Rectangle()
-                .fill(Color.primary.opacity(isEnabled ? 0.12 : 0.06))
-                .frame(width: 1)
-                .padding(.vertical, 4)
-
-            Menu {
-                ForEach(availableScopes, id: \.self) { scope in
-                    Button {
-                        selectScope(scope)
-                    } label: {
-                        if scope == selectedScope {
-                            Label(scope.pendingTitle, systemImage: "checkmark")
-                        } else {
-                            Text(scope.pendingTitle)
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "chevron.down")
-                    .imageScale(.small)
-                    .frame(width: menuWidth, height: controlHeight)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-        }
-        .font(.body.weight(.semibold))
-        .foregroundStyle(.primary.opacity(isEnabled ? 1 : 0.78))
-        .background(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(backgroundColor)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(Color.primary.opacity(isEnabled ? 0.12 : 0.06), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-
-    private var backgroundColor: Color {
-        isEnabled ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05)
-    }
-
-    private var horizontalPadding: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 10
-        case .regular:
-            return 12
-        case .large:
-            return 14
-        case .extraLarge:
-            return 16
-        @unknown default:
-            return 12
+            return pendingSessionApprovalTitle(for: scope)
         }
     }
 
-    private var controlHeight: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 22
-        case .small:
-            return 24
-        case .regular:
-            return 30
-        case .large:
-            return 34
-        case .extraLarge:
-            return 38
-        @unknown default:
-            return 30
+    private func submitPendingApproval() {
+        guard let scope = normalizedSelectedApprovalSelection.sessionScope else {
+            onApprove()
+            return
         }
+        onApproveForSession(scope)
     }
 
-    private var cornerRadius: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 9
-        case .regular:
-            return 10
-        case .large:
-            return 12
-        case .extraLarge:
-            return 14
-        @unknown default:
-            return 10
-        }
+    private func selectApprovalSelection(_ selection: ToolApprovalSelection) {
+        let normalizedSelection = selection.normalized(for: sessionApprovalScopes)
+        selectionGeneration += 1
+        selectedApprovalSelection = normalizedSelection
+        onSelectApprovalSelection(normalizedSelection)
     }
 
-    private var menuWidth: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 22
-        case .small:
-            return 24
-        case .regular:
-            return 28
-        case .large:
-            return 30
-        case .extraLarge:
-            return 34
-        @unknown default:
-            return 28
+    private func resetSelection() {
+        selectionGeneration += 1
+        selectedApprovalSelection = .once
+    }
+
+    private func loadPersistedSelection() async {
+        guard shouldLoadApprovalSelection else {
+            return
         }
+
+        let generation = selectionGeneration
+        let selection = await loadApprovalSelection()
+        guard generation == selectionGeneration else {
+            return
+        }
+
+        selectedApprovalSelection = (selection ?? .once).normalized(for: sessionApprovalScopes)
     }
 }

@@ -286,6 +286,9 @@ private extension ConversationViewModel {
         case .toolApprovalRequested(let approval):
             return handleToolApprovalRequested(approval)
 
+        case .toolApprovalFailed(let failure):
+            return handleToolApprovalFailed(failure)
+
         case .stop(let message):
             return shouldPersistStopEvent(message: message)
 
@@ -319,11 +322,6 @@ private extension ConversationViewModel {
 
     func shouldPersistTokensEvent(_ payload: TokenEventPayload) -> Bool {
         shouldPersistTokenEvent(payload)
-    }
-
-    func handleToolApprovalRequested(_ approval: ToolApprovalRequest) -> Bool {
-        replacePendingToolApproval(with: approval)
-        return true
     }
 
     func handleSubAgentControlEvent(_ event: ConversationEvent) -> Bool {

@@ -13,14 +13,17 @@ extension ChatItemGrouper {
     /// Groupable: read-only, informational tools whose repeated rendering would clutter the
     /// transcript (Read/Grep/Glob/WebFetch/WebSearch and MCP lookup-style calls).
     /// Standalone: mutating or output-heavy tools the user wants to see per-row
-    /// (Write/Edit/MultiEdit/NotebookEdit/Bash). Unknown tools default to standalone so a
-    /// tool that actually mutates state never gets silently folded into a group header.
+    /// (anything that can render an Alveary approval prompt). Unknown tools default to
+    /// standalone so a tool that actually mutates state never gets silently folded into a
+    /// group header.
     static func groupability(forToolNamed name: String) -> ToolGroupability {
+        if ClaudeHookPolicy.canRenderToolApproval(name) {
+            return .standalone
+        }
+
         switch name {
         case "Read", "Grep", "Glob", "WebFetch", "WebSearch", "ToolSearch":
             return .groupable
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "Bash":
-            return .standalone
         default:
             return isMCPReadOnly(toolName: name) ? .groupable : .standalone
         }
