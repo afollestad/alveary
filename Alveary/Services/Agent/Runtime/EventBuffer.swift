@@ -1,6 +1,8 @@
 import Foundation
 
-struct ManagedEventBuffer: Sendable {
+/// Runtime state for a conversation's event stream. Keep this as a reference so
+/// updating live-approval counters does not perform nested dictionary writes.
+final class ManagedEventBuffer: @unchecked Sendable {
     let generation: UUID
     var allowsReplay: Bool
     var acceptsLiveEvents: Bool
@@ -10,6 +12,28 @@ struct ManagedEventBuffer: Sendable {
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?
     let buffer: EventBuffer
+
+    init(
+        generation: UUID,
+        allowsReplay: Bool,
+        acceptsLiveEvents: Bool,
+        hasDeferredToolStop: Bool,
+        pendingLiveToolApprovals: Int,
+        resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>,
+        deferredToolStopSessionId: String?,
+        deferredToolStopToolUseId: String?,
+        buffer: EventBuffer
+    ) {
+        self.generation = generation
+        self.allowsReplay = allowsReplay
+        self.acceptsLiveEvents = acceptsLiveEvents
+        self.hasDeferredToolStop = hasDeferredToolStop
+        self.pendingLiveToolApprovals = pendingLiveToolApprovals
+        self.resolvedLiveToolApprovals = resolvedLiveToolApprovals
+        self.deferredToolStopSessionId = deferredToolStopSessionId
+        self.deferredToolStopToolUseId = deferredToolStopToolUseId
+        self.buffer = buffer
+    }
 }
 
 final class EventBuffer: @unchecked Sendable {

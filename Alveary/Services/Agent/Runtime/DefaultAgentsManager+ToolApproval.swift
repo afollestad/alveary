@@ -106,23 +106,21 @@ extension DefaultAgentsManager {
     }
 
     func decrementPendingLiveToolApprovals(conversationId: String, count: Int) {
-        guard var buffer = eventBuffers[conversationId] else {
+        guard let buffer = eventBuffers[conversationId] else {
             return
         }
         buffer.pendingLiveToolApprovals = max(buffer.pendingLiveToolApprovals - count, 0)
-        eventBuffers[conversationId] = buffer
     }
 
     private func markLiveToolApprovalsResolved(
         conversationId: String,
         context: ToolApprovalResolutionContext
     ) {
-        guard var buffer = eventBuffers[conversationId] else {
+        guard let buffer = eventBuffers[conversationId] else {
             return
         }
         buffer.resolvedLiveToolApprovals.insert(context.key)
         buffer.resolvedLiveToolApprovals.formUnion(context.additionalKeys)
-        eventBuffers[conversationId] = buffer
     }
 
     private func recordToolApprovalDecisions(
