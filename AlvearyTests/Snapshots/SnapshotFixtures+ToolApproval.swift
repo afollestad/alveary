@@ -51,7 +51,7 @@ extension SnapshotTests {
             sessionId: "session-snapshot",
             toolUseId: "tool-edit",
             toolName: "Edit",
-            toolInput: "{\"file_path\":\"Alveary/Services/Agent/ClaudeAdapter.swift\"}"
+            toolInput: "{\"file_path\":\"Alveary/Services/Agent/Claude/ClaudeAdapter.swift\"}"
         )
     }
 

@@ -13,8 +13,11 @@ Use nested `AGENTS.md` files to keep local guidance close to the code it governs
 - `Alveary/App/AGENTS.md` covers macOS app-lifecycle, shutdown, and the root `ContentView` layout.
 - `Alveary/Data/AGENTS.md` covers SwiftData model invariants (`AgentThread`, `Conversation`, `Project`).
 - `Alveary/DI/AGENTS.md` covers Knit assemblies, generated DI output, and the SwiftData store location.
-- `Alveary/Services/Agent/AGENTS.md` covers the agent runtime and Claude CLI adapter.
-- `Alveary/Services/Agent/Hooks/AGENTS.md` covers Claude HTTP hook listener, settings, and approval-policy support.
+- `Alveary/Services/Agent/AGENTS.md` covers provider-neutral agent service interfaces and cross-folder transcript debugging.
+- `Alveary/Services/Agent/Runtime/AGENTS.md` covers `DefaultAgentsManager`, event buffers, process I/O, lifecycle, and deferred-tool runtime behavior.
+- `Alveary/Services/Agent/Claude/AGENTS.md` covers the Claude adapter, Claude config, Claude provider setup, and Claude stream decoding.
+- `Alveary/Services/Agent/Claude/Hooks/AGENTS.md` covers Claude HTTP hook listener, settings, and approval-policy support.
+- `Alveary/Services/Agent/Transcript/AGENTS.md` covers transcript grouping (`ChatItemGrouper`) behavior.
 - `Alveary/Services/Detection/AGENTS.md` covers `AgentRegistry` and provider detection.
 - `Alveary/Services/Git/AGENTS.md` covers worktree lifecycle and the GitHub CLI adapter.
 - `Alveary/Services/Notification/AGENTS.md` covers the notification manager, badge-count chaining, and OS notification tap routing.

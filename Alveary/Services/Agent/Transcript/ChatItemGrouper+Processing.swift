@@ -161,16 +161,6 @@ private extension ChatItemGrouper {
         }
     }
 
-    func handleTodoWriteToolCall(_ event: ConversationEventRecord) {
-        flushGroup()
-        currentTasks = parseTodoWriteInput(event.toolInput)
-        let blockId = "tasks-\(event.toolId ?? event.id)"
-        if replaceMatchingTaskListBlock(id: blockId, tasks: currentTasks) {
-            return
-        }
-        appendTranscriptItem(.taskListBlock(id: blockId, tasks: currentTasks))
-    }
-
     func handleAskUserQuestionToolCall(_ event: ConversationEventRecord) {
         flushGroup()
         flushSubAgents()
@@ -198,16 +188,6 @@ private extension ChatItemGrouper {
                 prompt: prompt
             )
         )
-    }
-
-    func handleCenteredNoteToolCall(_ event: ConversationEventRecord) {
-        guard let toolName = event.toolName,
-              let noteKind = centeredTranscriptNoteKind(forToolNamed: toolName) else {
-            return
-        }
-
-        let toolId = event.toolId ?? event.id
-        centeredNoteToolKinds[toolId] = noteKind
     }
 
     func handleGenericToolCall(_ event: ConversationEventRecord) {
@@ -255,66 +235,6 @@ private extension ChatItemGrouper {
         )
     }
 
-    func handleCenteredNoteToolResult(
-        toolId: String,
-        kind: CenteredTranscriptNoteKind,
-        event: ConversationEventRecord
-    ) {
-        if kind == .exitedPlanMode,
-           toolApprovalStatusesByToolId[toolId] == .denied {
-            flushGroup()
-            flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: .stayingInPlanMode))
-            return
-        }
-
-        if event.isError {
-            flushGroup()
-            flushSubAgents()
-            let pendingTool = makePendingToolEntry(id: toolId, event: ConversationEventRecord(
-                id: toolId,
-                conversationId: event.conversationId,
-                type: "tool_call",
-                toolId: toolId,
-                toolName: centeredToolName(for: kind),
-                toolInput: "{}"
-            ))
-            appendTranscriptItem(
-                .standaloneTool(
-                    id: "tool-\(toolId)",
-                    tool: completedToolEntry(from: pendingTool, event: event)
-                )
-            )
-            return
-        }
-
-        flushGroup()
-        flushSubAgents()
-        appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: kind))
-    }
-
-    func centeredTranscriptNoteKind(forToolNamed toolName: String) -> CenteredTranscriptNoteKind? {
-        switch toolName {
-        case "EnterPlanMode":
-            return .enteredPlanMode
-        case "ExitPlanMode":
-            return .exitedPlanMode
-        default:
-            return nil
-        }
-    }
-
-    func centeredToolName(for kind: CenteredTranscriptNoteKind) -> String {
-        switch kind {
-        case .enteredPlanMode:
-            return "EnterPlanMode"
-        case .exitedPlanMode, .stayingInPlanMode:
-            return "ExitPlanMode"
-        case .interrupted:
-            return "Tool"
-        }
-    }
-
     func makeCompletedToolEntry(for toolId: String, event: ConversationEventRecord) -> ToolEntry? {
         if let pendingTool = pendingGroupTools.first(where: { $0.id == toolId }) {
             return completedToolEntry(from: pendingTool, event: event)
@@ -323,43 +243,6 @@ private extension ChatItemGrouper {
         return renderedToolEntry(for: toolId).map { tool in
             completedToolEntry(from: tool, event: event)
         }
-    }
-
-    func replaceMatchingTaskListBlock(id: String, tasks: [TaskEntry]) -> Bool {
-        guard let index = items.lastIndex(where: { $0.id == id }) else {
-            return replaceTaskListBlockMatchingTasks(tasks)
-        }
-        items[index] = .taskListBlock(id: id, tasks: tasks)
-        return true
-    }
-
-    func replaceTaskListBlockMatchingTasks(_ tasks: [TaskEntry]) -> Bool {
-        guard let index = items.lastIndex(where: { item in
-            if case .taskListBlock = item {
-                return true
-            }
-            return false
-        }),
-              case .taskListBlock(let id, let existingTasks) = items[index],
-              existingTasks.contains(where: { $0.status != .completed }),
-              taskListsMatchByContent(existingTasks, tasks) else {
-            return false
-        }
-
-        items[index] = .taskListBlock(id: id, tasks: tasks)
-        return true
-    }
-
-    func taskListsMatchByContent(_ lhs: [TaskEntry], _ rhs: [TaskEntry]) -> Bool {
-        let lhsContents = Set(lhs.map(\.normalizedContentForMatching).filter { !$0.isEmpty })
-        let rhsContents = Set(rhs.map(\.normalizedContentForMatching).filter { !$0.isEmpty })
-        guard !lhsContents.isEmpty, !rhsContents.isEmpty else {
-            return false
-        }
-
-        let sharedCount = lhsContents.intersection(rhsContents).count
-        let smallerCount = min(lhsContents.count, rhsContents.count)
-        return sharedCount == smallerCount || sharedCount >= 2
     }
 
     func renderedToolEntry(for toolId: String) -> ToolEntry? {

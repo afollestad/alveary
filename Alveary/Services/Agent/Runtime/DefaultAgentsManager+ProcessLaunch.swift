@@ -1,128 +1,7 @@
-import Darwin
 import Foundation
+
 extension DefaultAgentsManager {
-    func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
-        try await spawnImpl(id: id, config: config, forkSession: forkSession, allowReconfigureInFlight: false)
-    }
-
-    func subscribe(conversationId: String, afterIndex: Int = 0) -> AgentEventSubscription? {
-        guard let managedBuffer = eventBuffers[conversationId], managedBuffer.allowsReplay else {
-            return nil
-        }
-        let subscription = managedBuffer.buffer.subscribe(afterIndex: afterIndex)
-        return AgentEventSubscription(generation: managedBuffer.generation, stream: subscription.stream)
-    }
-
-    func retainedEventCount(conversationId: String) -> Int {
-        eventBuffers[conversationId]?.buffer.retainedCount ?? 0
-    }
-
-    func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {
-        guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
-            return
-        }
-        managedBuffer.buffer.markPersisted(upTo: index)
-
-        if processes[conversationId] == nil,
-           !managedBuffer.buffer.hasSubscribers,
-           !managedBuffer.buffer.hasUnpersistedEvents {
-            scheduleBufferCleanup(for: conversationId, generation: generation, delay: .seconds(30))
-        }
-    }
-
-    private func finishUnpublishedSpawnCancellation(
-        launched: LaunchedProcess,
-        graceSeconds: TimeInterval = 5
-    ) async {
-        launched.process.terminate()
-
-        let deadline = Date().addingTimeInterval(graceSeconds)
-        while launched.process.isRunning, Date() < deadline {
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-
-        if launched.process.isRunning {
-            Darwin.kill(launched.process.processIdentifier, SIGKILL)
-            while launched.process.isRunning {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-        }
-
-        launched.closeAllHandles()
-    }
-
-    func spawnImpl(
-        id: String,
-        config: AgentSpawnConfig,
-        forkSession: Bool,
-        allowReconfigureInFlight: Bool
-    ) async throws {
-        try assertSpawnAllowed(id: id, allowReconfigureInFlight: allowReconfigureInFlight)
-
-        spawningIds.insert(id)
-        defer {
-            spawningIds.remove(id)
-            handleDeferredKillAfterSpawn(for: id)
-        }
-
-        let prepared = try await prepareSpawnContext(id: id, config: config, forkSession: forkSession)
-        do {
-            let launched = try await launchProcess(id: id, config: config, prepared: prepared)
-            try await ensureUnpublishedLaunchStillAllowed(id: id, launched: launched)
-            let runtime = try await publishRuntime(id: id, config: config, prepared: prepared, launched: launched)
-            try await sendInitialPromptIfNeeded(id: id, config: config, prepared: prepared, runtime: runtime)
-        } catch {
-            await invalidateHookToken(prepared.environment[claudeHookTokenEnvironmentKey])
-            throw error
-        }
-    }
-
-    private func assertSpawnAllowed(id: String, allowReconfigureInFlight: Bool) throws {
-        guard !shutdownRequested.withLock({ $0 }) else {
-            throw AgentError.spawnFailed("App is shutting down")
-        }
-        guard !closingConversationIds.contains(id) else {
-            throw AgentError.spawnFailed("Conversation is closing")
-        }
-        guard !spawningIds.contains(id) else {
-            throw AgentError.spawnFailed("Spawn already in progress for \(id)")
-        }
-        guard allowReconfigureInFlight || !reconfiguringIds.contains(id) else {
-            throw AgentError.spawnFailed("Reconfigure already in progress for \(id)")
-        }
-        if let existing = processes[id], existing.isRunning {
-            throw AgentError.spawnFailed("Agent already running for \(id). Use reconfigureSession() or kill() before spawning again")
-        }
-    }
-
-    private func handleDeferredKillAfterSpawn(for id: String) {
-        guard pendingKillIds.remove(id) != nil else {
-            return
-        }
-
-        let hasPublishedProcess = processes[id] != nil
-        suppressExitStatus(for: id, pid: processes[id]?.processIdentifier)
-        eventBuffers[id]?.allowsReplay = false
-        if hasPublishedProcess {
-            Task {
-                await teardownProcess(for: id, awaitExit: true, preserveBufferForDurabilityGrace: true)
-            }
-            _ = conversationStatesStore.withLock { $0.removeValue(forKey: id) }
-            clearStatus(for: id)
-            return
-        }
-
-        _ = conversationStatesStore.withLock { $0.removeValue(forKey: id) }
-        clearStatus(for: id)
-        closingConversationIds.remove(id)
-        if pendingSessionRemovalIds.contains(id) {
-            Task {
-                await finalizeSessionRemoval(for: id)
-            }
-        }
-    }
-
-    private func prepareSpawnContext(
+    func prepareSpawnContext(
         id: String,
         config: AgentSpawnConfig,
         forkSession: Bool
@@ -178,7 +57,7 @@ extension DefaultAgentsManager {
         )
     }
 
-    private func resolveCLIPath(providerId: String, customConfig: ProviderCustomConfig?) async throws -> String {
+    func resolveCLIPath(providerId: String, customConfig: ProviderCustomConfig?) async throws -> String {
         if let customCLI = customConfig?.cli, !customCLI.isEmpty, customCLI.contains("/") {
             return customCLI
         }
@@ -194,7 +73,7 @@ extension DefaultAgentsManager {
         return detectedPath
     }
 
-    private func launchProcess(
+    func launchProcess(
         id: String,
         config: AgentSpawnConfig,
         prepared: PreparedSpawnContext
@@ -240,24 +119,19 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func ensureUnpublishedLaunchStillAllowed(id: String, launched: LaunchedProcess) async throws {
+    func ensureUnpublishedLaunchStillAllowed(id: String, launched: LaunchedProcess) async throws {
         if pendingKillIds.contains(id) || closingConversationIds.contains(id) {
-            await finishUnpublishedSpawnCancellation(
-                launched: launched
-            )
+            await finishUnpublishedSpawnCancellation(launched: launched)
             throw AgentError.spawnFailed("Conversation was closed during spawn")
         }
 
         if shutdownRequested.withLock({ $0 }) {
-            await finishUnpublishedSpawnCancellation(
-                launched: launched,
-                graceSeconds: 1.0
-            )
+            await finishUnpublishedSpawnCancellation(launched: launched, graceSeconds: 1.0)
             throw AgentError.spawnFailed("App is shutting down")
         }
     }
 
-    private func publishRuntime(
+    func publishRuntime(
         id: String,
         config: AgentSpawnConfig,
         prepared: PreparedSpawnContext,
@@ -308,7 +182,7 @@ extension DefaultAgentsManager {
         return PublishedRuntime(pid: pid, generation: generation)
     }
 
-    private func publishSpawnedProcess(
+    func publishSpawnedProcess(
         id: String,
         prepared: PreparedSpawnContext,
         process: Process,
@@ -334,7 +208,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func configureSpawnedState(id: String, config: AgentSpawnConfig, continuity: SessionContinuity) async {
+    func configureSpawnedState(id: String, config: AgentSpawnConfig, continuity: SessionContinuity) async {
         let hasImmediateTurn = !(config.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         await MainActor.run {
             let state = conversationState(for: id)
@@ -348,7 +222,7 @@ extension DefaultAgentsManager {
         updateStatus(hasImmediateTurn ? .busy : .idle, for: id)
     }
 
-    private func startStreamTask(
+    func startStreamTask(
         id: String,
         providerId: String,
         generation: UUID,
@@ -369,7 +243,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func sendInitialPromptIfNeeded(
+    func sendInitialPromptIfNeeded(
         id: String,
         config: AgentSpawnConfig,
         prepared: PreparedSpawnContext,
@@ -406,86 +280,4 @@ extension DefaultAgentsManager {
             throw AgentError.spawnFailed("Failed to send initial prompt: \(sendFailure)")
         }
     }
-
-    func handleStreamEvent(
-        _ event: ConversationEvent,
-        conversationId: String,
-        generation: UUID,
-        providerId: String,
-        allowAfterDeferredStop: Bool = false
-    ) async {
-        guard let managedBuffer = eventBuffers[conversationId],
-              managedBuffer.generation == generation,
-              managedBuffer.acceptsLiveEvents || allowAfterDeferredStop else {
-            return
-        }
-        managedBuffer.buffer.push(event)
-
-        await handleConversationLifecycleEvent(event, conversationId: conversationId)
-
-        switch event {
-        case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
-            updateStatus(
-                tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
-                for: conversationId
-            )
-            if stopReason == "tool_deferred",
-               let pid = processes[conversationId]?.processIdentifier {
-                guard eventBuffers[conversationId]?.hasDeferredToolStop != true else {
-                    break
-                }
-                eventBuffers[conversationId]?.hasDeferredToolStop = true
-                eventBuffers[conversationId]?.acceptsLiveEvents = false
-                Task { [weak self] in
-                    await self?.stopDeferredRuntimeIfCurrent(
-                        conversationId: conversationId,
-                        generation: generation,
-                        pid: pid
-                    )
-                }
-            }
-        case .toolApprovalFailed(let failure):
-            if failure.toolUseId != nil {
-                decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
-            }
-        case .error:
-            updateStatus(.error, for: conversationId)
-        default:
-            break
-        }
-
-        guard canTriggerNotification(event) else {
-            return
-        }
-
-        let notificationEvent = await notificationEvent(for: event, conversationId: conversationId)
-        let shouldNotify = await shouldNotify(for: event, notificationEvent: notificationEvent, conversationId: conversationId)
-
-        guard shouldNotify else {
-            return
-        }
-
-        await notificationManager.handleEvent(notificationEvent, conversationId: conversationId)
-    }
-
-    private func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {
-        guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
-            return
-        }
-        managedBuffer.buffer.finishAll()
-    }
-
-    private func handleConversationLifecycleEvent(
-        _ event: ConversationEvent,
-        conversationId: String
-    ) async {
-        if case .sessionInit(let sessionId) = event, let sessionId {
-            await updateConversationSessionID(sessionId, conversationId: conversationId)
-        }
-
-        if case .permissionModeChanged(let permissionMode) = event {
-            await claudeHookServer.updatePermissionMode(permissionMode, for: conversationId)
-        }
-    }
-
 }

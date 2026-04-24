@@ -1,0 +1,25 @@
+## Agent Runtime
+
+These instructions cover provider-neutral runtime management under `Alveary/Services/Agent/Runtime/`.
+
+- `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
+- Do not switch `DefaultAgentsManager.readAgentOutput` back to `FileHandle.AsyncBytes.lines` for provider stream-json pipes. Keep the `readabilityHandler`-based `PipeLinePump` so final EOF-delimited JSON records without a trailing newline still flush and the UI does not get stuck in a busy/Stop state.
+- `DefaultAgentsManager+Spawn.swift` should stay as orchestration. Put launch preparation and process publishing in `DefaultAgentsManager+ProcessLaunch.swift`, stream event handling in `DefaultAgentsManager+StreamEvents.swift`, and pipe/stdout coordination in `DefaultAgentsManager+OutputStream.swift`.
+- Tool approval can resolve live or through fallback deferral:
+    - **Keep the runtime alive for live approval.** Live hook approval must emit a `tool_approval` event without stopping the provider process, setting `hasDeferredToolStop`, or ending the active turn. The process is blocked inside the hook request and should continue naturally after the hook response is recorded.
+    - **Allow active-turn approval.** UI approval for a live hook happens while `turnState.isActive` is still true. Do not require the turn to end, do not respawn the provider session, and do not reset/recreate the transcript subscription for this path.
+    - **Preserve parallel pending requests.** Parallel tool uses can produce multiple near-simultaneous approvals for the same runtime. Keep all pending live approval rows available for batch resolution instead of superseding older same-session rows as stale replacements.
+    - **Batch-resolve sibling hooks.** When the user approves or denies one pending live approval, also record decisions for related same-session approval rows since the last tool result so all held hook requests can proceed together.
+    - **Batch only unresolved siblings.** Related approval discovery should include same-session rows with no `toolApprovalStatus`; a `superseded` fallback row is historical and must not be resurrected as part of a later batch.
+    - **Persist sibling statuses after success.** Do not mark related approval rows approved/denied until manager resolution succeeds; a failed live decision or fallback resume must leave sibling rows unresolved.
+    - **Use teardown only for fallback deferrals.** If the provider emits a deferred-tool stop, or the hook server has to return a fallback defer response because live approval was unavailable, use the legacy stop/resume path and preserve the session for replay.
+    - **Signal before token cleanup.** Runtime teardown must signal the provider process before awaiting hook-token invalidation; hook-server work can lag behind the prompt UI, but a fallback deferred process must not keep running while cleanup waits.
+    - **Stop fallback deferred runtimes immediately.** As soon as the stream reports a deferred-tool stop, tear down the current provider process while preserving the session so the provider cannot retry the deferred tool or emit fallback text before the process exits on its own.
+    - **Keep deferred buffers replayable.** The deferred stop may happen after the conversation view unsubscribes, such as when the user starts another thread. Preserve the event buffer with replay enabled so a later view activation can still persist the `tool_approval` row to SwiftData.
+    - **Ignore trailing events from that runtime.** Once a given stream generation emits a deferred-tool stop, drop any later events from the same live process instead of letting buffered fallback chatter leak into the transcript before teardown completes.
+    - **Do not treat fallback deferral as an error.** End the active turn without setting `lastTurnError`; queued messages must remain paused until the approval resumes and finishes the deferred turn.
+    - **Resume fallback deferrals in the same session.** Approval/denial for the fallback path records a one-shot hook decision keyed by provider session ID plus tool-use ID, then respawns the same session without forking. Live hook approval records the decision into the held hook request instead.
+- While an app-native `AskUserQuestion` prompt is unanswered, treat it as the only actionable pending interaction for that conversation:
+    - **Reject deferred tool approvals.** Do not let `approveToolUse` / `denyToolUse` resume the provider while the prompt still needs an answer.
+    - **Let the prompt answer proceed.** Prompt submission should still be able to send the structured answer even if a hook-owned approval row is present, including the live path where `turnState.isActive` remains true while the provider waits on the held `PreToolUse` request.
+    - **Supersede stale approval rows.** Once the prompt answer is accepted locally, any still-pending approval from that turn should be marked `superseded` so only the post-answer interaction history remains actionable.

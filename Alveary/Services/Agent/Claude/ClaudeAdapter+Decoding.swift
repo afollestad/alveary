@@ -1,38 +1,6 @@
 import Foundation
 
-final class ClaudeAdapter: AgentAdapter, Sendable {
-    let supportsBidirectionalStreaming = true
-    let supportsMidTurnSteering = true
-    private let localCommandCaveatStartTag = "<local-command-caveat>"
-    private let localCommandCaveatEndTag = "</local-command-caveat>"
-    private let hasDeferredTool = LockedState(false)
-
-    func buildArgs(config: AgentConfig) -> [String] {
-        var args = [
-            "-p",
-            "--output-format", "stream-json",
-            "--input-format", "stream-json",
-            "--verbose",
-            "--include-partial-messages"
-        ]
-
-        if let permissionMode = config.permissionMode {
-            args += ["--permission-mode", permissionMode]
-        }
-        if let model = config.model {
-            args += ["--model", model]
-        }
-        if let effort = config.effort {
-            args += ["--effort", effort]
-        }
-
-        return args
-    }
-
-    func envOverrides(config: AgentConfig) -> [String: String] {
-        [:]
-    }
-
+extension ClaudeAdapter {
     func decode(_ json: [String: Any]) -> [ConversationEvent] {
         hasDeferredTool.withLock { hasDeferredTool in
             guard !hasDeferredTool else {
@@ -47,7 +15,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         }
     }
 
-    private func decodeEvent(_ json: [String: Any]) -> [ConversationEvent] {
+    func decodeEvent(_ json: [String: Any]) -> [ConversationEvent] {
         guard let type = json["type"] as? String else {
             return []
         }
@@ -72,59 +40,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         }
     }
 
-    func finalize() -> [ConversationEvent] {
-        []
-    }
-
-    func sendMessage(_ message: String, to process: Process) throws {
-        guard let stdin = process.standardInput as? Pipe else {
-            throw AgentError.stdinClosed
-        }
-
-        let event: [String: Any] = [
-            "type": "user",
-            "message": [
-                "role": "user",
-                "content": [["type": "text", "text": message]]
-            ]
-        ]
-        let data = try JSONSerialization.data(withJSONObject: event)
-        guard let payload = String(data: data, encoding: .utf8) else {
-            throw AgentError.spawnFailed("Failed to encode message as UTF-8")
-        }
-
-        try stdin.fileHandleForWriting.write(contentsOf: Data((payload + "\n").utf8))
-    }
-
-    func sessionFilePath(sessionId: String, cwd: String) -> String? {
-        let canonicalCwd = CanonicalPath.normalize(cwd)
-        let encodedDirectory = ClaudePathEncoding.projectDirectoryName(forCanonicalCwd: canonicalCwd)
-        return NSHomeDirectory() + "/.claude/projects/\(encodedDirectory)/\(sessionId).jsonl"
-    }
-
-    func canResumeSession(sessionId: String, cwd: String) -> Bool {
-        guard let path = sessionFilePath(sessionId: sessionId, cwd: cwd) else {
-            return false
-        }
-        return FileManager.default.fileExists(atPath: path)
-    }
-
-    func sessionLaunch(sessionId: String, cwd: String, isResuming: Bool, forkSession: Bool) -> SessionLaunchDecision {
-        if isResuming, canResumeSession(sessionId: sessionId, cwd: cwd) {
-            var args = ["--resume", sessionId]
-            if forkSession {
-                args.append("--fork-session")
-            }
-            return SessionLaunchDecision(args: args, continuity: .preserved)
-        }
-
-        return SessionLaunchDecision(
-            args: ["--session-id", sessionId],
-            continuity: isResuming ? .restartedFresh : .preserved
-        )
-    }
-
-    private func decodeSystemEvent(_ json: [String: Any]) -> [ConversationEvent] {
+    func decodeSystemEvent(_ json: [String: Any]) -> [ConversationEvent] {
         guard let subtype = json["subtype"] as? String else {
             return []
         }
@@ -145,7 +61,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         }
     }
 
-    private func decodeAssistantEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
+    func decodeAssistantEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
         guard let message = json["message"] as? [String: Any],
               let content = message["content"] as? [[String: Any]] else {
             return []
@@ -182,7 +98,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         }
     }
 
-    private func decodeUserEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
+    func decodeUserEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
         guard let message = json["message"] as? [String: Any],
               let content = message["content"] as? [[String: Any]] else {
             return []
@@ -235,7 +151,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         }
     }
 
-    private func sanitizedUserMessageText(_ rawText: String?) -> (role: String, content: String)? {
+    func sanitizedUserMessageText(_ rawText: String?) -> (role: String, content: String)? {
         guard let trimmedText = rawText?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmedText.isEmpty else {
             return nil
@@ -262,7 +178,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         )
     }
 
-    private func decodeStreamEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
+    func decodeStreamEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
         guard let event = json["event"] as? [String: Any],
               let eventType = event["type"] as? String else {
             return []
@@ -278,7 +194,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         return [.messageChunk(text: text, parentToolUseId: parentToolUseId)]
     }
 
-    private func decodeResultEvent(_ json: [String: Any]) -> [ConversationEvent] {
+    func decodeResultEvent(_ json: [String: Any]) -> [ConversationEvent] {
         let usage = json["usage"] as? [String: Any]
         let permissionDenials = (json["permission_denials"] as? [[String: Any]])?.compactMap { entry -> PermissionDenialSummary? in
             guard let toolName = entry["tool_name"] as? String else {
@@ -303,7 +219,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
         return events
     }
 
-    private func deferredToolApprovalEvent(from json: [String: Any]) -> [ConversationEvent]? {
+    func deferredToolApprovalEvent(from json: [String: Any]) -> [ConversationEvent]? {
         guard json["stop_reason"] as? String == "tool_deferred",
               let deferredToolUse = json["deferred_tool_use"] as? [String: Any],
               let sessionId = sessionId(from: json),
@@ -389,68 +305,5 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
             return false
         }
         return stopReason == "tool_deferred"
-    }
-}
-
-private extension ClaudeAdapter {
-    func decodeSystemInitEvent(_ json: [String: Any]) -> [ConversationEvent] {
-        var events: [ConversationEvent] = [.sessionInit(sessionId: json["session_id"] as? String)]
-        if let permissionMode = json["permissionMode"] as? String {
-            events.append(.permissionModeChanged(permissionMode))
-        }
-        return events
-    }
-
-    func decodeSystemStatusEvent(_ json: [String: Any]) -> [ConversationEvent] {
-        guard let permissionMode = json["permissionMode"] as? String else {
-            return []
-        }
-        return [.permissionModeChanged(permissionMode)]
-    }
-
-    func decodeTaskStartedEvent(_ json: [String: Any]) -> [ConversationEvent] {
-        guard let toolUseId = requiredString(json["tool_use_id"]) else {
-            return malformed("missing tool_use_id in system/task_started")
-        }
-        return [
-            .subAgentStarted(
-                toolUseId: toolUseId,
-                description: json["description"] as? String ?? "",
-                taskType: json["task_type"] as? String
-            )
-        ]
-    }
-
-    func decodeTaskProgressEvent(_ json: [String: Any]) -> [ConversationEvent] {
-        guard let toolUseId = requiredString(json["tool_use_id"]) else {
-            return malformed("missing tool_use_id in system/task_progress")
-        }
-        let usage = json["usage"] as? [String: Any]
-        return [
-            .subAgentProgress(
-                toolUseId: toolUseId,
-                description: json["description"] as? String,
-                lastToolName: json["last_tool_name"] as? String,
-                toolUses: usage?["tool_uses"] as? Int ?? 0,
-                totalTokens: usage?["total_tokens"] as? Int ?? 0,
-                durationMs: usage?["duration_ms"] as? Int ?? 0
-            )
-        ]
-    }
-
-    func decodeTaskNotificationEvent(_ json: [String: Any]) -> [ConversationEvent] {
-        guard let toolUseId = requiredString(json["tool_use_id"]) else {
-            return malformed("missing tool_use_id in system/task_notification")
-        }
-        let usage = json["usage"] as? [String: Any]
-        return [
-            .subAgentCompleted(
-                toolUseId: toolUseId,
-                status: json["status"] as? String ?? "completed",
-                toolUses: usage?["tool_uses"] as? Int ?? 0,
-                totalTokens: usage?["total_tokens"] as? Int ?? 0,
-                durationMs: usage?["duration_ms"] as? Int ?? 0
-            )
-        ]
     }
 }

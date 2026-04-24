@@ -1,6 +1,6 @@
 ## Claude Hook Integration
 
-These instructions cover Alveary-owned Claude hook support under `Alveary/Services/Agent/Hooks/`.
+These instructions cover Alveary-owned Claude hook support under `Alveary/Services/Agent/Claude/Hooks/`.
 
 - Keep hook configuration outside user repositories and global Claude settings. Generate session settings in Alveary-owned app support or test temp directories, then pass them with `--settings`.
 - Bind hook HTTP listeners only to loopback addresses. Never expose approval hooks on non-local interfaces.
