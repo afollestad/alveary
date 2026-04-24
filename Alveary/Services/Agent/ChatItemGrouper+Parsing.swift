@@ -142,17 +142,45 @@ private extension ChatItemGrouper {
     }
 
     /// `ToolSearch.query` is either `select:<Name>[,<Name>...]` to pull specific tool schemas,
-    /// or a freeform keyword string. Strip the `select:` prefix when present so the transcript
-    /// shows the tool the search is resolving (e.g. `WebFetch`) rather than the raw query.
+    /// or a freeform keyword string. Strip the `select:` prefix when present, split comma-separated
+    /// names into separate inline-code spans, and pluralize the summary for multi-tool lookups.
     static func toolSearchSummary(from json: [String: Any]) -> String {
         let query = json["query"] as? String ?? ""
-        let display: String
+        let rawDisplay: String
         if query.hasPrefix("select:") {
-            display = String(query.dropFirst("select:".count))
+            rawDisplay = String(query.dropFirst("select:".count))
         } else {
-            display = query
+            rawDisplay = query
         }
-        return "Searching for tool `\(display)`"
+
+        let displays = rawDisplay
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard displays.count > 1 else {
+            return "Searching for tool `\(displays.first ?? rawDisplay)`"
+        }
+
+        return "Searching for tools \(formattedToolSearchList(displays))"
+    }
+
+    static func formattedToolSearchList(_ displays: [String]) -> String {
+        let formattedDisplays = displays.map { "`\($0)`" }
+        switch formattedDisplays.count {
+        case 0:
+            return ""
+        case 1:
+            return formattedDisplays[0]
+        case 2:
+            return formattedDisplays.joined(separator: " and ")
+        default:
+            let leadingDisplays = formattedDisplays.dropLast().joined(separator: ", ")
+            guard let lastDisplay = formattedDisplays.last else {
+                return ""
+            }
+            return "\(leadingDisplays), and \(lastDisplay)"
+        }
     }
 
     static func todoWriteSummary(from json: [String: Any]) -> String {

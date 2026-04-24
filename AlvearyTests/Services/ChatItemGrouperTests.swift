@@ -339,12 +339,24 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "mcp__gdrive__update_file"), .standalone)
     }
 
-    func testToolSearchSummaryStripsSelectPrefix() {
+    func testToolSearchSummaryFormatsQuery() {
         let stripped = ChatItemGrouper.toolSummary(
             name: "ToolSearch",
             input: "{\"max_results\":1,\"query\":\"select:WebFetch\"}"
         )
         XCTAssertEqual(stripped, "Searching for tool `WebFetch`")
+
+        let multipleTools = ChatItemGrouper.toolSummary(
+            name: "ToolSearch",
+            input: "{\"max_results\":3,\"query\":\"select:EnterPlanMode,ExitPlanMode, AskUserQuestion\"}"
+        )
+        XCTAssertEqual(multipleTools, "Searching for tools `EnterPlanMode`, `ExitPlanMode`, and `AskUserQuestion`")
+
+        let twoTools = ChatItemGrouper.toolSummary(
+            name: "ToolSearch",
+            input: "{\"max_results\":2,\"query\":\"select:EnterPlanMode,ExitPlanMode\"}"
+        )
+        XCTAssertEqual(twoTools, "Searching for tools `EnterPlanMode` and `ExitPlanMode`")
 
         let freeform = ChatItemGrouper.toolSummary(
             name: "ToolSearch",

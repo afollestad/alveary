@@ -15,7 +15,8 @@ struct StandaloneToolRow: View {
         // The `Button`'s label absorbs the bubble's chrome-side padding so the click
         // zone covers the entire header band of the bubble, not just the narrow
         // HStack of chevron + icon + summary (short tool summaries like
-        // `ToolSearch` "Searching for tool `X`" were easy to miss otherwise). The
+        // `ToolSearch` "Searching for tool `X`" / "Searching for tools `X` and `Y`"
+        // were easy to miss otherwise). The
         // expanded `ToolDetails` is a sibling in the outer VStack — leaving it
         // outside the Button preserves text selection inside `DetailCodeBlock` and
         // avoids the tap/text-selection contention that a bubble-wide gesture had.
