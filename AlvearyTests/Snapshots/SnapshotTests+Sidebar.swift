@@ -4,6 +4,80 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testSidebarProjectRowHoverCollapsedShowsRightChevron() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                project: project,
+                isExpanded: false,
+                isSelected: false,
+                initialRowHover: true,
+                initialToggleIconHover: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            ),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_hover_collapsed_chevron"
+        )
+    }
+
+    func testSidebarProjectRowHoverExpandedShowsDownChevron() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                project: project,
+                isExpanded: true,
+                isSelected: false,
+                initialRowHover: true,
+                initialToggleIconHover: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            ),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_hover_expanded_chevron"
+        )
+    }
+
+    func testSidebarProjectRowSelectedCollapsedKeepsFolderIcon() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                project: project,
+                isExpanded: false,
+                isSelected: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            )
+            .appSelectionRowBackground(isSelected: true),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_selected_collapsed_folder"
+        )
+    }
+
+    func testSidebarProjectRowSelectedExpandedKeepsFolderIcon() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                project: project,
+                isExpanded: true,
+                isSelected: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            )
+            .appSelectionRowBackground(isSelected: true),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_selected_expanded_folder"
+        )
+    }
+
     func testSidebarThreadRowStoppedStatusDotVisible() {
         let thread = AgentThread(name: AgentThread.untitledName)
 

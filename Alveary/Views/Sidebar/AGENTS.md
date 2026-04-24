@@ -6,9 +6,14 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 
 - `SidebarProjectRow`'s leading icon `Button` is load-bearing for click-to-expand:
     - **Action:** Toggles expansion, never project activation. `onToggleExpanded` must remain the sole action; project activation lives on the sibling content affordance plus the row's transparent background tap target so dead space inside the selected-row chrome still opens the project.
-    - **Icon:** Always render the folder glyph; do not swap it for a chevron or animate the symbol during hover/selection/expansion. The row's expand/collapse affordance now lives in the click behavior and accessibility label, not in icon replacement.
+    - **Default icon:** Render the folder glyph when the icon is not hovered.
+    - **Hovered icon:** Transition the icon to `chevron.right` for collapsed projects and `chevron.down` for expanded projects while the pointer is over the icon button.
+    - **Toggle feedback:** Keep the icon in the hovered chevron state after clicks and switch it to the opposite chevron as `isExpanded` changes; return to the folder glyph when hover ends.
     - **Hit region:** Keep the fixed 16×16 frame paired with `.contentShape(Rectangle())` so the folder button stays easy to hit even though the glyph is smaller than the nominal box. A `.plain` `Button` without `.contentShape` hit-tests against the SF Symbol's intrinsic outline, which makes clicks near the frame edges miss the toggle.
     - **Accessibility:** Provide an explicit `.accessibilityLabel` that reflects the current toggle action (`Expand <project>` / `Collapse <project>`). Without it, VoiceOver falls back to the SF Symbol's raw name (`"folder, button"`).
+- `SidebarProjectRow`'s trailing new-thread button mirrors row emphasis:
+    - **Selected visibility:** Keep the button visible and hit-testable while the project row is selected.
+    - **Hover visibility:** For unselected rows, keep the existing row-hover fade-in behavior and hide the button again when hover ends.
 - Sidebar project rows are single-line. Do not reintroduce branch/path/local subtitles under the project name; expanded thread lists and the project settings surface already carry that metadata.
 - Thread rename is inline (Finder-style `TextField` swap in `SidebarThreadRow`), not a modal sheet. The row tracks an `editingThreadID` binding.
 - `SidebarThreadRow` renders on a single line. Do not reintroduce a branch or worktree subtitle; threads with and without a worktree are meant to share a uniform row height.

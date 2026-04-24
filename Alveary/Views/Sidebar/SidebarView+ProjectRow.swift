@@ -15,19 +15,60 @@ struct SidebarProjectRow: View {
     let onCreateThread: () -> Void
 
     @State private var isHovering = false
+    @State private var isHoveringToggleIcon = false
     @State private var isHoveringCreateThread = false
+
+    init(
+        project: Project,
+        isExpanded: Bool,
+        isSelected: Bool,
+        initialRowHover: Bool = false,
+        initialToggleIconHover: Bool = false,
+        onToggleExpanded: @escaping () -> Void,
+        onActivate: @escaping () -> Void,
+        onCreateThread: @escaping () -> Void
+    ) {
+        self.project = project
+        self.isExpanded = isExpanded
+        self.isSelected = isSelected
+        self.onToggleExpanded = onToggleExpanded
+        self.onActivate = onActivate
+        self.onCreateThread = onCreateThread
+        _isHovering = State(initialValue: initialRowHover)
+        _isHoveringToggleIcon = State(initialValue: initialToggleIconHover)
+    }
 
     var body: some View {
         HStack(spacing: Self.leadingSpacing) {
-            Button(action: onToggleExpanded) {
-                Image(systemName: "folder")
-                    .font(.system(size: Self.leadingIconFontSize, weight: .medium))
-                    .foregroundStyle(subtleForegroundColor)
-                    .frame(width: Self.leadingIconWidth, height: Self.leadingIconWidth)
-                    .contentShape(Rectangle())
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    onToggleExpanded()
+                }
+            } label: {
+                ZStack {
+                    toggleIcon(systemName: "folder")
+                        .opacity(showsExpansionIcon ? 0 : 1)
+                        .scaleEffect(showsExpansionIcon ? 0.86 : 1)
+
+                    toggleIcon(systemName: "chevron.right")
+                        .opacity(showsExpansionIcon && !isExpanded ? 1 : 0)
+                        .scaleEffect(showsExpansionIcon && !isExpanded ? 1 : 0.86)
+
+                    toggleIcon(systemName: "chevron.down")
+                        .opacity(showsExpansionIcon && isExpanded ? 1 : 0)
+                        .scaleEffect(showsExpansionIcon && isExpanded ? 1 : 0.86)
+                }
+                .frame(width: Self.leadingIconWidth, height: Self.leadingIconWidth)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(toggleAccessibilityLabel)
+            .onHover { isHovering in
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isHoveringToggleIcon = isHovering
+                }
+            }
+            .animation(.easeInOut(duration: 0.12), value: isExpanded)
 
             ZStack(alignment: .trailing) {
                 Button(action: onActivate) {
@@ -59,8 +100,8 @@ struct SidebarProjectRow: View {
                 .buttonStyle(.plain)
                 .contentShape(Circle())
                 .offset(x: 4)
-                .opacity(isHovering ? 1 : 0)
-                .allowsHitTesting(isHovering)
+                .opacity(showsCreateThreadButton ? 1 : 0)
+                .allowsHitTesting(showsCreateThreadButton)
                 .onHover { isHovering in
                     withAnimation(.easeOut(duration: 0.12)) {
                         isHoveringCreateThread = isHovering
@@ -68,6 +109,7 @@ struct SidebarProjectRow: View {
                 }
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
                 .accessibilityLabel("New Thread")
+                .accessibilityHidden(!showsCreateThreadButton)
                 .help("New Thread (\(KeyboardShortcut.newThread.displayString))")
             }
             .frame(maxWidth: .infinity)
@@ -90,10 +132,25 @@ struct SidebarProjectRow: View {
             }
         }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
+        .animation(.easeInOut(duration: 0.12), value: isSelected)
     }
 
     private var subtleForegroundColor: Color {
         Color.primary.opacity(isSelected ? 0.76 : 0.62)
+    }
+
+    private var showsExpansionIcon: Bool {
+        isHoveringToggleIcon
+    }
+
+    private var showsCreateThreadButton: Bool {
+        isHovering || isSelected
+    }
+
+    private func toggleIcon(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: Self.leadingIconFontSize, weight: .medium))
+            .foregroundStyle(subtleForegroundColor)
     }
 
     private var toggleAccessibilityLabel: String {
