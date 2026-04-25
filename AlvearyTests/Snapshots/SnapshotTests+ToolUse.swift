@@ -109,6 +109,20 @@ extension SnapshotTests {
         )
     }
 
+    func testToolApprovalWrite() {
+        assertMacSnapshot(
+            ToolApprovalBlock(
+                approval: sampleWriteApproval,
+                status: .pending,
+                onApprove: {},
+                onApproveForSession: { _ in },
+                onDeny: {}
+            ),
+            size: CGSize(width: 760, height: 120),
+            named: "tool_approval_write"
+        )
+    }
+
     func testToolApprovalBatchWrite() {
         assertMacSnapshot(
             ToolApprovalBlock(

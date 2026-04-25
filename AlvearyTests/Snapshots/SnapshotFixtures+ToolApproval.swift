@@ -29,19 +29,29 @@ extension SnapshotTests {
         ]
     }
 
+    var sampleWriteApproval: ToolApprovalRequest {
+        ToolApprovalRequest(
+            sessionId: "session-snapshot",
+            toolUseId: "tool-write",
+            toolName: "Write",
+            toolInput: #"{"file_path":"\#(NSHomeDirectory())/Development/alveary/test_parallel.txt","content":"test"}"#
+        )
+    }
+
     var sampleWriteBatchApprovals: [ToolApprovalRequest] {
-        [
+        let homeDirectory = NSHomeDirectory()
+        return [
             ToolApprovalRequest(
                 sessionId: "session-snapshot",
                 toolUseId: "tool-write-one",
                 toolName: "Write",
-                toolInput: "{\"file_path\":\"/tmp/first.md\",\"content\":\"One\"}"
+                toolInput: #"{"file_path":"\#(homeDirectory)/Development/alveary/first.md","content":"One"}"#
             ),
             ToolApprovalRequest(
                 sessionId: "session-snapshot",
                 toolUseId: "tool-write-two",
                 toolName: "Write",
-                toolInput: "{\"file_path\":\"/tmp/second.md\",\"content\":\"Two\"}"
+                toolInput: #"{"file_path":"\#(homeDirectory)/Development/alveary/second.md","content":"Two"}"#
             )
         ]
     }
@@ -51,7 +61,7 @@ extension SnapshotTests {
             sessionId: "session-snapshot",
             toolUseId: "tool-edit",
             toolName: "Edit",
-            toolInput: "{\"file_path\":\"Alveary/Services/Agent/Claude/ClaudeAdapter.swift\"}"
+            toolInput: #"{"file_path":"\#(NSHomeDirectory())/Development/alveary/Alveary/Services/Agent/Claude/ClaudeAdapter.swift"}"#
         )
     }
 

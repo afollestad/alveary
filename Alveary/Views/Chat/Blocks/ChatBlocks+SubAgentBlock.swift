@@ -130,6 +130,7 @@ private struct SubAgentExpandedContent: View {
                !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 DetailCodeBlock(title: "Result", content: result)
                     .padding(.top, agent.tools.isEmpty ? transcriptToolExpandedContentTopSpacing : 0)
+                    .padding(.bottom, toolExpandedContentBottomSpacing)
                     .padding(.leading, transcriptToolDetailLeadingInset)
             }
         }

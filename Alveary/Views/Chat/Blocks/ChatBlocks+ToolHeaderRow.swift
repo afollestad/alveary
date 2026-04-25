@@ -119,6 +119,53 @@ struct TranscriptDisclosureHeaderRow: View {
     }
 }
 
+struct TranscriptStaticHeaderRow: View {
+    let title: String
+    let systemImage: String
+    var bottomPadding = transcriptToolRowVerticalPadding
+    var fillsWidth = true
+
+    var body: some View {
+        let content = ViewThatFits(in: .horizontal) {
+            row(fixesTitleWidth: true)
+            row(fixesTitleWidth: false)
+        }
+        .padding(.top, transcriptToolRowVerticalPadding)
+        .padding(.bottom, bottomPadding)
+        .contentShape(Rectangle())
+
+        if fillsWidth {
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            content
+        }
+    }
+
+    private func row(fixesTitleWidth: Bool) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            TranscriptToolLeadingIcon(kind: .symbol(systemName: systemImage))
+
+            titleText(fixesWidth: fixesTitleWidth)
+        }
+    }
+
+    @ViewBuilder
+    private func titleText(fixesWidth: Bool) -> some View {
+        let text = Text(title)
+            .font(.system(size: transcriptToolSummaryFontSize))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.leading, transcriptToolLeadingTextSpacing)
+
+        if fixesWidth {
+            text.fixedSize(horizontal: true, vertical: false)
+        } else {
+            text
+        }
+    }
+}
+
 private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: View {
     let summary: String
     let bottomPadding: CGFloat
@@ -181,6 +228,7 @@ private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: Vie
 enum TranscriptToolLeadingIconKind: Equatable {
     case disclosure(isExpanded: Bool)
     case bash
+    case symbol(systemName: String)
 }
 
 struct TranscriptToolLeadingIcon: View {
@@ -190,22 +238,37 @@ struct TranscriptToolLeadingIcon: View {
         Image(systemName: systemName)
             .font(iconFont)
             .foregroundStyle(.primary)
+            .rotationEffect(.degrees(rotationDegrees))
             .frame(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize, alignment: .center)
             .allowsHitTesting(false)
+            .animation(toolExpansionAnimation, value: rotationDegrees)
     }
 
     private var systemName: String {
         switch kind {
-        case .disclosure(let isExpanded):
-            return isExpanded ? "chevron.down" : "chevron.right"
+        case .disclosure:
+            // Rotating one symbol keeps disclosure transitions animated; swapping
+            // between chevron SF Symbols snaps before the row animation settles.
+            return "chevron.right"
         case .bash:
             return "dollarsign"
+        case .symbol(let systemName):
+            return systemName
+        }
+    }
+
+    private var rotationDegrees: Double {
+        switch kind {
+        case .disclosure(let isExpanded):
+            return isExpanded ? 90 : 0
+        case .bash, .symbol:
+            return 0
         }
     }
 
     private var iconFont: Font {
         switch kind {
-        case .disclosure:
+        case .disclosure, .symbol:
             return .system(size: transcriptToolIconFontSize, weight: .regular)
         case .bash:
             return .system(size: transcriptToolIconFontSize, weight: .regular)

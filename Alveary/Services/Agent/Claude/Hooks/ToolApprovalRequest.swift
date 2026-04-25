@@ -22,7 +22,6 @@ struct DeferredToolComposerStatusText: Sendable, Equatable {
 
 struct ToolApprovalPromptCopy: Sendable, Equatable {
     let title: String
-    let showsDisplayName: Bool
     let approveTitle: String
     let approvedTitle: String
     let denyTitle: String
@@ -30,7 +29,6 @@ struct ToolApprovalPromptCopy: Sendable, Equatable {
 
     static let generic = ToolApprovalPromptCopy(
         title: "Approve tool use?",
-        showsDisplayName: true,
         approveTitle: "Approve",
         approvedTitle: "Approved",
         denyTitle: "Deny",
@@ -39,7 +37,6 @@ struct ToolApprovalPromptCopy: Sendable, Equatable {
 
     static let exitPlanMode = ToolApprovalPromptCopy(
         title: "Ready to leave plan mode?",
-        showsDisplayName: false,
         approveTitle: "Leave plan mode",
         approvedTitle: "Leaving plan mode",
         denyTitle: "Keep planning",
@@ -75,25 +72,6 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
-    var displayName: String {
-        switch toolName {
-        case "Bash":
-            return "Bash command"
-        case "Write":
-            return "Write file"
-        case "Edit", "MultiEdit":
-            return "Edit file"
-        case "NotebookEdit":
-            return "Edit notebook"
-        case "EnterPlanMode":
-            return "Enter plan mode"
-        case "ExitPlanMode":
-            return "Exit plan mode"
-        default:
-            return toolName
-        }
-    }
-
     var conciseSummary: String {
         let parsedInput = parsedInput
         let candidate: String?
@@ -101,7 +79,9 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         case "Bash":
             candidate = parsedInput["command"]
         case "Write", "Edit", "MultiEdit", "NotebookEdit":
-            candidate = parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"]
+            candidate = Self.displayApprovalPath(
+                parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"]
+            )
         case "EnterPlanMode":
             candidate = "Switch the session into plan mode"
         case "ExitPlanMode":
@@ -132,6 +112,24 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         default:
             return []
         }
+    }
+
+    static func approvalPromptTitle(for approvals: [ToolApprovalRequest]) -> String {
+        // Keep header copy here so transcript views do not grow duplicate
+        // tool-family switches just to choose singular/plural approval wording.
+        guard let firstApproval = approvals.first else {
+            return ToolApprovalPromptCopy.generic.title
+        }
+
+        guard approvals.count > 1 else {
+            return firstApproval.approvalPromptTitle(isPlural: false)
+        }
+
+        guard approvals.allSatisfy({ $0.toolName == firstApproval.toolName }) else {
+            return "Approve tool uses?"
+        }
+
+        return firstApproval.approvalPromptTitle(isPlural: true)
     }
 
     func sessionApprovalGrant(
@@ -197,6 +195,32 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    private func approvalPromptTitle(isPlural: Bool) -> String {
+        switch toolName {
+        case "Bash":
+            return "Approve Bash \(isPlural ? "commands" : "command")?"
+        case "Write":
+            return "Approve writing to \(isPlural ? "files" : "a file")?"
+        case "Edit", "MultiEdit":
+            return "Approve editing \(isPlural ? "files" : "a file")?"
+        case "NotebookEdit":
+            return "Approve editing \(isPlural ? "notebooks" : "a notebook")?"
+        case "EnterPlanMode":
+            return "Approve entering plan mode?"
+        case "ExitPlanMode":
+            return approvalPromptCopy.title
+        default:
+            return genericApprovalPromptTitle(isPlural: isPlural)
+        }
+    }
+
+    private func genericApprovalPromptTitle(isPlural: Bool) -> String {
+        if toolName.hasPrefix("mcp__") {
+            return "Approve MCP tool \(isPlural ? "uses" : "use")?"
+        }
+        return "Approve \(toolName) tool \(isPlural ? "uses" : "use")?"
+    }
+
     private var parsedInput: [String: String] {
         Self.parseInput(toolInput)
     }
@@ -250,6 +274,15 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
                 partialResult[entry.key] = string
             }
         }
+    }
+
+    private static func displayApprovalPath(_ path: String?) -> String? {
+        // Approval summaries should show the exact path being approved, while
+        // still using the transcript's canonical home-abbreviated path style.
+        guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty else {
+            return nil
+        }
+        return CanonicalPath.displayMentionPath(path, relativeTo: nil)
     }
 
     private static func truncated(_ value: String, limit: Int = 140) -> String {

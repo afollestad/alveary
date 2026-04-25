@@ -14,6 +14,7 @@ struct ToolApprovalBlock: View {
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
     @State private var selectedApprovalSelection: ToolApprovalSelection
     @State private var selectionGeneration = 0
+    @Namespace private var actionButtonNamespace
 
     init(
         approval: ToolApprovalRequest,
@@ -52,66 +53,22 @@ struct ToolApprovalBlock: View {
         }
     }
 
-    private var isBatch: Bool {
-        approvals.count > 1
-    }
-
     private var title: String {
-        isBatch ? "Approve tool uses?" : approval.approvalPromptCopy.title
-    }
-
-    private var displayName: String {
-        guard isBatch else {
-            return approval.displayName
-        }
-
-        let names = Set(approvals.map(\.displayName))
-        guard names.count == 1,
-              let name = names.first else {
-            return "\(approvals.count) tool uses"
-        }
-
-        switch name {
-        case "Bash command":
-            return "\(approvals.count) Bash commands"
-        default:
-            return "\(approvals.count) tool uses"
-        }
+        ToolApprovalRequest.approvalPromptTitle(for: approvals)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "lock.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
-                    .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 0) {
+            TranscriptStaticHeaderRow(title: title, systemImage: "lock.fill", bottomPadding: 0, fillsWidth: false)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-
-                    if approval.approvalPromptCopy.showsDisplayName {
-                        Text(displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(approvals) { approval in
-                            Text(approval.conciseSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                }
-            }
+            approvalSummary
+                .padding(.top, toolApprovalActionsTopSpacing)
+                .padding(.leading, transcriptToolDetailLeadingInset)
 
             actionLayout
                 .controlSize(.small)
+                .padding(.top, toolApprovalActionsTopSpacing)
+                .padding(.leading, transcriptToolDetailLeadingInset)
         }
         .padding(.horizontal, chatBlockPadding)
         .padding(.vertical, chatVerticalPadding)
@@ -124,32 +81,49 @@ struct ToolApprovalBlock: View {
         }
     }
 
+    private var approvalSummary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(approvals) { approval in
+                ApprovalSummaryLine(approval: approval)
+            }
+        }
+        .font(.system(size: transcriptToolApprovalBodyFontSize))
+        .foregroundStyle(.secondary)
+    }
+
     @ViewBuilder
     private var actionLayout: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                actionButtons
+                // `ViewThatFits` keeps fallback candidates alive for layout; only
+                // the primary row can own matched-geometry endpoints.
+                actionButtons(enableMatchedGeometry: true)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                actionButtons
+                actionButtons(enableMatchedGeometry: false)
             }
         }
+        .animation(toolExpansionAnimation, value: actionAnimationID)
     }
 
     @ViewBuilder
-    private var actionButtons: some View {
+    private func actionButtons(enableMatchedGeometry: Bool) -> some View {
         if isDenied {
-            denyButton(title: approval.approvalPromptCopy.deniedTitle)
+            denyButton(title: approval.approvalPromptCopy.deniedTitle, enableMatchedGeometry: enableMatchedGeometry)
+            hiddenPendingApproveButton
         } else if isSuperseded {
-            supersededButton
+            supersededButton()
+            hiddenPendingApproveButton
         } else if isOneShotApproved {
-            approveButton(title: approval.approvalPromptCopy.approvedTitle)
+            approveButton(title: approval.approvalPromptCopy.approvedTitle, enableMatchedGeometry: enableMatchedGeometry)
+            hiddenPendingDenyButton
         } else if let resolvedSessionTitle {
-            sessionApprovalButton(title: resolvedSessionTitle, isResolved: true)
+            sessionApprovalButton(title: resolvedSessionTitle, isResolved: true, enableMatchedGeometry: enableMatchedGeometry)
+            hiddenPendingDenyButton
         } else {
-            pendingApproveButton
-            denyButton(title: approval.approvalPromptCopy.denyTitle)
+            pendingApproveButton(enableMatchedGeometry: enableMatchedGeometry)
+            denyButton(title: approval.approvalPromptCopy.denyTitle, enableMatchedGeometry: enableMatchedGeometry)
         }
     }
 
@@ -178,6 +152,10 @@ struct ToolApprovalBlock: View {
 
     private var approvalSelectionLoadID: String {
         approvalSelectionIdentityID + "\u{0}" + (status?.rawValue ?? "none")
+    }
+
+    private var actionAnimationID: String {
+        status?.rawValue ?? "pending"
     }
 
     private var shouldLoadApprovalSelection: Bool {
@@ -212,9 +190,13 @@ struct ToolApprovalBlock: View {
     }
 
     @ViewBuilder
-    private var pendingApproveButton: some View {
+    private func pendingApproveButton(isLayoutPlaceholder: Bool = false, enableMatchedGeometry: Bool = false) -> some View {
         if sessionApprovalScopes.isEmpty {
-            approveButton(title: approval.approvalPromptCopy.approveTitle)
+            approveButton(
+                title: approval.approvalPromptCopy.approveTitle,
+                isLayoutPlaceholder: isLayoutPlaceholder,
+                enableMatchedGeometry: enableMatchedGeometry
+            )
         } else {
             SplitActionButton(
                 title: pendingApprovalTitle,
@@ -228,11 +210,35 @@ struct ToolApprovalBlock: View {
                 }
             )
             .disabled(actionsAreDisabled)
+            .toolApprovalMatchedAction(
+                actionMatchID(
+                    ToolApprovalMatchedActionID.approve,
+                    isLayoutPlaceholder: isLayoutPlaceholder,
+                    enableMatchedGeometry: enableMatchedGeometry
+                ),
+                in: actionButtonNamespace
+            )
         }
     }
 
+    private var hiddenPendingApproveButton: some View {
+        // Invisible placeholders preserve the pending prompt width after one
+        // action resolves without introducing extra matched-geometry targets.
+        pendingApproveButton(isLayoutPlaceholder: true)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+    }
+
+    private var hiddenPendingDenyButton: some View {
+        denyButton(title: approval.approvalPromptCopy.denyTitle, isLayoutPlaceholder: true)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+    }
+
     @ViewBuilder
-    private func sessionApprovalButton(title: String, isResolved: Bool) -> some View {
+    private func sessionApprovalButton(title: String, isResolved: Bool, enableMatchedGeometry: Bool) -> some View {
         Button {
             if let scope = sessionApprovalScopes.first {
                 onApproveForSession(scope)
@@ -242,9 +248,21 @@ struct ToolApprovalBlock: View {
         }
         .secondaryActionButtonStyle()
         .disabled(isResolved || actionsAreDisabled || sessionApprovalScopes.isEmpty)
+        .toolApprovalMatchedAction(
+            actionMatchID(
+                ToolApprovalMatchedActionID.approve,
+                isLayoutPlaceholder: false,
+                enableMatchedGeometry: enableMatchedGeometry
+            ),
+            in: actionButtonNamespace
+        )
     }
 
-    private func approveButton(title: String) -> some View {
+    private func approveButton(
+        title: String,
+        isLayoutPlaceholder: Bool = false,
+        enableMatchedGeometry: Bool = false
+    ) -> some View {
         Button {
             onApprove()
         } label: {
@@ -252,9 +270,21 @@ struct ToolApprovalBlock: View {
         }
         .primaryActionButtonStyle()
         .disabled(actionsAreDisabled)
+        .toolApprovalMatchedAction(
+            actionMatchID(
+                ToolApprovalMatchedActionID.approve,
+                isLayoutPlaceholder: isLayoutPlaceholder,
+                enableMatchedGeometry: enableMatchedGeometry
+            ),
+            in: actionButtonNamespace
+        )
     }
 
-    private func denyButton(title: String) -> some View {
+    private func denyButton(
+        title: String,
+        isLayoutPlaceholder: Bool = false,
+        enableMatchedGeometry: Bool = false
+    ) -> some View {
         Button {
             onDeny()
         } label: {
@@ -262,9 +292,17 @@ struct ToolApprovalBlock: View {
         }
         .secondaryActionButtonStyle()
         .disabled(actionsAreDisabled)
+        .toolApprovalMatchedAction(
+            actionMatchID(
+                ToolApprovalMatchedActionID.deny,
+                isLayoutPlaceholder: isLayoutPlaceholder,
+                enableMatchedGeometry: enableMatchedGeometry
+            ),
+            in: actionButtonNamespace
+        )
     }
 
-    private var supersededButton: some View {
+    private func supersededButton() -> some View {
         Button(action: {}, label: {
             actionLabel(title: "Superseded", systemImage: "arrow.trianglehead.clockwise")
         })
@@ -274,6 +312,13 @@ struct ToolApprovalBlock: View {
 
     private func actionLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
+    }
+
+    private func actionMatchID(_ id: String, isLayoutPlaceholder: Bool, enableMatchedGeometry: Bool) -> String? {
+        if isLayoutPlaceholder || !enableMatchedGeometry {
+            return nil
+        }
+        return id
     }
 
     private func pendingApprovalMenuTitle(for selection: ToolApprovalSelection) -> String {
@@ -320,5 +365,49 @@ struct ToolApprovalBlock: View {
         }
 
         selectedApprovalSelection = (selection ?? .once).normalized(for: sessionApprovalScopes)
+    }
+}
+
+private struct ApprovalSummaryLine: View {
+    let approval: ToolApprovalRequest
+
+    var body: some View {
+        if approval.toolName == "Bash" {
+            commandChip
+        } else {
+            Text(approval.conciseSummary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private var commandChip: some View {
+        Text(approval.conciseSummary)
+            .font(.system(size: transcriptToolApprovalBodyFontSize, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.horizontal, approvalCommandChipHPadding)
+            .padding(.vertical, approvalCommandChipVPadding)
+            .background(
+                RoundedRectangle(cornerRadius: approvalCommandChipCornerRadius, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+            )
+    }
+}
+
+private enum ToolApprovalMatchedActionID {
+    static let approve = "approve"
+    static let deny = "deny"
+}
+
+private extension View {
+    @ViewBuilder
+    func toolApprovalMatchedAction(_ id: String?, in namespace: Namespace.ID) -> some View {
+        if let id {
+            matchedGeometryEffect(id: id, in: namespace)
+        } else {
+            self
+        }
     }
 }

@@ -61,6 +61,7 @@ struct InlineToolRow: View {
             if expansion.wrappedValue {
                 ToolDetails(tool: tool)
                     .padding(.top, transcriptToolExpandedContentTopSpacing)
+                    .padding(.bottom, toolExpandedContentBottomSpacing)
                     .padding(.leading, transcriptToolDetailLeadingInset)
             }
         }
