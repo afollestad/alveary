@@ -79,7 +79,6 @@ struct ConversationView: View {
         ChatView(
             viewModel: viewModel,
             conversation: conversation,
-            diffViewModel: diffViewModel,
             composerCapabilities: composerCapabilities,
             workingDirectory: activeWorkingDirectory,
             loadFileCompletions: Self.makeFileCompletionLoader(

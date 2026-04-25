@@ -45,15 +45,14 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    // REGRESSION: the changed-files strip (on thread open with async diff loading)
-    // and error banners (appearing while thread is visible) both take vertical
-    // space in the composer panel, shrinking the transcript's viewport. When that
-    // happens with the user at bottom, `.scrollPosition(_, anchor: .bottom)` bumps
-    // offsetY *up* to keep the content-bottom aligned to the viewport-bottom — so
-    // offsetY CHANGED but the user didn't scroll. The old `!offsetChanged` guard
-    // excluded this case and left the transcript above the bottom once the strip/
-    // banner appeared. `!offsetDecreased` correctly allows anchor-driven offset
-    // increases while still rejecting real user drags.
+    // REGRESSION: error banners and other composer-panel content can appear while
+    // a thread is visible, shrinking the transcript's viewport. When that happens
+    // with the user at bottom, `.scrollPosition(_, anchor: .bottom)` bumps offsetY
+    // *up* to keep the content-bottom aligned to the viewport-bottom — so offsetY
+    // CHANGED but the user didn't scroll. The old `!offsetChanged` guard excluded
+    // this case and left the transcript above the bottom once the banner appeared.
+    // `!offsetDecreased` correctly allows anchor-driven offset increases while
+    // still rejecting real user drags.
     func testPreservesFollowModeOnContainerShrinkWithAnchorDrivenOffsetIncrease() {
         // Was at bottom (distance=0), container shrinks by 100, anchor bumps offsetY
         // from 540 to 640 to keep content-bottom at viewport-bottom.

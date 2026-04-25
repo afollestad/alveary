@@ -13,3 +13,10 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 ## GitHub CLI
 
 - `gh auth login --web` does not auto-open the browser without a TTY. GitHub auth flows in the app must continue parsing the emitted URL/code and opening the browser explicitly.
+
+## Diff Stats
+
+- `GitService.diffStats(in:)` feeds the toolbar's green `+N` and red `-N` summary:
+    - **Use `git diff --numstat`.** Keep parsing machine-readable numstat output instead of localized shortstat text.
+    - **Include both scopes.** Sum unstaged `git diff --numstat --` and staged `git diff --cached --numstat --` output so the toolbar reflects all tracked current changes.
+    - **Skip binary rows.** Numstat reports binary files as `-\t-`; ignore those rows rather than guessing line counts.

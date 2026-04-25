@@ -69,9 +69,8 @@ extension ChatItemGrouper {
             removeLastRenderedGroupIfNeeded()
         }
 
-        if !pendingSubAgentIds.isEmpty {
-            removeLastRenderedSubAgentBlockIfNeeded()
-        }
+        // Sub-agent blocks replace/merge themselves in place because approval
+        // prompts can be interleaved beneath a live parallel-agent block.
     }
 
     func flushGroup() {

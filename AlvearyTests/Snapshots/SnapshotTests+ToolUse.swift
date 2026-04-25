@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 
 @testable import Alveary
 
@@ -39,7 +40,7 @@ extension SnapshotTests {
     func testToolGroupExpandedIndentsChildren() {
         assertMacSnapshot(
             ToolGroupBlock(tools: sampleGroupTools, initiallyExpanded: true),
-            size: CGSize(width: 760, height: 220),
+            size: CGSize(width: 760, height: 240),
             named: "tool_group_expanded_indents_children"
         )
     }
@@ -65,6 +66,17 @@ extension SnapshotTests {
             StandaloneToolRow(tool: sampleStandaloneBashErrorTool, initiallyExpanded: true),
             size: CGSize(width: 760, height: 240),
             named: "standalone_bash_error_expanded"
+        )
+    }
+
+    func testStandaloneExpandedThenCollapsedSpacing() {
+        assertMacSnapshot(
+            VStack(alignment: .leading, spacing: 6) {
+                StandaloneToolRow(tool: sampleStandaloneBashPwdTool, initiallyExpanded: true)
+                StandaloneToolRow(tool: sampleStandaloneBashDateTool)
+            },
+            size: CGSize(width: 520, height: 160),
+            named: "standalone_expanded_then_collapsed_spacing"
         )
     }
 

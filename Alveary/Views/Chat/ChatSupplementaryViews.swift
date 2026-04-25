@@ -114,6 +114,9 @@ struct UserBubble: View {
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                         .fill(AppAccentFill.primary)
                 )
+                // Keeps Textual's AppKit-backed text moving with the bubble chrome
+                // during transcript reflow from tool-row expand/collapse.
+                .geometryGroup()
 
                 if showsRetry, let onRetry {
                     HStack(spacing: 8) {
@@ -145,6 +148,8 @@ struct AssistantBubble: View {
                 RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                     .fill(Color.secondary.opacity(0.08))
             )
+            // See the matching user-bubble comment above.
+            .geometryGroup()
             .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
     }
 }
@@ -242,11 +247,15 @@ struct CenteredTranscriptNote: View {
     let kind: CenteredTranscriptNoteKind
 
     var body: some View {
-        Text(kind.text)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, 6)
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+
+            Text(kind.text)
+        }
+        .font(.body.weight(.medium))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 24)
     }
 }
 
@@ -293,74 +302,5 @@ struct StagedContextBanner: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
         )
-    }
-}
-
-struct ChangedFilesStrip: View {
-    let files: [FileStatus]
-    let onOpenDiff: (FileStatus) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Changed files")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(files.prefix(8)) { file in
-                        HStack(spacing: 8) {
-                            Text(symbol(for: file))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(file.isStaged ? .green : .secondary)
-
-                            Text(displayName(for: file))
-                                .lineLimit(1)
-                                .font(.caption)
-
-                            Divider()
-                                .frame(height: 14)
-
-                            Button("Diff") {
-                                onOpenDiff(file)
-                            }
-                            .buttonStyle(.plain)
-                            .font(.caption.weight(.semibold))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.secondary.opacity(0.08))
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private func displayName(for file: FileStatus) -> String {
-        if let originalPath = file.originalPath,
-           originalPath != file.path {
-            return "\(originalPath) → \(file.path)"
-        }
-        return file.path
-    }
-
-    private func symbol(for file: FileStatus) -> String {
-        switch file.status {
-        case .modified:
-            return "●"
-        case .added, .untracked:
-            return "+"
-        case .deleted:
-            return "−"
-        case .renamed:
-            return "→"
-        case .copied:
-            return "⧉"
-        case .unmerged:
-            return "!"
-        }
     }
 }

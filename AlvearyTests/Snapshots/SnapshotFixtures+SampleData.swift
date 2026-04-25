@@ -235,7 +235,7 @@ extension SnapshotTests {
             ToolEntry(
                 id: "grep-retry",
                 name: "Grep",
-                summary: "Grep `retry(`",
+                summary: "Searching for pattern `retry(`",
                 input: "{\"pattern\":\"retry(\"}",
                 output: "Sources/session.swift: retry(after:)",
                 stderr: nil,
@@ -266,7 +266,7 @@ extension SnapshotTests {
             ToolEntry(
                 id: "grep-retry-pending",
                 name: "Grep",
-                summary: "Grep `retry(`",
+                summary: "Searching for pattern `retry(`",
                 input: "{\"pattern\":\"retry(\"}",
                 output: nil,
                 stderr: nil,
@@ -342,35 +342,36 @@ extension SnapshotTests {
         )
     }
 
-    var sampleSubAgents: [SubAgentEntry] {
-        [
-            SubAgentEntry(
-                id: "agent-search",
-                agentType: "search",
-                description: "Search for the stale permission banner logic",
-                statusDescription: "Scanning the current chat stack",
-                lastToolName: "Read",
-                tools: [],
-                result: nil,
-                isComplete: false,
-                toolUseCount: 3,
-                totalTokens: 8_200,
-                durationMs: 1_400
-            ),
-            SubAgentEntry(
-                id: "agent-tests",
-                agentType: "validation",
-                description: "Review the existing snapshot coverage",
-                statusDescription: nil,
-                lastToolName: nil,
-                tools: [],
-                result: "PromptBlock and MCP screen states still need coverage.",
-                isComplete: true,
-                toolUseCount: 5,
-                totalTokens: 12_400,
-                durationMs: 2_300
-            )
-        ]
+    var sampleStandaloneBashPwdTool: ToolEntry {
+        ToolEntry(
+            id: "pwd",
+            name: "Bash",
+            summary: "Executing `pwd`",
+            input: "{\"command\":\"pwd\",\"description\":\"Print current directory\"}",
+            output: "/Users/afollestad/Development/alveary",
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+    }
+
+    var sampleStandaloneBashDateTool: ToolEntry {
+        ToolEntry(
+            id: "date",
+            name: "Bash",
+            summary: "Executing `date`",
+            input: "{\"command\":\"date\",\"description\":\"Print current date\"}",
+            output: "Fri Apr 24 18:41:48 CDT 2026",
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
     }
 
     var sampleTasks: [TaskEntry] {

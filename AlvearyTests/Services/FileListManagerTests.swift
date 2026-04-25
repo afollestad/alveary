@@ -55,6 +55,7 @@ private actor MockGitService: GitService {
     }
 
     func status(in directory: String) async throws -> [FileStatus] { [] }
+    func diffStats(in directory: String) async throws -> DiffStats { .empty }
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String { "" }
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String { "" }
     func stage(paths: [String], in directory: String) async throws {}

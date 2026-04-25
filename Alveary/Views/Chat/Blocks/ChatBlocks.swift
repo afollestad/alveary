@@ -1,13 +1,27 @@
 import SwiftUI
 
 let chatBlockPadding: CGFloat = 14
-/// Shared vertical rhythm for chat surfaces — tool bubble headers *and* plain
-/// user/assistant text bubbles. Having tool rows match this keeps a collapsed
-/// tool bubble visually the same height as its neighboring text bubble (the
-/// 14pt all-sides default used to make tool rows ~8pt taller).
+/// Shared vertical rhythm for bubble-style chat surfaces.
 let chatVerticalPadding: CGFloat = 10
 let chatBlockCornerRadius: CGFloat = 12
-let toolDetailLeadingInset: CGFloat = 42
+let transcriptToolIconFrameSize: CGFloat = 16
+let transcriptToolStatusFrameSize = transcriptToolIconFrameSize
+let transcriptToolIconTextSpacing: CGFloat = 24
+let transcriptToolLeadingTextSpacing = transcriptToolIconTextSpacing - transcriptToolIconFrameSize
+let transcriptToolTextStatusSpacing = transcriptToolLeadingTextSpacing
+let transcriptToolSummaryFontSize: CGFloat = 13
+let transcriptToolIconFontSize: CGFloat = 11
+let transcriptToolStatusIconFontSize: CGFloat = 11
+let transcriptToolStatusSpinnerScale: CGFloat = 0.72
+let transcriptToolPressedOpacity = 0.78
+let transcriptToolRowVerticalPadding: CGFloat = 4
+let transcriptToolExpandedContentTopSpacing: CGFloat = 8
+let transcriptToolNestedTopSpacing: CGFloat = 8
+let transcriptToolNestedRowSpacing: CGFloat = 6
+let transcriptToolElbowGap: CGFloat = 10
+let transcriptToolNestedRowLeadingInset = transcriptToolIconFrameSize + transcriptToolLeadingTextSpacing
+let transcriptToolConnectorOpacity: Double = 0.45
+let transcriptToolDetailLeadingInset = transcriptToolIconFrameSize + transcriptToolLeadingTextSpacing
 let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
 let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
 let transcriptBubbleCompactTrailingInset: CGFloat = 24
@@ -48,12 +62,8 @@ extension EnvironmentValues {
 
 extension View {
     /// Standard transcript-bubble chrome: rounded fill + width cap. Apply
-    /// `.padding(chatBlockPadding)` around the bubble's content *before* this
-    /// modifier when the whole bubble wants outer padding (multi-entry
-    /// `ToolGroupBlock`, `SubAgentBlock`, `TaskListBlock`). Variants whose
-    /// Button label absorbs the padding (`StandaloneToolRow`, single-entry
-    /// `ToolGroupBlock`) skip the outer padding — the label's own
-    /// `.padding(chatBlockPadding)` provides the inner spacing there.
+    /// `.padding(chatBlockPadding)` around the bubble's content before this
+    /// modifier. Inline tool rows intentionally do not use this chrome.
     func bubbleBackground(maxWidth: CGFloat) -> some View {
         background(
             RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
@@ -62,32 +72,14 @@ extension View {
         .frame(maxWidth: maxWidth, alignment: .leading)
     }
 
-    /// Re-enable expand/collapse animation for a specific state transition while
-    /// the transcript's active-turn `.transaction { $0.disablesAnimations = true }`
-    /// is in effect. During inactive turns the per-toggle
-    /// `withAnimation(toolExpansionAnimation)` in each bubble's Button action is
-    /// what drives both the bubble's own reflow *and* the surrounding
-    /// `LazyVStack`'s sibling animation; this override is specifically the
-    /// within-bubble fallback for active turns, where the outer transaction would
-    /// otherwise snap the bubble during streaming. Pair `value:` with whatever
-    /// drives the layout shape (e.g. `isExpanded`, the tool list). See the
-    /// **Expand/Collapse Animation** section in `AGENTS.md` for the full contract.
+    /// Pins tool-row subtree reflow to the shared expansion easing for a specific
+    /// value change. The per-toggle `withAnimation(toolExpansionAnimation)` drives
+    /// the surrounding `LazyVStack`; this keeps the row's own inserted details and
+    /// status/list changes on the same timing.
     func toolAnimationOverride<Value: Equatable>(value: Value) -> some View {
         transaction(value: value) { transaction in
-            transaction.disablesAnimations = false
             transaction.animation = toolExpansionAnimation
         }
-    }
-}
-
-struct DisclosureChevron: View {
-    let isExpanded: Bool
-
-    var body: some View {
-        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-            .font(.caption.weight(.semibold))
-            .frame(width: 12, alignment: .center)
-            .foregroundStyle(.secondary)
     }
 }
 

@@ -5,7 +5,6 @@ import SwiftUI
 struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
-    let diffViewModel: DiffViewerViewModel
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
     let loadFileCompletions: @Sendable () async -> [String]
@@ -105,7 +104,6 @@ struct ChatView: View {
     init(
         viewModel: ConversationViewModel,
         conversation: Conversation,
-        diffViewModel: DiffViewerViewModel,
         composerCapabilities: ComposerCapabilities,
         workingDirectory: String?,
         loadFileCompletions: @escaping @Sendable () async -> [String],
@@ -114,7 +112,6 @@ struct ChatView: View {
     ) {
         self.viewModel = viewModel
         self.conversation = conversation
-        self.diffViewModel = diffViewModel
         self.composerCapabilities = composerCapabilities
         self.workingDirectory = workingDirectory
         self.loadFileCompletions = loadFileCompletions
@@ -151,7 +148,6 @@ struct ChatView: View {
 
             ChatComposerPanel(
                 viewModel: viewModel,
-                diffViewModel: diffViewModel,
                 composerCapabilities: composerCapabilities,
                 workingDirectory: workingDirectory,
                 showsTopDivider: hasVisibleChatContent && !isFollowing,
@@ -171,7 +167,7 @@ struct ChatView: View {
                 onStop: {
                     Task { await viewModel.cancel() }
                 },
-                appState: appState
+                focusRequestToken: $appState.pendingComposerFocusToken
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

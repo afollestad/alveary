@@ -19,6 +19,12 @@ final class CLIGitService: GitService {
         return parseStatus(result.stdout)
     }
 
+    func diffStats(in directory: String) async throws -> DiffStats {
+        let unstaged = try await diffStats(args: ["diff", "--numstat", "--"], in: directory)
+        let staged = try await diffStats(args: ["diff", "--cached", "--numstat", "--"], in: directory)
+        return unstaged.adding(staged)
+    }
+
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
         guard !paths.isEmpty else {
             return ""
@@ -212,6 +218,20 @@ final class CLIGitService: GitService {
 }
 
 private extension CLIGitService {
+    func diffStats(args: [String], in directory: String) async throws -> DiffStats {
+        let result = try await shell.run(
+            executable: "/usr/bin/git",
+            args: args,
+            in: directory,
+            stdoutLimitBytes: 1024 * 1024,
+            stderrLimitBytes: 512 * 1024
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+        return parseDiffStats(result.stdout)
+    }
+
     func isLikelyBinary(_ data: Data) -> Bool {
         guard !data.isEmpty else {
             return false
@@ -222,6 +242,21 @@ private extension CLIGitService {
         }
 
         return false
+    }
+
+    func parseDiffStats(_ output: String) -> DiffStats {
+        output
+            .split(separator: "\n")
+            .reduce(.empty) { partialResult, line in
+                let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+                guard parts.count >= 2,
+                      let additions = Int(parts[0]),
+                      let deletions = Int(parts[1]) else {
+                    return partialResult
+                }
+
+                return partialResult.adding(DiffStats(additions: additions, deletions: deletions))
+            }
     }
 
     static func makeError(from result: ShellResult) -> GitError {

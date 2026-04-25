@@ -200,15 +200,16 @@ struct ContentView: View {
                 Button {
                     appState.toggleRightPane()
                 } label: {
-                    Label(
-                        appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
-                        systemImage: "sidebar.trailing"
+                    DiffViewerToolbarButtonLabel(
+                        diffStats: diffViewModel.diffStats
                     )
                 }
                 .help(
-                    (appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
+                    diffViewerToggleHelpText
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))"
                 )
+                .accessibilityLabel(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
+                .accessibilityValue(diffViewerToggleAccessibilityValue)
 
                 Button {
                     appState.openSettings()
@@ -363,5 +364,53 @@ private extension ContentView {
         }
 
         toolbarProjectActions = config.actions ?? []
+    }
+
+    var diffViewerToggleHelpText: String {
+        let action = appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer"
+        let stats = diffViewModel.diffStats
+
+        guard !stats.isEmpty else {
+            return action
+        }
+
+        return "\(action), +\(stats.additions) -\(stats.deletions)"
+    }
+
+    var diffViewerToggleAccessibilityValue: String {
+        let stats = diffViewModel.diffStats
+        guard !stats.isEmpty else {
+            return ""
+        }
+
+        return "\(stats.additions) additions, \(stats.deletions) deletions"
+    }
+}
+
+struct DiffViewerToolbarButtonLabel: View {
+    let diffStats: DiffStats
+
+    var body: some View {
+        Label {
+            diffSummary
+        } icon: {
+            Image(systemName: "sidebar.trailing")
+        }
+        .labelStyle(.titleAndIcon)
+        .font(.body.weight(.medium))
+    }
+
+    @ViewBuilder
+    private var diffSummary: some View {
+        if !diffStats.isEmpty {
+            HStack(spacing: 6) {
+                Text("+\(diffStats.additions)")
+                    .foregroundStyle(.green)
+
+                Text("-\(diffStats.deletions)")
+                    .foregroundStyle(.red)
+            }
+            .padding(.trailing, 4)
+        }
     }
 }

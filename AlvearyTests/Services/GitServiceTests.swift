@@ -67,6 +67,43 @@ final class GitServiceTests: XCTestCase {
         )
     }
 
+    func testDiffStatsCombinesStagedAndUnstagedNumstat() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "3\t1\tSources/App.swift\n-\t-\tAssets/logo.png\n",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "2\t5\tTests/AppTests.swift\n",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let stats = try await service.diffStats(in: "/tmp/project")
+
+        XCTAssertEqual(stats, DiffStats(additions: 5, deletions: 6))
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.count, 2)
+        XCTAssertEqual(invocations[0].args, ["diff", "--numstat", "--"])
+        XCTAssertEqual(invocations[1].args, ["diff", "--cached", "--numstat", "--"])
+    }
+
     func testDiscardRestoresTrackedFilesAndDeletesUntrackedFiles() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)

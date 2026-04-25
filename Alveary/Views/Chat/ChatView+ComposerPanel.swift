@@ -7,7 +7,6 @@ private let composerPanelBottomPadding: CGFloat = 20
 
 struct ChatComposerPanel: View {
     let viewModel: ConversationViewModel
-    let diffViewModel: DiffViewerViewModel
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
     let showsTopDivider: Bool
@@ -25,7 +24,7 @@ struct ChatComposerPanel: View {
     let onSubmit: () -> Void
     let onSteer: () -> Void
     let onStop: () -> Void
-    @Bindable var appState: AppState
+    @Binding var focusRequestToken: UUID?
 
     // Filter the provider's full effort list to those that the current model
     // supports (e.g. Opus 4.7's `xhigh`). Intersect with the provider list
@@ -55,21 +54,6 @@ struct ChatComposerPanel: View {
                 StagedContextBanner(context: stagedContext) {
                     viewModel.dismissStagedContext()
                 }
-            }
-
-            if !diffViewModel.files.isEmpty {
-                ChangedFilesStrip(
-                    files: diffViewModel.files,
-                    onOpenDiff: { file in
-                        appState.showRightPane()
-                        guard let directory = diffViewModel.activeDirectory else {
-                            return
-                        }
-                        Task {
-                            await diffViewModel.selectFile(file, in: directory)
-                        }
-                    }
-                )
             }
 
             ChatInputField(
@@ -103,7 +87,7 @@ struct ChatComposerPanel: View {
                 workingDirectory: workingDirectory,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
-                focusRequestToken: $appState.pendingComposerFocusToken
+                focusRequestToken: $focusRequestToken
             )
         }
         .padding(.horizontal, composerPanelHorizontalPadding)

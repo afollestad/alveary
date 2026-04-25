@@ -28,6 +28,24 @@ struct CommitInfo: Identifiable, Sendable, Equatable {
     let date: Date
 }
 
+struct DiffStats: Sendable, Equatable {
+    static let empty = DiffStats(additions: 0, deletions: 0)
+
+    let additions: Int
+    let deletions: Int
+
+    var isEmpty: Bool {
+        additions == 0 && deletions == 0
+    }
+
+    func adding(_ other: DiffStats) -> DiffStats {
+        DiffStats(
+            additions: additions + other.additions,
+            deletions: deletions + other.deletions
+        )
+    }
+}
+
 enum DiffScope: Sendable, Equatable {
     case staged
     case unstaged
@@ -59,6 +77,7 @@ extension GitError: LocalizedError {
 
 protocol GitService: Sendable {
     func status(in directory: String) async throws -> [FileStatus]
+    func diffStats(in directory: String) async throws -> DiffStats
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String
     func stage(paths: [String], in directory: String) async throws

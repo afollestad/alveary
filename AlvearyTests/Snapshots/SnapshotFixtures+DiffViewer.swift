@@ -34,10 +34,12 @@ struct SnapshotDiffViewerFixture {
 
 actor SnapshotMockGitService: GitService {
     private var statusResults: [[FileStatus]]
+    private var diffStatsResults: [DiffStats]
     private var diffResults: [String]
 
-    init(statusResults: [[FileStatus]], diffResults: [String]) {
+    init(statusResults: [[FileStatus]], diffStatsResults: [DiffStats] = [.empty], diffResults: [String]) {
         self.statusResults = statusResults
+        self.diffStatsResults = diffStatsResults
         self.diffResults = diffResults
     }
 
@@ -46,6 +48,13 @@ actor SnapshotMockGitService: GitService {
             return []
         }
         return statusResults.removeFirst()
+    }
+
+    func diffStats(in directory: String) async throws -> DiffStats {
+        if diffStatsResults.isEmpty {
+            return .empty
+        }
+        return diffStatsResults.removeFirst()
     }
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {

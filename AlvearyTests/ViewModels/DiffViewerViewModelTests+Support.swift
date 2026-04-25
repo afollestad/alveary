@@ -49,6 +49,7 @@ actor DiffViewerMockGitService: GitService {
 
     private var statusResults: [Result<[FileStatus], Error>]
     private var statusDelays: [Duration]
+    private var diffStatsResults: [Result<DiffStats, Error>]
     private var diffResults: [String]
     private var diffDelays: [Duration]
     private var syntheticDiffResults: [String]
@@ -63,6 +64,7 @@ actor DiffViewerMockGitService: GitService {
     init(
         statusResults: [Result<[FileStatus], Error>],
         statusDelays: [Duration] = [],
+        diffStatsResults: [Result<DiffStats, Error>] = [.success(.empty)],
         diffResults: [String] = [],
         diffDelays: [Duration] = [],
         syntheticDiffResults: [String] = [],
@@ -71,6 +73,7 @@ actor DiffViewerMockGitService: GitService {
     ) {
         self.statusResults = statusResults
         self.statusDelays = statusDelays
+        self.diffStatsResults = diffStatsResults
         self.diffResults = diffResults
         self.diffDelays = diffDelays
         self.syntheticDiffResults = syntheticDiffResults
@@ -93,6 +96,13 @@ actor DiffViewerMockGitService: GitService {
             return []
         }
         return try statusResults.removeFirst().get()
+    }
+
+    func diffStats(in directory: String) async throws -> DiffStats {
+        guard !diffStatsResults.isEmpty else {
+            return .empty
+        }
+        return try diffStatsResults.removeFirst().get()
     }
 
     func setOnStatus(_ handler: (@Sendable () -> Void)?) {

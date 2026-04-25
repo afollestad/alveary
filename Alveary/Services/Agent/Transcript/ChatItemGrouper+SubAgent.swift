@@ -71,7 +71,7 @@ extension ChatItemGrouper {
 
         let agents = pendingSubAgentIds.compactMap { activeSubAgents[$0] }
         if let firstAgent = agents.first {
-            appendTranscriptItem(.subAgentBlock(id: "subagents-\(firstAgent.id)", agents: agents))
+            replaceOrAppendSubAgentBlock(seedID: firstAgent.id, agents: agents)
         }
 
         pendingSubAgentIds = pendingSubAgentIds.filter { id in
@@ -87,9 +87,6 @@ extension ChatItemGrouper {
     }
 
     func refreshLiveSubAgentBlock() {
-        if !pendingSubAgentIds.isEmpty {
-            removeLastRenderedSubAgentBlockIfNeeded()
-        }
         flushSubAgents()
     }
 
@@ -149,15 +146,6 @@ extension ChatItemGrouper {
         }
 
         return false
-    }
-
-    func removeLastRenderedSubAgentBlockIfNeeded() {
-        if let index = items.lastIndex(where: { item in
-            if case .subAgentBlock = item { return true }
-            return false
-        }) {
-            items.remove(at: index)
-        }
     }
 }
 
@@ -260,5 +248,34 @@ private extension ChatItemGrouper {
             items[index] = .subAgentBlock(id: blockId, agents: agents)
             return
         }
+    }
+
+    func replaceOrAppendSubAgentBlock(seedID: String, agents: [SubAgentEntry]) {
+        guard let index = items.lastIndex(where: { item in
+            guard case .subAgentBlock(_, let renderedAgents) = item else {
+                return false
+            }
+            return renderedAgents.contains { renderedAgent in
+                agents.contains { $0.id == renderedAgent.id }
+            }
+        }), case .subAgentBlock(let blockId, let renderedAgents) = items[index] else {
+            appendTranscriptItem(.subAgentBlock(id: "subagents-\(seedID)", agents: agents))
+            return
+        }
+
+        // Approval prompts can force a full transcript rebuild while sibling
+        // sub-agents are still running. Merge into the existing block so a
+        // completed sibling does not get stranded in a stale block while the
+        // continuing sibling is appended as a duplicate block later in the pass.
+        var mergedAgents = renderedAgents
+        for agent in agents {
+            if let existingIndex = mergedAgents.firstIndex(where: { $0.id == agent.id }) {
+                mergedAgents[existingIndex] = agent
+            } else {
+                mergedAgents.append(agent)
+            }
+        }
+
+        items[index] = .subAgentBlock(id: blockId, agents: mergedAgents)
     }
 }

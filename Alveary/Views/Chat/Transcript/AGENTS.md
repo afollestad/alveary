@@ -9,7 +9,7 @@ Rules for `ChatView+Transcript*.swift` — scroll coordination, follow-mode, and
 - Transcript auto-follow stays pinned when the user is at the bottom and content grows. Responsibilities are split across three mechanisms — do not collapse them into a single geometry-driven path:
     - **Content-size growth**: `.defaultScrollAnchor(.bottom, for: .sizeChanges)` on the `ScrollView`, gated on `isFollowing`. Covers streaming-bubble wrap, bubble expand/collapse, intrinsic height changes.
     - **New message / stream chunk**: explicit `scrollToBottom` calls in `onChange(of: events.count)`, `onChange(of: viewModel.messageQueue.pending.count)`, and `onChange(of: viewModel.streamingText)`. These are the only content-growth surfaces that snap to bottom.
-    - **Container-size changes**: `shouldPreserveFollowMode` inside `onScrollGeometryChange`. Covers composer banner, error banners, changed-files strip appearing (shrinking viewport) while the user was near the bottom.
+    - **Container-size changes**: `shouldPreserveFollowMode` inside `onScrollGeometryChange`. Covers composer banners and error banners appearing (shrinking viewport) while the user was near the bottom.
         - **Only *shrinks* trigger the preserve path.** Container growth pulls the user toward the bottom on its own.
         - **Offset guard is `!offsetDecreased`, not `!offsetChanged`.** `.scrollPosition(_, anchor: .bottom)` bumps `offsetY` *up* when the container shrinks so the content-bottom stays aligned. That anchor-driven increase is not a user scroll — `!offsetChanged` previously missed this and left the transcript above the bottom when a banner arrived after `.jumpToLatest` timed out. A real user drag up *decreases* `offsetY`.
 - **Do not re-add `contentGrew` to `shouldPreserveFollowMode`.** Bubble expand/collapse animations emit many intermediate `onScrollGeometryChange` frames; firing `scrollToBottom` on those frames fights the bubble's own animation. `.defaultScrollAnchor` handles that case.
@@ -53,7 +53,7 @@ Rules for `ChatView+Transcript*.swift` — scroll coordination, follow-mode, and
 ## `.jumpToLatest` Pending-Mode
 
 - Programmatic `jumpToLatest` on thread entry is **not** one-shot:
-    - Async composer content (e.g. the changed-files strip once `DiffViewerViewModel.files` populates) can shrink the viewport *after* `scrollTo` lands.
+    - Async composer content can shrink the viewport *after* `scrollTo` lands.
     - While pending, container-height shrinks or content growth re-issue `scrollTo(edge: .bottom)` via `shouldReissuePendingJumpToLatest` and refresh the watchdog. This recovery path reacts to content growth (unlike `shouldReissuePendingPreserveFollow`): the window only runs during thread entry / turn-end rebuilds, so it won't interact with per-bubble expand animations.
 - **`.jumpToLatest` does NOT clear pending on a transient `isAtBottom`.** On a large thread, `LazyVStack` initially materializes a small window near the bottom anchor — `isAtBottom` is trivially true (content height ≤ viewport), so a naive "clear on `isAtBottom`" disarms the reissue loop immediately. `LazyVStack` then replaces row-height estimates with real measurements, reported `contentHeight` shifts, our offset stays at the old bottom, viewport ends up above the real content end. Symptom: "transcript blank until I scroll, then content appears." The `isAtBottom` branch only clears pending for `.preserveFollow`; `.jumpToLatest` stays pending until the watchdog fires after 400ms of no growth. `isFollowing` is still set `true` immediately so the button doesn't flash.
 

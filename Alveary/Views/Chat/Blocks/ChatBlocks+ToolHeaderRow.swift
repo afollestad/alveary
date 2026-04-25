@@ -2,14 +2,12 @@ import Foundation
 import SwiftUI
 
 private let toolGroupStatusIndicatorDebounce: Duration = .milliseconds(250)
+private let transcriptToolSummarySlashCommandPattern = #"(^|[\s\(\[\{<"'])(/[A-Za-z][A-Za-z0-9_-]*)(?=$|[\s\)\]\}>"'.,;:])"#
 
-/// Parse a tool summary (e.g. ``"Read `~/foo.swift`"``) as Markdown and tint any
-/// inline-code runs so the backticked span visually reads as a code pill rather than
-/// a bare monospaced slice. Parsing + run-walking on every body evaluation showed up
-/// as the hottest path during transcript scrolling (every visible `ToolHeaderRow`
-/// re-evaluates on parent state changes), so the result is memoized on the MainActor —
-/// the input set is bounded by the tools in the conversation, and the cache is never
-/// purged for a single session.
+/// Parse a tool summary as inline Markdown and apply the same lightweight chip treatment
+/// used by transcript text for backticked spans, slash commands, and file mentions.
+/// Parsing and run-walking on every body evaluation showed up as a hot path during
+/// transcript scrolling, so results are memoized for the lifetime of the session.
 @MainActor
 private func attributedToolSummary(_ text: String) -> AttributedString {
     AttributedSummaryCache.attributed(text)
@@ -18,6 +16,7 @@ private func attributedToolSummary(_ text: String) -> AttributedString {
 @MainActor
 private enum AttributedSummaryCache {
     static var cache: [String: AttributedString] = [:]
+    private static let slashCommandRegex = try? NSRegularExpression(pattern: transcriptToolSummarySlashCommandPattern)
 
     static func attributed(_ text: String) -> AttributedString {
         if let cached = cache[text] {
@@ -25,10 +24,13 @@ private enum AttributedSummaryCache {
         }
 
         let result: AttributedString
-        if var attributed = try? AttributedString(markdown: text) {
-            for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
-                attributed[run.range].backgroundColor = Color.secondary.opacity(0.18)
-            }
+        let parser = AppMarkdownParser(
+            inlineCodeStyle: .standard,
+            composerChipProvider: toolSummaryTextChips(in:),
+            parsingMode: .inline
+        )
+        if var attributed = try? parser.attributedString(for: text) {
+            applyInlineChipStyle(to: &attributed)
             result = attributed
         } else {
             result = AttributedString(text)
@@ -37,38 +39,177 @@ private enum AttributedSummaryCache {
         cache[text] = result
         return result
     }
+
+    private static func applyInlineChipStyle(to attributed: inout AttributedString) {
+        for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
+            attributed[run.range].backgroundColor = Color.secondary.opacity(0.18)
+        }
+    }
+
+    private static func toolSummaryTextChips(in text: String) -> [AppTextEditorChip] {
+        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: text)
+        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
+        let source = text as NSString
+
+        var chips = ChatInputFieldTextSupport.fileMentionMatches(in: text).map { match in
+            AppTextEditorChip(
+                range: match.highlightRange,
+                displayText: ChatInputFieldTextSupport.mentionChipDisplayText(for: match.path),
+                style: .fileMention
+            )
+        }
+
+        if let slashCommandRegex {
+            let fullRange = NSRange(location: 0, length: source.length)
+            chips.append(contentsOf: slashCommandRegex.matches(in: text, range: fullRange).compactMap { match in
+                guard match.numberOfRanges >= 3 else {
+                    return nil
+                }
+                let commandRange = match.range(at: 2)
+                guard commandRange.location != NSNotFound else {
+                    return nil
+                }
+                return AppTextEditorChip(
+                    range: commandRange,
+                    displayText: source.substring(with: commandRange),
+                    style: .slashCommand
+                )
+            })
+        }
+
+        return chips
+            .filter { chip in
+                !excludedRanges.contains { NSIntersectionRange($0, chip.range).length > 0 }
+            }
+            .sorted { $0.range.location < $1.range.location }
+    }
 }
 
-/// Collapsed-state header used by every tool-row variant (`StandaloneToolRow`,
-/// `ToolGroupBlock` single-entry, `InlineToolRow`, `SubAgentToolRow`). Each variant
-/// wraps `ToolHeaderRow` in a `Button` and renders `ToolDetails` as a sibling when
-/// expanded, so clicks on the expanded body (which enables `.textSelection`) don't
-/// contend with a bubble-wide tap gesture — that contention produced the earlier
-/// expand/collapse freeze.
 struct ToolHeaderRow: View {
     let tool: ToolEntry
     let isExpanded: Bool
+    var bottomPadding = transcriptToolRowVerticalPadding
 
     var body: some View {
-        // No trailing `Spacer` here — Spacer makes the HStack greedy and defeats the
-        // hug-to-content behavior the enclosing bubble relies on.
-        HStack(alignment: .center, spacing: 10) {
-            DisclosureChevron(isExpanded: isExpanded)
+        TranscriptToolHeaderContent(summary: tool.transcriptDisplaySummary, bottomPadding: bottomPadding) {
+            TranscriptToolLeadingIcon(kind: tool.name == "Bash" ? .bash : .disclosure(isExpanded: isExpanded))
+        } status: {
+            ToolStatusIndicator(phase: tool.transcriptStatusPhase)
+        }
+    }
+}
 
-            ToolStatusIndicator(isError: tool.isError, isComplete: tool.isComplete)
+struct TranscriptDisclosureHeaderRow: View {
+    let summary: String
+    let isExpanded: Bool
+    let phase: ToolStatusPhase
+    var debounceStatus = false
+    var bottomPadding = transcriptToolRowVerticalPadding
 
-            // Parse the summary as Markdown so backticks become inline-code runs (with a
-            // tinted background pill), and so `LocalizedStringKey`-only quirks with
-            // runtime strings don't silently strip the formatting.
-            Text(attributedToolSummary(tool.summary))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-
-            if tool.isInterrupted {
-                InterruptedTag()
+    var body: some View {
+        TranscriptToolHeaderContent(summary: summary, bottomPadding: bottomPadding) {
+            TranscriptToolLeadingIcon(kind: .disclosure(isExpanded: isExpanded))
+        } status: {
+            if debounceStatus {
+                DebouncedToolStatusIndicator(phase: phase)
+            } else {
+                ToolStatusIndicator(phase: phase)
             }
         }
+    }
+}
+
+private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: View {
+    let summary: String
+    let bottomPadding: CGFloat
+    let leadingIcon: LeadingIcon
+    let status: Status
+
+    init(
+        summary: String,
+        bottomPadding: CGFloat = transcriptToolRowVerticalPadding,
+        @ViewBuilder leadingIcon: () -> LeadingIcon,
+        @ViewBuilder status: () -> Status
+    ) {
+        self.summary = summary
+        self.bottomPadding = bottomPadding
+        self.leadingIcon = leadingIcon()
+        self.status = status()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(fixesSummaryWidth: true)
+            row(fixesSummaryWidth: false)
+        }
+        .padding(.top, transcriptToolRowVerticalPadding)
+        .padding(.bottom, bottomPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    private func row(fixesSummaryWidth: Bool) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            leadingIcon
+                .frame(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize, alignment: .center)
+
+            summaryText(fixesWidth: fixesSummaryWidth)
+
+            status
+                .frame(width: transcriptToolStatusFrameSize, height: transcriptToolStatusFrameSize, alignment: .center)
+                .padding(.leading, transcriptToolTextStatusSpacing)
+        }
+    }
+
+    @ViewBuilder
+    private func summaryText(fixesWidth: Bool) -> some View {
+        let text = Text(attributedToolSummary(summary))
+            .font(.system(size: transcriptToolSummaryFontSize))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.leading, transcriptToolLeadingTextSpacing)
+
+        if fixesWidth {
+            text.fixedSize(horizontal: true, vertical: false)
+        } else {
+            text
+        }
+    }
+}
+
+enum TranscriptToolLeadingIconKind: Equatable {
+    case disclosure(isExpanded: Bool)
+    case bash
+}
+
+struct TranscriptToolLeadingIcon: View {
+    let kind: TranscriptToolLeadingIconKind
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(iconFont)
+            .foregroundStyle(.primary)
+            .frame(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize, alignment: .center)
+            .allowsHitTesting(false)
+    }
+
+    private var systemName: String {
+        switch kind {
+        case .disclosure(let isExpanded):
+            return isExpanded ? "chevron.down" : "chevron.right"
+        case .bash:
+            return "dollarsign"
+        }
+    }
+
+    private var iconFont: Font {
+        switch kind {
+        case .disclosure:
+            return .system(size: transcriptToolIconFontSize, weight: .regular)
+        case .bash:
+            return .system(size: transcriptToolIconFontSize, weight: .regular)
+        }
     }
 }
 
@@ -78,12 +219,12 @@ enum ToolStatusPhase: Equatable {
     case error
 
     init(isError: Bool, isComplete: Bool) {
-        if isError {
-            self = .error
-        } else if isComplete {
-            self = .success
-        } else {
+        if !isComplete {
             self = .loading
+        } else if isError {
+            self = .error
+        } else {
+            self = .success
         }
     }
 
@@ -158,9 +299,9 @@ final class ToolStatusIndicatorDebouncer: ObservableObject {
     }
 }
 
-/// Multi-entry tool groups can briefly look "done" before another tool call streams
-/// into the group. Delay terminal icons slightly so the aggregate header stays on the
-/// spinner unless the group has actually settled.
+/// Multi-entry tool groups can briefly look done before another tool call streams in.
+/// Delay terminal icons slightly so aggregate headers stay on the spinner until the
+/// group has actually settled.
 struct DebouncedToolStatusIndicator: View {
     let phase: ToolStatusPhase
 
@@ -182,26 +323,8 @@ struct DebouncedToolStatusIndicator: View {
     }
 }
 
-/// Status indicator shared by single-tool headers (`ToolHeaderRow`) and the aggregate
-/// multi-entry `ToolGroupBlock` header. Rotation for the in-progress spinner runs on
-/// Core Animation (NSProgressIndicator on macOS), so it does not re-evaluate the
-/// SwiftUI view tree per frame and is safe to leave mounted during transcript scrolling.
-///
-/// Earlier iterations tried a custom `withAnimation(.repeatForever)` SwiftUI spinner
-/// to avoid `NSProgressIndicator`'s first-frame warmup and its timing-driven rotation
-/// (a potential source of snapshot flakes). That approach caused thread-open renders
-/// to land with a blank transcript until the user scrolled — a never-ending SwiftUI
-/// animation on a LazyVStack row interacted badly with `scrollPosition` /
-/// `defaultScrollAnchor` layout coordination. `ProgressView` stays in its own AppKit
-/// layer and does not disturb SwiftUI layout, so it is the more stable choice even
-/// though its first-frame appearance is briefly empty.
-///
-/// Branch animations are explicitly suppressed: the enclosing tool bubble applies
-/// `toolAnimationOverride(value: tools)` to ease its width/height reflow when tools
-/// stream in, but that transaction also propagates down and would cross-fade the
-/// status branches (or animate a newly-inserted `InlineToolRow` from whatever
-/// transient state SwiftUI picks). The status branches should snap — a spinner
-/// appearing *as* a spinner, not fading in from an ambiguous initial state.
+/// Status indicator shared by single-tool rows and aggregate headers. All states keep
+/// the same layout box so spinner-to-symbol transitions do not resize rows.
 struct ToolStatusIndicator: View {
     let phase: ToolStatusPhase
 
@@ -216,38 +339,22 @@ struct ToolStatusIndicator: View {
     var body: some View {
         Group {
             if phase == .error {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
+                    .font(.system(size: transcriptToolStatusIconFontSize, weight: .regular))
                     .foregroundStyle(.red)
             } else if phase == .success {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: "checkmark")
+                    .font(.system(size: transcriptToolStatusIconFontSize, weight: .regular))
                     .foregroundStyle(.green)
             } else {
                 ProgressView()
                     .controlSize(.small)
-                    .scaleEffect(0.75)
+                    .scaleEffect(transcriptToolStatusSpinnerScale)
             }
         }
-        // Width *and height* are pinned so the enclosing HStack doesn't reflow when
-        // the branch swaps. `ProgressView().controlSize(.small)` reserves ~16pt of
-        // intrinsic layout height (scaleEffect only transforms the render — it doesn't
-        // shrink the layout box), while the SF Symbol at the ambient body font is
-        // intrinsically ~13pt tall. Without a fixed height, the HStack grew during
-        // the in-progress state and then shrank on spinner→checkmark, which caused a
-        // visible vertical nudge in the enclosing bubble whenever a tool group rapidly
-        // toggled between working and success as additional tool calls streamed in.
-        // 16pt matches the spinner's natural layout size, so pinning there keeps rows
-        // at the height they already had while the spinner was present; icons render
-        // centered within that slot at their intrinsic ~13pt size.
-        .frame(width: 18, height: 16, alignment: .center)
-        // Snap the *branch swap* (spinner → checkmark → xmark) so it doesn't
-        // cross-fade from whatever transient state SwiftUI picks. Crucially this is
-        // scoped to `value: branchKey` — a bare `.transaction { $0.animation = nil }`
-        // also nulled out layout-driven updates, so when a neighboring bubble expanded
-        // or collapsed and the transcript's animation propagated through the
-        // `LazyVStack`, this indicator snapped to its new position while the rest of
-        // its row eased. Scoping to branch identity suppresses only the branch
-        // transition; surrounding layout still animates at the parent's cadence.
+        .frame(width: transcriptToolStatusFrameSize, height: transcriptToolStatusFrameSize, alignment: .center)
         .transaction(value: branchKey) { $0.animation = nil }
+        .allowsHitTesting(false)
     }
 
     private var branchKey: Int {
@@ -255,12 +362,53 @@ struct ToolStatusIndicator: View {
     }
 }
 
-struct InterruptedTag: View {
-    var body: some View {
-        Text("Interrupted")
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(Color.orange.opacity(0.18)))
+extension ToolEntry {
+    var transcriptStatusPhase: ToolStatusPhase {
+        ToolStatusPhase(isError: isError, isComplete: isComplete)
+    }
+
+    var transcriptDisplaySummary: String {
+        switch name {
+        case "Bash":
+            return "\(isComplete ? "Ran" : "Running") \(bashSummaryBody)"
+        case "Read":
+            return isComplete
+                ? summary.replacingLeadingWord("Reading", with: "Read")
+                : summary.replacingLeadingWord("Read", with: "Reading")
+        case "Grep", "Glob":
+            return isComplete ? summary.replacingPrefix("Searching ", with: "Searched ") : summary
+        case "ToolSearch":
+            return isComplete ? summary.replacingPrefix("Searching ", with: "Searched ") : summary
+        case "WebSearch":
+            return isComplete ? summary.replacingPrefix("Searching ", with: "Searched ") : summary
+        case "WebFetch":
+            return isComplete ? summary.replacingPrefix("Fetching ", with: "Fetched ") : summary
+        case "Edit", "MultiEdit", "NotebookEdit":
+            return summary.replacingLeadingWord(name, with: isComplete ? "Edited" : "Editing")
+        case "Write":
+            return summary.replacingLeadingWord("Write", with: isComplete ? "Wrote" : "Writing")
+        default:
+            return summary
+        }
+    }
+
+    private var bashSummaryBody: String {
+        summary
+            .replacingPrefix("Executing ", with: "")
+            .replacingPrefix("Running ", with: "")
+            .replacingPrefix("Ran ", with: "")
+    }
+}
+
+private extension String {
+    func replacingLeadingWord(_ word: String, with replacement: String) -> String {
+        replacingPrefix("\(word) ", with: "\(replacement) ")
+    }
+
+    func replacingPrefix(_ prefix: String, with replacement: String) -> String {
+        guard hasPrefix(prefix) else {
+            return self
+        }
+        return replacement + String(dropFirst(prefix.count))
     }
 }

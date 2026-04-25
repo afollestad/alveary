@@ -20,6 +20,7 @@ The routing switch lives in `ContentView+DiffViewerRouting.swift` and delegates 
 - **Set `isLoadingFiles = true` only when `switchToDirectory` detects `directoryChanged`.**
     - **Why:** same-directory refreshes (baseRef/remoteName changed, or a refresh after a git mutation) keep the existing file list on screen. Flipping the flag would flash the spinner over content the user can still read correctly.
 - **Clear `isLoadingFiles = false` at the end of `performRefresh` and in `clear()`.** Do not clear it in `switchToDirectory` — a stale refresh whose generation no longer matches early-returns from `performRefresh` before the clear, and the next `switchToDirectory` has already re-set the flag for the new binding.
+- **Publish line stats with file refreshes.** `DiffViewerViewModel.diffStats` is the toolbar's `+N` / `-N` source and should update from the same generation-checked refresh that publishes `files`. Keep stats auxiliary: if the stats command fails while status succeeds, show empty stats instead of surfacing a diff-viewer error.
 
 ## File List Overlay Ordering
 

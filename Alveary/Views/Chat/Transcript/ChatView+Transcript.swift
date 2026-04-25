@@ -56,6 +56,7 @@ struct ChatTranscriptView: View {
     @State private var latestMetrics: ChatTranscriptScrollMetrics?
     @State private var scrollPosition = ScrollPosition()
     @State private var transcriptContentWidth: CGFloat = 0
+    @State private var expandedTranscriptRows: Set<String> = []
     @State private var isProgressiveScrolling = false
 
     private var shouldShowTransientInterruptedNote: Bool {
@@ -63,6 +64,7 @@ struct ChatTranscriptView: View {
     }
 
     var body: some View {
+        let toolRowWidth: CGFloat? = transcriptContentWidth > 40 ? transcriptContentWidth - 40 : nil
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
                 ForEach(viewModel.state.grouper.items) { item in
@@ -87,12 +89,15 @@ struct ChatTranscriptView: View {
                         )
                     case .assistantMessage(_, let text):
                         AssistantBubble(markdown: text)
-                    case .toolGroup(_, let tools):
-                        ToolGroupBlock(tools: tools)
-                    case .standaloneTool(_, let tool):
-                        StandaloneToolRow(tool: tool)
-                    case .subAgentBlock(_, let agents):
-                        SubAgentBlock(agents: agents)
+                    case .toolGroup(let id, let tools):
+                        ToolGroupBlock(tools: tools, isExpanded: transcriptRowExpansionBinding(for: id))
+                            .frame(width: toolRowWidth, alignment: .leading)
+                    case .standaloneTool(let id, let tool):
+                        StandaloneToolRow(tool: tool, isExpanded: transcriptRowExpansionBinding(for: id))
+                            .frame(width: toolRowWidth, alignment: .leading)
+                    case .subAgentBlock(let id, let agents):
+                        SubAgentBlock(agents: agents, isExpanded: transcriptRowExpansionBinding(for: id))
+                            .frame(width: toolRowWidth, alignment: .leading)
                     case .taskListBlock(_, let tasks):
                         TaskListBlock(tasks: tasks)
                     case .promptBlock(_, let prompt):
@@ -157,11 +162,6 @@ struct ChatTranscriptView: View {
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)
         .scrollPosition($scrollPosition, anchor: .bottom)
-        .transaction { transaction in
-            if viewModel.turnState.isActive {
-                transaction.disablesAnimations = true
-            }
-        }
         .onScrollGeometryChange(for: ChatTranscriptScrollMetrics.self) { geometry in
             ChatTranscriptScrollMetrics(
                 offsetY: geometry.contentOffset.y,
@@ -294,11 +294,13 @@ struct ChatTranscriptView: View {
         })
     }
 
-    // Markdown link resolution (`resolveMarkdownLinkURL`) lives in
-    // `ChatView+Transcript+LinkResolution.swift`.
 }
-
 private extension ChatTranscriptView {
+    func transcriptRowExpansionBinding(for rowID: String) -> Binding<Bool> {
+        Binding(get: { expandedTranscriptRows.contains(rowID) }, set: { isExpanded in
+            if isExpanded { expandedTranscriptRows.insert(rowID) } else { expandedTranscriptRows.remove(rowID) }
+        })
+    }
     func scrollToBottom(
         forceFollow: Bool = false,
         retries: ScrollToBottomRetries = .triple,
@@ -473,7 +475,6 @@ private extension ChatTranscriptView {
 
 private struct ScrollToLatestButton: View {
     let action: () -> Void
-
     var body: some View {
         Button(action: action) {
             Image(systemName: "arrow.down")

@@ -50,8 +50,8 @@ enum PendingProgrammaticScrollAction: Equatable {
 }
 
 enum ChatTranscriptScrollBehavior {
-    /// Preserve follow mode when the *viewport* shrinks under the user (e.g. the composer
-    /// banner or the changed-files strip appearing) and they were already near the bottom.
+    /// Preserve follow mode when the *viewport* shrinks under the user (e.g. a composer
+    /// banner appearing) and they were already near the bottom.
     ///
     /// The predicate is deliberately asymmetric on both axes:
     /// - **Container shrinks, not any change.** Container *growth* pulls the user toward
@@ -60,11 +60,11 @@ enum ChatTranscriptScrollBehavior {
     /// - **Offset didn't *decrease*, not "didn't change".** `.scrollPosition(_, anchor: .bottom)`
     ///   bumps `offsetY` *up* when the container shrinks to keep the content-bottom aligned
     ///   to the viewport-bottom. That anchor-driven offset increase is not a user scroll —
-    ///   excluding all offset changes (the old `!offsetChanged`) made us miss the diff-strip
-    ///   case where the strip loads *after* the initial thread-open scroll has settled and
-    ///   `.jumpToLatest` pending has timed out. A real user drag up *decreases* offsetY, so
-    ///   `!offsetDecreased` is the correct guard: it rejects user drags but allows anchor
-    ///   adjustments.
+    ///   excluding all offset changes (the old `!offsetChanged`) made us miss composer
+    ///   banners that appear *after* the initial thread-open scroll has settled and
+    ///   `.jumpToLatest` pending has timed out. A real user drag up *decreases* offsetY,
+    ///   so `!offsetDecreased` is the correct guard: it rejects user drags but allows
+    ///   anchor adjustments.
     ///
     /// Content-size growth is still deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
     /// already pins the bottom during content growth, and new-message / streaming snaps are
@@ -116,9 +116,9 @@ enum ChatTranscriptScrollBehavior {
     }
 
     /// While a `jumpToLatest` scroll is still pending, composer-area changes that shrink the
-    /// transcript viewport (e.g. the changed-files strip appearing after an async diff load)
-    /// or content that grows below the current bottom move the real bottom out from under the
-    /// pending scroll. Re-issue `scrollTo` so we land at the new bottom instead of timing out.
+    /// transcript viewport or content that grows below the current bottom move the real
+    /// bottom out from under the pending scroll. Re-issue `scrollTo` so we land at the new
+    /// bottom instead of timing out.
     static func shouldReissuePendingJumpToLatest(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
@@ -129,7 +129,7 @@ enum ChatTranscriptScrollBehavior {
     }
 
     /// While a `preserveFollow` scroll is still pending (initiated by a container-size change
-    /// at the bottom), the composer banner or strip can continue animating its frame over
+    /// at the bottom), a composer banner can continue animating its frame over
     /// multiple layout passes. Re-issue `scrollTo` whenever the viewport shrinks further so
     /// the transcript stays pinned through the full banner animation, not just at the initial
     /// scrollTo + timeout snapshots. Unlike `shouldReissuePendingJumpToLatest`, content growth

@@ -16,8 +16,7 @@ struct HighlightedCodeBlock: View {
         // No `.frame(maxWidth: .infinity)` on the ScrollView: it would force the block
         // (and therefore the enclosing bubble) to grow to `bubbleMaxWidth` even when
         // the code body is a short snippet. Let the ScrollView report its content-ideal
-        // width; the parent bubble's `.frame(maxWidth: bubbleMaxWidth)` still caps the
-        // outer width and scroll-clips oversized content.
+        // width; the parent bubble's own cap still limits oversized content.
         ScrollView(.horizontal) {
             Text(attributedContent)
                 .font(.system(.caption, design: .monospaced))

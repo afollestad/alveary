@@ -280,9 +280,17 @@ final class SnapshotTests: XCTestCase {
 
     func testSubAgentBlockMixedStates() {
         assertMacSnapshot(
-            SubAgentBlock(agents: sampleSubAgents),
-            size: CGSize(width: 760, height: 220),
+            SubAgentBlock(agents: sampleSubAgents, initiallyExpanded: true),
+            size: CGSize(width: 760, height: 300),
             named: "subagent_block_mixed"
+        )
+    }
+
+    func testSubAgentBlockExpandedBashTools() {
+        assertMacSnapshot(
+            SubAgentBlock(agents: [sampleSubAgentWithBashTools], initiallyExpanded: true),
+            size: CGSize(width: 760, height: 160),
+            named: "subagent_block_expanded_bash_tools"
         )
     }
 

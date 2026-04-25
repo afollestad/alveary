@@ -14,6 +14,7 @@ final class DiffViewerViewModel {
     private typealias RefreshRequest = DiffViewerRefreshRequest
 
     private(set) var files: [FileStatus] = []
+    private(set) var diffStats: DiffStats = .empty
     private(set) var selectedFile: FileStatus?
     private(set) var parsedDiff: DiffFile?
     private(set) var rawDiffContent = ""
@@ -169,6 +170,7 @@ final class DiffViewerViewModel {
 
         if directoryChanged {
             files = []
+            diffStats = .empty
             selectedFile = nil
             parsedDiff = nil
             rawDiffContent = ""
@@ -215,6 +217,7 @@ final class DiffViewerViewModel {
         baseRef = "main"
         remoteName = nil
         files = []
+        diffStats = .empty
         selectedFile = nil
         parsedDiff = nil
         rawDiffContent = ""
@@ -357,25 +360,30 @@ private extension DiffViewerViewModel {
 
         let generation = directoryGeneration
         let refreshedFiles: [FileStatus]
+        let refreshedDiffStats: DiffStats
         let refreshedError: String?
         let refreshedIsGitRepository: Bool
 
         do {
             refreshedFiles = try await gitService.status(in: request.directory)
+            refreshedDiffStats = (try? await gitService.diffStats(in: request.directory)) ?? .empty
             refreshedError = nil
             refreshedIsGitRepository = true
         } catch let error as GitError {
             if error == .notARepository {
                 refreshedFiles = []
+                refreshedDiffStats = .empty
                 refreshedError = nil
                 refreshedIsGitRepository = false
             } else {
                 refreshedFiles = []
+                refreshedDiffStats = .empty
                 refreshedError = "Git status failed: \(error.localizedDescription)"
                 refreshedIsGitRepository = true
             }
         } catch {
             refreshedFiles = []
+            refreshedDiffStats = .empty
             refreshedError = "Git status failed: \(error.localizedDescription)"
             refreshedIsGitRepository = true
         }
@@ -385,6 +393,7 @@ private extension DiffViewerViewModel {
         }
 
         files = refreshedFiles
+        diffStats = refreshedDiffStats
         gitError = refreshedError
         isGitRepository = refreshedIsGitRepository
         isLoadingFiles = false
