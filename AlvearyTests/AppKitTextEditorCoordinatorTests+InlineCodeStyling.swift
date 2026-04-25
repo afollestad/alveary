@@ -254,7 +254,7 @@ extension AppKitTextEditorCoordinatorTests {
     // Compact file-mention chips hide every stored glyph (clear foreground) and
     // shrink the chip rect via negative `.kern` per char so `AppKitTextView.drawCompactChipLabels`
     // can paint a decoded label over a tightly-sized rect. See
-    // `Alveary/Views/Components/AGENTS.md` for the rationale.
+    // `Alveary/Views/Components/TextInput/AGENTS.md` for the rationale.
     func testCompactFileMentionStylingHidesStoredTextAndShrinksAdvanceViaKern() {
         let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
         textView.font = .preferredFont(forTextStyle: .body)

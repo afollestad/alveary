@@ -2,9 +2,12 @@
 
 These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Narrower scopes:
 
-- Transcript scrolling, follow-mode, and markdown-link resolution → `Transcript/AGENTS.md`.
+- Transcript shell and approval plumbing → `Transcript/AGENTS.md`.
+- Transcript scrolling and follow-mode → `Transcript/Scrolling/AGENTS.md`.
+- Transcript markdown-link resolution → `Transcript/Links/AGENTS.md`.
 - Conversation tab row (chip rendering, rename, shortcuts, scroll hooks, sentinel, divider) → `ConversationTabs/AGENTS.md`.
-- Transcript block views (`ChatBlocks*`, tool bubbles) → `Blocks/AGENTS.md`.
+- Transcript block primitives → `Blocks/AGENTS.md`.
+- Tool, approval, prompt, and task block rules → `Blocks/*/AGENTS.md`.
 
 > **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.onKeyPress`, or `.keyboardShortcut` on any chat surface, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`.
 

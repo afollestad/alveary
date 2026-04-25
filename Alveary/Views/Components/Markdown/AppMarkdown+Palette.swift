@@ -35,8 +35,8 @@ enum AppMarkdownCodeBlockPalette {
     // this grayscale swatch — those surfaces are composer chrome and benefit from the
     // accent-tinted highlight to reinforce "this is live-input territory." The
     // foreground is `.labelColor`, not accent-derived, so the chip stays visually
-    // aligned with other `AppAccentFill.primary` surfaces (see the **Accent Color
-    // Surfaces** bullet in `Alveary/Views/Components/AGENTS.md`).
+    // aligned with other `AppAccentFill.primary` surfaces (see
+    // `Alveary/Views/Components/Accent/AGENTS.md`).
     //
     // Built with a raw `NSColor(name:dynamicProvider:)` rather than `.accentDerived(...)`
     // because the resolved value does not depend on the system accent. Cached as a single
@@ -75,8 +75,7 @@ enum AppMarkdownCodeBlockPalette {
     static let composerChipFillNSColor: NSColor = AppAccentFill.primaryNSColor
 
     // `.labelColor` is the canonical foreground pairing for `AppAccentFill.primary`
-    // surfaces (see the **Accent Color Surfaces** bullet in
-    // `Alveary/Views/Components/AGENTS.md`). User bubbles, selected sidebar rows, and
+    // surfaces (see `Alveary/Views/Components/Accent/AGENTS.md`). User bubbles, selected sidebar rows, and
     // selected tab chips all use it, so composer chips now read at the same weight as
     // those surfaces instead of an accent-on-accent "all yellow" stack. White text in
     // dark mode / black text in light mode — both legible against the muted-amber

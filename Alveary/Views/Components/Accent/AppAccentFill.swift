@@ -12,9 +12,8 @@ import SwiftUI
 /// badge.
 ///
 /// Pair the fill with `.primary` / `NSColor.labelColor` as foreground — `.primary`
-/// adapts to both schemes and stays legible against the light-mode blend toward white
-/// and the dark-mode blend toward black. See the **Accent Color Surfaces** bullet in
-/// `Alveary/Views/Components/AGENTS.md` for the full contract.
+/// adapts to both schemes and stays legible against the light and dark blends.
+/// See `Alveary/Views/Components/Accent/AGENTS.md` for the full contract.
 enum AppAccentFill {
     /// `NSColor` form of `primary`. Exposed because
     /// `AppMarkdownCodeBlockPalette.composerChipFillNSColor` aliases it — the

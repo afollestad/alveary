@@ -6,8 +6,8 @@ import SwiftUI
 // which extends that glyph's advance width — so the caret, subsequent typed text,
 // and the `AppKitTextView` inline hint all land on the same x, ~3pt past the last
 // glyph. Only applied to slash-command chips; file-mention and inline-code chips
-// sit mid-line and stay tight. See `applyTextChips(...)` and the rationale in
-// `Alveary/Views/Components/AGENTS.md`.
+// sit mid-line and stay tight. See `applyTextChips(...)` and
+// `Alveary/Views/Components/TextInput/AGENTS.md`.
 let appTextEditorChipTrailingKern: CGFloat = 3
 
 enum AppTextEditorCodeBlockStyling {

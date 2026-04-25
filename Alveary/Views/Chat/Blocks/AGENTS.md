@@ -1,90 +1,30 @@
-## Chat Block Rendering
+## Chat Block Primitives
 
-These instructions cover transcript block view code under `Alveary/Views/Chat/Blocks/` — `ChatBlocks.swift` and its `ChatBlocks+*.swift` companions. Broader chat-specific conventions live in sibling docs: bubble and composer rendering / interaction contracts in `Alveary/Views/Chat/AGENTS.md`; transcript scrolling and follow-mode in `Alveary/Views/Chat/Transcript/AGENTS.md`.
+Shared transcript block primitives live here. Narrower scopes:
 
-## Tool Transcript Blocks
+- `Approvals/AGENTS.md`: `ToolApprovalBlock`.
+- `Prompts/AGENTS.md`: `PromptBlock`.
+- `Tasks/AGENTS.md`: `TaskListBlock`.
+- `Tools/AGENTS.md`: tool rows, groups, details, headers.
 
-- Tool transcript blocks render as inline rows, not bubble/pill chrome:
-    - **Use the shared row anatomy.** `ToolHeaderRow` and `TranscriptDisclosureHeaderRow` render a compact fixed leading slot, a summary text column, and a compact fixed status slot. Keep both slots close to the visible glyph size so rows do not become taller or wider than the summary text requires.
-    - **Use tool-specific leading icons.** Bash rows use `dollarsign`; generic tools, group headers, and sub-agent rows use a disclosure chevron; static approval headers use `lock.fill`.
-    - **Animate disclosure direction.** Disclosure rows should rotate a single `chevron.right` icon into the expanded position using `toolExpansionAnimation`, rather than swapping static chevron symbols.
-    - **Keep status slots stable.** `ToolStatusIndicator` uses `ProgressView()`, green `checkmark`, or red `xmark` inside the fixed status frame so rows do not resize when state changes.
-    - **Keep row padding shared.** Apply the shared vertical row padding in `TranscriptToolHeaderContent` so Bash rows, tool rows, group headers, and sub-agent rows all keep the same clickable vertical rhythm. Expanded rows keep an 8pt gap between the header and expanded content via `transcriptToolExpandedContentTopSpacing`.
-    - **Render current/past tense from state.** Single tools use current tense while running and past tense when complete; group headers stay in current tense until every child is complete, then switch every category summary to past tense.
-    - **Preserve inline chips.** Tool summaries flow through `attributedToolSummary`, which applies inline-code, slash-command, and file-mention chips before rendering the row label.
-    - **Keep the whole row clickable.** Expand/collapse headers should use `TranscriptHeaderToggle`.
-        - **Preserve accessibility.** Keep the plain SwiftUI `Button` path so keyboard and accessibility activation continue to work.
-        - **Scope mouse capture to headers.** `TranscriptHeaderMouseTarget` handles mouse hits only inside the header because Textual-backed chips and selectable output can steal normal SwiftUI button clicks.
-        - **Preserve pressed feedback.** `TranscriptHeaderMouseTarget` reports mouse-down state back to `TranscriptHeaderToggle`, which applies the shared pressed opacity to the whole header row.
-        - **Avoid broad hit dispatch.** Do not move row toggling to shared scroll-view hit dispatch or bubble-wide gestures.
-        - **Keep details separate.** Expanded `ToolDetails` must stay as a sibling below the header so code/output text selection and horizontal scrolling still work.
-    - **Anchor top-level expansion state above row views.** `ChatTranscriptView` owns expansion bindings keyed by `ChatItem.id` for top-level tool groups, standalone tools, and sub-agent blocks. Keep row-local state only as a fallback for previews/snapshots and nested rows, otherwise stream re-emits can recreate rows and make a successful tap appear to do nothing.
-    - **Keep details in rounded gray containers.** Expanded input/output/result content should route through `ToolDetails`, `DetailCodeBlock`, `HighlightedCodeBlock`, or `ErrorContentBlock`; do not dump raw text directly under the row.
-    - **`ToolGroupBlock` owns grouping copy.** Two or more tools show a disclosure header with category copy like `Reading 3 files, searching for 2 patterns`; expanding lists each child as an `InlineToolRow`. A group of size 1 renders the single tool row directly.
-    - **Avoid an extra single-agent layer.** When `SubAgentBlock` has one agent, expanding it should reveal that agent's tool rows directly.
-    - **Open parallel child agents by default.** When an expanded `SubAgentBlock` contains multiple child agents, each `SubAgentInlineRow` should start expanded so its nested tool usage layer is visible; the row still remains clickable to collapse.
-    - **Preserve single-entry expansion state.** Single-entry groups pass the parent-owned expansion binding into `InlineToolRow`; do not move that state back entirely into the child row because stream re-emits can reset a branch-local child state.
-    - **`StandaloneToolRow` stays thin.** It renders `.standaloneTool(tool:)` by delegating to `InlineToolRow`; never wrap standalone rows in a parent `ToolGroupBlock`.
-- Centered transcript notes are a separate, reusable surface:
-    - **Use `CenteredTranscriptNote` for subtle lifecycle text.** `Interrupted`, successful plan-mode transitions, and denied `ExitPlanMode` render as full-width centered `info.circle` + text with 24pt vertical padding, not as bubbles or tool rows.
-    - **Keep the primitive generic.** `TurnInterruptedNote` is only a thin wrapper around the reusable centered-note view; new subtle lifecycle rows should use `CenteredTranscriptNote` directly instead of cloning the styling.
-- `ToolApprovalBlock` renders `.toolApproval(approval:)` and `.toolApprovalBatch(approvals:)` as assistant-side approval surfaces:
-    - **Keep approval prompts structured.** Render the prompt content using the compact tool-row header anatomy inside the standard assistant bubble chrome.
-        - **Use shared header geometry.** The lock/title header should use the same leading slot, text font, and compact row padding as other tool usage rows.
-        - **Put the tool family in the title.** Prompt titles should read like `Approve Bash command?`, `Approve Bash commands?`, or `Approve writing to files?`; do not add a separate display-name line above the concise summaries.
-        - **Indent prompt content.** Concise tool summaries and approval buttons belong under the header text column, not under the leading icon.
-        - **Chip Bash command summaries.** Bash approval summary lines should render the command text as compact code-style chips; keep non-Bash summaries as subtle plain text.
-        - **Keep vertical gaps even.** Use the same vertical spacing between the title and summaries as between the summaries and approval buttons.
-        - **Use assistant bubble chrome.** Approval prompts use the same `bubbleBackground(maxWidth:)` cap and rounding as assistant text bubbles instead of custom separator surfaces.
-        - **Reserve pending action width.** Resolved one-button states should keep opacity-hidden, non-interactive layout placeholders for the missing pending action rather than a hard-coded minimum width; denied states keep the visible Denied button in the approve-button position.
-        - **Animate resolved action movement.** Only visible approval actions should carry matched-geometry IDs; hidden layout placeholders reserve pending width without becoming animation endpoints, so Deny can move into the approve slot when the prompt resolves as denied.
-        - **Avoid duplicate animation endpoints.** The `ViewThatFits` fallback action layout should enable matched geometry only for the primary horizontal candidate; fallback candidates should stay layout-only so SwiftUI does not see multiple live views with the same matched ID.
-    - **Keep content concise.** Show the approval title, one-line summaries, and Approve/Deny actions; do not dump full tool input JSON.
-    - **Read tool-specific wording from the request.** Approval title subjects and approve/deny button labels must come from `ToolApprovalRequest`, so tools like `ExitPlanMode` can ask "Ready to leave plan mode?" without view-local `toolName` switches.
-    - **Represent batches honestly.** A batch approval block should show one approval surface with one summary line per included tool use, because one button click resolves the whole live hook batch.
-    - **Intersect batch session scopes.** When an approval block represents multiple tool uses, only offer session approval scopes supported by every included request; a batch-level menu item must not imply a group/exact grant that some sibling tool cannot receive.
-    - **Keep only the live approval interactive.** When a newer deferred tool use replaces an older unresolved row, render the older row as non-interactive past-tense `Superseded` instead of showing active approval buttons on multiple rows at once.
-    - **Block approvals behind unanswered prompts.** If the same conversation still has an unanswered `AskUserQuestion`, disable the approval controls rather than letting the transcript advance through the deferred-tool resume path first.
-    - **Offer session approval inside the Approve split button.** Supported tools render one primary `SplitActionButton` plus Deny; the left side runs the selected approval mode, and the trailing caret menu switches between `Approve once` and the available session approval modes. Unsupported tools show only the one-shot Approve/Deny actions.
-    - **Keep scoped session choices in the menu.** Bash may still expose `Approve exactly` and `Approve group` when the command has a clear subcommand-like group and is not a compound shell command; file-edit approvals stay exact-path only and expose the generic `Approve for session` menu item.
-    - **Collapse after resolution starts.** `.approving` / `.approved` hides Deny and shows disabled past-tense `Approved`; `.denying` / `.denied` hides Approve and shows disabled past-tense `Denied`; session-approved states hide the other actions and show only the resolved past-tense session button (`Approved for session`, `Approved exactly`, or `Approved group`). Nil/non-pending status should keep actions disabled so the same approval cannot be submitted twice from the UI.
-- `PromptBlock` should hug its content instead of filling the whole transcript width:
-    - **Measure the widest question card.** Use that width as the shared width for every question card in the prompt so stacked plan-mode questions line up cleanly.
-    - **Measure the real card before width sync.** Attach width readers to the visible question cards before any shared-width frame is applied; measuring a hidden surrogate or an already-expanded frame can leave the cards mismatched and the bubble full width.
-    - **Keep the outer bubble non-greedy.** Do not use trailing spacers or other full-width footer layout that forces the prompt bubble to expand to `transcriptBubbleMaxWidth`; the bubble should size to the widest question card, capped by the bubble max width.
-    - **Center choice glyphs against the whole option stack.** Radio buttons and checkboxes should align to the vertical center of the title+description pair, not the first text line.
-    - **Include a custom-response path.** `AskUserQuestion` cards should synthesize an `Other` choice when the question allows custom responses, reveal an inline text field in the option's content area when selected, and serialize the typed text instead of the literal word `Other`.
-    - **Focus the inline custom-response field immediately.** When `Other` becomes selected, move focus into the inline text field in the same interaction so typing can start without an extra click.
-    - **Snapshot the selected custom-response state.** Keep a dedicated prompt snapshot with `Other` selected so regressions in the inline field layout are visible.
-    - **Render answered prompts as structured Q/A rows.** The submitted state title is `Submitted responses`, with each question and answer on separate lines and 8pt between Q/A pairs; do not collapse them back into one paragraph-like text blob.
-- Bubble widths are capped via the `transcriptBubbleMaxWidth` `EnvironmentKey` in `ChatBlocks.swift`, not a hard-coded 720pt. `ChatTranscriptView` measures its scroll-container content width and runs it through `adaptiveTranscriptBubbleMaxWidth(for:)` before publishing `.environment(\.transcriptBubbleMaxWidth, ...)`. Text bubbles, prompt blocks, task lists, approval blocks, streaming/thinking blocks, and errors use the cap; inline tool rows and sub-agent rows intentionally do not use bubble chrome or `bubbleMaxWidth`. `UserBubble` remains the narrower right-aligned exception with its own `.frame(maxWidth: 640, alignment: .trailing)`.
-- Expanded nested tool rows use `TranscriptElbowStack`:
-    - **Use one shared connector primitive.** Tool groups, sub-agent children, and nested sub-agent tools should use `TranscriptElbowStack` / `TranscriptNestedToolRows` instead of local connector drawing.
-    - **Preserve connector geometry.** The vertical line starts at `transcriptToolNestedTopSpacing`, child rows use the compact shared nested-row spacing, and there is `transcriptToolElbowGap` between each horizontal elbow tip and the row frame to its right.
-    - **Track dynamic row centers.** Visible header centers are reported through `TranscriptNestedRowCenterPreferenceKey` so connector elbows stay centered if an inner row expands and pushes lower siblings down, including when expanded headers move their bottom padding below the body.
-- Inline row details are indented by `transcriptToolDetailLeadingInset` so rounded code/output containers start under the summary column rather than under the leading icon.
-- Expanded code/output details own their bottom spacing:
-    - **Keep collapsed rows unchanged.** Apply bottom breathing room only to expanded `ToolDetails` / result code content, not to the header row or collapsed row padding.
-- Output-pager behavior is centralized in `ToolOutputView`. `Bash` (10 lines) and `Read` (20 lines) tail their output and expose a `Show N more` button that extends the window upward. Other tools render the full output via `DetailCodeBlock` with no paging. Keep the tail-not-head rule for Bash so streaming output reveals the latest line at the bottom.
-- Thinking stream events are intentionally dropped by the grouper; the `ChatBlocks+*.swift` family therefore does not provide a `ThinkingRow`/`ThinkingBlock`. The live `ActiveTurnThinkingIndicator` in `ChatSupplementaryViews.swift` remains the only "thinking" affordance and covers the empty-turn case.
-- The inline row columns are driven by `ChatBlocks+ToolHeaderRow.swift`:
-    - **Keep dimensions centralized.** Tune `transcriptToolIconFrameSize`, `transcriptToolStatusFrameSize`, `transcriptToolIconTextSpacing`, `transcriptToolTextStatusSpacing`, `transcriptToolRowVerticalPadding`, `transcriptToolExpandedContentTopSpacing`, the `transcriptTool*FontSize` constants, and the nested-row constants in `ChatBlocks.swift`; do not hard-code per-row copies.
-    - **Use `ProgressView()` over a custom SwiftUI spinner.** A prior custom repeat-forever SwiftUI spinner caused thread-open renders to land blank until scrolling; keep spinner animation in AppKit's progress-indicator layer.
-    - **Debounce aggregate terminal icons.** Multi-entry group headers use `DebouncedToolStatusIndicator`; terminal states wait 250ms, but loading applies immediately when a new child streams in.
-    - **Prefer loading over partial failure while siblings run.** Aggregate status should remain `.loading` until every child is complete, then show `.error` if any completed child failed, otherwise `.success`.
-    - **Do not tint summary text red.** The red `xmark` is the failure signal; summary text stays `.primary`.
-- `TaskListBlock` status indicators:
-    - **Keep checkbox slots stable.** Use fixed 16×16 slots so status changes do not reflow task rows.
-    - **Scale `ProgressView` for in-progress tasks.** Render a standalone spinner scaled to visually match the checkbox glyph in the same slot instead of a custom repeat-forever SwiftUI animation, keeping animation in AppKit's progress-indicator layer and avoiding per-frame SwiftUI work while transcript rows are lazy-loaded.
+## Bubble Widths
 
-### Expand/Collapse Animation
+- Bubble widths use `transcriptBubbleMaxWidth`, not hard-coded 720pt.
+- `ChatTranscriptView` measures the scroll container, calls `adaptiveTranscriptBubbleMaxWidth(for:)`, then publishes the environment value.
+- Text bubbles, prompts, task lists, approvals, streaming/thinking blocks, and errors use the cap.
+- Inline tool rows and sub-agent rows intentionally skip bubble chrome and `bubbleMaxWidth`.
+- `UserBubble` remains the narrower right-aligned exception with `.frame(maxWidth: 640, alignment: .trailing)`.
 
-- **Single source of easing.** `toolExpansionAnimation` in `ChatBlocks.swift` is the shared `Animation` used for every bubble's expand/collapse. Tune there, not at call sites.
-- **Two coordinated pieces drive the animation, both load-bearing:**
-    - **`.toolAnimationOverride(value:)`** on the row scopes the transaction within the row's subtree so inserted details and streamed tool-list/status changes use `toolExpansionAnimation`. Pair `value:` with whatever drives that row's layout shape, such as `isExpanded` or the tool list.
-    - **`withAnimation(toolExpansionAnimation) { isExpanded.toggle() }`** wraps each toggle in `StandaloneToolRow`, `ToolGroupBlock` (single-entry and multi-entry), and `InlineToolRow`. This sets the animation on the transaction *globally* for that state change, so the enclosing `LazyVStack`'s sibling positions reflow in lockstep with the bubble's shrink. **Why:** `.toolAnimationOverride` only affects the bubble's own subtree — it does not reach the parent layout. Without the `withAnimation`, the next transcript item snapped to its new position while the bubble's frame was still animating down, briefly overlapping (visually "underlapping") the collapsing bubble for the duration of the ease. Do not remove either piece on the theory that the other is sufficient; they target different scopes (within-bubble vs. surrounding layout).
-- **`SubAgentBlock` applies the same explicit animation pattern as tool rows.** Wrap parent and child row toggles in `withAnimation(toolExpansionAnimation)` and keep `.toolAnimationOverride(value:)` on the row/block that owns the expanded content so sub-agent rows and tool rows ease consistently.
-- **`ToolStatusIndicator` must snap on branch swaps but animate on layout.** Use `.transaction(value: branchKey) { $0.animation = nil }` on the indicator, *not* a bare `.transaction`:
-    - The `value:` scope means the animation-nil mutation fires only when `branchKey` changes (spinner ↔ checkmark ↔ xmark). That preserves the intended snap on branch transitions — a spinner appearing *as* a spinner, not fading in from an ambiguous transient state when the enclosing `toolAnimationOverride(value: tools)` or the per-toggle `withAnimation` would otherwise cross-fade it.
-    - A bare `.transaction` also nulled out *layout-driven* updates, so when a neighboring bubble expanded/collapsed and the transcript's animation propagated through the `LazyVStack`, the indicator snapped to its new position while the rest of its header row eased. Value-scoping restores that parent-driven animation.
-    - `branchKey` is an `Int` derived from `isError` / `isComplete`; the specific representation doesn't matter as long as any branch transition produces a different value.
+## Centered Notes
+
+- Use `CenteredTranscriptNote` for subtle lifecycle text: `Interrupted`, plan-mode success, and denied `ExitPlanMode`.
+- Render these as centered `info.circle` + text with 24pt vertical padding, not as bubbles or tool rows.
+- `TurnInterruptedNote` is only a thin wrapper; new subtle lifecycle rows should use `CenteredTranscriptNote` directly.
+
+## Shared Animation
+
+- `toolExpansionAnimation` is the single expand/collapse easing. Tune it here.
+- Use both animation scopes for expanding tool-like rows:
+    - `.toolAnimationOverride(value:)` scopes row subtree changes.
+    - `withAnimation(toolExpansionAnimation) { ... }` scopes the surrounding `LazyVStack` reflow.
+- Do not remove either piece; one animates the row internals, the other animates neighboring transcript positions.

@@ -1,120 +1,89 @@
-## Keep AGENTS.md Up to Date
+## Keep Guidance Current
 
-**WHEN** making changes, think about whether there are learnings that would be worth documenting for future agents in `AGENTS.md` files (including ones in sub-folders).
-**WHEN** making changes to dependencies, project structure, or lint, make sure `README.md` is kept up to date, as well as `AGENTS.md` files (including ones in sub-folders).
-**WHEN** adding or updating agent guidance, prefer the narrowest `AGENTS.md` whose scope covers the affected files. Keep instructions in the root `AGENTS.md` only when they are truly repo-wide or protect cross-cutting invariants.
-**WHEN** a single guidance bullet covers multiple discrete rules (e.g. "do X", "do not Y", "the reason is Z"), split it into scannable sub-bullets rather than letting it grow into a wall-of-text paragraph. One top-level bullet introduces the topic, each nested sub-bullet captures one rule. Lead the sub-bullet with a short bolded imperative so a reader scanning for a single rule can find it without parsing the whole section.
-**BE ON THE LOOKOUT** for AGENTS.md files that are getting too large, or that have too many bullets in a single section. If you believe a file could be split into smaller sections, sub-sections of sections, or smaller files, then call it out.
+- Keep `AGENTS.md` accurate when changes create useful future-agent context.
+- Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
+- Put new rules in the narrowest `AGENTS.md` that covers the affected files.
+- Split dense rules into short sub-bullets with bold imperative leads.
+- Call out oversized guidance files or sections that should be split.
+- When adding a nested `AGENTS.md`, also add sibling `CLAUDE.md` as `ln -s AGENTS.md CLAUDE.md`, then list the new scope below. `project.yml` already excludes `**/CLAUDE.md`.
 
-## Scoped AGENTS Files
+## Scoped Guidance
 
-Use nested `AGENTS.md` files to keep local guidance close to the code it governs.
+Read the nearest `AGENTS.md` before editing. Current scopes:
 
-- `Alveary/App/AGENTS.md` covers macOS app-lifecycle, shutdown, and the root `ContentView` layout.
-- `Alveary/Data/AGENTS.md` covers SwiftData model invariants (`AgentThread`, `Conversation`, `Project`).
-- `Alveary/DI/AGENTS.md` covers Knit assemblies, generated DI output, and the SwiftData store location.
-- `Alveary/Services/Agent/AGENTS.md` covers provider-neutral agent service interfaces and cross-folder transcript debugging.
-- `Alveary/Services/Agent/Runtime/AGENTS.md` covers `DefaultAgentsManager`, event buffers, process I/O, lifecycle, and deferred-tool runtime behavior.
-- `Alveary/Services/Agent/Claude/AGENTS.md` covers the Claude adapter, Claude config, Claude provider setup, and Claude stream decoding.
-- `Alveary/Services/Agent/Claude/Hooks/AGENTS.md` covers Claude HTTP hook listener, settings, and approval-policy support.
-- `Alveary/Services/Agent/Transcript/AGENTS.md` covers transcript grouping (`ChatItemGrouper`) behavior.
-- `Alveary/Services/Detection/AGENTS.md` covers `AgentRegistry` and provider detection.
-- `Alveary/Services/Git/AGENTS.md` covers worktree lifecycle and the GitHub CLI adapter.
-- `Alveary/Services/Notification/AGENTS.md` covers the notification manager, badge-count chaining, and OS notification tap routing.
-- `Alveary/Services/Session/AGENTS.md` covers the session manager and session persistence contract.
-- `Alveary/Services/Settings/AGENTS.md` covers `.alveary.json` round-tripping and settings persistence.
-- `Alveary/Views/AGENTS.md` covers shared SwiftUI view composition rules.
-- `Alveary/Views/Components/AGENTS.md` covers shared component and `AppTextEditor` implementation details.
-- `Alveary/Views/Chat/AGENTS.md` covers chat-specific view chrome, bubble rendering, and conversation interaction contracts.
-- `Alveary/Views/Chat/Blocks/AGENTS.md` covers transcript block views (`ChatBlocks*`), tool bubble chrome, and expand/collapse animation invariants.
-- `Alveary/Views/Chat/ConversationTabs/AGENTS.md` covers the conversation tab row (chip rendering, inline rename, ⌘W/⌘1..9 shortcuts, scroll hooks, trailing divider).
-- `Alveary/Views/Chat/Transcript/AGENTS.md` covers transcript scrolling, follow-mode, pending-scroll watchdog, and markdown-link resolution.
-- `Alveary/Views/DiffViewer/AGENTS.md` covers sidebar-to-pane routing, loading-state flag contract, and file-list overlay ordering.
-- `Alveary/Views/Input/AGENTS.md` covers composer autocomplete, slash-command hints, and worktree picker behavior.
-- `Alveary/Views/Projects/AGENTS.md` covers the project settings editor and toolbar action surfacing.
-- `Alveary/Views/Sidebar/AGENTS.md` covers sidebar-specific interaction patterns.
-- `Alveary/Views/Terminal/AGENTS.md` covers the terminal pane's unified background invariant and tab-row edge-divider behavior.
-- `AlvearyTests/AGENTS.md` covers snapshot and test-organization guidance.
+- `AGENTS.md`: repo-wide workflow.
+- `Alveary/App/AGENTS.md`: lifecycle, commands, root layout.
+- `Alveary/Data/AGENTS.md`: SwiftData model invariants.
+- `Alveary/DI/AGENTS.md`: Knit and generated DI.
+- `Alveary/Services/Agent/AGENTS.md`: provider-neutral agent services.
+- `Alveary/Services/Agent/Runtime/AGENTS.md`: runtime, event buffers, deferred tools.
+- `Alveary/Services/Agent/Claude/AGENTS.md`: Claude adapter and stream decoding.
+- `Alveary/Services/Agent/Claude/Hooks/AGENTS.md`: hook listener and approval policy.
+- `Alveary/Services/Agent/Transcript/AGENTS.md`: `ChatItemGrouper`.
+- `Alveary/Services/Detection/AGENTS.md`: provider detection.
+- `Alveary/Services/Git/AGENTS.md`: worktrees and GitHub CLI.
+- `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
+- `Alveary/Services/Session/AGENTS.md`: session persistence.
+- `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
+- `Alveary/Views/AGENTS.md`: shared SwiftUI, status colors, focus.
+- `Alveary/Views/Components/AGENTS.md`: general shared controls.
+- `Alveary/Views/Components/Accent/AGENTS.md`: accent tokens and dynamic colors.
+- `Alveary/Views/Components/Markdown/AGENTS.md`: markdown rendering and palettes.
+- `Alveary/Views/Components/TabChips/AGENTS.md`: shared tab-chip shell.
+- `Alveary/Views/Components/TextInput/AGENTS.md`: `AppTextEditor` and AppKit bridge.
+- `Alveary/Views/Chat/AGENTS.md`: chat view and conversation contracts.
+- `Alveary/Views/Chat/Blocks/AGENTS.md`: shared block primitives.
+- `Alveary/Views/Chat/Blocks/Approvals/AGENTS.md`: tool approval blocks.
+- `Alveary/Views/Chat/Blocks/Prompts/AGENTS.md`: `AskUserQuestion` prompt blocks.
+- `Alveary/Views/Chat/Blocks/Tasks/AGENTS.md`: task-list blocks.
+- `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`: tool rows, groups, and details.
+- `Alveary/Views/Chat/ConversationTabs/AGENTS.md`: conversation tab row.
+- `Alveary/Views/Chat/Transcript/AGENTS.md`: transcript shell and approval plumbing.
+- `Alveary/Views/Chat/Transcript/Links/AGENTS.md`: markdown link resolution.
+- `Alveary/Views/Chat/Transcript/Scrolling/AGENTS.md`: follow-mode and scroll mechanics.
+- `Alveary/Views/DiffViewer/AGENTS.md`: diff routing and loading overlays.
+- `Alveary/Views/Input/AGENTS.md`: composer, autocomplete, worktree picker.
+- `Alveary/Views/Projects/AGENTS.md`: project settings editor.
+- `Alveary/Views/Sidebar/AGENTS.md`: sidebar interactions.
+- `Alveary/Views/Terminal/AGENTS.md`: terminal pane.
+- `AlvearyTests/AGENTS.md`: tests and snapshots.
 
-**WHEN** creating a new nested `AGENTS.md`, also add a sibling `CLAUDE.md` symlink to it (`ln -s AGENTS.md CLAUDE.md` from inside that directory) so Claude Code picks up the scoped guidance, and add a line for the new file to the list above. The root `project.yml` already excludes `**/CLAUDE.md` from Xcode sources, so no project regeneration is required.
+## Xcode Project
 
-## XCode Project Generation
+- `Alveary.xcodeproj` is generated from `project.yml`; never edit it directly.
+- After creating, moving, removing, or renaming Swift files, run `xcodegen generate`.
+- After adding an SPM dependency, update `project.yml`, then run `xcodegen generate`.
+- Do not commit `Alveary.xcodeproj/`; it is gitignored and regenerated.
 
-The XCode project (`Alveary.xcodeproj`) is generated from `project.yml` using XcodeGen (`brew install xcodegen`). **Never edit the `.xcodeproj` directly.**
+## Build And Test
 
-**WHEN** you create a new `.swift` file, run `xcodegen generate` afterward so the file is included in the Xcode project. The glob-based `sources` in `project.yml` picks up files automatically from the folder structure, but the `.xcodeproj` must be regenerated to reflect the change.
+- First-time setup: `./scripts/setup.sh`.
+- The app pre-build needs `knit-cli`; setup installs it, or use `mint install cashapp/knit knit-cli`.
+- Build: `./scripts/build.sh`.
+- Run the built app: `./scripts/run.sh`.
+- Interactive development can also use the `Alveary` scheme in Xcode.
+- Test: `./scripts/test.sh`, or pass focused identifiers as arguments.
+- Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
+- Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-run, build-then-test, record-then-verify.
+- Add temporary logs early when useful; observe them yourself with `/usr/bin/log`, then remove them after confirming the fix.
 
-**WHEN** you add a new SPM dependency, add it to the `packages` and `dependencies` sections of `project.yml`, then run `xcodegen generate`.
+## Lint
 
-**DO NOT** commit `Alveary.xcodeproj/` — it is gitignored and regenerated from `project.yml`.
+- Use SwiftLint from the repo root without `--config` so nested configs apply.
+- The repo hook runs SwiftLint for Swift or `.swiftlint.yml` commits.
+- Install repo hooks with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`; this sets repo-local `core.hooksPath=.githooks`.
+- New Swift should follow `.swiftlint.yml`: no force unwraps outside tests, no force casts, prefer `let`, max line length 150.
+- If a change introduces lint warnings or errors, tell the user before committing.
 
-## Building and Running
+## Code Style
 
-The project currently builds as the `Alveary` scheme in `Alveary.xcodeproj`. The app target's pre-build step requires `knit-cli`; install it with `mint install cashapp/knit knit-cli` if it is missing.
+- Put private types below public types.
+- Add concise comments only where they help future readers.
+- Search for same-type companion files before editing behavior.
+- Split large types into focused companions like `Type+Feature.swift`.
 
-- First-time local setup: `./scripts/setup.sh` installs the required CLI tools, including `xcbeautify` for prettified wrapper-script output, generates `Alveary.xcodeproj`, and configures the repo-local Git hooks.
-- Regenerate the Xcode project after project-structure changes with `xcodegen generate`.
-- Build from the command line with `./scripts/build.sh`.
-- Run the already-built app from the command line with `./scripts/run.sh`.
-- The wrapper scripts use the same underlying commands as `xcodebuild -project Alveary.xcodeproj -scheme Alveary -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/xcode build` and `open .build/xcode/Build/Products/Debug/Alveary.app`.
-- For interactive development, you can also open `Alveary.xcodeproj` in Xcode and run the `Alveary` scheme directly.
-- Ordered validation workflows (build-then-run, build-then-test, record-then-verify) must run strictly serially — never in parallel, and never via `multi_tool_use.parallel`. Wait for `./scripts/build.sh` to exit successfully before starting `./scripts/run.sh` or any dependent command. When the user asks you to build-then-run after each iteration, treat that as a hard sequencing requirement.
+## Self Review
 
-## Testing and Debugging
+When asked for a self review or audit, first say `Performing a self review...`.
 
-- Understand `Building and Running` first.
-- Run the full test suite with `./scripts/test.sh`.
-  - Run focused tests with `./scripts/test.sh AlvearyTests/AppDelegateTests` or multiple identifiers as separate arguments.
-- Use `./scripts/snapshots.sh` for snapshot workflows, and verify snapshots before committing whenever UI is modified.
-  - See `AlvearyTests/AGENTS.md` for snapshot verification details and focused rules.
-- When updating non-UI logic, check if unit tests need to be updated and/or if new cases need to be added.
-- When updating UI, check if snapshot tests need to be updated and/or if new cases need to be added.
-- Add temporary debug logging earlier rather than continuing to iterate through *theoretical* solutions that don't work out.
-  - If temporary logging is added for debugging, observe logs yourself instead of instructing the user to open the Console app. 
-  - Use fully qualified `/usr/bin/log` to pull Console logs, since zsh has a conflicting builtin.
-  - Remember to *remove* temporary logs after *confirming* a fix with the user. Don't jump the gun.
-
-## Linting
-
-The project uses [SwiftLint](https://github.com/realm/SwiftLint) for code style and linting (`brew install swiftlint`).
-
-- The repo ships a pre-commit hook at `.githooks/pre-commit` that runs `swiftlint` for commits touching Swift sources or `.swiftlint.yml`.
-- Install the repo-managed hooks once with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`. This writes a repo-local `core.hooksPath=.githooks` override and does not modify your global Git hooks setup.
-- The hook runs `swiftlint` from the project root so nested config discovery still works for `AlvearyTests/.swiftlint.yml`.
-- Run `swiftlint` from the project root *without* `--config`; passing an explicit config file bypasses nested config discovery and breaks the `AlvearyTests/.swiftlint.yml` override.
-- Run `swiftlint` manually when you want feedback before reaching the commit hook.
-- *If a change introduces new lint warnings and/or errors, inform the user before following through with a commit.*
-
-**WHEN** writing new Swift files, follow the rules in `.swiftlint.yml`. Key rules: no force unwraps outside of tests, no force casts, prefer `let` over `var`, max line length 150.
-
-## Code Style And File Organization
-
-These are default structure and readability conventions for new code and routine edits. Follow them unless a nearby type already has an established local pattern.
-
-- Private types should always go *below* public types.
-- Add concise code comments where needed for human readers.
-- Large types may be split into companion files like `Type+Feature.swift`. When reading current behavior or adding new logic to an existing type, search for same-type extensions and treat those companion files as part of the canonical implementation before editing.
-- Prefer categorized companion files once a type starts accumulating distinct concerns, such as `TerminalPane+ResizeHandle.swift` or `TerminalPane+SessionViews.swift`, instead of continuing to grow a single base file. Also lean on companion files earlier to avoid files becoming too large, and use them to resolve lint warnings about file length.
-
-## Self Review and Auditing Changes
-
-**WHEN** I ask for a self review or audit, say "Performing a self review..." first. Then deeply look at uncommitted changes with a pair of fresh eyes, using these questions as a guide:
-- Are there any bugs?
-- Are there any edge cases?
-- Are there any performance issues?
-- Will the changes regress any behavior elsewhere?
-- Is there any dead code, or stale code?
-- Is there any missing test coverage (unit or snapshot)?
-- Were snapshots recorded again where needed?
-- Could the code changes use concise comments/documentation *outside* of AGENTS.md files?
-- Are AGENTS.md files up to date and accurate? 
-- Can any AGENTS.md files be split up into smaller sections, sub-bullets, or into separate files?
-- If we fixed a bug, are we sure it won't regress later? What's stopping regression?
-- Are there any lint warnings or errors? Do any files need to be split up?
-- Are there any accessibility issues?
-
-Double-check to make sure nothing is missed or inaccurate. **BE SURE** that any changes made as a result of the review do not regress any intentional behavior changes.
-
-Automatically resolve anything that's low risk, ask about others before making changes. 
-
-When finished applying fixes, ask the user if they want to do another pass; if so, start at the top with a fresh pair of eyes.
+Review uncommitted changes for bugs, edge cases, regressions, performance, dead code, stale code, missing unit/snapshot coverage, missing docs/comments, stale guidance, lint, file-size pressure, and accessibility. Confirm snapshot recording where needed. Fix low-risk issues yourself; ask before risky changes. When done, ask whether the user wants another pass.

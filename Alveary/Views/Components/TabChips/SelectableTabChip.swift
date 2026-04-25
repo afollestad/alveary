@@ -12,10 +12,8 @@ enum TabChipStatusIndicator {
 /// or chip-color rules.
 ///
 /// The label renders through `AppMarkdownInlineLabel`, whose inline-code chip fill
-/// is always `.standard` (the chip color does not track selection). See the
-/// **Accent Color Surfaces** bullet in `Alveary/Views/Components/AGENTS.md` for the
-/// rationale — keeping the chip uniform across selection avoids a distracting color
-/// shift as the user moves selection across tabs.
+/// is always `.standard`; chip color does not track selection. See
+/// `Alveary/Views/Components/TabChips/AGENTS.md`.
 struct SelectableTabChip: View {
     private static let statusIndicatorSize: CGFloat = 8
 
