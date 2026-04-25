@@ -197,13 +197,12 @@ struct ContentView: View {
                         + " (\(KeyboardShortcut.toggleTerminalPane.displayString))"
                 )
 
-                Button {
-                    appState.toggleRightPane()
-                } label: {
-                    DiffViewerToolbarButtonLabel(
-                        diffStats: diffViewModel.diffStats
-                    )
-                }
+                DiffViewerToolbarButton(
+                    diffStats: diffViewModel.diffStats,
+                    action: {
+                        appState.toggleRightPane()
+                    }
+                )
                 .help(
                     diffViewerToggleHelpText
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))"
@@ -384,33 +383,5 @@ private extension ContentView {
         }
 
         return "\(stats.additions) additions, \(stats.deletions) deletions"
-    }
-}
-
-struct DiffViewerToolbarButtonLabel: View {
-    let diffStats: DiffStats
-
-    var body: some View {
-        Label {
-            diffSummary
-        } icon: {
-            Image(systemName: "sidebar.trailing")
-        }
-        .labelStyle(.titleAndIcon)
-        .font(.body.weight(.medium))
-    }
-
-    @ViewBuilder
-    private var diffSummary: some View {
-        if !diffStats.isEmpty {
-            HStack(spacing: 6) {
-                Text("+\(diffStats.additions)")
-                    .foregroundStyle(.green)
-
-                Text("-\(diffStats.deletions)")
-                    .foregroundStyle(.red)
-            }
-            .padding(.trailing, 4)
-        }
     }
 }

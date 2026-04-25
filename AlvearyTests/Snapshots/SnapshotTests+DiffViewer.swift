@@ -1,8 +1,27 @@
 import XCTest
+import SwiftUI
 
 @testable import Alveary
 
 extension SnapshotTests {
+    func testDiffViewerToolbarButtonEmptyStats() {
+        assertMacSnapshot(
+            DiffViewerToolbarButton(diffStats: .empty, action: {})
+                .padding(12),
+            size: CGSize(width: 120, height: 56),
+            named: "diff_viewer_toolbar_button_empty"
+        )
+    }
+
+    func testDiffViewerToolbarButtonWithStats() {
+        assertMacSnapshot(
+            DiffViewerToolbarButton(diffStats: DiffStats(additions: 120, deletions: 45), action: {})
+                .padding(12),
+            size: CGSize(width: 180, height: 56),
+            named: "diff_viewer_toolbar_button_stats"
+        )
+    }
+
     func testDiffViewerPaneHeaderOpenPRAction() {
         assertMacSnapshot(
             DiffViewerPaneHeader(

@@ -67,6 +67,13 @@ struct DiffViewerRefreshRequest {
     }
 }
 
+struct DiffViewerDiffStatsCacheKey: Hashable {
+    let directory: String
+    // Different compare bases can produce different counts for the same folder.
+    let baseRef: String
+    let remoteName: String?
+}
+
 enum DiffViewerPathSupport {
     static func diffPaths(for file: FileStatus) -> [String] {
         if file.status == .renamed, let originalPath = file.originalPath {

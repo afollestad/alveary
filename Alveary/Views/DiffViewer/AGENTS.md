@@ -21,6 +21,8 @@ The routing switch lives in `ContentView+DiffViewerRouting.swift` and delegates 
     - **Why:** same-directory refreshes (baseRef/remoteName changed, or a refresh after a git mutation) keep the existing file list on screen. Flipping the flag would flash the spinner over content the user can still read correctly.
 - **Clear `isLoadingFiles = false` at the end of `performRefresh` and in `clear()`.** Do not clear it in `switchToDirectory` — a stale refresh whose generation no longer matches early-returns from `performRefresh` before the clear, and the next `switchToDirectory` has already re-set the flag for the new binding.
 - **Publish line stats with file refreshes.** `DiffViewerViewModel.diffStats` is the toolbar's `+N` / `-N` source and should update from the same generation-checked refresh that publishes `files`. Keep stats auxiliary: if the stats command fails while status succeeds, show empty stats instead of surfacing a diff-viewer error.
+- **Hydrate stats from the in-memory cache on target switches.** `DiffViewerViewModel` should publish the last known stats for the target before the async refresh finishes, then replace them with the authoritative refresh result. Do not cache raw selected-file diff content for this; the toolbar only needs compact line stats.
+- **Key cached stats by comparison target.** Cache keys must include directory, `baseRef`, and `remoteName` so switching comparison bases cannot show counts computed against another target.
 
 ## File List Overlay Ordering
 

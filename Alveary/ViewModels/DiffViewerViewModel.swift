@@ -65,6 +65,7 @@ final class DiffViewerViewModel {
     private var inFlightDiffLoad: (id: UUID, task: Task<DiffLoadResult, Error>)?
     private var directoryGeneration: UInt64 = 0
     private var fileSelectionGeneration: UInt64 = 0
+    private var diffStatsCache: [DiffViewerDiffStatsCacheKey: DiffStats] = [:]
     private var watchingEnabled = false
     private var agentStatusObserver: NSObjectProtocol?
     private var appActiveObserver: NSObjectProtocol?
@@ -159,6 +160,7 @@ final class DiffViewerViewModel {
         }
 
         let directoryChanged = directory != activeDirectory
+        let diffStatsTargetChanged = directoryChanged || baseRef != self.baseRef || remoteName != self.remoteName
         directoryGeneration &+= 1
         fileSelectionGeneration &+= 1
         inFlightDiffLoad?.task.cancel()
@@ -168,9 +170,15 @@ final class DiffViewerViewModel {
         watchController.stopWatching()
         activeDirectory = directory
 
+        if diffStatsTargetChanged {
+            // Hydrate the toolbar with the last published stats for this target
+            // while the authoritative Git refresh runs in the background.
+            let cachedDiffStats = diffStatsCache[diffStatsCacheKey(directory: directory)]
+            diffStats = cachedDiffStats ?? .empty
+        }
+
         if directoryChanged {
             files = []
-            diffStats = .empty
             selectedFile = nil
             parsedDiff = nil
             rawDiffContent = ""
@@ -392,6 +400,8 @@ private extension DiffViewerViewModel {
             return
         }
 
+        updateDiffStatsCache(refreshedDiffStats, for: request.directory, refreshedError: refreshedError)
+
         files = refreshedFiles
         diffStats = refreshedDiffStats
         gitError = refreshedError
@@ -437,6 +447,21 @@ private extension DiffViewerViewModel {
             bindingGeneration: bindingGeneration,
             selectionGeneration: fileSelectionGeneration
         )
+    }
+
+    private func updateDiffStatsCache(_ stats: DiffStats, for directory: String, refreshedError: String?) {
+        let cacheKey = diffStatsCacheKey(directory: directory)
+        if refreshedError == nil {
+            diffStatsCache[cacheKey] = stats
+        } else {
+            // A failing refresh means the previously cached toolbar count is no
+            // longer trustworthy for this target.
+            diffStatsCache.removeValue(forKey: cacheKey)
+        }
+    }
+
+    private func diffStatsCacheKey(directory: String) -> DiffViewerDiffStatsCacheKey {
+        DiffViewerDiffStatsCacheKey(directory: directory, baseRef: baseRef, remoteName: remoteName)
     }
 
     private func applyDiffLoadResult(
