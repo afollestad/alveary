@@ -24,6 +24,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     ]
     static let defaultModelValue = "default"
     static let supportedThemes = ["system", "light", "dark"]
+    static let defaultCodeFontFamily = "SF Mono"
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
@@ -40,7 +41,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var autoTrustWorktrees = true
     var createWorktreeByDefault = false
     var theme = "system"
-    var codeFontFamily = "SF Mono"
+    var codeFontFamily = Self.defaultCodeFontFamily
     var codeFontSize = 13
     var chatFontSize = 14
     var diffViewerWidth = 380.0

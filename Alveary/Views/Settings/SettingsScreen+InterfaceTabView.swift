@@ -22,7 +22,14 @@ struct InterfaceSettingsTabView: View {
                 }
 
                 SettingsFormRow {
-                    SettingsTextFieldRow("Code font family", text: $codeFontFamily)
+                    SettingsResponsiveControlRow("Code font family", horizontalControlSizing: .intrinsic) {
+                        SettingsMenuPicker(
+                            "Code font family",
+                            selection: $codeFontFamily,
+                            options: viewModel.codeFontFamilyOptions,
+                            label: { $0 }
+                        )
+                    }
                 }
 
                 SettingsFormRow {
@@ -39,5 +46,8 @@ struct InterfaceSettingsTabView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            viewModel.loadCodeFontFamilyOptionsIfNeeded()
+        }
     }
 }

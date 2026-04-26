@@ -60,8 +60,29 @@ final class SettingsViewModelTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.themeOptions, ["system", "light", "dark"])
         XCTAssertEqual(viewModel.availableSoundNames, ["Glass", "Pop", "Tink", "Purr"])
+        XCTAssertEqual(viewModel.codeFontFamilyOptions, [AppSettings.defaultCodeFontFamily])
         XCTAssertTrue(viewModel.permissionModeOptions(for: "unknown").isEmpty)
         XCTAssertTrue(viewModel.effortOptions(for: "unknown", model: "opus").isEmpty)
+    }
+
+    func testCodeFontFamilyOptionsLoadLazilyAndCacheResults() {
+        var loadCount = 0
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(),
+            codeFontFamilyLoader: {
+                loadCount += 1
+                return ["Monaco", "Monaco", "  "]
+            }
+        )
+
+        XCTAssertEqual(viewModel.codeFontFamilyOptions, [AppSettings.defaultCodeFontFamily])
+        XCTAssertEqual(loadCount, 0)
+
+        viewModel.loadCodeFontFamilyOptionsIfNeeded()
+        viewModel.loadCodeFontFamilyOptionsIfNeeded()
+
+        XCTAssertEqual(viewModel.codeFontFamilyOptions, ["Monaco", "SF Mono"])
+        XCTAssertEqual(loadCount, 1)
     }
 
     func testGettersReflectCurrentSettings() {

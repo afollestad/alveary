@@ -1,3 +1,4 @@
+import AppKit
 import Observation
 import SwiftUI
 
@@ -7,17 +8,21 @@ final class SettingsViewModel {
     private let settingsService: any SettingsService
     private let providerDetection: (any ProviderDetectionService)?
     private let agentRegistry: AgentRegistry
+    @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
 
     var providerStatuses: [String: ProviderStatus] = [:]
+    private var loadedCodeFontFamilyOptions: [String]?
 
     init(
         settingsService: any SettingsService,
         providerDetection: (any ProviderDetectionService)? = nil,
-        agentRegistry: AgentRegistry = DefaultAgentRegistry()
+        agentRegistry: AgentRegistry = DefaultAgentRegistry(),
+        codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies }
     ) {
         self.settingsService = settingsService
         self.providerDetection = providerDetection
         self.agentRegistry = agentRegistry
+        self.codeFontFamilyLoader = codeFontFamilyLoader
     }
 
     var availableProviderIDs: [String] {
@@ -120,6 +125,17 @@ final class SettingsViewModel {
         NotificationSettings.availableSoundNames
     }
 
+    var codeFontFamilyOptions: [String] {
+        loadedCodeFontFamilyOptions ?? [AppSettings.defaultCodeFontFamily]
+    }
+
+    func loadCodeFontFamilyOptionsIfNeeded() {
+        guard loadedCodeFontFamilyOptions == nil else {
+            return
+        }
+        loadedCodeFontFamilyOptions = Self.normalizedCodeFontFamilies(codeFontFamilyLoader())
+    }
+
     var defaultProvider: String {
         get { settingsService.current.defaultProvider }
         set { settingsService.update { $0.defaultProvider = newValue } }
@@ -185,7 +201,10 @@ final class SettingsViewModel {
     }
 
     var codeFontFamily: String {
-        get { settingsService.current.codeFontFamily }
+        get {
+            let storedFontFamily = settingsService.current.codeFontFamily.trimmingCharacters(in: .whitespacesAndNewlines)
+            return storedFontFamily.isEmpty ? AppSettings.defaultCodeFontFamily : storedFontFamily
+        }
         set { settingsService.update { $0.codeFontFamily = newValue } }
     }
 
@@ -250,5 +269,25 @@ final class SettingsViewModel {
             transform(&config)
             settings.providerConfigs[providerId] = config
         }
+    }
+
+    static func normalizedCodeFontFamilies(_ fontFamilies: [String]) -> [String] {
+        sortedUniqueCodeFontFamilies(fontFamilies + [AppSettings.defaultCodeFontFamily])
+    }
+
+    private static func sortedUniqueCodeFontFamilies(_ fontFamilies: [String]) -> [String] {
+        var seen = Set<String>()
+        let uniqueFamilies = fontFamilies.compactMap { family -> String? in
+            let trimmedFamily = family.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedFamily.isEmpty,
+                  seen.insert(trimmedFamily).inserted else {
+                return nil
+            }
+            return trimmedFamily
+        }
+        let sortedFamilies = uniqueFamilies.sorted { lhs, rhs in
+            lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        return sortedFamilies
     }
 }
