@@ -38,7 +38,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
     var deleteKeyAction = ThreadDeleteKeyAction.archive
-    var reopenLastThreadAndConversationOnLaunch = false
+    var reopenLastThreadAndConversationOnLaunch = true
     var autoTrustProjects = false
     var createWorktreeByDefault = false
     var theme = "system"

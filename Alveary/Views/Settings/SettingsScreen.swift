@@ -8,18 +8,18 @@ struct SettingsScreen: View {
     let gitHubCLI: GitHubCLIService
     let onClose: (() -> Void)?
 
-    @State private var selectedTab: SettingsTab = .general
+    @State private var selectedTab: SettingsTab = .agents
 
     init(
         viewModel: SettingsViewModel,
         gitHubCLI: GitHubCLIService,
         onClose: (() -> Void)? = nil,
-        initialTabRawValue: String = SettingsTab.general.rawValue
+        initialTabRawValue: String = SettingsTab.agents.rawValue
     ) {
         self.viewModel = viewModel
         self.gitHubCLI = gitHubCLI
         self.onClose = onClose
-        _selectedTab = State(initialValue: SettingsTab(rawValue: initialTabRawValue) ?? .general)
+        _selectedTab = State(initialValue: SettingsTab(rawValue: initialTabRawValue) ?? .agents)
     }
 
     var body: some View {
@@ -100,22 +100,6 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var selectedTabView: some View {
         switch selectedTab {
-        case .general:
-            GeneralSettingsTabView(
-                viewModel: viewModel,
-                defaultProvider: binding(for: \.defaultProvider),
-                defaultModel: binding(for: \.defaultModel),
-                permissionMode: binding(for: \.permissionMode),
-                effort: binding(for: \.effort),
-                deleteKeyAction: binding(for: \.deleteKeyAction),
-                reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
-                createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                autoTrustProjects: binding(for: \.autoTrustProjects),
-                notificationsEnabled: binding(for: \.notificationsEnabled),
-                osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
-                soundEnabled: binding(for: \.soundEnabled),
-                soundName: binding(for: \.soundName)
-            )
         case .agents:
             AgentsSettingsTabView(
                 viewModel: viewModel,
@@ -136,40 +120,65 @@ struct SettingsScreen: View {
                 codeFontSize: binding(for: \.codeFontSize),
                 chatFontSize: binding(for: \.chatFontSize)
             )
+        case .notifications:
+            NotificationsSettingsTabView(
+                viewModel: viewModel,
+                notificationsEnabled: binding(for: \.notificationsEnabled),
+                osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
+                soundEnabled: binding(for: \.soundEnabled),
+                soundName: binding(for: \.soundName)
+            )
+        case .threads:
+            ThreadsSettingsTabView(
+                viewModel: viewModel,
+                defaultProvider: binding(for: \.defaultProvider),
+                defaultModel: binding(for: \.defaultModel),
+                permissionMode: binding(for: \.permissionMode),
+                effort: binding(for: \.effort),
+                deleteKeyAction: binding(for: \.deleteKeyAction),
+                reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
+                createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
+                autoTrustProjects: binding(for: \.autoTrustProjects)
+            )
         }
     }
 
     private enum SettingsTab: String, CaseIterable, Identifiable {
-        case general
         case agents
         case git
         case interface
+        case notifications
+        case threads
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .general:
-                return "General"
             case .agents:
                 return "Agents"
             case .git:
                 return "Git"
             case .interface:
                 return "Interface"
+            case .notifications:
+                return "Notifications"
+            case .threads:
+                return "Threads"
             }
         }
 
         var icon: String {
             switch self {
-            case .general:
-                return "slider.horizontal.3"
             case .agents:
                 return "sparkles.rectangle.stack"
             case .git:
                 return "arrow.triangle.branch"
             case .interface:
                 return "swatchpalette"
+            case .notifications:
+                return "bell"
+            case .threads:
+                return "bubble.left.and.bubble.right"
             }
         }
     }
@@ -178,14 +187,16 @@ struct SettingsScreen: View {
 private extension SettingsScreen {
     private func description(for tab: SettingsTab) -> String {
         switch tab {
-        case .general:
-            return "Manage thread defaults, startup behavior, and notification settings."
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
         case .git:
             return "Configure Git defaults and GitHub authentication for new worktrees."
         case .interface:
             return "Adjust theme and typography for the app shell."
+        case .notifications:
+            return "Configure notification delivery and sounds."
+        case .threads:
+            return "Manage thread defaults and startup behavior."
         }
     }
 

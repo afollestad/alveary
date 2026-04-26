@@ -21,7 +21,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
-            $0.reopenLastThreadAndConversationOnLaunch = true
+            $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
         }
@@ -31,7 +31,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.permissionMode, "plan")
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.deleteKeyAction, .delete)
-        XCTAssertTrue(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
+        XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
     }
@@ -273,6 +273,53 @@ final class SettingsServiceTests: XCTestCase {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertEqual(service.current.deleteKeyAction, .archive)
+    }
+
+    func testUserDefaultsSettingsServiceUsesDefaultLaunchRestoreWhenStoredJSONPredatesField() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "plan",
+            "effort": "high",
+            "autoTrustProjects": true,
+            "createWorktreeByDefault": false,
+            "theme": "dark",
+            "codeFontFamily": "Monaco",
+            "codeFontSize": 16,
+            "chatFontSize": 18,
+            "diffViewerWidth": 520,
+            "notifications": [
+                "enabled": true,
+                "osNotifications": true,
+                "sound": true,
+                "soundName": "Glass"
+            ],
+            "branchPrefix": "feature/",
+            "providerConfigs": [:]
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
+    }
+
+    func testUserDefaultsSettingsServicePreservesExplicitStoredLaunchRestoreFalse() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "reopenLastThreadAndConversationOnLaunch": false
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertFalse(service.current.reopenLastThreadAndConversationOnLaunch)
     }
 
     func testServicesNormalizeInvalidValuesDuringUpdate() throws {

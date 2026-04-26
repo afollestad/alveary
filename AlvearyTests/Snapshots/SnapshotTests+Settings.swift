@@ -23,8 +23,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
-                onClose: {},
-                initialTabRawValue: "agents"
+                onClose: {}
             ),
             size: CGSize(width: 1100, height: 820),
             named: "settings_screen_agents"
@@ -59,41 +58,87 @@ extension SnapshotTests {
         )
     }
 
-    func testSettingsScreenGeneralTab() {
+    func testSettingsScreenThreadsTab() {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
         settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
-        settings.notifications.soundName = "Pop"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(
-            SettingsScreen(viewModel: viewModel, gitHubCLI: gitHubCLI, onClose: {}),
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "threads"
+            ),
             size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_general"
+            named: "settings_screen_threads"
         )
     }
 
-    func testSettingsScreenGeneralTabNarrowKeepsTogglesInline() {
+    func testSettingsScreenThreadsTabNarrowKeepsTogglesInline() {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
         settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "threads"
+            ),
+            size: CGSize(width: 400, height: 1_200),
+            named: "settings_screen_threads_narrow_toggles"
+        )
+    }
+
+    func testSettingsScreenNotificationsTab() {
+        var settings = AppSettings()
         settings.notifications.soundName = "Pop"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(
-            SettingsScreen(viewModel: viewModel, gitHubCLI: gitHubCLI, onClose: {}),
-            size: CGSize(width: 400, height: 1_200),
-            named: "settings_screen_general_narrow_toggles"
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "notifications"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_notifications"
+        )
+    }
+
+    func testSettingsScreenNotificationsTabNarrowKeepsTogglesInline() {
+        var settings = AppSettings()
+        settings.notifications.soundName = "Pop"
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "notifications"
+            ),
+            size: CGSize(width: 400, height: 700),
+            named: "settings_screen_notifications_narrow_toggles"
         )
     }
 

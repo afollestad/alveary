@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GeneralSettingsTabView: View {
+struct ThreadsSettingsTabView: View {
     let viewModel: SettingsViewModel
     @Binding var defaultProvider: String
     @Binding var defaultModel: String
@@ -10,14 +10,10 @@ struct GeneralSettingsTabView: View {
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var createWorktreeByDefault: Bool
     @Binding var autoTrustProjects: Bool
-    @Binding var notificationsEnabled: Bool
-    @Binding var osNotificationsEnabled: Bool
-    @Binding var soundEnabled: Bool
-    @Binding var soundName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
-            SettingsFormSection("Thread Defaults") {
+            SettingsFormSection("Defaults") {
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
                         SettingsMenuPicker(
@@ -85,8 +81,21 @@ struct GeneralSettingsTabView: View {
                     showsDivider: false
                 )
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
-            SettingsFormSection("Notifications") {
+struct NotificationsSettingsTabView: View {
+    let viewModel: SettingsViewModel
+    @Binding var notificationsEnabled: Bool
+    @Binding var osNotificationsEnabled: Bool
+    @Binding var soundEnabled: Bool
+    @Binding var soundName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
+            SettingsFormSection {
                 SettingsToggleRow("Enable notifications", isOn: $notificationsEnabled)
 
                 SettingsToggleRow(

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsFormSection<Content: View>: View {
-    let title: String
+    let title: String?
     private let content: Content
 
     init(_ title: String, @ViewBuilder content: () -> Content) {
@@ -9,9 +9,16 @@ struct SettingsFormSection<Content: View>: View {
         self.content = content()
     }
 
+    init(@ViewBuilder content: () -> Content) {
+        self.title = nil
+        self.content = content()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionHeaderSpacing) {
-            SettingsFormSectionHeader(title)
+            if let title {
+                SettingsFormSectionHeader(title)
+            }
 
             VStack(spacing: 0) {
                 content
