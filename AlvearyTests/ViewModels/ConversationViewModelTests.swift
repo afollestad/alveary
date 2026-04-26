@@ -27,7 +27,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(providerSetupCalls.count, 1)
         XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
         XCTAssertEqual(providerSetupCalls.first?.workingDirectory, fixture.project.path)
-        XCTAssertEqual(providerSetupCalls.first?.autoTrust, false)
+        XCTAssertEqual(providerSetupCalls.first?.autoTrust, true)
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls, [.init(conversationId: fixture.conversation.id, config: config)])
@@ -141,7 +141,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(providerSetupCalls.count, 1)
         XCTAssertEqual(providerSetupCalls.first?.providerId, "claude")
         XCTAssertEqual(providerSetupCalls.first?.workingDirectory, fixture.project.path)
-        XCTAssertEqual(providerSetupCalls.first?.autoTrust, false)
+        XCTAssertEqual(providerSetupCalls.first?.autoTrust, true)
 
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
@@ -288,8 +288,7 @@ struct ConversationViewModelTestFixture {
     }
     private static func testSettings() -> AppSettings {
         var settings = AppSettings()
-        settings.autoGenerateNames = true
-        settings.autoTrustWorktrees = true
+        settings.autoTrustProjects = true
         return settings
     }
 

@@ -59,14 +59,6 @@ actor DefaultWorktreeManager: WorktreeManager {
                 rollbackBranch: target.branch
             )
 
-            if settings.pushOnCreate, let remoteName {
-                _ = try? await shell.run(
-                    executable: "/usr/bin/git",
-                    args: ["push", "--set-upstream", remoteName, target.branch],
-                    in: target.path
-                )
-            }
-
             return WorktreeInfo(path: CanonicalPath.normalize(target.path), branch: target.branch)
         } catch {
             await detachedCleanupAfterFailedCreate(

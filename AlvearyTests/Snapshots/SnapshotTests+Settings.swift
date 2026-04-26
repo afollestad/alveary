@@ -65,7 +65,7 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
-        settings.autoTrustWorktrees = false
+        settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
         settings.notifications.soundName = "Pop"
@@ -84,7 +84,7 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
-        settings.autoTrustWorktrees = false
+        settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
         settings.notifications.soundName = "Pop"

@@ -36,9 +36,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
     var deleteKeyAction = ThreadDeleteKeyAction.archive
-    var autoGenerateNames = true
     var reopenLastThreadAndConversationOnLaunch = false
-    var autoTrustWorktrees = true
+    var autoTrustProjects = true
     var createWorktreeByDefault = false
     var theme = "system"
     var codeFontFamily = Self.defaultCodeFontFamily
@@ -51,7 +50,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     var branchPrefix = "alveary"
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
-    var pushOnCreate = false
     var providerConfigs: [String: ProviderCustomConfig] = [:]
     var lastOpenThreadID: PersistentIdentifier?
     var lastOpenConversationID: PersistentIdentifier?
@@ -151,9 +149,8 @@ extension AppSettings {
         case permissionMode
         case effort
         case deleteKeyAction
-        case autoGenerateNames
         case reopenLastThreadAndConversationOnLaunch
-        case autoTrustWorktrees
+        case autoTrustProjects
         case createWorktreeByDefault
         case theme
         case codeFontFamily
@@ -166,27 +163,32 @@ extension AppSettings {
         case branchPrefix
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
-        case pushOnCreate
         case providerConfigs
         case lastOpenThreadID
         case lastOpenConversationID
     }
 
+    private enum LegacyCodingKeys: String, CodingKey {
+        case autoTrustWorktrees
+    }
+
     init(from decoder: any Decoder) throws {
         let defaults = AppSettings()
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
 
         self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
         self.defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaults.defaultModel
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
         self.deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? defaults.deleteKeyAction
-        self.autoGenerateNames = try container.decodeIfPresent(Bool.self, forKey: .autoGenerateNames) ?? defaults.autoGenerateNames
         self.reopenLastThreadAndConversationOnLaunch = try container.decodeIfPresent(
             Bool.self,
             forKey: .reopenLastThreadAndConversationOnLaunch
         ) ?? defaults.reopenLastThreadAndConversationOnLaunch
-        self.autoTrustWorktrees = try container.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees) ?? defaults.autoTrustWorktrees
+        self.autoTrustProjects = try container.decodeIfPresent(Bool.self, forKey: .autoTrustProjects)
+            ?? legacyContainer.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees)
+            ?? defaults.autoTrustProjects
         self.createWorktreeByDefault = try container.decodeIfPresent(Bool.self, forKey: .createWorktreeByDefault) ?? defaults.createWorktreeByDefault
         self.theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? defaults.theme
         self.codeFontFamily = try container.decodeIfPresent(String.self, forKey: .codeFontFamily) ?? defaults.codeFontFamily
@@ -208,7 +210,6 @@ extension AppSettings {
             String.self,
             forKey: .lastAddProjectParentFolder
         )
-        self.pushOnCreate = try container.decodeIfPresent(Bool.self, forKey: .pushOnCreate) ?? defaults.pushOnCreate
         self.providerConfigs = try container.decodeIfPresent(
             [String: ProviderCustomConfig].self,
             forKey: .providerConfigs

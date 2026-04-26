@@ -4,22 +4,12 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testSendAutoNamesConversationFromFirstMessageWhenEnabled() async throws {
+    func testSendAutoNamesConversationFromFirstMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: "Existing Thread")
 
         try await fixture.viewModel.send("Investigate the flaky login flow and summarize the regressions")
 
         XCTAssertEqual(try fixture.dbConversation().title, "Investigate the flaky login flow and summarize...")
-        XCTAssertEqual(try fixture.dbThread().name, "Existing Thread")
-    }
-
-    func testSendDoesNotAutoNameConversationWhenSettingDisabled() async throws {
-        let fixture = try ConversationViewModelTestFixture(threadName: "Existing Thread")
-        fixture.settingsService.update { $0.autoGenerateNames = false }
-
-        try await fixture.viewModel.send("Investigate the flaky login flow and summarize the regressions")
-
-        XCTAssertNil(try fixture.dbConversation().title)
         XCTAssertEqual(try fixture.dbThread().name, "Existing Thread")
     }
 
@@ -32,23 +22,13 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().name, "Existing Thread")
     }
 
-    func testSendAutoNamesThreadFromFirstMessageWhenEnabled() async throws {
+    func testSendAutoNamesThreadFromFirstMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: "New thread")
 
         try await fixture.viewModel.send("Fix the flaky login flow")
 
         XCTAssertEqual(try fixture.dbConversation().title, "Fix the flaky login flow")
         XCTAssertEqual(try fixture.dbThread().name, "Fix the flaky login flow")
-    }
-
-    func testSendDoesNotAutoNameThreadWhenSettingDisabled() async throws {
-        let fixture = try ConversationViewModelTestFixture(threadName: "New thread")
-        fixture.settingsService.update { $0.autoGenerateNames = false }
-
-        try await fixture.viewModel.send("Fix the flaky login flow")
-
-        XCTAssertNil(try fixture.dbConversation().title)
-        XCTAssertEqual(try fixture.dbThread().name, "New thread")
     }
 
     func testSendDoesNotAutoNameThreadWhenManualTitleMatchesDefaultLabel() async throws {

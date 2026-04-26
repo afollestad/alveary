@@ -66,9 +66,8 @@ final class SettingsServiceTests: XCTestCase {
             "defaultProvider": "claude",
             "permissionMode": "plan",
             "effort": "high",
-            "autoGenerateNames": false,
             "reopenLastThreadAndConversationOnLaunch": true,
-            "autoTrustWorktrees": true,
+            "autoTrustProjects": true,
             "createWorktreeByDefault": false,
             "theme": "dark",
             "codeFontFamily": "Monaco",
@@ -82,7 +81,6 @@ final class SettingsServiceTests: XCTestCase {
                 "soundName": "Glass"
             ],
             "branchPrefix": "feature",
-            "pushOnCreate": false,
             "providerConfigs": [:],
             "lastOpenThreadID": "not-a-persistent-id",
             "lastOpenConversationID": 42
@@ -128,14 +126,28 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current, AppSettings())
     }
 
+    func testUserDefaultsSettingsServiceMigratesLegacyAutoTrustWorktreesKey() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "autoTrustWorktrees": false
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertFalse(service.current.autoTrustProjects)
+    }
+
     func testUserDefaultsSettingsServiceNormalizesInvalidStoredValuesOnLoad() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
             "defaultProvider": "codex",
             "permissionMode": "invalid",
             "effort": "turbo",
-            "autoGenerateNames": true,
-            "autoTrustWorktrees": true,
+            "autoTrustProjects": true,
             "createWorktreeByDefault": false,
             "theme": "sepia",
             "codeFontFamily": "Monaco",
@@ -149,7 +161,6 @@ final class SettingsServiceTests: XCTestCase {
                 "soundName": "Bonk"
             ],
             "branchPrefix": "alveary",
-            "pushOnCreate": false,
             "providerConfigs": [:]
         ]
         defaults.set(
@@ -173,8 +184,7 @@ final class SettingsServiceTests: XCTestCase {
             "defaultProvider": "claude",
             "permissionMode": "plan",
             "effort": "high",
-            "autoGenerateNames": false,
-            "autoTrustWorktrees": true,
+            "autoTrustProjects": true,
             "createWorktreeByDefault": false,
             "theme": "dark",
             "codeFontFamily": "Monaco",
@@ -188,7 +198,6 @@ final class SettingsServiceTests: XCTestCase {
                 "soundName": "Glass"
             ],
             "branchPrefix": "feature",
-            "pushOnCreate": false,
             "providerConfigs": [:]
         ]
         defaults.set(
@@ -209,8 +218,7 @@ final class SettingsServiceTests: XCTestCase {
             "defaultProvider": "claude",
             "permissionMode": "plan",
             "effort": "high",
-            "autoGenerateNames": false,
-            "autoTrustWorktrees": true,
+            "autoTrustProjects": true,
             "createWorktreeByDefault": false,
             "theme": "dark",
             "codeFontFamily": "Monaco",
@@ -224,7 +232,6 @@ final class SettingsServiceTests: XCTestCase {
                 "soundName": "Glass"
             ],
             "branchPrefix": "feature",
-            "pushOnCreate": false,
             "providerConfigs": [:]
         ]
         defaults.set(

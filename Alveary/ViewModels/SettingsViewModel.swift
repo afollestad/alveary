@@ -175,19 +175,14 @@ final class SettingsViewModel {
         set { settingsService.update { $0.deleteKeyAction = newValue } }
     }
 
-    var autoGenerateNames: Bool {
-        get { settingsService.current.autoGenerateNames }
-        set { settingsService.update { $0.autoGenerateNames = newValue } }
-    }
-
     var reopenLastThreadAndConversationOnLaunch: Bool {
         get { settingsService.current.reopenLastThreadAndConversationOnLaunch }
         set { settingsService.update { $0.reopenLastThreadAndConversationOnLaunch = newValue } }
     }
 
-    var autoTrustWorktrees: Bool {
-        get { settingsService.current.autoTrustWorktrees }
-        set { settingsService.update { $0.autoTrustWorktrees = newValue } }
+    var autoTrustProjects: Bool {
+        get { settingsService.current.autoTrustProjects }
+        set { settingsService.update { $0.autoTrustProjects = newValue } }
     }
 
     var createWorktreeByDefault: Bool {
@@ -252,11 +247,6 @@ final class SettingsViewModel {
     var worktreesBaseDirectory: String {
         get { settingsService.current.worktreesBaseDirectory }
         set { settingsService.update { $0.worktreesBaseDirectory = newValue } }
-    }
-
-    var pushOnCreate: Bool {
-        get { settingsService.current.pushOnCreate }
-        set { settingsService.update { $0.pushOnCreate = newValue } }
     }
 
     func providerConfig(for providerId: String) -> ProviderCustomConfig {

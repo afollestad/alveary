@@ -76,11 +76,10 @@ extension ConversationViewModel {
     }
 
     func prepareForSpawn(config: AgentSpawnConfig) async {
-        let shouldAutoTrust = settingsService.current.autoTrustWorktrees && (dbThread()?.useWorktree ?? false)
         await providerSetup.prepareForSpawn(
             providerId: config.providerId,
             workingDirectory: config.workingDirectory,
-            autoTrust: shouldAutoTrust
+            autoTrust: settingsService.current.autoTrustProjects
         )
     }
 

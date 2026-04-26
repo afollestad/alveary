@@ -63,14 +63,12 @@ extension ConversationViewModel {
         modelContext.insert(record)
         state.grouper.appendLocalUserMessage(id: record.id, text: message)
 
-        if settingsService.current.autoGenerateNames,
-           dbConversation.customTitle == nil,
+        if dbConversation.customTitle == nil,
            let name = Self.threadName(from: message) {
             dbConversation.title = name
         }
 
         if shouldAutoNameThread,
-           settingsService.current.autoGenerateNames,
            let thread = dbConversation.thread,
            thread.isEffectivelyUntitled,
            let name = Self.threadName(from: message) {

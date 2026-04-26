@@ -108,10 +108,9 @@ struct SettingsScreen: View {
                 permissionMode: binding(for: \.permissionMode),
                 effort: binding(for: \.effort),
                 deleteKeyAction: binding(for: \.deleteKeyAction),
-                autoGenerateNames: binding(for: \.autoGenerateNames),
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                autoTrustWorktrees: binding(for: \.autoTrustWorktrees),
+                autoTrustProjects: binding(for: \.autoTrustProjects),
                 notificationsEnabled: binding(for: \.notificationsEnabled),
                 osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
                 soundEnabled: binding(for: \.soundEnabled),
@@ -127,8 +126,7 @@ struct SettingsScreen: View {
             GitSettingsTabView(
                 gitHubCLI: gitHubCLI,
                 branchPrefix: binding(for: \.branchPrefix),
-                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
-                pushOnCreate: binding(for: \.pushOnCreate)
+                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory)
             )
         case .interface:
             InterfaceSettingsTabView(

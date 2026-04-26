@@ -7,10 +7,9 @@ struct GeneralSettingsTabView: View {
     @Binding var permissionMode: String
     @Binding var effort: String
     @Binding var deleteKeyAction: ThreadDeleteKeyAction
-    @Binding var autoGenerateNames: Bool
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var createWorktreeByDefault: Bool
-    @Binding var autoTrustWorktrees: Bool
+    @Binding var autoTrustProjects: Bool
     @Binding var notificationsEnabled: Bool
     @Binding var osNotificationsEnabled: Bool
     @Binding var soundEnabled: Bool
@@ -74,11 +73,9 @@ struct GeneralSettingsTabView: View {
                     }
                 }
 
-                SettingsToggleRow("Auto-generate thread names", isOn: $autoGenerateNames)
-
                 SettingsToggleRow("Create worktree by default", isOn: $createWorktreeByDefault)
 
-                SettingsToggleRow("Auto-trust worktrees", isOn: $autoTrustWorktrees, showsDivider: false)
+                SettingsToggleRow("Auto-trust projects", isOn: $autoTrustProjects, showsDivider: false)
             }
 
             SettingsFormSection("Startup") {

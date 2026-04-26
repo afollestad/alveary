@@ -5,7 +5,6 @@ struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
     @Binding var branchPrefix: String
     @Binding var worktreesBaseDirectory: String
-    @Binding var pushOnCreate: Bool
 
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubConnected = false
@@ -23,15 +22,13 @@ struct GitSettingsTabView: View {
 
             VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
                 SettingsFormSection("Branching") {
-                    SettingsFormRow {
+                    SettingsFormRow(showsDivider: false) {
                         SettingsTextFieldRow(
                             "Branch prefix",
                             text: $branchPrefix,
                             horizontalControlSizing: .expandsToFitText
                         )
                     }
-
-                    SettingsToggleRow("Push on create", isOn: $pushOnCreate, showsDivider: false)
                 }
 
                 SettingsFormSection("Worktrees") {

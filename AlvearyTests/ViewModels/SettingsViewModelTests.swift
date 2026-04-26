@@ -92,9 +92,8 @@ final class SettingsViewModelTests: XCTestCase {
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
-            $0.autoGenerateNames = false
             $0.reopenLastThreadAndConversationOnLaunch = true
-            $0.autoTrustWorktrees = false
+            $0.autoTrustProjects = false
             $0.createWorktreeByDefault = true
             $0.theme = "dark"
             $0.codeFontFamily = "Monaco"
@@ -105,7 +104,6 @@ final class SettingsViewModelTests: XCTestCase {
             $0.notifications.sound = false
             $0.notifications.soundName = "Tink"
             $0.branchPrefix = "feature"
-            $0.pushOnCreate = true
             $0.providerConfigs["claude"] = ProviderCustomConfig(cli: "/usr/local/bin/claude")
         }
         let viewModel = SettingsViewModel(settingsService: service)
@@ -115,9 +113,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.permissionMode, "plan")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.deleteKeyAction, .delete)
-        XCTAssertFalse(viewModel.autoGenerateNames)
         XCTAssertTrue(viewModel.reopenLastThreadAndConversationOnLaunch)
-        XCTAssertFalse(viewModel.autoTrustWorktrees)
+        XCTAssertFalse(viewModel.autoTrustProjects)
         XCTAssertTrue(viewModel.createWorktreeByDefault)
         XCTAssertEqual(viewModel.theme, "dark")
         XCTAssertEqual(viewModel.codeFontFamily, "Monaco")
@@ -128,7 +125,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.soundEnabled)
         XCTAssertEqual(viewModel.soundName, "Tink")
         XCTAssertEqual(viewModel.branchPrefix, "feature")
-        XCTAssertTrue(viewModel.pushOnCreate)
         XCTAssertEqual(viewModel.providerConfig(for: "claude").cli, "/usr/local/bin/claude")
     }
 
@@ -141,9 +137,8 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
         viewModel.deleteKeyAction = .delete
-        viewModel.autoGenerateNames = false
         viewModel.reopenLastThreadAndConversationOnLaunch = true
-        viewModel.autoTrustWorktrees = false
+        viewModel.autoTrustProjects = false
         viewModel.createWorktreeByDefault = true
         viewModel.theme = "light"
         viewModel.codeFontFamily = "Monaco"
@@ -154,16 +149,14 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.soundEnabled = false
         viewModel.soundName = "Pop"
         viewModel.branchPrefix = "feature"
-        viewModel.pushOnCreate = true
 
         XCTAssertEqual(service.current.defaultProvider, "claude")
         XCTAssertEqual(service.current.defaultModel, "sonnet")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.deleteKeyAction, .delete)
-        XCTAssertFalse(service.current.autoGenerateNames)
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
-        XCTAssertFalse(service.current.autoTrustWorktrees)
+        XCTAssertFalse(service.current.autoTrustProjects)
         XCTAssertTrue(service.current.createWorktreeByDefault)
         XCTAssertEqual(service.current.theme, "light")
         XCTAssertEqual(service.current.codeFontFamily, "Monaco")
@@ -174,7 +167,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(service.current.notifications.sound)
         XCTAssertEqual(service.current.notifications.soundName, "Pop")
         XCTAssertEqual(service.current.branchPrefix, "feature")
-        XCTAssertTrue(service.current.pushOnCreate)
     }
 
     // Settings Effort picker must not silently retain a value the new model
