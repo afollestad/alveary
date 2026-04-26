@@ -116,6 +116,7 @@ struct ThreadDetailConversationTabs: View {
                     textStyle: .headline
                 )
                 .padding(.leading, 20)
+                .padding(.vertical, 8)
                 Spacer()
             }
 
