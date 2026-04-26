@@ -22,7 +22,7 @@ struct ContentDiffViewerResizeHandle: View {
                 .fill(isHovering ? Color.accentColor.opacity(0.18) : Color.clear)
                 .frame(width: 6)
         }
-        .frame(width: 8)
+        .frame(width: ContentDiffViewerWidthPolicy.resizeHandleThickness)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovering = hovering
@@ -69,5 +69,27 @@ struct ContentDiffViewerResizeHandle: View {
         let clamped = min(max(candidate, lowerBound), upperBound)
         let step = max(1 / max(displayScale, 1), 0.5)
         return (clamped / step).rounded() * step
+    }
+}
+
+enum ContentDiffViewerWidthPolicy {
+    static let minimumMiddlePaneWidth: CGFloat = 420
+    static let resizeHandleThickness: CGFloat = 8
+
+    static func effectiveWidth(storedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
+        let bounds = bounds(availableWidth: availableWidth)
+        return min(max(storedWidth, CGFloat(bounds.lowerBound)), CGFloat(bounds.upperBound))
+    }
+
+    static func bounds(
+        availableWidth: CGFloat,
+        supportedBounds: ClosedRange<Double> = AppSettings.supportedDiffViewerWidthRange
+    ) -> ClosedRange<Double> {
+        let maximumAvailableWidth = Double(max(
+            availableWidth - minimumMiddlePaneWidth - resizeHandleThickness,
+            CGFloat(supportedBounds.lowerBound)
+        ))
+        let upperBound = min(supportedBounds.upperBound, maximumAvailableWidth)
+        return supportedBounds.lowerBound...upperBound
     }
 }

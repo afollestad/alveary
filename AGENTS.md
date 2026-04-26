@@ -1,11 +1,12 @@
 ## Keep Guidance Current
 
+- Keep `AGENTS.md` information concise to minimize token usage.
 - Keep `AGENTS.md` accurate when changes create useful future-agent context.
-- Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
 - Put new rules in the narrowest `AGENTS.md` that covers the affected files.
 - Split dense rules into short sub-bullets with bold imperative leads.
 - Call out oversized guidance files or sections that should be split.
 - When adding a nested `AGENTS.md`, also add sibling `CLAUDE.md` as `ln -s AGENTS.md CLAUDE.md`, then list the new scope below. `project.yml` already excludes `**/CLAUDE.md`.
+- Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
 
 ## Scoped Guidance
 
@@ -86,4 +87,4 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 
 When asked for a self review or audit, first say `Performing a self review...`.
 
-Review uncommitted changes for bugs, edge cases, regressions, performance, dead code, stale code, missing unit/snapshot coverage, missing docs/comments, stale guidance, lint, file-size pressure, and accessibility. Confirm snapshot recording where needed. Fix low-risk issues yourself; ask before risky changes. When done, ask whether the user wants another pass.
+Review uncommitted changes for: bugs, edge cases, regressions, performance, dead code, stale code, missing unit/snapshot coverage, missing docs/comments, stale guidance, lint, file-size pressure, and accessibility. Confirm snapshot recording where needed. Fix low-risk issues yourself; ask before risky changes. When done, ask whether the user wants another pass.

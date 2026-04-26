@@ -21,23 +21,30 @@ struct GitSettingsTabView: View {
                 }
             }
 
-            Form {
-                Section("Branching") {
-                    SettingsTextFieldRow("Branch prefix", text: $branchPrefix)
-                    Toggle("Push on create", isOn: $pushOnCreate)
-                        .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
+            VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
+                SettingsFormSection("Branching") {
+                    SettingsFormRow {
+                        SettingsTextFieldRow("Branch prefix", text: $branchPrefix)
+                    }
+
+                    SettingsToggleRow("Push on create", isOn: $pushOnCreate, showsDivider: false)
                 }
 
-                Section("Worktrees") {
-                    SettingsFolderPickerRow("Worktrees directory", path: $worktreesBaseDirectory)
+                SettingsFormSection("Worktrees") {
+                    SettingsFormRow(showsDivider: false) {
+                        SettingsFolderPickerRow("Worktrees directory", path: $worktreesBaseDirectory)
+                    }
                 }
 
-                Section("GitHub") {
-                    gitHubSection
+                SettingsFormSection("GitHub") {
+                    SettingsFormRow(showsDivider: false) {
+                        gitHubSection
+                    }
                 }
             }
-            .formStyle(.grouped)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await refreshGitHubState()
         }

@@ -9,6 +9,16 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 - For selectable list rows such as sidebar items, settings tabs, and diff file lists, use the `.appSelectableRow(isSelected:action:)` modifier from `Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows.
 - `InlineText` from Textual applies `TextSelectionInteraction()` internally, which consumes clicks and blocks `.onTapGesture` on any containing row (including `.appSelectableRow`). Add `.allowsHitTesting(false)` to `InlineText` when it is rendered inside a clickable row so taps reach the row's gesture. Plain `Text` does not need this.
 
+## Responsive Settings Rows
+
+- **Use `SettingsResponsiveControlRow` for settings label/control rows.** Default controls take 50% horizontally; compact controls can use intrinsic sizing.
+- **Use `SettingsFormSection` and `SettingsFormRow` for app settings forms.** They keep section cards and row alignment consistent.
+- **Use `SettingsToggleRow` for boolean app settings.** It preserves switch styling, row-click toggling, press feedback, and accessibility actions.
+- **Use intrinsic sizing for compact controls.** Pickers and compact steppers hug the shared minimum width horizontally, then fill when stacked.
+- **Keep switches inline.** Toggle controls use intrinsic inline sizing because the switch is small enough to stay beside the label.
+- **Preserve layout measurement semantics.** Use ideal horizontal sizing only when SwiftUI proposes no width; use actual width during placement so cramped rows stack instead of overflowing.
+- **Keep settings navigation reachable.** Switch `SettingsScreen` from the side list to compact tabs before the side list can be clipped.
+
 ## Status Dot Colors
 
 Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `Terminal/`. Current surfaces: `SidebarThreadRow.statusColor`, `ConversationTabChip.statusColor`, `TerminalSessionChip.statusColor`, `TerminalSessionStatusBadge.foregroundColor`.

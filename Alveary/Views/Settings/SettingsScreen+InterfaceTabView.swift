@@ -8,26 +8,36 @@ struct InterfaceSettingsTabView: View {
     @Binding var chatFontSize: Int
 
     var body: some View {
-        Form {
-            Section("Appearance") {
-                Picker("Theme", selection: $theme) {
-                    ForEach(viewModel.themeOptions, id: \.self) { theme in
-                        Text(theme.capitalized).tag(theme)
+        VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
+            SettingsFormSection("Appearance") {
+                SettingsFormRow {
+                    SettingsResponsiveControlRow("Theme", horizontalControlSizing: .intrinsic) {
+                        SettingsMenuPicker(
+                            "Theme",
+                            selection: $theme,
+                            options: viewModel.themeOptions,
+                            label: { $0.capitalized }
+                        )
                     }
                 }
-                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
 
-                SettingsTextFieldRow("Code font family", text: $codeFontFamily)
-                Stepper(value: $codeFontSize, in: 10...24) {
-                    Text("Code font size: \(viewModel.codeFontSize)")
+                SettingsFormRow {
+                    SettingsTextFieldRow("Code font family", text: $codeFontFamily)
                 }
-                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
-                Stepper(value: $chatFontSize, in: 11...24) {
-                    Text("Chat font size: \(viewModel.chatFontSize)")
+
+                SettingsFormRow {
+                    SettingsResponsiveControlRow("Code font size", horizontalControlSizing: .intrinsic) {
+                        SettingsValueStepper("Code font size", value: $codeFontSize, in: 10...24)
+                    }
                 }
-                .frame(minHeight: SettingsScreenLayout.settingsRowHeight)
+
+                SettingsFormRow(showsDivider: false) {
+                    SettingsResponsiveControlRow("Chat font size", horizontalControlSizing: .intrinsic) {
+                        SettingsValueStepper("Chat font size", value: $chatFontSize, in: 11...24)
+                    }
+                }
             }
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

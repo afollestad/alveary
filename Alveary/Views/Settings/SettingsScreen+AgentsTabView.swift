@@ -6,38 +6,58 @@ struct AgentsSettingsTabView: View {
     let providerConfigBinding: (String, WritableKeyPath<ProviderCustomConfig, String?>) -> Binding<String>
 
     var body: some View {
-        Form {
+        VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
             ForEach(providerIDs, id: \.self) { providerID in
-                Section(providerID.capitalized) {
-                    providerStatusSection(for: providerID)
-                    SettingsTextFieldRow(
-                        "CLI override",
-                        text: providerConfigBinding(providerID, \.cli)
-                    )
-                    SettingsTextFieldRow(
-                        "Resume flag",
-                        text: providerConfigBinding(providerID, \.resumeFlag)
-                    )
-                    SettingsTextFieldRow(
-                        "Default args",
-                        text: providerConfigBinding(providerID, \.defaultArgs)
-                    )
-                    SettingsTextFieldRow(
-                        "Auto-approve flag",
-                        text: providerConfigBinding(providerID, \.autoApproveFlag)
-                    )
-                    SettingsTextFieldRow(
-                        "Initial prompt flag",
-                        text: providerConfigBinding(providerID, \.initialPromptFlag)
-                    )
-                    SettingsTextFieldRow(
-                        "Extra args",
-                        text: providerConfigBinding(providerID, \.extraArgs)
-                    )
+                SettingsFormSection(providerID.capitalized) {
+                    SettingsFormRow {
+                        providerStatusSection(for: providerID)
+                    }
+
+                    SettingsFormRow {
+                        SettingsTextFieldRow(
+                            "CLI override",
+                            text: providerConfigBinding(providerID, \.cli)
+                        )
+                    }
+
+                    SettingsFormRow {
+                        SettingsTextFieldRow(
+                            "Resume flag",
+                            text: providerConfigBinding(providerID, \.resumeFlag)
+                        )
+                    }
+
+                    SettingsFormRow {
+                        SettingsTextFieldRow(
+                            "Default args",
+                            text: providerConfigBinding(providerID, \.defaultArgs)
+                        )
+                    }
+
+                    SettingsFormRow {
+                        SettingsTextFieldRow(
+                            "Auto-approve flag",
+                            text: providerConfigBinding(providerID, \.autoApproveFlag)
+                        )
+                    }
+
+                    SettingsFormRow {
+                        SettingsTextFieldRow(
+                            "Initial prompt flag",
+                            text: providerConfigBinding(providerID, \.initialPromptFlag)
+                        )
+                    }
+
+                    SettingsFormRow(showsDivider: false) {
+                        SettingsTextFieldRow(
+                            "Extra args",
+                            text: providerConfigBinding(providerID, \.extraArgs)
+                        )
+                    }
                 }
             }
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await viewModel.refreshProviderStatusesIfNeeded()
         }

@@ -132,25 +132,35 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
         } detail: {
             ZStack(alignment: .bottom) {
-                HStack(spacing: 0) {
-                    middlePane
-                        .frame(maxWidth: .infinity)
+                GeometryReader { proxy in
+                    let effectiveDiffViewerWidth = effectiveDiffViewerWidth(availableWidth: proxy.size.width)
+                    let diffViewerWidthBinding = Binding(
+                        get: { effectiveDiffViewerWidth },
+                        set: { diffViewerWidth = $0 }
+                    )
+                    let effectiveDiffViewerBounds = effectiveDiffViewerBounds(availableWidth: proxy.size.width)
 
-                    if appState.isRightPaneVisible {
-                        ContentDiffViewerResizeHandle(
-                            width: $diffViewerWidth,
-                            bounds: AppSettings.supportedDiffViewerWidthRange,
-                            onCommit: persistDiffViewerWidth
-                        )
-                        DiffViewerPane(
-                            viewModel: diffViewModel,
-                            areAgentActionsEnabled: activeDiffActionTarget() != nil,
-                            topSectionFraction: $diffViewerTopSectionFraction,
-                            onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
-                            onCommitRequested: requestAgentCommit,
-                            onOpenPRRequested: requestAgentOpenPR
-                        )
-                        .frame(width: diffViewerWidth)
+                    HStack(spacing: 0) {
+                        middlePane
+                            .frame(minWidth: 0, maxWidth: .infinity)
+                            .clipped()
+
+                        if appState.isRightPaneVisible {
+                            ContentDiffViewerResizeHandle(
+                                width: diffViewerWidthBinding,
+                                bounds: effectiveDiffViewerBounds,
+                                onCommit: persistDiffViewerWidth
+                            )
+                            DiffViewerPane(
+                                viewModel: diffViewModel,
+                                areAgentActionsEnabled: activeDiffActionTarget() != nil,
+                                topSectionFraction: $diffViewerTopSectionFraction,
+                                onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
+                                onCommitRequested: requestAgentCommit,
+                                onOpenPRRequested: requestAgentOpenPR
+                            )
+                            .frame(width: effectiveDiffViewerWidth)
+                        }
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: appState.isRightPaneVisible)
@@ -383,5 +393,13 @@ private extension ContentView {
         }
 
         return "\(stats.additions) additions, \(stats.deletions) deletions"
+    }
+
+    func effectiveDiffViewerWidth(availableWidth: CGFloat) -> CGFloat {
+        ContentDiffViewerWidthPolicy.effectiveWidth(storedWidth: diffViewerWidth, availableWidth: availableWidth)
+    }
+
+    func effectiveDiffViewerBounds(availableWidth: CGFloat) -> ClosedRange<Double> {
+        ContentDiffViewerWidthPolicy.bounds(availableWidth: availableWidth)
     }
 }

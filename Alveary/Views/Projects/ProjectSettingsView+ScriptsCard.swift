@@ -10,14 +10,12 @@ struct ProjectSettingsScriptsCard: View {
                 SettingsTextFieldRow(
                     "Setup script",
                     text: $setupScript,
-                    width: 520,
                     textAlignment: .leading
                 )
 
                 SettingsTextFieldRow(
                     "Cleanup script",
                     text: $teardownScript,
-                    width: 520,
                     textAlignment: .leading
                 )
             }

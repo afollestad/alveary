@@ -55,11 +55,8 @@ struct ProjectSettingsAccessoryIconButton: View {
 }
 
 private enum ProjectSettingsActionEditorLayout {
-    static let rowControlWidth: CGFloat = 520
     static let accessoryButtonWidth: CGFloat = 30
     static let accessorySpacing: CGFloat = 12
-
-    static let nameFieldWidth = rowControlWidth - accessoryButtonWidth - accessorySpacing
 }
 
 private struct ProjectSettingsActionEditor: View {
@@ -69,37 +66,33 @@ private struct ProjectSettingsActionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Text("Name")
-                    .accessibilityHidden(true)
+            SettingsResponsiveControlRow("Name") {
+                HStack(spacing: ProjectSettingsActionEditorLayout.accessorySpacing) {
+                    AppTextField(
+                        "Name",
+                        text: Binding(
+                            get: { action.name },
+                            set: { newValue in
+                                var updatedAction = action
+                                updatedAction.name = newValue
+                                onChange(updatedAction)
+                            }
+                        ),
+                        showsPrompt: false,
+                        textAlignment: .leading,
+                        horizontalPadding: 10,
+                        verticalPadding: 7
+                    )
 
-                Spacer(minLength: 16)
-
-                AppTextField(
-                    "Name",
-                    text: Binding(
-                        get: { action.name },
-                        set: { newValue in
-                            var updatedAction = action
-                            updatedAction.name = newValue
-                            onChange(updatedAction)
-                        }
-                    ),
-                    showsPrompt: false,
-                    textAlignment: .leading,
-                    horizontalPadding: 10,
-                    verticalPadding: 7
-                )
-                .frame(width: ProjectSettingsActionEditorLayout.nameFieldWidth)
-
-                ProjectSettingsAccessoryIconButton(
-                    systemImage: "trash",
-                    accessibilityLabel: "Remove action",
-                    usesDestructiveStyle: true,
-                    action: onRemove
-                )
+                    ProjectSettingsAccessoryIconButton(
+                        systemImage: "trash",
+                        accessibilityLabel: "Remove action",
+                        usesDestructiveStyle: true,
+                        action: onRemove
+                    )
+                    .frame(width: ProjectSettingsActionEditorLayout.accessoryButtonWidth)
+                }
             }
-            .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
 
             SettingsTextFieldRow(
                 "Command",
@@ -111,7 +104,6 @@ private struct ProjectSettingsActionEditor: View {
                         onChange(updatedAction)
                     }
                 ),
-                width: ProjectSettingsActionEditorLayout.rowControlWidth,
                 textAlignment: .leading
             )
 

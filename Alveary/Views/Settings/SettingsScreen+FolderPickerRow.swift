@@ -13,30 +13,32 @@ struct SettingsFolderPickerRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .accessibilityHidden(true)
+        SettingsResponsiveControlRow(title) {
+            HStack(spacing: 10) {
+                Text(path)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .help(path)
+                    .accessibilityLabel(title)
+                    .accessibilityValue(path)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(0)
 
-            Spacer(minLength: 16)
-
-            Text(path)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .help(path)
-                .frame(maxWidth: 220, alignment: .trailing)
-
-            Button(action: chooseFolder) {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder")
-                    Text("Choose…")
+                Button(action: chooseFolder) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                        Text("Choose…")
+                    }
                 }
+                .secondaryActionButtonStyle()
+                .accessibilityLabel("Choose \(title)")
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
             }
-            .secondaryActionButtonStyle()
         }
-        .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
     }
 
     private func chooseFolder() {

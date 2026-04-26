@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct SettingsScreen: View {
+    private static let sidebarLayoutMinimumWidth: CGFloat = 700
+    private static let sidebarWidth: CGFloat = 180
+
     let viewModel: SettingsViewModel
     let gitHubCLI: GitHubCLIService
     let onClose: (() -> Void)?
@@ -20,76 +23,121 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            List(SettingsTab.allCases) { tab in
-                Label {
-                    Text(tab.title)
-                } icon: {
-                    Image(systemName: tab.icon)
-                        .foregroundStyle(Color.primary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-                .appSelectableRow(
-                    isSelected: selectedTab == tab,
-                    action: { selectedTab = tab }
-                )
+        GeometryReader { proxy in
+            if proxy.size.width >= Self.sidebarLayoutMinimumWidth {
+                sidebarLayout(width: proxy.size.width)
+            } else {
+                stackedLayout(width: proxy.size.width)
             }
-            .frame(width: 180)
+        }
+    }
+
+    private func sidebarLayout(width: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            settingsSidebar
+                .frame(width: Self.sidebarWidth)
+                .layoutPriority(1)
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    SettingsScreenHeader(
-                        title: selectedTab.title,
-                        description: description(for: selectedTab),
-                        onClose: onClose
-                    )
+            settingsDetail(width: max(width - Self.sidebarWidth - 1, 0))
+                .clipped()
+        }
+    }
 
-                    switch selectedTab {
-                    case .general:
-                        GeneralSettingsTabView(
-                            viewModel: viewModel,
-                            defaultProvider: binding(for: \.defaultProvider),
-                            defaultModel: binding(for: \.defaultModel),
-                            permissionMode: binding(for: \.permissionMode),
-                            effort: binding(for: \.effort),
-                            deleteKeyAction: binding(for: \.deleteKeyAction),
-                            autoGenerateNames: binding(for: \.autoGenerateNames),
-                            reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
-                            createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                            autoTrustWorktrees: binding(for: \.autoTrustWorktrees),
-                            notificationsEnabled: binding(for: \.notificationsEnabled),
-                            osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
-                            soundEnabled: binding(for: \.soundEnabled),
-                            soundName: binding(for: \.soundName)
-                        )
-                    case .agents:
-                        AgentsSettingsTabView(
-                            viewModel: viewModel,
-                            providerIDs: viewModel.availableProviderIDs,
-                            providerConfigBinding: providerConfigBinding
-                        )
-                    case .git:
-                        GitSettingsTabView(
-                            gitHubCLI: gitHubCLI,
-                            branchPrefix: binding(for: \.branchPrefix),
-                            worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
-                            pushOnCreate: binding(for: \.pushOnCreate)
-                        )
-                    case .interface:
-                        InterfaceSettingsTabView(
-                            viewModel: viewModel,
-                            theme: binding(for: \.theme),
-                            codeFontFamily: binding(for: \.codeFontFamily),
-                            codeFontSize: binding(for: \.codeFontSize),
-                            chatFontSize: binding(for: \.chatFontSize)
-                        )
-                    }
+    private func stackedLayout(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Picker("Settings section", selection: $selectedTab) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
                 }
-                .padding(28)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 28)
+            .padding(.top, 20)
+            .padding(.bottom, 4)
+
+            settingsDetail(width: width)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var settingsSidebar: some View {
+        List(SettingsTab.allCases) { tab in
+            Label {
+                Text(tab.title)
+            } icon: {
+                Image(systemName: tab.icon)
+                    .foregroundStyle(Color.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+            .appSelectableRow(
+                isSelected: selectedTab == tab,
+                action: { selectedTab = tab }
+            )
+        }
+    }
+
+    private func settingsDetail(width: CGFloat) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                SettingsScreenHeader(
+                    title: selectedTab.title,
+                    description: description(for: selectedTab),
+                    onClose: onClose
+                )
+
+                selectedTabView
+            }
+            .padding(28)
+            .frame(width: width, alignment: .leading)
+        }
+        .scrollClipDisabled(false)
+    }
+
+    @ViewBuilder
+    private var selectedTabView: some View {
+        switch selectedTab {
+        case .general:
+            GeneralSettingsTabView(
+                viewModel: viewModel,
+                defaultProvider: binding(for: \.defaultProvider),
+                defaultModel: binding(for: \.defaultModel),
+                permissionMode: binding(for: \.permissionMode),
+                effort: binding(for: \.effort),
+                deleteKeyAction: binding(for: \.deleteKeyAction),
+                autoGenerateNames: binding(for: \.autoGenerateNames),
+                reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
+                createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
+                autoTrustWorktrees: binding(for: \.autoTrustWorktrees),
+                notificationsEnabled: binding(for: \.notificationsEnabled),
+                osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
+                soundEnabled: binding(for: \.soundEnabled),
+                soundName: binding(for: \.soundName)
+            )
+        case .agents:
+            AgentsSettingsTabView(
+                viewModel: viewModel,
+                providerIDs: viewModel.availableProviderIDs,
+                providerConfigBinding: providerConfigBinding
+            )
+        case .git:
+            GitSettingsTabView(
+                gitHubCLI: gitHubCLI,
+                branchPrefix: binding(for: \.branchPrefix),
+                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
+                pushOnCreate: binding(for: \.pushOnCreate)
+            )
+        case .interface:
+            InterfaceSettingsTabView(
+                viewModel: viewModel,
+                theme: binding(for: \.theme),
+                codeFontFamily: binding(for: \.codeFontFamily),
+                codeFontSize: binding(for: \.codeFontSize),
+                chatFontSize: binding(for: \.chatFontSize)
+            )
         }
     }
 
