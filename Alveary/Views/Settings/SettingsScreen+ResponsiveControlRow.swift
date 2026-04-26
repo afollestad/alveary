@@ -108,7 +108,7 @@ private struct SettingsResponsiveControlRowLayout: Layout {
         let controlWidth = max(preferredControlWidth, 0)
         let labelWidth = width - spacing - controlWidth
         let labelIdealWidth = subviews[0].sizeThatFits(.unspecified).width
-        let responsiveControlWidth = width * controlWidthFraction
+        let responsiveControlWidth = width * horizontalControlWidthFraction
 
         if case .intrinsicInline = horizontalControlSizing {
             return labelWidth > 0 ? .horizontal(width: width, controlWidth: controlWidth) : .stacked(width: width)
@@ -132,6 +132,8 @@ private struct SettingsResponsiveControlRowLayout: Layout {
         switch horizontalControlSizing {
         case .fillsAvailableWidth:
             return availableWidth * controlWidthFraction
+        case .fillsAvailableWidthFraction(let fraction):
+            return availableWidth * min(max(fraction, 0), 1)
         case .expandsToFitContent(let idealWidth):
             return min(max(minimumControlWidth, idealWidth), availableWidth * controlWidthFraction)
         case .intrinsic:
@@ -139,6 +141,13 @@ private struct SettingsResponsiveControlRowLayout: Layout {
         case .intrinsicInline:
             return subviews[1].sizeThatFits(.unspecified).width
         }
+    }
+
+    private var horizontalControlWidthFraction: CGFloat {
+        if case .fillsAvailableWidthFraction(let fraction) = horizontalControlSizing {
+            return min(max(fraction, 0), 1)
+        }
+        return controlWidthFraction
     }
 }
 
@@ -149,6 +158,7 @@ private enum SettingsResponsiveControlRowPlacement {
 
 enum SettingsControlHorizontalSizing {
     case fillsAvailableWidth
+    case fillsAvailableWidthFraction(CGFloat)
     case expandsToFitContent(idealWidth: CGFloat)
     case intrinsic
     case intrinsicInline

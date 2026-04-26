@@ -13,18 +13,17 @@ struct SettingsFolderPickerRow: View {
     }
 
     var body: some View {
-        SettingsResponsiveControlRow(title) {
+        SettingsResponsiveControlRow(title, horizontalControlSizing: .fillsAvailableWidthFraction(0.66)) {
             HStack(spacing: 10) {
                 Text(path)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                    .truncationMode(.head)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .help(path)
                     .accessibilityLabel(title)
                     .accessibilityValue(path)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .layoutPriority(0)
 
                 Button(action: chooseFolder) {
