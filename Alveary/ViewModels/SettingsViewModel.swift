@@ -9,6 +9,7 @@ final class SettingsViewModel {
     private let providerDetection: (any ProviderDetectionService)?
     private let agentRegistry: AgentRegistry
     @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
+    @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
 
     var providerStatuses: [String: ProviderStatus] = [:]
     private var loadedCodeFontFamilyOptions: [String]?
@@ -17,12 +18,14 @@ final class SettingsViewModel {
         settingsService: any SettingsService,
         providerDetection: (any ProviderDetectionService)? = nil,
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
-        codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies }
+        codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
+        soundPreviewer: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         self.settingsService = settingsService
         self.providerDetection = providerDetection
         self.agentRegistry = agentRegistry
         self.codeFontFamilyLoader = codeFontFamilyLoader
+        self.soundPreviewer = soundPreviewer
     }
 
     var availableProviderIDs: [String] {
@@ -236,7 +239,18 @@ final class SettingsViewModel {
             }
             return NotificationSettings.defaultSoundName
         }
-        set { settingsService.update { $0.notifications.soundName = newValue } }
+        set {
+            settingsService.update { $0.notifications.soundName = newValue }
+
+            let notifications = settingsService.current.notifications
+            guard notifications.enabled,
+                  notifications.sound,
+                  availableSoundNames.contains(newValue) else {
+                return
+            }
+
+            soundPreviewer(newValue)
+        }
     }
 
     var branchPrefix: String {

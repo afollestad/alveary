@@ -236,6 +236,75 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.soundName, "Glass")
     }
+
+    func testChangingSoundNamePreviewsNewSound() {
+        let service = InMemorySettingsService()
+        var previewedSounds: [String] = []
+        let viewModel = SettingsViewModel(
+            settingsService: service,
+            soundPreviewer: { previewedSounds.append($0) }
+        )
+
+        viewModel.soundName = "Pop"
+
+        XCTAssertEqual(service.current.notifications.soundName, "Pop")
+        XCTAssertEqual(previewedSounds, ["Pop"])
+    }
+
+    func testSettingSameSoundNamePreviewsAgain() {
+        let service = InMemorySettingsService()
+        var previewedSounds: [String] = []
+        let viewModel = SettingsViewModel(
+            settingsService: service,
+            soundPreviewer: { previewedSounds.append($0) }
+        )
+
+        viewModel.soundName = "Glass"
+
+        XCTAssertEqual(service.current.notifications.soundName, "Glass")
+        XCTAssertEqual(previewedSounds, ["Glass"])
+    }
+
+    func testSoundNamePreviewRequiresNotificationsAndSoundEnabled() {
+        let notificationsDisabledService = InMemorySettingsService()
+        notificationsDisabledService.update { $0.notifications.enabled = false }
+        var notificationsDisabledPreviews: [String] = []
+        let notificationsDisabledViewModel = SettingsViewModel(
+            settingsService: notificationsDisabledService,
+            soundPreviewer: { notificationsDisabledPreviews.append($0) }
+        )
+
+        notificationsDisabledViewModel.soundName = "Pop"
+
+        let soundDisabledService = InMemorySettingsService()
+        soundDisabledService.update { $0.notifications.sound = false }
+        var soundDisabledPreviews: [String] = []
+        let soundDisabledViewModel = SettingsViewModel(
+            settingsService: soundDisabledService,
+            soundPreviewer: { soundDisabledPreviews.append($0) }
+        )
+
+        soundDisabledViewModel.soundName = "Tink"
+
+        XCTAssertEqual(notificationsDisabledService.current.notifications.soundName, "Pop")
+        XCTAssertTrue(notificationsDisabledPreviews.isEmpty)
+        XCTAssertEqual(soundDisabledService.current.notifications.soundName, "Tink")
+        XCTAssertTrue(soundDisabledPreviews.isEmpty)
+    }
+
+    func testInvalidSoundNameFallsBackAndDoesNotPreview() {
+        let service = InMemorySettingsService()
+        var previewedSounds: [String] = []
+        let viewModel = SettingsViewModel(
+            settingsService: service,
+            soundPreviewer: { previewedSounds.append($0) }
+        )
+
+        viewModel.soundName = "Bogus"
+
+        XCTAssertEqual(service.current.notifications.soundName, "Glass")
+        XCTAssertTrue(previewedSounds.isEmpty)
+    }
 }
 
 private actor RecordingProviderDetectionService: ProviderDetectionService {

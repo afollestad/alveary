@@ -98,10 +98,12 @@ struct ContentView: View {
     }
 
     private static func makeSettingsViewModel(dependencies: ContentViewDependencies) -> SettingsViewModel {
-        SettingsViewModel(
+        let soundPreviewer = SettingsSoundPreviewer()
+        return SettingsViewModel(
             settingsService: dependencies.settingsService,
             providerDetection: dependencies.providerDetection,
-            agentRegistry: dependencies.agentRegistry
+            agentRegistry: dependencies.agentRegistry,
+            soundPreviewer: soundPreviewer.play
         )
     }
 
@@ -401,5 +403,17 @@ private extension ContentView {
 
     func effectiveDiffViewerBounds(availableWidth: CGFloat) -> ClosedRange<Double> {
         ContentDiffViewerWidthPolicy.bounds(availableWidth: availableWidth)
+    }
+}
+
+@MainActor
+private final class SettingsSoundPreviewer {
+    private var currentSound: NSSound?
+
+    func play(_ soundName: String) {
+        currentSound?.stop()
+        let sound = NSSound(named: NSSound.Name(soundName))
+        currentSound = sound
+        sound?.play()
     }
 }
