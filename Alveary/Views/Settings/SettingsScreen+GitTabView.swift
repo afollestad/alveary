@@ -24,7 +24,11 @@ struct GitSettingsTabView: View {
             VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
                 SettingsFormSection("Branching") {
                     SettingsFormRow {
-                        SettingsTextFieldRow("Branch prefix", text: $branchPrefix)
+                        SettingsTextFieldRow(
+                            "Branch prefix",
+                            text: $branchPrefix,
+                            horizontalControlSizing: .expandsToFitText
+                        )
                     }
 
                     SettingsToggleRow("Push on create", isOn: $pushOnCreate, showsDivider: false)

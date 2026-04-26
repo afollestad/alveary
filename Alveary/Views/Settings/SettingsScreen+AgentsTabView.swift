@@ -16,42 +16,48 @@ struct AgentsSettingsTabView: View {
                     SettingsFormRow {
                         SettingsTextFieldRow(
                             "CLI override",
-                            text: providerConfigBinding(providerID, \.cli)
+                            text: providerConfigBinding(providerID, \.cli),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
 
                     SettingsFormRow {
                         SettingsTextFieldRow(
                             "Resume flag",
-                            text: providerConfigBinding(providerID, \.resumeFlag)
+                            text: providerConfigBinding(providerID, \.resumeFlag),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
 
                     SettingsFormRow {
                         SettingsTextFieldRow(
                             "Default args",
-                            text: providerConfigBinding(providerID, \.defaultArgs)
+                            text: providerConfigBinding(providerID, \.defaultArgs),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
 
                     SettingsFormRow {
                         SettingsTextFieldRow(
                             "Auto-approve flag",
-                            text: providerConfigBinding(providerID, \.autoApproveFlag)
+                            text: providerConfigBinding(providerID, \.autoApproveFlag),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
 
                     SettingsFormRow {
                         SettingsTextFieldRow(
                             "Initial prompt flag",
-                            text: providerConfigBinding(providerID, \.initialPromptFlag)
+                            text: providerConfigBinding(providerID, \.initialPromptFlag),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
 
                     SettingsFormRow(showsDivider: false) {
                         SettingsTextFieldRow(
                             "Extra args",
-                            text: providerConfigBinding(providerID, \.extraArgs)
+                            text: providerConfigBinding(providerID, \.extraArgs),
+                            horizontalControlSizing: .expandsToFitText
                         )
                     }
                 }
