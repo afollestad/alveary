@@ -7,7 +7,7 @@ extension DefaultAgentsManager {
         forkSession: Bool
     ) async throws -> PreparedSpawnContext {
         let customConfig = await settingsService.current.providerConfigs[config.providerId]
-        let cliPath = try await resolveCLIPath(providerId: config.providerId, customConfig: customConfig)
+        let cliPath = try await resolveCLIPath(providerId: config.providerId)
         let adapter = resolveAdapter(for: config.providerId)
         let sessionCwd = CanonicalPath.normalize(config.workingDirectory)
         let isResuming = await sessionManager.createEntry(
@@ -39,7 +39,6 @@ extension DefaultAgentsManager {
         let providerEnv = mergedProviderEnvironment(
             adapter: adapter,
             agentConfig: agentConfig,
-            customEnv: customConfig?.env,
             hookLaunchEnvironment: hookLaunchConfig?.environment
         )
         if let hookLaunchArguments = hookLaunchConfig?.arguments {
@@ -49,7 +48,6 @@ extension DefaultAgentsManager {
         return PreparedSpawnContext(
             cliPath: cliPath,
             adapter: adapter,
-            customConfig: customConfig,
             isResuming: isResuming,
             sessionLaunch: sessionLaunch,
             arguments: arguments,
@@ -57,13 +55,8 @@ extension DefaultAgentsManager {
         )
     }
 
-    func resolveCLIPath(providerId: String, customConfig: ProviderCustomConfig?) async throws -> String {
-        if let customCLI = customConfig?.cli, !customCLI.isEmpty, customCLI.contains("/") {
-            return customCLI
-        }
-
-        if await providerDetection.resolvedPath(for: providerId) == nil ||
-            !(customConfig?.cli?.isEmpty ?? true) {
+    func resolveCLIPath(providerId: String) async throws -> String {
+        if await providerDetection.resolvedPath(for: providerId) == nil {
             await providerDetection.checkProvider(providerId)
         }
 

@@ -333,7 +333,8 @@ extension AgentsManagerTests {
             ]
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
@@ -423,7 +424,8 @@ extension AgentsManagerTests {
         let executable = try TempExecutable()
         let hookServer = StubClaudeHookServer(launchConfigs: launchConfigs)
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )

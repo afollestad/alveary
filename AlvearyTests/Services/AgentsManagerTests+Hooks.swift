@@ -15,7 +15,8 @@ extension AgentsManagerTests {
             )
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
@@ -43,7 +44,8 @@ extension AgentsManagerTests {
         let executable = try TempExecutable()
         defer { executable.cleanup() }
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: StubClaudeHookServer(launchConfig: nil),
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
@@ -76,7 +78,8 @@ extension AgentsManagerTests {
             )
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
@@ -109,7 +112,8 @@ extension AgentsManagerTests {
         )
         let sessionManager = InMemorySessionManager()
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             sessionManager: sessionManager,
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
@@ -148,7 +152,8 @@ extension AgentsManagerTests {
             )
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in PermissionModeEchoAgentAdapter() }
         )
@@ -177,7 +182,8 @@ extension AgentsManagerTests {
         defer { executable.cleanup() }
         let sessionManager = InMemorySessionManager()
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             sessionManager: sessionManager,
             adapterFactory: { _ in ClaudeAdapter() }
         )
@@ -203,7 +209,8 @@ extension AgentsManagerTests {
         let executable = try TempDeferredToolExecutable(emitsTrailingAssistantMessage: true)
         defer { executable.cleanup() }
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             adapterFactory: { _ in ClaudeAdapter() }
         )
         let conversationId = "conversation-hook-tool-deferred-drop-trailing-events"
@@ -254,7 +261,8 @@ extension AgentsManagerTests {
         )
         defer { executable.cleanup() }
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             adapterFactory: { _ in ClaudeAdapter() }
         )
         let conversationId = "conversation-hook-deferred-attachment-drop-trailing-events"
@@ -358,7 +366,8 @@ extension AgentsManagerTests {
             )
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in ClaudeAdapter() }
         )

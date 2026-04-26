@@ -249,14 +249,14 @@ final class SettingsViewModel {
         set { settingsService.update { $0.worktreesBaseDirectory = newValue } }
     }
 
-    func providerConfig(for providerId: String) -> ProviderCustomConfig {
-        settingsService.current.providerConfigs[providerId] ?? ProviderCustomConfig()
+    func providerExtraArgs(for providerId: String) -> String? {
+        settingsService.current.providerConfigs[providerId]?.extraArgs
     }
 
-    func updateProviderConfig(for providerId: String, _ transform: (inout ProviderCustomConfig) -> Void) {
+    func updateProviderExtraArgs(for providerId: String, extraArgs: String?) {
         settingsService.update { settings in
             var config = settings.providerConfigs[providerId] ?? ProviderCustomConfig()
-            transform(&config)
+            config.extraArgs = extraArgs
             settings.providerConfigs[providerId] = config
         }
     }

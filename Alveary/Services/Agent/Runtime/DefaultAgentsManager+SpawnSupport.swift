@@ -3,7 +3,6 @@ import Foundation
 struct PreparedSpawnContext {
     let cliPath: String
     let adapter: AgentAdapter
-    let customConfig: ProviderCustomConfig?
     let isResuming: Bool
     let sessionLaunch: SessionLaunchDecision
     let arguments: [String]

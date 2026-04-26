@@ -83,6 +83,33 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.branchPrefix, "")
     }
 
+    func testNormalizedDropsProviderConfigWithOnlyLegacyFields() throws {
+        let json = Data(
+            #"""
+            {
+              "providerConfigs": {
+                "claude": {
+                  "cli": "/usr/local/bin/claude",
+                  "resumeFlag": "--resume",
+                  "autoApproveFlag": "--dangerously-skip-permissions",
+                  "initialPromptFlag": "--prompt",
+                  "env": {
+                    "ALVEARY_FIXTURE": "1"
+                  }
+                },
+                "other": {
+                  "extraArgs": " --verbose "
+                }
+              }
+            }
+            """#.utf8
+        )
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json).normalized()
+
+        XCTAssertNil(settings.providerConfigs["claude"])
+        XCTAssertEqual(settings.providerConfigs["other"], ProviderCustomConfig(extraArgs: "--verbose"))
+    }
+
     func testNormalizedClampsUnknownDefaultModelToSentinel() {
         var settings = AppSettings()
         settings.defaultModel = "gpt-9"

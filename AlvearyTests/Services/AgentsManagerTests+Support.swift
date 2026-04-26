@@ -4,21 +4,22 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-func makeSettings(cliPath: String, extraArgs: String? = nil) -> InMemorySettingsService {
-    let providerConfig = ProviderCustomConfig(cli: cliPath, extraArgs: extraArgs)
+func makeSettings(extraArgs: String? = nil) -> InMemorySettingsService {
+    let providerConfig = ProviderCustomConfig(extraArgs: extraArgs)
     return InMemorySettingsService(current: AppSettings(providerConfigs: ["claude": providerConfig]))
 }
 
 @MainActor
 func makeTestManager(
     settings: InMemorySettingsService,
+    providerDetection: any ProviderDetectionService,
     sessionManager: InMemorySessionManager = InMemorySessionManager(),
     claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
     adapterFactory: @escaping @Sendable (String) -> AgentAdapter
 ) -> DefaultAgentsManager {
     DefaultAgentsManager(
         sessionManager: sessionManager,
-        providerDetection: StubProviderDetectionService(),
+        providerDetection: providerDetection,
         environmentBuilder: DefaultAgentEnvironmentBuilder(),
         providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
         settingsService: settings,
@@ -158,8 +159,14 @@ struct TempExecutable {
 }
 
 actor StubProviderDetectionService: ProviderDetectionService {
+    private let path: String?
+
+    init(resolvedPath: String? = nil) {
+        self.path = resolvedPath
+    }
+
     func resolvedPath(for providerId: String) -> String? {
-        nil
+        path
     }
 
     func status(for providerId: String) -> ProviderStatus {

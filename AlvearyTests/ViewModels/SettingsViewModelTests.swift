@@ -104,7 +104,7 @@ final class SettingsViewModelTests: XCTestCase {
             $0.notifications.sound = false
             $0.notifications.soundName = "Tink"
             $0.branchPrefix = "feature/"
-            $0.providerConfigs["claude"] = ProviderCustomConfig(cli: "/usr/local/bin/claude")
+            $0.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--verbose")
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
@@ -125,7 +125,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.soundEnabled)
         XCTAssertEqual(viewModel.soundName, "Tink")
         XCTAssertEqual(viewModel.branchPrefix, "feature/")
-        XCTAssertEqual(viewModel.providerConfig(for: "claude").cli, "/usr/local/bin/claude")
+        XCTAssertEqual(viewModel.providerExtraArgs(for: "claude"), "--verbose")
     }
 
     func testSettersWriteBackToSettingsService() {
@@ -214,22 +214,19 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.effort, "xhigh")
     }
 
-    func testProviderConfigHelpersCreateEntriesAndPreserveOtherProviders() {
+    func testProviderExtraArgsHelpersCreateEntriesAndPreserveOtherProviders() {
         let service = InMemorySettingsService()
         service.update {
-            $0.providerConfigs["other"] = ProviderCustomConfig(cli: "/usr/bin/other")
+            $0.providerConfigs["other"] = ProviderCustomConfig(extraArgs: "--other")
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
-        XCTAssertEqual(viewModel.providerConfig(for: "claude"), ProviderCustomConfig())
+        XCTAssertNil(viewModel.providerExtraArgs(for: "claude"))
 
-        viewModel.updateProviderConfig(for: "claude") {
-            $0.cli = "/usr/local/bin/claude"
-            $0.extraArgs = "--verbose"
-        }
+        viewModel.updateProviderExtraArgs(for: "claude", extraArgs: "--verbose")
 
-        XCTAssertEqual(service.current.providerConfigs["claude"], ProviderCustomConfig(cli: "/usr/local/bin/claude", extraArgs: "--verbose"))
-        XCTAssertEqual(service.current.providerConfigs["other"], ProviderCustomConfig(cli: "/usr/bin/other"))
+        XCTAssertEqual(service.current.providerConfigs["claude"], ProviderCustomConfig(extraArgs: "--verbose"))
+        XCTAssertEqual(service.current.providerConfigs["other"], ProviderCustomConfig(extraArgs: "--other"))
     }
 
     func testSoundNameFallsBackToGlassWhenStoredValueIsNil() {

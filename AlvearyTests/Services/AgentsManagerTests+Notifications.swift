@@ -12,10 +12,10 @@ extension AgentsManagerTests {
         let notificationManager = RecordingNotificationManager()
         let manager = DefaultAgentsManager(
             sessionManager: InMemorySessionManager(),
-            providerDetection: StubProviderDetectionService(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            settingsService: makeSettings(cliPath: executable.url.path),
+            settingsService: makeSettings(),
             notificationManager: notificationManager,
             adapterFactory: { _ in InterruptedTokenAdapter() }
         )

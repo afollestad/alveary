@@ -120,7 +120,7 @@ struct SettingsScreen: View {
             AgentsSettingsTabView(
                 viewModel: viewModel,
                 providerIDs: viewModel.availableProviderIDs,
-                providerConfigBinding: providerConfigBinding
+                providerExtraArgsBinding: providerExtraArgsBinding
             )
         case .git:
             GitSettingsTabView(
@@ -196,18 +196,13 @@ private extension SettingsScreen {
         )
     }
 
-    func providerConfigBinding(
-        for providerID: String,
-        keyPath: WritableKeyPath<ProviderCustomConfig, String?>
-    ) -> Binding<String> {
+    func providerExtraArgsBinding(for providerID: String) -> Binding<String> {
         Binding(
             get: {
-                viewModel.providerConfig(for: providerID)[keyPath: keyPath] ?? ""
+                viewModel.providerExtraArgs(for: providerID) ?? ""
             },
             set: { newValue in
-                viewModel.updateProviderConfig(for: providerID) { config in
-                    config[keyPath: keyPath] = newValue.isEmpty ? nil : newValue
-                }
+                viewModel.updateProviderExtraArgs(for: providerID, extraArgs: newValue.isEmpty ? nil : newValue)
             }
         )
     }

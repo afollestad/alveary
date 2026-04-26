@@ -13,8 +13,8 @@ final class ProviderRegistryTests: XCTestCase {
         XCTAssertEqual(agent?.name, "Claude Code")
         XCTAssertEqual(agent?.installCommand, "curl -fsSL https://claude.ai/install.sh | bash")
         XCTAssertEqual(agent?.mcp?.configPath, "~/.claude.json")
-        XCTAssertEqual(provider?.cli, "claude")
-        XCTAssertEqual(provider?.permissionModeFlag, "--permission-mode")
+        XCTAssertEqual(provider?.commands, ["claude"])
+        XCTAssertEqual(provider?.versionArgs, ["--version"])
         XCTAssertEqual(
             provider?.supportedPermissionModes,
             [
@@ -41,7 +41,6 @@ final class ProviderRegistryTests: XCTestCase {
             ]
         )
         XCTAssertEqual(provider?.supportedEffortLevels, AppSettings.supportedEffortLevels)
-        XCTAssertTrue(provider?.supportsBidirectionalStreaming == true)
         XCTAssertTrue(provider?.supportsMidTurnSteering == true)
         XCTAssertNil(agentRegistry.agent(for: "missing"))
         XCTAssertNil(providerRegistry.provider(for: "missing"))

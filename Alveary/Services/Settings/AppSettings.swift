@@ -238,60 +238,23 @@ extension AppSettings {
 }
 
 struct ProviderCustomConfig: Codable, Sendable, Equatable {
-    var cli: String?
-    var resumeFlag: String?
-    var defaultArgs: String?
-    var autoApproveFlag: String?
-    var initialPromptFlag: String?
     var extraArgs: String?
-    var env: [String: String]?
 
     init(
-        cli: String? = nil,
-        resumeFlag: String? = nil,
-        defaultArgs: String? = nil,
-        autoApproveFlag: String? = nil,
-        initialPromptFlag: String? = nil,
-        extraArgs: String? = nil,
-        env: [String: String]? = nil
+        extraArgs: String? = nil
     ) {
-        self.cli = cli
-        self.resumeFlag = resumeFlag
-        self.defaultArgs = defaultArgs
-        self.autoApproveFlag = autoApproveFlag
-        self.initialPromptFlag = initialPromptFlag
         self.extraArgs = extraArgs
-        self.env = env
     }
 
     func normalized() -> ProviderCustomConfig? {
-        let normalizedEnv = env?.reduce(into: [String: String]()) { partialResult, entry in
-            guard let key = entry.key.trimmedOrNil,
-                  let value = entry.value.trimmedOrNil else {
-                return
-            }
-            partialResult[key] = value
-        }
         let normalized = ProviderCustomConfig(
-            cli: cli?.trimmedOrNil,
-            resumeFlag: resumeFlag?.trimmedOrNil,
-            defaultArgs: defaultArgs?.trimmedOrNil,
-            autoApproveFlag: autoApproveFlag?.trimmedOrNil,
-            initialPromptFlag: initialPromptFlag?.trimmedOrNil,
-            extraArgs: extraArgs?.trimmedOrNil,
-            env: normalizedEnv?.isEmpty == true ? nil : normalizedEnv
+            extraArgs: extraArgs?.trimmedOrNil
         )
         return normalized.isEmpty ? nil : normalized
     }
 
     private var isEmpty: Bool {
-        cli == nil &&
-            resumeFlag == nil &&
-            defaultArgs == nil &&
-            autoApproveFlag == nil &&
-            initialPromptFlag == nil &&
-            extraArgs == nil &&
-            (env?.isEmpty ?? true)
+        extraArgs == nil
     }
 }
 

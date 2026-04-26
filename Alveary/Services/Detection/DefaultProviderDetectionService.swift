@@ -3,18 +3,15 @@ import Foundation
 actor DefaultProviderDetectionService: ProviderDetectionService {
     private let shell: ShellRunner
     private let registry: ProviderRegistry
-    private let loadSettings: @Sendable () async -> AppSettings
     private var statuses: [String: ProviderStatus] = [:]
     private var resolvedPaths: [String: String] = [:]
 
     init(
         shell: ShellRunner,
-        registry: ProviderRegistry,
-        loadSettings: @escaping @Sendable () async -> AppSettings
+        registry: ProviderRegistry
     ) {
         self.shell = shell
         self.registry = registry
-        self.loadSettings = loadSettings
     }
 
     func resolvedPath(for providerId: String) -> String? {
@@ -39,17 +36,7 @@ actor DefaultProviderDetectionService: ProviderDetectionService {
     }
 
     private func checkProvider(_ provider: ProviderDefinition, timeoutSeconds: Int, attempt: Int) async {
-        let settings = await loadSettings()
-        let customCLI = settings.providerConfigs[provider.id]?.cli
-        let trimmedCustomCLI = customCLI?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let candidates = ([trimmedCustomCLI].compactMap { candidate in
-            guard let candidate, !candidate.isEmpty else {
-                return nil
-            }
-            return candidate
-        } + provider.commands)
-
-        for candidate in candidates {
+        for candidate in provider.commands {
             guard let path = await resolveExecutablePath(for: candidate) else {
                 continue
             }

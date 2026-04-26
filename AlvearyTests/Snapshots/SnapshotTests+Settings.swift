@@ -6,7 +6,6 @@ extension SnapshotTests {
     func testSettingsScreenAgentsTab() {
         var settings = AppSettings()
         settings.providerConfigs["claude"] = ProviderCustomConfig(
-            cli: "/Users/test/.local/bin/claude",
             extraArgs: "--verbose"
         )
 
@@ -35,7 +34,6 @@ extension SnapshotTests {
     func testSettingsScreenAgentsTabNarrowStacksSplitInputs() {
         var settings = AppSettings()
         settings.providerConfigs["claude"] = ProviderCustomConfig(
-            cli: "/Users/test/.local/bin/claude",
             extraArgs: "--verbose"
         )
 

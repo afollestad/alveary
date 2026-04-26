@@ -12,9 +12,9 @@ final class AgentsManagerTests: XCTestCase {
         let adapter = RecordingLaunchAdapter()
         let manager = makeTestManager(
             settings: makeSettings(
-                cliPath: executable.url.path,
                 extraArgs: "--label \"value with spaces\" --mode fast"
             ),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             adapterFactory: { _ in adapter }
         )
         let conversationId = "conversation-reconfigure"
@@ -70,13 +70,13 @@ final class AgentsManagerTests: XCTestCase {
         defer { executable.cleanup() }
 
         let settings = InMemorySettingsService(
-            current: AppSettings(providerConfigs: ["claude": ProviderCustomConfig(cli: executable.url.path)])
+            current: AppSettings()
         )
         let sessionManager = InMemorySessionManager()
         let adapter = EchoAgentAdapter()
         let manager = DefaultAgentsManager(
             sessionManager: sessionManager,
-            providerDetection: StubProviderDetectionService(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: settings,
@@ -267,10 +267,10 @@ final class AgentsManagerTests: XCTestCase {
         let notificationManager = RecordingNotificationManager()
         let manager = DefaultAgentsManager(
             sessionManager: InMemorySessionManager(),
-            providerDetection: StubProviderDetectionService(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            settingsService: makeSettings(cliPath: executable.url.path),
+            settingsService: makeSettings(),
             notificationManager: notificationManager,
             adapterFactory: { _ in
                 SlashCommandTokenAdapter(

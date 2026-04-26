@@ -3,7 +3,7 @@ import SwiftUI
 struct AgentsSettingsTabView: View {
     let viewModel: SettingsViewModel
     let providerIDs: [String]
-    let providerConfigBinding: (String, WritableKeyPath<ProviderCustomConfig, String?>) -> Binding<String>
+    let providerExtraArgsBinding: (String) -> Binding<String>
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
@@ -13,50 +13,10 @@ struct AgentsSettingsTabView: View {
                         providerStatusSection(for: providerID)
                     }
 
-                    SettingsFormRow {
-                        SettingsTextFieldRow(
-                            "CLI override",
-                            text: providerConfigBinding(providerID, \.cli),
-                            horizontalControlSizing: .expandsToFitText
-                        )
-                    }
-
-                    SettingsFormRow {
-                        SettingsTextFieldRow(
-                            "Resume flag",
-                            text: providerConfigBinding(providerID, \.resumeFlag),
-                            horizontalControlSizing: .expandsToFitText
-                        )
-                    }
-
-                    SettingsFormRow {
-                        SettingsTextFieldRow(
-                            "Default args",
-                            text: providerConfigBinding(providerID, \.defaultArgs),
-                            horizontalControlSizing: .expandsToFitText
-                        )
-                    }
-
-                    SettingsFormRow {
-                        SettingsTextFieldRow(
-                            "Auto-approve flag",
-                            text: providerConfigBinding(providerID, \.autoApproveFlag),
-                            horizontalControlSizing: .expandsToFitText
-                        )
-                    }
-
-                    SettingsFormRow {
-                        SettingsTextFieldRow(
-                            "Initial prompt flag",
-                            text: providerConfigBinding(providerID, \.initialPromptFlag),
-                            horizontalControlSizing: .expandsToFitText
-                        )
-                    }
-
                     SettingsFormRow(showsDivider: false) {
                         SettingsTextFieldRow(
                             "Extra args",
-                            text: providerConfigBinding(providerID, \.extraArgs),
+                            text: providerExtraArgsBinding(providerID),
                             horizontalControlSizing: .expandsToFitText
                         )
                     }

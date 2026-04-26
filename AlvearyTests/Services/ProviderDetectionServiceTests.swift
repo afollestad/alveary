@@ -7,8 +7,7 @@ final class ProviderDetectionServiceTests: XCTestCase {
         let shell = MockShellRunner()
         let service = DefaultProviderDetectionService(
             shell: shell,
-            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            loadSettings: { AppSettings() }
+            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry())
         )
 
         let status = await service.status(for: "claude")
@@ -18,16 +17,14 @@ final class ProviderDetectionServiceTests: XCTestCase {
         XCTAssertNil(resolvedPath)
     }
 
-    func testNamedCustomCLIResolvesThroughWhichBeforeVersionCheck() async throws {
+    func testProviderCommandResolvesThroughWhichBeforeVersionCheck() async throws {
         let shell = MockShellRunner()
-        await shell.enqueue(.success(shellResult(stdout: "/tmp/custom-claude\n")))
+        await shell.enqueue(.success(shellResult(stdout: "/tmp/claude\n")))
         await shell.enqueue(.success(shellResult(stdout: "1.2.3\n")))
 
-        let settings = AppSettings(providerConfigs: ["claude": ProviderCustomConfig(cli: "custom-claude")])
         let service = DefaultProviderDetectionService(
             shell: shell,
-            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            loadSettings: { settings }
+            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry())
         )
 
         await service.checkProvider("claude")
@@ -35,14 +32,14 @@ final class ProviderDetectionServiceTests: XCTestCase {
         let status = await service.status(for: "claude")
         let resolvedPath = await service.resolvedPath(for: "claude")
 
-        XCTAssertEqual(status, .connected(path: "/tmp/custom-claude", version: "1.2.3"))
-        XCTAssertEqual(resolvedPath, "/tmp/custom-claude")
+        XCTAssertEqual(status, .connected(path: "/tmp/claude", version: "1.2.3"))
+        XCTAssertEqual(resolvedPath, "/tmp/claude")
 
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 2)
         XCTAssertEqual(invocations[0].executable, "/usr/bin/which")
-        XCTAssertEqual(invocations[0].args, ["custom-claude"])
-        XCTAssertEqual(invocations[1].executable, "/tmp/custom-claude")
+        XCTAssertEqual(invocations[0].args, ["claude"])
+        XCTAssertEqual(invocations[1].executable, "/tmp/claude")
         XCTAssertEqual(invocations[1].args, ["--version"])
     }
 
@@ -53,8 +50,7 @@ final class ProviderDetectionServiceTests: XCTestCase {
 
         let service = DefaultProviderDetectionService(
             shell: shell,
-            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
-            loadSettings: { AppSettings() }
+            registry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry())
         )
 
         await service.checkProvider("claude")

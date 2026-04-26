@@ -7,21 +7,9 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
             docUrl: "https://code.claude.com/docs/en/quickstart",
             provider: ProviderDefinition(
                 id: "claude",
-                name: "Claude Code",
-                cli: "claude",
                 commands: ["claude"],
                 versionArgs: ["--version"],
-                autoApproveFlag: "--dangerously-skip-permissions",
-                initialPromptFlag: nil,
-                resumeFlag: "--resume",
-                sessionIdFlag: "--session-id",
-                planActivateCommand: "/plan",
-                structuredOutputArgs: ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"],
-                structuredInputArgs: ["--input-format", "stream-json"],
-                execSubcommand: nil,
-                supportsBidirectionalStreaming: true,
                 supportsMidTurnSteering: true,
-                permissionModeFlag: "--permission-mode",
                 supportedPermissionModes: [
                     PermissionModeOption(
                         value: "default",
@@ -44,7 +32,6 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                         description: "Auto-approve most actions with safety checks."
                     )
                 ],
-                effortFlag: "--effort",
                 supportedEffortLevels: AppSettings.supportedEffortLevels
             ),
             skillsDirectory: "~/.claude/skills",

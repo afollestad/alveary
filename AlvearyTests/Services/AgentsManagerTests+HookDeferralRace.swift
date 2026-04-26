@@ -15,7 +15,8 @@ extension AgentsManagerTests {
             invalidateDelay: .seconds(2)
         )
         let manager = makeTestManager(
-            settings: makeSettings(cliPath: executable.url.path),
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
             claudeHookServer: hookServer,
             adapterFactory: { _ in ClaudeAdapter() }
         )

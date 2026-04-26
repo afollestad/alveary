@@ -4,7 +4,7 @@ final class DetectionAssembly: AutoInitModuleAssembly {
     typealias TargetResolver = Resolver
 
     static var dependencies: [any ModuleAssembly.Type] {
-        [SettingsAssembly.self, ShellAssembly.self]
+        [ShellAssembly.self]
     }
 
     @MainActor
@@ -34,16 +34,10 @@ final class DetectionAssembly: AutoInitModuleAssembly {
             guard let providerRegistry = unsafeResolver.resolve(ProviderRegistry.self) else {
                 fatalError("ProviderRegistry was not registered before ProviderDetectionService")
             }
-            guard let settingsService = unsafeResolver.resolve(SettingsService.self) else {
-                fatalError("SettingsService was not registered before ProviderDetectionService")
-            }
 
             return DefaultProviderDetectionService(
                 shell: shellRunner,
-                registry: providerRegistry,
-                loadSettings: {
-                    await settingsService.current
-                }
+                registry: providerRegistry
             )
         }
         .inObjectScope(.container)

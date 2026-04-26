@@ -48,13 +48,9 @@ extension DefaultAgentsManager {
     func mergedProviderEnvironment(
         adapter: AgentAdapter,
         agentConfig: AgentConfig,
-        customEnv: [String: String]?,
         hookLaunchEnvironment: [String: String]?
     ) -> [String: String] {
         var providerEnv = adapter.envOverrides(config: agentConfig)
-        if let customEnv {
-            providerEnv.merge(customEnv) { _, custom in custom }
-        }
         if let hookLaunchEnvironment {
             providerEnv.merge(hookLaunchEnvironment) { _, hook in hook }
         }
