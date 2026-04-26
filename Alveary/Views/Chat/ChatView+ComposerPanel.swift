@@ -10,7 +10,6 @@ struct ChatComposerPanel: View {
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
     let showsTopDivider: Bool
-    let showsCenteredPreHistoryRetry: Bool
     let composerMode: ComposerMode
     let composerIsBusy: Bool
     let isProjectTrustBlocked: Bool
@@ -38,8 +37,7 @@ struct ChatComposerPanel: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if let lastTurnError = viewModel.lastTurnError,
-               !showsCenteredPreHistoryRetry {
+            if let lastTurnError = viewModel.lastTurnError {
                 InlineBanner(message: lastTurnError, severity: .error, autoDismissAfter: nil) {
                     viewModel.lastTurnError = nil
                 }

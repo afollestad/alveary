@@ -266,18 +266,6 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testUserBubbleRetryableFailure() {
-        assertMacSnapshot(
-            UserBubble(
-                text: "Follow up on the diff refresh issue after the current run.",
-                showsRetry: true,
-                onRetry: {}
-            ),
-            size: CGSize(width: 760, height: 180),
-            named: "user_bubble_retryable_failure"
-        )
-    }
-
     func testSubAgentBlockMixedStates() {
         assertMacSnapshot(
             SubAgentBlock(agents: sampleSubAgents, initiallyExpanded: true),

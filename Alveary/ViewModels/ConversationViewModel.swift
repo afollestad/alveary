@@ -118,7 +118,7 @@ final class ConversationViewModel {
 
     func setupAndStart(_ message: String) async throws {
         try await withOutboundReservation {
-            try await setupAndStartReserved(message)
+            try await deliverMessageReserved(message)
         }
     }
 

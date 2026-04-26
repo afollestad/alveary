@@ -272,6 +272,10 @@ final class MockConversationRuntimeStore: ConversationRuntimeStore {
 }
 
 actor MockWorktreeManager: WorktreeManager {
+    enum MockError: Error, Equatable {
+        case createFailed
+    }
+
     struct CreateCall: Equatable {
         let projectPath: String
         let threadName: String
@@ -281,6 +285,7 @@ actor MockWorktreeManager: WorktreeManager {
 
     private let worktreeInfo: WorktreeInfo
     private var recordedCreateCalls: [CreateCall] = []
+    private var queuedCreateResults: [Result<WorktreeInfo, MockError>] = []
     private let blocksCreateUntilCancelled: Bool
 
     init(worktreeInfo: WorktreeInfo, blocksCreateUntilCancelled: Bool = false) {
@@ -308,6 +313,14 @@ actor MockWorktreeManager: WorktreeManager {
             // enclosing task is cancelled, simulating the SIGTERM-then-throw path.
             try await Task.sleep(for: .seconds(60))
         }
+        if !queuedCreateResults.isEmpty {
+            switch queuedCreateResults.removeFirst() {
+            case .success(let info):
+                return info
+            case .failure(let error):
+                throw error
+            }
+        }
         return worktreeInfo
     }
 
@@ -332,6 +345,10 @@ actor MockWorktreeManager: WorktreeManager {
 
     func createCalls() -> [CreateCall] {
         recordedCreateCalls
+    }
+
+    func enqueueCreateResult(_ result: Result<WorktreeInfo, MockError>) {
+        queuedCreateResults.append(result)
     }
 }
 

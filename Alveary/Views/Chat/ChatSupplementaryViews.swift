@@ -60,11 +60,8 @@ struct ProjectTrustPromptView: View {
 }
 
 struct EmptyThreadState: View {
-    let showsRetryState: Bool
     let setupPhase: SetupPhase?
     let isCancellingInitialSetup: Bool
-    let error: String?
-    let onRetry: () -> Void
 
     var body: some View {
         Group {
@@ -92,29 +89,6 @@ struct EmptyThreadState: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if showsRetryState {
-                VStack(spacing: 20) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 42, weight: .semibold))
-                        .foregroundStyle(.orange)
-
-                    VStack(spacing: 8) {
-                        Text("Initial setup failed")
-                            .font(.title3.weight(.semibold))
-
-                        if let error {
-                            Text(error)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: 460)
-                        }
-                    }
-
-                    Button("Retry", action: onRetry)
-                        .primaryActionButtonStyle()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(40)
             } else {
                 EmptyStateView(
                     icon: "sparkles",

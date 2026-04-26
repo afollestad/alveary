@@ -25,19 +25,15 @@ struct ChatView: View {
         !events.isEmpty || !viewModel.state.grouper.items.isEmpty || viewModel.streamingText != nil
     }
 
-    private var showsCenteredPreHistoryRetry: Bool {
-        !hasVisibleChatContent && viewModel.setupPhase == nil && viewModel.lastTurnError != nil
-    }
-
     private var composerIsBusy: Bool {
         viewModel.turnState.isActive || viewModel.state.isSendingMessage
     }
 
     private var composerMode: ComposerMode {
-        if !hasVisibleChatContent, viewModel.state.isCancellingInitialSetup {
+        if viewModel.state.isCancellingInitialSetup {
             return .progressOnly(.cancellingInitialSetup)
         }
-        if !hasVisibleChatContent, viewModel.setupPhase != nil {
+        if viewModel.setupPhase != nil {
             return .progressOnly(.initialSetup)
         }
         if viewModel.state.isReconfiguringSession {
@@ -157,7 +153,6 @@ struct ChatView: View {
                 composerCapabilities: composerCapabilities,
                 workingDirectory: workingDirectory,
                 showsTopDivider: hasVisibleChatContent && !isFollowing,
-                showsCenteredPreHistoryRetry: showsCenteredPreHistoryRetry,
                 composerMode: composerMode,
                 composerIsBusy: composerIsBusy,
                 isProjectTrustBlocked: isProjectTrustBlocked,
@@ -212,11 +207,8 @@ private extension ChatView {
                 .transition(.opacity)
         case .emptyThread:
             EmptyThreadState(
-                showsRetryState: showsCenteredPreHistoryRetry,
                 setupPhase: viewModel.setupPhase,
-                isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
-                error: showsCenteredPreHistoryRetry ? viewModel.lastTurnError : nil,
-                onRetry: retryDraft
+                isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup
             )
             .transition(.opacity)
         case .transcript:
@@ -232,30 +224,6 @@ private extension ChatView {
         }
     }
 
-    func retryDraft() {
-        let message = viewModel.state.inputDraft
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
-        }
-
-        let outboundMessage = outboundMessage(from: message)
-
-        requestScrollToBottom()
-        viewModel.state.inputDraft = ""
-        Task {
-            do {
-                try await viewModel.queueOrSend(outboundMessage)
-            } catch is CancellationError {
-                // User-initiated cancellation — rollback already restored the draft.
-            } catch {
-                viewModel.state.inputDraft = message
-                if viewModel.lastTurnError == nil {
-                    viewModel.lastTurnError = error.localizedDescription
-                }
-            }
-        }
-    }
-
     func sendDraft() {
         let message = viewModel.state.inputDraft
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -266,13 +234,16 @@ private extension ChatView {
 
         requestScrollToBottom()
         viewModel.state.inputDraft = ""
+        let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
                 try await viewModel.queueOrSend(outboundMessage)
             } catch is CancellationError {
                 // User-initiated cancellation — rollback already restored the draft.
             } catch {
-                viewModel.state.inputDraft = message
+                if viewModel.state.retryableFailedMessageIDs.count == retryableMessageCount {
+                    viewModel.state.inputDraft = message
+                }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
                 }

@@ -6,6 +6,20 @@ private struct ConversationInitialSetupSnapshot {
     let stagedContext: String?
 }
 
+// Cancellation deletes the attempted bubble, so restore any auto-naming side effects.
+private struct LocalUserMessageAttemptMetadata {
+    let conversationTitle: String?
+    let threadName: String?
+    let threadHasCustomName: Bool?
+}
+
+private struct LocalUserMessageAttempt {
+    let id: String
+    let stagedContext: String?
+    let insertedMessage: Bool
+    let metadata: LocalUserMessageAttemptMetadata?
+}
+
 extension ConversationViewModel {
     func dbConversation() -> Conversation? {
         modelContext.resolveConversation(id: conversationModelID)
@@ -39,6 +53,120 @@ extension ConversationViewModel {
         thread.worktreePath = nil
         thread.hasCompletedInitialSetup = false
         try modelContext.save()
+    }
+
+    private func prepareLocalUserMessageAttempt(
+        message: String,
+        stagedContextOverride: String?
+    ) throws -> LocalUserMessageAttempt {
+        let appliedContext = stagedContextOverride ?? state.stagedContext
+        guard let dbConversation = dbConversation() else {
+            throw AgentError.spawnFailed("Conversation no longer exists")
+        }
+
+        let metadata = LocalUserMessageAttemptMetadata(
+            conversationTitle: dbConversation.title,
+            threadName: dbConversation.thread?.name,
+            threadHasCustomName: dbConversation.thread?.hasCustomName
+        )
+        let localUserMessageID = insertLocalUserMessage(
+            message,
+            into: dbConversation,
+            shouldAutoNameThread: true
+        ).id
+
+        if stagedContextOverride == nil {
+            state.stagedContext = nil
+        }
+
+        return LocalUserMessageAttempt(
+            id: localUserMessageID,
+            stagedContext: appliedContext,
+            insertedMessage: true,
+            metadata: metadata
+        )
+    }
+
+    private func localUserMessageAttempt(
+        message: String,
+        stagedContextOverride: String?,
+        existingLocalUserMessageID: String?
+    ) throws -> LocalUserMessageAttempt {
+        if let existingLocalUserMessageID {
+            return LocalUserMessageAttempt(
+                id: existingLocalUserMessageID,
+                stagedContext: stagedContextOverride ?? state.stagedContext,
+                insertedMessage: false,
+                metadata: nil
+            )
+        }
+
+        return try prepareLocalUserMessageAttempt(
+            message: message,
+            stagedContextOverride: stagedContextOverride
+        )
+    }
+
+    private func markLocalUserMessageAttemptFailedIfNeeded(
+        _ attempt: LocalUserMessageAttempt,
+        error: Error
+    ) {
+        guard attempt.insertedMessage else {
+            return
+        }
+
+        state.markRetryableFailedMessage(id: attempt.id, stagedContext: attempt.stagedContext)
+        if state.lastTurnError == nil {
+            state.lastTurnError = error.localizedDescription
+        }
+        scheduleSave()
+    }
+
+    private func removeLocalUserMessageAttempt(
+        id: String,
+        restoring metadata: LocalUserMessageAttemptMetadata?
+    ) {
+        if let record = try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate { $0.id == id }
+            )
+        ).first {
+            modelContext.delete(record)
+        }
+
+        if let dbConversation = dbConversation() {
+            dbConversation.title = metadata?.conversationTitle
+            if let thread = dbConversation.thread {
+                if let threadName = metadata?.threadName {
+                    thread.name = threadName
+                }
+                if let threadHasCustomName = metadata?.threadHasCustomName {
+                    thread.hasCustomName = threadHasCustomName
+                }
+            }
+        }
+
+        state.clearRetryableFailedMessage(id: id)
+        rebuildChatItemsIfNeeded(from: conversationEventRecords(), forceFullRebuild: true)
+
+        do {
+            try modelContext.save()
+        } catch {
+            state.lastTurnError = "Failed to remove cancelled message attempt: \(error.localizedDescription)"
+        }
+    }
+
+    private func conversationEventRecords() -> [ConversationEventRecord] {
+        let conversationID = conversation.id
+        return (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate { $0.conversationId == conversationID },
+                sortBy: [
+                    SortDescriptor(\.timestamp),
+                    SortDescriptor(\.id)
+                ]
+            )
+        )) ?? []
     }
 
     func makeSpawnConfig(
@@ -114,32 +242,52 @@ extension ConversationViewModel {
         existingLocalUserMessageID: String? = nil
     ) async throws {
         try repairMissingWorktreeIfNeeded()
-
-        if needsSetup {
-            try await setupAndStartReserved(
-                message,
-                stagedContextOverride: stagedContextOverride,
-                existingLocalUserMessageID: existingLocalUserMessageID
-            )
-            return
-        }
-
-        if await needsRespawn() {
-            try await startAgentReserved(config: makeSpawnConfig())
-            state.respawnAttempts = 0
-        }
-
-        try await sendReserved(
-            message,
+        let attempt = try localUserMessageAttempt(
+            message: message,
             stagedContextOverride: stagedContextOverride,
             existingLocalUserMessageID: existingLocalUserMessageID
         )
+
+        do {
+            if needsSetup {
+                try await setupAndStartReserved(
+                    message,
+                    stagedContextOverride: stagedContextOverride,
+                    existingLocalUserMessageID: attempt.id,
+                    snapshotStagedContext: attempt.stagedContext
+                )
+                return
+            }
+
+            if await needsRespawn() {
+                try await startAgentReserved(config: makeSpawnConfig())
+                state.respawnAttempts = 0
+            }
+
+            try await sendReserved(
+                message,
+                stagedContextOverride: stagedContextOverride ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
+                existingLocalUserMessageID: attempt.id
+            )
+        } catch is CancellationError {
+            if attempt.insertedMessage {
+                removeLocalUserMessageAttempt(
+                    id: attempt.id,
+                    restoring: attempt.metadata
+                )
+            }
+            throw CancellationError()
+        } catch {
+            markLocalUserMessageAttemptFailedIfNeeded(attempt, error: error)
+            throw error
+        }
     }
 
-    func setupAndStartReserved(
+    private func setupAndStartReserved(
         _ message: String,
         stagedContextOverride: String? = nil,
-        existingLocalUserMessageID: String? = nil
+        existingLocalUserMessageID: String? = nil,
+        snapshotStagedContext: String? = nil
     ) async throws {
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
@@ -153,7 +301,7 @@ extension ConversationViewModel {
 
         let snapshot = ConversationInitialSetupSnapshot(
             draft: message,
-            stagedContext: state.stagedContext
+            stagedContext: snapshotStagedContext ?? state.stagedContext
         )
 
         do {
@@ -168,7 +316,7 @@ extension ConversationViewModel {
             try modelContext.save()
             try await sendReserved(
                 message,
-                stagedContextOverride: stagedContextOverride,
+                stagedContextOverride: stagedContextOverride ?? snapshotStagedContext,
                 existingLocalUserMessageID: existingLocalUserMessageID
             )
         } catch {
@@ -176,7 +324,8 @@ extension ConversationViewModel {
                 error: error,
                 project: project,
                 thread: thread,
-                snapshot: snapshot
+                snapshot: snapshot,
+                restoresDraft: error is CancellationError
             )
             throw error
         }
@@ -224,11 +373,16 @@ extension ConversationViewModel {
         error: Error,
         project: Project,
         thread: AgentThread,
-        snapshot: ConversationInitialSetupSnapshot
+        snapshot: ConversationInitialSetupSnapshot,
+        restoresDraft: Bool
     ) async throws {
         cancelPendingRuntimeTasks()
         try await destroyRuntimeAfterFailedInitialSetup(originalError: error)
-        restoreStateAfterFailedInitialSetup(snapshot: snapshot, thread: thread)
+        restoreStateAfterFailedInitialSetup(
+            snapshot: snapshot,
+            thread: thread,
+            restoresDraft: restoresDraft
+        )
         await finishFailedInitialSetupRollback(project: project, thread: thread)
         setupPhase = nil
     }
@@ -279,11 +433,14 @@ private extension ConversationViewModel {
 
     func restoreStateAfterFailedInitialSetup(
         snapshot: ConversationInitialSetupSnapshot,
-        thread: AgentThread
+        thread: AgentThread,
+        restoresDraft: Bool
     ) {
-        replaceState(with: runtimeStore.conversationState(for: conversation.id))
-        state.inputDraft = snapshot.draft
-        state.stagedContext = snapshot.stagedContext
+        if restoresDraft {
+            replaceState(with: runtimeStore.conversationState(for: conversation.id))
+            state.inputDraft = snapshot.draft
+            state.stagedContext = snapshot.stagedContext
+        }
         thread.hasCompletedInitialSetup = false
     }
 
