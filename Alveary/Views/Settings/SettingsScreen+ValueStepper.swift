@@ -3,17 +3,23 @@ import SwiftUI
 struct SettingsValueStepper: View {
     let title: String
     let range: ClosedRange<Int>
+    let unit: String
+    let accessibilityUnit: String
 
     @Binding private var value: Int
 
     init(
         _ title: String,
         value: Binding<Int>,
-        in range: ClosedRange<Int>
+        in range: ClosedRange<Int>,
+        unit: String = "pt",
+        accessibilityUnit: String = "points"
     ) {
         self.title = title
         _value = value
         self.range = range
+        self.unit = unit
+        self.accessibilityUnit = accessibilityUnit
     }
 
     var body: some View {
@@ -21,7 +27,7 @@ struct SettingsValueStepper: View {
             stepButton(systemImage: "minus", accessibilityLabel: "Decrease \(title)", action: decrement)
                 .disabled(value <= range.lowerBound)
 
-            Text("\(value) pt")
+            Text(valueLabel)
                 .font(.body.weight(.semibold))
                 .monospacedDigit()
                 .lineLimit(1)
@@ -45,7 +51,7 @@ struct SettingsValueStepper: View {
         // Treat the pair of buttons as one adjustable value for VoiceOver.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityValue("\(value) points")
+        .accessibilityValue(accessibilityValue)
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
@@ -79,6 +85,14 @@ struct SettingsValueStepper: View {
 
     private func decrement() {
         value = max(value - 1, range.lowerBound)
+    }
+
+    private var valueLabel: String {
+        unit.isEmpty ? "\(value)" : "\(value) \(unit)"
+    }
+
+    private var accessibilityValue: String {
+        accessibilityUnit.isEmpty ? "\(value)" : "\(value) \(accessibilityUnit)"
     }
 }
 

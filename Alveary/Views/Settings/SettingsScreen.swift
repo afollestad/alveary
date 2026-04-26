@@ -128,6 +128,11 @@ struct SettingsScreen: View {
                 soundEnabled: binding(for: \.soundEnabled),
                 soundName: binding(for: \.soundName)
             )
+        case .terminal:
+            TerminalSettingsTabView(
+                expandTerminalWhenActionsRun: binding(for: \.expandTerminalWhenActionsRun),
+                maxTerminalSessions: binding(for: \.maxTerminalSessions)
+            )
         case .threads:
             ThreadsSettingsTabView(
                 viewModel: viewModel,
@@ -148,6 +153,7 @@ struct SettingsScreen: View {
         case git
         case interface
         case notifications
+        case terminal
         case threads
 
         var id: String { rawValue }
@@ -162,6 +168,8 @@ struct SettingsScreen: View {
                 return "Interface"
             case .notifications:
                 return "Notifications"
+            case .terminal:
+                return "Terminal"
             case .threads:
                 return "Threads"
             }
@@ -177,6 +185,8 @@ struct SettingsScreen: View {
                 return "swatchpalette"
             case .notifications:
                 return "bell"
+            case .terminal:
+                return "terminal"
             case .threads:
                 return "bubble.left.and.bubble.right"
             }
@@ -195,6 +205,8 @@ private extension SettingsScreen {
             return "Adjust theme and typography for the app shell."
         case .notifications:
             return "Configure notification delivery and sounds."
+        case .terminal:
+            return "Configure terminal pane behavior for project actions."
         case .threads:
             return "Manage thread defaults and startup behavior."
         }

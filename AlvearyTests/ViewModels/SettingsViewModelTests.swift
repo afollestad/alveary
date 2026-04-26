@@ -99,6 +99,8 @@ final class SettingsViewModelTests: XCTestCase {
             $0.codeFontFamily = "Monaco"
             $0.codeFontSize = 15
             $0.chatFontSize = 18
+            $0.expandTerminalWhenActionsRun = true
+            $0.maxTerminalSessions = 12
             $0.notifications.enabled = false
             $0.notifications.osNotifications = false
             $0.notifications.sound = false
@@ -120,6 +122,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.codeFontFamily, "Monaco")
         XCTAssertEqual(viewModel.codeFontSize, 15)
         XCTAssertEqual(viewModel.chatFontSize, 18)
+        XCTAssertTrue(viewModel.expandTerminalWhenActionsRun)
+        XCTAssertEqual(viewModel.maxTerminalSessions, 12)
         XCTAssertFalse(viewModel.notificationsEnabled)
         XCTAssertFalse(viewModel.osNotificationsEnabled)
         XCTAssertFalse(viewModel.soundEnabled)
@@ -144,6 +148,8 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.codeFontFamily = "Monaco"
         viewModel.codeFontSize = 16
         viewModel.chatFontSize = 17
+        viewModel.expandTerminalWhenActionsRun = true
+        viewModel.maxTerminalSessions = 12
         viewModel.notificationsEnabled = false
         viewModel.osNotificationsEnabled = false
         viewModel.soundEnabled = false
@@ -162,6 +168,8 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.codeFontFamily, "Monaco")
         XCTAssertEqual(service.current.codeFontSize, 16)
         XCTAssertEqual(service.current.chatFontSize, 17)
+        XCTAssertTrue(service.current.expandTerminalWhenActionsRun)
+        XCTAssertEqual(service.current.maxTerminalSessions, 12)
         XCTAssertFalse(service.current.notifications.enabled)
         XCTAssertFalse(service.current.notifications.osNotifications)
         XCTAssertFalse(service.current.notifications.sound)

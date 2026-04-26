@@ -8,6 +8,14 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().worktreesBaseDirectory, "~/Documents/worktrees")
     }
 
+    func testDefaultTerminalActionExpansionIsDisabled() {
+        XCTAssertFalse(AppSettings().expandTerminalWhenActionsRun)
+    }
+
+    func testDefaultMaxTerminalSessionsIsTen() {
+        XCTAssertEqual(AppSettings().maxTerminalSessions, 10)
+    }
+
     func testExpandedWorktreesBaseDirectoryExpandsTilde() {
         var settings = AppSettings()
         settings.worktreesBaseDirectory = "~/Development/worktrees"
@@ -60,6 +68,20 @@ final class AppSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertEqual(settings.worktreesBaseDirectory, "~/Documents/worktrees")
+    }
+
+    func testDecodeDefaultsTerminalActionExpansionWhenFieldIsMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertFalse(settings.expandTerminalWhenActionsRun)
+    }
+
+    func testDecodeDefaultsMaxTerminalSessionsWhenFieldIsMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.maxTerminalSessions, 10)
     }
 
     func testDecodeMigratesLegacyBranchPrefixToIncludeSeparator() throws {
@@ -122,5 +144,16 @@ final class AppSettingsTests: XCTestCase {
         settings.defaultModel = "opus"
 
         XCTAssertEqual(settings.normalized().defaultModel, "opus")
+    }
+
+    func testNormalizedClampsMaxTerminalSessionsToSupportedRange() {
+        var lowSettings = AppSettings()
+        lowSettings.maxTerminalSessions = 0
+
+        var highSettings = AppSettings()
+        highSettings.maxTerminalSessions = 500
+
+        XCTAssertEqual(lowSettings.normalized().maxTerminalSessions, AppSettings.supportedMaxTerminalSessionsRange.lowerBound)
+        XCTAssertEqual(highSettings.normalized().maxTerminalSessions, AppSettings.supportedMaxTerminalSessionsRange.upperBound)
     }
 }

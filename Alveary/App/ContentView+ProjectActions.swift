@@ -47,6 +47,16 @@ enum ProjectActionOutputFormatter {
     }
 }
 
+enum ProjectActionTerminalPresentation {
+    static func shouldAutoExpand(settings: AppSettings) -> Bool {
+        settings.expandTerminalWhenActionsRun
+    }
+
+    static func maxSessions(settings: AppSettings) -> Int {
+        settings.maxTerminalSessions
+    }
+}
+
 extension ContentView {
     func runProjectAction(thread: AgentThread, action: AlvearyProjectConfig.ProjectAction) {
         guard let context = ProjectActionExecutionContext(thread: thread, action: action) else {
@@ -59,9 +69,12 @@ extension ContentView {
             threadID: context.threadID,
             threadName: context.threadName,
             currentDirectory: context.currentDirectory,
-            command: context.command
+            command: context.command,
+            maxSessions: ProjectActionTerminalPresentation.maxSessions(settings: settingsService.current)
         )
-        appState.showTerminalPane()
+        if ProjectActionTerminalPresentation.shouldAutoExpand(settings: settingsService.current) {
+            appState.showTerminalPane()
+        }
 
         let task = Task {
             do {

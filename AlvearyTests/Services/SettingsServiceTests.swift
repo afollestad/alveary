@@ -24,6 +24,8 @@ final class SettingsServiceTests: XCTestCase {
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
+            $0.expandTerminalWhenActionsRun = true
+            $0.maxTerminalSessions = 12
         }
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
@@ -34,6 +36,8 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
+        XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
+        XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
     }
 
     func testUserDefaultsSettingsServicePersistsLastOpenThreadSelectionAcrossReloads() throws {

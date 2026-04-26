@@ -37,6 +37,9 @@ struct ContentView: View {
     @State private var settingsViewModel: SettingsViewModel
     @State var terminalManager: TerminalManager
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
+    @State private var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
+    @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
+    @State private var terminalToolbarResetTask: Task<Void, Never>?
     @State var didAttemptLaunchSelectionRestore = false
 
     init(resolver: Resolver, appState: AppState) {
@@ -198,16 +201,13 @@ struct ContentView: View {
                     }
                 }
 
-                Button(action: toggleTerminalPane) {
-                    Label(
-                        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal",
-                        systemImage: "terminal"
-                    )
-                }
-                .help(
-                    (appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal")
-                        + " (\(KeyboardShortcut.toggleTerminalPane.displayString))"
+                TerminalToolbarButton(
+                    title: terminalToggleTitle,
+                    displayState: terminalToolbarDisplayState,
+                    action: toggleTerminalPane
                 )
+                .help("\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))")
+                .accessibilityLabel(terminalToggleTitle)
 
                 DiffViewerToolbarButton(
                     diffStats: diffViewModel.diffStats,
@@ -264,6 +264,9 @@ struct ContentView: View {
             guard let newValue else { return }
             openConversation(with: newValue)
             notificationRouter.clearPendingIfMatches(newValue)
+        }
+        .onChange(of: terminalManager.runningSessionIDs, initial: true) { _, runningSessionIDs in
+            handleTerminalRunningSessionIDsChange(runningSessionIDs)
         }
         .sheet(
             isPresented: $isAddProjectSheetPresented,
@@ -326,6 +329,10 @@ private extension ContentView {
         return selectedConversation(in: selectedThread, modelContext: uiModelContext, appState: appState)?.id
     }
 
+    var terminalToggleTitle: String {
+        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal"
+    }
+
     func colorScheme(for theme: String) -> ColorScheme? {
         switch theme {
         case "light": .light
@@ -340,6 +347,50 @@ private extension ContentView {
         } else {
             terminalManager.ensureSelection()
             appState.showTerminalPane()
+        }
+    }
+
+    func handleTerminalRunningSessionIDsChange(_ runningSessionIDs: Set<UUID>) {
+        let liveSessionIDs = Set(terminalManager.sessions.map(\.id))
+        terminalToolbarTrackedSessionIDs.formIntersection(liveSessionIDs)
+
+        if !runningSessionIDs.isEmpty {
+            terminalToolbarResetTask?.cancel()
+            terminalToolbarResetTask = nil
+            terminalToolbarTrackedSessionIDs.formUnion(runningSessionIDs)
+            terminalToolbarDisplayState = .running
+            return
+        }
+
+        guard !terminalToolbarTrackedSessionIDs.isEmpty else {
+            terminalToolbarDisplayState = .idle
+            return
+        }
+
+        let completedSessionIDs = terminalToolbarTrackedSessionIDs
+        terminalToolbarTrackedSessionIDs = []
+
+        guard let outcome = TerminalToolbarCompletionOutcome.outcome(
+            completedSessionIDs: completedSessionIDs,
+            terminalManager: terminalManager
+        ) else {
+            terminalToolbarDisplayState = .idle
+            return
+        }
+
+        terminalToolbarDisplayState = .completed(outcome)
+        scheduleTerminalToolbarReset()
+    }
+
+    func scheduleTerminalToolbarReset() {
+        terminalToolbarResetTask?.cancel()
+        terminalToolbarResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else {
+                return
+            }
+            terminalToolbarDisplayState = .idle
+            terminalToolbarResetTask = nil
         }
     }
 

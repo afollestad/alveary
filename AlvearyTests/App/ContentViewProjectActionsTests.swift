@@ -189,4 +189,22 @@ final class ContentViewProjectActionsTests: XCTestCase {
             "build ok\n\nstderr:\nwarning\n\nstdout was truncated."
         )
     }
+
+    func testProjectActionTerminalPresentationDoesNotAutoExpandByDefault() {
+        XCTAssertFalse(ProjectActionTerminalPresentation.shouldAutoExpand(settings: AppSettings()))
+    }
+
+    func testProjectActionTerminalPresentationAutoExpandsWhenEnabled() {
+        var settings = AppSettings()
+        settings.expandTerminalWhenActionsRun = true
+
+        XCTAssertTrue(ProjectActionTerminalPresentation.shouldAutoExpand(settings: settings))
+    }
+
+    func testProjectActionTerminalPresentationUsesConfiguredMaxSessions() {
+        var settings = AppSettings()
+        settings.maxTerminalSessions = 12
+
+        XCTAssertEqual(ProjectActionTerminalPresentation.maxSessions(settings: settings), 12)
+    }
 }

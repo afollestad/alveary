@@ -1,8 +1,24 @@
 import XCTest
+import SwiftUI
 
 @testable import Alveary
 
 extension SnapshotTests {
+    func testTerminalToolbarButtonStates() {
+        assertMacSnapshot(
+            HStack(spacing: 10) {
+                TerminalToolbarButton(title: "Terminal", displayState: .idle, action: {})
+                TerminalToolbarButton(title: "Terminal", displayState: .running, action: {})
+                TerminalToolbarButton(title: "Terminal", displayState: .completed(.succeeded), action: {})
+                TerminalToolbarButton(title: "Terminal", displayState: .completed(.failed), action: {})
+                TerminalToolbarButton(title: "Terminal", displayState: .completed(.cancelled), action: {})
+            }
+            .padding(12),
+            size: CGSize(width: 640, height: 64),
+            named: "terminal_toolbar_button_states"
+        )
+    }
+
     func testTerminalPaneSessions() {
         let terminalManager = TerminalManager()
         terminalManager.createSession(

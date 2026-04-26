@@ -117,6 +117,12 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         case cancelled
     }
 
+    enum CompletionOutcome: Sendable, Equatable {
+        case succeeded
+        case failed
+        case cancelled
+    }
+
     private var normalizedThreadName: String? {
         guard let trimmedThreadName = threadName?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmedThreadName.isEmpty else {
@@ -150,6 +156,37 @@ final class TerminalManager {
         return sessions.first(where: { $0.id == selectedSessionID }) ?? sessions.last
     }
 
+    var runningSessionIDs: Set<UUID> {
+        Set(sessions.filter(\.isRunning).map(\.id))
+    }
+
+    var hasRunningSession: Bool {
+        !runningSessionIDs.isEmpty
+    }
+
+    func completionOutcome(for sessionIDs: Set<UUID>) -> TerminalSession.CompletionOutcome? {
+        guard !sessionIDs.isEmpty else {
+            return nil
+        }
+
+        var statuses: [TerminalSession.Status] = []
+        for sessionID in sessionIDs {
+            guard let session = sessions.first(where: { $0.id == sessionID }),
+                  !session.isRunning else {
+                return nil
+            }
+            statuses.append(session.status)
+        }
+
+        if statuses.contains(.failed) {
+            return .failed
+        }
+        if statuses.contains(.cancelled) {
+            return .cancelled
+        }
+        return .succeeded
+    }
+
     func ensureSelection() {
         if let selectedSessionID,
            sessions.contains(where: { $0.id == selectedSessionID }) {
@@ -169,7 +206,9 @@ final class TerminalManager {
         command: String? = nil,
         output: String = "",
         status: TerminalSession.Status = .running,
-        select: Bool = true
+        startedAt: Date = Date(),
+        select: Bool = true,
+        maxSessions: Int = AppSettings.defaultMaxTerminalSessions
     ) -> UUID {
         let session = TerminalSession(
             title: title,
@@ -180,6 +219,7 @@ final class TerminalManager {
             command: command,
             output: trimOutput(output),
             status: status,
+            startedAt: startedAt,
             endedAt: status == .running ? nil : Date()
         )
         sessions.append(session)
@@ -188,6 +228,7 @@ final class TerminalManager {
             selectedSessionID = session.id
         }
 
+        pruneSessions(to: maxSessions)
         return session.id
     }
 
@@ -267,6 +308,15 @@ final class TerminalManager {
 
         mutation(&sessions[index])
         ensureSelection()
+    }
+
+    private func pruneSessions(to maxSessions: Int) {
+        let supportedLimit = max(maxSessions, 1)
+        // Prune by launch time, not tab position or current selection.
+        while sessions.count > supportedLimit,
+              let oldestSessionID = sessions.min(by: { $0.startedAt < $1.startedAt })?.id {
+            closeSession(id: oldestSessionID)
+        }
     }
 
     private func trimOutput(_ output: String) -> String {

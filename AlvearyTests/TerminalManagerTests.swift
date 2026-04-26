@@ -121,6 +121,44 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertTrue(manager.sessions.isEmpty)
     }
 
+    func testCreateSessionPrunesChronologicallyOldestSessionOverLimit() {
+        let manager = TerminalManager()
+        let first = manager.createSession(
+            title: "First",
+            startedAt: Date(timeIntervalSince1970: 1),
+            maxSessions: 2
+        )
+        let second = manager.createSession(
+            title: "Second",
+            startedAt: Date(timeIntervalSince1970: 3),
+            maxSessions: 2
+        )
+        let third = manager.createSession(
+            title: "Third",
+            startedAt: Date(timeIntervalSince1970: 2),
+            maxSessions: 2
+        )
+
+        XCTAssertEqual(manager.sessions.map(\.id), [second, third])
+        XCTAssertFalse(manager.sessions.contains(where: { $0.id == first }))
+        XCTAssertEqual(manager.selectedSessionID, third)
+    }
+
+    func testCreateSessionPruningCancelsOldestRunningTask() {
+        let manager = TerminalManager()
+        let first = manager.createSession(title: "First", maxSessions: 1)
+        let task = Task<Void, Never> {
+            try? await Task.sleep(for: .seconds(10))
+        }
+        manager.registerTask(task, forSessionID: first)
+
+        let second = manager.createSession(title: "Second", maxSessions: 1)
+
+        XCTAssertTrue(task.isCancelled)
+        XCTAssertEqual(manager.sessions.map(\.id), [second])
+        XCTAssertEqual(manager.runningSessionIDs, [second])
+    }
+
     func testAppendOutputRetainsNewestContentWithinBound() {
         let manager = TerminalManager()
         let sessionID = manager.createSession(title: "Build")
@@ -144,5 +182,67 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(manager.sessions.first(where: { $0.id == failureID })?.status, .failed)
         XCTAssertNotNil(manager.sessions.first(where: { $0.id == successID })?.endedAt)
         XCTAssertNotNil(manager.sessions.first(where: { $0.id == failureID })?.endedAt)
+    }
+
+    func testRunningSessionIDsTrackRunningSessionsOnly() {
+        let manager = TerminalManager()
+        let runningID = manager.createSession(title: "Build")
+        let succeededID = manager.createSession(title: "Lint", status: .succeeded)
+        let failedID = manager.createSession(title: "Test", status: .failed)
+        let cancelledID = manager.createSession(title: "Run", status: .cancelled)
+
+        XCTAssertEqual(manager.runningSessionIDs, [runningID])
+        XCTAssertTrue(manager.hasRunningSession)
+        XCTAssertFalse(manager.sessions.first(where: { $0.id == succeededID })?.isRunning == true)
+        XCTAssertFalse(manager.sessions.first(where: { $0.id == failedID })?.isRunning == true)
+        XCTAssertFalse(manager.sessions.first(where: { $0.id == cancelledID })?.isRunning == true)
+    }
+
+    func testHasRunningSessionTurnsFalseWhenAllSessionsFinish() {
+        let manager = TerminalManager()
+        let firstID = manager.createSession(title: "Build")
+        let secondID = manager.createSession(title: "Test")
+
+        manager.markSessionFinished(id: firstID, exitCode: 0)
+        XCTAssertTrue(manager.hasRunningSession)
+
+        manager.markSessionFinished(id: secondID, exitCode: 0)
+        XCTAssertFalse(manager.hasRunningSession)
+        XCTAssertTrue(manager.runningSessionIDs.isEmpty)
+    }
+
+    func testCompletionOutcomeForSessions() {
+        let manager = TerminalManager()
+        let successID = manager.createSession(title: "Build", status: .succeeded)
+        let failureID = manager.createSession(title: "Test", status: .failed)
+        let cancelledID = manager.createSession(title: "Run", status: .cancelled)
+
+        XCTAssertEqual(manager.completionOutcome(for: [successID]), .succeeded)
+        XCTAssertEqual(manager.completionOutcome(for: [successID, failureID]), .failed)
+        XCTAssertEqual(manager.completionOutcome(for: [successID, cancelledID]), .cancelled)
+        XCTAssertEqual(manager.completionOutcome(for: [successID, failureID, cancelledID]), .failed)
+    }
+
+    func testTerminalToolbarCompletionOutcomeFailsWhenAnyLiveSessionFailed() {
+        let manager = TerminalManager()
+        _ = manager.createSession(title: "Previous failure", status: .failed)
+        let successID = manager.createSession(title: "Current success", status: .succeeded)
+
+        let outcome = TerminalToolbarCompletionOutcome.outcome(
+            completedSessionIDs: [successID],
+            terminalManager: manager
+        )
+
+        XCTAssertEqual(outcome, .failed)
+    }
+
+    func testCompletionOutcomeRequiresKnownNonRunningSessions() {
+        let manager = TerminalManager()
+        let runningID = manager.createSession(title: "Build")
+        let successID = manager.createSession(title: "Lint", status: .succeeded)
+
+        XCTAssertNil(manager.completionOutcome(for: []))
+        XCTAssertNil(manager.completionOutcome(for: [runningID]))
+        XCTAssertNil(manager.completionOutcome(for: [successID, UUID()]))
     }
 }

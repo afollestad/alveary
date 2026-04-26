@@ -142,6 +142,46 @@ extension SnapshotTests {
         )
     }
 
+    func testSettingsScreenTerminalTab() {
+        var settings = AppSettings()
+        settings.expandTerminalWhenActionsRun = true
+        settings.maxTerminalSessions = 12
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "terminal"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_terminal"
+        )
+    }
+
+    func testSettingsScreenTerminalTabNarrowKeepsControlsInline() {
+        var settings = AppSettings()
+        settings.expandTerminalWhenActionsRun = true
+        settings.maxTerminalSessions = 12
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "terminal"
+            ),
+            size: CGSize(width: 400, height: 700),
+            named: "settings_screen_terminal_narrow_controls"
+        )
+    }
+
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"

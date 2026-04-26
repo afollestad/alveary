@@ -216,6 +216,16 @@ final class SettingsViewModel {
         set { settingsService.update { $0.chatFontSize = newValue } }
     }
 
+    var expandTerminalWhenActionsRun: Bool {
+        get { settingsService.current.expandTerminalWhenActionsRun }
+        set { settingsService.update { $0.expandTerminalWhenActionsRun = newValue } }
+    }
+
+    var maxTerminalSessions: Int {
+        get { settingsService.current.maxTerminalSessions }
+        set { settingsService.update { $0.maxTerminalSessions = newValue } }
+    }
+
     var notificationsEnabled: Bool {
         get { settingsService.current.notifications.enabled }
         set { settingsService.update { $0.notifications.enabled = newValue } }

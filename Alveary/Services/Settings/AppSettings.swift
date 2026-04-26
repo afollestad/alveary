@@ -31,6 +31,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultDiffViewerTopSectionFraction = 0.5
     static let supportedTerminalPaneHeightRange = 240.0...560.0
     static let defaultTerminalPaneHeight = 320.0
+    static let supportedMaxTerminalSessionsRange = 1...50
+    static let defaultMaxTerminalSessions = 10
 
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var defaultProvider = "claude"
@@ -48,6 +50,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var diffViewerWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
+    var expandTerminalWhenActionsRun = false
+    var maxTerminalSessions = Self.defaultMaxTerminalSessions
     var notifications = NotificationSettings()
     var branchPrefix = "alveary/"
     var worktreesBaseDirectory = "~/Documents/worktrees"
@@ -83,6 +87,10 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.terminalPaneHeight = min(
             max(copy.terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
             Self.supportedTerminalPaneHeightRange.upperBound
+        )
+        copy.maxTerminalSessions = min(
+            max(copy.maxTerminalSessions, Self.supportedMaxTerminalSessionsRange.lowerBound),
+            Self.supportedMaxTerminalSessionsRange.upperBound
         )
         if let soundName = copy.notifications.soundName,
            !NotificationSettings.availableSoundNames.contains(soundName) {
@@ -161,6 +169,8 @@ extension AppSettings {
         case diffViewerWidth
         case diffViewerTopSectionFraction
         case terminalPaneHeight
+        case expandTerminalWhenActionsRun
+        case maxTerminalSessions
         case notifications
         case branchPrefix
         case worktreesBaseDirectory
@@ -205,6 +215,8 @@ extension AppSettings {
             forKey: .diffViewerTopSectionFraction
         ) ?? defaults.diffViewerTopSectionFraction
         self.terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? defaults.terminalPaneHeight
+        self.expandTerminalWhenActionsRun = try container.decodeIfPresent(Bool.self, forKey: .expandTerminalWhenActionsRun) ?? false
+        self.maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? defaults.maxTerminalSessions
         self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
         let decodedBranchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix)
         self.branchPrefix = Self.migratedBranchPrefix(
