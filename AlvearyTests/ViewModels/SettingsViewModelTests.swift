@@ -103,7 +103,7 @@ final class SettingsViewModelTests: XCTestCase {
             $0.notifications.osNotifications = false
             $0.notifications.sound = false
             $0.notifications.soundName = "Tink"
-            $0.branchPrefix = "feature"
+            $0.branchPrefix = "feature/"
             $0.providerConfigs["claude"] = ProviderCustomConfig(cli: "/usr/local/bin/claude")
         }
         let viewModel = SettingsViewModel(settingsService: service)
@@ -124,7 +124,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.osNotificationsEnabled)
         XCTAssertFalse(viewModel.soundEnabled)
         XCTAssertEqual(viewModel.soundName, "Tink")
-        XCTAssertEqual(viewModel.branchPrefix, "feature")
+        XCTAssertEqual(viewModel.branchPrefix, "feature/")
         XCTAssertEqual(viewModel.providerConfig(for: "claude").cli, "/usr/local/bin/claude")
     }
 
@@ -148,7 +148,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.osNotificationsEnabled = false
         viewModel.soundEnabled = false
         viewModel.soundName = "Pop"
-        viewModel.branchPrefix = "feature"
+        viewModel.branchPrefix = "feature/"
 
         XCTAssertEqual(service.current.defaultProvider, "claude")
         XCTAssertEqual(service.current.defaultModel, "sonnet")
@@ -166,7 +166,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(service.current.notifications.osNotifications)
         XCTAssertFalse(service.current.notifications.sound)
         XCTAssertEqual(service.current.notifications.soundName, "Pop")
-        XCTAssertEqual(service.current.branchPrefix, "feature")
+        XCTAssertEqual(service.current.branchPrefix, "feature/")
     }
 
     // Settings Effort picker must not silently retain a value the new model

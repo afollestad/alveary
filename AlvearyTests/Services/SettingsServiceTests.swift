@@ -22,7 +22,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.effort = "high"
             $0.deleteKeyAction = .delete
             $0.reopenLastThreadAndConversationOnLaunch = true
-            $0.branchPrefix = "feature"
+            $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
         }
 
@@ -32,7 +32,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.deleteKeyAction, .delete)
         XCTAssertTrue(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
-        XCTAssertEqual(reloadedService.current.branchPrefix, "feature")
+        XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
     }
 
@@ -80,7 +80,7 @@ final class SettingsServiceTests: XCTestCase {
                 "sound": true,
                 "soundName": "Glass"
             ],
-            "branchPrefix": "feature",
+            "branchPrefix": "feature/",
             "providerConfigs": [:],
             "lastOpenThreadID": "not-a-persistent-id",
             "lastOpenConversationID": 42
@@ -110,7 +110,7 @@ final class SettingsServiceTests: XCTestCase {
         )
 
         service.update {
-            $0.branchPrefix = "feature"
+            $0.branchPrefix = "feature/"
         }
 
         XCTAssertEqual(service.current, AppSettings())
@@ -141,6 +141,37 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(service.current.autoTrustProjects)
     }
 
+    func testUserDefaultsSettingsServiceMigratesLegacyBranchPrefixSeparator() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "branchPrefix": "feature"
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.branchPrefix, "feature/")
+    }
+
+    func testUserDefaultsSettingsServicePreservesCurrentBranchPrefixLiterally() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "settingsSchemaVersion": AppSettings.currentSettingsSchemaVersion,
+            "branchPrefix": "feature"
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.branchPrefix, "feature")
+    }
+
     func testUserDefaultsSettingsServiceNormalizesInvalidStoredValuesOnLoad() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
@@ -160,7 +191,7 @@ final class SettingsServiceTests: XCTestCase {
                 "sound": true,
                 "soundName": "Bonk"
             ],
-            "branchPrefix": "alveary",
+            "branchPrefix": "alveary/",
             "providerConfigs": [:]
         ]
         defaults.set(
@@ -197,7 +228,7 @@ final class SettingsServiceTests: XCTestCase {
                 "sound": true,
                 "soundName": "Glass"
             ],
-            "branchPrefix": "feature",
+            "branchPrefix": "feature/",
             "providerConfigs": [:]
         ]
         defaults.set(
@@ -231,7 +262,7 @@ final class SettingsServiceTests: XCTestCase {
                 "sound": true,
                 "soundName": "Glass"
             ],
-            "branchPrefix": "feature",
+            "branchPrefix": "feature/",
             "providerConfigs": [:]
         ]
         defaults.set(

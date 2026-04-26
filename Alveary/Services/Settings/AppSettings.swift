@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 
 struct AppSettings: Codable, Sendable, Equatable {
+    static let currentSettingsSchemaVersion = 1
     static let supportedProviderIDs = ["claude"]
     static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto"]
     static let defaultEffortLevel = "medium"
@@ -31,6 +32,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedTerminalPaneHeightRange = 240.0...560.0
     static let defaultTerminalPaneHeight = 320.0
 
+    var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var defaultProvider = "claude"
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
@@ -47,7 +49,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var notifications = NotificationSettings()
-    var branchPrefix = "alveary"
+    var branchPrefix = "alveary/"
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
     var providerConfigs: [String: ProviderCustomConfig] = [:]
@@ -166,6 +168,7 @@ extension AppSettings {
         case providerConfigs
         case lastOpenThreadID
         case lastOpenConversationID
+        case settingsSchemaVersion
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -177,6 +180,8 @@ extension AppSettings {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
 
+        let storedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .settingsSchemaVersion) ?? 0
+        self.settingsSchemaVersion = defaults.settingsSchemaVersion
         self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
         self.defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaults.defaultModel
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
@@ -201,7 +206,11 @@ extension AppSettings {
         ) ?? defaults.diffViewerTopSectionFraction
         self.terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? defaults.terminalPaneHeight
         self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
-        self.branchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix) ?? defaults.branchPrefix
+        let decodedBranchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix)
+        self.branchPrefix = Self.migratedBranchPrefix(
+            decodedBranchPrefix ?? defaults.branchPrefix,
+            storedSchemaVersion: storedSchemaVersion
+        )
         self.worktreesBaseDirectory = try container.decodeIfPresent(
             String.self,
             forKey: .worktreesBaseDirectory
@@ -216,6 +225,15 @@ extension AppSettings {
         ) ?? defaults.providerConfigs
         self.lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
         self.lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
+    }
+
+    private static func migratedBranchPrefix(_ branchPrefix: String, storedSchemaVersion: Int) -> String {
+        if storedSchemaVersion == 0,
+           !branchPrefix.isEmpty,
+           !branchPrefix.hasSuffix("/") {
+            return branchPrefix + "/"
+        }
+        return branchPrefix
     }
 }
 

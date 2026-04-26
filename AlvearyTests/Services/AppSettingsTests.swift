@@ -62,6 +62,27 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.worktreesBaseDirectory, "~/Documents/worktrees")
     }
 
+    func testDecodeMigratesLegacyBranchPrefixToIncludeSeparator() throws {
+        let json = Data(#"{"branchPrefix":"feature"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.branchPrefix, "feature/")
+    }
+
+    func testDecodePreservesCurrentBranchPrefixLiterally() throws {
+        let json = Data(#"{"settingsSchemaVersion":1,"branchPrefix":"feature"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.branchPrefix, "feature")
+    }
+
+    func testDecodePreservesEmptyBranchPrefix() throws {
+        let json = Data(#"{"branchPrefix":""}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.branchPrefix, "")
+    }
+
     func testNormalizedClampsUnknownDefaultModelToSentinel() {
         var settings = AppSettings()
         settings.defaultModel = "gpt-9"

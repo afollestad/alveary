@@ -101,7 +101,7 @@ extension SnapshotTests {
 
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
-        settings.branchPrefix = "af"
+        settings.branchPrefix = "af/"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(
@@ -123,7 +123,7 @@ extension SnapshotTests {
 
     func testSettingsScreenGitTabNarrowStacksSplitInputs() {
         var settings = AppSettings()
-        settings.branchPrefix = "af"
+        settings.branchPrefix = "af/"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(
@@ -145,7 +145,7 @@ extension SnapshotTests {
 
     func testSettingsScreenGitTabWithoutGitHubCLI() {
         var settings = AppSettings()
-        settings.branchPrefix = "af"
+        settings.branchPrefix = "af/"
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)

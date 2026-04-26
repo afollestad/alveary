@@ -33,7 +33,7 @@ final class WorktreeManagerTests: XCTestCase {
 
         let settings = InMemorySettingsService(current: {
             var settings = AppSettings()
-            settings.branchPrefix = "af"
+            settings.branchPrefix = "af-"
             settings.worktreesBaseDirectory = worktreesBaseURL.path
             return settings
         }())
@@ -46,9 +46,9 @@ final class WorktreeManagerTests: XCTestCase {
             remoteName: "origin"
         )
 
-        XCTAssertTrue(info.branch.hasPrefix("af/"))
+        XCTAssertTrue(info.branch.hasPrefix("af-"))
         XCTAssertTrue(info.branch.hasSuffix("-2"))
-        XCTAssertEqual(URL(fileURLWithPath: info.path).lastPathComponent, String(info.branch.split(separator: "/").last!))
+        XCTAssertEqual(URL(fileURLWithPath: info.path).lastPathComponent, String(info.branch.dropFirst("af-".count)))
         XCTAssertTrue(FileManager.default.fileExists(atPath: URL(fileURLWithPath: info.path).appendingPathComponent(".env.local").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: URL(fileURLWithPath: info.path).appendingPathComponent("config/dev.json").path))
 

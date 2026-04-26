@@ -241,7 +241,7 @@ extension DefaultWorktreeManager {
         for suffix in 0..<10_000 {
             let candidateName = candidateName(baseName: candidateBase.baseName, suffix: suffix)
             let candidatePath = candidateBase.worktreesDirectory.appendingPathComponent(candidateName).path
-            let candidateBranch = "\(branchPrefix)/\(candidateName)"
+            let candidateBranch = branchPrefix + candidateName
             let branchExists = try? await shell.run(
                 executable: "/usr/bin/git",
                 args: ["show-ref", "--verify", "--quiet", "refs/heads/\(candidateBranch)"],

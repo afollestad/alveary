@@ -44,8 +44,8 @@ extension WorktreeManagerTests {
     }
 
     func assertSetupInvocations(_ invocations: [MockShellRunner.Invocation], branch: String, worktreePath: String) {
-        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c"])
-        XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af/fix-auth-bug-59c-2"])
+        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af-fix-auth-bug-59c"])
+        XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af-fix-auth-bug-59c-2"])
         XCTAssertEqual(invocations[2].args, ["fetch", "origin", "main"])
         XCTAssertEqual(invocations[3].args, ["worktree", "add", "--no-track", "-b", branch, worktreePath, "origin/main"])
         XCTAssertEqual(invocations[4].executable, "/bin/sh")
