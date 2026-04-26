@@ -62,6 +62,13 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    var showsDisabledCursor = false {
+        didSet {
+            guard oldValue != showsDisabledCursor else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
     // When true, suppress NSTextView's built-in drag destination so a parent SwiftUI
     // `.dropDestination` receives file/text drops instead. The composer opts in so it
     // can prepend `@` and collapse dropped paths into mention chips; other editors
@@ -179,6 +186,24 @@ final class AppKitTextView: NSTextView {
         super.layout()
         updateInlineHintView()
         needsDisplay = true
+    }
+
+    override func resetCursorRects() {
+        guard !showsDisabledCursor else {
+            addCursorRect(bounds, cursor: .operationNotAllowed)
+            return
+        }
+
+        super.resetCursorRects()
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        guard !showsDisabledCursor else {
+            NSCursor.operationNotAllowed.set()
+            return
+        }
+
+        super.cursorUpdate(with: event)
     }
 
     private func drawPlaceholder(in dirtyRect: NSRect) {

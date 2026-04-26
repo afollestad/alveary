@@ -28,6 +28,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
     let isDisabled: Bool
+    let showsDisabledCursor: Bool
     let focus: FocusState<Bool>.Binding?
     let textHighlightRanges: ((String) -> [NSRange])?
     let textChips: ((String) -> [AppTextEditorChip])?
@@ -69,6 +70,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         horizontalPadding: CGFloat,
         verticalPadding: CGFloat,
         isDisabled: Bool,
+        showsDisabledCursor: Bool = false,
         focus: FocusState<Bool>.Binding?,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
         textChips: ((String) -> [AppTextEditorChip])? = nil,
@@ -91,6 +93,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.isDisabled = isDisabled
+        self.showsDisabledCursor = showsDisabledCursor
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
         self.textChips = textChips
@@ -113,17 +116,29 @@ struct AppKitTextEditorView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> AppKitTextEditorContainerView {
         let containerView = AppKitTextEditorContainerView(frame: .zero)
-        let scrollView = AppKitTextEditorScrollView()
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.hasHorizontalScroller = false
-        scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.scrollerStyle = .overlay
-        scrollView.contentInsets = NSEdgeInsets()
-        scrollView.backgroundColor = .clear
+        let scrollView = makeScrollView()
+        let textView = makeTextView(context: context)
+        scrollView.documentView = textView
+        textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
+        containerView.addSubview(scrollView)
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
 
+        context.coordinator.attach(containerView: containerView, textView: textView, scrollView: scrollView)
+        scrollView.onLayout = { [weak coordinator = context.coordinator] in
+            coordinator?.handleLayoutChange()
+        }
+        context.coordinator.applyConfiguration(from: self)
+        context.coordinator.recalculateHeight()
+
+        return containerView
+    }
+
+    private func makeTextView(context: Context) -> AppKitTextView {
         let textView = AppKitTextView(frame: .zero)
         textView.delegate = context.coordinator
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
@@ -146,24 +161,25 @@ struct AppKitTextEditorView: NSViewRepresentable {
             coordinator?.handleFocusChange(isFocused)
         }
 
-        scrollView.documentView = textView
-        textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
-        containerView.addSubview(scrollView)
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-        ])
+        return textView
+    }
 
-        context.coordinator.attach(textView: textView, scrollView: scrollView)
-        scrollView.onLayout = { [weak coordinator = context.coordinator] in
-            coordinator?.handleLayoutChange()
-        }
-        context.coordinator.applyConfiguration(from: self)
-        context.coordinator.recalculateHeight()
+    private func makeScrollView() -> AppKitTextEditorScrollView {
+        let scrollView = AppKitTextEditorScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+        scrollView.contentInsets = NSEdgeInsets()
+        scrollView.backgroundColor = .clear
 
-        return containerView
+        let clipView = AppKitTextEditorClipView()
+        clipView.drawsBackground = false
+        scrollView.contentView = clipView
+        return scrollView
     }
 
     func updateNSView(_ containerView: AppKitTextEditorContainerView, context: Context) {
@@ -179,15 +195,95 @@ struct AppKitTextEditorView: NSViewRepresentable {
 
 final class AppKitTextEditorScrollView: NSScrollView {
     var onLayout: (() -> Void)?
+    var showsDisabledCursor = false {
+        didSet {
+            guard oldValue != showsDisabledCursor else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
 
     override func layout() {
         super.layout()
         onLayout?()
     }
+
+    override func resetCursorRects() {
+        guard !showsDisabledCursor else {
+            addCursorRect(bounds, cursor: .operationNotAllowed)
+            return
+        }
+
+        super.resetCursorRects()
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        guard !showsDisabledCursor else {
+            NSCursor.operationNotAllowed.set()
+            return
+        }
+
+        super.cursorUpdate(with: event)
+    }
+}
+
+final class AppKitTextEditorClipView: NSClipView {
+    var showsDisabledCursor = false {
+        didSet {
+            guard oldValue != showsDisabledCursor else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        guard !showsDisabledCursor else {
+            addCursorRect(bounds, cursor: .operationNotAllowed)
+            return
+        }
+
+        super.resetCursorRects()
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        guard !showsDisabledCursor else {
+            NSCursor.operationNotAllowed.set()
+            return
+        }
+
+        super.cursorUpdate(with: event)
+    }
 }
 
 final class AppKitTextEditorContainerView: NSView {
+    var showsDisabledCursor = false {
+        didSet {
+            guard oldValue != showsDisabledCursor else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
     override var isFlipped: Bool {
         true
+    }
+
+    override func resetCursorRects() {
+        guard !showsDisabledCursor else {
+            addCursorRect(bounds, cursor: .operationNotAllowed)
+            return
+        }
+
+        super.resetCursorRects()
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        guard !showsDisabledCursor else {
+            NSCursor.operationNotAllowed.set()
+            return
+        }
+
+        super.cursorUpdate(with: event)
     }
 }

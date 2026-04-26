@@ -105,6 +105,7 @@ struct AppTextEditor: View {
     private let borderColor: Color
     private let borderWidth: CGFloat
     private let isDisabled: Bool
+    private let showsDisabledCursor: Bool
     private let sizesToContent: Bool
     private let focus: FocusState<Bool>.Binding?
     private let textHighlightRanges: ((String) -> [NSRange])?
@@ -135,6 +136,7 @@ struct AppTextEditor: View {
         borderColor: Color = AppInputStyle.borderColor,
         borderWidth: CGFloat = AppInputStyle.borderWidth,
         isDisabled: Bool = false,
+        showsDisabledCursor: Bool = false,
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
@@ -165,6 +167,7 @@ struct AppTextEditor: View {
         self.borderColor = borderColor
         self.borderWidth = borderWidth
         self.isDisabled = isDisabled
+        self.showsDisabledCursor = showsDisabledCursor
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
@@ -197,6 +200,7 @@ struct AppTextEditor: View {
         borderColor: Color = AppInputStyle.borderColor,
         borderWidth: CGFloat = AppInputStyle.borderWidth,
         isDisabled: Bool = false,
+        showsDisabledCursor: Bool = false,
         sizesToContent: Bool = false,
         focus: FocusState<Bool>.Binding? = nil,
         textHighlightRanges: ((String) -> [NSRange])? = nil,
@@ -227,6 +231,7 @@ struct AppTextEditor: View {
         self.borderColor = borderColor
         self.borderWidth = borderWidth
         self.isDisabled = isDisabled
+        self.showsDisabledCursor = showsDisabledCursor
         self.sizesToContent = sizesToContent
         self.focus = focus
         self.textHighlightRanges = textHighlightRanges
@@ -260,6 +265,7 @@ struct AppTextEditor: View {
                 horizontalPadding: horizontalPadding,
                 verticalPadding: verticalPadding,
                 isDisabled: isDisabled,
+                showsDisabledCursor: showsDisabledCursor,
                 focus: focus,
                 textHighlightRanges: textHighlightRanges,
                 textChips: textChips,

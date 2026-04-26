@@ -148,6 +148,30 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldProjectTrustBlocked() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant(""),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: true,
+                isProjectTrustBlocked: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_project_trust_blocked"
+        )
+    }
+
     func testChatInputFieldCodeBlocks() {
         assertMacSnapshot(
             ChatInputField(

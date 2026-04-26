@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     var parent: AppKitTextEditorView
+    weak var containerView: AppKitTextEditorContainerView?
     weak var textView: AppKitTextView?
     weak var scrollView: AppKitTextEditorScrollView?
     var suppressCallbacks = false
@@ -16,7 +17,12 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         self.parent = parent
     }
 
-    func attach(textView: AppKitTextView, scrollView: AppKitTextEditorScrollView) {
+    func attach(
+        containerView: AppKitTextEditorContainerView? = nil,
+        textView: AppKitTextView,
+        scrollView: AppKitTextEditorScrollView
+    ) {
+        self.containerView = containerView
         self.textView = textView
         self.scrollView = scrollView
     }
@@ -26,9 +32,14 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             return
         }
 
+        let showsDisabledCursor = parent.isDisabled && parent.showsDisabledCursor
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
         textView.isEditable = !parent.isDisabled
-        textView.isSelectable = true
+        textView.isSelectable = !showsDisabledCursor
+        textView.showsDisabledCursor = showsDisabledCursor
+        scrollView?.showsDisabledCursor = showsDisabledCursor
+        (scrollView?.contentView as? AppKitTextEditorClipView)?.showsDisabledCursor = showsDisabledCursor
+        containerView?.showsDisabledCursor = showsDisabledCursor
         textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
         textView.inlineHint = parent.inlineHint

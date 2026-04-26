@@ -343,6 +343,12 @@ actor MockProviderSetupService: ProviderSetupService {
     }
 
     private var recordedCalls: [Call] = []
+    private var trustedProjectPaths: Set<String> = []
+    private nonisolated let cachedTrust = MockProviderSetupTrustCache()
+
+    nonisolated func cachedProjectTrustStatus(providerId: String, workingDirectory: String) -> Bool? {
+        providerId != "claude" || cachedTrust.isTrusted(workingDirectory)
+    }
 
     func prepareForSpawn(providerId: String, workingDirectory: String, autoTrust: Bool) async {
         recordedCalls.append(
@@ -354,7 +360,51 @@ actor MockProviderSetupService: ProviderSetupService {
         )
     }
 
+    func isTrustedProject(providerId: String, workingDirectory: String) async -> Bool {
+        providerId != "claude" || trustedProjectPaths.contains(CanonicalPath.normalize(workingDirectory))
+    }
+
+    func trustProject(providerId: String, workingDirectory: String) async {
+        guard providerId == "claude" else {
+            return
+        }
+        trustedProjectPaths.insert(CanonicalPath.normalize(workingDirectory))
+        cachedTrust.setTrustedProject(workingDirectory, isTrusted: true)
+    }
+
+    func setTrustedProject(_ workingDirectory: String, isTrusted: Bool) {
+        let normalizedPath = CanonicalPath.normalize(workingDirectory)
+        if isTrusted {
+            trustedProjectPaths.insert(normalizedPath)
+        } else {
+            trustedProjectPaths.remove(normalizedPath)
+        }
+        cachedTrust.setTrustedProject(workingDirectory, isTrusted: isTrusted)
+    }
+
     func calls() -> [Call] {
         recordedCalls
+    }
+}
+
+private final class MockProviderSetupTrustCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var trustedProjectPaths: Set<String> = []
+
+    func isTrusted(_ workingDirectory: String) -> Bool {
+        lock.withLock {
+            trustedProjectPaths.contains(CanonicalPath.normalize(workingDirectory))
+        }
+    }
+
+    func setTrustedProject(_ workingDirectory: String, isTrusted: Bool) {
+        let normalizedPath = CanonicalPath.normalize(workingDirectory)
+        lock.withLock {
+            if isTrusted {
+                trustedProjectPaths.insert(normalizedPath)
+            } else {
+                trustedProjectPaths.remove(normalizedPath)
+            }
+        }
     }
 }

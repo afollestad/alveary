@@ -13,6 +13,7 @@ struct ChatComposerPanel: View {
     let showsCenteredPreHistoryRetry: Bool
     let composerMode: ComposerMode
     let composerIsBusy: Bool
+    let isProjectTrustBlocked: Bool
     let selectedModel: Binding<String>
     let selectedEffort: Binding<String>
     let selectedPermissionMode: Binding<String>
@@ -74,6 +75,7 @@ struct ChatComposerPanel: View {
                 supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
                 queuedMessages: viewModel.messageQueue.pending,
                 isTurnActive: viewModel.state.turnState.isActive,
+                isProjectTrustBlocked: isProjectTrustBlocked,
                 inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
                 onSteerQueuedMessage: { messageID in
                     Task { try? await viewModel.steerQueuedMessage(id: messageID) }

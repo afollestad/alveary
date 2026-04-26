@@ -17,6 +17,7 @@ struct ThreadDetailConversationTabs: View {
     let onCommitRename: (Conversation, String) -> Void
     let onRemove: (Conversation) -> Void
     let onCreate: () -> Void
+    let isCreateDisabled: Bool
 
     @Binding var editingConversationID: PersistentIdentifier?
     @Environment(\.colorScheme) private var colorScheme
@@ -124,6 +125,8 @@ struct ThreadDetailConversationTabs: View {
                 Label("New Conversation", systemImage: "plus")
             }
             .secondaryActionButtonStyle()
+            .disabled(isCreateDisabled)
+            .blockedCursorOverlay(when: isCreateDisabled)
             .help("New Conversation (\(KeyboardShortcut.newConversation.displayString))")
             .padding(.leading, tabsTrailingSentinelWidth)
         }

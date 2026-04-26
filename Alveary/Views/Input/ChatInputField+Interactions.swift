@@ -119,14 +119,16 @@ extension ChatInputField {
     }
 
     func performSubmit() {
-        guard !trimmedText.isEmpty else {
+        guard !isProjectTrustBlocked,
+              !trimmedText.isEmpty else {
             return
         }
         onSubmit()
     }
 
     func performSteer() {
-        guard !trimmedText.isEmpty else {
+        guard !isProjectTrustBlocked,
+              !trimmedText.isEmpty else {
             return
         }
         onSteer()

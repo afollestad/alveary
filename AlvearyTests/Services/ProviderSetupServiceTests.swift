@@ -37,6 +37,67 @@ final class ProviderSetupServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.globalConfigURL.path))
     }
 
+    func testTrustProjectUpdatesClaudeTrustStatus() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let workingDirectory = try fixture.makeWorkingDirectory(named: "worktree")
+
+        let isTrustedBefore = await fixture.service.isTrustedProject(
+            providerId: "claude",
+            workingDirectory: workingDirectory.path
+        )
+        XCTAssertFalse(isTrustedBefore)
+
+        await fixture.service.trustProject(
+            providerId: "claude",
+            workingDirectory: workingDirectory.path
+        )
+
+        let isTrustedAfter = await fixture.service.isTrustedProject(
+            providerId: "claude",
+            workingDirectory: workingDirectory.path
+        )
+        XCTAssertTrue(isTrustedAfter)
+        XCTAssertEqual(
+            fixture.service.cachedProjectTrustStatus(providerId: "claude", workingDirectory: workingDirectory.path),
+            true
+        )
+    }
+
+    func testCachedProjectTrustStatusUsesInMemoryClaudeSnapshot() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let workingDirectory = try fixture.makeWorkingDirectory(named: "worktree")
+
+        XCTAssertEqual(
+            fixture.service.cachedProjectTrustStatus(providerId: "claude", workingDirectory: workingDirectory.path),
+            false
+        )
+
+        await fixture.service.trustProject(
+            providerId: "claude",
+            workingDirectory: workingDirectory.path
+        )
+
+        XCTAssertEqual(
+            fixture.service.cachedProjectTrustStatus(providerId: "claude", workingDirectory: workingDirectory.path),
+            true
+        )
+    }
+
+    func testOtherProvidersDoNotRequireProjectTrust() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let workingDirectory = try fixture.makeWorkingDirectory(named: "project")
+
+        let isTrusted = await fixture.service.isTrustedProject(
+            providerId: "codex",
+            workingDirectory: workingDirectory.path
+        )
+
+        XCTAssertTrue(isTrusted)
+    }
+
     func testPrepareForSpawnForOtherProvidersIsNoOp() async throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }

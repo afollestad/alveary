@@ -38,6 +38,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -74,6 +75,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -110,6 +112,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -139,6 +142,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -177,6 +181,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -221,6 +226,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 500, height: 72),
@@ -257,6 +263,7 @@ extension SnapshotTests {
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
                 onCreate: {},
+                isCreateDisabled: false,
                 editingConversationID: .constant(secondConversation.persistentModelID)
             ),
             size: CGSize(width: 640, height: 72),
@@ -375,7 +382,7 @@ private struct ThreadDetailStatusFixture {
         let context = ModelContext(container)
 
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
-        let thread = AgentThread(name: "Thread Detail Status", project: project)
+        let thread = AgentThread(name: "Thread Detail Status", hasCompletedInitialSetup: true, project: project)
         let mainConversation = Conversation(
             id: "main",
             title: "Main",

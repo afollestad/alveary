@@ -11,6 +11,7 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 - Selection-change callbacks must not synchronously trigger layout-dependent restyling.
     - Lightweight typing state may update inline.
     - Full chip/code restyles should defer to the next main-runloop turn.
+- Use `showsDisabledCursor` only for disabled editors that should show a blocked cursor; normal progress-only read-only editors should leave it false.
 
 ## Focus
 

@@ -16,11 +16,13 @@ struct ThreadDetailView: View {
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
 
-    @Environment(\.modelContext) private var uiModelContext
-    @State private var conversationActionError: String?
+    @Environment(\.modelContext) var uiModelContext
+    @State var conversationActionError: String?
     @State private var editingConversationID: PersistentIdentifier?
     @State private var pendingDeleteConversation: Conversation?
     @State private var statusVersion = 0
+    @State var projectTrustPrompt: ProjectTrustPrompt?
+    @State var isCheckingProjectTrust = false
 
     private var conversations: [Conversation] {
         let threadID = thread.persistentModelID
@@ -46,6 +48,19 @@ struct ThreadDetailView: View {
         let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
         let selectedConversationID = selectedConversation?.persistentModelID
         let conversationIDs = Set(conversations.map(\.id))
+        let projectTrustContext = selectedConversation.flatMap(projectTrustContext(for:))
+        let cachedProjectTrustStatus = projectTrustContext.flatMap(cachedProjectTrustStatus(for:))
+        let visibleProjectTrustPrompt: ProjectTrustPrompt? = if let projectTrustContext {
+            visibleProjectTrustPrompt(for: projectTrustContext, cachedStatus: cachedProjectTrustStatus)
+        } else {
+            nil
+        }
+        let isAwaitingProjectTrustCheck = projectTrustContext != nil &&
+            cachedProjectTrustStatus == nil &&
+            visibleProjectTrustPrompt == nil
+        let isProjectTrustBlocked = visibleProjectTrustPrompt != nil ||
+            isAwaitingProjectTrustCheck ||
+            (isCheckingProjectTrust && cachedProjectTrustStatus == nil)
 
         return Group {
             if let conversation = selectedConversation {
@@ -70,6 +85,7 @@ struct ThreadDetailView: View {
                             pendingDeleteConversation = conversation
                         },
                         onCreate: { Task { await createConversation() } },
+                        isCreateDisabled: isProjectTrustBlocked,
                         editingConversationID: $editingConversationID
                     )
 
@@ -83,6 +99,14 @@ struct ThreadDetailView: View {
                         worktreeManager: worktreeManager,
                         providerSetup: providerSetup,
                         fileListManager: fileListManager,
+                        projectTrustPrompt: visibleProjectTrustPrompt,
+                        isProjectTrustBlocked: isProjectTrustBlocked,
+                        onTrustProject: { prompt in
+                            Task { await trustProject(prompt) }
+                        },
+                        onDenyProjectTrust: { prompt in
+                            denyProjectTrust(prompt)
+                        },
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,
                         appState: appState
@@ -94,6 +118,9 @@ struct ThreadDetailView: View {
                 }
                 .task(id: selectedConversationID) {
                     cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
+                }
+                .task(id: projectTrustTaskID(for: conversation)) {
+                    await refreshProjectTrustPrompt(for: conversation)
                 }
                 .confirmationDialog(
                     "Remove conversation?",
@@ -166,17 +193,34 @@ struct ThreadDetailView: View {
             // unrelated state change happens to re-render the parent view.
             statusVersion += 1
         }
+        .onReceive(NotificationCenter.default.publisher(for: .claudeConfigChanged)) { _ in
+            guard let selectedConversation else {
+                return
+            }
+
+            Task {
+                await refreshProjectTrustPrompt(for: selectedConversation)
+            }
+        }
         // Publish the thread-scoped create action so `AlvearyApp.commands`
         // can render a ⌘T "New Conversation" menu item that is disabled
         // when no thread is mounted (the focused value resolves to nil
         // outside this view, so the menu button reads `action == nil`).
-        .focusedSceneValue(\.newConversationAction) {
-            Task { await createConversation() }
-        }
+        .focusedSceneValue(\.newConversationAction, newConversationAction(isDisabled: isProjectTrustBlocked))
     }
 }
 
 private extension ThreadDetailView {
+    func newConversationAction(isDisabled: Bool) -> NewConversationActionKey.Value? {
+        guard !isDisabled else {
+            return nil
+        }
+
+        return {
+            Task { await createConversation() }
+        }
+    }
+
     func renameConversation(_ conversation: Conversation, to newName: String) {
         guard let dbConversation = uiModelContext.resolveConversation(id: conversation.persistentModelID) else {
             conversationActionError = "Couldn't rename conversation: it no longer exists"
@@ -194,6 +238,10 @@ private extension ThreadDetailView {
     }
 
     func createConversation() async {
+        guard !isCurrentProjectTrustBlocked() else {
+            return
+        }
+
         guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             conversationActionError = "Couldn't create conversation: thread no longer exists"
             return
@@ -234,6 +282,17 @@ private extension ThreadDetailView {
         } catch {
             conversationActionError = "Couldn't create conversation: \(error.localizedDescription)"
         }
+    }
+
+    func isCurrentProjectTrustBlocked() -> Bool {
+        let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
+        guard let projectTrustContext = selectedConversation.flatMap(projectTrustContext(for:)) else {
+            return false
+        }
+
+        let cachedStatus = cachedProjectTrustStatus(for: projectTrustContext)
+        return cachedStatus == nil ||
+            visibleProjectTrustPrompt(for: projectTrustContext, cachedStatus: cachedStatus) != nil
     }
 
     func removeConversation(id: PersistentIdentifier, conversationIDString: String) async {

@@ -4,6 +4,7 @@ These instructions cover Claude provider support under `Alveary/Services/Agent/C
 
 - Claude HTTP hook listener, settings generation, and approval policy code lives under `Hooks/`; follow `Hooks/AGENTS.md` for that subsystem.
 - `ClaudeConfigStore` is the sole serialized writer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
+- `ClaudeConfigStore` owns Claude config observation. UI should use its replaying snapshot stream, `.claudeConfigChanged`, or `ProviderSetupService` trust APIs instead of adding file watchers.
 - Claude structured streaming requires `--verbose` alongside `--output-format stream-json`; dropping `--verbose` produces no structured output.
 - Do not re-add Claude `--include-hook-events` in `-p` mode; it does not emit useful hook events there, and lifecycle state should continue to derive from the standard event stream and process lifecycle.
 - Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.

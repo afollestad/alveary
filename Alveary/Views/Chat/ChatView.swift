@@ -7,6 +7,10 @@ struct ChatView: View {
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
     let workingDirectory: String?
+    let projectTrustPrompt: ProjectTrustPrompt?
+    let isProjectTrustBlocked: Bool
+    let onTrustProject: (ProjectTrustPrompt) -> Void
+    let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     @Bindable var appState: AppState
@@ -15,6 +19,7 @@ struct ChatView: View {
     @State private var lastScrollTime: Date = .distantPast
     @State private var isFollowing = true
     @State private var scrollToBottomRequest = 0
+    @State private var displayedContentMode: ChatMainContentMode?
 
     private var hasVisibleChatContent: Bool {
         !events.isEmpty || !viewModel.state.grouper.items.isEmpty || viewModel.streamingText != nil
@@ -106,6 +111,10 @@ struct ChatView: View {
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
         workingDirectory: String?,
+        projectTrustPrompt: ProjectTrustPrompt?,
+        isProjectTrustBlocked: Bool,
+        onTrustProject: @escaping (ProjectTrustPrompt) -> Void,
+        onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         appState: AppState
@@ -114,6 +123,10 @@ struct ChatView: View {
         self.conversation = conversation
         self.composerCapabilities = composerCapabilities
         self.workingDirectory = workingDirectory
+        self.projectTrustPrompt = projectTrustPrompt
+        self.isProjectTrustBlocked = isProjectTrustBlocked
+        self.onTrustProject = onTrustProject
+        self.onDenyProjectTrust = onDenyProjectTrust
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.appState = appState
@@ -127,24 +140,17 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !hasVisibleChatContent {
-                EmptyThreadState(
-                    showsRetryState: showsCenteredPreHistoryRetry,
-                    setupPhase: viewModel.setupPhase,
-                    isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
-                    error: showsCenteredPreHistoryRetry ? viewModel.lastTurnError : nil,
-                    onRetry: retryDraft
-                )
-            } else {
-                ChatTranscriptView(
-                    viewModel: viewModel,
-                    events: events,
-                    workingDirectory: workingDirectory,
-                    lastScrollTime: $lastScrollTime,
-                    isFollowing: $isFollowing,
-                    scrollToBottomRequest: $scrollToBottomRequest
-                )
-            }
+            let contentMode = displayedContentMode ?? targetContentMode
+            mainContentView(for: contentMode)
+                .id(contentMode.transitionID)
+                .onAppear {
+                    displayedContentMode = targetContentMode
+                }
+                .onChange(of: targetContentMode) { _, newMode in
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        displayedContentMode = newMode
+                    }
+                }
 
             ChatComposerPanel(
                 viewModel: viewModel,
@@ -154,6 +160,7 @@ struct ChatView: View {
                 showsCenteredPreHistoryRetry: showsCenteredPreHistoryRetry,
                 composerMode: composerMode,
                 composerIsBusy: composerIsBusy,
+                isProjectTrustBlocked: isProjectTrustBlocked,
                 selectedModel: selectedModelBinding,
                 selectedEffort: selectedEffortBinding,
                 selectedPermissionMode: selectedPermissionModeBinding,
@@ -175,6 +182,56 @@ struct ChatView: View {
 }
 
 private extension ChatView {
+    var targetContentMode: ChatMainContentMode {
+        if let projectTrustPrompt {
+            return .projectTrust(projectTrustPrompt)
+        }
+        // Keep the main pane blank while the initial trust refresh is still resolving.
+        if isProjectTrustBlocked, !hasVisibleChatContent {
+            return .projectTrustPlaceholder
+        }
+        if !hasVisibleChatContent {
+            return .emptyThread
+        }
+        return .transcript
+    }
+
+    @ViewBuilder
+    func mainContentView(for mode: ChatMainContentMode) -> some View {
+        switch mode {
+        case .projectTrust(let projectTrustPrompt):
+            ProjectTrustPromptView(
+                prompt: projectTrustPrompt,
+                onTrust: { onTrustProject(projectTrustPrompt) },
+                onDeny: { onDenyProjectTrust(projectTrustPrompt) }
+            )
+            .transition(.opacity)
+        case .projectTrustPlaceholder:
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
+        case .emptyThread:
+            EmptyThreadState(
+                showsRetryState: showsCenteredPreHistoryRetry,
+                setupPhase: viewModel.setupPhase,
+                isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
+                error: showsCenteredPreHistoryRetry ? viewModel.lastTurnError : nil,
+                onRetry: retryDraft
+            )
+            .transition(.opacity)
+        case .transcript:
+            ChatTranscriptView(
+                viewModel: viewModel,
+                events: events,
+                workingDirectory: workingDirectory,
+                lastScrollTime: $lastScrollTime,
+                isFollowing: $isFollowing,
+                scrollToBottomRequest: $scrollToBottomRequest
+            )
+            .transition(.opacity)
+        }
+    }
+
     func retryDraft() {
         let message = viewModel.state.inputDraft
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -252,5 +309,25 @@ private extension ChatView {
 
     func outboundMessage(from message: String) -> String {
         ChatInputFieldTextSupport.outboundMessage(from: message, workingDirectory: workingDirectory)
+    }
+}
+
+private enum ChatMainContentMode: Equatable {
+    case projectTrust(ProjectTrustPrompt)
+    case projectTrustPlaceholder
+    case emptyThread
+    case transcript
+
+    var transitionID: String {
+        switch self {
+        case .projectTrust(let prompt):
+            return "projectTrust-\(prompt.threadID)"
+        case .projectTrustPlaceholder:
+            return "projectTrustPlaceholder"
+        case .emptyThread:
+            return "emptyThread"
+        case .transcript:
+            return "transcript"
+        }
     }
 }

@@ -148,6 +148,39 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 0, length: 0))
     }
 
+    func testApplyConfigurationThreadsDisabledCursorStateThroughEditorViews() {
+        var measuredHeight: CGFloat = 0
+        let parent = AppKitTextEditorView(
+            text: .constant(""),
+            measuredTextHeight: Binding(get: { measuredHeight }, set: { measuredHeight = $0 }),
+            placeholder: nil,
+            horizontalPadding: 10,
+            verticalPadding: 10,
+            isDisabled: true,
+            showsDisabledCursor: true,
+            focus: nil,
+            keyPressKeys: [],
+            onKeyPress: nil
+        )
+        let coordinator = AppKitTextEditorCoordinator(parent: parent)
+        let containerView = AppKitTextEditorContainerView(frame: .zero)
+        let scrollView = AppKitTextEditorScrollView(frame: .zero)
+        let clipView = AppKitTextEditorClipView(frame: .zero)
+        let textView = AppKitTextView(frame: .zero)
+
+        scrollView.contentView = clipView
+        scrollView.documentView = textView
+        coordinator.attach(containerView: containerView, textView: textView, scrollView: scrollView)
+        coordinator.applyConfiguration(from: parent)
+
+        XCTAssertFalse(textView.isEditable)
+        XCTAssertFalse(textView.isSelectable)
+        XCTAssertTrue(textView.showsDisabledCursor)
+        XCTAssertTrue(scrollView.showsDisabledCursor)
+        XCTAssertTrue(clipView.showsDisabledCursor)
+        XCTAssertTrue(containerView.showsDisabledCursor)
+    }
+
     private func makeCoordinatorForFocusRequest(
         token: UUID?,
         onConsumed: @escaping () -> Void

@@ -17,6 +17,10 @@ struct ConversationView: View {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let fileListManager: FileListManager
+    let projectTrustPrompt: ProjectTrustPrompt?
+    let isProjectTrustBlocked: Bool
+    let onTrustProject: (ProjectTrustPrompt) -> Void
+    let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     @Bindable var appState: AppState
@@ -48,6 +52,10 @@ struct ConversationView: View {
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
         fileListManager: FileListManager,
+        projectTrustPrompt: ProjectTrustPrompt? = nil,
+        isProjectTrustBlocked: Bool = false,
+        onTrustProject: @escaping (ProjectTrustPrompt) -> Void = { _ in },
+        onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void = { _ in },
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
         appState: AppState
@@ -61,6 +69,10 @@ struct ConversationView: View {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.fileListManager = fileListManager
+        self.projectTrustPrompt = projectTrustPrompt
+        self.isProjectTrustBlocked = isProjectTrustBlocked
+        self.onTrustProject = onTrustProject
+        self.onDenyProjectTrust = onDenyProjectTrust
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
         self.appState = appState
@@ -81,6 +93,10 @@ struct ConversationView: View {
             conversation: conversation,
             composerCapabilities: composerCapabilities,
             workingDirectory: activeWorkingDirectory,
+            projectTrustPrompt: projectTrustPrompt,
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            onTrustProject: onTrustProject,
+            onDenyProjectTrust: onDenyProjectTrust,
             loadFileCompletions: Self.makeFileCompletionLoader(
                 fileListManager: fileListManager,
                 workingDirectory: activeWorkingDirectory

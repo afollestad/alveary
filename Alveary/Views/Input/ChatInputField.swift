@@ -19,6 +19,7 @@ struct ChatInputField: View {
     let supportsMidTurnSteering: Bool
     let queuedMessages: [QueuedMessage]
     let isTurnActive: Bool
+    let isProjectTrustBlocked: Bool
     let inFlightQueuedMessageID: UUID?
     let onSteerQueuedMessage: ((UUID) -> Void)?
     let onEditQueuedMessage: ((UUID) -> Void)?
@@ -79,6 +80,7 @@ struct ChatInputField: View {
         supportsMidTurnSteering: Bool,
         queuedMessages: [QueuedMessage] = [],
         isTurnActive: Bool = false,
+        isProjectTrustBlocked: Bool = false,
         inFlightQueuedMessageID: UUID? = nil,
         onSteerQueuedMessage: ((UUID) -> Void)? = nil,
         onEditQueuedMessage: ((UUID) -> Void)? = nil,
@@ -106,6 +108,7 @@ struct ChatInputField: View {
         self.supportsMidTurnSteering = supportsMidTurnSteering
         self.queuedMessages = queuedMessages
         self.isTurnActive = isTurnActive
+        self.isProjectTrustBlocked = isProjectTrustBlocked
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
         self.onSteerQueuedMessage = onSteerQueuedMessage
         self.onEditQueuedMessage = onEditQueuedMessage
@@ -114,71 +117,6 @@ struct ChatInputField: View {
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         _focusRequestToken = focusRequestToken
-    }
-
-    var trimmedText: String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var isTextEditorDisabled: Bool {
-        if case .progressOnly = mode { return true }
-        return false
-    }
-
-    private var areControlsDisabled: Bool {
-        switch mode {
-        case .idle:
-            return false
-        case .busy, .progressOnly:
-            return true
-        }
-    }
-
-    var canUseEscapeToStop: Bool {
-        switch mode {
-        case .busy(let canStop): return canStop
-        case .progressOnly(let reason): return reason.canStop
-        case .idle: return false
-        }
-    }
-
-    private var modelOptions: [String] {
-        knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
-    }
-
-    private var inputBorderColor: Color {
-        isDropTargeted ? .accentColor : Color.secondary.opacity(0.18)
-    }
-
-    private var inputBorderWidth: CGFloat {
-        isDropTargeted ? 1.5 : 1
-    }
-
-    private var placeholder: String {
-        switch mode {
-        case .idle:
-            return "Ask anything, @ to add files, / for skills"
-        case .busy(let canStop):
-            if canStop, supportsMidTurnSteering {
-                return "Enter to queue for the next turn, or Opt+Enter to steer..."
-            }
-            return "Type a message to queue for the next turn..."
-        case .progressOnly(let reason):
-            return ChatInputFieldTextSupport.placeholder(for: reason)
-        }
-    }
-
-    private var inlineSlashCommandHint: AppTextEditorInlineHint? {
-        guard let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
-            in: text,
-            textSelection: textSelection,
-            isInputFocused: isComposerFirstResponder,
-            commandHints: skillArgumentHints
-        ) else {
-            return nil
-        }
-
-        return AppTextEditorInlineHint(text: hint)
     }
 
     var body: some View {
@@ -221,6 +159,7 @@ struct ChatInputField: View {
                     borderColor: inputBorderColor,
                     borderWidth: inputBorderWidth,
                     isDisabled: isTextEditorDisabled,
+                    showsDisabledCursor: isProjectTrustBlocked,
                     sizesToContent: true,
                     focus: $isInputFocused,
                     textChips: ChatInputFieldTextSupport.composerTextChips(in:),
@@ -378,14 +317,14 @@ struct ChatInputField: View {
                         ChatInputActionLabel("Send", systemImage: "paperplane.fill")
                     }
                     .primaryActionButtonStyle()
-                    .disabled(trimmedText.isEmpty)
+                    .disabled(isProjectTrustBlocked || trimmedText.isEmpty)
 
                 case .busy(let canStop):
                     Button(action: performSubmit) {
                         ChatInputActionLabel("Queue", systemImage: "clock")
                     }
                         .primaryActionButtonStyle()
-                        .disabled(trimmedText.isEmpty)
+                        .disabled(isProjectTrustBlocked || trimmedText.isEmpty)
 
                     if canStop {
                         ChatInputStopButton(
@@ -423,10 +362,87 @@ struct ChatInputField: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)
         )
+        .blockedComposerCursorOverlay(when: isProjectTrustBlocked)
         .sheet(isPresented: $isKeymapPresented) {
             ChatInputKeymapSheet(supportsMidTurnSteering: supportsMidTurnSteering)
         }
         .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
+    }
+}
+
+extension ChatInputField {
+    var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isTextEditorDisabled: Bool {
+        if isProjectTrustBlocked { return true }
+        if case .progressOnly = mode { return true }
+        return false
+    }
+
+    var areControlsDisabled: Bool {
+        if isProjectTrustBlocked {
+            return true
+        }
+
+        switch mode {
+        case .idle:
+            return false
+        case .busy, .progressOnly:
+            return true
+        }
+    }
+
+    var canUseEscapeToStop: Bool {
+        switch mode {
+        case .busy(let canStop): return canStop
+        case .progressOnly(let reason): return reason.canStop
+        case .idle: return false
+        }
+    }
+
+    var modelOptions: [String] {
+        knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
+    }
+
+    var inputBorderColor: Color {
+        isDropTargeted ? .accentColor : Color.secondary.opacity(0.18)
+    }
+
+    var inputBorderWidth: CGFloat {
+        isDropTargeted ? 1.5 : 1
+    }
+
+    var placeholder: String {
+        if isProjectTrustBlocked {
+            return "Trust this project to enable the composer"
+        }
+
+        switch mode {
+        case .idle:
+            return "Ask anything, @ to add files, / for skills"
+        case .busy(let canStop):
+            if canStop, supportsMidTurnSteering {
+                return "Enter to queue for the next turn, or Opt+Enter to steer..."
+            }
+            return "Type a message to queue for the next turn..."
+        case .progressOnly(let reason):
+            return ChatInputFieldTextSupport.placeholder(for: reason)
+        }
+    }
+
+    var inlineSlashCommandHint: AppTextEditorInlineHint? {
+        guard let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
+            in: text,
+            textSelection: textSelection,
+            isInputFocused: isComposerFirstResponder,
+            commandHints: skillArgumentHints
+        ) else {
+            return nil
+        }
+
+        return AppTextEditorInlineHint(text: hint)
     }
 }
 

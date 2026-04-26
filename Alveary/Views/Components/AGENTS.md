@@ -7,6 +7,10 @@ General shared controls live here. Narrower scopes:
 - `TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.
 
+## Disabled Cursor
+
+- Use `blockedCursorOverlay(when:)` for disabled SwiftUI controls that should show the macOS blocked cursor. AppKit text editors use `showsDisabledCursor` instead.
+
 ## Selectable Rows
 
 - `SelectableRowModifier` in `SelectionRowBackground.swift` owns press highlight and action through one `DragGesture(minimumDistance: 0)`.

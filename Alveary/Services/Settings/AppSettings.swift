@@ -37,7 +37,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var effort = Self.defaultEffortLevel
     var deleteKeyAction = ThreadDeleteKeyAction.archive
     var reopenLastThreadAndConversationOnLaunch = false
-    var autoTrustProjects = true
+    var autoTrustProjects = false
     var createWorktreeByDefault = false
     var theme = "system"
     var codeFontFamily = Self.defaultCodeFontFamily
