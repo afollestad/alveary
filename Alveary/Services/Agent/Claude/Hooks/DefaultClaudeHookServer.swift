@@ -266,15 +266,17 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         _ decision: ClaudeToolApprovalDecision,
         reason: String,
         toolName: String,
-        rawToolInput: Any?,
-        updatedInput: Any? = nil
+        toolInput: String?,
+        updatedInput: String? = nil
     ) -> ClaudeHookHTTPResponse {
         switch decision {
         case .allow:
+            let responseUpdatedInput = updatedInput.flatMap(deserializedJSONObject)
+                ?? (requiresUpdatedInput(toolName: toolName) ? deserializedJSONObject(from: toolInput) : nil)
             return decisionResponse(
                 ClaudeHookResponseDecision.allow,
                 reason: reason,
-                updatedInput: updatedInput ?? (requiresUpdatedInput(toolName: toolName) ? rawToolInput : nil)
+                updatedInput: responseUpdatedInput
             )
         case .deny:
             return decisionResponse(ClaudeHookResponseDecision.deny, reason: reason)

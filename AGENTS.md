@@ -48,6 +48,8 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Sidebar/AGENTS.md`: sidebar interactions.
 - `Alveary/Views/Terminal/AGENTS.md`: terminal pane.
 - `AlvearyTests/AGENTS.md`: tests and snapshots.
+- `scripts/ci/AGENTS.md`: release CI helper scripts.
+- `skills/AGENTS.md`: repo-local agent skills.
 
 ## Xcode Project
 
@@ -64,6 +66,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.
 - Test: `./scripts/test.sh`, or pass focused identifiers as arguments.
+- Release CI uses Developer ID signing and notarization secrets in GitHub Actions; do not commit certificate or API-key material.
 - Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
 - Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-run, build-then-test, record-then-verify.
 - Add temporary logs early when useful; observe them yourself with `/usr/bin/log`, then remove them after confirming the fix.

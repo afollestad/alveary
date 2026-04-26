@@ -77,6 +77,17 @@ Verify or record a focused snapshot test:
 
 When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
 
+## Releases
+
+Alveary releases are direct-download ZIPs containing `Alveary.app`. The app version lives in `project.yml` under the app target build settings:
+
+```yaml
+MARKETING_VERSION: 0.1.0
+CURRENT_PROJECT_VERSION: 1
+```
+
+Release automation runs from GitHub Actions when a push to `main` changes `MARKETING_VERSION`. CI creates the `vX.Y.Z` tag, signs with Developer ID, notarizes and staples `Alveary.app`, creates `Alveary.zip`, and uploads it to GitHub Releases. Manual workflow runs are dry runs: they sign, notarize, staple, zip, and upload an Actions artifact without creating a tag or GitHub Release. The workflow orchestration lives in `.github/workflows/release.yml`; the implementation scripts live under `scripts/ci/`.
+
 # License
 
 Alveary is licensed under the [GNU General Public License v3.0](LICENSE.md).

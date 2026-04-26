@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, notarize, and release
+    runs-on: macos-26
+    env:
+      APP_NAME: Alveary
+      SCHEME: Alveary
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure release paths
+        run: |
+          {
+            echo "ARCHIVE_PATH=$RUNNER_TEMP/Alveary.xcarchive"
+            echo "EXPORT_PATH=$RUNNER_TEMP/export"
+            echo "RELEASE_PATH=$RUNNER_TEMP/release"
+            echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db"
+          } >> "$GITHUB_ENV"
+
+      - name: Detect version bump
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+        run: scripts/ci/detect-release-version.py
+
+      - name: Stop when no version changed
+        if: steps.version.outputs.should_build != 'true'
+        run: echo "No release build requested."
+
+      - name: Ensure tag does not already exist
+        if: steps.version.outputs.should_release == 'true'
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+        run: scripts/ci/ensure-release-tag-available.sh
+
+      - name: Install build tools
+        if: steps.version.outputs.should_build == 'true'
+        run: scripts/ci/install-release-tools.sh
+
+      - name: Generate Xcode project
+        if: steps.version.outputs.should_build == 'true'
+        run: xcodegen generate
+
+      - name: Import signing certificate
+        if: steps.version.outputs.should_build == 'true'
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: scripts/ci/import-signing-certificate.sh
+
+      - name: Archive app
+        if: steps.version.outputs.should_build == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/ci/archive-release-app.sh
+
+      - name: Export Developer ID app
+        if: steps.version.outputs.should_build == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/ci/export-developer-id-app.sh
+
+      - name: Verify exported app metadata
+        if: steps.version.outputs.should_build == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: scripts/ci/verify-exported-app.sh
+
+      - name: Notarize and staple app
+        if: steps.version.outputs.should_build == 'true'
+        env:
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: scripts/ci/notarize-and-staple-app.sh
+
+      - name: Create release ZIP
+        if: steps.version.outputs.should_build == 'true'
+        id: package
+        run: scripts/ci/create-release-zip.sh
+
+      - name: Upload dry run artifact
+        if: steps.version.outputs.should_build == 'true' && steps.version.outputs.should_release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alveary-dry-run-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build }}
+          path: ${{ steps.package.outputs.zip_path }}
+          if-no-files-found: error
+
+      - name: Create and push tag
+        if: steps.version.outputs.should_release == 'true'
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/ci/create-release-tag.sh
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+        run: scripts/ci/create-github-release.sh

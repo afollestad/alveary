@@ -6,7 +6,7 @@ struct ClaudePreToolUsePayload {
     let sessionId: String
     let toolUseId: String
     let toolName: String
-    let rawToolInput: Any?
+    let toolInput: String?
     let permissionMode: String?
 }
 
@@ -54,7 +54,7 @@ extension DefaultClaudeHookServer {
                 sessionId: sessionId,
                 toolUseId: toolUseId,
                 toolName: toolName,
-                rawToolInput: payload["tool_input"],
+                toolInput: serializedToolInput(payload["tool_input"]),
                 permissionMode: permissionMode
             )
         )
@@ -66,12 +66,11 @@ extension DefaultClaudeHookServer {
             return response
         }
 
-        let toolInput = serializedToolInput(payload.rawToolInput)
         let approvalRequest = ToolApprovalRequest(
             sessionId: payload.sessionId,
             toolUseId: payload.toolUseId,
             toolName: payload.toolName,
-            toolInput: toolInput ?? "{}"
+            toolInput: payload.toolInput ?? "{}"
         )
         guard ClaudeHookPolicy.shouldDefer(
             toolName: payload.toolName,
@@ -83,7 +82,7 @@ extension DefaultClaudeHookServer {
         if let response = preDeferredApprovalResponse(
             payload: payload,
             approvalRequest: approvalRequest,
-            toolInput: toolInput
+            toolInput: payload.toolInput
         ) {
             return response
         }
@@ -99,8 +98,8 @@ extension DefaultClaudeHookServer {
                 resolution.decision,
                 reason: reason(for: resolution.decision),
                 toolName: payload.toolName,
-                rawToolInput: payload.rawToolInput,
-                updatedInput: deserializedJSONObject(from: resolution.updatedInput)
+                toolInput: payload.toolInput,
+                updatedInput: resolution.updatedInput
             )
         }
         return decisionResponse(.defer)
@@ -119,7 +118,7 @@ extension DefaultClaudeHookServer {
                 transientDecision,
                 reason: transientReason(for: transientDecision),
                 toolName: payload.toolName,
-                rawToolInput: payload.rawToolInput
+                toolInput: payload.toolInput
             )
         }
 
@@ -136,7 +135,7 @@ extension DefaultClaudeHookServer {
             .allow,
             reason: "Approved for session in Alveary",
             toolName: payload.toolName,
-            rawToolInput: payload.rawToolInput
+            toolInput: payload.toolInput
         )
     }
 
@@ -153,8 +152,8 @@ extension DefaultClaudeHookServer {
             decision,
             reason: reason(for: decision),
             toolName: payload.toolName,
-            rawToolInput: payload.rawToolInput,
-            updatedInput: deserializedJSONObject(from: updatedInput)
+            toolInput: payload.toolInput,
+            updatedInput: updatedInput
         )
     }
 
@@ -190,7 +189,7 @@ extension DefaultClaudeHookServer {
             sessionId: payload.sessionId,
             toolUseId: payload.toolUseId,
             toolName: payload.toolName,
-            toolInput: serializedToolInput(payload.rawToolInput) ?? "{}"
+            toolInput: payload.toolInput ?? "{}"
         )
         let deferredToolRequest = ClaudeDeferredToolRequest(
             conversationId: payload.launchContext.conversationId,
