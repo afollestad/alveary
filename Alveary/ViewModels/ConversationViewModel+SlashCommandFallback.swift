@@ -4,6 +4,7 @@ struct TokenEventPayload {
     let input: Int
     let output: Int
     let cacheRead: Int
+    let cacheCreation: Int
     let isError: Bool
     let stopReason: String?
     let permissionDenials: [PermissionDenialSummary]
@@ -29,6 +30,7 @@ extension ConversationState {
               payload.input == 0,
               payload.output == 0,
               payload.cacheRead == 0,
+              payload.cacheCreation == 0,
               payload.stopReason?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
               let slashCommand = latestSlashCommandCandidate() else {
             return nil

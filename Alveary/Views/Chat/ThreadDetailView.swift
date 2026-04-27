@@ -11,6 +11,7 @@ struct ThreadDetailView: View {
     let providerRegistry: ProviderRegistry
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
+    let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let loadSkillCompletions: @Sendable () async -> [Skill]
@@ -98,6 +99,7 @@ struct ThreadDetailView: View {
                         providerRegistry: providerRegistry,
                         worktreeManager: worktreeManager,
                         providerSetup: providerSetup,
+                        contextWindowCache: contextWindowCache,
                         fileListManager: fileListManager,
                         projectTrustPrompt: visibleProjectTrustPrompt,
                         isProjectTrustBlocked: isProjectTrustBlocked,

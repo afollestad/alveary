@@ -314,6 +314,7 @@ private struct ThreadDetailStatusFixture {
     let providerRegistry: DefaultProviderRegistry
     let worktreeManager: MockWorktreeManager
     let providerSetup: MockProviderSetupService
+    let contextWindowCache: MockContextWindowCache
     let fileListManager: SnapshotMockFileListManager
     let notificationManager: RecordingNotificationManager
     let diffViewModel: DiffViewerViewModel
@@ -339,6 +340,7 @@ private struct ThreadDetailStatusFixture {
             worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")
         )
         providerSetup = MockProviderSetupService()
+        contextWindowCache = MockContextWindowCache()
         fileListManager = SnapshotMockFileListManager()
         notificationManager = RecordingNotificationManager()
         diffViewModel = DiffViewerViewModel(
@@ -362,6 +364,7 @@ private struct ThreadDetailStatusFixture {
             providerRegistry: providerRegistry,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
+            contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
             loadSkillCompletions: { [] },

@@ -26,6 +26,11 @@ final class AgentAssembly: AutoInitModuleAssembly {
         }
         .inObjectScope(.container)
 
+        container.register(ContextWindowCache.self) { _ in
+            JSONContextWindowCache()
+        }
+        .inObjectScope(.container)
+
         container.register(ClaudeHookServer.self) { _ in
             DefaultClaudeHookServer()
         }

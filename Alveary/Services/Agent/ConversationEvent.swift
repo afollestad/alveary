@@ -65,10 +65,13 @@ enum ConversationEvent: Sendable, Equatable {
         input: Int,
         output: Int,
         cacheRead: Int,
+        cacheCreation: Int = 0,
         isError: Bool,
         stopReason: String?,
         durationMs: Int,
         costUsd: Double,
+        providerModelId: String? = nil,
+        contextWindowSize: Int? = nil,
         permissionDenials: [PermissionDenialSummary]
     )
     case toolApprovalRequested(ToolApprovalRequest)
@@ -189,7 +192,19 @@ private extension ConversationEvent {
 
     @MainActor
     func tokensRecord(conversation: Conversation) -> ConversationEventRecord {
-        guard case let .tokens(input, output, cacheRead, isError, stopReason, durationMs, costUsd, _) = self else {
+        guard case let .tokens(
+            input,
+            output,
+            cacheRead,
+            cacheCreation,
+            isError,
+            stopReason,
+            durationMs,
+            costUsd,
+            providerModelId,
+            contextWindowSize,
+            _
+        ) = self else {
             preconditionFailure("Unexpected event case")
         }
 
@@ -200,8 +215,11 @@ private extension ConversationEvent {
             tokenInput: input,
             tokenOutput: output,
             tokenCacheRead: cacheRead,
+            tokenCacheCreation: cacheCreation,
             durationMs: durationMs,
             costUsd: costUsd,
+            providerModelId: providerModelId,
+            contextWindowSize: contextWindowSize,
             conversation: conversation
         )
         record.stopReason = stopReason

@@ -240,7 +240,7 @@ extension AgentsManagerTests {
             return false
         })
         XCTAssertTrue(collected.contains { event in
-            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+            if case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event {
                 return stopReason == "tool_deferred"
             }
             return false
@@ -293,7 +293,7 @@ extension AgentsManagerTests {
             return false
         })
         XCTAssertTrue(collected.contains { event in
-            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+            if case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event {
                 return stopReason == "tool_deferred"
             }
             return false
@@ -454,7 +454,7 @@ extension AgentsManagerTests {
             return false
         })
         XCTAssertTrue(collected.contains { event in
-            if case .tokens(_, _, _, _, let stopReason, _, _, _) = event {
+            if case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event {
                 return stopReason == "tool_deferred"
             }
             return false

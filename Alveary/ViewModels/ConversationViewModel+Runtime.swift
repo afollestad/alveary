@@ -269,12 +269,13 @@ private extension ConversationViewModel {
         case .message(let role, _, _):
             return shouldPersistMessageEvent(role: role)
 
-        case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials):
+        case .tokens(let input, let output, let cacheRead, let cacheCreation, let isError, let stopReason, _, _, _, _, let permissionDenials):
             return shouldPersistTokensEvent(
                 TokenEventPayload(
                     input: input,
                     output: output,
                     cacheRead: cacheRead,
+                    cacheCreation: cacheCreation,
                     isError: isError,
                     stopReason: stopReason,
                     permissionDenials: permissionDenials
@@ -434,6 +435,7 @@ private extension ConversationViewModel {
 
         modelContext.insert(record)
         state.grouper.append(event: record)
+        scheduleContextWindowCacheUpdateIfNeeded(from: record)
         scheduleSave()
     }
 

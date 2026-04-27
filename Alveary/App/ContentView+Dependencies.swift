@@ -14,6 +14,7 @@ struct ContentViewDependencies {
     let runtimeStore: any ConversationRuntimeStore
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
+    let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
@@ -36,6 +37,7 @@ struct ContentViewDependencies {
             runtimeStore: resolver.conversationRuntimeStore(),
             worktreeManager: resolver.worktreeManager(),
             providerSetup: resolver.providerSetupService(),
+            contextWindowCache: resolver.contextWindowCache(),
             fileListManager: resolver.fileListManager(),
             notificationManager: resolver.notificationManager(),
             notificationRouter: resolver.notificationRouter(),

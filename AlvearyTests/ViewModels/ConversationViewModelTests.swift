@@ -268,6 +268,7 @@ struct ConversationViewModelTestFixture {
     let runtimeStore: MockConversationRuntimeStore
     let worktreeManager: MockWorktreeManager
     let providerSetup: MockProviderSetupService
+    let contextWindowCache: MockContextWindowCache
     let settingsService: InMemorySettingsService
     let viewModel: ConversationViewModel
 
@@ -299,10 +300,8 @@ struct ConversationViewModelTestFixture {
         )
         let conversation = Conversation(title: conversationTitle, provider: "claude", thread: thread)
         conversation.pendingRestoreContext = pendingRestoreContext
-        project.threads.append(thread)
-        thread.conversations.append(conversation)
-        context.insert(project)
-        try context.save()
+        project.threads.append(thread); thread.conversations.append(conversation)
+        context.insert(project); try context.save()
 
         let settingsService = InMemorySettingsService(current: Self.testSettings())
         let agentsManager = MockAgentsManager(
@@ -318,6 +317,7 @@ struct ConversationViewModelTestFixture {
             blocksCreateUntilCancelled: pausesWorktreeCreate
         )
         let providerSetup = MockProviderSetupService()
+        let contextWindowCache = MockContextWindowCache()
         let viewModel = ConversationViewModel(
             conversation: conversation,
             agentsManager: agentsManager,
@@ -325,7 +325,8 @@ struct ConversationViewModelTestFixture {
             modelContext: context,
             settingsService: settingsService,
             worktreeManager: worktreeManager,
-            providerSetup: providerSetup
+            providerSetup: providerSetup,
+            contextWindowCache: contextWindowCache
         )
 
         self.container = container
@@ -337,6 +338,7 @@ struct ConversationViewModelTestFixture {
         self.runtimeStore = runtimeStore
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
+        self.contextWindowCache = contextWindowCache
         self.settingsService = settingsService
         self.viewModel = viewModel
     }
@@ -382,5 +384,38 @@ struct ConversationViewModelTestFixture {
         try context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
             $0.conversationId == conversation.id && $0.role == "user"
         }
+    }
+}
+
+struct MockContextWindowCacheUpdate: Equatable {
+    let providerId: String
+    let selectedModel: String
+    let reportedModelId: String?
+    let contextWindowSize: Int
+}
+
+actor MockContextWindowCache: ContextWindowCache {
+    private(set) var updates: [MockContextWindowCacheUpdate] = []
+    var sizes: [String: Int] = [:]
+
+    func contextWindowSize(providerId: String, model: String) async -> Int? {
+        guard let key = JSONContextWindowCache.cacheKey(providerId: providerId, model: model) else {
+            return nil
+        }
+        return sizes[key]
+    }
+
+    func update(
+        providerId: String,
+        selectedModel: String,
+        reportedModelId: String?,
+        contextWindowSize: Int
+    ) async {
+        updates.append(MockContextWindowCacheUpdate(
+            providerId: providerId,
+            selectedModel: selectedModel,
+            reportedModelId: reportedModelId,
+            contextWindowSize: contextWindowSize
+        ))
     }
 }

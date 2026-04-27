@@ -16,6 +16,7 @@ struct ConversationView: View {
     let providerRegistry: ProviderRegistry
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
+    let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let projectTrustPrompt: ProjectTrustPrompt?
     let isProjectTrustBlocked: Bool
@@ -31,9 +32,12 @@ struct ConversationView: View {
         conversation.thread?.worktreePath ?? conversation.thread?.project?.path
     }
 
+    private var activeProviderID: String {
+        conversation.provider ?? settingsService.current.defaultProvider
+    }
+
     private var composerCapabilities: ComposerCapabilities {
-        let providerID = conversation.provider ?? settingsService.current.defaultProvider
-        let provider = providerRegistry.provider(for: providerID)
+        let provider = providerRegistry.provider(for: activeProviderID)
 
         return ComposerCapabilities(
             supportedEffortLevels: provider?.supportedEffortLevels ?? [],
@@ -51,6 +55,7 @@ struct ConversationView: View {
         providerRegistry: ProviderRegistry,
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
+        contextWindowCache: any ContextWindowCache,
         fileListManager: FileListManager,
         projectTrustPrompt: ProjectTrustPrompt? = nil,
         isProjectTrustBlocked: Bool = false,
@@ -68,6 +73,7 @@ struct ConversationView: View {
         self.providerRegistry = providerRegistry
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
+        self.contextWindowCache = contextWindowCache
         self.fileListManager = fileListManager
         self.projectTrustPrompt = projectTrustPrompt
         self.isProjectTrustBlocked = isProjectTrustBlocked
@@ -83,7 +89,8 @@ struct ConversationView: View {
             modelContext: modelContext,
             settingsService: settingsService,
             worktreeManager: worktreeManager,
-            providerSetup: providerSetup
+            providerSetup: providerSetup,
+            contextWindowCache: contextWindowCache
         ))
     }
 
@@ -92,6 +99,8 @@ struct ConversationView: View {
             viewModel: viewModel,
             conversation: conversation,
             composerCapabilities: composerCapabilities,
+            providerID: activeProviderID,
+            contextWindowCache: contextWindowCache,
             workingDirectory: activeWorkingDirectory,
             projectTrustPrompt: projectTrustPrompt,
             isProjectTrustBlocked: isProjectTrustBlocked,

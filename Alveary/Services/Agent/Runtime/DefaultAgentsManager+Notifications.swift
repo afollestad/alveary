@@ -11,7 +11,19 @@ extension DefaultAgentsManager {
     }
 
     func notificationEvent(for event: ConversationEvent, conversationId: String) async -> ConversationEvent {
-        guard case .tokens(let input, let output, let cacheRead, let isError, let stopReason, _, _, let permissionDenials) = event else {
+        guard case let .tokens(
+            input,
+            output,
+            cacheRead,
+            cacheCreation,
+            isError,
+            stopReason,
+            _,
+            _,
+            _,
+            _,
+            permissionDenials
+        ) = event else {
             return event
         }
 
@@ -19,6 +31,7 @@ extension DefaultAgentsManager {
             input: input,
             output: output,
             cacheRead: cacheRead,
+            cacheCreation: cacheCreation,
             isError: isError,
             stopReason: stopReason,
             permissionDenials: permissionDenials
@@ -35,14 +48,14 @@ extension DefaultAgentsManager {
         notificationEvent: ConversationEvent,
         conversationId: String
     ) async -> Bool {
-        if case .tokens(_, _, _, true, let stopReason, _, _, let permissionDenials) = event,
+        if case .tokens(_, _, _, _, true, let stopReason, _, _, _, _, let permissionDenials) = event,
            permissionDenials.isEmpty,
            ConversationInterruption.isRequestInterruptedByUserReason(stopReason) {
             return false
         }
 
         guard notificationEvent == event,
-              case .tokens(_, _, _, let isError, _, _, _, let permissionDenials) = event,
+              case .tokens(_, _, _, _, let isError, _, _, _, _, _, let permissionDenials) = event,
               !isError,
               permissionDenials.isEmpty else {
             return true

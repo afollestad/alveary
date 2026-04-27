@@ -66,6 +66,7 @@ extension ConversationViewModel {
         return Task { @MainActor [self] in
             do {
                 try await reconfigureSession()
+                recordContextWindowInvalidation()
             } catch {
                 dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
                 dbThread.effort = previousEffort
@@ -177,6 +178,27 @@ extension ConversationViewModel {
             try modelContext.save()
         } catch {
             dbThread.useWorktree = previousValue
+            state.lastTurnError = error.localizedDescription
+        }
+    }
+}
+
+private extension ConversationViewModel {
+    func recordContextWindowInvalidation() {
+        guard let dbConversation = modelContext.resolveConversation(id: conversationModelID) else {
+            return
+        }
+
+        let record = ConversationEventRecord(
+            type: ConversationEventRecord.contextWindowInvalidatedType,
+            conversation: dbConversation
+        )
+        modelContext.insert(record)
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.delete(record)
             state.lastTurnError = error.localizedDescription
         }
     }

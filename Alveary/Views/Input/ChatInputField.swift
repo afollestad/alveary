@@ -16,6 +16,7 @@ struct ChatInputField: View {
     let supportedEffortLevels: [String]
     let showWorktreePicker: Bool
     let sessionLocationLabel: String?
+    let usageSummary: ConversationUsageSummary?
     let supportsMidTurnSteering: Bool
     let queuedMessages: [QueuedMessage]
     let isTurnActive: Bool
@@ -37,6 +38,7 @@ struct ChatInputField: View {
     let composerVerticalPadding: CGFloat = 10
     let composerBaseHeight: CGFloat = 68
     let composerActionRowHeight: CGFloat = 30
+    let contextIndicatorKeyboardSpacing: CGFloat = 6
     let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
 
     @FocusState var isInputFocused: Bool
@@ -77,6 +79,7 @@ struct ChatInputField: View {
         supportedEffortLevels: [String],
         showWorktreePicker: Bool = false,
         sessionLocationLabel: String? = nil,
+        usageSummary: ConversationUsageSummary? = nil,
         supportsMidTurnSteering: Bool,
         queuedMessages: [QueuedMessage] = [],
         isTurnActive: Bool = false,
@@ -105,6 +108,7 @@ struct ChatInputField: View {
         self.supportedEffortLevels = supportedEffortLevels
         self.showWorktreePicker = showWorktreePicker
         self.sessionLocationLabel = sessionLocationLabel
+        self.usageSummary = usageSummary
         self.supportsMidTurnSteering = supportsMidTurnSteering
         self.queuedMessages = queuedMessages
         self.isTurnActive = isTurnActive
@@ -302,14 +306,22 @@ struct ChatInputField: View {
 
                 Spacer()
 
-                if !isTextEditorDisabled {
-                    Button {
-                        isKeymapPresented = true
-                    } label: {
-                        Image(systemName: "keyboard")
+                if usageSummary != nil || !isTextEditorDisabled {
+                    HStack(spacing: contextIndicatorKeyboardSpacing) {
+                        if let usageSummary {
+                            ContextWindowIndicator(summary: usageSummary)
+                        }
+
+                        if !isTextEditorDisabled {
+                            Button {
+                                isKeymapPresented = true
+                            } label: {
+                                Image(systemName: "keyboard")
+                            }
+                            .iconActionButtonStyle()
+                            .accessibilityLabel("Show chat keyboard shortcuts")
+                        }
                     }
-                    .iconActionButtonStyle()
-                    .accessibilityLabel("Show chat keyboard shortcuts")
                 }
                 switch mode {
                 case .idle:

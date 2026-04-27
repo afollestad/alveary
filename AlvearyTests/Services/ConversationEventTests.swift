@@ -41,10 +41,13 @@ final class ConversationEventTests: XCTestCase {
                 input: 10,
                 output: 20,
                 cacheRead: 5,
+                cacheCreation: 7,
                 isError: false,
                 stopReason: "end_turn",
                 durationMs: 1200,
                 costUsd: 0.42,
+                providerModelId: "claude-sonnet-4-6",
+                contextWindowSize: 200_000,
                 permissionDenials: []
             ).toRecord(conversation: conversation)
         )
@@ -56,9 +59,12 @@ final class ConversationEventTests: XCTestCase {
         XCTAssertEqual(tokensRecord.tokenInput, 10)
         XCTAssertEqual(tokensRecord.tokenOutput, 20)
         XCTAssertEqual(tokensRecord.tokenCacheRead, 5)
+        XCTAssertEqual(tokensRecord.tokenCacheCreation, 7)
         XCTAssertEqual(tokensRecord.stopReason, "end_turn")
         XCTAssertEqual(tokensRecord.durationMs, 1200)
         XCTAssertEqual(tokensRecord.costUsd, 0.42)
+        XCTAssertEqual(tokensRecord.providerModelId, "claude-sonnet-4-6")
+        XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
 
         XCTAssertEqual(sessionInitRecord.type, "session_init")
         XCTAssertEqual(sessionInitRecord.content, "session-1")

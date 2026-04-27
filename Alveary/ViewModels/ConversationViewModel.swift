@@ -17,6 +17,7 @@ final class ConversationViewModel {
     let settingsService: SettingsService
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
+    let contextWindowCache: any ContextWindowCache
     var subscriptionTask: Task<Void, Never>?
     static let maxRespawnAttempts = 2
     var saveTask: Task<Void, Never>?
@@ -68,7 +69,8 @@ final class ConversationViewModel {
         modelContext: ModelContext,
         settingsService: SettingsService,
         worktreeManager: WorktreeManager,
-        providerSetup: ProviderSetupService
+        providerSetup: ProviderSetupService,
+        contextWindowCache: any ContextWindowCache
     ) {
         self.conversation = conversation
         self.agentsManager = agentsManager
@@ -78,6 +80,7 @@ final class ConversationViewModel {
         self.settingsService = settingsService
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
+        self.contextWindowCache = contextWindowCache
         self.state = runtimeStore.conversationState(for: conversation.id)
         if self.state.lastNonPlanPermissionMode == nil,
            conversation.thread?.permissionMode != "plan" {

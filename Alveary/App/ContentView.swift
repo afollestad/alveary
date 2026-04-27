@@ -19,6 +19,7 @@ struct ContentView: View {
     private let runtimeStore: any ConversationRuntimeStore
     private let worktreeManager: WorktreeManager
     private let providerSetup: ProviderSetupService
+    private let contextWindowCache: any ContextWindowCache
     private let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
@@ -60,6 +61,7 @@ struct ContentView: View {
         self.runtimeStore = dependencies.runtimeStore
         self.worktreeManager = dependencies.worktreeManager
         self.providerSetup = dependencies.providerSetup
+        self.contextWindowCache = dependencies.contextWindowCache
         self.fileListManager = dependencies.fileListManager
         self.notificationManager = dependencies.notificationManager
         self.notificationRouter = dependencies.notificationRouter
@@ -121,6 +123,7 @@ struct ContentView: View {
             providerRegistry: providerRegistry,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
+            contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
             loadInstalledSkills: { [skillsService] in

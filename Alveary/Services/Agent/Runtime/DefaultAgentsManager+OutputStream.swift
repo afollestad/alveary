@@ -53,7 +53,7 @@ private func utf8String(from data: Data) -> String {
 }
 
 private func isToolDeferredEvent(_ event: ConversationEvent) -> Bool {
-    guard case .tokens(_, _, _, _, let stopReason, _, _, _) = event else {
+    guard case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event else {
         return false
     }
     return stopReason == "tool_deferred"

@@ -1,5 +1,15 @@
 import Foundation
 
+struct ClaudeResultModelUsage: Equatable {
+    let modelId: String
+    let contextWindow: Int?
+}
+
+private struct ClaudeResultModelUsageEntry {
+    let modelId: String
+    let payload: [String: Any]
+}
+
 extension ClaudeAdapter {
     func decode(_ json: [String: Any]) -> [ConversationEvent] {
         hasDeferredTool.withLock { hasDeferredTool in
@@ -196,6 +206,7 @@ extension ClaudeAdapter {
 
     func decodeResultEvent(_ json: [String: Any]) -> [ConversationEvent] {
         let usage = json["usage"] as? [String: Any]
+        let modelUsage = resultModelUsage(from: json, usage: usage)
         let permissionDenials = (json["permission_denials"] as? [[String: Any]])?.compactMap { entry -> PermissionDenialSummary? in
             guard let toolName = entry["tool_name"] as? String else {
                 return nil
@@ -206,17 +217,98 @@ extension ClaudeAdapter {
         var events = deferredToolApprovalEvent(from: json) ?? []
         events.append(
             .tokens(
-                input: usage?["input_tokens"] as? Int ?? 0,
-                output: usage?["output_tokens"] as? Int ?? 0,
-                cacheRead: usage?["cache_read_input_tokens"] as? Int ?? 0,
+                input: intValue(usage?["input_tokens"]) ?? 0,
+                output: intValue(usage?["output_tokens"]) ?? 0,
+                cacheRead: intValue(usage?["cache_read_input_tokens"]) ?? 0,
+                cacheCreation: intValue(usage?["cache_creation_input_tokens"]) ?? 0,
                 isError: json["is_error"] as? Bool ?? false,
                 stopReason: json["stop_reason"] as? String,
-                durationMs: json["duration_ms"] as? Int ?? 0,
-                costUsd: json["total_cost_usd"] as? Double ?? 0,
+                durationMs: intValue(json["duration_ms"]) ?? 0,
+                costUsd: doubleValue(json["total_cost_usd"]) ?? 0,
+                providerModelId: modelUsage?.modelId,
+                contextWindowSize: modelUsage?.contextWindow,
                 permissionDenials: permissionDenials
             )
         )
         return events
+    }
+
+    func resultModelUsage(
+        from json: [String: Any],
+        usage: [String: Any]?
+    ) -> ClaudeResultModelUsage? {
+        guard let modelUsage = json["modelUsage"] as? [String: Any] else {
+            return nil
+        }
+
+        let entries = modelUsage.compactMap { modelId, value -> ClaudeResultModelUsageEntry? in
+            guard let payload = value as? [String: Any] else {
+                return nil
+            }
+            return ClaudeResultModelUsageEntry(modelId: modelId, payload: payload)
+        }
+        guard !entries.isEmpty else {
+            return nil
+        }
+
+        if let usage,
+           let matchingEntry = entries.first(where: { entry in
+               tokenCount(entry.payload["inputTokens"]) == tokenCount(usage["input_tokens"]) &&
+                   tokenCount(entry.payload["outputTokens"]) == tokenCount(usage["output_tokens"]) &&
+                   tokenCount(entry.payload["cacheReadInputTokens"]) == tokenCount(usage["cache_read_input_tokens"]) &&
+                   tokenCount(entry.payload["cacheCreationInputTokens"]) == tokenCount(usage["cache_creation_input_tokens"])
+           }) {
+            return modelUsageResult(from: matchingEntry)
+        }
+
+        let selectedEntry = entries.max { lhs, rhs in
+            modelUsageTokenTotal(lhs.payload) < modelUsageTokenTotal(rhs.payload)
+        } ?? entries[0]
+        return modelUsageResult(from: selectedEntry)
+    }
+
+    private func modelUsageResult(from entry: ClaudeResultModelUsageEntry) -> ClaudeResultModelUsage {
+        ClaudeResultModelUsage(
+            modelId: entry.modelId,
+            contextWindow: intValue(entry.payload["contextWindow"])
+        )
+    }
+
+    private func modelUsageTokenTotal(_ payload: [String: Any]) -> Int {
+        (intValue(payload["inputTokens"]) ?? 0) +
+            (intValue(payload["outputTokens"]) ?? 0) +
+            (intValue(payload["cacheReadInputTokens"]) ?? 0) +
+            (intValue(payload["cacheCreationInputTokens"]) ?? 0)
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        switch value {
+        case let intValue as Int:
+            return intValue
+        case let doubleValue as Double:
+            return Int(doubleValue)
+        case let stringValue as String:
+            return Int(stringValue)
+        default:
+            return nil
+        }
+    }
+
+    private func tokenCount(_ value: Any?) -> Int {
+        intValue(value) ?? 0
+    }
+
+    private func doubleValue(_ value: Any?) -> Double? {
+        switch value {
+        case let doubleValue as Double:
+            return doubleValue
+        case let intValue as Int:
+            return Double(intValue)
+        case let stringValue as String:
+            return Double(stringValue)
+        default:
+            return nil
+        }
     }
 
     func deferredToolApprovalEvent(from json: [String: Any]) -> [ConversationEvent]? {
@@ -261,10 +353,13 @@ extension ClaudeAdapter {
                     input: 0,
                     output: 0,
                     cacheRead: 0,
+                    cacheCreation: 0,
                     isError: false,
                     stopReason: "tool_deferred",
                     durationMs: 0,
                     costUsd: 0,
+                    providerModelId: nil,
+                    contextWindowSize: nil,
                     permissionDenials: []
                 )
             )
@@ -301,7 +396,7 @@ extension ClaudeAdapter {
     }
 
     private func isToolDeferredEvent(_ event: ConversationEvent) -> Bool {
-        guard case .tokens(_, _, _, _, let stopReason, _, _, _) = event else {
+        guard case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event else {
             return false
         }
         return stopReason == "tool_deferred"

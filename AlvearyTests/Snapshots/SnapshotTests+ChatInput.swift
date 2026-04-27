@@ -101,6 +101,84 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldContextWindowProgress() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Investigate the flaky login flow and summarize what changed."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 186_000,
+                    contextWindowSize: 200_000,
+                    totalCostUsd: 1.42,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                ),
+                supportsMidTurnSteering: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 240),
+            named: "chat_input_context_window_progress"
+        )
+    }
+
+    func testChatInputFieldContextWindowCachedEmptyProgress() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Investigate the flaky login flow and summarize what changed."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 0,
+                    contextWindowSize: 200_000,
+                    totalCostUsd: 0,
+                    hasReportedUsage: false,
+                    isUsingCachedContextWindow: true
+                ),
+                supportsMidTurnSteering: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 900, height: 240),
+            named: "chat_input_context_window_cached_empty"
+        )
+    }
+
+    func testContextWindowIndicatorHoverPopupWithSpend() {
+        assertMacSnapshot(
+            ContextWindowIndicator(
+                summary: ConversationUsageSummary(
+                    contextUsedTokens: 186_000,
+                    contextWindowSize: 200_000,
+                    totalCostUsd: 1.42,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                ),
+                showsTooltipOverride: true
+            )
+            .frame(width: 320, height: 180, alignment: .bottom),
+            size: CGSize(width: 320, height: 180),
+            named: "context_window_indicator_hover_popup"
+        )
+    }
+
     func testChatInputFieldBusyStopHint() {
         assertMacSnapshot(
             ChatInputField(

@@ -18,7 +18,7 @@ extension DefaultAgentsManager {
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
 
         switch event {
-        case .tokens(_, _, _, let isError, let stopReason, _, _, let permissionDenials):
+        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
             updateStatus(
                 tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
                 for: conversationId

@@ -19,6 +19,7 @@ struct ChatComposerPanel: View {
     let selectedUseWorktree: Binding<Bool>
     let showWorktreePicker: Bool
     let sessionLocationLabel: String?
+    let usageSummary: ConversationUsageSummary?
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let onSubmit: () -> Void
@@ -70,6 +71,7 @@ struct ChatComposerPanel: View {
                 supportedEffortLevels: visibleEffortLevels,
                 showWorktreePicker: showWorktreePicker,
                 sessionLocationLabel: sessionLocationLabel,
+                usageSummary: usageSummary,
                 supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
                 queuedMessages: viewModel.messageQueue.pending,
                 isTurnActive: viewModel.state.turnState.isActive,

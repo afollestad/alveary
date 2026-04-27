@@ -6,6 +6,8 @@ struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
+    let providerID: String
+    let contextWindowCache: any ContextWindowCache
     let workingDirectory: String?
     let projectTrustPrompt: ProjectTrustPrompt?
     let isProjectTrustBlocked: Bool
@@ -20,6 +22,7 @@ struct ChatView: View {
     @State private var isFollowing = true
     @State private var scrollToBottomRequest = 0
     @State private var displayedContentMode: ChatMainContentMode?
+    @State private var cachedContextWindowSize: Int?
 
     private var hasVisibleChatContent: Bool {
         !events.isEmpty || !viewModel.state.grouper.items.isEmpty || viewModel.streamingText != nil
@@ -49,6 +52,21 @@ struct ChatView: View {
             return .busy(canStop: false)
         }
         return .idle
+    }
+
+    private var selectedModelValue: String {
+        conversation.thread?.model ?? AppSettings.defaultModelValue
+    }
+
+    private var contextWindowCacheLookupID: String {
+        "\(providerID):\(selectedModelValue)"
+    }
+
+    private var usageSummary: ConversationUsageSummary? {
+        ConversationUsageSummary.derive(
+            from: events,
+            cachedContextWindowSize: cachedContextWindowSize
+        )
     }
 
     private var selectedModelBinding: Binding<String> {
@@ -106,6 +124,8 @@ struct ChatView: View {
         viewModel: ConversationViewModel,
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
+        providerID: String,
+        contextWindowCache: any ContextWindowCache,
         workingDirectory: String?,
         projectTrustPrompt: ProjectTrustPrompt?,
         isProjectTrustBlocked: Bool,
@@ -118,6 +138,8 @@ struct ChatView: View {
         self.viewModel = viewModel
         self.conversation = conversation
         self.composerCapabilities = composerCapabilities
+        self.providerID = providerID
+        self.contextWindowCache = contextWindowCache
         self.workingDirectory = workingDirectory
         self.projectTrustPrompt = projectTrustPrompt
         self.isProjectTrustBlocked = isProjectTrustBlocked
@@ -162,6 +184,7 @@ struct ChatView: View {
                 selectedUseWorktree: selectedUseWorktreeBinding,
                 showWorktreePicker: showWorktreePicker,
                 sessionLocationLabel: sessionLocationLabel,
+                usageSummary: usageSummary,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
                 onSubmit: sendDraft,
@@ -173,6 +196,16 @@ struct ChatView: View {
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: contextWindowCacheLookupID) {
+            let providerID = providerID
+            let selectedModel = selectedModelValue
+            cachedContextWindowSize = nil
+            let size = await contextWindowCache.contextWindowSize(providerId: providerID, model: selectedModel)
+            guard !Task.isCancelled else {
+                return
+            }
+            cachedContextWindowSize = size
+        }
     }
 }
 

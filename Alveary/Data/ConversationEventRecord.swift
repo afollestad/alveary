@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 final class ConversationEventRecord {
+    static let contextWindowInvalidatedType = "context_window_invalidated"
+
     #Index<ConversationEventRecord>([\.conversationId, \.timestamp])
 
     @Attribute(.unique) var id: String
@@ -25,8 +27,11 @@ final class ConversationEventRecord {
     var tokenInput: Int
     var tokenOutput: Int
     var tokenCacheRead: Int
+    var tokenCacheCreation: Int = 0
     var durationMs: Int
     var costUsd: Double
+    var providerModelId: String?
+    var contextWindowSize: Int?
     var notificationType: String?
     var stopReason: String?
     var timestamp: Date
@@ -53,8 +58,11 @@ final class ConversationEventRecord {
         tokenInput: Int = 0,
         tokenOutput: Int = 0,
         tokenCacheRead: Int = 0,
+        tokenCacheCreation: Int = 0,
         durationMs: Int = 0,
         costUsd: Double = 0,
+        providerModelId: String? = nil,
+        contextWindowSize: Int? = nil,
         notificationType: String? = nil,
         stopReason: String? = nil,
         timestamp: Date = .now,
@@ -87,8 +95,11 @@ final class ConversationEventRecord {
         self.tokenInput = tokenInput
         self.tokenOutput = tokenOutput
         self.tokenCacheRead = tokenCacheRead
+        self.tokenCacheCreation = tokenCacheCreation
         self.durationMs = durationMs
         self.costUsd = costUsd
+        self.providerModelId = providerModelId
+        self.contextWindowSize = contextWindowSize
         self.notificationType = notificationType
         self.stopReason = stopReason
         self.timestamp = timestamp

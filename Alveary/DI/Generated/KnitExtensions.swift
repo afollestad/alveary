@@ -59,6 +59,10 @@ extension Resolver {
         let resolver = unsafeResolver(file: file, function: function, line: line)
         return knitUnwrap(resolver.resolve(ProviderSetupService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
     }
+    func contextWindowCache(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ContextWindowCache {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(ContextWindowCache.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
     func claudeHookServer(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ClaudeHookServer {
         let resolver = unsafeResolver(file: file, function: function, line: line)
         return knitUnwrap(resolver.resolve(ClaudeHookServer.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)

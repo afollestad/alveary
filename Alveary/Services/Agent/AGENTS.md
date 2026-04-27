@@ -6,6 +6,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Claude provider support lives under `Claude/`; follow `Claude/AGENTS.md` for `ClaudeAdapter`, Claude config, Claude provider setup, and Claude stream decoding.
 - Claude HTTP hook listener, settings generation, and approval policy code lives under `Claude/Hooks/`; follow `Claude/Hooks/AGENTS.md` for that subsystem.
 - Transcript grouping code lives under `Transcript/`; follow `Transcript/AGENTS.md` for `ChatItemGrouper` behavior.
+- `ContextWindowCache` is app-level provider metadata, not conversation history. Keep it in the JSON-backed cache under Application Support, key entries by `providerID:model`, and treat it as advisory: provider-reported result data always wins. Cache writes should stay best-effort/background so turn completion and transcript persistence do not wait on disk I/O.
 
 ## Cross-Folder Debugging
 

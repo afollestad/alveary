@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -52,6 +53,38 @@ extension ConversationViewModelTests {
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(reconfigureCalls.first?.config.model, "opus")
+    }
+
+    func testApplyModelChangeInvalidatesContextWindowAfterSuccessfulReconfigure() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+
+        await fixture.viewModel.applyModelChange("opus").value
+
+        let invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == ConversationEventRecord.contextWindowInvalidatedType
+        }
+        XCTAssertEqual(invalidations.count, 1)
+        XCTAssertEqual(invalidations.first?.conversationId, fixture.conversation.id)
+    }
+
+    func testApplyModelChangeDoesNotInvalidateContextWindowWhenReconfigureFails() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            reconfigureError: .reconfigureFailed,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "sonnet"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyModelChange("opus").value
+
+        let invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == ConversationEventRecord.contextWindowInvalidatedType
+        }
+        XCTAssertTrue(invalidations.isEmpty)
     }
 
     func testApplyEffortChangeSkipsReconfigureBeforeInitialSetup() async throws {

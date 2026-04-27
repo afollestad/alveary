@@ -11,6 +11,7 @@ struct MiddlePane: View {
     let providerRegistry: ProviderRegistry
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
+    let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let loadInstalledSkills: @Sendable () async -> [Skill]
@@ -42,6 +43,7 @@ struct MiddlePane: View {
                 providerRegistry: providerRegistry,
                 worktreeManager: worktreeManager,
                 providerSetup: providerSetup,
+                contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
                 loadSkillCompletions: loadInstalledSkills,
