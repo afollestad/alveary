@@ -1,6 +1,8 @@
 *.xcodeproj/
 *.xcworkspace/
 .build/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/skills
 *.profraw
 .DS_Store

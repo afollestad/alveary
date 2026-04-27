@@ -51,7 +51,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Terminal/AGENTS.md`: terminal pane.
 - `AlvearyTests/AGENTS.md`: tests and snapshots.
 - `scripts/ci/AGENTS.md`: release CI helper scripts.
-- `skills/AGENTS.md`: repo-local agent skills.
+- `.agents/AGENTS.md`: repo-local agent skills.
 
 ## Xcode Project
 
@@ -87,9 +87,3 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Add concise comments only where they help future readers.
 - Search for same-type companion files before editing behavior.
 - Split large types into focused companions like `Type+Feature.swift`.
-
-## Self Review
-
-When asked for a self review or audit, first say `Performing a self review...`.
-
-Review uncommitted changes for: bugs, edge cases, regressions, performance, dead code, stale code, missing unit/snapshot coverage, missing docs/comments, stale guidance, lint, file-size pressure, and accessibility. Confirm snapshot recording where needed. Fix low-risk issues yourself; ask before risky changes. When done, ask whether the user wants another pass.

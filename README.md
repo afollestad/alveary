@@ -77,6 +77,10 @@ Verify or record a focused snapshot test:
 
 When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
 
+## Repo-Local Agent Skills
+
+Project-local skills live under `.agents/skills`. Agent-specific skill folders such as `.claude/skills` and `.codex/skills` are symlinks to that canonical directory.
+
 ## Releases
 
 Alveary releases are direct-download ZIPs containing `Alveary.app`. The app version lives in `project.yml` under the app target build settings:
