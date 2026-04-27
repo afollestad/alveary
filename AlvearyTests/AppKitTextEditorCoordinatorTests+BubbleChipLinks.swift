@@ -9,7 +9,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserTagsAbsoluteFileMentionChipWithFileURL() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -33,7 +32,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserExpandsTildePrefixedFileMentionChip() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -57,7 +55,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserLeavesRelativeFileMentionChipSchemeless() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -80,7 +77,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserDoesNotLinkSlashCommandChips() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(for: "/review-github-pr now")

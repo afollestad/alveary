@@ -25,7 +25,7 @@ enum AppMarkdownCodeBlockPalette {
     // noisy on the default amber accent and inconsistent with the code-block fill. The
     // grayscale swatch reads as a neutral "this is code" signal regardless of accent.
     // Light mode uses a mid-gray that stands out against the near-white window chrome
-    // and the `AppMarkdownCodeBlockStyle` block fill (~0.96 luminance); dark mode uses
+    // and the code-block fill (~0.96 luminance); dark mode uses
     // a mid-gray that stands out against the dark window chrome (~0.12) and the dark
     // block fill (~0.17). `.labelColor` foreground (`inlineChipForegroundNSColor`
     // below) supplies the contrasting text in both modes.

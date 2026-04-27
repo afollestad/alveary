@@ -152,10 +152,6 @@ struct AppMarkdownCodeRanges {
     let inlineFullRanges: [NSRange]
     let inlineContentRanges: [NSRange]
     let inlineDelimiterRanges: [NSRange]
-
-    var allRanges: [NSRange] {
-        blockRanges + inlineFullRanges + inlineContentRanges + inlineDelimiterRanges
-    }
 }
 
 private struct AppMarkdownInlineCodeRange {

@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Textual
 
 struct SkillsScreen: View {
     let viewModel: SkillsViewModel
@@ -350,14 +349,7 @@ private struct SkillMarkdownContent: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        // Apply only `inlineStyle` so skill readmes get the accent-colored
-                        // inline-code chip treatment. Intentionally skip `codeBlockStyle` —
-                        // skill markdown keeps Textual's default code-block rendering, which
-                        // reads fine against the SkillsScreen background and differs from
-                        // the chat transcript's `AppMarkdownCodeBlockStyle` chrome.
-                        StructuredText(markdown: markdown, baseURL: baseURL)
-                            .textual.inlineStyle(appMarkdownInlineStyle)
-                            .textual.textSelection(.enabled)
+                        AppMarkdownText(markdown: markdown, baseURL: baseURL)
                             .environment(\.openURL, OpenURLAction { url in
                                 UIApplicationShim.open(url: resolvedURL(for: url))
                                 return .handled

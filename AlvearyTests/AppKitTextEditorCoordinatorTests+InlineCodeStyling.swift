@@ -34,14 +34,12 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertTrue(ranges.inlineDelimiterRanges.isEmpty)
     }
 
-    // Inline code is rendered through Textual's native styling (flat monospaced
-    // highlight) rather than a Textual attachment, so chip-lines don't grow taller
-    // than non-chip lines in multi-line bubbles. The parsed `AttributedString` marks
-    // inline code with `inlinePresentationIntent = .code` and fenced code blocks with
-    // a `.codeBlock` component on `presentationIntent`. Neither carries a Textual
-    // attachment.
+    // Inline code is rendered as a flat monospaced highlight rather than an attachment
+    // view, so chip-lines don't grow taller than non-chip lines in multi-line bubbles.
+    // The parsed `AttributedString` marks inline code with `inlinePresentationIntent =
+    // .code` and fenced code blocks with a `.codeBlock` component on `presentationIntent`.
     func testAppMarkdownParserMarksInlineCodeWithoutAffectingFencedBlocks() throws {
-        let parser = AppMarkdownParser(baseURL: nil, inlineCodeStyle: .standard)
+        let parser = AppMarkdownParser(baseURL: nil)
         let attributedString = try parser.attributedString(
             for: "Use `git status` here.\n```swift\nlet count = 1\n```"
         )
@@ -71,10 +69,9 @@ extension AppKitTextEditorCoordinatorTests {
             }
         }
         XCTAssertFalse(fencedBlockRuns.isEmpty)
-        XCTAssertEqual(
-            attributedString.runs.filter { $0.textual.attachment != nil }.count,
-            0
-        )
+        XCTAssertTrue(inlineCodeRanges.allSatisfy { range in
+            attributedString[range].runs.allSatisfy { $0.inlinePresentationIntent?.contains(.code) == true }
+        })
     }
 
     // A file mention inside a fenced code block must not be re-styled as a composer chip —
@@ -83,7 +80,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserSkipsComposerChipsInsideFencedBlocks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -100,7 +96,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserSkipsComposerChipsInsideMarkdownLinks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -124,7 +119,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserRewritesComposerChipsAsInlineCode() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
@@ -143,10 +137,7 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertTrue(flatString.contains("@ChatInputField.swift"))
         XCTAssertFalse(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
 
-        XCTAssertEqual(
-            attributedString.runs.filter { $0.textual.attachment != nil }.count,
-            0
-        )
+        XCTAssertTrue(chipTexts.allSatisfy { !$0.isEmpty })
     }
 
     // Regression guard for the fix in `attachComposerChips`: a file mention wrapped in
@@ -156,7 +147,6 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserPreservesInlineCodeAgainstComposerChip() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            inlineCodeStyle: .userBubble,
             composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(

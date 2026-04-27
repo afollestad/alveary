@@ -123,9 +123,22 @@ private extension EmptyThreadState {
 }
 
 struct UserBubble: View {
+    let id: String?
     let text: String
     let showsRetry: Bool
     let onRetry: (() -> Void)?
+
+    init(
+        id: String? = nil,
+        text: String,
+        showsRetry: Bool,
+        onRetry: (() -> Void)?
+    ) {
+        self.id = id
+        self.text = text
+        self.showsRetry = showsRetry
+        self.onRetry = onRetry
+    }
 
     var body: some View {
         HStack {
@@ -136,7 +149,8 @@ struct UserBubble: View {
                     markdown: text,
                     foregroundColor: .primary,
                     inlineCodeStyle: .userBubble,
-                    composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+                    composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:),
+                    taskStateScope: id
                 )
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatVerticalPadding)
@@ -144,8 +158,8 @@ struct UserBubble: View {
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                         .fill(AppAccentFill.primary)
                 )
-                // Keeps Textual's AppKit-backed text moving with the bubble chrome
-                // during transcript reflow from tool-row expand/collapse.
+                // Keeps rendered text moving with the bubble chrome during transcript
+                // reflow from tool-row expand/collapse.
                 .geometryGroup()
 
                 if showsRetry, let onRetry {
@@ -166,12 +180,21 @@ struct UserBubble: View {
 }
 
 struct AssistantBubble: View {
+    let id: String?
     let markdown: String
 
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
 
+    init(
+        id: String? = nil,
+        markdown: String
+    ) {
+        self.id = id
+        self.markdown = markdown
+    }
+
     var body: some View {
-        AppMarkdownText(markdown: markdown)
+        AppMarkdownText(markdown: markdown, taskStateScope: id)
             .padding(.horizontal, chatBubbleHorizontalPadding)
             .padding(.vertical, chatVerticalPadding)
             .background(

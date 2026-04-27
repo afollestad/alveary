@@ -32,10 +32,10 @@ struct TranscriptHeaderToggle<Label: View>: View {
     }
 }
 
-/// Header-local mouse target used because Textual-backed code chips and expanded
-/// selectable output can leave a SwiftUI `Button` reachable through accessibility
-/// while mouse clicks fall through or land on child NSViews. Keeping this overlay
-/// scoped to the header preserves text selection and scrolling in expanded details.
+/// Header-local mouse target used because expanded selectable output can leave a
+/// SwiftUI `Button` reachable through accessibility while mouse clicks fall through
+/// or land on child views. Keeping this overlay scoped to the header preserves text
+/// selection and scrolling in expanded details.
 private struct TranscriptHeaderMouseTarget: NSViewRepresentable {
     let action: () -> Void
     let pressedChanged: (Bool) -> Void

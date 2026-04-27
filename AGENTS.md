@@ -31,6 +31,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Components/AGENTS.md`: general shared controls.
 - `Alveary/Views/Components/Accent/AGENTS.md`: accent tokens and dynamic colors.
 - `Alveary/Views/Components/Markdown/AGENTS.md`: markdown rendering and palettes.
+- `Alveary/Views/Components/Markdown/Rendering/AGENTS.md`: SwiftUI-only markdown renderer internals.
 - `Alveary/Views/Components/TabChips/AGENTS.md`: shared tab-chip shell.
 - `Alveary/Views/Components/TextInput/AGENTS.md`: `AppTextEditor` and AppKit bridge.
 - `Alveary/Views/Chat/AGENTS.md`: chat view and conversation contracts.

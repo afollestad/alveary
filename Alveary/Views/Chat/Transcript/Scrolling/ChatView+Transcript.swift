@@ -71,24 +71,16 @@ struct ChatTranscriptView: View {
                     switch item {
                     case .userMessage(let id, let text):
                         UserBubble(
+                            id: id,
                             text: text,
                             showsRetry: viewModel.state.retryableFailedMessageIDs.contains(id),
-                            onRetry: viewModel.state.retryableFailedMessageIDs.contains(id)
-                                ? {
-                                    Task {
-                                        do {
-                                            try await viewModel.retryFailedUserMessage(id: id)
-                                        } catch {
-                                            if viewModel.lastTurnError == nil {
-                                                viewModel.lastTurnError = error.localizedDescription
-                                            }
-                                        }
-                                    }
-                                }
-                                : nil
+                            onRetry: retryAction(
+                                for: id,
+                                isRetryable: viewModel.state.retryableFailedMessageIDs.contains(id)
+                            )
                         )
-                    case .assistantMessage(_, let text):
-                        AssistantBubble(markdown: text)
+                    case .assistantMessage(let id, let text):
+                        AssistantBubble(id: id, markdown: text)
                     case .toolGroup(let id, let tools):
                         ToolGroupBlock(tools: tools, isExpanded: transcriptRowExpansionBinding(for: id))
                             .frame(width: toolRowWidth, alignment: .leading)

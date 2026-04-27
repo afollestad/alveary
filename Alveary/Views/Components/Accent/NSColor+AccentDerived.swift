@@ -30,8 +30,8 @@ extension NSColor {
 
     /// Resolves a dynamic `NSColor` against `appearance` and flattens it to a concrete
     /// sRGB color. Use when a consumer requires per-appearance `Color` values up front
-    /// (e.g. Textual's `DynamicColor(light:dark:)`) rather than a single `NSColor` that
-    /// still carries a `dynamicProvider`. The flatten happens inside
+    /// rather than a single `NSColor` that still carries a `dynamicProvider`. The
+    /// flatten happens inside
     /// `performAsCurrentDrawingAppearance` so derived values like `controlAccentColor`
     /// resolve against the requested appearance, not whichever appearance was current at
     /// call time.

@@ -25,7 +25,6 @@ private enum AttributedSummaryCache {
 
         let result: AttributedString
         let parser = AppMarkdownParser(
-            inlineCodeStyle: .standard,
             composerChipProvider: toolSummaryTextChips(in:),
             parsingMode: .inline
         )

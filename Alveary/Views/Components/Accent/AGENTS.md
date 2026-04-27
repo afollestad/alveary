@@ -13,8 +13,5 @@ Rules for `AppAccentFill.swift` and `NSColor+AccentDerived.swift`.
     - Resolve `NSColor.controlAccentColor` inside `performAsCurrentDrawingAppearance`.
     - Put light/dark branching inside the transform via `appearance.bestMatch(from: [.darkAqua, .aqua])`.
     - Do not blend or alpha-adjust the unresolved dynamic accent outside that block.
-- When feeding Textual `DynamicColor`, flatten dynamic `NSColor` with `resolved(for:)` for `.aqua` and `.darkAqua`.
-    - Use `AppMarkdown.dynamicColor(from:)` for markdown surfaces.
-    - Avoid relying on `Color(nsColor:)` dynamic bridging for Textual.
-    - Textual-rendered chips will not reflect system-accent changes until relaunch; that is acceptable.
+- Markdown rendering is SwiftUI-local. Keep `NSColor` palette tokens only for AppKit composer/editor paths; SwiftUI markdown views should consume `Color` wrappers.
 - Keep both `Any Appearance` and `Dark` slots in `AccentColor.colorset`, even when values match.

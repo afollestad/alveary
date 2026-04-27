@@ -21,6 +21,54 @@ extension SnapshotTests {
         )
     }
 
+    func testAssistantBubbleTable() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                Here is the current status:
+
+                | File | State | Count |
+                | :--- | :---: | ---: |
+                | `AppMarkdown.swift` | Done | 12 |
+                | `SyntaxHighlighter.swift` | Pending | 3 |
+                """
+            ),
+            size: CGSize(width: 620, height: 260),
+            named: "assistant_bubble_table"
+        )
+    }
+
+    func testAssistantBubbleWideTableScrollsInternally() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                | Speaker | Transcript excerpt | Source |
+                | :--- | :--- | :--- |
+                | Agent | Transcript excerpt is intentionally long enough to overflow compact bubble width. | Rendering/AppMarkdownTable.swift |
+                | User | Short reply | Alveary/Views/Chat/ChatSupplementaryViews.swift |
+                """
+            ),
+            size: CGSize(width: 460, height: 260),
+            named: "assistant_bubble_wide_table_scrolls_internally"
+        )
+    }
+
+    func testAssistantBubbleTaskListAndHTML() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                <p><strong>Release checklist</strong></p>
+
+                - [x] Parse <b>HTML</b> emphasis
+                - [ ] Render <u>unchecked</u> task rows
+                - [ ] Keep `<i>literal</i>` code intact
+                """
+            ),
+            size: CGSize(width: 520, height: 250),
+            named: "assistant_bubble_task_list_and_html"
+        )
+    }
+
     func testAssistantBubbleInlineCode() {
         assertMacSnapshot(
             AssistantBubble(markdown: "Run `git status` and then `git diff` before the next step."),

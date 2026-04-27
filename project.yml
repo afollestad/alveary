@@ -26,8 +26,6 @@ targets:
     dependencies:
       - package: knit
         product: Knit
-      - package: textual
-        product: Textual
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary
@@ -85,9 +83,6 @@ packages:
   knit:
     url: https://github.com/cashapp/knit
     revision: "3d4afea562b95a95725f689be819b10ff93351fc"
-  textual:
-    url: https://github.com/gonzalezreal/textual
-    from: "0.3.1"
   swift-snapshot-testing:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: "1.17.0"

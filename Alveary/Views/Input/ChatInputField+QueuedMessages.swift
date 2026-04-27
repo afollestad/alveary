@@ -101,7 +101,11 @@ private struct ChatInputQueuedMessageRow: View {
                             // `.composer` palette so their code chips match the live
                             // input field's amber treatment rather than the neutral
                             // gray used for historical/chrome surfaces.
-                            AppMarkdownText(markdown: message.text, inlineCodeStyle: .composer)
+                            AppMarkdownText(
+                                markdown: message.text,
+                                inlineCodeStyle: .composer,
+                                taskStateScope: message.id.uuidString
+                            )
                         } else {
                             Text(message.text)
                                 .foregroundStyle(.primary)

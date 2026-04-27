@@ -1,6 +1,6 @@
 ## Transcript Scrolling
 
-Rules for `ChatView+Transcript.swift` and `ChatView+Transcript+ScrollBehavior.swift`.
+Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift`, and small transcript-scrolling companions.
 
 > **READ FIRST:** Focus and keyboard rules are centralized in `Alveary/Views/AGENTS.md`.
 
