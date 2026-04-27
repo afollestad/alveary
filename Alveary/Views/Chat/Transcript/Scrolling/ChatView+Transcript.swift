@@ -53,10 +53,14 @@ struct ChatTranscriptView: View {
 
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
-    @State private var latestMetrics: ChatTranscriptScrollMetrics?
-    @State private var scrollPosition = ScrollPosition()
+    @State var latestMetrics: ChatTranscriptScrollMetrics?
+    @State var scrollPosition = ScrollPosition()
     @State private var transcriptContentWidth: CGFloat = 0
-    @State private var expandedTranscriptRows: Set<String> = []
+    @State var expandedTranscriptRows: Set<String> = []
+    @State var topLevelToolHeaderFrames: [String: CGRect] = [:]
+    @State var pendingExpandedHeaderRevealID: String?
+    @State var pendingExpandedHeaderRevealToken: UUID?
+    @State var expandedHeaderRevealScrollToken: UUID?
     @State private var isProgressiveScrolling = false
 
     private var shouldShowTransientInterruptedNote: Bool {
@@ -83,13 +87,25 @@ struct ChatTranscriptView: View {
                     case .assistantMessage(let id, let text):
                         AssistantBubble(id: id, markdown: text)
                     case .toolGroup(let id, let tools):
-                        ToolGroupBlock(tools: tools, isExpanded: transcriptRowExpansionBinding(for: id))
+                        ToolGroupBlock(
+                            tools: tools,
+                            isExpanded: transcriptRowExpansionBinding(for: id),
+                            headerFrameID: id
+                        )
                             .frame(width: toolRowWidth, alignment: .leading)
                     case .standaloneTool(let id, let tool):
-                        StandaloneToolRow(tool: tool, isExpanded: transcriptRowExpansionBinding(for: id))
+                        StandaloneToolRow(
+                            tool: tool,
+                            isExpanded: transcriptRowExpansionBinding(for: id),
+                            headerFrameID: id
+                        )
                             .frame(width: toolRowWidth, alignment: .leading)
                     case .subAgentBlock(let id, let agents):
-                        SubAgentBlock(agents: agents, isExpanded: transcriptRowExpansionBinding(for: id))
+                        SubAgentBlock(
+                            agents: agents,
+                            isExpanded: transcriptRowExpansionBinding(for: id),
+                            headerFrameID: id
+                        )
                             .frame(width: toolRowWidth, alignment: .leading)
                     case .taskListBlock(_, let tasks):
                         TaskListBlock(tasks: tasks)
@@ -141,6 +157,9 @@ struct ChatTranscriptView: View {
             } action: { newValue in
                 transcriptContentWidth = newValue
             }
+            .onPreferenceChange(TranscriptToolHeaderFramePreferenceKey.self) { frames in
+                topLevelToolHeaderFrames = frames
+            }
             // `.scrollTargetLayout()` is intentionally omitted. That modifier
             // marks the stack's children as scroll targets, which causes
             // `.scrollPosition` and `.defaultScrollAnchor` to anchor on "the
@@ -152,6 +171,7 @@ struct ChatTranscriptView: View {
             // so `.scrollTargetLayout()` provides no benefit here; removing it
             // eliminates the drift. Don't add it back.
         }
+        .coordinateSpace(name: transcriptScrollCoordinateSpace)
         .environment(\.transcriptBubbleMaxWidth, adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth))
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)
@@ -164,6 +184,11 @@ struct ChatTranscriptView: View {
             )
         } action: { oldMetrics, newMetrics in
             latestMetrics = newMetrics
+
+            // Expansion reveal owns this brief geometry window; do not reinterpret it as follow-mode intent.
+            if expandedHeaderRevealScrollToken != nil {
+                return
+            }
 
             if let pendingProgrammaticScrollMode {
                 let action = ChatTranscriptScrollBehavior.pendingScrollAction(
@@ -290,11 +315,6 @@ struct ChatTranscriptView: View {
 
 }
 private extension ChatTranscriptView {
-    func transcriptRowExpansionBinding(for rowID: String) -> Binding<Bool> {
-        Binding(get: { expandedTranscriptRows.contains(rowID) }, set: { isExpanded in
-            if isExpanded { expandedTranscriptRows.insert(rowID) } else { expandedTranscriptRows.remove(rowID) }
-        })
-    }
     func scrollToBottom(
         forceFollow: Bool = false,
         retries: ScrollToBottomRetries = .triple,
@@ -464,25 +484,5 @@ private extension ChatTranscriptView {
         }
 
         return lastEvent.type == "message" && lastEvent.role == "user"
-    }
-}
-
-private struct ScrollToLatestButton: View {
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "arrow.down")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.primary)
-                .frame(width: 32, height: 32)
-                .background(
-                    Circle()
-                        .fill(AppAccentFill.primary)
-                )
-        }
-        .buttonStyle(.plain)
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
-        .accessibilityLabel("Jump to latest message")
-        .help("Jump to latest message")
     }
 }

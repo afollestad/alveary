@@ -2,11 +2,18 @@ import SwiftUI
 
 struct ToolGroupBlock: View {
     let tools: [ToolEntry]
+    let headerFrameID: String?
     private let externalIsExpanded: Binding<Bool>?
     @State private var isExpanded: Bool
 
-    init(tools: [ToolEntry], initiallyExpanded: Bool = false, isExpanded: Binding<Bool>? = nil) {
+    init(
+        tools: [ToolEntry],
+        initiallyExpanded: Bool = false,
+        isExpanded: Binding<Bool>? = nil,
+        headerFrameID: String? = nil
+    ) {
         self.tools = tools
+        self.headerFrameID = headerFrameID
         self.externalIsExpanded = isExpanded
         _isExpanded = State(initialValue: initiallyExpanded)
     }
@@ -14,7 +21,7 @@ struct ToolGroupBlock: View {
     var body: some View {
         let expansion = expansionBinding
         if tools.count <= 1, let only = tools.first {
-            InlineToolRow(tool: only, isExpanded: expansion)
+            InlineToolRow(tool: only, isExpanded: expansion, headerFrameID: headerFrameID)
         } else {
             let toggleExpansion = {
                 withAnimation(toolExpansionAnimation) {
@@ -30,6 +37,7 @@ struct ToolGroupBlock: View {
                         debounceStatus: true,
                         bottomPadding: expansion.wrappedValue ? 0 : transcriptToolRowVerticalPadding
                     )
+                    .transcriptToolHeaderFramePreference(id: headerFrameID)
                 }
 
                 if expansion.wrappedValue {

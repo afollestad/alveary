@@ -20,6 +20,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - Edge scroll avoids `LazyVStack` row-height estimate blanks on thread reopen.
 - Do not apply `.scrollTargetLayout()` to the transcript `LazyVStack`.
 - Keep `transcriptBottomInset` as trailing `.padding(.bottom, ...)` on the `LazyVStack`, not as a trailing `Color.clear` child.
+- Tool expansion header reveal is a one-shot `scrollTo(y:)` correction. Keep it separate from `scrollToBottom`, follow mode, and pending bottom-scroll modes.
 
 ## Following State
 

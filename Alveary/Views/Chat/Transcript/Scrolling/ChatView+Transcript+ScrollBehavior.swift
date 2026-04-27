@@ -144,6 +144,33 @@ enum ChatTranscriptScrollBehavior {
         newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
     }
 
+    static func expandedHeaderRevealTargetOffset(
+        headerFrame: CGRect,
+        metrics: ChatTranscriptScrollMetrics,
+        inset: CGFloat
+    ) -> CGFloat? {
+        let visibleMinY = inset
+        let visibleMaxY = metrics.containerHeight - inset
+        guard visibleMaxY > visibleMinY,
+              headerFrame.minY < visibleMinY || headerFrame.maxY > visibleMaxY else {
+            return nil
+        }
+
+        let targetOffsetY: CGFloat
+        if headerFrame.minY < visibleMinY || headerFrame.height > visibleMaxY - visibleMinY {
+            targetOffsetY = metrics.offsetY + headerFrame.minY - visibleMinY
+        } else {
+            targetOffsetY = metrics.offsetY + headerFrame.maxY - visibleMaxY
+        }
+
+        let maxOffsetY = max(metrics.contentHeight - metrics.containerHeight, 0)
+        let clampedTargetOffsetY = min(max(targetOffsetY, 0), maxOffsetY)
+        guard abs(clampedTargetOffsetY - metrics.offsetY) > 0.5 else {
+            return nil
+        }
+        return clampedTargetOffsetY
+    }
+
     /// Decide whether `isFollowing` should change in the fallback branch of
     /// `onScrollGeometryChange` (no pending programmatic scroll, not a
     /// `shouldPreserveFollowMode` case). Returns the next `isFollowing` value;

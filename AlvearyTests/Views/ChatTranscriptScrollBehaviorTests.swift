@@ -197,6 +197,53 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
+    func testExpandedHeaderRevealSkipsVisibleHeader() {
+        let metrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 400)
+
+        XCTAssertNil(
+            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
+                headerFrame: CGRect(x: 0, y: 48, width: 300, height: 24),
+                metrics: metrics,
+                inset: 8
+            )
+        )
+    }
+
+    func testExpandedHeaderRevealTargetsClippedHeaders() {
+        let metrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 400)
+
+        XCTAssertEqual(
+            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
+                headerFrame: CGRect(x: 0, y: -16, width: 300, height: 24),
+                metrics: metrics,
+                inset: 8
+            ),
+            176
+        )
+
+        XCTAssertEqual(
+            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
+                headerFrame: CGRect(x: 0, y: 386, width: 300, height: 24),
+                metrics: metrics,
+                inset: 8
+            ),
+            218
+        )
+    }
+
+    func testExpandedHeaderRevealClampsToScrollableRange() {
+        let metrics = ChatTranscriptScrollMetrics(offsetY: 596, contentHeight: 1_000, containerHeight: 400)
+
+        XCTAssertEqual(
+            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
+                headerFrame: CGRect(x: 0, y: 430, width: 300, height: 24),
+                metrics: metrics,
+                inset: 8
+            ),
+            600
+        )
+    }
+
     // `.preserveFollow` has no content-growth reissue case, so `isAtBottom` means
     // the pending scroll has landed and the mode can clear.
     func testPendingScrollActionPreserveFollowClearsOnIsAtBottom() {

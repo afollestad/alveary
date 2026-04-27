@@ -41,7 +41,12 @@ let transcriptBubbleCompactTrailingInset: CGFloat = 24
 
 /// Shared expand/collapse easing for tool bubbles. Centralized here so all bubbles
 /// ease at the same speed and a future tuning happens in one place.
-let toolExpansionAnimation: Animation = .easeInOut(duration: 0.22)
+let toolExpansionAnimationDuration: TimeInterval = 0.22
+let transcriptExpandedHeaderRevealInset: CGFloat = 8
+let expandedHeaderRevealLayoutDelay: TimeInterval = 0.04
+let expandedHeaderRevealScrollTimeout: TimeInterval = 0.25
+let toolExpansionAnimation: Animation = .easeInOut(duration: toolExpansionAnimationDuration)
+let transcriptScrollCoordinateSpace = "TranscriptScrollCoordinateSpace"
 
 /// Wide transcripts look better when inbound bubbles stop around two-thirds of the
 /// available width, but once that cap would squeeze below a comfortable reading width
@@ -93,6 +98,30 @@ extension View {
         transaction(value: value) { transaction in
             transaction.animation = toolExpansionAnimation
         }
+    }
+
+    @ViewBuilder
+    func transcriptToolHeaderFramePreference(id: String?) -> some View {
+        if let id {
+            background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: TranscriptToolHeaderFramePreferenceKey.self,
+                        value: [id: proxy.frame(in: .named(transcriptScrollCoordinateSpace))]
+                    )
+                }
+            }
+        } else {
+            self
+        }
+    }
+}
+
+struct TranscriptToolHeaderFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newValue in newValue })
     }
 }
 
