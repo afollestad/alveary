@@ -189,25 +189,27 @@ private struct PromptQuestionCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(question.renderedOptions, id: \.id) { option in
-                    HStack(alignment: .center, spacing: 12) {
-                        Button {
-                            onToggle(option)
-                        } label: {
-                            Image(systemName: imageName(for: option))
-                                .foregroundStyle(isSelected(option) ? Color.accentColor : Color.secondary)
-                                .frame(width: 20, height: 20, alignment: .center)
-                        }
-                        .buttonStyle(.plain)
+                    if option.isCustomResponse, isSelected(option) {
+                        HStack(alignment: .center, spacing: 12) {
+                            Button {
+                                onToggle(option)
+                            } label: {
+                                optionGlyph(for: option)
+                            }
+                            .buttonStyle(.plain)
 
-                        if option.isCustomResponse, isSelected(option) {
                             TextField("Enter your response", text: customResponse)
                                 .textFieldStyle(.roundedBorder)
                                 .focused(focusedCustomResponseIndex, equals: questionIndex)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            Button {
-                                onToggle(option)
-                            } label: {
+                        }
+                    } else {
+                        Button {
+                            onToggle(option)
+                        } label: {
+                            HStack(alignment: .center, spacing: 12) {
+                                optionGlyph(for: option)
+
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(option.label)
                                         .font(.subheadline.weight(.medium))
@@ -216,13 +218,14 @@ private struct PromptQuestionCard: View {
                                     if !option.description.isEmpty {
                                         Text(option.description)
                                             .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
                             }
-                            .buttonStyle(.plain)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -233,6 +236,12 @@ private struct PromptQuestionCard: View {
             RoundedRectangle(cornerRadius: promptBlockCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.06))
         )
+    }
+
+    private func optionGlyph(for option: PromptEntry.PromptOption) -> some View {
+        Image(systemName: imageName(for: option))
+            .foregroundStyle(isSelected(option) ? Color.accentColor : Color.secondary)
+            .frame(width: 20, height: 20, alignment: .center)
     }
 
     private func imageName(for option: PromptEntry.PromptOption) -> String {
