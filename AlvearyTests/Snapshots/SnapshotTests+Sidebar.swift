@@ -231,6 +231,24 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowLongMentionTitleStaysBounded() {
+        let thread = AgentThread(name: "@ai-rules-generated-watermark-portfolio-images")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: true,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14)
+            .background(AppAccentFill.primary),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_long_mention_bounded"
+        )
+    }
+
     func testSidebarThreadRowChipAndPlainShareHeight() {
         let plainThread = AgentThread(name: "New thread")
         let chipThread = AgentThread(name: "Test `code block`")

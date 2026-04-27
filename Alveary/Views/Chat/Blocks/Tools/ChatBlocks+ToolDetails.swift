@@ -64,7 +64,18 @@ struct MinimalToolContentView: View {
                 .foregroundStyle(.secondary)
         } else if let content = snapshot.content,
                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            HighlightedCodeBlock(content: content, language: snapshot.language)
+            if tool.name == "Read", snapshot.language == "markdown" {
+                MarkdownToolContentBlock(
+                    markdown: ReadToolContent.strippingLineNumberPrefixes(from: content),
+                    baseURL: ReadToolContent.baseURL(for: tool)
+                )
+            } else {
+                HighlightedCodeBlock(
+                    content: content,
+                    language: snapshot.language,
+                    preservesLeadingLineNumberPrefixes: tool.name == "Read"
+                )
+            }
         } else if !tool.noOutputExpected {
             Text("No output")
                 .font(.caption)
@@ -129,6 +140,28 @@ private struct ErrorContentBlock: View {
     }
 }
 
+private struct MarkdownToolContentBlock: View {
+    let markdown: String
+    let baseURL: URL?
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        AppMarkdownText(markdown: markdown, baseURL: baseURL)
+            .textSelection(.enabled)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
+            )
+    }
+}
+
 /// Write tool input parsing — extracts the target file path + the content Claude is
 /// writing and caps it so a huge file doesn't balloon the transcript.
 enum WriteToolContent {
@@ -174,12 +207,51 @@ enum WriteToolContent {
 enum ReadToolContent {
     static func language(for tool: ToolEntry) -> String {
         guard tool.name == "Read",
-              let data = tool.input.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let filePath = json["file_path"] as? String else {
+              let filePath = filePath(for: tool) else {
             return ""
         }
         return FileLanguageHint.language(forPath: filePath)
+    }
+
+    static func baseURL(for tool: ToolEntry) -> URL? {
+        guard tool.name == "Read",
+              let filePath = filePath(for: tool) else {
+            return nil
+        }
+        return URL(fileURLWithPath: filePath).deletingLastPathComponent()
+    }
+
+    static func strippingLineNumberPrefixes(from output: String) -> String {
+        output.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { stripLineNumberPrefix(from: String($0)) }
+            .joined(separator: "\n")
+    }
+
+    private static func filePath(for tool: ToolEntry) -> String? {
+        guard let data = tool.input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json["file_path"] as? String
+    }
+
+    private static func stripLineNumberPrefix(from line: String) -> String {
+        if let tabIndex = line.firstIndex(of: "\t") {
+            let prefix = line[..<tabIndex].trimmingCharacters(in: .whitespaces)
+            if !prefix.isEmpty, prefix.allSatisfy(\.isNumber) {
+                return String(line[line.index(after: tabIndex)...])
+            }
+        }
+        let trimmedLeadingSpaces = line.drop(while: \.isWhitespace)
+        let digits = trimmedLeadingSpaces.prefix(while: \.isNumber)
+        let afterDigits = trimmedLeadingSpaces.dropFirst(digits.count)
+        if !digits.isEmpty, afterDigits.isEmpty {
+            return ""
+        }
+        if !digits.isEmpty, afterDigits.first == " " {
+            return String(afterDigits.drop(while: { $0 == " " }))
+        }
+        return line
     }
 }
 

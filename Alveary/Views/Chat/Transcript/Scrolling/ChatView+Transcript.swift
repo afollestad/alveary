@@ -64,7 +64,8 @@ struct ChatTranscriptView: View {
     }
 
     var body: some View {
-        let toolRowWidth: CGFloat? = transcriptContentWidth > 40 ? transcriptContentWidth - 40 : nil
+        let horizontalInset = transcriptScrollLeadingInset + transcriptScrollTrailingInset
+        let toolRowWidth: CGFloat? = transcriptContentWidth > horizontalInset ? transcriptContentWidth - horizontalInset : nil
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
                 ForEach(viewModel.state.grouper.items) { item in
@@ -131,7 +132,8 @@ struct ChatTranscriptView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
+            .padding(.leading, transcriptScrollLeadingInset)
+            .padding(.trailing, transcriptScrollTrailingInset)
             .padding(.top, transcriptTopInset)
             .padding(.bottom, transcriptBottomInset)
             .onGeometryChange(for: CGFloat.self) { proxy in

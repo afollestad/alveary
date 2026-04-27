@@ -35,12 +35,13 @@ struct SidebarThreadRow: View {
                     .onSubmit { commitRename() }
                     .onExitCommand { cancelRename() }
                     .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 AppMarkdownInlineLabel(text: displayName)
                     .allowsHitTesting(false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipped()
             }
-
-            Spacer(minLength: 0)
 
             statusIndicator
                 .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)

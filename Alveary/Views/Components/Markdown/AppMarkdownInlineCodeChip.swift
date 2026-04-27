@@ -16,6 +16,8 @@ struct AppMarkdownInlineCodeChip: View {
         Text(verbatim: text)
             .font(.system(size: fontSize, weight: .regular, design: .monospaced))
             .foregroundStyle(Color(nsColor: foregroundColor))
+            .lineLimit(1)
+            .truncationMode(.tail)
             .padding(.horizontal, appMarkdownInlineCodeHorizontalPadding)
             .padding(.vertical, appMarkdownInlineCodeVerticalPadding)
             .background(Color(nsColor: fillColor))

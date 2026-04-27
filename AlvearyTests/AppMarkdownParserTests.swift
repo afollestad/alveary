@@ -142,6 +142,34 @@ final class AppMarkdownParserTests: XCTestCase {
         })
     }
 
+    func testLeadingFrontMatterOmitsOpeningDividerAndKeepsClosingDivider() throws {
+        let parser = AppMarkdownParser()
+        let attributed = try parser.attributedString(
+            for: """
+            ---
+            name: watermark-portfolio-images
+            description: Apply a signature watermark
+            ---
+            # Watermark Portfolio Images
+            """
+        )
+
+        let text = String(attributed.characters)
+        XCTAssertTrue(text.contains("name: watermark-portfolio-images\ndescription: Apply a signature watermark"))
+        XCTAssertTrue(text.contains("Watermark Portfolio Images"))
+        XCTAssertEqual(thematicBreakCount(in: attributed), 1)
+        XCTAssertTrue(run(for: "name", in: attributed)?.inlinePresentationIntent?.contains(.stronglyEmphasized) == true)
+        XCTAssertTrue(run(for: "description", in: attributed)?.inlinePresentationIntent?.contains(.stronglyEmphasized) == true)
+        XCTAssertFalse(frontMatterRuns(in: attributed).contains { run in
+            run.presentationIntent?.components.contains { component in
+                if case .header = component.kind {
+                    return true
+                }
+                return false
+            } == true
+        })
+    }
+
     func testDocumentCacheSeparatesTaskStateScopeFromParsedContent() {
         let markdown = "- [ ] Review"
         let first = cachedDocument(for: markdown, taskStateScope: "message-1")
@@ -157,6 +185,25 @@ final class AppMarkdownParserTests: XCTestCase {
     ) -> AttributedString.Runs.Run? {
         attributed.runs.first { run in
             String(attributed[run.range].characters) == text
+        }
+    }
+
+    private func thematicBreakCount(in attributed: AttributedString) -> Int {
+        attributed.runs.reduce(0) { count, run in
+            let hasBreak = run.presentationIntent?.components.contains { component in
+                if case .thematicBreak = component.kind {
+                    return true
+                }
+                return false
+            } == true
+            return hasBreak ? count + 1 : count
+        }
+    }
+
+    private func frontMatterRuns(in attributed: AttributedString) -> [AttributedString.Runs.Run] {
+        attributed.runs.filter { run in
+            let value = String(attributed[run.range].characters)
+            return value.contains("name:") || value.contains("description:")
         }
     }
 

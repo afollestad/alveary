@@ -7,6 +7,7 @@ import SwiftUI
 struct HighlightedCodeBlock: View {
     let content: String
     let language: String
+    var preservesLeadingLineNumberPrefixes = false
     var horizontalPadding: CGFloat = 12
     var verticalPadding: CGFloat = 10
 
@@ -36,6 +37,11 @@ struct HighlightedCodeBlock: View {
     }
 
     private var attributedContent: AttributedString {
-        SyntaxHighlighter.highlighted(content, language: language, colorScheme: colorScheme)
+        SyntaxHighlighter.highlighted(
+            content,
+            language: language,
+            colorScheme: colorScheme,
+            preserveLineNumberPrefixes: preservesLeadingLineNumberPrefixes
+        )
     }
 }

@@ -69,6 +69,50 @@ extension SnapshotTests {
         )
     }
 
+    func testStandaloneMarkdownReadExpandedRendersMarkdown() {
+        let description = """
+        Apply a signature watermark to portfolio photos in images/portfolio/. Use when the user asks to sign, watermark, \
+        or add a signature to portfolio images, or to re-apply or adjust the watermark opacity/font/position.
+        """
+        let tool = ToolEntry(
+            id: "read-markdown",
+            name: "Read",
+            summary: "Read `SKILL.md`",
+            input: "{\"file_path\":\"/tmp/alveary/SKILL.md\"}",
+            output: """
+            1\t---
+            2\tname: watermark-portfolio-images
+            3\tdescription: \(description)
+            4\t---
+            5\t# Watermark Portfolio Images
+            6\t
+            7\tRun `python3 watermark.py`.
+            8\t
+            9\t- Keep originals
+            10\t- Skip signed files
+            11\t
+            12\t## Parameters
+            13\t
+            14\t| Setting | Value |
+            15\t|---|---|
+            16\t| Font | Gingerink (`GingerinkPersonalUse-rvJd7.ttf`) |
+            17\t| Position | Bottom-right: `padding_x = max(12, int(width * 0.02))` |
+            """,
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+
+        assertMacSnapshot(
+            StandaloneToolRow(tool: tool, initiallyExpanded: true),
+            size: CGSize(width: 760, height: 420),
+            named: "standalone_markdown_read_expanded"
+        )
+    }
+
     func testStandaloneExpandedThenCollapsedSpacing() {
         assertMacSnapshot(
             VStack(alignment: .leading, spacing: 6) {

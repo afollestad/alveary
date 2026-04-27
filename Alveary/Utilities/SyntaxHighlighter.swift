@@ -6,11 +6,8 @@ import SwiftUI
 /// numbers, and a few language-specific structural tokens are colored well enough to
 /// make code scan quickly, while unknown languages render as plain monospaced text.
 enum SyntaxHighlighter {
-    static func highlighted(
-        _ source: String,
-        language: String,
-        colorScheme: ColorScheme
-    ) -> AttributedString {
+    static func highlighted(_ source: String, language: String, colorScheme: ColorScheme,
+                            preserveLineNumberPrefixes: Bool = false) -> AttributedString {
         var attributed = AttributedString(source)
         let normalizedLanguage = normalizedLanguage(language)
         guard let spec = languageSpecs[normalizedLanguage], !source.isEmpty else {
@@ -40,6 +37,10 @@ enum SyntaxHighlighter {
             for match in matches(for: rule, in: source) where !protectedRanges.intersects(match.range) {
                 apply(match.color, to: match.range, in: source, attributed: &attributed)
             }
+        }
+
+        if preserveLineNumberPrefixes {
+            applyBaseColorToLeadingLineNumberPrefixes(in: source, palette: palette, attributed: &attributed)
         }
 
         return attributed
@@ -89,8 +90,19 @@ enum SyntaxHighlighter {
         }
         return lower..<upper
     }
-}
 
+    private static func applyBaseColorToLeadingLineNumberPrefixes(
+        in source: String,
+        palette: Palette,
+        attributed: inout AttributedString
+    ) {
+        let fullRange = NSRange(location: 0, length: (source as NSString).length)
+        let regex = try? NSRegularExpression(pattern: #"^\s*\d+(\t| +)"#, options: [.anchorsMatchLines])
+        regex?.matches(in: source, options: [], range: fullRange).forEach {
+            apply(palette.base, to: $0.range, in: source, attributed: &attributed)
+        }
+    }
+}
 private struct TokenMatch {
     let range: NSRange
     let color: Color

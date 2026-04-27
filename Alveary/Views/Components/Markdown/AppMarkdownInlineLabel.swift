@@ -34,7 +34,6 @@ struct AppMarkdownInlineLabel: View {
                         Text(value).font(swiftUIFont)
                     case .code(let value), .mention(let value):
                         AppMarkdownInlineCodeChip(text: value, style: .standard, fontSize: chipFontSize)
-                            .fixedSize()
                             .frame(height: textLineHeight, alignment: .center)
                     }
                 }

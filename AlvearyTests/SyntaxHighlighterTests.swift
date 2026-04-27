@@ -44,8 +44,28 @@ final class SyntaxHighlighterTests: XCTestCase {
         XCTAssertEqual(SyntaxHighlighter.normalizedLanguage("plist"), "xml")
     }
 
+    func testPreservesReadToolLineNumberPrefixesInsideMarkdownFence() throws {
+        let highlighted = SyntaxHighlighter.highlighted(
+            "12\t```bash\n13\tpython3 ai-rules/watermark.py\n14\t```\n15\t",
+            language: "markdown",
+            colorScheme: .dark,
+            preserveLineNumberPrefixes: true
+        )
+
+        let lineNumberRun = try XCTUnwrap(runText(containing: "13\t", in: highlighted))
+        XCTAssertEqual(lineNumberRun, "13\t")
+        XCTAssertEqual(runText(containing: "python3", in: highlighted), "python3 ai-rules/watermark.py\n")
+    }
+
     private func runCount(in attributed: AttributedString) -> Int {
         attributed.runs.reduce(0) { count, _ in count + 1 }
+    }
+
+    private func runText(containing needle: String, in attributed: AttributedString) -> String? {
+        attributed.runs.compactMap { run -> String? in
+            let value = String(attributed[run.range].characters)
+            return value.contains(needle) ? value : nil
+        }.first
     }
 }
 

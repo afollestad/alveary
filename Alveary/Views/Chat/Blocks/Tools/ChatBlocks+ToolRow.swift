@@ -63,6 +63,7 @@ struct InlineToolRow: View {
                     .padding(.top, transcriptToolExpandedContentTopSpacing)
                     .padding(.bottom, toolExpandedContentBottomSpacing)
                     .padding(.leading, transcriptToolDetailLeadingInset)
+                    .padding(.trailing, transcriptToolDetailTrailingInset)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

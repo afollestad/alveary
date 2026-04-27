@@ -59,7 +59,7 @@ struct AppMarkdownParser {
     }
 
     private func markdownByPreparingSourceForParsing(_ input: String) -> String {
-        var output = input
+        var output = markdownByNormalizingFrontMatter(in: input)
         output = replacingMatchesOutsideCode(
             pattern: #"<u(?:\s[^>]*)?>([\s\S]*?)</u>"#,
             in: output
@@ -96,6 +96,61 @@ struct AppMarkdownParser {
             return altText.isEmpty ? destination : altText
         }
         return output
+    }
+
+    private func markdownByNormalizingFrontMatter(in input: String) -> String {
+        let source = input as NSString
+        guard source.length > 0 else {
+            return input
+        }
+
+        let firstLineRange = source.lineRange(for: NSRange(location: 0, length: 0))
+        guard trimmedLine(source.substring(with: firstLineRange)) == "---" else {
+            return input
+        }
+
+        var location = NSMaxRange(firstLineRange)
+        while location < source.length {
+            let lineRange = source.lineRange(for: NSRange(location: location, length: 0))
+            if trimmedLine(source.substring(with: lineRange)) == "---" {
+                let frontMatterRange = NSRange(location: NSMaxRange(firstLineRange), length: lineRange.location - NSMaxRange(firstLineRange))
+                let bodyStart = NSMaxRange(lineRange)
+                let frontMatter = frontMatterMarkdown(from: source.substring(with: frontMatterRange))
+                let body = bodyStart < source.length ? source.substring(from: bodyStart).trimmingCharacters(in: .newlines) : ""
+                return [frontMatter, "---", body]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "\n\n")
+            }
+            location = NSMaxRange(lineRange)
+        }
+        return input
+    }
+
+    private func frontMatterMarkdown(from rawFrontMatter: String) -> String {
+        rawFrontMatter.trimmingCharacters(in: .newlines)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                let value = String(line)
+                return value.isEmpty ? value : "\(frontMatterLineMarkdown(from: value))  "
+            }
+            .joined(separator: "\n")
+    }
+
+    private func frontMatterLineMarkdown(from line: String) -> String {
+        guard let colonIndex = line.firstIndex(of: ":") else {
+            return line
+        }
+        let prefix = line[..<colonIndex]
+        let indentation = prefix.prefix(while: \.isWhitespace)
+        let key = prefix.dropFirst(indentation.count)
+        guard !key.isEmpty else {
+            return line
+        }
+        return "\(indentation)**\(key)**\(line[colonIndex...])"
+    }
+
+    private func trimmedLine(_ line: String) -> String {
+        line.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func replacingHTMLPairTags(
