@@ -326,26 +326,25 @@ struct ChatInputField: View {
                 switch mode {
                 case .idle:
                     Button(action: performSubmit) {
-                        ChatInputActionLabel("Send", systemImage: "paperplane.fill")
+                        ChatInputSendFootprintLabel {
+                            ChatInputActionLabel("Send", systemImage: "paperplane.fill")
+                        }
                     }
                     .primaryActionButtonStyle()
                     .disabled(isProjectTrustBlocked || trimmedText.isEmpty)
 
                 case .busy(let canStop):
-                    Button(action: performSubmit) {
-                        ChatInputActionLabel("Queue", systemImage: "clock")
-                    }
-                        .primaryActionButtonStyle()
-                        .disabled(isProjectTrustBlocked || trimmedText.isEmpty)
-
                     if canStop {
                         ChatInputStopButton(
                             showsShortcutHint: showsStopShortcutHint,
                             action: performStop
                         )
                     } else {
-                        ProgressView()
-                            .controlSize(.small)
+                        ChatInputSendFootprintSlot {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        .accessibilityLabel("Sending message")
                     }
 
                 case .progressOnly(let reason):
@@ -466,9 +465,12 @@ private struct ChatInputStopButton: View {
 
     var body: some View {
         Button(action: action) {
-            ChatInputActionLabel("Stop", systemImage: "stop.fill")
+            ChatInputSendFootprintLabel {
+                ChatInputActionLabel("Stop", systemImage: "stop.fill")
+            }
         }
         .destructiveActionButtonStyle()
+        .accessibilityLabel("Stop")
         .overlay(alignment: .bottomTrailing) {
             if showsShortcutHint {
                 Text("Press Esc again to stop")

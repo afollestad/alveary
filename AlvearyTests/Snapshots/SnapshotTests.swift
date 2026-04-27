@@ -97,10 +97,10 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testChatInputFieldBusyQueueOnly() {
+    func testChatInputFieldBusyProgressOnly() {
         assertMacSnapshot(
             ChatInputField(
-                text: .constant("Queue the follow-up diff audit after the current turn finishes."),
+                text: .constant("Follow up on the diff audit after the current turn finishes."),
                 mode: .busy(canStop: false),
                 onSubmit: {},
                 onSteer: {},
@@ -116,7 +116,7 @@ final class SnapshotTests: XCTestCase {
                 loadSkillCompletions: { [] }
             ),
             size: CGSize(width: 760, height: 240),
-            named: "chat_input_busy_queue_only"
+            named: "chat_input_busy_progress_only"
         )
     }
 
