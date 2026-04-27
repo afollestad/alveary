@@ -21,6 +21,41 @@ extension SnapshotTests {
         )
     }
 
+    func testAssistantBubbleCodeBlockFillsResolvedMarkdownWidth() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                This line is wider than the small code sample.
+
+                ```swift
+                let ok = true
+                ```
+                """
+            ),
+            size: CGSize(width: 620, height: 240),
+            named: "assistant_bubble_code_block_fills_resolved_markdown_width"
+        )
+    }
+
+    func testAssistantBubbleWideCodeBlockScrollsInternally() {
+        let longCodeLine = #"let message = "This code line is intentionally long enough to exceed the compact assistant bubble width "# +
+            #"and require horizontal scrolling.""#
+
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                Long code:
+
+                ```swift
+                \(longCodeLine)
+                ```
+                """
+            ),
+            size: CGSize(width: 460, height: 240),
+            named: "assistant_bubble_wide_code_block_scrolls_internally"
+        )
+    }
+
     func testAssistantBubbleTable() {
         assertMacSnapshot(
             AssistantBubble(
@@ -66,6 +101,22 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 520, height: 250),
             named: "assistant_bubble_task_list_and_html"
+        )
+    }
+
+    func testAssistantBubbleHorizontalRuleDoesNotForceMaxWidth() {
+        assertMacSnapshot(
+            AssistantBubble(
+                markdown: """
+                Compact content above.
+
+                ---
+
+                Compact content below.
+                """
+            ),
+            size: CGSize(width: 620, height: 220),
+            named: "assistant_bubble_horizontal_rule_does_not_force_max_width"
         )
     }
 
@@ -196,6 +247,22 @@ extension SnapshotTests {
             size: CGSize(width: 520, height: 220),
             named: "assistant_bubble_mixed_inline_code_line_height_dark",
             colorScheme: .dark
+        )
+    }
+
+    func testAssistantBubbleLongMarkdownCollapsed() {
+        assertMacSnapshot(
+            AssistantBubble(markdown: longAssistantMarkdown),
+            size: CGSize(width: 620, height: 520),
+            named: "assistant_bubble_long_markdown_collapsed"
+        )
+    }
+
+    func testAssistantBubbleLongMarkdownExpanded() {
+        assertMacSnapshot(
+            AssistantBubble(markdown: longAssistantMarkdown, initiallyExpanded: true),
+            size: CGSize(width: 620, height: 760),
+            named: "assistant_bubble_long_markdown_expanded"
         )
     }
 
@@ -332,5 +399,41 @@ extension SnapshotTests {
         .padding(.horizontal, 20)
         .padding(.top, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var longAssistantMarkdown: String {
+        """
+        # Implementation Plan
+
+        Render the plan markdown before the user decides whether to leave plan mode.
+
+        ## Transcript
+
+        The plan should appear as normal assistant markdown so headings, lists, links, and inline code all use the same
+        rendering path as every other assistant response. Collapsing should be visual only, which means the markdown string
+        stays intact and the rendered view is clipped after layout.
+
+        ## Approval
+
+        The approval card remains focused on the decision:
+
+        - `Leave plan mode` approves the deferred tool.
+        - `Keep planning` denies it and leaves the session in plan mode.
+        - Resolved rows continue to show their persisted approval state.
+
+        ## Validation
+
+        Snapshot coverage should include collapsed and expanded long markdown bubbles so future changes cannot silently
+        remove the height cap or the explicit expanded test hook.
+
+        ## Review Details
+
+        The fixture intentionally crosses the assistant bubble cap while staying small enough for snapshot review:
+
+        - Headings should keep their markdown typography.
+        - Inline code like `ToolApprovalRequest.planMarkdown` should render normally.
+        - List markers should remain aligned before and after expansion.
+        - The control row should sit below the faded content without introducing a nested scroll surface.
+        """
     }
 }

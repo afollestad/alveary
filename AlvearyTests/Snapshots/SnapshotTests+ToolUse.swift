@@ -168,14 +168,20 @@ extension SnapshotTests {
 
     func testToolApprovalExitPlanMode() {
         assertMacSnapshot(
-            ToolApprovalBlock(
-                approval: sampleExitPlanModeApproval,
-                status: .pending,
-                onApprove: {},
-                onApproveForSession: { _ in },
-                onDeny: {}
-            ),
-            size: CGSize(width: 760, height: 120),
+            VStack(alignment: .leading, spacing: 6) {
+                if let planMarkdown = sampleExitPlanModeApproval.planMarkdown {
+                    AssistantBubble(markdown: planMarkdown)
+                }
+
+                ToolApprovalBlock(
+                    approval: sampleExitPlanModeApproval,
+                    status: .pending,
+                    onApprove: {},
+                    onApproveForSession: { _ in },
+                    onDeny: {}
+                )
+            },
+            size: CGSize(width: 760, height: 300),
             named: "tool_approval_exit_plan_mode"
         )
     }

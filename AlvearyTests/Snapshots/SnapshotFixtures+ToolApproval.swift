@@ -70,7 +70,20 @@ extension SnapshotTests {
             sessionId: "session-snapshot",
             toolUseId: "tool-exit-plan",
             toolName: "ExitPlanMode",
-            toolInput: "{\"plan\":\"Summarize the agreed approach and leave plan mode.\"}"
+            toolInput: exitPlanModeToolInput(plan: """
+            # Implementation Plan
+
+            Render the plan markdown directly above the approval prompt before leaving plan mode.
+
+            - Parse the `plan` field from `ExitPlanMode` tool input.
+            - Reuse the assistant markdown bubble so formatting, links, and code blocks stay consistent.
+            - Keep the approval card focused on the decision controls.
+            """)
         )
+    }
+
+    private func exitPlanModeToolInput(plan: String) -> String {
+        let data = try? JSONSerialization.data(withJSONObject: ["plan": plan], options: [.sortedKeys])
+        return data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     }
 }

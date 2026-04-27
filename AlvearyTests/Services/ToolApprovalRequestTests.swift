@@ -54,6 +54,56 @@ final class ToolApprovalRequestTests: XCTestCase {
         )
     }
 
+    func testPlanMarkdownExtractsExitPlanModePlan() {
+        XCTAssertEqual(
+            request(
+                toolName: "ExitPlanMode",
+                toolInput: ##"{"plan":"# Plan\n\n- Render markdown before approval."}"##
+            ).planMarkdown,
+            "# Plan\n\n- Render markdown before approval."
+        )
+    }
+
+    func testPlanMarkdownTrimsWhitespace() {
+        XCTAssertEqual(
+            request(
+                toolName: "ExitPlanMode",
+                toolInput: #"{"plan":"\n\n  Review this plan.  \n"}"#
+            ).planMarkdown,
+            "Review this plan."
+        )
+    }
+
+    func testPlanMarkdownIgnoresNonExitPlanModeTool() {
+        XCTAssertNil(
+            request(
+                toolName: "Bash",
+                toolInput: #"{"plan":"Not a plan-mode approval."}"#
+            ).planMarkdown
+        )
+    }
+
+    func testPlanMarkdownIgnoresInvalidInput() {
+        XCTAssertNil(request(toolName: "ExitPlanMode", toolInput: #"{"plan":""}"#).planMarkdown)
+        XCTAssertNil(request(toolName: "ExitPlanMode", toolInput: #"{"command":"date"}"#).planMarkdown)
+        XCTAssertNil(request(toolName: "ExitPlanMode", toolInput: "not json").planMarkdown)
+    }
+
+    func testPlanMarkdownUsesFallbackWithoutChangingToolInput() {
+        let approval = request(toolName: "ExitPlanMode", toolInput: "{}")
+            .withPlanMarkdownFallback("# Plan\n\n- Use the assistant message.")
+
+        XCTAssertEqual(approval.planMarkdown, "# Plan\n\n- Use the assistant message.")
+        XCTAssertEqual(approval.toolInput, "{}")
+    }
+
+    func testPlanMarkdownUsesFallbackWhenExplicitPlanIsEmpty() {
+        let approval = request(toolName: "ExitPlanMode", toolInput: #"{"plan":"  "}"#)
+            .withPlanMarkdownFallback("Fallback plan")
+
+        XCTAssertEqual(approval.planMarkdown, "Fallback plan")
+    }
+
     private func title(for toolNames: [String]) -> String {
         let approvals = toolNames.enumerated().map { offset, toolName in
             request(toolName: toolName, toolUseId: "tool-\(offset)")

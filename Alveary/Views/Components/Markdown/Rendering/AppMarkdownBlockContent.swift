@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 
+private let appMarkdownBlockSpacing: CGFloat = 8
+private let appMarkdownFallbackThematicBreakWidth: CGFloat = 240
+
 struct AppMarkdownBlockContent<Content: AttributedStringProtocol>: View {
     let content: Content
     let parent: PresentationIntent.IntentType?
@@ -24,7 +27,7 @@ struct AppMarkdownBlockContent<Content: AttributedStringProtocol>: View {
 
     var body: some View {
         let runs = content.appMarkdownBlockRuns(parent: parent)
-        VStack(alignment: .leading, spacing: 8) {
+        AppMarkdownBlockStackLayout(spacing: appMarkdownBlockSpacing) {
             ForEach(runs.indices, id: \.self) { index in
                 let run = runs[index]
                 AppMarkdownBlock(
@@ -59,6 +62,7 @@ struct AppMarkdownBlock: View {
                 languageHint: languageHint
             )
             .padding(.vertical, 2)
+            .layoutValue(key: AppMarkdownIntrinsicWidthLayoutKey.self, value: true)
         case .unorderedList:
             AppMarkdownList(
                 intent: intent,
@@ -93,8 +97,11 @@ struct AppMarkdownBlock: View {
             }
             .padding(.vertical, 2)
         case .thematicBreak:
-            Divider()
+            Rectangle()
+                .fill(Color.secondary.opacity(0.24))
+                .frame(height: 1)
                 .padding(.vertical, 4)
+                .layoutValue(key: AppMarkdownThematicBreakLayoutKey.self, value: true)
         case .table(let columns):
             AppMarkdownTable(
                 intent: intent,
@@ -130,5 +137,89 @@ struct AppMarkdownBlock: View {
 extension String {
     func appMarkdownAppendingPathComponent(_ component: Int) -> String {
         isEmpty ? "\(component)" : "\(self).\(component)"
+    }
+}
+
+private struct AppMarkdownThematicBreakLayoutKey: LayoutValueKey {
+    static let defaultValue = false
+}
+
+private struct AppMarkdownIntrinsicWidthLayoutKey: LayoutValueKey {
+    static let defaultValue = false
+}
+
+private struct AppMarkdownBlockStackLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let childProposal = ProposedViewSize(width: proposal.width, height: nil)
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+        var hasWidthContributingSubview = false
+
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(childProposal)
+            if index > 0 {
+                height += spacing
+            }
+            height += size.height
+
+            guard !subview[AppMarkdownThematicBreakLayoutKey.self] else {
+                continue
+            }
+            hasWidthContributingSubview = true
+            width = max(width, widthContribution(for: subview, measuredSize: size, proposal: proposal))
+        }
+
+        if !hasWidthContributingSubview {
+            width = min(proposal.width ?? appMarkdownFallbackThematicBreakWidth, appMarkdownFallbackThematicBreakWidth)
+        }
+
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var currentY = bounds.minY
+        let childProposal = ProposedViewSize(width: bounds.width, height: nil)
+
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(childProposal)
+            if index > 0 {
+                currentY += spacing
+            }
+            subview.place(
+                at: CGPoint(x: bounds.minX, y: currentY),
+                anchor: .topLeading,
+                proposal: childProposal
+            )
+            currentY += size.height
+        }
+    }
+
+    private func widthContribution(
+        for subview: LayoutSubview,
+        measuredSize: CGSize,
+        proposal: ProposedViewSize
+    ) -> CGFloat {
+        guard subview[AppMarkdownIntrinsicWidthLayoutKey.self] else {
+            return measuredSize.width
+        }
+
+        // Code blocks fill the stack width like rules when placed, but report their
+        // intrinsic code width here so they expand the bubble only when content needs it.
+        let intrinsicWidth = subview.sizeThatFits(ProposedViewSize(width: nil, height: nil)).width
+        guard let proposedWidth = proposal.width else {
+            return intrinsicWidth
+        }
+        return min(intrinsicWidth, proposedWidth)
     }
 }

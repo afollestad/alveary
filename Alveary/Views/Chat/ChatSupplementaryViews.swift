@@ -4,6 +4,11 @@ import SwiftUI
 private let chatBubbleHorizontalPadding: CGFloat = 12
 private let chatBubbleCornerRadius: CGFloat = 12
 private let projectTrustPromptMessageMaxWidth: CGFloat = 760
+private let assistantBubbleCollapsedMaxContentHeight: CGFloat = 260
+private let assistantBubbleCollapseFadeHeight: CGFloat = 56
+private let assistantBubbleControlClearance: CGFloat = 8
+private let assistantBubbleControlSpacing: CGFloat = 4
+private let assistantBubbleToggleMinHeight: CGFloat = 24
 
 struct ProjectTrustPrompt: Equatable {
     let threadID: PersistentIdentifier
@@ -184,26 +189,106 @@ struct AssistantBubble: View {
     let markdown: String
 
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
+    @State private var isExpanded: Bool
+    @State private var markdownContentHeight: CGFloat = 0
 
     init(
         id: String? = nil,
-        markdown: String
+        markdown: String,
+        initiallyExpanded: Bool = false
     ) {
         self.id = id
         self.markdown = markdown
+        _isExpanded = State(initialValue: initiallyExpanded)
     }
 
     var body: some View {
-        AppMarkdownText(markdown: markdown, taskStateScope: id)
-            .padding(.horizontal, chatBubbleHorizontalPadding)
-            .padding(.vertical, chatVerticalPadding)
-            .background(
-                RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
+        VStack(alignment: .leading, spacing: assistantBubbleControlSpacing) {
+            markdownContent
+
+            if isOverflowing {
+                expansionToggle
+            }
+        }
+        .padding(.horizontal, chatBubbleHorizontalPadding)
+        .padding(.vertical, chatVerticalPadding)
+        .background(
+            RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
+        // See the matching user-bubble comment above.
+        .geometryGroup()
+        .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
+    }
+
+    private var isOverflowing: Bool {
+        markdownContentHeight > assistantBubbleCollapsedMaxContentHeight + 1
+    }
+
+    private var isCollapsed: Bool {
+        isOverflowing && !isExpanded
+    }
+
+    private var markdownContent: some View {
+        Group {
+            if isCollapsed {
+                measuredMarkdownContent
+                    .frame(height: assistantBubbleCollapsedMaxContentHeight, alignment: .top)
+                    .contentShape(Rectangle())
+                    .clipped()
+                    .mask(alignment: .bottom) {
+                        collapsedMarkdownFadeMask
+                    }
+            } else {
+                measuredMarkdownContent
+            }
+        }
+            .padding(.bottom, isOverflowing ? assistantBubbleControlClearance : 0)
+            // Rebuild the markdown subtree when the cap toggles so selectable
+            // runs and task controls inherit the current clipped layout.
+            .id(isCollapsed)
+            .animation(toolExpansionAnimation, value: isCollapsed)
+    }
+
+    private var expansionToggle: some View {
+        TranscriptHeaderToggle(fillsWidth: false, action: toggleExpansion) {
+            Label(isExpanded ? "Show less" : "Show more", systemImage: isExpanded ? "chevron.up" : "chevron.down")
+                .frame(minHeight: assistantBubbleToggleMinHeight, alignment: .center)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .accessibilityLabel(isExpanded ? "Show less" : "Show more")
+    }
+
+    private func toggleExpansion() {
+        let newValue = !isExpanded
+        withAnimation(toolExpansionAnimation) {
+            isExpanded = newValue
+        }
+    }
+
+    private var collapsedMarkdownFadeMask: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+            LinearGradient(
+                colors: [.black, .clear],
+                startPoint: .top,
+                endPoint: .bottom
             )
-            // See the matching user-bubble comment above.
-            .geometryGroup()
-            .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
+            .frame(height: assistantBubbleCollapseFadeHeight)
+        }
+    }
+
+    private var measuredMarkdownContent: some View {
+        AppMarkdownText(
+            markdown: markdown,
+            taskStateScope: id
+        )
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newValue in
+                markdownContentHeight = newValue
+            }
     }
 }
 

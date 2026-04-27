@@ -168,4 +168,42 @@ extension ChatItemGrouperTests {
         }
         XCTAssertEqual(request.toolUseId, "tool-exit")
     }
+
+    func testExitPlanModeApprovalUsesPreviousAssistantMessageAsFallbackPlan() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let assistantPlan = ConversationEventRecord(
+            id: "assistant-plan",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: "# Plan\n\n- Leave plan mode after reviewing answers."
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        let exitPlanModeCall = ConversationEventRecord(
+            id: "exit-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+
+        grouper.update(events: [assistantPlan, exitPlanModeCall, approval])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .toolApproval(_, let request, _) = grouper.items.first else {
+            return XCTFail("Expected the assistant plan to attach to the approval block")
+        }
+        XCTAssertEqual(request.planMarkdown, "# Plan\n\n- Leave plan mode after reviewing answers.")
+        XCTAssertEqual(request.toolInput, "{}")
+    }
 }

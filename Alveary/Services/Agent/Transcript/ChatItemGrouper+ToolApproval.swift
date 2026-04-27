@@ -2,6 +2,8 @@ import Foundation
 
 extension ChatItemGrouper {
     func appendToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
+        let approval = approvalWithFallbackPlanIfNeeded(approval)
+
         if updateExistingRenderedApproval(approval, status: status) {
             return
         }
@@ -41,6 +43,31 @@ extension ChatItemGrouper {
             sessionId: approval.sessionId,
             status: status
         )
+    }
+
+    private func approvalWithFallbackPlanIfNeeded(_ approval: ToolApprovalRequest) -> ToolApprovalRequest {
+        guard approval.toolName == "ExitPlanMode",
+              approval.planMarkdown == nil,
+              let lastItem = items.last,
+              case .assistantMessage = lastItem,
+              let fallbackPlanMarkdown = fallbackPlanMarkdown(from: lastItem) else {
+            return approval
+        }
+
+        // Some Claude `ExitPlanMode` hook payloads arrive with `{}` input even though
+        // the assistant just wrote the plan. Treat that immediately preceding message
+        // as approval-local plan display without mutating the tool input sent to Claude.
+        items.removeLast()
+        return approval.withPlanMarkdownFallback(fallbackPlanMarkdown)
+    }
+
+    private func fallbackPlanMarkdown(from item: ChatItem) -> String? {
+        guard case .assistantMessage(_, let text) = item else {
+            return nil
+        }
+        return text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
 
     private func appendSingleToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
@@ -159,5 +186,11 @@ extension ChatItemGrouper {
             status: status
         )
         return true
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

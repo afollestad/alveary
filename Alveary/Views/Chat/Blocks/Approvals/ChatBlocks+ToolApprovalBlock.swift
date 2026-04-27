@@ -62,7 +62,7 @@ struct ToolApprovalBlock: View {
             TranscriptStaticHeaderRow(title: title, systemImage: "lock.fill", bottomPadding: 0, fillsWidth: false)
 
             approvalSummary
-                .padding(.top, toolApprovalActionsTopSpacing)
+                .padding(.top, toolApprovalSummaryTopSpacing)
                 .padding(.leading, transcriptToolDetailLeadingInset)
 
             actionLayout

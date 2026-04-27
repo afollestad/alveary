@@ -12,30 +12,42 @@ struct AppMarkdownTable: View {
     var body: some View {
         let renderedRows = rows
         let renderedColumnWidths = columnWidths(for: renderedRows)
-        ScrollView(.horizontal) {
-            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
-                ForEach(renderedRows.indices, id: \.self) { rowIndex in
-                    GridRow(alignment: .top) {
-                        ForEach(renderedRows[rowIndex].cells.indices, id: \.self) { columnIndex in
-                            AppMarkdownTableCell(
-                                content: renderedRows[rowIndex].cells[columnIndex],
-                                isHeader: rowIndex == 0,
-                                inlineCodeStyle: inlineCodeStyle,
-                                width: renderedColumnWidths[safe: columnIndex] ?? 72,
-                                alignment: alignment(for: columnIndex)
-                            )
-                        }
+
+        ViewThatFits(in: .horizontal) {
+            tableContent(rows: renderedRows, columnWidths: renderedColumnWidths)
+
+            ScrollView(.horizontal) {
+                tableContent(rows: renderedRows, columnWidths: renderedColumnWidths)
+            }
+        }
+    }
+
+    private func tableContent(
+        rows: [AppMarkdownTableRow],
+        columnWidths: [CGFloat]
+    ) -> some View {
+        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+            ForEach(rows.indices, id: \.self) { rowIndex in
+                GridRow(alignment: .top) {
+                    ForEach(rows[rowIndex].cells.indices, id: \.self) { columnIndex in
+                        AppMarkdownTableCell(
+                            content: rows[rowIndex].cells[columnIndex],
+                            isHeader: rowIndex == 0,
+                            inlineCodeStyle: inlineCodeStyle,
+                            width: columnWidths[safe: columnIndex] ?? 72,
+                            alignment: alignment(for: columnIndex)
+                        )
                     }
                 }
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .background(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme).opacity(0.45))
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
-            )
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .background(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme).opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
+        )
     }
 
     private var rows: [AppMarkdownTableRow] {

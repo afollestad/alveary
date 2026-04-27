@@ -49,8 +49,23 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     let toolUseId: String
     let toolName: String
     let toolInput: String
+    let planMarkdownFallback: String?
 
     var id: String { toolUseId }
+
+    init(
+        sessionId: String,
+        toolUseId: String,
+        toolName: String,
+        toolInput: String,
+        planMarkdownFallback: String? = nil
+    ) {
+        self.sessionId = sessionId
+        self.toolUseId = toolUseId
+        self.toolName = toolName
+        self.toolInput = toolInput
+        self.planMarkdownFallback = planMarkdownFallback
+    }
 
     var composerStatusText: DeferredToolComposerStatusText {
         switch toolName {
@@ -94,6 +109,20 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             candidate?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
                 ?? "Review requested tool input"
         )
+    }
+
+    var planMarkdown: String? {
+        guard toolName == "ExitPlanMode" else {
+            return nil
+        }
+
+        let explicitPlan = parsedInput["plan"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        let fallbackPlan = planMarkdownFallback?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        return explicitPlan ?? fallbackPlan
     }
 
     var supportedSessionApprovalScopes: [ToolApprovalSessionScope] {
@@ -169,6 +198,16 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return nil
         }
         return String(data: updatedData, encoding: .utf8)
+    }
+
+    func withPlanMarkdownFallback(_ fallback: String) -> ToolApprovalRequest {
+        ToolApprovalRequest(
+            sessionId: sessionId,
+            toolUseId: toolUseId,
+            toolName: toolName,
+            toolInput: toolInput,
+            planMarkdownFallback: fallback
+        )
     }
 
     func sessionApprovalMatch(

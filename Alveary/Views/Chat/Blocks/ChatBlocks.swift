@@ -14,6 +14,7 @@ let transcriptToolApprovalBodyFontSize: CGFloat = 12
 let approvalCommandChipCornerRadius: CGFloat = 4
 let approvalCommandChipHPadding: CGFloat = 3
 let approvalCommandChipVPadding: CGFloat = 1
+let toolApprovalSummaryTopSpacing: CGFloat = 8
 let toolApprovalActionsTopSpacing: CGFloat = 12
 let transcriptToolIconFontSize: CGFloat = 11
 let transcriptToolStatusIconFontSize: CGFloat = 11

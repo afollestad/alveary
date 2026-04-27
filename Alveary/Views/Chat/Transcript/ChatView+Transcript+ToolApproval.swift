@@ -11,27 +11,33 @@ extension ChatTranscriptView {
         if let fallbackApproval = approvals.last {
             let approval = actionableApproval(in: approvals) ?? fallbackApproval
 
-            ToolApprovalBlock(
-                approval: approval,
-                approvals: approvals,
-                status: approvalStatus(for: approvals, persistedStatus: persistedStatus),
-                isBlocked: viewModel.hasUnansweredPrompt,
-                onApprove: {
-                    resolveToolApproval(approval, approve: true)
-                },
-                onApproveForSession: { scope in
-                    resolveToolApprovalForSession(approval, scope: scope)
-                },
-                onDeny: {
-                    resolveToolApproval(approval, approve: false)
-                },
-                loadApprovalSelection: {
-                    await viewModel.toolApprovalSelection(for: approval)
-                },
-                onSelectApprovalSelection: { selection in
-                    viewModel.recordToolApprovalSelection(selection, for: approval)
+            VStack(alignment: .leading, spacing: 6) {
+                if let planMarkdown = approvalPlanMarkdown(for: approvals, actionableApproval: approval) {
+                    AssistantBubble(markdown: planMarkdown)
                 }
-            )
+
+                ToolApprovalBlock(
+                    approval: approval,
+                    approvals: approvals,
+                    status: approvalStatus(for: approvals, persistedStatus: persistedStatus),
+                    isBlocked: viewModel.hasUnansweredPrompt,
+                    onApprove: {
+                        resolveToolApproval(approval, approve: true)
+                    },
+                    onApproveForSession: { scope in
+                        resolveToolApprovalForSession(approval, scope: scope)
+                    },
+                    onDeny: {
+                        resolveToolApproval(approval, approve: false)
+                    },
+                    loadApprovalSelection: {
+                        await viewModel.toolApprovalSelection(for: approval)
+                    },
+                    onSelectApprovalSelection: { selection in
+                        viewModel.recordToolApprovalSelection(selection, for: approval)
+                    }
+                )
+            }
         }
     }
 
@@ -59,6 +65,16 @@ extension ChatTranscriptView {
             pending.request.sessionId == $0.sessionId &&
                 pending.request.toolUseId == $0.toolUseId
         }
+    }
+
+    func approvalPlanMarkdown(
+        for approvals: [ToolApprovalRequest],
+        actionableApproval: ToolApprovalRequest
+    ) -> String? {
+        guard approvals.count == 1 else {
+            return nil
+        }
+        return approvals.first?.planMarkdown ?? actionableApproval.planMarkdown
     }
 }
 
