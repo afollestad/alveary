@@ -447,7 +447,7 @@ private extension ChatTranscriptView {
             //
             // Do NOT call `scrollPosition.scrollTo(edge: .bottom)` here either. An
             // earlier iteration added a "final corrective scrollTo" for the
-            // near-but-not-at-bottom case (distance ∈ (6, 60)), but that explicit
+            // near-but-not-at-bottom case (between the snap and near-bottom thresholds), but that explicit
             // position write interacted badly with `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
             // during LazyVStack calibration on app launch to large threads — the
             // transcript ended up scrolled well above the bottom with the jump-to-

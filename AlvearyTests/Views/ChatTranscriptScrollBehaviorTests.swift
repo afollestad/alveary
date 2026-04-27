@@ -396,6 +396,21 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
+    func testNextFollowingStateDropsFollowingOnSmallUserScrollAway() {
+        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
+        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 584, contentHeight: 1_000, containerHeight: 400)
+        // Distance grew from 0 to 16pt. This is enough visible separation from
+        // bottom for the composer divider and jump-to-latest button to appear.
+
+        XCTAssertFalse(
+            ChatTranscriptScrollBehavior.nextFollowingState(
+                currentIsFollowing: true,
+                oldMetrics: oldMetrics,
+                newMetrics: newMetrics
+            )
+        )
+    }
+
     func testNextFollowingStatePassesThroughWhenAmbiguous() {
         // Neither near bottom nor a user drag away: not enough signal to flip.
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 460)

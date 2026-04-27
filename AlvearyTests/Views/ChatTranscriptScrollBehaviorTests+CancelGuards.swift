@@ -42,8 +42,8 @@ extension ChatTranscriptScrollBehaviorTests {
     // pre-fix cancel fired in that case, flipping `isFollowing` to false and
     // flashing the jump-to-latest button mid-stream — user-visible symptom:
     // "the button briefly appeared towards the end" of a long streaming response.
-    // The fix requires the new position to be clearly past near-bottom
-    // (distance >= 60pt) before honoring the cancel signal.
+    // The fix requires the new position to be clearly past near-bottom before
+    // honoring the cancel signal.
     func testDoesNotCancelProgrammaticScrollOnAnchorAdjustmentDuringStreaming() {
         // From observed log: content (228) < viewport (593), `scrollTo(edge: .bottom)`
         // swings offsetY from 0 to -377 while pinning content to viewport-bottom.

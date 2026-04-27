@@ -1,6 +1,7 @@
 import Foundation
 
 private let transcriptBottomSnapThreshold: CGFloat = 6
+private let transcriptNearBottomThreshold: CGFloat = 16
 
 /// Maximum single-tick offsetY drop that can plausibly be a user drag-away.
 /// Anything larger is treated as a programmatic scroll-state disturbance (e.g.
@@ -20,7 +21,7 @@ struct ChatTranscriptScrollMetrics: Equatable {
     }
 
     var isNearBottom: Bool {
-        return distanceFromBottom < 60
+        return distanceFromBottom < transcriptNearBottomThreshold
     }
 
     var isAtBottom: Bool {
@@ -95,7 +96,7 @@ enum ChatTranscriptScrollBehavior {
     ///   in that state causes a large offsetY decrease (e.g. 0 → -377) that looks
     ///   like a user drag per the offset-decrease rule, but `distanceFromBottom`
     ///   lands within the near-bottom band (e.g. 12pt). A real user drag-away moves
-    ///   past 60pt; anchor adjustments don't.
+    ///   past the near-bottom threshold; anchor adjustments don't.
     /// - **plausibleUserVelocity** (`offsetDrop < transcriptCancelMaxPerTickDrop`):
     ///   turn-end `forceFullRebuild` regenerates tool-group identities, so the
     ///   ScrollView loses its anchor view mid-diff and offsetY can snap to a stale
@@ -153,7 +154,7 @@ enum ChatTranscriptScrollBehavior {
     /// `onScrollGeometryChange` with the new `contentHeight` before
     /// `.defaultScrollAnchor(.bottom, for: .sizeChanges)` has bumped `offsetY`
     /// to re-pin the bottom, so `distanceFromBottom` momentarily spikes past the
-    /// 60pt `isNearBottom` threshold. Naively writing `isFollowing = isNearBottom`
+    /// `isNearBottom` threshold. Naively writing `isFollowing = isNearBottom`
     /// on that tick flips the flag to `false`, which cascades:
     /// - `.defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)`
     ///   stops pinning on the very next size change, so further content growth
