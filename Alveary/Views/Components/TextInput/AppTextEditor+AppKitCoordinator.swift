@@ -217,13 +217,28 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     }
 
     func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        guard let key = AppTextEditorKey(selector: commandSelector),
-              parent.keyPressKeys.contains(key),
+        guard let key = AppTextEditorKey(selector: commandSelector) else {
+            return false
+        }
+
+        return handleKeyPress(key: key, modifiers: NSApp.currentEvent?.modifierFlags.eventModifiers ?? [])
+    }
+
+    func handleKeyEquivalent(_ event: NSEvent) -> Bool {
+        // Command-Return can bypass NSTextView's command selector path.
+        guard let key = AppTextEditorKey(keyEquivalentEvent: event) else {
+            return false
+        }
+
+        return handleKeyPress(key: key, modifiers: event.modifierFlags.eventModifiers)
+    }
+
+    private func handleKeyPress(key: AppTextEditorKey, modifiers: EventModifiers) -> Bool {
+        guard parent.keyPressKeys.contains(key),
               let handler = parent.onKeyPress else {
             return false
         }
 
-        let modifiers = NSApp.currentEvent?.modifierFlags.eventModifiers ?? []
         let result = handler(AppTextEditorKeyPress(key: key, modifiers: modifiers))
         return result == .handled
     }
@@ -353,7 +368,23 @@ private extension AppTextEditorKey {
             self = .tab
         case #selector(NSResponder.cancelOperation(_:)):
             self = .escape
-        case #selector(NSResponder.insertNewline(_:)):
+        case #selector(NSResponder.insertNewline(_:)),
+             #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
+            self = .return
+        default:
+            return nil
+        }
+    }
+
+    init?(keyEquivalentEvent event: NSEvent) {
+        guard event.type == .keyDown,
+              event.modifierFlags.eventModifiers.contains(.command),
+              let characters = event.charactersIgnoringModifiers else {
+            return nil
+        }
+
+        switch characters {
+        case "\r", "\n":
             self = .return
         default:
             return nil

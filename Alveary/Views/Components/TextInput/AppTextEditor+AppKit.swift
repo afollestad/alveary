@@ -160,6 +160,9 @@ struct AppKitTextEditorView: NSViewRepresentable {
         textView.onFocusChange = { [weak coordinator = context.coordinator] isFocused in
             coordinator?.handleFocusChange(isFocused)
         }
+        textView.onKeyEquivalent = { [weak coordinator = context.coordinator] event in
+            coordinator?.handleKeyEquivalent(event) ?? false
+        }
 
         return textView
     }

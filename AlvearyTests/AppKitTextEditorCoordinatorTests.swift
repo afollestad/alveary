@@ -181,6 +181,80 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         XCTAssertTrue(containerView.showsDisabledCursor)
     }
 
+    func testDoCommandMapsCommandReturnSelectorToReturnKeyPress() {
+        var handledKeyPress: AppTextEditorKeyPress?
+        var measuredHeight: CGFloat = 0
+        let parent = AppKitTextEditorView(
+            text: .constant(""),
+            measuredTextHeight: Binding(get: { measuredHeight }, set: { measuredHeight = $0 }),
+            placeholder: nil,
+            horizontalPadding: 10,
+            verticalPadding: 10,
+            isDisabled: false,
+            focus: nil,
+            keyPressKeys: [.return],
+            onKeyPress: { keyPress in
+                handledKeyPress = keyPress
+                return .handled
+            }
+        )
+        let coordinator = AppKitTextEditorCoordinator(parent: parent)
+        let textView = AppKitTextView(frame: .zero)
+        let scrollView = AppKitTextEditorScrollView(frame: .zero)
+        scrollView.documentView = textView
+        coordinator.attach(textView: textView, scrollView: scrollView)
+
+        let handled = coordinator.textView(
+            textView,
+            doCommandBy: #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:))
+        )
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(handledKeyPress?.key, .return)
+    }
+
+    func testTextViewKeyEquivalentMapsCommandReturnToReturnKeyPress() throws {
+        var handledKeyPress: AppTextEditorKeyPress?
+        var measuredHeight: CGFloat = 0
+        let parent = AppKitTextEditorView(
+            text: .constant(""),
+            measuredTextHeight: Binding(get: { measuredHeight }, set: { measuredHeight = $0 }),
+            placeholder: nil,
+            horizontalPadding: 10,
+            verticalPadding: 10,
+            isDisabled: false,
+            focus: nil,
+            keyPressKeys: [.return],
+            onKeyPress: { keyPress in
+                handledKeyPress = keyPress
+                return .handled
+            }
+        )
+        let coordinator = AppKitTextEditorCoordinator(parent: parent)
+        let textView = AppKitTextView(frame: .zero)
+        textView.onKeyEquivalent = { event in
+            coordinator.handleKeyEquivalent(event)
+        }
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\r",
+            charactersIgnoringModifiers: "\r",
+            isARepeat: false,
+            keyCode: 36
+        ))
+
+        let handled = textView.performKeyEquivalent(with: event)
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(handledKeyPress?.key, .return)
+        XCTAssertEqual(handledKeyPress?.modifiers, .command)
+    }
+
     private func makeCoordinatorForFocusRequest(
         token: UUID?,
         onConsumed: @escaping () -> Void

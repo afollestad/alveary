@@ -130,6 +130,7 @@ final class AppKitTextView: NSTextView {
             updateInlineHintView()
         }
     }
+    var onKeyEquivalent: ((NSEvent) -> Bool)?
 
     // The composer hosts this text view inside a SwiftUI card whose background is
     // `.fill(.bar)` — an `NSVisualEffectView`-backed material. `NSTextView` opts into
@@ -180,6 +181,14 @@ final class AppKitTextView: NSTextView {
             updateInlineHintView()
         }
         return didResignFirstResponder
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if onKeyEquivalent?(event) == true {
+            return true
+        }
+
+        return super.performKeyEquivalent(with: event)
     }
 
     override func layout() {

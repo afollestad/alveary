@@ -12,6 +12,7 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
     - Lightweight typing state may update inline.
     - Full chip/code restyles should defer to the next main-runloop turn.
 - Use `showsDisabledCursor` only for disabled editors that should show a blocked cursor; normal progress-only read-only editors should leave it false.
+- Command-Return can arrive through `performKeyEquivalent(with:)` instead of `textView(_:doCommandBy:)`; keep `AppKitTextView.onKeyEquivalent` forwarding into `AppKitTextEditorCoordinator.handleKeyEquivalent(_:)` so composer `onKeyPress` handlers see `.return` with `.command`.
 
 ## Focus
 
