@@ -45,6 +45,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Do not dump raw text directly under a row.
 - Inline row details are indented by `transcriptToolDetailLeadingInset`.
 - Rounded code/output containers start under the summary column, not the leading icon.
+- Do not "fix" expanded-detail trailing alignment by changing transcript scroll insets; those also affect user bubble alignment.
 - Expanded details own bottom spacing; collapsed row padding must not change.
 - Use `TranscriptElbowStack` / `TranscriptNestedToolRows` for nested connectors.
 - Preserve connector geometry:

@@ -115,7 +115,7 @@ struct ThreadDetailConversationTabs: View {
                     text: selectedConversation.displayName(),
                     textStyle: .headline
                 )
-                .padding(.leading, 20)
+                .padding(.leading, 19)
                 .padding(.vertical, 8)
                 Spacer()
             }
@@ -141,7 +141,7 @@ struct ThreadDetailConversationTabs: View {
                 .accessibilityHidden(true)
                 .id(statusVersion)
         }
-        .padding(.trailing, 20)
+        .padding(.trailing, 21)
         .padding(.vertical, 14)
         .background(.bar)
         .background {

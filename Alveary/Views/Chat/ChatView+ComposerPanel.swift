@@ -1,9 +1,13 @@
 import AppKit
 import SwiftUI
 
-private let composerPanelHorizontalPadding: CGFloat = 20
-private let composerPanelTopPadding: CGFloat = 10
-private let composerPanelBottomPadding: CGFloat = 20
+private enum ChatComposerPanelLayout {
+    static let horizontalPadding = EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 21)
+    static let verticalPadding: CGFloat = 0
+    // This is the visible top/bottom clearance inside the composer panel.
+    // Keep panel vertical padding at zero so it does not stack with this inset.
+    static let inputOuterPadding = EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)
+}
 
 struct ChatComposerPanel: View {
     let viewModel: ConversationViewModel
@@ -80,7 +84,7 @@ struct ChatComposerPanel: View {
                 onSubmit: onSubmit,
                 onSteer: onSteer,
                 onStop: onStop,
-                outerPadding: EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0),
+                outerPadding: ChatComposerPanelLayout.inputOuterPadding,
                 selectedModel: selectedModel,
                 selectedEffort: selectedEffort,
                 selectedPermissionMode: selectedPermissionMode,
@@ -114,21 +118,19 @@ struct ChatComposerPanel: View {
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
             }
         }
-        .padding(.horizontal, composerPanelHorizontalPadding)
-        .padding(.top, composerPanelTopPadding)
-        .padding(.bottom, composerPanelBottomPadding)
+        .padding(ChatComposerPanelLayout.horizontalPadding)
+        .padding(.vertical, ChatComposerPanelLayout.verticalPadding)
         .background {
-            ZStack(alignment: .top) {
+            Rectangle()
+                .fill(.bar)
+        }
+        .overlay(alignment: .top) {
+            if showsTopDivider {
                 Rectangle()
-                    .fill(.bar)
-
-                if showsTopDivider {
-                    Rectangle()
-                        .fill(Color(nsColor: .separatorColor))
-                        .frame(height: 1)
-                        .accessibilityHidden(true)
-                        .transition(.opacity)
-                }
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(height: 1)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.18), value: showsTopDivider)

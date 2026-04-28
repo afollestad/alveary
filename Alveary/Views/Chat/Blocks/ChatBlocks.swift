@@ -27,14 +27,14 @@ let transcriptToolNestedTopSpacing: CGFloat = 8
 let transcriptToolNestedRowSpacing: CGFloat = 6
 let transcriptToolElbowGap: CGFloat = 10
 let transcriptScrollLeadingInset: CGFloat = 20
-let transcriptScrollTrailingInset: CGFloat = 32
+let transcriptScrollTrailingInset: CGFloat = 21
 let transcriptToolNestedRowLeadingInset = transcriptToolIconFrameSize + transcriptToolLeadingTextSpacing
 let transcriptToolConnectorOpacity: Double = 0.45
 let transcriptToolDetailLeadingInset = transcriptToolIconFrameSize + transcriptToolLeadingTextSpacing
-let transcriptToolDetailTrailingInset = max(
-    transcriptToolDetailLeadingInset + transcriptScrollLeadingInset - transcriptScrollTrailingInset + 1,
-    0
-)
+// Keep the parent proposal on the narrow side for wrapped tool output.
+// The output blocks inset their own trailing chrome by the remaining 5pt so the
+// visible edge lands at 44pt without rewrapping text.
+let transcriptToolDetailTrailingInset = transcriptToolDetailLeadingInset - 5
 let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
 let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
 let transcriptBubbleCompactTrailingInset: CGFloat = 24

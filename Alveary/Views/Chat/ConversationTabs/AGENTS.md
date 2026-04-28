@@ -57,7 +57,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 - Use `Spacer()` only in the single-conversation label branch.
 - Keep the 20pt pane-edge inset inside scrollable content.
     - Multi-tab HStack gets `.padding(.leading, 20)`.
-    - Single label branch pads the label directly.
+    - Single label branch pads the label directly; it may use a calibrated value when SwiftUI rendering measures one point off from the desired 20pt visual inset.
 - The 12pt pre-divider gap is the sentinel width, not a non-scrollable reserved band.
 - `testConversationTabsOverflow` guards the greedy-ScrollView layout.
 - The trailing divider is not captured in that baseline because geometry updates after snapshot display. Verify divider changes manually in the running app.

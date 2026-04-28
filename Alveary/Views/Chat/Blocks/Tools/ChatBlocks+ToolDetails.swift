@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
 
+private let toolOutputTrailingChromeInset: CGFloat = 5
+
 struct ToolDetails: View {
     let tool: ToolEntry
 
@@ -132,10 +134,12 @@ private struct ErrorContentBlock: View {
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme))
+                    .padding(.trailing, toolOutputTrailingChromeInset)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
+                    .padding(.trailing, toolOutputTrailingChromeInset)
             )
     }
 }
@@ -154,10 +158,12 @@ private struct MarkdownToolContentBlock: View {
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme))
+                    .padding(.trailing, toolOutputTrailingChromeInset)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
+                    .padding(.trailing, toolOutputTrailingChromeInset)
             )
     }
 }
