@@ -22,7 +22,7 @@ extension ConversationViewModel {
         )
         var relatedApprovals = relatedApprovalRows(
             for: approval,
-            in: orderedEvents[bounds.lowerBound..<approvalIndex],
+            in: orderedEvents[bounds.lowerBound..<bounds.upperBound],
             completedToolIds: completedToolIds
         )
         relatedApprovals.append(contentsOf: relatedApprovalToolCalls(

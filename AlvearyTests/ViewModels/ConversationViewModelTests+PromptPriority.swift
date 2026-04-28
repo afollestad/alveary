@@ -117,7 +117,7 @@ extension ConversationViewModelTests {
         )
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
     }
 
@@ -170,7 +170,7 @@ extension ConversationViewModelTests {
         )
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
     }
 
@@ -299,7 +299,7 @@ extension ConversationViewModelTests {
         )
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
     }
 

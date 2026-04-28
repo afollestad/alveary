@@ -19,7 +19,7 @@ extension ConversationViewModelTests {
             scope: .group
         )
 
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approvingForSessionGroup)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)
@@ -53,7 +53,7 @@ extension ConversationViewModelTests {
             scope: .group
         )
 
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)

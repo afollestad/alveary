@@ -268,7 +268,7 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.approveToolUse(toolUseId: "tool-1")
 
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)
@@ -289,7 +289,7 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.approveToolUse(toolUseId: "tool-1")
 
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertTrue(fixture.viewModel.state.turnState.isActive)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
@@ -310,7 +310,7 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.denyToolUse(toolUseId: "tool-1")
 
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .denying)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .deny)

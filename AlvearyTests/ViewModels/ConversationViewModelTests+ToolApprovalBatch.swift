@@ -204,6 +204,41 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.first?.additionalApprovals, [secondApproval, thirdApproval])
     }
 
+    func testRelatedBatchApprovalsIncludeUnresolvedApprovalRowsAfterSelectedApproval() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let firstApproval = writeApprovalRequest(toolUseId: "tool-1", filePath: "/tmp/one.txt", content: "one")
+        let selectedApproval = writeApprovalRequest(toolUseId: "tool-2", filePath: "/tmp/two.txt", content: "two")
+        let laterApproval = writeApprovalRequest(toolUseId: "tool-3", filePath: "/tmp/three.txt", content: "three")
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: firstApproval,
+            timestamp: 1
+        ))
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: selectedApproval,
+            timestamp: 2
+        ))
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: laterApproval,
+            timestamp: 3
+        ))
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: selectedApproval, status: .pending)
+
+        try await fixture.viewModel.approveToolUse(toolUseId: selectedApproval.toolUseId)
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.first?.additionalApprovals, [firstApproval, laterApproval])
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: firstApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: selectedApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: laterApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+    }
+
     func testRelatedBatchApprovalsDoNotIncludeNonDeferredSiblingToolCallsForCurrentMode() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
         let conversation = try fixture.dbConversation()
@@ -319,4 +354,10 @@ private func toolApprovalRecord(
         timestamp: Date(timeIntervalSince1970: timestamp),
         conversation: conversation
     )
+}
+
+private func firstApprovalStatus(in conversation: Conversation, toolUseId: String) -> String? {
+    conversation.events.first {
+        $0.type == "tool_approval" && $0.toolId == toolUseId
+    }?.toolApprovalStatus
 }

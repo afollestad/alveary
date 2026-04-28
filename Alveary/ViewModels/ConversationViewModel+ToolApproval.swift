@@ -273,20 +273,41 @@ private extension ConversationViewModel {
             )
         )
         var relatedApprovalStatus = pendingApproval.status
+        var resolvedPendingApproval = pendingApproval
         if decision == .allow,
            sessionApprovalScope != nil,
            !sessionApprovalEffective {
             relatedApprovalStatus = .approving
-            state.pendingToolApproval = PendingToolApproval(
+            resolvedPendingApproval = PendingToolApproval(
                 request: pendingApproval.request,
                 status: .approving
             )
         }
-        persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
+        updateResolvedToolApprovalState(
+            resolvedPendingApproval,
+            additionalApprovals: additionalApprovals,
+            relatedApprovalStatus: relatedApprovalStatus
+        )
         state.lastTurnError = nil
         if !isResolvingLiveHookApproval {
             subscribe()
         }
+    }
+
+    func updateResolvedToolApprovalState(
+        _ pendingApproval: PendingToolApproval,
+        additionalApprovals: [ToolApprovalRequest],
+        relatedApprovalStatus: ToolApprovalStatus
+    ) {
+        guard pendingApproval.request.toolName != "ExitPlanMode" else {
+            persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
+            return
+        }
+
+        persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
+        persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
+        state.pendingToolApproval = nil
+        refreshTranscriptForToolApprovalStatusChanges()
     }
 
     func persistRelatedToolApprovalStatuses(
@@ -345,14 +366,15 @@ private extension ConversationViewModel {
         conversation.provider ?? settingsService.current.defaultProvider
     }
 
-    func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval) {
+    func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval, refreshTranscript: Bool = true) {
         guard let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
             return
         }
         persistToolApprovalStatus(
             resolvedStatus,
             toolUseId: pendingApproval.request.toolUseId,
-            sessionId: pendingApproval.request.sessionId
+            sessionId: pendingApproval.request.sessionId,
+            refreshTranscript: refreshTranscript
         )
     }
 
