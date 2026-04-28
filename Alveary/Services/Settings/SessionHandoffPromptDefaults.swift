@@ -67,7 +67,6 @@ redundant. Jump straight into the substance.
 
 Use this structure, omitting sections that truly do not apply:
 
-```markdown
 Primary goal:
 - ...
 
@@ -88,6 +87,5 @@ Recommended first steps:
 1. ...
 2. ...
 3. ...
-```
 """#
 }
