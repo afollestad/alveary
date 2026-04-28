@@ -226,6 +226,26 @@ final class SettingsViewModel {
         set { settingsService.update { $0.maxTerminalSessions = newValue } }
     }
 
+    var contextManagementEnabled: Bool {
+        get { settingsService.current.contextManagementEnabled }
+        set { settingsService.update { $0.contextManagementEnabled = newValue } }
+    }
+
+    var sessionHandoffWindowPercentage: Int {
+        get { settingsService.current.sessionHandoffWindowPercentage }
+        set { settingsService.update { $0.sessionHandoffWindowPercentage = newValue } }
+    }
+
+    var handoffContextCustomizationEnabled: Bool {
+        get { settingsService.current.handoffContextCustomizationEnabled }
+        set { settingsService.update { $0.handoffContextCustomizationEnabled = newValue } }
+    }
+
+    var sessionHandoffPrompt: String {
+        get { settingsService.current.sessionHandoffPrompt }
+        set { settingsService.update { $0.sessionHandoffPrompt = newValue } }
+    }
+
     var notificationsEnabled: Bool {
         get { settingsService.current.notifications.enabled }
         set { settingsService.update { $0.notifications.enabled = newValue } }

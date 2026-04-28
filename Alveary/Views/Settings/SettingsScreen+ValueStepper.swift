@@ -3,7 +3,9 @@ import SwiftUI
 struct SettingsValueStepper: View {
     let title: String
     let range: ClosedRange<Int>
+    let step: Int
     let unit: String
+    let unitSeparator: String
     let accessibilityUnit: String
 
     @Binding private var value: Int
@@ -12,13 +14,17 @@ struct SettingsValueStepper: View {
         _ title: String,
         value: Binding<Int>,
         in range: ClosedRange<Int>,
+        step: Int = 1,
         unit: String = "pt",
+        unitSeparator: String = " ",
         accessibilityUnit: String = "points"
     ) {
         self.title = title
         _value = value
         self.range = range
+        self.step = max(step, 1)
         self.unit = unit
+        self.unitSeparator = unitSeparator
         self.accessibilityUnit = accessibilityUnit
     }
 
@@ -80,15 +86,15 @@ struct SettingsValueStepper: View {
     }
 
     private func increment() {
-        value = min(value + 1, range.upperBound)
+        value = min(value + step, range.upperBound)
     }
 
     private func decrement() {
-        value = max(value - 1, range.lowerBound)
+        value = max(value - step, range.lowerBound)
     }
 
     private var valueLabel: String {
-        unit.isEmpty ? "\(value)" : "\(value) \(unit)"
+        unit.isEmpty ? "\(value)" : "\(value)\(unitSeparator)\(unit)"
     }
 
     private var accessibilityValue: String {

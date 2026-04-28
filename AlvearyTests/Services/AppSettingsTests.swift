@@ -16,6 +16,16 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().maxTerminalSessions, 10)
     }
 
+    func testDefaultContextManagementSettings() {
+        let settings = AppSettings()
+
+        XCTAssertTrue(settings.contextManagementEnabled)
+        XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
+        XCTAssertTrue(settings.handoffContextCustomizationEnabled)
+        XCTAssertTrue(settings.sessionHandoffPrompt.hasPrefix("Turn the current session into a prompt"))
+        XCTAssertFalse(settings.sessionHandoffPrompt.contains("name: session-handoff"))
+    }
+
     func testExpandedWorktreesBaseDirectoryExpandsTilde() {
         var settings = AppSettings()
         settings.worktreesBaseDirectory = "~/Development/worktrees"
@@ -82,6 +92,16 @@ final class AppSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertEqual(settings.maxTerminalSessions, 10)
+    }
+
+    func testDecodeDefaultsContextManagementWhenFieldsAreMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertTrue(settings.contextManagementEnabled)
+        XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
+        XCTAssertTrue(settings.handoffContextCustomizationEnabled)
+        XCTAssertEqual(settings.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
     }
 
     func testDecodeMigratesLegacyBranchPrefixToIncludeSeparator() throws {
@@ -156,4 +176,36 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(lowSettings.normalized().maxTerminalSessions, AppSettings.supportedMaxTerminalSessionsRange.lowerBound)
         XCTAssertEqual(highSettings.normalized().maxTerminalSessions, AppSettings.supportedMaxTerminalSessionsRange.upperBound)
     }
+
+    func testNormalizedClampsSessionHandoffWindowPercentageToSupportedRangeAndStep() {
+        var lowSettings = AppSettings()
+        lowSettings.sessionHandoffWindowPercentage = 0
+
+        var highSettings = AppSettings()
+        highSettings.sessionHandoffWindowPercentage = 500
+
+        var steppedSettings = AppSettings()
+        steppedSettings.sessionHandoffWindowPercentage = 92
+
+        XCTAssertEqual(
+            lowSettings.normalized().sessionHandoffWindowPercentage,
+            AppSettings.minimumSessionHandoffWindowPercentage
+        )
+        XCTAssertEqual(
+            highSettings.normalized().sessionHandoffWindowPercentage,
+            AppSettings.supportedHandoffPercentageRange.upperBound
+        )
+        XCTAssertEqual(
+            steppedSettings.normalized().sessionHandoffWindowPercentage,
+            AppSettings.defaultSessionHandoffWindowPercentage
+        )
+    }
+
+    func testNormalizedRestoresDefaultSessionHandoffPromptWhenPromptIsEmpty() {
+        var settings = AppSettings()
+        settings.sessionHandoffPrompt = "  \n  "
+
+        XCTAssertEqual(settings.normalized().sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
 }

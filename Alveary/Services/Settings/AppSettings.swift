@@ -33,6 +33,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultTerminalPaneHeight = 320.0
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
+    static let minimumSessionHandoffWindowPercentage = 70
+    static let sessionHandoffWindowPercentageStep = 5
+    static let defaultSessionHandoffWindowPercentage = 90
+    static let supportedHandoffPercentageRange = minimumSessionHandoffWindowPercentage...100
+    static let defaultSessionHandoffPrompt = SessionHandoffPromptDefaults.defaultPrompt
 
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var defaultProvider = "claude"
@@ -52,6 +57,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
+    var contextManagementEnabled = true
+    var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
+    var handoffContextCustomizationEnabled = true
+    var sessionHandoffPrompt = Self.defaultSessionHandoffPrompt
     var notifications = NotificationSettings()
     var branchPrefix = "alveary/"
     var worktreesBaseDirectory = "~/Documents/worktrees"
@@ -63,50 +72,13 @@ struct AppSettings: Codable, Sendable, Equatable {
     func normalized() -> AppSettings {
         var copy = self
 
-        if !Self.supportedProviderIDs.contains(copy.defaultProvider) {
-            copy.defaultProvider = Self.supportedProviderIDs[0]
-        }
-        if !Self.supportedModels.contains(copy.defaultModel) {
-            copy.defaultModel = Self.defaultModelValue
-        }
-        if !Self.supportedPermissionModes.contains(copy.permissionMode) {
-            copy.permissionMode = "default"
-        }
-        copy.effort = Self.normalizedEffortLevel(copy.effort)
-        if !Self.supportedThemes.contains(copy.theme) {
-            copy.theme = "system"
-        }
-        copy.diffViewerWidth = min(
-            max(copy.diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
-            Self.supportedDiffViewerWidthRange.upperBound
-        )
-        copy.diffViewerTopSectionFraction = min(
-            max(copy.diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
-            Self.supportedDiffViewerSplitRange.upperBound
-        )
-        copy.terminalPaneHeight = min(
-            max(copy.terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
-            Self.supportedTerminalPaneHeightRange.upperBound
-        )
-        copy.maxTerminalSessions = min(
-            max(copy.maxTerminalSessions, Self.supportedMaxTerminalSessionsRange.lowerBound),
-            Self.supportedMaxTerminalSessionsRange.upperBound
-        )
-        if let soundName = copy.notifications.soundName,
-           !NotificationSettings.availableSoundNames.contains(soundName) {
-            copy.notifications.soundName = NotificationSettings.defaultSoundName
-        }
-        copy.providerConfigs = copy.providerConfigs.reduce(into: [:]) { partialResult, entry in
-            if let normalized = entry.value.normalized() {
-                partialResult[entry.key] = normalized
-            }
-        }
-
-        let trimmedWorktreesBase = copy.worktreesBaseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-        copy.worktreesBaseDirectory = trimmedWorktreesBase.isEmpty
-            ? AppSettings().worktreesBaseDirectory
-            : trimmedWorktreesBase
-
+        copy.normalizeProviderDefaults()
+        copy.normalizeAppearanceDefaults()
+        copy.normalizeLayoutDefaults()
+        copy.normalizeContextManagement()
+        copy.normalizeNotificationDefaults()
+        copy.normalizeProviderConfigs()
+        copy.normalizeWorktreesBaseDirectory()
         return copy
     }
 
@@ -150,6 +122,82 @@ struct AppSettings: Codable, Sendable, Equatable {
         }
         return override
     }
+
+    static func normalizedSessionHandoffWindowPercentage(_ percentage: Int) -> Int {
+        let clamped = min(
+            max(percentage, supportedHandoffPercentageRange.lowerBound),
+            supportedHandoffPercentageRange.upperBound
+        )
+        let step = sessionHandoffWindowPercentageStep
+        return Int((Double(clamped) / Double(step)).rounded()) * step
+    }
+
+    private mutating func normalizeProviderDefaults() {
+        if !Self.supportedProviderIDs.contains(defaultProvider) {
+            defaultProvider = Self.supportedProviderIDs[0]
+        }
+        if !Self.supportedModels.contains(defaultModel) {
+            defaultModel = Self.defaultModelValue
+        }
+        if !Self.supportedPermissionModes.contains(permissionMode) {
+            permissionMode = "default"
+        }
+        effort = Self.normalizedEffortLevel(effort)
+    }
+
+    private mutating func normalizeAppearanceDefaults() {
+        if !Self.supportedThemes.contains(theme) {
+            theme = "system"
+        }
+    }
+
+    private mutating func normalizeLayoutDefaults() {
+        diffViewerWidth = min(
+            max(diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
+            Self.supportedDiffViewerWidthRange.upperBound
+        )
+        diffViewerTopSectionFraction = min(
+            max(diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
+            Self.supportedDiffViewerSplitRange.upperBound
+        )
+        terminalPaneHeight = min(
+            max(terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
+            Self.supportedTerminalPaneHeightRange.upperBound
+        )
+        maxTerminalSessions = min(
+            max(maxTerminalSessions, Self.supportedMaxTerminalSessionsRange.lowerBound),
+            Self.supportedMaxTerminalSessionsRange.upperBound
+        )
+    }
+
+    private mutating func normalizeContextManagement() {
+        sessionHandoffWindowPercentage = Self.normalizedSessionHandoffWindowPercentage(sessionHandoffWindowPercentage)
+        if sessionHandoffPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sessionHandoffPrompt = Self.defaultSessionHandoffPrompt
+        }
+    }
+
+    private mutating func normalizeNotificationDefaults() {
+        if let soundName = notifications.soundName,
+           !NotificationSettings.availableSoundNames.contains(soundName) {
+            notifications.soundName = NotificationSettings.defaultSoundName
+        }
+    }
+
+    private mutating func normalizeProviderConfigs() {
+        providerConfigs = providerConfigs.reduce(into: [:]) { partialResult, entry in
+            if let normalized = entry.value.normalized() {
+                partialResult[entry.key] = normalized
+            }
+        }
+    }
+
+    private mutating func normalizeWorktreesBaseDirectory() {
+        let trimmedWorktreesBase = worktreesBaseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        worktreesBaseDirectory = trimmedWorktreesBase.isEmpty
+            ? AppSettings().worktreesBaseDirectory
+            : trimmedWorktreesBase
+    }
 }
 
 extension AppSettings {
@@ -171,6 +219,10 @@ extension AppSettings {
         case terminalPaneHeight
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
+        case contextManagementEnabled
+        case sessionHandoffWindowPercentage
+        case handoffContextCustomizationEnabled
+        case sessionHandoffPrompt
         case notifications
         case branchPrefix
         case worktreesBaseDirectory
@@ -186,57 +238,96 @@ extension AppSettings {
     }
 
     init(from decoder: any Decoder) throws {
-        let defaults = AppSettings()
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
 
         let storedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .settingsSchemaVersion) ?? 0
-        self.settingsSchemaVersion = defaults.settingsSchemaVersion
-        self.defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaults.defaultProvider
-        self.defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaults.defaultModel
-        self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? defaults.permissionMode
-        self.effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? defaults.effort
-        self.deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? defaults.deleteKeyAction
-        self.reopenLastThreadAndConversationOnLaunch = try container.decodeIfPresent(
+        self = AppSettings()
+        try decodeAgentDefaults(from: container, legacyContainer: legacyContainer)
+        try decodeAppearance(from: container)
+        try decodeLayout(from: container)
+        try decodeContextManagement(from: container)
+        try decodeStorage(from: container, storedSchemaVersion: storedSchemaVersion)
+    }
+
+    private mutating func decodeAgentDefaults(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
+    ) throws {
+        defaultProvider = try container.decodeIfPresent(String.self, forKey: .defaultProvider) ?? defaultProvider
+        defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaultModel
+        permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
+        effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
+        deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? deleteKeyAction
+        reopenLastThreadAndConversationOnLaunch = try container.decodeIfPresent(
             Bool.self,
             forKey: .reopenLastThreadAndConversationOnLaunch
-        ) ?? defaults.reopenLastThreadAndConversationOnLaunch
-        self.autoTrustProjects = try container.decodeIfPresent(Bool.self, forKey: .autoTrustProjects)
+        ) ?? reopenLastThreadAndConversationOnLaunch
+        autoTrustProjects = try container.decodeIfPresent(Bool.self, forKey: .autoTrustProjects)
             ?? legacyContainer.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees)
-            ?? defaults.autoTrustProjects
-        self.createWorktreeByDefault = try container.decodeIfPresent(Bool.self, forKey: .createWorktreeByDefault) ?? defaults.createWorktreeByDefault
-        self.theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? defaults.theme
-        self.codeFontFamily = try container.decodeIfPresent(String.self, forKey: .codeFontFamily) ?? defaults.codeFontFamily
-        self.codeFontSize = try container.decodeIfPresent(Int.self, forKey: .codeFontSize) ?? defaults.codeFontSize
-        self.chatFontSize = try container.decodeIfPresent(Int.self, forKey: .chatFontSize) ?? defaults.chatFontSize
-        self.diffViewerWidth = try container.decodeIfPresent(Double.self, forKey: .diffViewerWidth) ?? defaults.diffViewerWidth
-        self.diffViewerTopSectionFraction = try container.decodeIfPresent(
+            ?? autoTrustProjects
+        createWorktreeByDefault = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .createWorktreeByDefault
+        ) ?? createWorktreeByDefault
+    }
+
+    private mutating func decodeAppearance(from container: KeyedDecodingContainer<CodingKeys>) throws {
+        theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? theme
+        codeFontFamily = try container.decodeIfPresent(String.self, forKey: .codeFontFamily) ?? codeFontFamily
+        codeFontSize = try container.decodeIfPresent(Int.self, forKey: .codeFontSize) ?? codeFontSize
+        chatFontSize = try container.decodeIfPresent(Int.self, forKey: .chatFontSize) ?? chatFontSize
+    }
+
+    private mutating func decodeLayout(from container: KeyedDecodingContainer<CodingKeys>) throws {
+        diffViewerWidth = try container.decodeIfPresent(Double.self, forKey: .diffViewerWidth) ?? diffViewerWidth
+        diffViewerTopSectionFraction = try container.decodeIfPresent(
             Double.self,
             forKey: .diffViewerTopSectionFraction
-        ) ?? defaults.diffViewerTopSectionFraction
-        self.terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? defaults.terminalPaneHeight
-        self.expandTerminalWhenActionsRun = try container.decodeIfPresent(Bool.self, forKey: .expandTerminalWhenActionsRun) ?? false
-        self.maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? defaults.maxTerminalSessions
-        self.notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
+        ) ?? diffViewerTopSectionFraction
+        terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? terminalPaneHeight
+        expandTerminalWhenActionsRun = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .expandTerminalWhenActionsRun
+        ) ?? expandTerminalWhenActionsRun
+        maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? maxTerminalSessions
+    }
+
+    private mutating func decodeContextManagement(from container: KeyedDecodingContainer<CodingKeys>) throws {
+        contextManagementEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .contextManagementEnabled
+        ) ?? contextManagementEnabled
+        sessionHandoffWindowPercentage = try container.decodeIfPresent(
+            Int.self,
+            forKey: .sessionHandoffWindowPercentage
+        ) ?? sessionHandoffWindowPercentage
+        handoffContextCustomizationEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .handoffContextCustomizationEnabled
+        ) ?? handoffContextCustomizationEnabled
+        sessionHandoffPrompt = try container.decodeIfPresent(String.self, forKey: .sessionHandoffPrompt) ?? sessionHandoffPrompt
+    }
+
+    private mutating func decodeStorage(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        storedSchemaVersion: Int
+    ) throws {
+        notifications = try container.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? notifications
         let decodedBranchPrefix = try container.decodeIfPresent(String.self, forKey: .branchPrefix)
-        self.branchPrefix = Self.migratedBranchPrefix(
-            decodedBranchPrefix ?? defaults.branchPrefix,
+        branchPrefix = Self.migratedBranchPrefix(
+            decodedBranchPrefix ?? branchPrefix,
             storedSchemaVersion: storedSchemaVersion
         )
-        self.worktreesBaseDirectory = try container.decodeIfPresent(
+        worktreesBaseDirectory = try container.decodeIfPresent(
             String.self,
             forKey: .worktreesBaseDirectory
-        ) ?? defaults.worktreesBaseDirectory
-        self.lastAddProjectParentFolder = try container.decodeIfPresent(
-            String.self,
-            forKey: .lastAddProjectParentFolder
-        )
-        self.providerConfigs = try container.decodeIfPresent(
-            [String: ProviderCustomConfig].self,
-            forKey: .providerConfigs
-        ) ?? defaults.providerConfigs
-        self.lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
-        self.lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
+        ) ?? worktreesBaseDirectory
+        lastAddProjectParentFolder = try container.decodeIfPresent(String.self, forKey: .lastAddProjectParentFolder)
+        providerConfigs = try container.decodeIfPresent([String: ProviderCustomConfig].self, forKey: .providerConfigs)
+            ?? providerConfigs
+        lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
+        lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
     }
 
     private static func migratedBranchPrefix(_ branchPrefix: String, storedSchemaVersion: Int) -> String {

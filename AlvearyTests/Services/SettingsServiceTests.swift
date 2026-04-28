@@ -26,6 +26,10 @@ final class SettingsServiceTests: XCTestCase {
             $0.diffViewerWidth = 520
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
+            $0.contextManagementEnabled = false
+            $0.sessionHandoffWindowPercentage = 75
+            $0.handoffContextCustomizationEnabled = false
+            $0.sessionHandoffPrompt = "Custom handoff prompt"
         }
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
@@ -38,6 +42,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
         XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
+        XCTAssertFalse(reloadedService.current.contextManagementEnabled)
+        XCTAssertEqual(reloadedService.current.sessionHandoffWindowPercentage, 75)
+        XCTAssertFalse(reloadedService.current.handoffContextCustomizationEnabled)
+        XCTAssertEqual(reloadedService.current.sessionHandoffPrompt, "Custom handoff prompt")
     }
 
     func testUserDefaultsSettingsServicePersistsLastOpenThreadSelectionAcrossReloads() throws {
@@ -311,6 +319,30 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
     }
 
+    func testUserDefaultsSettingsServiceUsesDefaultContextManagementWhenStoredJSONPredatesFields() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "plan",
+            "effort": "high",
+            "providerConfigs": [:]
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertTrue(service.current.contextManagementEnabled)
+        XCTAssertEqual(
+            service.current.sessionHandoffWindowPercentage,
+            AppSettings.defaultSessionHandoffWindowPercentage
+        )
+        XCTAssertTrue(service.current.handoffContextCustomizationEnabled)
+        XCTAssertEqual(service.current.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
     func testUserDefaultsSettingsServicePreservesExplicitStoredLaunchRestoreFalse() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
@@ -337,6 +369,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.effort = "turbo"
             $0.theme = "sepia"
             $0.diffViewerWidth = 10_000
+            $0.sessionHandoffWindowPercentage = 92
             $0.notifications.soundName = "Bonk"
         }
         inMemoryService.update {
@@ -345,6 +378,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.effort = "turbo"
             $0.theme = "sepia"
             $0.diffViewerWidth = 10_000
+            $0.sessionHandoffWindowPercentage = 102
             $0.notifications.soundName = "Bonk"
         }
 
@@ -353,6 +387,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(userDefaultsService.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(userDefaultsService.current.theme, "system")
         XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 960)
+        XCTAssertEqual(
+            userDefaultsService.current.sessionHandoffWindowPercentage,
+            AppSettings.defaultSessionHandoffWindowPercentage
+        )
         XCTAssertEqual(userDefaultsService.current.notifications.soundName, "Glass")
 
         XCTAssertEqual(inMemoryService.current.defaultProvider, "claude")
@@ -360,6 +398,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(inMemoryService.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(inMemoryService.current.theme, "system")
         XCTAssertEqual(inMemoryService.current.diffViewerWidth, 960)
+        XCTAssertEqual(
+            inMemoryService.current.sessionHandoffWindowPercentage,
+            AppSettings.supportedHandoffPercentageRange.upperBound
+        )
         XCTAssertEqual(inMemoryService.current.notifications.soundName, "Glass")
     }
 

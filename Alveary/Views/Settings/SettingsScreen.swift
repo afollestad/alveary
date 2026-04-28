@@ -104,7 +104,11 @@ struct SettingsScreen: View {
             AgentsSettingsTabView(
                 viewModel: viewModel,
                 providerIDs: viewModel.availableProviderIDs,
-                providerExtraArgsBinding: providerExtraArgsBinding
+                providerExtraArgsBinding: providerExtraArgsBinding,
+                contextManagementEnabled: binding(for: \.contextManagementEnabled),
+                sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
+                handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
+                sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
         case .git:
             GitSettingsTabView(

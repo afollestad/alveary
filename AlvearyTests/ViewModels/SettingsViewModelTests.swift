@@ -132,6 +132,22 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.providerExtraArgs(for: "claude"), "--verbose")
     }
 
+    func testContextManagementGettersReflectCurrentSettings() {
+        let service = InMemorySettingsService()
+        service.update {
+            $0.contextManagementEnabled = false
+            $0.sessionHandoffWindowPercentage = 75
+            $0.handoffContextCustomizationEnabled = false
+            $0.sessionHandoffPrompt = "Custom handoff prompt"
+        }
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        XCTAssertFalse(viewModel.contextManagementEnabled)
+        XCTAssertEqual(viewModel.sessionHandoffWindowPercentage, 75)
+        XCTAssertFalse(viewModel.handoffContextCustomizationEnabled)
+        XCTAssertEqual(viewModel.sessionHandoffPrompt, "Custom handoff prompt")
+    }
+
     func testSettersWriteBackToSettingsService() {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(settingsService: service)
@@ -150,6 +166,10 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.chatFontSize = 17
         viewModel.expandTerminalWhenActionsRun = true
         viewModel.maxTerminalSessions = 12
+        viewModel.contextManagementEnabled = false
+        viewModel.sessionHandoffWindowPercentage = 80
+        viewModel.handoffContextCustomizationEnabled = false
+        viewModel.sessionHandoffPrompt = "Updated handoff prompt"
         viewModel.notificationsEnabled = false
         viewModel.osNotificationsEnabled = false
         viewModel.soundEnabled = false
@@ -170,6 +190,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.chatFontSize, 17)
         XCTAssertTrue(service.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(service.current.maxTerminalSessions, 12)
+        XCTAssertFalse(service.current.contextManagementEnabled)
+        XCTAssertEqual(service.current.sessionHandoffWindowPercentage, 80)
+        XCTAssertFalse(service.current.handoffContextCustomizationEnabled)
+        XCTAssertEqual(service.current.sessionHandoffPrompt, "Updated handoff prompt")
         XCTAssertFalse(service.current.notifications.enabled)
         XCTAssertFalse(service.current.notifications.osNotifications)
         XCTAssertFalse(service.current.notifications.sound)
