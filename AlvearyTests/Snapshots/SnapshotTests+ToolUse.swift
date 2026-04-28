@@ -61,6 +61,14 @@ extension SnapshotTests {
         )
     }
 
+    func testStandaloneSkillInvocationRow() {
+        assertMacSnapshot(
+            StandaloneToolRow(tool: sampleStandaloneSkillTool, initiallyExpanded: true),
+            size: CGSize(width: 760, height: 80),
+            named: "standalone_skill_invocation_row"
+        )
+    }
+
     func testStandaloneBashErrorExpanded() {
         assertMacSnapshot(
             StandaloneToolRow(tool: sampleStandaloneBashErrorTool, initiallyExpanded: true),

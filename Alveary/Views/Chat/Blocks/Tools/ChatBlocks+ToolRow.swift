@@ -26,6 +26,24 @@ struct InlineToolRow: View {
     }
 
     var body: some View {
+        if tool.name == "Skill" {
+            ToolHeaderRow(
+                tool: tool,
+                isExpanded: false,
+                bottomPadding: transcriptToolRowVerticalPadding
+            )
+                .transcriptToolHeaderFramePreference(id: headerFrameID)
+                .background {
+                    headerCenterPreference(bottomPadding: transcriptToolRowVerticalPadding)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            expandableToolRow
+        }
+    }
+
+    @ViewBuilder
+    private var expandableToolRow: some View {
         let expansion = expansionBinding
         let headerBottomPadding = expansion.wrappedValue ? 0 : transcriptToolRowVerticalPadding
         let toggleExpansion = {
@@ -46,19 +64,7 @@ struct InlineToolRow: View {
                 )
                     .transcriptToolHeaderFramePreference(id: headerFrameID)
                     .background {
-                        if let headerPreferenceID {
-                            GeometryReader { proxy in
-                                Color.clear.preference(
-                                    key: TranscriptNestedRowCenterPreferenceKey.self,
-                                    value: [
-                                        headerPreferenceID: transcriptToolHeaderVisualCenter(
-                                            in: proxy.frame(in: .named(transcriptNestedRowsCoordinateSpace)),
-                                            bottomPadding: headerBottomPadding
-                                        )
-                                    ]
-                                )
-                            }
-                        }
+                        headerCenterPreference(bottomPadding: headerBottomPadding)
                     }
             }
 
@@ -76,6 +82,23 @@ struct InlineToolRow: View {
 
     private var expansionBinding: Binding<Bool> {
         externalIsExpanded ?? $localIsExpanded
+    }
+
+    @ViewBuilder
+    private func headerCenterPreference(bottomPadding: CGFloat) -> some View {
+        if let headerPreferenceID {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: TranscriptNestedRowCenterPreferenceKey.self,
+                    value: [
+                        headerPreferenceID: transcriptToolHeaderVisualCenter(
+                            in: proxy.frame(in: .named(transcriptNestedRowsCoordinateSpace)),
+                            bottomPadding: bottomPadding
+                        )
+                    ]
+                )
+            }
+        }
     }
 }
 

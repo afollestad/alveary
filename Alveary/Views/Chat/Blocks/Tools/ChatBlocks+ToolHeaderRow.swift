@@ -91,9 +91,20 @@ struct ToolHeaderRow: View {
 
     var body: some View {
         TranscriptToolHeaderContent(summary: tool.transcriptDisplaySummary, bottomPadding: bottomPadding) {
-            TranscriptToolLeadingIcon(kind: tool.name == "Bash" ? .bash : .disclosure(isExpanded: isExpanded))
+            TranscriptToolLeadingIcon(kind: leadingIconKind)
         } status: {
             ToolStatusIndicator(phase: tool.transcriptStatusPhase)
+        }
+    }
+
+    private var leadingIconKind: TranscriptToolLeadingIconKind {
+        switch tool.name {
+        case "Bash":
+            return .bash
+        case "Skill":
+            return .symbol(systemName: "book")
+        default:
+            return .disclosure(isExpanded: isExpanded)
         }
     }
 }

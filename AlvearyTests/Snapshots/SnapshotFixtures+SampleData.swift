@@ -326,6 +326,22 @@ extension SnapshotTests {
         )
     }
 
+    var sampleStandaloneSkillTool: ToolEntry {
+        ToolEntry(
+            id: "skill-watermark",
+            name: "Skill",
+            summary: "Invoking skill `ai-rules-generated-watermark-portfolio-images`",
+            input: "{\"skill\":\"ai-rules-generated-watermark-portfolio-images\"}",
+            output: "Launching skill: ai-rules-generated-watermark-portfolio-images",
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+    }
+
     var sampleStandaloneBashErrorTool: ToolEntry {
         ToolEntry(
             id: "sleep-10",

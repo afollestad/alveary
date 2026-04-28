@@ -14,6 +14,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Keep row padding in `TranscriptToolHeaderContent`.
 - Expanded rows keep `transcriptToolExpandedContentTopSpacing` between header and content.
 - Single tools use current tense while running and past tense when complete.
+- Skill invocation rows use the `book` SF Symbol, stay standalone, and do not expand.
 - Group headers stay current tense until all children complete, then switch every category summary to past tense.
 - Preserve `attributedToolSummary` so inline-code, slash-command, and file-mention chips render.
 

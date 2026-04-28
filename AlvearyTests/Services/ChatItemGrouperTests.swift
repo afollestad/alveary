@@ -182,6 +182,42 @@ final class ChatItemGrouperTests: XCTestCase {
         }
     }
 
+    func testSkillInvocationDoesNotJoinOpenToolGroup() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let read = ConversationEventRecord(
+            id: "read",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "r1",
+            toolName: "Read",
+            toolInput: "{\"file_path\":\"a.swift\"}"
+        )
+        let skill = ConversationEventRecord(
+            id: "skill",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "s1",
+            toolName: "Skill",
+            toolInput: "{\"skill\":\"ai-rules-generated-watermark-portfolio-images\"}"
+        )
+
+        grouper.update(events: [read, skill])
+
+        XCTAssertEqual(grouper.items.count, 2)
+        if case .toolGroup(_, let tools) = grouper.items[0] {
+            XCTAssertEqual(tools.map(\.name), ["Read"])
+        } else {
+            XCTFail("Expected Read to stay in its own tool group")
+        }
+        if case .standaloneTool(_, let tool) = grouper.items[1] {
+            XCTAssertEqual(tool.name, "Skill")
+            XCTAssertEqual(tool.summary, "Invoking skill `ai-rules-generated-watermark-portfolio-images`")
+        } else {
+            XCTFail("Expected Skill to render as a standalone row")
+        }
+    }
+
     func testAssistantMessageClosesGroupWhenAllToolsDone() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
@@ -331,6 +367,7 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Read"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "WebSearch"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "ToolSearch"), .groupable)
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Skill"), .standalone)
         for toolName in ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"] {
             XCTAssertTrue(ClaudeHookPolicy.canRenderToolApproval(toolName))
             XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: toolName), .standalone)
@@ -365,5 +402,25 @@ final class ChatItemGrouperTests: XCTestCase {
             input: "{\"max_results\":5,\"query\":\"notebook jupyter\"}"
         )
         XCTAssertEqual(freeform, "Searching for tool `notebook jupyter`")
+    }
+
+    func testSkillSummaryFormatsInvocation() {
+        let summary = ChatItemGrouper.toolSummary(
+            name: "Skill",
+            input: "{\"skill\":\"ai-rules-generated-watermark-portfolio-images\"}"
+        )
+        XCTAssertEqual(summary, "Invoking skill `ai-rules-generated-watermark-portfolio-images`")
+
+        let missingSkill = ChatItemGrouper.toolSummary(
+            name: "Skill",
+            input: "{}"
+        )
+        XCTAssertEqual(missingSkill, "Invoking skill")
+
+        let invalidSkillInput = ChatItemGrouper.toolSummary(
+            name: "Skill",
+            input: "{"
+        )
+        XCTAssertEqual(invalidSkillInput, "Invoking skill")
     }
 }

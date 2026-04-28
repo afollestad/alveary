@@ -2,11 +2,21 @@ import Foundation
 
 extension ChatItemGrouper {
     static func toolSummary(name: String?, input: String?) -> String {
-        guard let name,
-              let json = parsedJSONDictionary(from: input) else {
-            return name ?? "Tool"
+        if let skillSummary = skillToolSummary(name: name, input: input) {
+            return skillSummary
         }
 
+        guard let name else {
+            return "Tool"
+        }
+        guard let json = parsedJSONDictionary(from: input) else {
+            return name
+        }
+
+        return toolSummary(name: name, json: json)
+    }
+
+    private static func toolSummary(name: String, json: [String: Any]) -> String {
         switch name {
         case "Read":
             return readToolSummary(from: json)
@@ -105,6 +115,14 @@ extension ChatItemGrouper {
 }
 
 private extension ChatItemGrouper {
+    static func skillToolSummary(name: String?, input: String?) -> String? {
+        guard name == "Skill" else {
+            return nil
+        }
+
+        return skillSummary(from: parsedJSONDictionary(from: input))
+    }
+
     static func parsedJSONDictionary(from input: String?) -> [String: Any]? {
         guard let input,
               let data = input.data(using: .utf8),
@@ -181,6 +199,19 @@ private extension ChatItemGrouper {
             }
             return "\(leadingDisplays), and \(lastDisplay)"
         }
+    }
+
+    static func skillSummary(from json: [String: Any]?) -> String {
+        guard let skill = json?["skill"] as? String else {
+            return "Invoking skill"
+        }
+
+        let trimmedSkill = skill.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSkill.isEmpty else {
+            return "Invoking skill"
+        }
+
+        return "Invoking skill `\(trimmedSkill)`"
     }
 
     static func todoWriteSummary(from json: [String: Any]) -> String {
