@@ -39,4 +39,30 @@ extension ConversationViewModelTests {
             }
         }
     }
+
+    func testInterimUsageTokenPersistsWithoutEndingTurn() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 100,
+                output: 20,
+                cacheRead: 30,
+                cacheCreation: 40,
+                isError: false,
+                stopReason: ConversationEvent.interimUsageStopReason,
+                durationMs: 0,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        let tokensRecord = try XCTUnwrap(persistedEvents.first { $0.type == "tokens" })
+        XCTAssertEqual(tokensRecord.stopReason, ConversationEvent.interimUsageStopReason)
+        XCTAssertEqual(tokensRecord.tokenInput, 100)
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+    }
 }

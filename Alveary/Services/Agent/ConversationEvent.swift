@@ -62,6 +62,8 @@ struct ToolApprovalFailure: Sendable, Equatable {
 }
 
 enum ConversationEvent: Sendable, Equatable {
+    static let interimUsageStopReason = "usage_update"
+
     case sessionInit(sessionId: String?)
     case permissionModeChanged(String)
     case message(role: String, content: String, parentToolUseId: String?)

@@ -30,6 +30,13 @@ enum ChatItem: Identifiable, Equatable {
         return false
     }
 
+    var isAssistantMessage: Bool {
+        if case .assistantMessage = self {
+            return true
+        }
+        return false
+    }
+
     var isTurnInterruptedNote: Bool {
         if case .centeredNote(_, .interrupted) = self {
             return true

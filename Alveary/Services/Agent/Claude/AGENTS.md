@@ -7,6 +7,7 @@ These instructions cover Claude provider support under `Alveary/Services/Agent/C
 - `ClaudeConfigStore` owns Claude config observation. UI should use its replaying snapshot stream, `.claudeConfigChanged`, or `ProviderSetupService` trust APIs instead of adding file watchers.
 - Claude structured streaming requires `--verbose` alongside `--output-format stream-json`; dropping `--verbose` produces no structured output.
 - Do not re-add Claude `--include-hook-events` in `-p` mode; it does not emit useful hook events there, and lifecycle state should continue to derive from the standard event stream and process lifecycle.
+- Decode assistant-message `usage` into interim token rows so context usage updates while Claude is blocked on app-native prompts. These rows use `ConversationEvent.interimUsageStopReason` and must not end the active turn.
 - Claude resume checks must use the canonical cwd. If the expected `~/.claude/projects/<encoded-cwd>/<session>.jsonl` file is missing, `--resume <id>` fails immediately; only then should the adapter fall back to `--session-id <same-id>` to recreate a fresh session file.
 - Keep `ClaudeAdapter.swift` focused on launch/session/message concerns. Put JSON decoding in `ClaudeAdapter+Decoding.swift`, system/task events in `ClaudeAdapter+SystemEvents.swift`, and hook attachment decoding in `ClaudeAdapter+Attachments.swift`.
 - Treat Claude `permissionMode` updates from the stream as the live runtime source of truth:

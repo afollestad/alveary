@@ -37,6 +37,23 @@ struct PromptBlock: View {
         }
     }
 
+    private var unansweredQuestionCount: Int {
+        prompt.questions.enumerated().filter { index, question in
+            !isQuestionAnswered(question, at: index)
+        }.count
+    }
+
+    private var submissionStatusText: String? {
+        if isBusy {
+            return "Wait for the current send or turn to finish before sending your selection."
+        }
+        guard unansweredQuestionCount > 0 else {
+            return nil
+        }
+        let noun = unansweredQuestionCount == 1 ? "question" : "questions"
+        return "Answer \(unansweredQuestionCount) more \(noun) before submitting."
+    }
+
     private var maximumQuestionCardWidth: CGFloat? {
         guard bubbleMaxWidth.isFinite else {
             return nil
@@ -134,8 +151,8 @@ struct PromptBlock: View {
                     }
 
                     VStack(alignment: .trailing, spacing: 8) {
-                        if isBusy {
-                            Text("Wait for the current send or turn to finish before sending your selection.")
+                        if let submissionStatusText {
+                            Text(submissionStatusText)
                                 .transcriptFont(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(width: synchronizedQuestionCardWidth, alignment: .leading)

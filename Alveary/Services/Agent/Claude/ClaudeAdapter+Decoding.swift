@@ -77,7 +77,7 @@ extension ClaudeAdapter {
             return []
         }
 
-        return content.compactMap { block in
+        var events: [ConversationEvent] = content.compactMap { block in
             switch block["type"] as? String {
             case "thinking":
                 return .thinking(content: block["thinking"] as? String ?? "", parentToolUseId: parentToolUseId)
@@ -106,6 +106,10 @@ extension ClaudeAdapter {
                 return nil
             }
         }
+        if let usageEvent = assistantUsageEvent(from: message) {
+            events.append(usageEvent)
+        }
+        return events
     }
 
     func decodeUserEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {
@@ -202,6 +206,26 @@ extension ClaudeAdapter {
         }
 
         return [.messageChunk(text: text, parentToolUseId: parentToolUseId)]
+    }
+
+    func assistantUsageEvent(from message: [String: Any]) -> ConversationEvent? {
+        guard let usage = message["usage"] as? [String: Any] else {
+            return nil
+        }
+
+        return .tokens(
+            input: intValue(usage["input_tokens"]) ?? 0,
+            output: intValue(usage["output_tokens"]) ?? 0,
+            cacheRead: intValue(usage["cache_read_input_tokens"]) ?? 0,
+            cacheCreation: intValue(usage["cache_creation_input_tokens"]) ?? 0,
+            isError: false,
+            stopReason: ConversationEvent.interimUsageStopReason,
+            durationMs: 0,
+            costUsd: 0,
+            providerModelId: nil,
+            contextWindowSize: nil,
+            permissionDenials: []
+        )
     }
 
     func decodeResultEvent(_ json: [String: Any]) -> [ConversationEvent] {

@@ -188,6 +188,56 @@ final class ClaudeAdapterTests: XCTestCase {
         XCTAssertTrue(adapter.decode(json).isEmpty)
     }
 
+    func testDecodeAssistantMessageUsageEmitsInterimTokenUpdate() {
+        let adapter = ClaudeAdapter()
+        let json: [String: Any] = [
+            "type": "assistant",
+            "message": [
+                "role": "assistant",
+                "usage": [
+                    "input_tokens": 120,
+                    "output_tokens": 12,
+                    "cache_read_input_tokens": 30,
+                    "cache_creation_input_tokens": 40
+                ],
+                "content": [[
+                    "type": "tool_use",
+                    "id": "prompt-1",
+                    "name": "AskUserQuestion",
+                    "input": [
+                        "questions": [[
+                            "question": "Pick one",
+                            "options": [["label": "A"]]
+                        ]]
+                    ]
+                ]]
+            ]
+        ]
+
+        let events = adapter.decode(json)
+
+        XCTAssertEqual(events.count, 2)
+        guard case .toolCall(let id, let name, _, nil, nil) = events[0] else {
+            return XCTFail("Expected AskUserQuestion tool call before usage")
+        }
+        XCTAssertEqual(id, "prompt-1")
+        XCTAssertEqual(name, "AskUserQuestion")
+        XCTAssertEqual(
+            events[1],
+            .tokens(
+                input: 120,
+                output: 12,
+                cacheRead: 30,
+                cacheCreation: 40,
+                isError: false,
+                stopReason: ConversationEvent.interimUsageStopReason,
+                durationMs: 0,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+    }
+
     func testDecodeUserEventPreservesTextAndToolResultBlocks() {
         let adapter = ClaudeAdapter()
         let json: [String: Any] = [

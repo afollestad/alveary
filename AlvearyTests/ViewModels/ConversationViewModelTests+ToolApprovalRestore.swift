@@ -169,6 +169,36 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
     }
 
+    func testHydratesPendingApprovalWhenLaterTokenIsInterimUsageUpdate() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let approvalTime = Date()
+        let approval = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"swift test\"}",
+            timestamp: approvalTime,
+            conversation: conversation
+        )
+        let usageUpdate = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tokens",
+            stopReason: ConversationEvent.interimUsageStopReason,
+            timestamp: approvalTime.addingTimeInterval(1),
+            conversation: conversation
+        )
+        fixture.context.insert(approval)
+        fixture.context.insert(usageUpdate)
+        try fixture.context.save()
+
+        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
+    }
+
     func testHydrateMarksApprovalResolvedWhenClaudeSessionAlreadyConsumedIt() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()

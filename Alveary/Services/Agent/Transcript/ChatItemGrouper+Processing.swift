@@ -152,10 +152,10 @@ extension ChatItemGrouper {
 private extension ChatItemGrouper {
     func handleToolCall(_ event: ConversationEventRecord) {
         switch event.toolName {
-        case "TodoWrite":
-            handleTodoWriteToolCall(event)
         case "AskUserQuestion":
             handleAskUserQuestionToolCall(event)
+        case "TodoWrite":
+            handleTodoWriteToolCall(event)
         case "EnterPlanMode", "ExitPlanMode":
             handleCenteredNoteToolCall(event)
         case "Agent":
@@ -216,6 +216,10 @@ private extension ChatItemGrouper {
         let toolUseId = event.toolId ?? event.id
         if let status = event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:)) {
             toolApprovalStatusesByToolId[toolUseId] = status
+        }
+
+        if event.toolName != "AskUserQuestion" {
+            markLatestUnansweredPromptHandledAfterContinuationIfNeeded()
         }
 
         if currentToolApprovalBatch?.sessionId != event.content {

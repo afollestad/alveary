@@ -12,6 +12,7 @@ Rules for `PromptBlock` and `AskUserQuestion` cards.
 - Serialize the typed custom text, not the literal word `Other`.
 - Focus the inline custom-response field in the same interaction that selects `Other`.
 - Keep a snapshot with `Other` selected so inline-field layout regressions show up.
+- Explain disabled submission caused by unanswered questions so multi-question prompts do not look stuck when required cards are off-screen.
 - Answered prompts render as structured Q/A rows.
     - Title: `Submitted responses`.
     - Put each question and answer on separate lines.

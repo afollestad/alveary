@@ -89,6 +89,10 @@ extension DefaultAgentsManager {
         permissionDenials: [PermissionDenialSummary],
         conversationId: String
     ) {
+        guard stopReason != ConversationEvent.interimUsageStopReason else {
+            return
+        }
+
         let isWaitingOnDeferredPrompt = stopReason == "tool_deferred" &&
             !isError &&
             permissionDenials.isEmpty &&

@@ -326,6 +326,7 @@ private extension ConversationViewModel {
     func handleTokenEvent(_ payload: TokenEventPayload) -> TokenEventPersistence {
         let hadStreamingText = state.streamingText != nil
         state.clearStreamingText()
+        guard payload.stopReason != ConversationEvent.interimUsageStopReason else { return .persistTokens }
         guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
         clearResolvedPendingToolApprovalIfNeeded()
 
@@ -488,8 +489,7 @@ private extension ConversationViewModel {
             return
         }
 
-        saveTask = nil
-        saveTaskID = nil
+        (saveTask, saveTaskID) = (nil, nil)
         guard needsFollowUpSave else {
             return
         }

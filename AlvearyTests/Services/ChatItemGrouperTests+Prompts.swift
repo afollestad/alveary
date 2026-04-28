@@ -73,6 +73,79 @@ extension ChatItemGrouperTests {
         XCTAssertNil(prompt.submittedSummary)
     }
 
+    func testAssistantContinuationMarksUnansweredPromptHandledSoLaterApprovalIsActionable() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let prompt = ConversationEventRecord(
+            id: "prompt-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        )
+        let continuation = ConversationEventRecord(
+            id: "assistant-continued",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: "The user declined the question. I'll continue."
+        )
+        let approval = ConversationEventRecord(
+            id: "approval-1",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-1",
+            toolId: "write-1",
+            toolName: "Write",
+            toolInput: #"{"file_path":"plan.md"}"#
+        )
+
+        grouper.update(events: [prompt, continuation, approval])
+
+        XCTAssertFalse(grouper.hasUnansweredPrompt)
+        guard case .promptBlock(_, let renderedPrompt) = grouper.items.first else {
+            return XCTFail("Expected the prompt to remain visible")
+        }
+        XCTAssertEqual(renderedPrompt.submittedSummary, ChatItemGrouper.handledPromptSummary)
+        XCTAssertTrue(grouper.items.contains { item in
+            if case .toolApproval(_, let request, nil) = item {
+                return request.toolUseId == "write-1"
+            }
+            return false
+        })
+    }
+
+    func testParallelApprovalDoesNotMarkUnansweredPromptHandledWithoutContinuation() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let prompt = ConversationEventRecord(
+            id: "prompt-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        )
+        let approval = ConversationEventRecord(
+            id: "approval-1",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-1",
+            toolId: "write-1",
+            toolName: "Write",
+            toolInput: #"{"file_path":"plan.md"}"#
+        )
+
+        grouper.update(events: [prompt, approval])
+
+        XCTAssertTrue(grouper.hasUnansweredPrompt)
+        guard case .promptBlock(_, let renderedPrompt) = grouper.items.first else {
+            return XCTFail("Expected the prompt to remain visible")
+        }
+        XCTAssertNil(renderedPrompt.submittedSummary)
+    }
+
     func testAskUserQuestionDefaultsToAllowingCustomResponse() {
         let grouper = ChatItemGrouper()
 

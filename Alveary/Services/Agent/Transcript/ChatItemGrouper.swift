@@ -4,6 +4,8 @@ import Observation
 @MainActor
 @Observable
 final class ChatItemGrouper {
+    static let handledPromptSummary = "Response already handled."
+
     var items: [ChatItem] = []
     var processedCount = 0
     var pendingGroupTools: [ToolEntry] = []
@@ -94,6 +96,30 @@ final class ChatItemGrouper {
                 id: prompt.id,
                 questions: prompt.questions,
                 submittedSummary: summary
+            )
+        )
+    }
+
+    func markLatestUnansweredPromptHandledAfterContinuationIfNeeded() {
+        guard let index = items.lastIndex(where: { item in
+            guard case .promptBlock(_, let prompt) = item else {
+                return false
+            }
+            return prompt.submittedSummary == nil
+        }), case .promptBlock(let id, let prompt) = items[index] else {
+            return
+        }
+        let laterItems = items[items.index(after: index)...]
+        guard laterItems.contains(where: \.isAssistantMessage) else {
+            return
+        }
+
+        items[index] = .promptBlock(
+            id: id,
+            prompt: PromptEntry(
+                id: prompt.id,
+                questions: prompt.questions,
+                submittedSummary: Self.handledPromptSummary
             )
         )
     }

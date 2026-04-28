@@ -138,7 +138,8 @@ extension ConversationViewModel {
             guard let stopReason = token.stopReason else {
                 return false
             }
-            return stopReason != "tool_deferred"
+            return stopReason != "tool_deferred" &&
+                stopReason != ConversationEvent.interimUsageStopReason
         }
     }
 
