@@ -54,6 +54,37 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.lastTurnError)
     }
 
+    func testQueuedMessageSendsAfterPermissionDeniedTurnCompletes() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "tool_use",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")]
+            )
+        )
+
+        try await waitUntil("queued message sent after permission denial") {
+            let sentMessages = await fixture.agentsManager.sentMessages()
+            return sentMessages == ["Follow-up"]
+                && fixture.viewModel.messageQueue.peekNext() == nil
+        }
+
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertFalse(fixture.viewModel.state.isCancellingTurn)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+    }
+
     func testSteerQueuedMessageCanSendAnyQueuedEntryImmediately() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.turnState.beginTurn()

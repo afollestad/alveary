@@ -369,12 +369,12 @@ private extension ConversationViewModel {
         if !payload.isError && payload.permissionDenials.isEmpty {
             if shouldTriggerAutomaticSessionHandoff(for: payload) {
                 state.turnState.endTurn()
-                Task { @MainActor [self] in
-                    await startSessionHandoff(trigger: .automatic)
-                }
+                Task { @MainActor [self] in await startSessionHandoff(trigger: .automatic) }
             } else {
                 handleTurnCompleted()
             }
+        } else if !payload.permissionDenials.isEmpty { // Permission denials end the provider turn; drain queued follow-up.
+            handleTurnCompleted()
         } else {
             state.turnState.endTurn()
         }
