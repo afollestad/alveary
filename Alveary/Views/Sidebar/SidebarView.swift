@@ -24,9 +24,7 @@ struct SidebarView: View {
 
         return VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
-                InlineBanner(message: sidebarError, severity: .error, autoDismissAfter: nil) {
-                    viewModel.dismissSidebarError()
-                }
+                InlineBanner(message: sidebarError, severity: .error, autoDismissAfter: nil, onDismiss: viewModel.dismissSidebarError)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
             }

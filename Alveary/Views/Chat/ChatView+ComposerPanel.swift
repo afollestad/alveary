@@ -50,16 +50,22 @@ struct ChatComposerPanel: View {
                         }
                     )
                 } else {
-                    InlineBanner(message: lastTurnError, severity: .error, autoDismissAfter: nil) {
-                        viewModel.lastTurnError = nil
-                    }
+                    InlineBanner(
+                        message: lastTurnError,
+                        severity: .error,
+                        autoDismissAfter: nil,
+                        onDismiss: { viewModel.lastTurnError = nil }
+                    )
                 }
             }
 
             if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
-                InlineBanner(message: sessionContinuityNotice, severity: .warning, autoDismissAfter: nil) {
-                    viewModel.sessionContinuityNotice = nil
-                }
+                InlineBanner(
+                    message: sessionContinuityNotice,
+                    severity: .warning,
+                    autoDismissAfter: nil,
+                    onDismiss: { viewModel.sessionContinuityNotice = nil }
+                )
             }
 
             if let stagedContext = viewModel.stagedContext {

@@ -83,9 +83,7 @@ struct DiffViewerPane: View {
             )
 
             if let gitError = viewModel.gitError {
-                InlineBanner(message: gitError, severity: .error, autoDismissAfter: nil) {
-                    viewModel.clearGitError()
-                }
+                InlineBanner(message: gitError, severity: .error, autoDismissAfter: nil, onDismiss: viewModel.clearGitError)
                     .padding(12)
             }
 

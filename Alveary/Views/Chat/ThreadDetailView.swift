@@ -67,9 +67,12 @@ struct ThreadDetailView: View {
             if let conversation = selectedConversation {
                 VStack(spacing: 0) {
                     if let conversationActionError {
-                        InlineBanner(message: conversationActionError, severity: .error, autoDismissAfter: nil) {
-                            self.conversationActionError = nil
-                        }
+                        InlineBanner(
+                            message: conversationActionError,
+                            severity: .error,
+                            autoDismissAfter: nil,
+                            onDismiss: { self.conversationActionError = nil }
+                        )
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                     }

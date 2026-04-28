@@ -15,9 +15,12 @@ struct GitSettingsTabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let screenError {
-                InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
-                    self.screenError = nil
-                }
+                InlineBanner(
+                    message: screenError,
+                    severity: .error,
+                    autoDismissAfter: nil,
+                    onDismiss: { self.screenError = nil }
+                )
             }
 
             VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {

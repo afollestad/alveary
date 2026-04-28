@@ -30,9 +30,12 @@ struct MCPScreen: View {
                 )
 
                 if let screenError {
-                    InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
-                        self.screenError = nil
-                    }
+                    InlineBanner(
+                        message: screenError,
+                        severity: .error,
+                        autoDismissAfter: nil,
+                        onDismiss: { self.screenError = nil }
+                    )
                 }
 
                 if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {

@@ -34,9 +34,12 @@ struct SkillsScreen: View {
                 )
 
                 if let screenError {
-                    InlineBanner(message: screenError, severity: .error, autoDismissAfter: nil) {
-                        self.screenError = nil
-                    }
+                    InlineBanner(
+                        message: screenError,
+                        severity: .error,
+                        autoDismissAfter: nil,
+                        onDismiss: { self.screenError = nil }
+                    )
                 }
 
                 if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty && !viewModel.hasActiveSearch {
