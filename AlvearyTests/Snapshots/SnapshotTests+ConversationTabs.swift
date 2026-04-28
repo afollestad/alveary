@@ -8,41 +8,16 @@ import XCTest
 
 extension SnapshotTests {
     func testConversationTabsBusyStatusSpinnerVisible() {
-        let thread = AgentThread(name: "Status Dot Coverage")
-        let mainConversation = Conversation(
-            id: "main",
-            provider: "claude",
-            isMain: true,
-            displayOrder: 0,
-            thread: thread
-        )
-        let secondConversation = Conversation(
-            id: "side",
-            title: "Follow-up",
-            provider: "claude",
-            isMain: false,
-            displayOrder: 1,
-            thread: thread
-        )
-        thread.conversations = [mainConversation, secondConversation]
-
-        assertMacSnapshot(
-            ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: mainConversation,
-                statusVersion: 0,
-                statusForConversation: { conversation in
-                    conversation.id == mainConversation.id ? .busy : .stopped
-                },
-                onSelect: { _ in },
-                onCommitRename: { _, _ in },
-                onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
-                editingConversationID: .constant(nil)
-            ),
-            size: CGSize(width: 640, height: 72),
+        assertConversationTabsStatusSnapshot(
+            status: .busy,
             named: "conversation_tabs_busy_spinner"
+        )
+    }
+
+    func testConversationTabsWaitingForUserStatusDotVisible() {
+        assertConversationTabsStatusSnapshot(
+            status: .waitingForUser,
+            named: "conversation_tabs_waiting_for_user_dot"
         )
     }
 
@@ -151,6 +126,21 @@ extension SnapshotTests {
     }
 
     func testConversationTabsDividerVisibleInDarkMode() {
+        assertConversationTabsStatusSnapshot(
+            status: .busy,
+            named: "conversation_tabs_dark_divider",
+            colorScheme: .dark
+        )
+    }
+
+    private func assertConversationTabsStatusSnapshot(
+        status: ThreadStatus,
+        named: String,
+        colorScheme: ColorScheme = .light,
+        file: StaticString = #filePath,
+        testName: String = #function,
+        line: UInt = #line
+    ) {
         let thread = AgentThread(name: "Status Dot Coverage")
         let mainConversation = Conversation(
             id: "main",
@@ -175,7 +165,7 @@ extension SnapshotTests {
                 selectedConversation: mainConversation,
                 statusVersion: 0,
                 statusForConversation: { conversation in
-                    conversation.id == mainConversation.id ? .busy : .stopped
+                    conversation.id == mainConversation.id ? status : .stopped
                 },
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
@@ -185,8 +175,11 @@ extension SnapshotTests {
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
-            named: "conversation_tabs_dark_divider",
-            colorScheme: .dark
+            named: named,
+            colorScheme: colorScheme,
+            file: file,
+            testName: testName,
+            line: line
         )
     }
 

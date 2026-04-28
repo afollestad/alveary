@@ -46,6 +46,97 @@ extension AgentsManagerTests {
         XCTAssertTrue(isRunning)
     }
 
+    func testAskUserQuestionLiveApprovalShowsWaitingThenBusyAfterResolution() async throws {
+        let executable = try TempHookServerDeferredToolExecutable()
+        defer { executable.cleanup() }
+        let hookServer = StubClaudeHookServer(
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "token"]
+            )
+        )
+        let manager = makeTestManager(
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
+            claudeHookServer: hookServer,
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-ask-user-question-status"
+        let config = hookSpawnConfig(workingDirectory: executable.workingDirectory.path)
+        defer {
+            Task { await manager.kill(conversationId: conversationId) }
+        }
+
+        try await manager.spawn(id: conversationId, config: config, forkSession: false)
+        try await waitUntil("expected first tool call before AskUserQuestion deferral") {
+            await manager.retainedEventCount(conversationId: conversationId) >= 1
+        }
+
+        let approval = askUserQuestionRequest(conversationId: conversationId)
+        await manager.handleDeferredToolRequestFromHookServer(approval)
+
+        try await waitUntil("expected AskUserQuestion to show waiting status") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        _ = try await manager.resolveToolApproval(
+            AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: approval.request,
+                resolution: ClaudeToolApprovalResolution(
+                    decision: .allow,
+                    updatedInput: #"{"answers":{"Pick one":"A"},"questions":[]}"#
+                ),
+                additionalApprovals: [],
+                sessionApproval: nil,
+                config: config
+            )
+        )
+
+        XCTAssertEqual(manager.status(for: conversationId), .busy)
+    }
+
+    func testAskUserQuestionLiveApprovalFailureClearsWaitingStatus() async throws {
+        let executable = try TempHookServerDeferredToolExecutable()
+        defer { executable.cleanup() }
+        let hookServer = StubClaudeHookServer(
+            launchConfig: ClaudeHookLaunchConfig(
+                arguments: [],
+                environment: ["ALVEARY_HOOK_TOKEN": "token"]
+            )
+        )
+        let manager = makeTestManager(
+            settings: makeSettings(),
+            providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
+            claudeHookServer: hookServer,
+            adapterFactory: { _ in ClaudeAdapter() }
+        )
+        let conversationId = "conversation-ask-user-question-failure-status"
+        defer {
+            Task { await manager.kill(conversationId: conversationId) }
+        }
+
+        try await manager.spawn(
+            id: conversationId,
+            config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path),
+            forkSession: false
+        )
+        try await waitUntil("expected first tool call before AskUserQuestion deferral") {
+            await manager.retainedEventCount(conversationId: conversationId) >= 1
+        }
+
+        let approval = askUserQuestionRequest(conversationId: conversationId)
+        await manager.handleDeferredToolRequestFromHookServer(approval)
+
+        try await waitUntil("expected AskUserQuestion to show waiting status") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        await emitToolApprovalFailure(manager: manager, conversationId: conversationId, approval: approval.request)
+
+        XCTAssertEqual(manager.status(for: conversationId), .busy)
+    }
+
     func testClaudeHookServerDeferredToolCanReplayLiveApprovalWithoutActiveSubscriber() async throws {
         let fixture = try hookServerDeferredToolRaceFixture()
         defer { cleanupHookServerDeferredToolRaceFixture(fixture) }
@@ -255,6 +346,42 @@ extension AgentsManagerTests {
                 toolName: "Bash",
                 toolInput: #"{"command":"\#(command)"}"#
             )
+        )
+    }
+
+    private func askUserQuestionRequest(conversationId: String) -> ClaudeDeferredToolRequest {
+        ClaudeDeferredToolRequest(
+            conversationId: conversationId,
+            launchToken: "token",
+            request: ToolApprovalRequest(
+                sessionId: "session-deferred",
+                toolUseId: "toolu_question",
+                toolName: "AskUserQuestion",
+                toolInput: #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+            )
+        )
+    }
+
+    private func emitToolApprovalFailure(
+        manager: DefaultAgentsManager,
+        conversationId: String,
+        approval: ToolApprovalRequest
+    ) async {
+        guard let subscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0) else {
+            XCTFail("Expected live approval buffer")
+            return
+        }
+
+        await manager.handleStreamEvent(
+            .toolApprovalFailed(ToolApprovalFailure(
+                sessionId: approval.sessionId,
+                toolUseId: approval.toolUseId,
+                toolName: approval.toolName,
+                message: "Claude hook failed (PreToolUse:AskUserQuestion): socket closed"
+            )),
+            conversationId: conversationId,
+            generation: subscription.generation,
+            providerId: "claude"
         )
     }
 

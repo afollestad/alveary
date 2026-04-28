@@ -10,6 +10,11 @@ final class ThreadStatusTests: XCTestCase {
         XCTAssertEqual(pair.conversation.displayStatus(runtime: .busy), .busy)
     }
 
+    func testConversationDisplayStatusWaitingForUserWinsOverUnread() throws {
+        let pair = try seedPair(isUnread: true)
+        XCTAssertEqual(pair.conversation.displayStatus(runtime: .waitingForUser), .waitingForUser)
+    }
+
     func testConversationDisplayStatusErrorWinsOverUnread() throws {
         let pair = try seedPair(isUnread: true)
         XCTAssertEqual(pair.conversation.displayStatus(runtime: .error), .error)
@@ -51,6 +56,29 @@ final class ThreadStatusTests: XCTestCase {
         )
 
         XCTAssertEqual(seeded.thread.displayStatus(runtimeFor: seeded.runtimeLookup(for:)), .error)
+    }
+
+    func testThreadDisplayStatusWaitingForUserPreferredOverErrorAndUnread() throws {
+        let seeded = try seedThread(
+            conversations: [
+                ConversationSpec(isUnread: true, runtime: .neutral),
+                ConversationSpec(isUnread: false, runtime: .error),
+                ConversationSpec(isUnread: false, runtime: .waitingForUser)
+            ]
+        )
+
+        XCTAssertEqual(seeded.thread.displayStatus(runtimeFor: seeded.runtimeLookup(for:)), .waitingForUser)
+    }
+
+    func testThreadDisplayStatusBusyPreferredOverWaitingForUser() throws {
+        let seeded = try seedThread(
+            conversations: [
+                ConversationSpec(isUnread: false, runtime: .waitingForUser),
+                ConversationSpec(isUnread: false, runtime: .busy)
+            ]
+        )
+
+        XCTAssertEqual(seeded.thread.displayStatus(runtimeFor: seeded.runtimeLookup(for:)), .busy)
     }
 
     func testThreadDisplayStatusUnreadWhenAnyConversationUnread() throws {

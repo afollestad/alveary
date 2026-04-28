@@ -23,7 +23,7 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 
 Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `Terminal/`. Current surfaces: `SidebarThreadRow.statusColor`, `ConversationTabChip.statusColor`, `TerminalSessionChip.statusColor`, `TerminalSessionStatusBadge.foregroundColor`.
 
-- **Blue** = in-progress (`.busy`, `.running`).
+- **Blue** = active or waiting runtime state (`.busy`, `.running`, `.waitingForUser`).
 - **Green** = done / success (`.unread`, `.succeeded`). Matches the `ToolStatusIndicator` green check documented in `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`.
 - **Red** = error (`.error`, `.failed`).
 - **Orange** = user-cancelled (`.cancelled`).

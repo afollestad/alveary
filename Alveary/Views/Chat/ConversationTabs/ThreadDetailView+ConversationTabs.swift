@@ -325,6 +325,8 @@ private extension ConversationTabChip {
         switch status {
         case .busy:
             return .spinner(.blue)
+        case .waitingForUser:
+            return .dot(.blue)
         case .unread:
             return .dot(.green)
         case .error:

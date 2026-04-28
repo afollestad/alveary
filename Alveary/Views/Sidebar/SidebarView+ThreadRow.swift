@@ -91,6 +91,8 @@ struct SidebarThreadRow: View {
         switch status {
         case .busy:
             return .blue
+        case .waitingForUser:
+            return .blue
         case .unread:
             return .green
         case .error:

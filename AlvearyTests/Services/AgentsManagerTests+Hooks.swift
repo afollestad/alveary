@@ -198,7 +198,7 @@ extension AgentsManagerTests {
         try await waitUntil("expected manager to stop the deferred runtime") {
             let isRunning = await manager.isRunning(conversationId: conversationId)
             let status = manager.status(for: conversationId)
-            return !isRunning && status == .stopped
+            return !isRunning && status == .waitingForUser
         }
 
         let hasSession = await sessionManager.hasSession(for: conversationId)
@@ -281,7 +281,7 @@ extension AgentsManagerTests {
         try await waitUntil("expected manager to stop the deferred runtime") {
             let isRunning = await manager.isRunning(conversationId: conversationId)
             let status = manager.status(for: conversationId)
-            return !isRunning && status == .stopped
+            return !isRunning && status == .waitingForUser
         }
 
         let collected = await events

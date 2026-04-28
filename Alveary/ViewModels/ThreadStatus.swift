@@ -2,6 +2,7 @@ import Foundation
 
 enum ThreadStatus: Sendable, Equatable {
     case busy
+    case waitingForUser
     case unread
     case stopped
     case error
@@ -18,6 +19,8 @@ extension Conversation {
         switch runtime {
         case .busy:
             return .busy
+        case .waitingForUser:
+            return .waitingForUser
         case .error:
             return .error
         case .idle, .stopped, .neutral:
@@ -34,12 +37,16 @@ extension AgentThread {
         }
 
         var hasError = false
+        var isWaitingForUser = false
         var hasUnread = false
 
         for conversation in conversations {
             let signal = runtimeFor(conversation)
             if signal == .busy {
                 return .busy
+            }
+            if signal == .waitingForUser {
+                isWaitingForUser = true
             }
             if signal == .error {
                 hasError = true
@@ -49,6 +56,9 @@ extension AgentThread {
             }
         }
 
+        if isWaitingForUser {
+            return .waitingForUser
+        }
         if hasError {
             return .error
         }

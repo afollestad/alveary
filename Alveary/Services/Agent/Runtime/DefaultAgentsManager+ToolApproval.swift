@@ -18,6 +18,9 @@ extension DefaultAgentsManager {
                 conversationId: request.conversationId,
                 count: context.additionalKeys.count + 1
             )
+            if request.approval.toolName == "AskUserQuestion" {
+                updateStatus(.busy, for: request.conversationId)
+            }
             return context.sessionApprovalRecordResult.isEffective
         }
 

@@ -88,7 +88,9 @@ extension DefaultAgentsManager {
             graceSeconds: 1.0
         )
         eventBuffers[conversationId]?.allowsReplay = true
-        updateStatus(.stopped, for: conversationId)
+        if status(for: conversationId) != .waitingForUser {
+            updateStatus(.stopped, for: conversationId)
+        }
     }
 
     private func waitForDeferredToolPersistence(sessionId: String, toolUseId: String, cwd: String) async {

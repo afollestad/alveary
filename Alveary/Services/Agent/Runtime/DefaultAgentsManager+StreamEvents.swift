@@ -16,37 +16,7 @@ extension DefaultAgentsManager {
         managedBuffer.buffer.push(event)
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
-
-        switch event {
-        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
-            updateStatus(
-                tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
-                for: conversationId
-            )
-            if stopReason == "tool_deferred",
-               let pid = processes[conversationId]?.processIdentifier {
-                guard eventBuffers[conversationId]?.hasDeferredToolStop != true else {
-                    break
-                }
-                eventBuffers[conversationId]?.hasDeferredToolStop = true
-                eventBuffers[conversationId]?.acceptsLiveEvents = false
-                Task { [weak self] in
-                    await self?.stopDeferredRuntimeIfCurrent(
-                        conversationId: conversationId,
-                        generation: generation,
-                        pid: pid
-                    )
-                }
-            }
-        case .toolApprovalFailed(let failure):
-            if failure.toolUseId != nil {
-                decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
-            }
-        case .error:
-            updateStatus(.error, for: conversationId)
-        default:
-            break
-        }
+        handleRuntimeStatusEvent(event, conversationId: conversationId, generation: generation)
 
         guard canTriggerNotification(event) else {
             return
@@ -67,6 +37,92 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.finishAll()
+    }
+
+    private func handleRuntimeStatusEvent(
+        _ event: ConversationEvent,
+        conversationId: String,
+        generation: UUID
+    ) {
+        switch event {
+        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
+            handleTokenStatus(
+                isError: isError,
+                stopReason: stopReason,
+                permissionDenials: permissionDenials,
+                conversationId: conversationId
+            )
+            handleToolDeferredStopIfNeeded(
+                stopReason: stopReason,
+                conversationId: conversationId,
+                generation: generation
+            )
+        case .toolApprovalFailed(let failure):
+            handleToolApprovalFailureStatus(failure, conversationId: conversationId)
+        case .toolApprovalRequested(let request):
+            if request.toolName == "AskUserQuestion" {
+                updateStatus(.waitingForUser, for: conversationId)
+            }
+        case .error:
+            updateStatus(.error, for: conversationId)
+        default:
+            break
+        }
+    }
+
+    private func handleToolApprovalFailureStatus(
+        _ failure: ToolApprovalFailure,
+        conversationId: String
+    ) {
+        if failure.toolUseId != nil {
+            decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
+        }
+        if failure.toolName == "AskUserQuestion",
+           status(for: conversationId) == .waitingForUser {
+            updateStatus(.busy, for: conversationId)
+        }
+    }
+
+    private func handleTokenStatus(
+        isError: Bool,
+        stopReason: String?,
+        permissionDenials: [PermissionDenialSummary],
+        conversationId: String
+    ) {
+        let isWaitingOnDeferredPrompt = stopReason == "tool_deferred" &&
+            !isError &&
+            permissionDenials.isEmpty &&
+            status(for: conversationId) == .waitingForUser
+        guard !isWaitingOnDeferredPrompt else {
+            return
+        }
+
+        updateStatus(
+            tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
+            for: conversationId
+        )
+    }
+
+    private func handleToolDeferredStopIfNeeded(
+        stopReason: String?,
+        conversationId: String,
+        generation: UUID
+    ) {
+        guard stopReason == "tool_deferred",
+              let pid = processes[conversationId]?.processIdentifier,
+              eventBuffers[conversationId]?.hasDeferredToolStop != true else {
+            return
+        }
+
+        eventBuffers[conversationId]?.hasDeferredToolStop = true
+        eventBuffers[conversationId]?.acceptsLiveEvents = false
+        Task { [weak self] in
+            await self?.stopDeferredRuntimeIfCurrent(
+                conversationId: conversationId,
+                generation: generation,
+                pid: pid
+            )
+        }
     }
 
     private func handleConversationLifecycleEvent(
