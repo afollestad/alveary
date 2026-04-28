@@ -154,8 +154,8 @@ struct SettingsScreen: View {
 
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case agents
-        case git
         case interface
+        case git
         case notifications
         case terminal
         case threads
@@ -169,7 +169,7 @@ struct SettingsScreen: View {
             case .git:
                 return "Git"
             case .interface:
-                return "Interface"
+                return "Appearance"
             case .notifications:
                 return "Notifications"
             case .terminal:
@@ -182,11 +182,11 @@ struct SettingsScreen: View {
         var icon: String {
             switch self {
             case .agents:
-                return "sparkles.rectangle.stack"
+                return "brain"
             case .git:
                 return "arrow.triangle.branch"
             case .interface:
-                return "swatchpalette"
+                return "paintbrush"
             case .notifications:
                 return "bell"
             case .terminal:
