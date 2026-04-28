@@ -96,6 +96,7 @@ extension DefaultAgentsManager {
     func kill(conversationId: String) {
         closingConversationIds.insert(conversationId)
         pendingSessionRemovalIds.insert(conversationId)
+        deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
         _ = conversationStatesStore.withLock { $0.removeValue(forKey: conversationId) }
         clearStatus(for: conversationId)
 

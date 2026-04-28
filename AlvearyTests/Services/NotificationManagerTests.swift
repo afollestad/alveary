@@ -146,6 +146,112 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertEqual(spy.postedNotifications.first?.message, "Your agent needs permission in \"Thread\"")
     }
 
+    func testAskUserQuestionNotificationUsesQuestionSummary() throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: false,
+            activeConversationId: nil,
+            spy: spy
+        )
+
+        manager.handleEvent(
+            .toolApprovalRequested(
+                ToolApprovalRequest(
+                    sessionId: "session-1",
+                    toolUseId: "toolu_question",
+                    toolName: "AskUserQuestion",
+                    toolInput: #"{"questions":[{"question":"Pick a release channel","options":[{"label":"Stable","description":"Safe"}]}]}"#
+                )
+            ),
+            conversationId: conversation.id
+        )
+
+        XCTAssertEqual(
+            spy.postedNotifications.first?.message,
+            "Your agent has a question: Pick a release channel in \"Thread\""
+        )
+    }
+
+    func testToolApprovalNotificationUsesApprovalSummary() throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: false,
+            activeConversationId: nil,
+            spy: spy
+        )
+
+        manager.handleEvent(
+            .toolApprovalRequested(
+                ToolApprovalRequest(
+                    sessionId: "session-1",
+                    toolUseId: "toolu_bash",
+                    toolName: "Bash",
+                    toolInput: #"{"command":"swift test"}"#
+                )
+            ),
+            conversationId: conversation.id
+        )
+        manager.handleEvent(
+            .toolApprovalRequested(
+                ToolApprovalRequest(
+                    sessionId: "session-1",
+                    toolUseId: "toolu_write",
+                    toolName: "Write",
+                    toolInput: #"{"file_path":"/tmp/notes.md"}"#
+                )
+            ),
+            conversationId: conversation.id
+        )
+
+        XCTAssertEqual(spy.postedNotifications.map(\.message), [
+            "Your agent needs permission: Approve Bash command? swift test in \"Thread\"",
+            "Your agent needs permission: Approve writing to a file? /tmp/notes.md in \"Thread\""
+        ])
+    }
+
+    func testNonTerminalTokensDoNotNotifyDirectly() throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: false,
+            activeConversationId: nil,
+            spy: spy
+        )
+
+        manager.handleEvent(
+            .tokens(
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                isError: false,
+                stopReason: "tool_deferred",
+                durationMs: 0,
+                costUsd: 0,
+                permissionDenials: []
+            ),
+            conversationId: conversation.id
+        )
+
+        XCTAssertTrue(spy.postedNotifications.isEmpty)
+        XCTAssertFalse(
+            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? true
+        )
+    }
+
     func testDisabledNotificationsSuppressAllOutputsAndDoesNotMarkUnread() throws {
         let service = InMemorySettingsService()
         service.update { $0.notifications.enabled = false }

@@ -5,6 +5,9 @@ These instructions cover `DefaultNotificationManager`, `NotificationRouter`, and
 ## Invariants
 
 - OS notification `identifier` equals the `conversationId`. New events for the same conversation replace any pending banner (so stale "finished working" notifications don't pile up once newer events arrive), and `UNUserNotificationCenter.removeDeliveredNotifications(withIdentifiers:)` can target precisely on mark-read. Do not change to a per-event UUID.
+- Notification copy must name the actual state:
+    - **Reserve completion copy for terminal work.** Do not use "finished working" for pending approval, `AskUserQuestion`, interim usage, or successful `tool_deferred` stops.
+    - **Keep pending-action copy explicit.** Permission prompts should say what tool/action needs approval; `AskUserQuestion` prompts should include a short question summary.
 - The dock badge count is "unread conversations whose thread is not archived." The predicate chains through an optional relationship (`conversation.thread?.archivedAt == nil`); archive/restore/delete flows must call `NotificationManager.refreshBadgeCount()` themselves because SwiftData does not emit `.agentStatusChanged` on those flows.
 - `setBadgeCount` calls are serialized through `pendingBadgeUpdate = Task { _ = await previous?.value; ... }`. Rapid mark-unread / mark-read sequences would otherwise race and leave the dock showing a stale higher count. Do not "simplify" the chain away.
 - "Actively viewing" (`isActivelyViewing`) means the app is in foreground *and* the specific conversation is selected. `isAppInForeground()` alone is not enough — a foreground app with a different conversation selected should still mark the event's conversation unread.

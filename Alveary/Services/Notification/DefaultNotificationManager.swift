@@ -155,6 +155,8 @@ final class DefaultNotificationManager: NotificationManager {
                 stopReason: stopReason,
                 permissionDenials: permissionDenials
             )
+        case .toolApprovalRequested(let request):
+            return request.notificationMessage
         case .error(let errorMessage):
             return errorMessage.isEmpty ? "Your agent encountered an error" : errorMessage
         default:
@@ -177,7 +179,7 @@ final class DefaultNotificationManager: NotificationManager {
         isError: Bool,
         stopReason: String?,
         permissionDenials: [PermissionDenialSummary]
-    ) -> String {
+    ) -> String? {
         if !permissionDenials.isEmpty {
             return "Your agent needs permission"
         }
@@ -185,6 +187,11 @@ final class DefaultNotificationManager: NotificationManager {
         if isError {
             let trimmedStopReason = stopReason?.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmedStopReason.flatMap { $0.isEmpty ? nil : $0 } ?? "Your agent encountered an error"
+        }
+
+        guard stopReason != ConversationEvent.interimUsageStopReason,
+              stopReason != "tool_deferred" else {
+            return nil
         }
 
         return "Your agent has finished working"

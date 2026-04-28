@@ -156,10 +156,12 @@ extension DefaultAgentsManager {
         }
 
         let buffer = EventBuffer()
+        deniedToolUseIdsByConversation.removeValue(forKey: id)
         eventBuffers[id] = ManagedEventBuffer(
             generation: generation, allowsReplay: true,
             acceptsLiveEvents: true, hasDeferredToolStop: false,
             pendingLiveToolApprovals: 0,
+            hasSentPendingUserActionNotification: false,
             resolvedLiveToolApprovals: [],
             deferredToolStopSessionId: nil, deferredToolStopToolUseId: nil,
             buffer: buffer

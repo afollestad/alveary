@@ -8,6 +8,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var acceptsLiveEvents: Bool
     var hasDeferredToolStop: Bool
     var pendingLiveToolApprovals: Int
+    var hasSentPendingUserActionNotification: Bool
     var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?
@@ -19,6 +20,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
         acceptsLiveEvents: Bool,
         hasDeferredToolStop: Bool,
         pendingLiveToolApprovals: Int,
+        hasSentPendingUserActionNotification: Bool,
         resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>,
         deferredToolStopSessionId: String?,
         deferredToolStopToolUseId: String?,
@@ -29,6 +31,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
         self.acceptsLiveEvents = acceptsLiveEvents
         self.hasDeferredToolStop = hasDeferredToolStop
         self.pendingLiveToolApprovals = pendingLiveToolApprovals
+        self.hasSentPendingUserActionNotification = hasSentPendingUserActionNotification
         self.resolvedLiveToolApprovals = resolvedLiveToolApprovals
         self.deferredToolStopSessionId = deferredToolStopSessionId
         self.deferredToolStopToolUseId = deferredToolStopToolUseId

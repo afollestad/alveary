@@ -54,6 +54,23 @@ final class ToolApprovalRequestTests: XCTestCase {
         )
     }
 
+    func testNotificationMessageUsesAskUserQuestionSummaryFallback() {
+        XCTAssertEqual(
+            request(
+                toolName: "AskUserQuestion",
+                toolInput: #"{"questions":[{"question":"  Pick a target  ","options":[]}]}"#
+            ).notificationMessage,
+            "Your agent has a question: Pick a target"
+        )
+        XCTAssertEqual(
+            request(
+                toolName: "AskUserQuestion",
+                toolInput: #"{"questions":[{"question":"  ","options":[]}]}"#
+            ).notificationMessage,
+            "Your agent has a question: Review the pending question"
+        )
+    }
+
     func testPlanMarkdownExtractsExitPlanModePlan() {
         XCTAssertEqual(
             request(

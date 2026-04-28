@@ -76,6 +76,7 @@ extension DefaultAgentsManager {
     ) {
         if failure.toolUseId != nil {
             decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
+            eventBuffers[conversationId]?.hasSentPendingUserActionNotification = false
         }
         if failure.toolName == "AskUserQuestion",
            status(for: conversationId) == .waitingForUser {

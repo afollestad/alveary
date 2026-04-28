@@ -18,20 +18,35 @@ extension DefaultAgentsManager {
                 conversationId: request.conversationId,
                 count: context.additionalKeys.count + 1
             )
+            recordDeniedToolUseIdsIfNeeded(request)
+            eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
             if request.approval.toolName == "AskUserQuestion" {
                 updateStatus(.busy, for: request.conversationId)
             }
             return context.sessionApprovalRecordResult.isEffective
         }
 
-        try await restartAgentForToolApproval(request, context: context)
+        if try await restartAgentForToolApproval(request, context: context) {
+            recordDeniedToolUseIdsIfNeeded(request)
+        }
         return context.sessionApprovalRecordResult.isEffective
+    }
+
+    private func recordDeniedToolUseIdsIfNeeded(_ request: AgentToolApprovalResolutionRequest) {
+        guard request.resolution.decision == .deny else {
+            return
+        }
+
+        var deniedToolUseIds = deniedToolUseIdsByConversation[request.conversationId] ?? []
+        deniedToolUseIds.insert(request.approval.toolUseId)
+        deniedToolUseIds.formUnion(request.additionalApprovals.map(\.toolUseId))
+        deniedToolUseIdsByConversation[request.conversationId] = deniedToolUseIds
     }
 
     private func restartAgentForToolApproval(
         _ request: AgentToolApprovalResolutionRequest,
         context: ToolApprovalResolutionContext
-    ) async throws {
+    ) async throws -> Bool {
         let oldPID = processes[request.conversationId]?.processIdentifier
         suppressExitStatus(for: request.conversationId, pid: oldPID)
         await teardownProcess(
@@ -60,8 +75,10 @@ extension DefaultAgentsManager {
             )
             if hookTokens[request.conversationId] == nil {
                 await discardToolApprovalResolutionContext(context)
+                return false
             }
             updateStatus(.busy, for: request.conversationId)
+            return true
         } catch {
             await discardToolApprovalResolutionContext(context)
             await MainActor.run {

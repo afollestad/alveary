@@ -31,7 +31,7 @@ These instructions cover Alveary-owned Claude hook support under `Alveary/Servic
     - **Return `updatedInput` with allow.** An answered `AskUserQuestion` must return the original `questions` array plus an `answers` object; `allow` alone is insufficient.
     - **Consume custom input once.** Clear any stored fallback `updatedInput` alongside the one-shot decision after the hook returns it.
 - `ToolApprovalRequest` owns tool-specific user-facing approval metadata:
-    - **Keep approval copy with the request.** Approval-block titles, concise summaries, supported session scopes, and deferred-composer waiting copy should all derive from `ToolApprovalRequest`, not from duplicate `toolName` switches scattered through the views.
+    - **Keep approval copy with the request.** Approval-block titles, concise summaries, notification messages, supported session scopes, and deferred-composer waiting copy should all derive from `ToolApprovalRequest`, not from duplicate `toolName` switches scattered through the views.
     - **Title approval prompts by tool family.** `ToolApprovalRequest.approvalPromptTitle(for:)` owns singular/plural subjects like Bash command(s), writing to file(s), editing file(s), notebook edit(s), and generic MCP/custom tool use(s).
     - **Canonicalize file summary paths.** File-writing/editing approval summaries should display canonical paths with the home directory abbreviated to `~` when applicable, so approval prompts show `~/Development/...` instead of raw `/Users/...` paths.
     - **Use `DeferredToolComposerStatusText` for composer overrides.** Deferred tools that need custom composer placeholder/progress copy, such as `AskUserQuestion` or `ExitPlanMode`, should add it there so every composer surface stays in sync.

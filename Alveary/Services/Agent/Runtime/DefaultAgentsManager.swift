@@ -25,6 +25,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var spawningIds: Set<String> = []
     var reconfiguringIds: Set<String> = []
     var pendingKillIds: Set<String> = []
+    var deniedToolUseIdsByConversation: [String: Set<String>] = [:]
 
     let shutdownRequested = LockedState(false)
     let processSnapshot = LockedState([Process]())

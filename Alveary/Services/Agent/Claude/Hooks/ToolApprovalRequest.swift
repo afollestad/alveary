@@ -111,6 +111,15 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         )
     }
 
+    var notificationMessage: String {
+        if toolName == "AskUserQuestion" {
+            return "Your agent has a question: \(askUserQuestionNotificationSummary)"
+        }
+
+        let title = Self.approvalPromptTitle(for: [self])
+        return "Your agent needs permission: \(title) \(conciseSummary)"
+    }
+
     var planMarkdown: String? {
         guard toolName == "ExitPlanMode" else {
             return nil
@@ -262,6 +271,22 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
 
     private var parsedInput: [String: String] {
         Self.parseInput(toolInput)
+    }
+
+    private var askUserQuestionNotificationSummary: String {
+        Self.truncated(firstAskUserQuestionText ?? "Review the pending question")
+    }
+
+    private var firstAskUserQuestionText: String? {
+        guard let data = toolInput.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let questions = object["questions"] as? [[String: Any]] else {
+            return nil
+        }
+
+        return (questions.first?["question"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
 
     private var normalizedBashCommand: String? {

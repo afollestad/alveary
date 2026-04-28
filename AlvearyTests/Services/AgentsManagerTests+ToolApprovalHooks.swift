@@ -316,13 +316,8 @@ extension AgentsManagerTests {
 
     func testResolveToolApprovalDiscardsDecisionWhenResumeSpawnsWithoutHookSettings() async throws {
         let executable = try TempExecutable()
-        let sessionApproval = AgentSessionApprovalGrant(
-            providerId: "claude",
-            conversationId: "conversation-hook-approval-hookless-resume",
-            sessionId: "session-123",
-            matchKind: .bashCommandGroup,
-            matchValue: "swift test"
-        )
+        let conversationId = "conversation-hook-approval-hookless-resume"
+        let sessionApproval = exactBashGrant(conversationId: conversationId, command: "swift test")
         let hookServer = StubClaudeHookServer(
             launchConfigs: [
                 ClaudeHookLaunchConfig(
@@ -338,7 +333,6 @@ extension AgentsManagerTests {
             claudeHookServer: hookServer,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
-        let conversationId = "conversation-hook-approval-hookless-resume"
         let config = hookSpawnConfig(workingDirectory: executable.workingDirectory.path)
         defer {
             executable.cleanup()
@@ -354,7 +348,7 @@ extension AgentsManagerTests {
             AgentToolApprovalResolutionRequest(
                 conversationId: conversationId,
                 approval: bashApprovalRequest(command: "swift test"),
-                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                resolution: ClaudeToolApprovalResolution(decision: .deny),
                 additionalApprovals: [],
                 sessionApproval: sessionApproval,
                 config: config
@@ -368,6 +362,35 @@ extension AgentsManagerTests {
         XCTAssertEqual(discards, [ClaudeToolApprovalKey(sessionId: "session-123", toolUseId: "tool-1")])
         let discardedSessionApprovals = await hookServer.discardedSessionApprovals()
         XCTAssertEqual(discardedSessionApprovals, [sessionApproval])
+
+        await assertPermissionDenialStillNotifies(manager: manager, conversationId: conversationId)
+    }
+}
+
+@MainActor
+private extension AgentsManagerTests {
+    func assertPermissionDenialStillNotifies(
+        manager: DefaultAgentsManager,
+        conversationId: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let event = ConversationEvent.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: true,
+            stopReason: "permission denied",
+            durationMs: 0,
+            costUsd: 0,
+            permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")]
+        )
+        let shouldNotify = await manager.shouldNotify(
+            for: event,
+            notificationEvent: event,
+            conversationId: conversationId
+        )
+        XCTAssertTrue(shouldNotify, file: file, line: line)
     }
 }
 
