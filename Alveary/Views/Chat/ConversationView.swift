@@ -95,6 +95,8 @@ struct ConversationView: View {
     }
 
     var body: some View {
+        let transcriptTypography = TranscriptTypography(settings: settingsService.current)
+
         ChatView(
             viewModel: viewModel,
             conversation: conversation,
@@ -111,6 +113,7 @@ struct ConversationView: View {
                 workingDirectory: activeWorkingDirectory
             ),
             loadSkillCompletions: loadSkillCompletions,
+            transcriptTypography: transcriptTypography,
             appState: appState
         )
         .task {

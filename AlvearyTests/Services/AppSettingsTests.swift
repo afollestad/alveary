@@ -177,6 +177,28 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(highSettings.normalized().maxTerminalSessions, AppSettings.supportedMaxTerminalSessionsRange.upperBound)
     }
 
+    func testNormalizedClampsFontSizesAndRestoresDefaultFontFamily() {
+        var lowSettings = AppSettings()
+        lowSettings.codeFontFamily = "  \n  "
+        lowSettings.codeFontSize = 1
+        lowSettings.chatFontSize = 1
+
+        var highSettings = AppSettings()
+        highSettings.codeFontFamily = "  Monaco  "
+        highSettings.codeFontSize = 100
+        highSettings.chatFontSize = 100
+
+        let normalizedLow = lowSettings.normalized()
+        let normalizedHigh = highSettings.normalized()
+
+        XCTAssertEqual(normalizedLow.codeFontFamily, AppSettings.defaultCodeFontFamily)
+        XCTAssertEqual(normalizedLow.codeFontSize, AppSettings.supportedCodeFontSizeRange.lowerBound)
+        XCTAssertEqual(normalizedLow.chatFontSize, AppSettings.supportedChatFontSizeRange.lowerBound)
+        XCTAssertEqual(normalizedHigh.codeFontFamily, "Monaco")
+        XCTAssertEqual(normalizedHigh.codeFontSize, AppSettings.supportedCodeFontSizeRange.upperBound)
+        XCTAssertEqual(normalizedHigh.chatFontSize, AppSettings.supportedChatFontSizeRange.upperBound)
+    }
+
     func testNormalizedClampsSessionHandoffWindowPercentageToSupportedRangeAndStep() {
         var lowSettings = AppSettings()
         lowSettings.sessionHandoffWindowPercentage = 0

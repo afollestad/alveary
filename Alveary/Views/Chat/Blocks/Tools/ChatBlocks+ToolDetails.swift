@@ -34,12 +34,12 @@ struct ToolDetails: View {
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if tool.isImage {
                 Label("Image output isn't previewed yet.", systemImage: "photo")
-                    .font(.caption)
+                    .transcriptFont(.caption)
                     .foregroundStyle(.secondary)
             } else if trimmed.isEmpty {
                 if !tool.noOutputExpected {
                     Text("No output")
-                        .font(.caption)
+                        .transcriptFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             } else {
@@ -62,7 +62,7 @@ struct MinimalToolContentView: View {
             ErrorContentBlock(content: error)
         } else if tool.isImage {
             Label("Image output isn't previewed yet.", systemImage: "photo")
-                .font(.caption)
+                .transcriptFont(.caption)
                 .foregroundStyle(.secondary)
         } else if let content = snapshot.content,
                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -80,7 +80,7 @@ struct MinimalToolContentView: View {
             }
         } else if !tool.noOutputExpected {
             Text("No output")
-                .font(.caption)
+                .transcriptFont(.caption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -126,7 +126,7 @@ private struct ErrorContentBlock: View {
 
     var body: some View {
         Text(content)
-            .font(.system(.caption, design: .monospaced))
+            .transcriptCodeFont()
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
@@ -153,6 +153,7 @@ private struct MarkdownToolContentBlock: View {
     var body: some View {
         AppMarkdownText(markdown: markdown, baseURL: baseURL)
             .textSelection(.enabled)
+            .transcriptMarkdownTypography()
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(
@@ -285,12 +286,12 @@ struct ToolOutputView: View {
                     Button(showMoreLabel) {
                         visibleTailLines = min(visibleTailLines + pageStep, totalLineCount)
                     }
-                    .font(.caption)
+                    .transcriptFont(.caption)
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
 
                     Text("\(visibleTailLines) / \(totalLineCount) lines")
-                        .font(.caption)
+                        .transcriptFont(.caption)
                         .foregroundStyle(.secondary)
 
                     Spacer(minLength: 0)

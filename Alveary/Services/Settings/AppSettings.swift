@@ -26,6 +26,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultModelValue = "default"
     static let supportedThemes = ["system", "light", "dark"]
     static let defaultCodeFontFamily = "SF Mono"
+    static let supportedCodeFontSizeRange = 10...24
+    static let supportedChatFontSizeRange = 11...24
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
@@ -149,6 +151,18 @@ struct AppSettings: Codable, Sendable, Equatable {
         if !Self.supportedThemes.contains(theme) {
             theme = "system"
         }
+        codeFontFamily = codeFontFamily.trimmingCharacters(in: .whitespacesAndNewlines)
+        if codeFontFamily.isEmpty {
+            codeFontFamily = Self.defaultCodeFontFamily
+        }
+        codeFontSize = min(
+            max(codeFontSize, Self.supportedCodeFontSizeRange.lowerBound),
+            Self.supportedCodeFontSizeRange.upperBound
+        )
+        chatFontSize = min(
+            max(chatFontSize, Self.supportedChatFontSizeRange.lowerBound),
+            Self.supportedChatFontSizeRange.upperBound
+        )
     }
 
     private mutating func normalizeLayoutDefaults() {

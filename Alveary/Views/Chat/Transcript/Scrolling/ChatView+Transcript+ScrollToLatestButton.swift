@@ -6,7 +6,7 @@ struct ScrollToLatestButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "arrow.down")
-                .font(.system(size: 14, weight: .semibold))
+                .transcriptFont(.body, weight: .semibold)
                 .foregroundStyle(Color.primary)
                 .frame(width: 32, height: 32)
                 .background(

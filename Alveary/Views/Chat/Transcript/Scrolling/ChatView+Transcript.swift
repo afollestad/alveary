@@ -149,6 +149,8 @@ struct ChatTranscriptView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .transcriptFont(.body)
+            .transcriptMarkdownTypography()
             .padding(.leading, transcriptScrollLeadingInset)
             .padding(.trailing, transcriptScrollTrailingInset)
             .padding(.top, transcriptTopInset)

@@ -34,13 +34,13 @@ struct InterfaceSettingsTabView: View {
 
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Code font size", horizontalControlSizing: .intrinsic) {
-                        SettingsValueStepper("Code font size", value: $codeFontSize, in: 10...24)
+                        SettingsValueStepper("Code font size", value: $codeFontSize, in: AppSettings.supportedCodeFontSizeRange)
                     }
                 }
 
                 SettingsFormRow(showsDivider: false) {
                     SettingsResponsiveControlRow("Chat font size", horizontalControlSizing: .intrinsic) {
-                        SettingsValueStepper("Chat font size", value: $chatFontSize, in: 11...24)
+                        SettingsValueStepper("Chat font size", value: $chatFontSize, in: AppSettings.supportedChatFontSizeRange)
                     }
                 }
             }

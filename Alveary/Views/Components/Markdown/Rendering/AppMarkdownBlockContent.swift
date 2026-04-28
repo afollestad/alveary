@@ -53,7 +53,7 @@ struct AppMarkdownBlock: View {
         switch intent?.kind {
         case .header(let level):
             AppMarkdownInlineText(content: AttributedString(content), inlineCodeStyle: inlineCodeStyle)
-                .font(headerFont(for: level))
+                .appMarkdownFont(headerFontLevel(for: level))
                 .fontWeight(.semibold)
                 .padding(.top, level == 1 ? 2 : 1)
         case .codeBlock(let languageHint):
@@ -124,10 +124,10 @@ struct AppMarkdownBlock: View {
         return value
     }
 
-    private func headerFont(for level: Int) -> Font {
+    private func headerFontLevel(for level: Int) -> AppMarkdownTypography.FontLevel {
         switch level {
-        case 1: return .title2
-        case 2: return .title3
+        case 1: return .title1
+        case 2: return .title2
         case 3: return .headline
         default: return .subheadline
         }

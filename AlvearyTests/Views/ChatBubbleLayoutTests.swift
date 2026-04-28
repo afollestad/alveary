@@ -12,6 +12,25 @@ final class ChatBubbleLayoutTests: XCTestCase {
         XCTAssertEqual(adaptiveTranscriptBubbleMaxWidth(for: 620), 596)
     }
 
+    func testTranscriptTypographyDerivesSizesFromSettings() {
+        var settings = AppSettings()
+        settings.chatFontSize = 18
+        settings.codeFontFamily = "Monaco"
+        settings.codeFontSize = 16
+
+        let typography = TranscriptTypography(settings: settings)
+
+        XCTAssertEqual(typography.chatFontSize, 18)
+        XCTAssertEqual(typography.codeFontFamily, "Monaco")
+        XCTAssertEqual(typography.codeFontSize, 16)
+        XCTAssertEqual(typography.size(for: .body), 18)
+        XCTAssertEqual(typography.size(for: .headline), 19)
+        XCTAssertEqual(typography.size(for: .subheadline), 17)
+        XCTAssertEqual(typography.size(for: .caption), 16)
+        XCTAssertEqual(typography.size(for: .toolSummary), 17)
+        XCTAssertEqual(typography.size(for: .approvalBody), 16)
+    }
+
     func testToolStatusIndicatorDebouncerDelaysTerminalState() async throws {
         let debouncer = ToolStatusIndicatorDebouncer(
             initialPhase: .loading,

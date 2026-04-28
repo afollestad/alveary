@@ -9,15 +9,11 @@ let transcriptToolStatusFrameSize = transcriptToolIconFrameSize
 let transcriptToolIconTextSpacing: CGFloat = 24
 let transcriptToolLeadingTextSpacing = transcriptToolIconTextSpacing - transcriptToolIconFrameSize
 let transcriptToolTextStatusSpacing = transcriptToolLeadingTextSpacing
-let transcriptToolSummaryFontSize: CGFloat = 13
-let transcriptToolApprovalBodyFontSize: CGFloat = 12
 let approvalCommandChipCornerRadius: CGFloat = 4
 let approvalCommandChipHPadding: CGFloat = 3
 let approvalCommandChipVPadding: CGFloat = 1
 let toolApprovalSummaryTopSpacing: CGFloat = 8
 let toolApprovalActionsTopSpacing: CGFloat = 12
-let transcriptToolIconFontSize: CGFloat = 11
-let transcriptToolStatusIconFontSize: CGFloat = 11
 let transcriptToolStatusSpinnerScale: CGFloat = 0.72
 let transcriptToolPressedOpacity = 0.78
 let transcriptToolRowVerticalPadding: CGFloat = 4
@@ -133,7 +129,7 @@ struct DetailCodeBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .transcriptFont(.caption, weight: .semibold)
                 .foregroundStyle(tint)
 
             // Neither the trailing `Spacer` nor the `.frame(maxWidth: .infinity)` belong
@@ -144,7 +140,7 @@ struct DetailCodeBlock: View {
             // width and makes oversized content scroll inside the bubble.
             ScrollView(.horizontal) {
                 Text(content)
-                    .font(.system(.caption, design: .monospaced))
+                    .transcriptCodeFont()
                     .textSelection(.enabled)
                     .fixedSize(horizontal: true, vertical: false)
                     .padding(.bottom, 8)

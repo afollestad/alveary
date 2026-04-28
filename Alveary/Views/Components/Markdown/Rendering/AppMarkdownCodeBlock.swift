@@ -29,7 +29,7 @@ struct AppMarkdownCodeBlock: View {
 
     private func codeBlockText(attributedCode: AttributedString) -> some View {
         Text(attributedCode)
-            .font(.system(.caption, design: .monospaced))
+            .appMarkdownFont(.codeBlock)
             .textSelection(.enabled)
             .fixedSize(horizontal: true, vertical: true)
     }

@@ -13,3 +13,8 @@ Transcript-shell rules live here. Narrower scopes:
 - It should pass through the current approval request, persisted status, and approval callbacks.
 - Prompt/approval interaction policy lives in `Alveary/Views/Chat/AGENTS.md`.
 - Approval surface rendering lives in `../Blocks/Approvals/AGENTS.md`.
+
+## Typography
+
+- `ChatTranscriptView` publishes `TranscriptTypography`, applies the root body font, and bridges it into `AppMarkdownTypography`.
+- New transcript text should inherit that root font unless it intentionally uses `transcriptFont(...)` or `transcriptCodeFont()`.

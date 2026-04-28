@@ -5,6 +5,8 @@ struct AppMarkdownInlineText: View {
     let content: AttributedString
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
 
+    @Environment(\.appMarkdownTypography) private var typography
+
     var body: some View {
         Text(styledContent)
             .fixedSize(horizontal: false, vertical: true)
@@ -22,7 +24,7 @@ struct AppMarkdownInlineText: View {
 
         for item in ranges {
             if item.isCode {
-                attributed[item.range].font = .system(.body, design: .monospaced)
+                attributed[item.range].font = typography.swiftUIFont(.inlineCode)
                 attributed[item.range].foregroundColor = inlineCodeForegroundColor
                 attributed[item.range].backgroundColor = inlineCodeFillColor
             }

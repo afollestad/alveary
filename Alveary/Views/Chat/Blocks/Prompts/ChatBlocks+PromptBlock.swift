@@ -81,7 +81,7 @@ struct PromptBlock: View {
             if let effectiveSummary {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Submitted responses")
-                        .font(.headline)
+                        .transcriptFont(.headline)
 
                     if submittedResponses.isEmpty {
                         Text(effectiveSummary)
@@ -91,7 +91,7 @@ struct PromptBlock: View {
                             ForEach(submittedResponses) { response in
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(response.question)
-                                        .font(.subheadline.weight(.semibold))
+                                        .transcriptFont(.subheadline, weight: .semibold)
                                         .foregroundStyle(.secondary)
 
                                     Text(response.answer)
@@ -110,7 +110,7 @@ struct PromptBlock: View {
                 VStack(alignment: .trailing, spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Agent is asking")
-                            .font(.headline)
+                            .transcriptFont(.headline)
 
                         ForEach(Array(prompt.questions.enumerated()), id: \.offset) { index, question in
                             PromptQuestionCard(
@@ -136,7 +136,7 @@ struct PromptBlock: View {
                     VStack(alignment: .trailing, spacing: 8) {
                         if isBusy {
                             Text("Wait for the current send or turn to finish before sending your selection.")
-                                .font(.caption)
+                                .transcriptFont(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(width: synchronizedQuestionCardWidth, alignment: .leading)
                         }
@@ -178,14 +178,14 @@ private struct PromptQuestionCard: View {
         VStack(alignment: .leading, spacing: 12) {
             if let header = question.header, !header.isEmpty {
                 Text(header)
-                    .font(.caption.weight(.semibold))
+                    .transcriptFont(.caption, weight: .semibold)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(AppAccentFill.primary))
             }
 
             Text(question.question)
-                .font(.subheadline.weight(.semibold))
+                .transcriptFont(.subheadline, weight: .semibold)
 
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(question.renderedOptions, id: \.id) { option in
@@ -212,12 +212,12 @@ private struct PromptQuestionCard: View {
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(option.label)
-                                        .font(.subheadline.weight(.medium))
+                                        .transcriptFont(.subheadline, weight: .medium)
                                         .foregroundStyle(.primary)
 
                                     if !option.description.isEmpty {
                                         Text(option.description)
-                                            .font(.caption)
+                                            .transcriptFont(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                 }

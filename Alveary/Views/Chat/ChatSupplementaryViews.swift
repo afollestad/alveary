@@ -21,6 +21,7 @@ struct ProjectTrustPrompt: Equatable {
     }
 }
 
+// swiftlint:disable transcript_font_helpers
 struct ProjectTrustPromptView: View {
     let prompt: ProjectTrustPrompt
     let onTrust: () -> Void
@@ -106,6 +107,7 @@ struct EmptyThreadState: View {
         }
     }
 }
+// swiftlint:enable transcript_font_helpers
 
 private extension EmptyThreadState {
     func title(for phase: SetupPhase) -> String {
@@ -164,6 +166,7 @@ struct UserBubble: View {
                 }
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatVerticalPadding)
+                .transcriptMarkdownTypography()
                 .background(
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                         .fill(AppAccentFill.primary)
@@ -175,7 +178,7 @@ struct UserBubble: View {
                 if showsRetry, let onRetry {
                     HStack(spacing: 8) {
                         Text("Not sent")
-                            .font(.caption)
+                            .transcriptFont(.caption)
                             .foregroundStyle(.secondary)
 
                         Button("Retry", action: onRetry)
@@ -215,6 +218,7 @@ struct AssistantBubble: View {
         }
         .padding(.horizontal, chatBubbleHorizontalPadding)
         .padding(.vertical, chatVerticalPadding)
+        .transcriptMarkdownTypography()
         .background(
             RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                 .fill(Color.secondary.opacity(0.08))
@@ -283,7 +287,7 @@ private struct LongTextBubbleContent<Content: View>: View {
             Label(isExpanded ? "Show less" : "Show more", systemImage: isExpanded ? "chevron.up" : "chevron.down")
                 .frame(minHeight: longBubbleToggleMinHeight, alignment: .center)
         }
-        .font(.caption.weight(.medium))
+        .transcriptFont(.caption, weight: .medium)
         .foregroundStyle(.secondary)
         .accessibilityLabel(isExpanded ? "Show less" : "Show more")
     }
@@ -415,7 +419,7 @@ struct CenteredTranscriptNote: View {
 
             Text(kind.text)
         }
-        .font(.body.weight(.medium))
+        .transcriptFont(.body, weight: .medium)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 24)
@@ -428,6 +432,7 @@ struct TurnInterruptedNote: View {
     }
 }
 
+// swiftlint:disable transcript_font_helpers
 struct StagedContextBanner: View {
     let context: String
     let onDismiss: () -> Void
@@ -467,3 +472,4 @@ struct StagedContextBanner: View {
         )
     }
 }
+// swiftlint:enable transcript_font_helpers

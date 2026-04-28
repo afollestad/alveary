@@ -8,7 +8,7 @@ Narrower scopes:
 
 ## Inline Labels
 
-- `AppMarkdown.swift` owns the public SwiftUI entry point and inline-code style enum.
+- `AppMarkdown.swift` owns the public SwiftUI entry point, inline-code style enum, and shared markdown typography environment.
 - `AppMarkdownParser.swift` owns Foundation markdown parsing, HTML/image preprocessing, and composer chip rewriting.
 - `AppMarkdownDocumentCache.swift` owns parsed document caching and task-list state namespaces.
 - `AppMarkdownInlineCodeChip.swift` owns compact single-line chip rendering.
@@ -32,6 +32,7 @@ Narrower scopes:
     - `.composer` foreground is `.labelColor`.
     - Retune by changing `AppAccentFill`, not by adding fixed duplicate swatches.
 - Multi-line chat bubbles use local attributed-text inline-code styling, not `AppMarkdownInlineCodeChip`, so chip views do not inflate line height.
+- Shared markdown defaults must stay neutral; transcript settings are injected through `AppMarkdownTypography`, not by reading `TranscriptTypography` in renderer internals.
 - Do not reintroduce attachment-rendered inline code in `AppMarkdownParser.attributedString(for:)` unless line height stays uniform another way.
 - SwiftUI `Link` renders system blue by default; explicitly apply `.foregroundStyle(Color.accentColor)` where links should match app accent.
 

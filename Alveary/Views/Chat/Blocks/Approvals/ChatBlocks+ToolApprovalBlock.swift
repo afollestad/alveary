@@ -87,7 +87,7 @@ struct ToolApprovalBlock: View {
                 ApprovalSummaryLine(approval: approval)
             }
         }
-        .font(.system(size: transcriptToolApprovalBodyFontSize))
+        .transcriptFont(.approvalBody)
         .foregroundStyle(.secondary)
     }
 
@@ -383,7 +383,7 @@ private struct ApprovalSummaryLine: View {
 
     private var commandChip: some View {
         Text(approval.conciseSummary)
-            .font(.system(size: transcriptToolApprovalBodyFontSize, design: .monospaced))
+            .transcriptCodeFont()
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .truncationMode(.middle)

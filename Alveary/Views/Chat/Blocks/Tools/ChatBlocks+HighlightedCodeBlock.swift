@@ -20,7 +20,7 @@ struct HighlightedCodeBlock: View {
         // width; the parent bubble's own cap still limits oversized content.
         ScrollView(.horizontal) {
             Text(attributedContent)
-                .font(.system(.caption, design: .monospaced))
+                .transcriptCodeFont()
                 .textSelection(.enabled)
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, horizontalPadding)

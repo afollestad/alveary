@@ -56,7 +56,7 @@ struct AppMarkdownList: View {
             AppMarkdownTaskCheckbox(id: taskID, initialValue: taskState.isChecked)
         } else {
             Text(marker(for: run, fallbackIndex: fallbackIndex))
-                .font(.body)
+                .appMarkdownFont(.body)
                 .foregroundStyle(.secondary)
         }
     }

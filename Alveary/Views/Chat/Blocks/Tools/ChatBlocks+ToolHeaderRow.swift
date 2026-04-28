@@ -14,6 +14,15 @@ private func attributedToolSummary(_ text: String) -> AttributedString {
 }
 
 @MainActor
+private func attributedToolSummary(_ text: String, typography: TranscriptTypography) -> AttributedString {
+    var attributed = attributedToolSummary(text)
+    for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
+        attributed[run.range].font = typography.codeFont
+    }
+    return attributed
+}
+
+@MainActor
 private enum AttributedSummaryCache {
     static var cache: [String: AttributedString] = [:]
     private static let slashCommandRegex = try? NSRegularExpression(pattern: transcriptToolSummarySlashCommandPattern)
@@ -162,7 +171,7 @@ struct TranscriptStaticHeaderRow: View {
     @ViewBuilder
     private func titleText(fixesWidth: Bool) -> some View {
         let text = Text(title)
-            .font(.system(size: transcriptToolSummaryFontSize))
+            .transcriptFont(.toolSummary)
             .foregroundStyle(.primary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -181,6 +190,8 @@ private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: Vie
     let bottomPadding: CGFloat
     let leadingIcon: LeadingIcon
     let status: Status
+
+    @Environment(\.transcriptTypography) private var typography
 
     init(
         summary: String,
@@ -220,8 +231,8 @@ private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: Vie
 
     @ViewBuilder
     private func summaryText(fixesWidth: Bool) -> some View {
-        let text = Text(attributedToolSummary(summary))
-            .font(.system(size: transcriptToolSummaryFontSize))
+        let text = Text(attributedToolSummary(summary, typography: typography))
+            .transcriptFont(.toolSummary)
             .foregroundStyle(.primary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -246,7 +257,7 @@ struct TranscriptToolLeadingIcon: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(iconFont)
+            .transcriptFont(.toolIcon)
             .foregroundStyle(.primary)
             .rotationEffect(.degrees(rotationDegrees))
             .frame(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize, alignment: .center)
@@ -276,14 +287,6 @@ struct TranscriptToolLeadingIcon: View {
         }
     }
 
-    private var iconFont: Font {
-        switch kind {
-        case .disclosure, .symbol:
-            return .system(size: transcriptToolIconFontSize, weight: .regular)
-        case .bash:
-            return .system(size: transcriptToolIconFontSize, weight: .regular)
-        }
-    }
 }
 
 enum ToolStatusPhase: Equatable {
@@ -413,11 +416,11 @@ struct ToolStatusIndicator: View {
         Group {
             if phase == .error {
                 Image(systemName: "xmark")
-                    .font(.system(size: transcriptToolStatusIconFontSize, weight: .regular))
+                    .transcriptFont(.toolStatusIcon)
                     .foregroundStyle(.red)
             } else if phase == .success {
                 Image(systemName: "checkmark")
-                    .font(.system(size: transcriptToolStatusIconFontSize, weight: .regular))
+                    .transcriptFont(.toolStatusIcon)
                     .foregroundStyle(.green)
             } else {
                 ProgressView()

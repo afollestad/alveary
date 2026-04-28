@@ -18,3 +18,16 @@ disabled_rules:
 opt_in_rules:
   - force_unwrapping
   - force_cast
+custom_rules:
+  transcript_font_helpers:
+    included:
+      - "Alveary/Views/Chat/Blocks/.*\\.swift"
+      - "Alveary/Views/Chat/ChatSupplementaryViews\\.swift"
+      - "Alveary/Views/Chat/Transcript/.*\\.swift"
+      - "Alveary/Views/Components/Markdown/Rendering/.*\\.swift"
+    excluded:
+      - "Alveary/Views/Chat/Blocks/TranscriptTypography.swift"
+    name: "Transcript Font Helpers"
+    regex: "\\.font\\s*\\("
+    message: "Transcript text must inherit typography or use transcriptFont()/transcriptCodeFont()."
+    severity: error

@@ -16,7 +16,7 @@ struct AppMarkdownTaskCheckbox: View {
 
     var body: some View {
         Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-            .font(.body)
+            .appMarkdownFont(.body)
             .foregroundStyle(.secondary)
             .contentShape(Rectangle())
             .onTapGesture(perform: toggle)

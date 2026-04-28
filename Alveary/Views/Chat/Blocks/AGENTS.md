@@ -15,6 +15,14 @@ Shared transcript block primitives live here. Narrower scopes:
 - Inline tool rows and sub-agent rows intentionally skip bubble chrome and `bubbleMaxWidth`.
 - `UserBubble` remains the narrower right-aligned exception with `.frame(maxWidth: 640, alignment: .trailing)`.
 
+## Transcript Typography
+
+- Transcript rows inherit `TranscriptTypography` from `ChatTranscriptView`.
+- Use inherited text for body copy; use `transcriptFont(...)` or `transcriptCodeFont()` for explicit variants.
+- When a transcript block renders `AppMarkdownText` directly, apply `transcriptMarkdownTypography()` at that surface.
+- Do not add raw SwiftUI `.font(...)` in transcript block files; SwiftLint enforces this outside `TranscriptTypography.swift`.
+- Keep layout-critical icon sizes as named `TranscriptFontLevel` cases instead of ad hoc font constants.
+
 ## Centered Notes
 
 - Use `CenteredTranscriptNote` for subtle lifecycle text: `Interrupted`, plan-mode success, and denied `ExitPlanMode`.

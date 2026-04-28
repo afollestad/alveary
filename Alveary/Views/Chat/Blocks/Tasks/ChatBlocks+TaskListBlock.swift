@@ -14,7 +14,7 @@ struct TaskListBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Tasks")
-                .font(.headline)
+                .transcriptFont(.headline)
 
             ForEach(orderedTasks) { task in
                 HStack(alignment: .center, spacing: 10) {
@@ -27,7 +27,7 @@ struct TaskListBlock: View {
 
                     Spacer()
                 }
-                .font(.subheadline)
+                .transcriptFont(.subheadline)
             }
         }
         .padding(chatBlockPadding)
@@ -65,7 +65,7 @@ private struct TaskStatusIndicator: View {
                     .foregroundStyle(.green)
             }
         }
-        .font(.caption.weight(.semibold))
+        .transcriptFont(.caption, weight: .semibold)
         .frame(width: 16, height: 16, alignment: .center)
         .transaction(value: branchKey) { $0.animation = nil }
         .accessibilityLabel(status.accessibilityLabel)

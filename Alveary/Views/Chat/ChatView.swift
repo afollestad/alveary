@@ -15,6 +15,7 @@ struct ChatView: View {
     let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
+    let transcriptTypography: TranscriptTypography
     @Bindable var appState: AppState
 
     @Query private var events: [ConversationEventRecord]
@@ -136,6 +137,7 @@ struct ChatView: View {
         onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
+        transcriptTypography: TranscriptTypography,
         appState: AppState
     ) {
         self.viewModel = viewModel
@@ -150,6 +152,7 @@ struct ChatView: View {
         self.onDenyProjectTrust = onDenyProjectTrust
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
+        self.transcriptTypography = transcriptTypography
         self.appState = appState
 
         let conversationID = conversation.id
@@ -259,6 +262,7 @@ private extension ChatView {
                 isFollowing: $isFollowing,
                 scrollToBottomRequest: $scrollToBottomRequest
             )
+            .environment(\.transcriptTypography, transcriptTypography)
             .transition(.opacity)
         }
     }
