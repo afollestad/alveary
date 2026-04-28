@@ -92,6 +92,7 @@ final class SettingsViewModelTests: XCTestCase {
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
+            $0.defaultEnterBehavior = .steer
             $0.reopenLastThreadAndConversationOnLaunch = true
             $0.autoTrustProjects = false
             $0.createWorktreeByDefault = true
@@ -115,6 +116,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.permissionMode, "plan")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.deleteKeyAction, .delete)
+        XCTAssertEqual(viewModel.defaultEnterBehavior, .steer)
         XCTAssertTrue(viewModel.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(viewModel.autoTrustProjects)
         XCTAssertTrue(viewModel.createWorktreeByDefault)
@@ -157,6 +159,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
         viewModel.deleteKeyAction = .delete
+        viewModel.defaultEnterBehavior = .steer
         viewModel.reopenLastThreadAndConversationOnLaunch = true
         viewModel.autoTrustProjects = false
         viewModel.createWorktreeByDefault = true
@@ -181,6 +184,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.deleteKeyAction, .delete)
+        XCTAssertEqual(service.current.defaultEnterBehavior, .steer)
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(service.current.autoTrustProjects)
         XCTAssertTrue(service.current.createWorktreeByDefault)

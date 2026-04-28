@@ -95,12 +95,14 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        let transcriptTypography = TranscriptTypography(settings: settingsService.current)
+        let settings = settingsService.current
+        let transcriptTypography = TranscriptTypography(settings: settings)
 
         ChatView(
             viewModel: viewModel,
             conversation: conversation,
             composerCapabilities: composerCapabilities,
+            defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
             contextWindowCache: contextWindowCache,
             workingDirectory: activeWorkingDirectory,

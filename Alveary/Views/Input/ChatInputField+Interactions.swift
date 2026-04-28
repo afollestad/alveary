@@ -46,17 +46,29 @@ extension ChatInputField {
         case .progressOnly:
             return .handled
         case .busy(let canStop):
-            if canStop,
-               supportsMidTurnSteering,
-               keyPress.modifiers.contains(.option) {
-                performSteer()
-            } else {
-                performSubmit()
-            }
+            performBusyReturnAction(
+                canStop: canStop,
+                usesAlternateBehavior: keyPress.modifiers.contains(.command)
+            )
             return .handled
         case .idle:
             performSubmit()
             return .handled
+        }
+    }
+
+    func performBusyReturnAction(canStop: Bool, usesAlternateBehavior: Bool) {
+        guard canStop,
+              supportsMidTurnSteering else {
+            performSubmit()
+            return
+        }
+
+        switch (defaultEnterBehavior, usesAlternateBehavior) {
+        case (.queue, false), (.steer, true):
+            performSubmit()
+        case (.steer, false), (.queue, true):
+            performSteer()
         }
     }
 

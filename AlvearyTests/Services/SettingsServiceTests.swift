@@ -21,6 +21,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.permissionMode = "plan"
             $0.effort = "high"
             $0.deleteKeyAction = .delete
+            $0.defaultEnterBehavior = .steer
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
@@ -37,6 +38,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.permissionMode, "plan")
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.deleteKeyAction, .delete)
+        XCTAssertEqual(reloadedService.current.defaultEnterBehavior, .steer)
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)

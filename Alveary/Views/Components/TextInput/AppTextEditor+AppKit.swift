@@ -10,7 +10,7 @@ enum AppTextEditorKey: Hashable {
 }
 
 struct AppTextEditorKeyPress {
-    enum Result {
+    enum Result: Equatable {
         case handled
         case ignored
     }

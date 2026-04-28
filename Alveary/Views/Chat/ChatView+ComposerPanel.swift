@@ -15,6 +15,7 @@ struct ChatComposerPanel: View {
     let workingDirectory: String?
     let showsTopDivider: Bool
     let composerMode: ComposerMode
+    let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let composerIsBusy: Bool
     let isProjectTrustBlocked: Bool
     let selectedModel: Binding<String>
@@ -81,6 +82,7 @@ struct ChatComposerPanel: View {
             ChatInputField(
                 text: Bindable(viewModel.state).inputDraft,
                 mode: composerMode,
+                defaultEnterBehavior: defaultEnterBehavior,
                 onSubmit: onSubmit,
                 onSteer: onSteer,
                 onStop: onStop,

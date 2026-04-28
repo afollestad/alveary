@@ -39,6 +39,105 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertTrue(didSteer)
     }
 
+    func testBusyReturnUsesQueueDefaultAndCommandReturnSteers() {
+        var didSubmit = false
+        var didSteer = false
+        let input = makeInput(
+            text: "Review the active turn.",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue,
+            isProjectTrustBlocked: false,
+            onSubmit: { didSubmit = true },
+            onSteer: { didSteer = true }
+        )
+
+        XCTAssertEqual(input.handleKeyPress(returnKeyPress()), .handled)
+        XCTAssertTrue(didSubmit)
+        XCTAssertFalse(didSteer)
+
+        didSubmit = false
+        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertFalse(didSubmit)
+        XCTAssertTrue(didSteer)
+    }
+
+    func testBusyReturnUsesSteerDefaultAndCommandReturnQueues() {
+        var didSubmit = false
+        var didSteer = false
+        let input = makeInput(
+            text: "Review the active turn.",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer,
+            isProjectTrustBlocked: false,
+            onSubmit: { didSubmit = true },
+            onSteer: { didSteer = true }
+        )
+
+        XCTAssertEqual(input.handleKeyPress(returnKeyPress()), .handled)
+        XCTAssertFalse(didSubmit)
+        XCTAssertTrue(didSteer)
+
+        didSteer = false
+        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertTrue(didSubmit)
+        XCTAssertFalse(didSteer)
+    }
+
+    func testBusyReturnQueuesWhenSteeringIsUnsupported() {
+        var didSubmit = false
+        var didSteer = false
+        let input = makeInput(
+            text: "Review the active turn.",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer,
+            supportsMidTurnSteering: false,
+            isProjectTrustBlocked: false,
+            onSubmit: { didSubmit = true },
+            onSteer: { didSteer = true }
+        )
+
+        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertTrue(didSubmit)
+        XCTAssertFalse(didSteer)
+    }
+
+    func testIdleCommandReturnSubmits() {
+        var didSubmit = false
+        let input = makeInput(
+            text: "Start a turn.",
+            mode: .idle,
+            defaultEnterBehavior: .steer,
+            isProjectTrustBlocked: false,
+            onSubmit: { didSubmit = true },
+            onSteer: {}
+        )
+
+        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertTrue(didSubmit)
+    }
+
+    func testBusyPlaceholderReflectsDefaultEnterBehavior() {
+        let queueInput = makeInput(
+            text: "",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue,
+            isProjectTrustBlocked: false,
+            onSubmit: {},
+            onSteer: {}
+        )
+        let steerInput = makeInput(
+            text: "",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer,
+            isProjectTrustBlocked: false,
+            onSubmit: {},
+            onSteer: {}
+        )
+
+        XCTAssertEqual(queueInput.placeholder, "Enter to queue for the next turn, or Cmd+Enter to steer...")
+        XCTAssertEqual(steerInput.placeholder, "Enter to steer the current turn, or Cmd+Enter to queue...")
+    }
+
     func testStopConfirmationDecisionArmsOnFirstEscape() {
         XCTAssertEqual(
             ChatInputStopConfirmationDecision.resolve(
@@ -95,13 +194,17 @@ final class ChatInputFieldTests: XCTestCase {
 
     private func makeInput(
         text: String,
+        mode: ComposerMode = .idle,
+        defaultEnterBehavior: ThreadEnterDefaultBehavior = AppSettings.defaultEnterBehavior,
+        supportsMidTurnSteering: Bool = true,
         isProjectTrustBlocked: Bool,
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void
     ) -> ChatInputField {
         ChatInputField(
             text: .constant(text),
-            mode: .idle,
+            mode: mode,
+            defaultEnterBehavior: defaultEnterBehavior,
             onSubmit: onSubmit,
             onSteer: onSteer,
             onStop: nil,
@@ -116,7 +219,7 @@ final class ChatInputFieldTests: XCTestCase {
                 )
             ],
             supportedEffortLevels: ["low", "medium", "high"],
-            supportsMidTurnSteering: true,
+            supportsMidTurnSteering: supportsMidTurnSteering,
             isProjectTrustBlocked: isProjectTrustBlocked,
             workingDirectory: "/tmp/alveary",
             loadFileCompletions: { [] },
@@ -126,5 +229,13 @@ final class ChatInputFieldTests: XCTestCase {
 
     private func escapeKeyPress() -> AppTextEditorKeyPress {
         AppTextEditorKeyPress(key: .escape, modifiers: [])
+    }
+
+    private func returnKeyPress() -> AppTextEditorKeyPress {
+        AppTextEditorKeyPress(key: .return, modifiers: [])
+    }
+
+    private func commandReturnKeyPress() -> AppTextEditorKeyPress {
+        AppTextEditorKeyPress(key: .return, modifiers: .command)
     }
 }

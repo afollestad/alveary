@@ -178,6 +178,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.deleteKeyAction = newValue } }
     }
 
+    var defaultEnterBehavior: ThreadEnterDefaultBehavior {
+        get { settingsService.current.defaultEnterBehavior }
+        set { settingsService.update { $0.defaultEnterBehavior = newValue } }
+    }
+
     var reopenLastThreadAndConversationOnLaunch: Bool {
         get { settingsService.current.reopenLastThreadAndConversationOnLaunch }
         set { settingsService.update { $0.reopenLastThreadAndConversationOnLaunch = newValue } }

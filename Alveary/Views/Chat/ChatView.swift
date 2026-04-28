@@ -6,6 +6,7 @@ struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
+    let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
     let contextWindowCache: any ContextWindowCache
     let workingDirectory: String?
@@ -128,6 +129,7 @@ struct ChatView: View {
         viewModel: ConversationViewModel,
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
+        defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
         contextWindowCache: any ContextWindowCache,
         workingDirectory: String?,
@@ -143,6 +145,7 @@ struct ChatView: View {
         self.viewModel = viewModel
         self.conversation = conversation
         self.composerCapabilities = composerCapabilities
+        self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
         self.contextWindowCache = contextWindowCache
         self.workingDirectory = workingDirectory
@@ -182,6 +185,7 @@ struct ChatView: View {
                 workingDirectory: workingDirectory,
                 showsTopDivider: hasVisibleChatContent && !isFollowing,
                 composerMode: composerMode,
+                defaultEnterBehavior: defaultEnterBehavior,
                 composerIsBusy: composerIsBusy,
                 isProjectTrustBlocked: isProjectTrustBlocked,
                 selectedModel: selectedModelBinding,

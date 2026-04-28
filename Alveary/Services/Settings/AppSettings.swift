@@ -28,6 +28,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultCodeFontFamily = "SF Mono"
     static let supportedCodeFontSizeRange = 10...24
     static let supportedChatFontSizeRange = 11...24
+    static let defaultEnterBehavior = ThreadEnterDefaultBehavior.queue
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
@@ -47,6 +48,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
     var deleteKeyAction = ThreadDeleteKeyAction.archive
+    var defaultEnterBehavior = Self.defaultEnterBehavior
     var reopenLastThreadAndConversationOnLaunch = true
     var autoTrustProjects = false
     var createWorktreeByDefault = false
@@ -75,6 +77,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         var copy = self
 
         copy.normalizeProviderDefaults()
+        copy.normalizeThreadDefaults()
         copy.normalizeAppearanceDefaults()
         copy.normalizeLayoutDefaults()
         copy.normalizeContextManagement()
@@ -145,6 +148,10 @@ struct AppSettings: Codable, Sendable, Equatable {
             permissionMode = "default"
         }
         effort = Self.normalizedEffortLevel(effort)
+    }
+
+    private mutating func normalizeThreadDefaults() {
+        defaultEnterBehavior = Self.normalizedDefaultEnterBehavior(defaultEnterBehavior.rawValue)
     }
 
     private mutating func normalizeAppearanceDefaults() {
@@ -221,6 +228,7 @@ extension AppSettings {
         case permissionMode
         case effort
         case deleteKeyAction
+        case defaultEnterBehavior
         case reopenLastThreadAndConversationOnLaunch
         case autoTrustProjects
         case createWorktreeByDefault
@@ -273,6 +281,9 @@ extension AppSettings {
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
         effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
         deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? deleteKeyAction
+        defaultEnterBehavior = Self.normalizedDefaultEnterBehavior(
+            try container.decodeIfPresent(String.self, forKey: .defaultEnterBehavior)
+        )
         reopenLastThreadAndConversationOnLaunch = try container.decodeIfPresent(
             Bool.self,
             forKey: .reopenLastThreadAndConversationOnLaunch
@@ -352,6 +363,14 @@ extension AppSettings {
         }
         return branchPrefix
     }
+
+    private static func normalizedDefaultEnterBehavior(_ rawValue: String?) -> ThreadEnterDefaultBehavior {
+        guard let rawValue,
+              let behavior = ThreadEnterDefaultBehavior(rawValue: rawValue) else {
+            return defaultEnterBehavior
+        }
+        return behavior
+    }
 }
 
 struct ProviderCustomConfig: Codable, Sendable, Equatable {
@@ -395,6 +414,20 @@ enum ThreadDeleteKeyAction: String, Codable, Sendable, CaseIterable {
             return "Archive"
         case .delete:
             return "Delete"
+        }
+    }
+}
+
+enum ThreadEnterDefaultBehavior: String, Codable, Sendable, CaseIterable {
+    case queue
+    case steer
+
+    var label: String {
+        switch self {
+        case .queue:
+            return "Queue"
+        case .steer:
+            return "Steer"
         }
     }
 }

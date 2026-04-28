@@ -145,6 +145,7 @@ struct SettingsScreen: View {
                 permissionMode: binding(for: \.permissionMode),
                 effort: binding(for: \.effort),
                 deleteKeyAction: binding(for: \.deleteKeyAction),
+                defaultEnterBehavior: binding(for: \.defaultEnterBehavior),
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 autoTrustProjects: binding(for: \.autoTrustProjects)

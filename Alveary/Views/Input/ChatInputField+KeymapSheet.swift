@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatInputKeymapSheet: View {
     let supportsMidTurnSteering: Bool
+    let defaultEnterBehavior: ThreadEnterDefaultBehavior
 
     @Environment(\.dismiss) private var dismiss
 
@@ -18,16 +19,14 @@ struct ChatInputKeymapSheet: View {
             VStack(spacing: 12) {
                 ChatInputKeymapRow(
                     keys: "Enter",
-                    description: supportsMidTurnSteering
-                        ? "Send the message, or queue it while the agent is busy."
-                        : "Send the message."
+                    description: enterDescription
                 )
                 ChatInputKeymapRow(keys: "Shift + Enter", description: "Insert a newline.")
 
                 if supportsMidTurnSteering {
                     ChatInputKeymapRow(
-                        keys: "Option + Enter",
-                        description: "Steer the current turn immediately while the agent is working."
+                        keys: "Command + Enter",
+                        description: commandEnterDescription
                     )
                 }
 
@@ -41,6 +40,36 @@ struct ChatInputKeymapSheet: View {
         }
         .padding(24)
         .frame(minWidth: 420, minHeight: 300, alignment: .topLeading)
+    }
+
+    init(
+        supportsMidTurnSteering: Bool,
+        defaultEnterBehavior: ThreadEnterDefaultBehavior = AppSettings.defaultEnterBehavior
+    ) {
+        self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.defaultEnterBehavior = defaultEnterBehavior
+    }
+
+    private var enterDescription: String {
+        guard supportsMidTurnSteering else {
+            return "Send the message."
+        }
+
+        switch defaultEnterBehavior {
+        case .queue:
+            return "Send the message, or queue it while the agent is busy."
+        case .steer:
+            return "Send the message, or steer the current turn while the agent is busy."
+        }
+    }
+
+    private var commandEnterDescription: String {
+        switch defaultEnterBehavior {
+        case .queue:
+            return "Steer the current turn immediately while the agent is working."
+        case .steer:
+            return "Queue for the next turn while the agent is working."
+        }
     }
 }
 

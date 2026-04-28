@@ -7,6 +7,7 @@ struct ThreadsSettingsTabView: View {
     @Binding var permissionMode: String
     @Binding var effort: String
     @Binding var deleteKeyAction: ThreadDeleteKeyAction
+    @Binding var defaultEnterBehavior: ThreadEnterDefaultBehavior
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var createWorktreeByDefault: Bool
     @Binding var autoTrustProjects: Bool
@@ -64,6 +65,17 @@ struct ThreadsSettingsTabView: View {
                             "Delete key action",
                             selection: $deleteKeyAction,
                             options: ThreadDeleteKeyAction.allCases,
+                            label: \.label
+                        )
+                    }
+                }
+
+                SettingsFormRow {
+                    SettingsResponsiveControlRow("Default Enter button behavior", horizontalControlSizing: .intrinsic) {
+                        SettingsMenuPicker(
+                            "Default Enter button behavior",
+                            selection: $defaultEnterBehavior,
+                            options: ThreadEnterDefaultBehavior.allCases,
                             label: \.label
                         )
                     }

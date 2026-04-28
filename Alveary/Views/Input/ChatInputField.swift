@@ -4,6 +4,7 @@ import SwiftUI
 struct ChatInputField: View {
     @Binding var text: String
     let mode: ComposerMode
+    let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let onSubmit: () -> Void
     let onSteer: () -> Void
     let onStop: (() -> Void)?
@@ -67,6 +68,7 @@ struct ChatInputField: View {
     init(
         text: Binding<String>,
         mode: ComposerMode,
+        defaultEnterBehavior: ThreadEnterDefaultBehavior = AppSettings.defaultEnterBehavior,
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
         onStop: (() -> Void)?,
@@ -97,6 +99,7 @@ struct ChatInputField: View {
     ) {
         _text = text
         self.mode = mode
+        self.defaultEnterBehavior = defaultEnterBehavior
         self.onSubmit = onSubmit
         self.onSteer = onSteer
         self.onStop = onStop
@@ -378,7 +381,10 @@ struct ChatInputField: View {
         )
         .blockedComposerCursorOverlay(when: isProjectTrustBlocked)
         .sheet(isPresented: $isKeymapPresented) {
-            ChatInputKeymapSheet(supportsMidTurnSteering: supportsMidTurnSteering)
+            ChatInputKeymapSheet(
+                supportsMidTurnSteering: supportsMidTurnSteering,
+                defaultEnterBehavior: defaultEnterBehavior
+            )
         }
         .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
     }
@@ -445,7 +451,12 @@ extension ChatInputField {
             return "Ask anything, @ to add files, / for skills"
         case .busy(let canStop):
             if canStop, supportsMidTurnSteering {
-                return "Enter to queue for the next turn, or Opt+Enter to steer..."
+                switch defaultEnterBehavior {
+                case .queue:
+                    return "Enter to queue for the next turn, or Cmd+Enter to steer..."
+                case .steer:
+                    return "Enter to steer the current turn, or Cmd+Enter to queue..."
+                }
             }
             return "Type a message to queue for the next turn..."
         case .progressOnly(let reason):

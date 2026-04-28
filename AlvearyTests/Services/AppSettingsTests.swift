@@ -16,6 +16,10 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().maxTerminalSessions, 10)
     }
 
+    func testDefaultEnterBehaviorIsQueue() {
+        XCTAssertEqual(AppSettings().defaultEnterBehavior, .queue)
+    }
+
     func testDefaultContextManagementSettings() {
         let settings = AppSettings()
 
@@ -102,6 +106,20 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertEqual(settings.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
+    func testDecodeDefaultsEnterBehaviorWhenFieldIsMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.defaultEnterBehavior, .queue)
+    }
+
+    func testDecodeDefaultsEnterBehaviorWhenFieldIsInvalid() throws {
+        let json = Data(#"{"defaultEnterBehavior":"send"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.defaultEnterBehavior, .queue)
     }
 
     func testDecodeMigratesLegacyBranchPrefixToIncludeSeparator() throws {
