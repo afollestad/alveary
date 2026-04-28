@@ -111,6 +111,15 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         )
     }
 
+    var transcriptApprovalSummary: String? {
+        switch toolName {
+        case "ExitPlanMode":
+            return nil
+        default:
+            return conciseSummary
+        }
+    }
+
     var notificationMessage: String {
         if toolName == "AskUserQuestion" {
             return "Your agent has a question: \(askUserQuestionNotificationSummary)"

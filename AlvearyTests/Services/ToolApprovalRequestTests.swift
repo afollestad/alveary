@@ -54,6 +54,19 @@ final class ToolApprovalRequestTests: XCTestCase {
         )
     }
 
+    func testTranscriptApprovalSummaryHidesRedundantExitPlanModeSummary() {
+        XCTAssertEqual(
+            request(toolName: "Bash", toolInput: #"{"command":"date"}"#).transcriptApprovalSummary,
+            "date"
+        )
+        XCTAssertEqual(
+            request(toolName: "Write", toolInput: #"{"file_path":"Sources/Auth.swift"}"#).transcriptApprovalSummary,
+            "Sources/Auth.swift"
+        )
+        XCTAssertNil(request(toolName: "ExitPlanMode").transcriptApprovalSummary)
+        XCTAssertEqual(request(toolName: "ExitPlanMode").conciseSummary, "Present the plan and leave plan mode")
+    }
+
     func testNotificationMessageUsesAskUserQuestionSummaryFallback() {
         XCTAssertEqual(
             request(

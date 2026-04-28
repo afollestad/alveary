@@ -57,13 +57,28 @@ struct ToolApprovalBlock: View {
         ToolApprovalRequest.approvalPromptTitle(for: approvals)
     }
 
+    private var summaryItems: [ApprovalSummaryItem] {
+        approvals.compactMap { approval in
+            guard let summary = approval.transcriptApprovalSummary else {
+                return nil
+            }
+            return ApprovalSummaryItem(
+                id: approval.id,
+                summary: summary,
+                isCommand: approval.toolName == "Bash"
+            )
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             TranscriptStaticHeaderRow(title: title, systemImage: "lock.fill", bottomPadding: 0, fillsWidth: false)
 
-            approvalSummary
-                .padding(.top, toolApprovalSummaryTopSpacing)
-                .padding(.leading, transcriptToolDetailLeadingInset)
+            if !summaryItems.isEmpty {
+                approvalSummary
+                    .padding(.top, toolApprovalSummaryTopSpacing)
+                    .padding(.leading, transcriptToolDetailLeadingInset)
+            }
 
             actionLayout
                 .controlSize(.small)
@@ -83,8 +98,8 @@ struct ToolApprovalBlock: View {
 
     private var approvalSummary: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(approvals) { approval in
-                ApprovalSummaryLine(approval: approval)
+            ForEach(summaryItems) { item in
+                ApprovalSummaryLine(item: item)
             }
         }
         .transcriptFont(.approvalBody)
@@ -368,21 +383,27 @@ struct ToolApprovalBlock: View {
     }
 }
 
+private struct ApprovalSummaryItem: Identifiable {
+    let id: String
+    let summary: String
+    let isCommand: Bool
+}
+
 private struct ApprovalSummaryLine: View {
-    let approval: ToolApprovalRequest
+    let item: ApprovalSummaryItem
 
     var body: some View {
-        if approval.toolName == "Bash" {
+        if item.isCommand {
             commandChip
         } else {
-            Text(approval.conciseSummary)
+            Text(item.summary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
     }
 
     private var commandChip: some View {
-        Text(approval.conciseSummary)
+        Text(item.summary)
             .transcriptCodeFont()
             .foregroundStyle(.secondary)
             .lineLimit(1)
