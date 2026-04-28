@@ -61,16 +61,17 @@ extension ChatInputField {
     }
 
     func handleStopShortcutKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {
-        guard keyPress.key == .escape,
-              keyPress.modifiers.isEmpty,
-              canUseEscapeToStop else {
+        switch ChatInputStopConfirmationDecision.resolve(
+            keyPress: keyPress,
+            canUseEscapeToStop: canUseEscapeToStop,
+            isConfirmationArmed: isStopConfirmationArmed
+        ) {
+        case .ignored:
             return false
-        }
-
-        if showsStopShortcutHint {
+        case .confirmStop:
             performStop()
-        } else {
-            armStopShortcutHint()
+        case .armConfirmation:
+            armStopConfirmation()
         }
 
         return true
@@ -135,43 +136,45 @@ extension ChatInputField {
     }
 
     func performStop() {
-        clearStopShortcutHint()
+        clearStopConfirmation()
         onStop?()
     }
 
-    func armStopShortcutHint() {
-        stopShortcutResetTask?.cancel()
+    func armStopConfirmation() {
+        stopConfirmationResetTask?.cancel()
 
         withAnimation(.easeInOut(duration: 0.18)) {
-            showsStopShortcutHint = true
+            isStopConfirmationArmed = true
         }
 
-        stopShortcutResetTask = Task {
-            try? await Task.sleep(nanoseconds: stopShortcutHintTimeoutNanoseconds)
+        stopConfirmationResetTask = Task {
+            try? await Task.sleep(nanoseconds: stopConfirmationTimeoutNanoseconds)
             guard !Task.isCancelled else {
                 return
             }
 
             await MainActor.run {
-                clearStopShortcutHint()
+                if ChatInputStopConfirmationDecision.shouldClearAfterConfirmationTimeout(isStopConfirmationArmed) {
+                    clearStopConfirmation()
+                }
             }
         }
     }
 
-    func clearStopShortcutHint(animated: Bool = true) {
-        stopShortcutResetTask?.cancel()
-        stopShortcutResetTask = nil
+    func clearStopConfirmation(animated: Bool = true) {
+        stopConfirmationResetTask?.cancel()
+        stopConfirmationResetTask = nil
 
-        guard showsStopShortcutHint else {
+        guard isStopConfirmationArmed else {
             return
         }
 
         if animated {
             withAnimation(.easeInOut(duration: 0.18)) {
-                showsStopShortcutHint = false
+                isStopConfirmationArmed = false
             }
         } else {
-            showsStopShortcutHint = false
+            isStopConfirmationArmed = false
         }
     }
 
@@ -435,5 +438,35 @@ extension ChatInputField {
             in: text
         )
         return String(text[lowerIndex..<upperIndex]) == suggestion.replacementText
+    }
+}
+
+// Keep the Escape confirmation state machine pure so unit tests can cover the
+// critical stop/cancel decisions without mounting SwiftUI `@State`.
+enum ChatInputStopConfirmationDecision: Equatable {
+    case ignored
+    case armConfirmation
+    case confirmStop
+
+    static func resolve(
+        keyPress: AppTextEditorKeyPress,
+        canUseEscapeToStop: Bool,
+        isConfirmationArmed: Bool
+    ) -> Self {
+        guard keyPress.key == .escape,
+              keyPress.modifiers.isEmpty,
+              canUseEscapeToStop else {
+            return .ignored
+        }
+
+        return isConfirmationArmed ? .confirmStop : .armConfirmation
+    }
+
+    static func shouldClearWhenStopUnavailable(_ canUseEscapeToStop: Bool) -> Bool {
+        !canUseEscapeToStop
+    }
+
+    static func shouldClearAfterConfirmationTimeout(_ isConfirmationArmed: Bool) -> Bool {
+        isConfirmationArmed
     }
 }

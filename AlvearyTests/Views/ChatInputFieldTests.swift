@@ -39,6 +39,60 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertTrue(didSteer)
     }
 
+    func testStopConfirmationDecisionArmsOnFirstEscape() {
+        XCTAssertEqual(
+            ChatInputStopConfirmationDecision.resolve(
+                keyPress: escapeKeyPress(),
+                canUseEscapeToStop: true,
+                isConfirmationArmed: false
+            ),
+            .armConfirmation
+        )
+    }
+
+    func testStopConfirmationDecisionConfirmsOnSecondEscape() {
+        XCTAssertEqual(
+            ChatInputStopConfirmationDecision.resolve(
+                keyPress: escapeKeyPress(),
+                canUseEscapeToStop: true,
+                isConfirmationArmed: true
+            ),
+            .confirmStop
+        )
+    }
+
+    func testStopConfirmationDecisionIgnoresWhenStopUnavailable() {
+        XCTAssertEqual(
+            ChatInputStopConfirmationDecision.resolve(
+                keyPress: escapeKeyPress(),
+                canUseEscapeToStop: false,
+                isConfirmationArmed: true
+            ),
+            .ignored
+        )
+        XCTAssertTrue(ChatInputStopConfirmationDecision.shouldClearWhenStopUnavailable(false))
+    }
+
+    func testStopConfirmationDecisionIgnoresModifiedEscape() {
+        XCTAssertEqual(
+            ChatInputStopConfirmationDecision.resolve(
+                keyPress: AppTextEditorKeyPress(key: .escape, modifiers: .option),
+                canUseEscapeToStop: true,
+                isConfirmationArmed: false
+            ),
+            .ignored
+        )
+    }
+
+    func testStopConfirmationDecisionKeepsStateWhenStopAvailable() {
+        XCTAssertFalse(ChatInputStopConfirmationDecision.shouldClearWhenStopUnavailable(true))
+    }
+
+    func testStopConfirmationDecisionClearsOnlyArmedTimeout() {
+        XCTAssertTrue(ChatInputStopConfirmationDecision.shouldClearAfterConfirmationTimeout(true))
+        XCTAssertFalse(ChatInputStopConfirmationDecision.shouldClearAfterConfirmationTimeout(false))
+    }
+
     private func makeInput(
         text: String,
         isProjectTrustBlocked: Bool,
@@ -68,5 +122,9 @@ final class ChatInputFieldTests: XCTestCase {
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }
         )
+    }
+
+    private func escapeKeyPress() -> AppTextEditorKeyPress {
+        AppTextEditorKeyPress(key: .escape, modifiers: [])
     }
 }

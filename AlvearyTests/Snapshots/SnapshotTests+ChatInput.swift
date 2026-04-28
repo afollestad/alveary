@@ -179,7 +179,7 @@ extension SnapshotTests {
         )
     }
 
-    func testChatInputFieldBusyStopHint() {
+    func testChatInputFieldBusyStopConfirm() {
         assertMacSnapshot(
             ChatInputField(
                 text: .constant("Focus on the failing Settings screen snapshots next."),
@@ -187,7 +187,7 @@ extension SnapshotTests {
                 onSubmit: {},
                 onSteer: {},
                 onStop: {},
-                showsStopShortcutHint: true,
+                isStopConfirmationArmed: true,
                 selectedModel: .constant("sonnet"),
                 selectedEffort: .constant("high"),
                 selectedPermissionMode: .constant("acceptEdits"),
@@ -199,7 +199,7 @@ extension SnapshotTests {
                 loadSkillCompletions: { [] }
             ),
             size: CGSize(width: 760, height: 240),
-            named: "chat_input_busy_stop_hint"
+            named: "chat_input_busy_stop_confirm"
         )
     }
 
