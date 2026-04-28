@@ -96,7 +96,7 @@ extension ConversationViewModel {
 
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
-        state.lastTurnError = nil
+        (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
         try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
         if stagedContextOverride == nil {
             state.stagedContext = nil
@@ -255,7 +255,12 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
+    // swiftlint:disable:next cyclomatic_complexity
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
+        if state.isHandingOffSession || state.failedSessionHandoffMessage != nil {
+            return shouldPersistHiddenSessionHandoffEvent(event)
+        }
+
         switch event {
         case .sessionInit:
             return false
@@ -269,18 +274,9 @@ private extension ConversationViewModel {
         case .message(let role, _, _):
             return shouldPersistMessageEvent(role: role)
 
-        case .tokens(let input, let output, let cacheRead, let cacheCreation, let isError, let stopReason, _, _, _, _, let permissionDenials):
-            return shouldPersistTokensEvent(
-                TokenEventPayload(
-                    input: input,
-                    output: output,
-                    cacheRead: cacheRead,
-                    cacheCreation: cacheCreation,
-                    isError: isError,
-                    stopReason: stopReason,
-                    permissionDenials: permissionDenials
-                )
-            )
+        case .tokens:
+            guard let payload = TokenEventPayload(event) else { return true }
+            return shouldPersistTokensEvent(payload)
 
         case .toolApprovalRequested(let approval):
             return handleToolApprovalRequested(approval)
@@ -370,7 +366,14 @@ private extension ConversationViewModel {
         }
 
         if !payload.isError && payload.permissionDenials.isEmpty {
-            handleTurnCompleted()
+            if shouldTriggerAutomaticSessionHandoff(for: payload) {
+                state.turnState.endTurn()
+                Task { @MainActor [self] in
+                    await startSessionHandoff(trigger: .automatic)
+                }
+            } else {
+                handleTurnCompleted()
+            }
         } else {
             state.turnState.endTurn()
         }
@@ -470,7 +473,6 @@ private extension ConversationViewModel {
         guard state.activeBufferGeneration == snapshot.generation, !Task.isCancelled else {
             return
         }
-
         state.lastPersistedEventIndex = max(state.lastPersistedEventIndex, snapshot.observedIndex)
         if let generation = snapshot.generation {
             await agentsManager.markPersisted(

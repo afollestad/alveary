@@ -11,6 +11,7 @@ extension ConversationViewModel {
     var canApplySettingsChange: Bool {
         !state.turnState.isActive &&
             !state.isSendingMessage &&
+            !state.hasActiveSessionHandoff &&
             state.pendingToolApproval == nil &&
             !hasUnansweredPrompt
     }
@@ -183,7 +184,7 @@ extension ConversationViewModel {
     }
 }
 
-private extension ConversationViewModel {
+extension ConversationViewModel {
     func recordContextWindowInvalidation() {
         guard let dbConversation = modelContext.resolveConversation(id: conversationModelID) else {
             return

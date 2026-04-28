@@ -267,6 +267,8 @@ actor DiffViewerMockAgentsManager: AgentsManager {
 
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
 
+    func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {

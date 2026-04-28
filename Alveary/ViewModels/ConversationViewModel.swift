@@ -136,6 +136,10 @@ final class ConversationViewModel {
     }
 
     func queueOrSend(_ message: String) async throws {
+        guard !state.hasActiveSessionHandoff else {
+            throw AgentError.spawnFailed("Session handoff is in progress")
+        }
+
         if state.turnState.isActive || state.isSendingMessage || state.messageQueue.peekNext() != nil {
             state.messageQueue.enqueue(message, stagedContext: state.stagedContext)
             state.stagedContext = nil

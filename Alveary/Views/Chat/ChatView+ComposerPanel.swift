@@ -39,8 +39,20 @@ struct ChatComposerPanel: View {
     var body: some View {
         VStack(spacing: 10) {
             if let lastTurnError = viewModel.lastTurnError {
-                InlineBanner(message: lastTurnError, severity: .error, autoDismissAfter: nil) {
-                    viewModel.lastTurnError = nil
+                if viewModel.canRetryFailedSessionHandoff {
+                    InlineBanner(
+                        message: lastTurnError,
+                        severity: .error,
+                        autoDismissAfter: nil,
+                        actionTitle: "Retry",
+                        onAction: {
+                            viewModel.retryFailedSessionHandoff()
+                        }
+                    )
+                } else {
+                    InlineBanner(message: lastTurnError, severity: .error, autoDismissAfter: nil) {
+                        viewModel.lastTurnError = nil
+                    }
                 }
             }
 
@@ -77,6 +89,7 @@ struct ChatComposerPanel: View {
                 isTurnActive: viewModel.state.turnState.isActive,
                 isProjectTrustBlocked: isProjectTrustBlocked,
                 inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
+                sendCountdown: viewModel.state.handoffCountdownRemaining,
                 onSteerQueuedMessage: { messageID in
                     Task { try? await viewModel.steerQueuedMessage(id: messageID) }
                 },
@@ -91,6 +104,9 @@ struct ChatComposerPanel: View {
                 loadSkillCompletions: loadSkillCompletions,
                 focusRequestToken: $focusRequestToken
             )
+            .onChange(of: viewModel.state.inputDraft) { _, newValue in
+                viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
+            }
         }
         .padding(.horizontal, composerPanelHorizontalPadding)
         .padding(.top, composerPanelTopPadding)

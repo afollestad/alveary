@@ -8,7 +8,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 
 - Keep follow-mode split across three mechanisms:
     - Content-size growth: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`, gated on `isFollowing`.
-    - New messages/stream chunks: explicit `scrollToBottom` from `events.count`, pending queue count, and `streamingText`.
+    - New messages/stream chunks/direct transcript appends: explicit `scrollToBottom` from `events.count`, pending queue count, `grouper.items.last?.id`, `streamingText`, and `turnState.isActive`.
     - Container shrinks: `shouldPreserveFollowMode` in `onScrollGeometryChange`.
 - Only container shrinks trigger preserve-follow. Growth pulls toward bottom by itself.
 - The offset guard is `!offsetDecreased`, not `!offsetChanged`.

@@ -171,6 +171,52 @@ extension DefaultAgentsManager {
         }
     }
 
+    func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {
+        guard !reconfiguringIds.contains(conversationId) else {
+            throw AgentError.spawnFailed("Session refresh already in progress for \(conversationId)")
+        }
+
+        reconfiguringIds.insert(conversationId)
+        defer { reconfiguringIds.remove(conversationId) }
+
+        let oldPID = processes[conversationId]?.processIdentifier
+        suppressExitStatus(for: conversationId, pid: oldPID)
+        await teardownProcess(
+            for: conversationId,
+            awaitExit: true,
+            preserveBufferForDurabilityGrace: false
+        )
+
+        if pendingKillIds.remove(conversationId) != nil {
+            return
+        }
+
+        if await sessionManager.hasSession(for: conversationId) {
+            let sessionId = await sessionManager.sessionId(for: conversationId)
+            await claudeHookServer.removeSessionApprovals(
+                conversationId: conversationId,
+                sessionId: sessionId
+            )
+            try await sessionManager.removeEntry(for: conversationId)
+        }
+
+        do {
+            try await spawnImpl(
+                id: conversationId,
+                config: config,
+                forkSession: false,
+                allowReconfigureInFlight: true
+            )
+        } catch {
+            updateStatus(.error, for: conversationId)
+            await MainActor.run {
+                let state = conversationStatesStore.withLock { $0[conversationId] }
+                state?.lastTurnError = "Session handoff failed: \(error.localizedDescription)"
+            }
+            throw error
+        }
+    }
+
     func teardownProcess(
         for conversationId: String,
         awaitExit: Bool,

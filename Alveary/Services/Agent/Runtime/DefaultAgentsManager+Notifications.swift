@@ -11,31 +11,9 @@ extension DefaultAgentsManager {
     }
 
     func notificationEvent(for event: ConversationEvent, conversationId: String) async -> ConversationEvent {
-        guard case let .tokens(
-            input,
-            output,
-            cacheRead,
-            cacheCreation,
-            isError,
-            stopReason,
-            _,
-            _,
-            _,
-            _,
-            permissionDenials
-        ) = event else {
+        guard let payload = TokenEventPayload(event) else {
             return event
         }
-
-        let payload = TokenEventPayload(
-            input: input,
-            output: output,
-            cacheRead: cacheRead,
-            cacheCreation: cacheCreation,
-            isError: isError,
-            stopReason: stopReason,
-            permissionDenials: permissionDenials
-        )
 
         return await MainActor.run {
             let state = conversationState(for: conversationId)

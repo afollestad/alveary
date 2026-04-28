@@ -42,6 +42,9 @@ struct ChatView: View {
         if viewModel.state.isReconfiguringSession {
             return .progressOnly(.reconfiguringSession)
         }
+        if viewModel.state.isHandingOffSession {
+            return .progressOnly(.sessionHandoff)
+        }
         if let pendingToolApproval = viewModel.state.pendingToolApproval {
             return .progressOnly(.toolApproval(pendingToolApproval.request.composerStatusText))
         }
@@ -206,6 +209,9 @@ struct ChatView: View {
             }
             cachedContextWindowSize = size
         }
+        .focusedSceneValue(\.triggerSessionHandoffAction) {
+            viewModel.triggerSessionHandoffFromCommand()
+        }
     }
 }
 
@@ -263,6 +269,7 @@ private extension ChatView {
             return
         }
 
+        let isSessionHandoffDraft = viewModel.prepareManualSessionHandoffSendIfNeeded()
         let outboundMessage = outboundMessage(from: message)
 
         requestScrollToBottom()
@@ -270,7 +277,11 @@ private extension ChatView {
         let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
-                try await viewModel.queueOrSend(outboundMessage)
+                if isSessionHandoffDraft {
+                    try await viewModel.sendSessionHandoffOutput(outboundMessage)
+                } else {
+                    try await viewModel.queueOrSend(outboundMessage)
+                }
             } catch is CancellationError {
                 // User-initiated cancellation — rollback already restored the draft.
             } catch {

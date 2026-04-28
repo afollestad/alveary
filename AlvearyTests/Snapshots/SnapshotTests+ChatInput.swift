@@ -226,6 +226,44 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldSessionHandoffProgress() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant(""),
+                mode: .progressOnly(.sessionHandoff),
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_session_handoff_progress"
+        )
+    }
+
+    func testInlineBannerErrorWithRetryAction() {
+        assertMacSnapshot(
+            InlineBanner(
+                message: "Session handoff failed: the hidden handoff prompt returned no context.",
+                severity: .error,
+                autoDismissAfter: nil,
+                actionTitle: "Retry",
+                onAction: {}
+            )
+            .padding(20),
+            size: CGSize(width: 760, height: 110),
+            named: "inline_banner_error_retry"
+        )
+    }
+
     func testChatInputFieldProjectTrustBlocked() {
         assertMacSnapshot(
             ChatInputField(

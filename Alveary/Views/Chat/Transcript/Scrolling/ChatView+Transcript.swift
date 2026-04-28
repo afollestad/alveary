@@ -136,7 +136,8 @@ struct ChatTranscriptView: View {
                     ActiveTurnThinkingIndicator()
                 }
 
-                if let streamingText = viewModel.streamingText {
+                if let streamingText = viewModel.streamingText,
+                   !viewModel.state.isHandingOffSession {
                     StreamingBubble(text: streamingText)
                         .id("streaming")
                 }
@@ -258,6 +259,12 @@ struct ChatTranscriptView: View {
             }
             scrollToBottom(forceFollow: true)
         }
+        .onChange(of: viewModel.state.grouper.items.last?.id) {
+            guard isFollowing else {
+                return
+            }
+            scrollToBottom(forceFollow: true)
+        }
         .onChange(of: viewModel.streamingText) {
             guard isFollowing else {
                 return
@@ -275,6 +282,7 @@ struct ChatTranscriptView: View {
         .onChange(of: viewModel.turnState.isActive) { _, isActive in
             if isActive {
                 isFollowing = true
+                scrollToBottom(forceFollow: true)
             } else {
                 viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
                 // Must re-pin after the rebuild even though `onChange(of: events.count)` also

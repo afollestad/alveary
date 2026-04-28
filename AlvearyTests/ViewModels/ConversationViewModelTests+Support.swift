@@ -25,6 +25,11 @@ actor MockAgentsManager: AgentsManager {
         let config: AgentSpawnConfig
     }
 
+    struct FreshSessionCall: Sendable, Equatable {
+        let conversationId: String
+        let config: AgentSpawnConfig
+    }
+
     struct ApprovalCall: Sendable, Equatable {
         let conversationId: String
         let approval: ToolApprovalRequest
@@ -46,6 +51,7 @@ actor MockAgentsManager: AgentsManager {
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
+    private var recordedFreshSessionCalls: [FreshSessionCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
     private var subscriptionEnabled = false
@@ -214,6 +220,14 @@ actor MockAgentsManager: AgentsManager {
         isRunningValue = true
     }
 
+    func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {
+        recordedFreshSessionCalls.append(FreshSessionCall(conversationId: conversationId, config: config))
+        if let reconfigureError {
+            throw reconfigureError
+        }
+        isRunningValue = true
+    }
+
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {
@@ -240,6 +254,10 @@ actor MockAgentsManager: AgentsManager {
 
     func reconfigureCalls() -> [ReconfigureCall] {
         recordedReconfigureCalls
+    }
+
+    func freshSessionCalls() -> [FreshSessionCall] {
+        recordedFreshSessionCalls
     }
 
     func approvalCalls() -> [ApprovalCall] {

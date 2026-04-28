@@ -215,6 +215,9 @@ extension ConversationViewModel {
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Session changes are still being applied")
         }
+        guard !state.hasActiveSessionHandoff else {
+            throw AgentError.spawnFailed("Session handoff is in progress")
+        }
         guard !hasUnansweredPrompt else {
             throw AgentError.spawnFailed("Answer the pending question before sending another message")
         }

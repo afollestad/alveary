@@ -4,6 +4,8 @@ struct InlineBanner: View {
     let message: String
     let severity: Severity
     let autoDismissAfter: Duration?
+    let actionTitle: String?
+    let onAction: (() -> Void)?
     // When nil the X affordance is hidden — useful for banners whose dismissal
     // is driven by surrounding buttons instead of the banner itself.
     let onDismiss: (() -> Void)?
@@ -14,11 +16,15 @@ struct InlineBanner: View {
         message: String,
         severity: Severity,
         autoDismissAfter: Duration?,
+        actionTitle: String? = nil,
+        onAction: (() -> Void)? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
         self.message = message
         self.severity = severity
         self.autoDismissAfter = autoDismissAfter
+        self.actionTitle = actionTitle
+        self.onAction = onAction
         self.onDismiss = onDismiss
     }
 
@@ -59,6 +65,12 @@ struct InlineBanner: View {
                 .font(.subheadline)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let actionTitle, let onAction {
+                Button(actionTitle, action: onAction)
+                    .secondaryActionButtonStyle()
+                    .controlSize(.small)
+            }
 
             if let onDismiss {
                 Button {

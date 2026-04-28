@@ -148,7 +148,12 @@ private extension ConversationViewModel {
             }
 
             self.state.lastObservedEventIndex += pending.eventCount
-            self.state.appendStreamingChunk(pending.text)
+            if self.state.isHandingOffSession || self.state.failedSessionHandoffMessage != nil {
+                self.state.hiddenHandoffResponse.append(pending.text)
+                self.state.clearStreamingText()
+            } else {
+                self.state.appendStreamingChunk(pending.text)
+            }
             return true
         }
     }

@@ -337,6 +337,8 @@ enum ChatInputFieldTextSupport {
             return "Cancelling setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
+        case .sessionHandoff:
+            return "Handing off session..."
         case .toolApproval(let statusText):
             return statusText.progressLabel
         }
@@ -350,6 +352,8 @@ enum ChatInputFieldTextSupport {
             return "Cancelling the conversation setup..."
         case .reconfiguringSession:
             return "Applying session changes..."
+        case .sessionHandoff:
+            return "Context window at its limit, handing off the session..."
         case .toolApproval(let statusText):
             return statusText.placeholder
         }

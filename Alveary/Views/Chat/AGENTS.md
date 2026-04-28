@@ -43,6 +43,10 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
     - **Supersede stale approvals after the answer sends.** If a deferred tool approval was pending from the same turn, answering the prompt should mark that approval row `superseded` instead of resuming Claude through the old approval path.
     - **Keep normal composer sends blocked.** The transcript prompt is the only allowed outbound action while the question is pending; do not reopen normal freeform sending or setting changes.
 - User-requested turn cancellation is an interruption, not a generic failure. Stopped turns clear composer error banners, render a centered `Interrupted` transcript note, and persist a `stop` session note so restore/archive context doesn't summarize the turn as an error.
+- Session handoff is a between-turn hidden flow.
+    - **Hide the handoff exchange.** The handoff prompt/response must not render as transcript rows; after the fresh provider session starts, append only the centered `Session handoff` lifecycle note.
+    - **Keep handoff context ahead of queues.** Staged, edited, and immediate handoff output must use the handoff send path so it seeds the fresh session before any queued messages resume.
+    - **Keep failures blocking.** Failed hidden handoffs stay in a blocking retry state so later visible sends cannot continue from provider-only context.
 - Other subtle runtime lifecycle cues should use the same centered-note transcript treatment instead of inventing new bubble styles. Claude plan-mode transitions belong on that centered-note path, including `Entered plan mode`, `Exited plan mode`, and denied `ExitPlanMode` as `Staying in plan mode`, not in standalone tool pills.
 - First sends are durable transcript attempts once accepted:
     - **Persist before setup.** `deliverMessageReserved` inserts the user row before initial setup starts.

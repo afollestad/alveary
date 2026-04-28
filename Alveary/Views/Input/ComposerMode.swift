@@ -7,12 +7,13 @@ enum ComposerMode: Sendable {
         case initialSetup
         case cancellingInitialSetup
         case reconfiguringSession
+        case sessionHandoff
         case toolApproval(DeferredToolComposerStatusText)
 
         var canStop: Bool {
             switch self {
             case .initialSetup: return true
-            case .cancellingInitialSetup, .reconfiguringSession, .toolApproval: return false
+            case .cancellingInitialSetup, .reconfiguringSession, .sessionHandoff, .toolApproval: return false
             }
         }
     }

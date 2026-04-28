@@ -22,6 +22,7 @@ struct ChatInputField: View {
     let isTurnActive: Bool
     let isProjectTrustBlocked: Bool
     let inFlightQueuedMessageID: UUID?
+    let sendCountdown: Int?
     let onSteerQueuedMessage: ((UUID) -> Void)?
     let onEditQueuedMessage: ((UUID) -> Void)?
     let onDismissQueuedMessage: ((UUID) -> Void)?
@@ -85,6 +86,7 @@ struct ChatInputField: View {
         isTurnActive: Bool = false,
         isProjectTrustBlocked: Bool = false,
         inFlightQueuedMessageID: UUID? = nil,
+        sendCountdown: Int? = nil,
         onSteerQueuedMessage: ((UUID) -> Void)? = nil,
         onEditQueuedMessage: ((UUID) -> Void)? = nil,
         onDismissQueuedMessage: ((UUID) -> Void)? = nil,
@@ -114,6 +116,7 @@ struct ChatInputField: View {
         self.isTurnActive = isTurnActive
         self.isProjectTrustBlocked = isProjectTrustBlocked
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
+        self.sendCountdown = sendCountdown
         self.onSteerQueuedMessage = onSteerQueuedMessage
         self.onEditQueuedMessage = onEditQueuedMessage
         self.onDismissQueuedMessage = onDismissQueuedMessage
@@ -327,7 +330,7 @@ struct ChatInputField: View {
                 case .idle:
                     Button(action: performSubmit) {
                         ChatInputSendFootprintLabel {
-                            ChatInputActionLabel("Send", systemImage: "paperplane.fill")
+                            ChatInputActionLabel(sendButtonTitle, systemImage: "paperplane.fill")
                         }
                     }
                     .primaryActionButtonStyle()
@@ -384,6 +387,13 @@ struct ChatInputField: View {
 extension ChatInputField {
     var trimmedText: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var sendButtonTitle: String {
+        guard let sendCountdown else {
+            return "Send"
+        }
+        return "Send (\(sendCountdown))"
     }
 
     var isTextEditorDisabled: Bool {

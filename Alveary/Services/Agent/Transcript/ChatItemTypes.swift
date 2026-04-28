@@ -114,6 +114,7 @@ struct PromptEntry: Identifiable, Equatable {
 
 enum CenteredTranscriptNoteKind: Equatable {
     case interrupted
+    case sessionHandoff
     case enteredPlanMode
     case exitedPlanMode
     case stayingInPlanMode
@@ -122,6 +123,8 @@ enum CenteredTranscriptNoteKind: Equatable {
         switch self {
         case .interrupted:
             return "Interrupted"
+        case .sessionHandoff:
+            return "Session handoff"
         case .enteredPlanMode:
             return "Entered plan mode"
         case .exitedPlanMode:

@@ -34,6 +34,14 @@ enum ConversationInterruption {
     }
 }
 
+enum ConversationSessionHandoff {
+    static let displayMessage = "Session handoff"
+
+    static func isDisplayMessage(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == displayMessage
+    }
+}
+
 struct ToolResultMetadata: Sendable, Equatable {
     let stderr: String?
     let interrupted: Bool

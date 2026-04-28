@@ -180,6 +180,8 @@ actor SnapshotMockAgentsManager: AgentsManager {
 
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
 
+    func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
 
     func setStatus(_ status: ActivitySignal, for conversationId: String) {

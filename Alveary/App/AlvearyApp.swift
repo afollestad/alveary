@@ -46,6 +46,12 @@ struct AlvearyApp: App {
 
                 Divider()
             }
+
+            #if DEBUG
+            CommandMenu("Developer") {
+                TriggerSessionHandoffCommandButton()
+            }
+            #endif
         }
         .modelContainer(AppDI.resolver.modelContainer())
     }
@@ -88,3 +94,16 @@ private struct ToggleTerminalPaneCommandButton: View {
         .disabled(toggleAction == nil)
     }
 }
+
+#if DEBUG
+private struct TriggerSessionHandoffCommandButton: View {
+    @FocusedValue(\.triggerSessionHandoffAction) private var triggerSessionHandoffAction
+
+    var body: some View {
+        Button("Trigger session handoff") {
+            triggerSessionHandoffAction?()
+        }
+        .disabled(triggerSessionHandoffAction == nil)
+    }
+}
+#endif

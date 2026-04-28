@@ -66,7 +66,7 @@ extension ChatItemGrouper {
             return "EnterPlanMode"
         case .exitedPlanMode, .stayingInPlanMode:
             return "ExitPlanMode"
-        case .interrupted:
+        case .interrupted, .sessionHandoff:
             return "Tool"
         }
     }

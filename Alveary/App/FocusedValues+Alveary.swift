@@ -20,6 +20,12 @@ struct ToggleTerminalPaneActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }
 
+/// Published by `ChatView` so the debug-only Developer menu can trigger the
+/// same session handoff path as automatic context-window handoff.
+struct TriggerSessionHandoffActionKey: FocusedValueKey {
+    typealias Value = @MainActor () -> Void
+}
+
 extension FocusedValues {
     var newConversationAction: NewConversationActionKey.Value? {
         get { self[NewConversationActionKey.self] }
@@ -29,5 +35,10 @@ extension FocusedValues {
     var toggleTerminalPaneAction: ToggleTerminalPaneActionKey.Value? {
         get { self[ToggleTerminalPaneActionKey.self] }
         set { self[ToggleTerminalPaneActionKey.self] = newValue }
+    }
+
+    var triggerSessionHandoffAction: TriggerSessionHandoffActionKey.Value? {
+        get { self[TriggerSessionHandoffActionKey.self] }
+        set { self[TriggerSessionHandoffActionKey.self] = newValue }
     }
 }
