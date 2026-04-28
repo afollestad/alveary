@@ -266,6 +266,31 @@ extension SnapshotTests {
         )
     }
 
+    func testUserBubbleLongMarkdownCollapsed() {
+        assertMacSnapshot(
+            UserBubble(
+                text: longUserMarkdown,
+                showsRetry: false,
+                onRetry: nil
+            ),
+            size: CGSize(width: 760, height: 520),
+            named: "user_bubble_long_markdown_collapsed"
+        )
+    }
+
+    func testUserBubbleLongMarkdownExpanded() {
+        assertMacSnapshot(
+            UserBubble(
+                text: longUserMarkdown,
+                showsRetry: false,
+                onRetry: nil,
+                initiallyExpanded: true
+            ),
+            size: CGSize(width: 760, height: 760),
+            named: "user_bubble_long_markdown_expanded"
+        )
+    }
+
     func testTurnInterruptedNote() {
         assertMacSnapshot(
             TurnInterruptedNote(),
@@ -434,6 +459,33 @@ extension SnapshotTests {
         - Inline code like `ToolApprovalRequest.planMarkdown` should render normally.
         - List markers should remain aligned before and after expansion.
         - The control row should sit below the faded content without introducing a nested scroll surface.
+        """
+    }
+
+    private var longUserMarkdown: String {
+        """
+        Please make the user bubble expansion match the assistant bubble behavior.
+
+        ## Requirements
+
+        The bubble should keep the same visual treatment it has today:
+
+        - Right aligned in the transcript
+        - Accent-filled rounded rectangle
+        - Primary text color
+        - User-specific inline-code styling
+        - Composer file mention chips for (@Alveary/Views/Input/ChatInputField.swift)
+
+        ## Behavior
+
+        Long content should collapse with the same cap, fade, toggle, and animation as assistant bubbles. The markdown
+        source should remain intact in both states, including lists, headings, inline code like `UserBubble`, and file
+        mentions.
+
+        ## Validation
+
+        Add collapsed and expanded snapshots so future changes cannot accidentally remove the cap, change the bubble
+        background, or regress the user markdown rendering path.
         """
     }
 }

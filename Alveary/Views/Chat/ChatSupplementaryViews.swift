@@ -4,11 +4,11 @@ import SwiftUI
 private let chatBubbleHorizontalPadding: CGFloat = 12
 private let chatBubbleCornerRadius: CGFloat = 12
 private let projectTrustPromptMessageMaxWidth: CGFloat = 760
-private let assistantBubbleCollapsedMaxContentHeight: CGFloat = 260
-private let assistantBubbleCollapseFadeHeight: CGFloat = 56
-private let assistantBubbleControlClearance: CGFloat = 8
-private let assistantBubbleControlSpacing: CGFloat = 4
-private let assistantBubbleToggleMinHeight: CGFloat = 24
+private let longBubbleCollapsedMaxContentHeight: CGFloat = 260
+private let longBubbleCollapseFadeHeight: CGFloat = 56
+private let longBubbleControlClearance: CGFloat = 8
+private let longBubbleControlSpacing: CGFloat = 4
+private let longBubbleToggleMinHeight: CGFloat = 24
 
 struct ProjectTrustPrompt: Equatable {
     let threadID: PersistentIdentifier
@@ -132,17 +132,20 @@ struct UserBubble: View {
     let text: String
     let showsRetry: Bool
     let onRetry: (() -> Void)?
+    let initiallyExpanded: Bool
 
     init(
         id: String? = nil,
         text: String,
         showsRetry: Bool,
-        onRetry: (() -> Void)?
+        onRetry: (() -> Void)?,
+        initiallyExpanded: Bool = false
     ) {
         self.id = id
         self.text = text
         self.showsRetry = showsRetry
         self.onRetry = onRetry
+        self.initiallyExpanded = initiallyExpanded
     }
 
     var body: some View {
@@ -150,21 +153,23 @@ struct UserBubble: View {
             Spacer(minLength: 60)
 
             VStack(alignment: .trailing, spacing: 6) {
-                AppMarkdownText(
-                    markdown: text,
-                    foregroundColor: .primary,
-                    inlineCodeStyle: .userBubble,
-                    composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:),
-                    taskStateScope: id
-                )
+                LongTextBubbleContent(initiallyExpanded: initiallyExpanded) {
+                    AppMarkdownText(
+                        markdown: text,
+                        foregroundColor: .primary,
+                        inlineCodeStyle: .userBubble,
+                        composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:),
+                        taskStateScope: id
+                    )
+                }
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatVerticalPadding)
                 .background(
                     RoundedRectangle(cornerRadius: chatBubbleCornerRadius, style: .continuous)
                         .fill(AppAccentFill.primary)
                 )
-                // Keeps rendered text moving with the bubble chrome during transcript
-                // reflow from tool-row expand/collapse.
+                // Keeps rendered text moving with the bubble chrome during animated
+                // transcript reflow.
                 .geometryGroup()
 
                 if showsRetry, let onRetry {
@@ -189,8 +194,7 @@ struct AssistantBubble: View {
     let markdown: String
 
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
-    @State private var isExpanded: Bool
-    @State private var markdownContentHeight: CGFloat = 0
+    let initiallyExpanded: Bool
 
     init(
         id: String? = nil,
@@ -199,16 +203,15 @@ struct AssistantBubble: View {
     ) {
         self.id = id
         self.markdown = markdown
-        _isExpanded = State(initialValue: initiallyExpanded)
+        self.initiallyExpanded = initiallyExpanded
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: assistantBubbleControlSpacing) {
-            markdownContent
-
-            if isOverflowing {
-                expansionToggle
-            }
+        LongTextBubbleContent(initiallyExpanded: initiallyExpanded) {
+            AppMarkdownText(
+                markdown: markdown,
+                taskStateScope: id
+            )
         }
         .padding(.horizontal, chatBubbleHorizontalPadding)
         .padding(.vertical, chatVerticalPadding)
@@ -220,32 +223,57 @@ struct AssistantBubble: View {
         .geometryGroup()
         .frame(maxWidth: bubbleMaxWidth, alignment: .leading)
     }
+}
+
+private struct LongTextBubbleContent<Content: View>: View {
+    @State private var isExpanded: Bool
+    @State private var contentHeight: CGFloat = 0
+
+    private let content: Content
+
+    init(
+        initiallyExpanded: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        _isExpanded = State(initialValue: initiallyExpanded)
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: longBubbleControlSpacing) {
+            visibleContent
+
+            if isOverflowing {
+                expansionToggle
+            }
+        }
+    }
 
     private var isOverflowing: Bool {
-        markdownContentHeight > assistantBubbleCollapsedMaxContentHeight + 1
+        contentHeight > longBubbleCollapsedMaxContentHeight + 1
     }
 
     private var isCollapsed: Bool {
         isOverflowing && !isExpanded
     }
 
-    private var markdownContent: some View {
+    private var visibleContent: some View {
         Group {
             if isCollapsed {
-                measuredMarkdownContent
-                    .frame(height: assistantBubbleCollapsedMaxContentHeight, alignment: .top)
+                measuredContent
+                    .frame(height: longBubbleCollapsedMaxContentHeight, alignment: .top)
                     .contentShape(Rectangle())
                     .clipped()
                     .mask(alignment: .bottom) {
-                        collapsedMarkdownFadeMask
+                        collapsedFadeMask
                     }
             } else {
-                measuredMarkdownContent
+                measuredContent
             }
         }
-            .padding(.bottom, isOverflowing ? assistantBubbleControlClearance : 0)
-            // Rebuild the markdown subtree when the cap toggles so selectable
-            // runs and task controls inherit the current clipped layout.
+            .padding(.bottom, isOverflowing ? longBubbleControlClearance : 0)
+            // Rebuild the text subtree when the cap toggles so selectable runs and
+            // task controls inherit the current clipped layout.
             .id(isCollapsed)
             .animation(toolExpansionAnimation, value: isCollapsed)
     }
@@ -253,7 +281,7 @@ struct AssistantBubble: View {
     private var expansionToggle: some View {
         TranscriptHeaderToggle(fillsWidth: false, action: toggleExpansion) {
             Label(isExpanded ? "Show less" : "Show more", systemImage: isExpanded ? "chevron.up" : "chevron.down")
-                .frame(minHeight: assistantBubbleToggleMinHeight, alignment: .center)
+                .frame(minHeight: longBubbleToggleMinHeight, alignment: .center)
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)
@@ -267,7 +295,7 @@ struct AssistantBubble: View {
         }
     }
 
-    private var collapsedMarkdownFadeMask: some View {
+    private var collapsedFadeMask: some View {
         VStack(spacing: 0) {
             Rectangle()
             LinearGradient(
@@ -275,19 +303,16 @@ struct AssistantBubble: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: assistantBubbleCollapseFadeHeight)
+            .frame(height: longBubbleCollapseFadeHeight)
         }
     }
 
-    private var measuredMarkdownContent: some View {
-        AppMarkdownText(
-            markdown: markdown,
-            taskStateScope: id
-        )
+    private var measuredContent: some View {
+        content
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { newValue in
-                markdownContentHeight = newValue
+                contentHeight = newValue
             }
     }
 }

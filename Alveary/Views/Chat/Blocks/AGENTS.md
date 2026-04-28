@@ -31,8 +31,8 @@ Shared transcript block primitives live here. Narrower scopes:
 
 ## Compact Mouse Targets
 
-- `TranscriptHeaderToggle` owns compact expand/collapse controls used by tool rows and long assistant bubbles.
+- `TranscriptHeaderToggle` owns compact expand/collapse controls used by tool rows and long user/assistant text bubbles.
 - Keep its SwiftUI `Button` as the primary path for keyboard and accessibility activation.
 - `TranscriptMouseTarget` is a bounded AppKit fallback for mouse delivery after animated lazy-list height changes.
 - Scope the fallback to the tiny control overlay, and skip it when the SwiftUI button already activated.
-- Keep tool-row toggles width-filling, but use the intrinsic-width toggle mode for assistant-bubble Show more/less so the control does not force the bubble to its width cap.
+- Keep tool-row toggles width-filling, but use the intrinsic-width toggle mode for text-bubble Show more/less so the control does not force the bubble to its width cap.
