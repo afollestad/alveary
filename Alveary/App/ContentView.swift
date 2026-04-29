@@ -97,6 +97,7 @@ struct ContentView: View {
         DiffViewerViewModel(
             gitService: dependencies.gitService,
             gitHubService: dependencies.gitHubService,
+            diffStore: dependencies.diffWorkspaceStore,
             fileListManager: dependencies.fileListManager,
             agentsManager: dependencies.agentsManager
         )
@@ -214,7 +215,7 @@ struct ContentView: View {
                 .accessibilityLabel(terminalToggleTitle)
 
                 DiffViewerToolbarButton(
-                    diffStats: diffViewModel.diffStats,
+                    displayState: diffViewerToolbarDisplayState,
                     action: {
                         appState.toggleRightPane()
                     }
@@ -434,6 +435,9 @@ private extension ContentView {
 
     var diffViewerToggleHelpText: String {
         let action = appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer"
+        guard !diffViewModel.isDiffToolbarLoading else {
+            return "\(action), loading diffs"
+        }
         let stats = diffViewModel.diffStats
 
         guard !stats.isEmpty else {
@@ -444,12 +448,19 @@ private extension ContentView {
     }
 
     var diffViewerToggleAccessibilityValue: String {
+        guard !diffViewModel.isDiffToolbarLoading else {
+            return "Loading diffs"
+        }
         let stats = diffViewModel.diffStats
         guard !stats.isEmpty else {
             return ""
         }
 
         return "\(stats.additions) additions, \(stats.deletions) deletions"
+    }
+
+    var diffViewerToolbarDisplayState: DiffViewerToolbarDisplayState {
+        diffViewModel.isDiffToolbarLoading ? .loading : .idle(diffViewModel.diffStats)
     }
 
     func effectiveDiffViewerWidth(availableWidth: CGFloat) -> CGFloat {

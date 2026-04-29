@@ -1,0 +1,463 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class DiffWorkspaceStore {
+    private typealias DiffLoadResult = DiffViewerDiffLoadResult
+
+    private let gitService: GitService
+    let loadingIndicatorDelay: Duration
+
+    private(set) var activeTarget: DiffWorkspaceTarget?
+    private(set) var files: [FileStatus] = []
+    private(set) var stats: DiffStats = .empty
+    var statsLoadState: DiffWorkspaceLoadState = .idle
+    var isStatsLoadingIndicatorVisible = false
+    private(set) var selectedFile: FileStatus?
+    private(set) var parsedDiff: DiffFile?
+    private(set) var rawDiffContent = ""
+    var selectedDiffLoadState: DiffWorkspaceLoadState = .idle
+    var isSelectedDiffLoadingIndicatorVisible = false
+    private(set) var isLoadingFiles = false
+    private(set) var gitError: String?
+    private(set) var isGitRepository = true
+
+    private var targetGeneration: UInt64 = 0
+    private var fileSelectionGeneration: UInt64 = 0
+    var statsLoadingIndicatorGeneration: UInt64 = 0
+    var selectedDiffLoadingIndicatorGeneration: UInt64 = 0
+    private var statsCache: [DiffWorkspaceStatsCacheKey: DiffStats] = [:]
+    private var inFlightStatsLoad: StatsLoad?
+    private var inFlightDiffLoad: (id: UUID, task: Task<DiffLoadResult, Error>)?
+    var statsLoadingIndicatorTask: Task<Void, Never>?
+    var selectedDiffLoadingIndicatorTask: Task<Void, Never>?
+
+    init(gitService: GitService, loadingIndicatorDelay: Duration = .milliseconds(500)) {
+        self.gitService = gitService
+        self.loadingIndicatorDelay = loadingIndicatorDelay
+    }
+
+    var activeDirectory: String? { activeTarget?.directory }
+
+    var isToolbarLoading: Bool {
+        isStatsLoadingIndicatorVisible || isSelectedDiffLoadingIndicatorVisible
+    }
+
+    @discardableResult
+    func switchToTarget(_ target: DiffWorkspaceTarget) -> Bool {
+        guard target != activeTarget else {
+            return false
+        }
+
+        targetGeneration &+= 1
+        fileSelectionGeneration &+= 1
+        cancelStatsLoad()
+        cancelSelectedDiffLoad()
+
+        activeTarget = target
+        // Clear only visible state on target changes. Cached stats stay keyed by
+        // project/worktree so returning to that target can hydrate immediately.
+        files = []
+        selectedFile = nil
+        parsedDiff = nil
+        rawDiffContent = ""
+        setSelectedDiffLoadState(.idle)
+        gitError = nil
+        isGitRepository = true
+        isLoadingFiles = true
+        stats = statsCache[target.statsCacheKey] ?? .empty
+        // A target switch starts a new visible context, so the delayed toolbar
+        // spinner gets a fresh grace period instead of inheriting the old one.
+        hideStatsLoadingIndicator()
+        setStatsLoadState(.loading)
+        return true
+    }
+
+    func clear() {
+        targetGeneration &+= 1
+        fileSelectionGeneration &+= 1
+        cancelStatsLoad()
+        cancelSelectedDiffLoad()
+        activeTarget = nil
+        files = []
+        stats = .empty
+        setStatsLoadState(.idle)
+        selectedFile = nil
+        parsedDiff = nil
+        rawDiffContent = ""
+        setSelectedDiffLoadState(.idle)
+        isLoadingFiles = false
+        gitError = nil
+        isGitRepository = true
+    }
+
+    func clearGitError() {
+        gitError = nil
+    }
+
+    func presentGitError(_ message: String) {
+        gitError = message
+    }
+
+    func refreshStatusAndStartStats(for directory: String) async -> DiffWorkspaceRefreshSnapshot? {
+        guard let target = activeTarget, target.directory == directory else {
+            return nil
+        }
+
+        let generation = targetGeneration
+        setStatsLoadState(.loading)
+
+        do {
+            let refreshedFiles = try await gitService.status(in: directory)
+            guard isCurrent(target: target, generation: generation) else {
+                return nil
+            }
+
+            files = refreshedFiles
+            gitError = nil
+            isGitRepository = true
+            isLoadingFiles = false
+            startStatsLoad(for: target, generation: generation, knownStatuses: refreshedFiles)
+            return DiffWorkspaceRefreshSnapshot(
+                target: target,
+                generation: generation,
+                files: refreshedFiles,
+                error: nil,
+                isGitRepository: true
+            )
+        } catch let error as GitError {
+            let snapshot = applyStatusFailure(error, target: target, generation: generation)
+            return snapshot
+        } catch {
+            let snapshot = applyStatusFailure(error, target: target, generation: generation)
+            return snapshot
+        }
+    }
+
+    func applyContextualRefreshErrorIfCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) {
+        guard isCurrent(snapshot) else {
+            return
+        }
+
+        if snapshot.error != nil || !snapshot.isGitRepository {
+            cancelSelectedDiffLoad()
+            selectedFile = nil
+            parsedDiff = nil
+            rawDiffContent = ""
+            setSelectedDiffLoadState(.idle)
+        }
+    }
+
+    func selectFile(_ file: FileStatus, in directory: String) async {
+        guard let target = activeTarget, target.directory == directory else {
+            return
+        }
+
+        let context = beginDiffLoad(for: file, target: target)
+        let task = DiffViewerDiffTaskFactory.makeTask(for: file, in: directory, gitService: gitService)
+        let diffLoadID = UUID()
+        inFlightDiffLoad = (id: diffLoadID, task: task)
+
+        do {
+            let result = try await task.value
+            applyDiffLoadResult(result, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+        } catch is CancellationError {
+            // A newer target or file selection superseded this load.
+        } catch {
+            applyDiffLoadError(error, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+        }
+
+        finishDiffLoad(diffLoadID)
+    }
+
+    func refreshSelectedDiffIfNeeded(snapshot: DiffWorkspaceRefreshSnapshot, reason: DiffViewerRefreshReason) async {
+        guard isCurrent(snapshot) else {
+            return
+        }
+        guard let selectedFile else {
+            return
+        }
+
+        let selectedAnchor = selectedFile.originalPath ?? selectedFile.path
+        let updatedSelection = files.first {
+            $0.path == selectedFile.path && $0.isStaged == selectedFile.isStaged
+        } ?? files.first {
+            $0.path == selectedFile.path
+        } ?? files.first {
+            ($0.originalPath ?? $0.path) == selectedAnchor && $0.isStaged == selectedFile.isStaged
+        } ?? files.first {
+            ($0.originalPath ?? $0.path) == selectedAnchor
+        }
+
+        guard let updatedSelection else {
+            cancelSelectedDiffLoad()
+            self.selectedFile = nil
+            parsedDiff = nil
+            rawDiffContent = ""
+            setSelectedDiffLoadState(.idle)
+            return
+        }
+
+        let selectionChanged = updatedSelection.path != selectedFile.path
+            || updatedSelection.originalPath != selectedFile.originalPath
+            || updatedSelection.isStaged != selectedFile.isStaged
+            || updatedSelection.status != selectedFile.status
+
+        let shouldReloadDiff: Bool
+        switch reason {
+        case .manual, .appBecameActive, .localGitMutation:
+            shouldReloadDiff = true
+        case .threadSwitch, .agentTurnCompleted, .idlePoll:
+            shouldReloadDiff = selectionChanged
+        case .fsEvent(let changedPaths):
+            let selectedPaths = Set([updatedSelection.path, updatedSelection.originalPath].compactMap { $0 })
+            shouldReloadDiff = selectionChanged || !changedPaths.isDisjoint(with: selectedPaths)
+        }
+
+        guard shouldReloadDiff else {
+            self.selectedFile = updatedSelection
+            return
+        }
+
+        await selectFile(updatedSelection, in: snapshot.target.directory)
+    }
+
+    func isCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) -> Bool {
+        isCurrent(target: snapshot.target, generation: snapshot.generation)
+    }
+
+    func waitForStatsForTesting() async {
+        guard let task = inFlightStatsLoad?.task else {
+            return
+        }
+
+        _ = try? await task.value
+        await Task.yield()
+    }
+
+    func waitForLoadingIndicatorsForTesting() async {
+        try? await Task.sleep(for: loadingIndicatorDelay + .milliseconds(10))
+        await Task.yield()
+    }
+}
+
+private extension DiffWorkspaceStore {
+    struct DiffLoadContext {
+        let target: DiffWorkspaceTarget
+        let bindingGeneration: UInt64
+        let selectionGeneration: UInt64
+    }
+
+    struct StatsLoad {
+        let id: UUID
+        let generation: UInt64
+        let task: Task<DiffStats, Error>
+    }
+
+    private func applyStatusFailure(
+        _ error: Error,
+        target: DiffWorkspaceTarget,
+        generation: UInt64
+    ) -> DiffWorkspaceRefreshSnapshot? {
+        guard isCurrent(target: target, generation: generation) else {
+            return nil
+        }
+
+        cancelStatsLoad()
+        files = []
+        stats = .empty
+        setStatsLoadState(.idle)
+        // The active target's cached count is no longer trustworthy after a
+        // failed status refresh, but caches for other project/worktree targets stay intact.
+        statsCache.removeValue(forKey: target.statsCacheKey)
+        isLoadingFiles = false
+
+        if let gitError = error as? GitError, gitError == .notARepository {
+            self.gitError = nil
+            isGitRepository = false
+            return DiffWorkspaceRefreshSnapshot(
+                target: target,
+                generation: generation,
+                files: [],
+                error: nil,
+                isGitRepository: false
+            )
+        }
+
+        let message = "Git status failed: \(error.localizedDescription)"
+        self.gitError = message
+        isGitRepository = true
+        return DiffWorkspaceRefreshSnapshot(
+            target: target,
+            generation: generation,
+            files: [],
+            error: message,
+            isGitRepository: true
+        )
+    }
+
+    private func startStatsLoad(
+        for target: DiffWorkspaceTarget,
+        generation: UInt64,
+        knownStatuses: [FileStatus]
+    ) {
+        cancelStatsLoad()
+        setStatsLoadState(.loading)
+
+        let gitService = gitService
+        let task = Task.detached(priority: .utility) {
+            try await gitService.diffStats(in: target.directory, knownStatuses: knownStatuses)
+        }
+        let statsLoadID = UUID()
+        inFlightStatsLoad = StatsLoad(id: statsLoadID, generation: generation, task: task)
+
+        Task { [weak self, task, target, generation, statsLoadID] in
+            do {
+                let refreshedStats = try await task.value
+                self?.applyStats(refreshedStats, target: target, generation: generation, statsLoadID: statsLoadID)
+            } catch is CancellationError {
+                self?.finishStatsLoadIfCurrent(target: target, generation: generation, statsLoadID: statsLoadID, state: .idle)
+            } catch {
+                // Stats are auxiliary: file status can still be correct even if
+                // numstat fails, so keep the pane usable and clear visible stats.
+                self?.applyStatsFailure(target: target, generation: generation, statsLoadID: statsLoadID)
+            }
+        }
+    }
+
+    private func applyStats(
+        _ refreshedStats: DiffStats,
+        target: DiffWorkspaceTarget,
+        generation: UInt64,
+        statsLoadID: UUID
+    ) {
+        guard isCurrent(target: target, generation: generation),
+              inFlightStatsLoad?.id == statsLoadID else {
+            return
+        }
+
+        statsCache[target.statsCacheKey] = refreshedStats
+        stats = refreshedStats
+        setStatsLoadState(.loaded)
+        inFlightStatsLoad = nil
+    }
+
+    private func applyStatsFailure(target: DiffWorkspaceTarget, generation: UInt64, statsLoadID: UUID) {
+        guard isCurrent(target: target, generation: generation),
+              inFlightStatsLoad?.id == statsLoadID else {
+            return
+        }
+
+        stats = .empty
+        setStatsLoadState(.failed)
+        // Only evict the failed target; target switches clear visible state
+        // without deleting other cached project/worktree stats.
+        statsCache.removeValue(forKey: target.statsCacheKey)
+        inFlightStatsLoad = nil
+    }
+
+    private func finishStatsLoadIfCurrent(
+        target: DiffWorkspaceTarget,
+        generation: UInt64,
+        statsLoadID: UUID,
+        state: DiffWorkspaceLoadState
+    ) {
+        guard isCurrent(target: target, generation: generation),
+              inFlightStatsLoad?.id == statsLoadID else {
+            return
+        }
+
+        setStatsLoadState(state)
+        inFlightStatsLoad = nil
+    }
+
+    private func beginDiffLoad(for file: FileStatus, target: DiffWorkspaceTarget) -> DiffLoadContext {
+        selectedFile = file
+        let bindingGeneration = targetGeneration
+        fileSelectionGeneration &+= 1
+        cancelSelectedDiffLoad()
+        rawDiffContent = ""
+        parsedDiff = nil
+        gitError = nil
+        setSelectedDiffLoadState(.loading)
+        return DiffLoadContext(
+            target: target,
+            bindingGeneration: bindingGeneration,
+            selectionGeneration: fileSelectionGeneration
+        )
+    }
+
+    private func applyDiffLoadResult(
+        _ result: DiffLoadResult,
+        for file: FileStatus,
+        in directory: String,
+        context: DiffLoadContext,
+        diffLoadID: UUID
+    ) {
+        guard matchesCurrentDiffLoad(file: file, directory: directory, context: context, diffLoadID: diffLoadID) else {
+            return
+        }
+
+        rawDiffContent = result.raw
+        parsedDiff = result.parsed
+        gitError = nil
+        setSelectedDiffLoadState(.loaded)
+    }
+
+    private func applyDiffLoadError(
+        _ error: Error,
+        for file: FileStatus,
+        in directory: String,
+        context: DiffLoadContext,
+        diffLoadID: UUID
+    ) {
+        guard matchesCurrentDiffLoad(file: file, directory: directory, context: context, diffLoadID: diffLoadID) else {
+            return
+        }
+
+        rawDiffContent = ""
+        parsedDiff = nil
+        gitError = "Diff failed: \(error.localizedDescription)"
+        setSelectedDiffLoadState(.failed)
+    }
+
+    private func matchesCurrentDiffLoad(
+        file: FileStatus,
+        directory: String,
+        context: DiffLoadContext,
+        diffLoadID: UUID
+    ) -> Bool {
+        isCurrent(target: context.target, generation: context.bindingGeneration)
+            && context.target.directory == directory
+            && fileSelectionGeneration == context.selectionGeneration
+            && selectedFile?.path == file.path
+            && selectedFile?.isStaged == file.isStaged
+            && inFlightDiffLoad?.id == diffLoadID
+    }
+
+    private func finishDiffLoad(_ diffLoadID: UUID) {
+        if inFlightDiffLoad?.id == diffLoadID {
+            inFlightDiffLoad = nil
+            if selectedDiffLoadState == .loading {
+                setSelectedDiffLoadState(.loaded)
+            }
+        }
+    }
+
+    private func cancelStatsLoad() {
+        inFlightStatsLoad?.task.cancel()
+        inFlightStatsLoad = nil
+    }
+
+    private func cancelSelectedDiffLoad() {
+        inFlightDiffLoad?.task.cancel()
+        inFlightDiffLoad = nil
+        hideSelectedDiffLoadingIndicator()
+    }
+
+    private func isCurrent(target: DiffWorkspaceTarget, generation: UInt64) -> Bool {
+        activeTarget == target && targetGeneration == generation
+    }
+
+}

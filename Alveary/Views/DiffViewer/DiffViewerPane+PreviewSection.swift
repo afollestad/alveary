@@ -4,6 +4,7 @@ struct DiffViewerPreviewSection: View {
     let selectedFile: FileStatus?
     let parsedDiff: DiffFile?
     let rawDiffContent: String
+    let isPending: Bool
     let isLoading: Bool
     let fileDisplayName: (FileStatus) -> String
     let statusTitle: (FileStatus.Status) -> String
@@ -23,6 +24,7 @@ struct DiffViewerPreviewSection: View {
                     DiffPreviewContent(
                         parsedDiff: parsedDiff,
                         rawDiffContent: rawDiffContent,
+                        isPending: isPending,
                         isLoading: isLoading
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

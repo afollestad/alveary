@@ -280,7 +280,7 @@ final class DiffViewerViewModelTests: XCTestCase {
         let slowSelectionTask = Task {
             await fixture.viewModel.selectFile(slowFile, in: fixture.directory)
         }
-        try? await Task.sleep(for: .milliseconds(40))
+        await fixture.diffStore.waitForLoadingIndicatorsForTesting()
 
         XCTAssertEqual(fixture.viewModel.selectedFile?.path, "slow.swift")
         XCTAssertTrue(fixture.viewModel.isLoadingSelectedDiff)
@@ -420,7 +420,7 @@ final class DiffViewerViewModelTests: XCTestCase {
     }
 }
 
-private extension DiffViewerViewModelTests {
+extension DiffViewerViewModelTests {
     func assertContextualAction(
         _ expectedAction: DiffViewerViewModel.ContextualAction,
         in fixture: DiffViewerTestFixture,
@@ -437,14 +437,14 @@ private extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.contextualAction, expectedAction)
     }
 
-    static func modifiedDiff(path: String) -> String {
+    static func modifiedDiff(path: String, newLine: String = "new") -> String {
         """
         diff --git a/\(path) b/\(path)
         --- a/\(path)
         +++ b/\(path)
         @@ -1 +1 @@
         -old
-        +new
+        +\(newLine)
         """
     }
 

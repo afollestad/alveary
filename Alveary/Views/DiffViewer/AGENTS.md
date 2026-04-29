@@ -13,16 +13,20 @@ The routing switch lives in `ContentView+DiffViewerRouting.swift` and delegates 
     - **Why:** `DiffViewerViewModel.activeConversationIds` gates the `.agentStatusChanged` observer's rescan. Worktree-threads mutate a separate directory on disk, so their completion signals must not trigger a rescan of the project root — they'd just be a wasted `git status`. External mutations to the project root (merges, CLI commits) still come through the FSEvents watcher.
     - **How to apply:** production routing should pass fetch-backed live thread rows into `candidateThreads` and fetch-backed IDs into `candidateConversationIDs` instead of walking `project.threads` / `thread.conversations` from SwiftUI selection state. If you add a new thread-location flag (e.g. "side-worktree"), extend this filter rather than the observer. Keep the "what counts as an agent that writes here" decision in one place.
 
-## Loading State
+## Diff State And Loading
 
-`DiffViewerViewModel.isLoadingFiles` is a one-shot flag that the file list section reads to show the "Loading changes…" overlay ahead of the empty-state overlay.
+`DiffWorkspaceStore` owns file rows, selected-file preview state, toolbar stats, loading states, generation checks, and the in-memory stats cache. `DiffViewerViewModel` should stay a coordinator for routing, watchers, contextual actions, and store delegation.
 
-- **Set `isLoadingFiles = true` only when `switchToDirectory` detects `directoryChanged`.**
-    - **Why:** same-directory refreshes (baseRef/remoteName changed, or a refresh after a git mutation) keep the existing file list on screen. Flipping the flag would flash the spinner over content the user can still read correctly.
-- **Clear `isLoadingFiles = false` at the end of `performRefresh` and in `clear()`.** Do not clear it in `switchToDirectory` — a stale refresh whose generation no longer matches early-returns from `performRefresh` before the clear, and the next `switchToDirectory` has already re-set the flag for the new binding.
-- **Publish line stats with file refreshes.** `DiffViewerViewModel.diffStats` is the toolbar's `+N` / `-N` source and should update from the same generation-checked refresh that publishes `files`. Keep stats auxiliary: if the stats command fails while status succeeds, show empty stats instead of surfacing a diff-viewer error.
-- **Hydrate stats from the in-memory cache on target switches.** `DiffViewerViewModel` should publish the last known stats for the target before the async refresh finishes, then replace them with the authoritative refresh result. Do not cache raw selected-file diff content for this; the toolbar only needs compact line stats.
-- **Key cached stats by comparison target.** Cache keys must include directory, `baseRef`, and `remoteName` so switching comparison bases cannot show counts computed against another target.
+- **Clear visible target state on switches.** Project/thread switches must synchronously remove the previous target's visible toolbar stats, file rows, and selected diff before async Git work starts. Do not delete cached stats for other targets during this visible-state clear.
+- **Cache stats by project/worktree.** Diff stats cache keys must include `projectPath`, optional `worktreePath`, `baseRef`, and `remoteName`; a base project and each active worktree can have different local changes.
+- **Keep stats auxiliary.** Status refreshes should publish file rows first and start stats loading separately. If stats fail while status succeeds, clear visible stats and keep the pane usable instead of surfacing a Git error.
+- **Evict only failed current stats.** Failed status or stats refreshes should remove that active target's cached stats, not unrelated project/worktree cache entries.
+- **Refresh the active target.** The pane refresh button should route through `forceRefreshActiveDiff()` so it refreshes the currently selected project/worktree and reloads the selected-file preview when one is active.
+- **Acknowledge manual refresh immediately.** Keep pane refresh button feedback immediate and short-lived even when diff loading finishes before the delayed toolbar/preview spinners appear.
+- **Delay visible loading indicators.** The store should start Git work immediately, but toolbar and selected-preview spinners should appear only after the configured grace period if the load is still active.
+- **Show toolbar loading for any visible diff load.** The toolbar should replace `+N` / `-N` with a fixed-size spinner while either all-file stats or the selected-file preview diff is past the spinner grace period.
+- **Keep preview pending neutral.** During the spinner grace period, the lower pane should avoid showing an empty/error preview for a diff that is still loading.
+- **Use generation guards.** Status, stats, and selected-file diff tasks must check the active target generation before publishing so stale work cannot update the toolbar or lower pane after a switch.
 
 ## File List Overlay Ordering
 

@@ -53,6 +53,7 @@ struct DiffPreviewHeader: View {
 struct DiffPreviewContent: View {
     let parsedDiff: DiffFile?
     let rawDiffContent: String
+    let isPending: Bool
     let isLoading: Bool
 
     var body: some View {
@@ -67,6 +68,10 @@ struct DiffPreviewContent: View {
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
+            } else if isPending {
+                // During the spinner grace period, avoid flashing an empty-state
+                // message for a diff that is still actively loading.
+                Color.clear
             } else if let parsedDiff {
                 StructuredDiffPreview(diff: parsedDiff, rawDiffContent: rawDiffContent)
             } else if rawDiffContent.isEmpty {

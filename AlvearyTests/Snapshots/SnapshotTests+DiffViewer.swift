@@ -6,7 +6,7 @@ import SwiftUI
 extension SnapshotTests {
     func testDiffViewerToolbarButtonEmptyStats() {
         assertMacSnapshot(
-            DiffViewerToolbarButton(diffStats: .empty, action: {})
+            DiffViewerToolbarButton(displayState: .idle(.empty), action: {})
                 .padding(12),
             size: CGSize(width: 120, height: 56),
             named: "diff_viewer_toolbar_button_empty"
@@ -15,10 +15,19 @@ extension SnapshotTests {
 
     func testDiffViewerToolbarButtonWithStats() {
         assertMacSnapshot(
-            DiffViewerToolbarButton(diffStats: DiffStats(additions: 120, deletions: 45), action: {})
+            DiffViewerToolbarButton(displayState: .idle(DiffStats(additions: 120, deletions: 45)), action: {})
                 .padding(12),
             size: CGSize(width: 180, height: 56),
             named: "diff_viewer_toolbar_button_stats"
+        )
+    }
+
+    func testDiffViewerToolbarButtonLoading() {
+        assertMacSnapshot(
+            DiffViewerToolbarButton(displayState: .loading, action: {})
+                .padding(12),
+            size: CGSize(width: 120, height: 56),
+            named: "diff_viewer_toolbar_button_loading"
         )
     }
 
@@ -29,6 +38,7 @@ extension SnapshotTests {
                 contextualAction: .openPR,
                 selectedFile: nil,
                 areAgentActionsEnabled: true,
+                isRefreshing: false,
                 onRefresh: {},
                 onCommitRequested: {},
                 onOpenPRRequested: {},

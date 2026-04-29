@@ -7,6 +7,7 @@ struct DiffViewerTestFixture {
     let directory = "/tmp/alveary-project"
     let gitService: DiffViewerMockGitService
     let gitHubService: DiffViewerMockGitHubService
+    let diffStore: DiffWorkspaceStore
     let fileListManager: DiffViewerMockFileListManager
     let agentsManager: DiffViewerMockAgentsManager
     let viewModel: DiffViewerViewModel
@@ -16,16 +17,19 @@ struct DiffViewerTestFixture {
         gitHubService: DiffViewerMockGitHubService = DiffViewerMockGitHubService(),
         fileListManager: DiffViewerMockFileListManager = DiffViewerMockFileListManager(),
         agentsManager: DiffViewerMockAgentsManager = DiffViewerMockAgentsManager(),
+        loadingIndicatorDelay: Duration = .milliseconds(30),
         fsEventDebounceDuration: Duration = .milliseconds(500),
         idlePollInterval: Duration = .seconds(60)
     ) {
         self.gitService = gitService
         self.gitHubService = gitHubService
+        self.diffStore = DiffWorkspaceStore(gitService: gitService, loadingIndicatorDelay: loadingIndicatorDelay)
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
         self.viewModel = DiffViewerViewModel(
             gitService: gitService,
             gitHubService: gitHubService,
+            diffStore: diffStore,
             fileListManager: fileListManager,
             agentsManager: agentsManager,
             fsEventDebounceDuration: fsEventDebounceDuration,
@@ -50,12 +54,15 @@ actor DiffViewerMockGitService: GitService {
     private var statusResults: [Result<[FileStatus], Error>]
     private var statusDelays: [Duration]
     private var diffStatsResults: [Result<DiffStats, Error>]
+    private var diffStatsDelays: [Duration]
+    private var diffResultQueue: [Result<String, Error>]
     private var diffResults: [String]
     private var diffDelays: [Duration]
     private var syntheticDiffResults: [String]
     private let currentBranchResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
     private var recordedStatusCallCount = 0
+    private var recordedDiffStatsCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
     private var recordedDiscardCalls: [DiscardCall] = []
@@ -65,6 +72,8 @@ actor DiffViewerMockGitService: GitService {
         statusResults: [Result<[FileStatus], Error>],
         statusDelays: [Duration] = [],
         diffStatsResults: [Result<DiffStats, Error>] = [.success(.empty)],
+        diffStatsDelays: [Duration] = [],
+        diffResultQueue: [Result<String, Error>] = [],
         diffResults: [String] = [],
         diffDelays: [Duration] = [],
         syntheticDiffResults: [String] = [],
@@ -74,6 +83,8 @@ actor DiffViewerMockGitService: GitService {
         self.statusResults = statusResults
         self.statusDelays = statusDelays
         self.diffStatsResults = diffStatsResults
+        self.diffStatsDelays = diffStatsDelays
+        self.diffResultQueue = diffResultQueue
         self.diffResults = diffResults
         self.diffDelays = diffDelays
         self.syntheticDiffResults = syntheticDiffResults
@@ -99,10 +110,17 @@ actor DiffViewerMockGitService: GitService {
     }
 
     func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats {
-        guard !diffStatsResults.isEmpty else {
-            return .empty
+        recordedDiffStatsCallCount += 1
+        let result: Result<DiffStats, Error> = diffStatsResults.isEmpty ? .success(.empty) : diffStatsResults.removeFirst()
+
+        if !diffStatsDelays.isEmpty {
+            let delay = diffStatsDelays.removeFirst()
+            if delay > .zero {
+                try await Task.sleep(for: delay)
+            }
         }
-        return try diffStatsResults.removeFirst().get()
+
+        return try result.get()
     }
 
     func setOnStatus(_ handler: (@Sendable () -> Void)?) {
@@ -111,7 +129,9 @@ actor DiffViewerMockGitService: GitService {
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
         recordedDiffCalls.append(DiffCall(paths: paths, scope: scope, directory: directory))
-        let result = diffResults.isEmpty ? "" : diffResults.removeFirst()
+        let result: Result<String, Error> = diffResultQueue.isEmpty
+            ? .success(diffResults.isEmpty ? "" : diffResults.removeFirst())
+            : diffResultQueue.removeFirst()
 
         if !diffDelays.isEmpty {
             let delay = diffDelays.removeFirst()
@@ -120,7 +140,7 @@ actor DiffViewerMockGitService: GitService {
             }
         }
 
-        return result
+        return try result.get()
     }
 
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {
@@ -166,6 +186,10 @@ actor DiffViewerMockGitService: GitService {
 
     func statusCallCount() -> Int {
         recordedStatusCallCount
+    }
+
+    func diffStatsCallCount() -> Int {
+        recordedDiffStatsCallCount
     }
 }
 

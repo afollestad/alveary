@@ -27,6 +27,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Session/AGENTS.md`: session persistence.
 - `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
 - `Alveary/Services/Terminal/AGENTS.md`: terminal session state and pruning.
+- `Alveary/ViewModels/AGENTS.md`: view-model coordination and diff workspace state.
 - `Alveary/Views/AGENTS.md`: shared SwiftUI, status colors, focus.
 - `Alveary/Views/Components/AGENTS.md`: general shared controls.
 - `Alveary/Views/Components/Accent/AGENTS.md`: accent tokens and dynamic colors.

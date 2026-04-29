@@ -22,12 +22,7 @@ extension ContentView {
         }
 
         Task {
-            await diffViewModel.switchToDirectory(
-                target.path,
-                baseRef: target.baseRef,
-                remoteName: target.remoteName,
-                conversationIds: target.conversationIds
-            )
+            await diffViewModel.switchToTarget(target)
         }
     }
 

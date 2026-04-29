@@ -5,6 +5,7 @@ struct DiffViewerPaneHeader: View {
     let contextualAction: DiffViewerViewModel.ContextualAction
     let selectedFile: FileStatus?
     let areAgentActionsEnabled: Bool
+    let isRefreshing: Bool
     let onRefresh: () -> Void
     let onCommitRequested: () -> Void
     let onOpenPRRequested: () -> Void
@@ -29,12 +30,18 @@ struct DiffViewerPaneHeader: View {
                 Spacer()
 
                 Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
                 }
                 .iconActionButtonStyle()
-                .help("Refresh")
-                .accessibilityLabel("Refresh")
-                .disabled(activeDirectory == nil)
+                .help(isRefreshing ? "Refreshing" : "Refresh")
+                .accessibilityLabel(isRefreshing ? "Refreshing" : "Refresh")
+                .disabled(activeDirectory == nil || isRefreshing)
             }
 
             HStack(spacing: 8) {

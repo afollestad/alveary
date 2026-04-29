@@ -17,7 +17,7 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 
 ## Diff Stats
 
-- `GitService.diffStats(in:knownStatuses:)` feeds the toolbar's green `+N` and red `-N` summary:
+- `GitService.diffStats(in:knownStatuses:)` provides low-level line counts consumed by `DiffWorkspaceStore`:
     - **Use `git diff --numstat`.** Keep parsing machine-readable numstat output instead of localized shortstat text.
     - **Include both scopes.** Sum unstaged `git diff --numstat --` and staged `git diff --cached --numstat --` output so the toolbar reflects all tracked current changes.
     - **Include readable untracked files.** Since Git omits untracked files from `diff --numstat`, add Git-style new-file line counts from porcelain status for small readable untracked files.

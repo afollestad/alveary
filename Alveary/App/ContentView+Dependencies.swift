@@ -20,6 +20,7 @@ struct ContentViewDependencies {
     let notificationRouter: NotificationRouter
     let gitService: GitService
     let gitHubService: GitHubService
+    let diffWorkspaceStore: DiffWorkspaceStore
     let modelContainer: ModelContainer
 
     @MainActor
@@ -43,6 +44,7 @@ struct ContentViewDependencies {
             notificationRouter: resolver.notificationRouter(),
             gitService: resolver.gitService(),
             gitHubService: resolver.gitHubService(),
+            diffWorkspaceStore: resolver.diffWorkspaceStore(),
             modelContainer: resolver.modelContainer()
         )
     }

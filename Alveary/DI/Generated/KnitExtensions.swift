@@ -121,6 +121,10 @@ extension Resolver {
         let resolver = unsafeResolver(file: file, function: function, line: line)
         return knitUnwrap(resolver.resolve(FileListManager.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
     }
+    func diffWorkspaceStore(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> DiffWorkspaceStore {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(DiffWorkspaceStore.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
 }
 extension GitAssembly {
     public static var _assemblyFlags: [ModuleAssemblyFlags] {

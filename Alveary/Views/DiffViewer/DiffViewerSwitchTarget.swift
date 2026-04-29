@@ -1,19 +1,37 @@
 import Foundation
 
 struct DiffViewerSwitchTarget: Equatable {
-    let path: String
+    let projectPath: String
+    let worktreePath: String?
+    let directory: String
     let baseRef: String
     let remoteName: String?
     let conversationIds: Set<String>
+
+    var path: String { directory }
+
+    var workspaceTarget: DiffWorkspaceTarget {
+        DiffWorkspaceTarget(
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            directory: directory,
+            baseRef: baseRef,
+            remoteName: remoteName
+        )
+    }
 }
 
 extension DiffViewerSwitchTarget {
     static func forThread(_ thread: AgentThread, candidateConversationIDs: Set<String>? = nil) -> DiffViewerSwitchTarget? {
-        guard let path = thread.worktreePath ?? thread.project?.path else {
+        guard let directory = thread.worktreePath ?? thread.project?.path else {
             return nil
         }
+        let projectPath = thread.project?.path ?? directory
+        let worktreePath = thread.worktreePath == projectPath ? nil : thread.worktreePath
         return DiffViewerSwitchTarget(
-            path: path,
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            directory: directory,
             baseRef: thread.project?.baseRef ?? "main",
             remoteName: thread.project?.remoteName,
             conversationIds: candidateConversationIDs ?? Set(thread.conversations.map(\.id))
@@ -38,7 +56,9 @@ extension DiffViewerSwitchTarget {
                 .map(\.id)
         )
         return DiffViewerSwitchTarget(
-            path: project.path,
+            projectPath: project.path,
+            worktreePath: nil,
+            directory: project.path,
             baseRef: project.baseRef ?? "main",
             remoteName: project.remoteName,
             conversationIds: conversationIds

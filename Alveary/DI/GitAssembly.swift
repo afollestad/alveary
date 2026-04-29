@@ -44,5 +44,16 @@ final class GitAssembly: AutoInitModuleAssembly {
             )
         }
         .inObjectScope(.container)
+
+        container.register(DiffWorkspaceStore.self) { resolver in
+            let unsafeResolver = resolver.unsafeResolver(file: #fileID, function: #function, line: #line)
+
+            return DiffWorkspaceStore(
+                gitService: unsafeResolver.resolve(GitService.self) ?? {
+                    fatalError("GitService was not registered before DiffWorkspaceStore")
+                }()
+            )
+        }
+        .inObjectScope(.container)
     }
 }

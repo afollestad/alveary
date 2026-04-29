@@ -28,6 +28,9 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         let target = try XCTUnwrap(DiffViewerSwitchTarget.forThread(thread))
 
         XCTAssertEqual(target.path, "/tmp/alveary-project")
+        XCTAssertEqual(target.projectPath, "/tmp/alveary-project")
+        XCTAssertNil(target.worktreePath)
+        XCTAssertEqual(target.directory, "/tmp/alveary-project")
         XCTAssertEqual(target.baseRef, "trunk")
         XCTAssertEqual(target.remoteName, "origin")
         XCTAssertEqual(target.conversationIds, ["conv-a", "conv-b"])
@@ -60,6 +63,9 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         let target = try XCTUnwrap(DiffViewerSwitchTarget.forThread(thread))
 
         XCTAssertEqual(target.path, "/tmp/alveary-worktree")
+        XCTAssertEqual(target.projectPath, "/tmp/alveary-project")
+        XCTAssertEqual(target.worktreePath, "/tmp/alveary-worktree")
+        XCTAssertEqual(target.directory, "/tmp/alveary-worktree")
     }
 
     func testForThreadDefaultsBaseRefToMainWhenProjectHasNone() throws {
@@ -93,6 +99,9 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         let target = DiffViewerSwitchTarget.forProject(project)
 
         XCTAssertEqual(target.path, "/tmp/alveary-project")
+        XCTAssertEqual(target.projectPath, "/tmp/alveary-project")
+        XCTAssertNil(target.worktreePath)
+        XCTAssertEqual(target.directory, "/tmp/alveary-project")
         XCTAssertEqual(target.conversationIds, ["project-thread-conv"])
     }
 

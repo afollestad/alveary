@@ -2,34 +2,32 @@ import AppKit
 import Foundation
 import Observation
 
-// swiftlint:disable file_length
-
 @MainActor
 @Observable
 final class DiffViewerViewModel {
     typealias ContextualAction = DiffViewerContextualAction
     typealias RefreshReason = DiffViewerRefreshReason
 
-    private typealias DiffLoadResult = DiffViewerDiffLoadResult
     private typealias RefreshRequest = DiffViewerRefreshRequest
 
-    private(set) var files: [FileStatus] = []
-    private(set) var diffStats: DiffStats = .empty
-    private(set) var selectedFile: FileStatus?
-    private(set) var parsedDiff: DiffFile?
-    private(set) var rawDiffContent = ""
-    private(set) var isLoadingFiles = false
-    private(set) var isLoadingSelectedDiff = false
+    var files: [FileStatus] { diffStore.files }
+    var diffStats: DiffStats { diffStore.stats }
+    var diffStatsLoadState: DiffWorkspaceLoadState { diffStore.statsLoadState }
+    var selectedFile: FileStatus? { diffStore.selectedFile }
+    var parsedDiff: DiffFile? { diffStore.parsedDiff }
+    var rawDiffContent: String { diffStore.rawDiffContent }
+    var isLoadingFiles: Bool { diffStore.isLoadingFiles }
+    var isSelectedDiffPending: Bool { diffStore.selectedDiffLoadState == .loading }
+    var isLoadingSelectedDiff: Bool { diffStore.isSelectedDiffLoadingIndicatorVisible }
+    var isDiffToolbarLoading: Bool { diffStore.isToolbarLoading }
     private(set) var contextualAction: ContextualAction = .none
-    private(set) var gitError: String?
-    private(set) var activeDirectory: String?
-    private(set) var isGitRepository = true
+    var gitError: String? { diffStore.gitError }
+    var activeDirectory: String? { diffStore.activeDirectory }
+    var isGitRepository: Bool { diffStore.isGitRepository }
 
     private var activeConversationIds: Set<String> = []
-    private var baseRef = "main"
-    private var remoteName: String?
     private let gitService: GitService
-    private let gitHubService: GitHubService
+    private let diffStore: DiffWorkspaceStore
     private let fileListManager: FileListManager
     private let agentsManager: any AgentsManager
     private let contextualActionResolver: DiffViewerContextualActionResolver
@@ -62,10 +60,6 @@ final class DiffViewerViewModel {
             await self.refresh(in: directory, reason: .fsEvent(changedPaths: changedPaths))
         }
     )
-    private var inFlightDiffLoad: (id: UUID, task: Task<DiffLoadResult, Error>)?
-    private var directoryGeneration: UInt64 = 0
-    private var fileSelectionGeneration: UInt64 = 0
-    private var diffStatsCache: [DiffViewerDiffStatsCacheKey: DiffStats] = [:]
     private var watchingEnabled = false
     private var agentStatusObserver: NSObjectProtocol?
     private var appActiveObserver: NSObjectProtocol?
@@ -74,13 +68,14 @@ final class DiffViewerViewModel {
     init(
         gitService: GitService,
         gitHubService: GitHubService,
+        diffStore: DiffWorkspaceStore? = nil,
         fileListManager: FileListManager,
         agentsManager: any AgentsManager,
         fsEventDebounceDuration: Duration = .milliseconds(500),
         idlePollInterval: Duration = .seconds(60)
     ) {
         self.gitService = gitService
-        self.gitHubService = gitHubService
+        self.diffStore = diffStore ?? DiffWorkspaceStore(gitService: gitService)
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
         self.contextualActionResolver = DiffViewerContextualActionResolver(gitService: gitService, gitHubService: gitHubService)
@@ -154,47 +149,34 @@ final class DiffViewerViewModel {
         remoteName: String?,
         conversationIds: Set<String>
     ) async {
-        activeConversationIds = conversationIds
-        guard directory != activeDirectory || baseRef != self.baseRef || remoteName != self.remoteName else {
+        await switchToTarget(
+            DiffViewerSwitchTarget(
+                projectPath: directory,
+                worktreePath: nil,
+                directory: directory,
+                baseRef: baseRef,
+                remoteName: remoteName,
+                conversationIds: conversationIds
+            )
+        )
+    }
+
+    func switchToTarget(_ target: DiffViewerSwitchTarget) async {
+        activeConversationIds = target.conversationIds
+        guard target.workspaceTarget != diffStore.activeTarget else {
             return
         }
 
-        let directoryChanged = directory != activeDirectory
-        let diffStatsTargetChanged = directoryChanged || baseRef != self.baseRef || remoteName != self.remoteName
-        directoryGeneration &+= 1
-        fileSelectionGeneration &+= 1
-        inFlightDiffLoad?.task.cancel()
-        inFlightDiffLoad = nil
-        self.baseRef = baseRef
-        self.remoteName = remoteName
         watchController.stopWatching()
-        activeDirectory = directory
-
-        if diffStatsTargetChanged {
-            // Hydrate the toolbar with the last published stats for this target
-            // while the authoritative Git refresh runs in the background.
-            let cachedDiffStats = diffStatsCache[diffStatsCacheKey(directory: directory)]
-            diffStats = cachedDiffStats ?? .empty
-        }
-
-        if directoryChanged {
-            files = []
-            selectedFile = nil
-            parsedDiff = nil
-            rawDiffContent = ""
-            isLoadingFiles = true
-            isLoadingSelectedDiff = false
-            contextualAction = .none
-            gitError = nil
-            isGitRepository = true
-        }
+        _ = diffStore.switchToTarget(target.workspaceTarget)
+        contextualAction = .none
 
         contextualActionResolver.invalidatePRCache()
         refreshScheduler.clearPending()
 
-        if watchingEnabled { watchController.startWatching(directory) }
+        if watchingEnabled { watchController.startWatching(target.directory) }
 
-        await refresh(in: directory, reason: .threadSwitch)
+        await refresh(in: target.directory, reason: .threadSwitch)
     }
 
     func setWatchingEnabled(_ enabled: Bool) {
@@ -215,32 +197,17 @@ final class DiffViewerViewModel {
     }
 
     func clear() {
-        directoryGeneration &+= 1
-        fileSelectionGeneration &+= 1
-        inFlightDiffLoad?.task.cancel()
-        inFlightDiffLoad = nil
         watchController.stopWatching()
-        activeDirectory = nil
         activeConversationIds = []
-        baseRef = "main"
-        remoteName = nil
-        files = []
-        diffStats = .empty
-        selectedFile = nil
-        parsedDiff = nil
-        rawDiffContent = ""
-        isLoadingFiles = false
-        isLoadingSelectedDiff = false
+        diffStore.clear()
         contextualAction = .none
-        gitError = nil
-        isGitRepository = true
         refreshScheduler.clearPending()
         contextualActionResolver.invalidatePRCache()
     }
 
-    func clearGitError() { gitError = nil }
+    func clearGitError() { diffStore.clearGitError() }
 
-    func presentGitError(_ message: String) { gitError = message }
+    func presentGitError(_ message: String) { diffStore.presentGitError(message) }
 
     func refresh(in directory: String, reason: RefreshReason) async {
         await refreshScheduler.enqueue(
@@ -264,22 +231,16 @@ final class DiffViewerViewModel {
         )
     }
 
-    func selectFile(_ file: FileStatus, in directory: String) async {
-        let context = beginDiffLoad(for: file)
-        let task = DiffViewerDiffTaskFactory.makeTask(for: file, in: directory, gitService: gitService)
-        let diffLoadID = UUID()
-        inFlightDiffLoad = (id: diffLoadID, task: task)
-
-        do {
-            let result = try await task.value
-            applyDiffLoadResult(result, for: file, in: directory, context: context, diffLoadID: diffLoadID)
-        } catch is CancellationError {
-            // A newer selection superseded this load.
-        } catch {
-            applyDiffLoadError(error, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+    func forceRefreshActiveDiff() async {
+        guard let activeDirectory else {
+            return
         }
 
-        finishDiffLoad(diffLoadID)
+        await refreshAndInvalidateFileList(in: activeDirectory, reason: .manual)
+    }
+
+    func selectFile(_ file: FileStatus, in directory: String) async {
+        await diffStore.selectFile(file, in: directory)
     }
 
     func stage(files: [FileStatus], in directory: String) async throws {
@@ -350,14 +311,6 @@ final class DiffViewerViewModel {
 }
 
 private extension DiffViewerViewModel {
-    struct DiffLoadContext {
-        let bindingGeneration: UInt64
-        let selectionGeneration: UInt64
-    }
-
-    // Keeping refresh state handling colocated with the view-model state avoids
-    // widening access across companion files just to satisfy lint structure.
-    // swiftlint:disable:next function_body_length
     private func performRefresh(_ request: RefreshRequest) async {
         if request.invalidatePRCache {
             contextualActionResolver.invalidatePRCache()
@@ -366,212 +319,33 @@ private extension DiffViewerViewModel {
             await fileListManager.invalidateCache(for: request.directory)
         }
 
-        let generation = directoryGeneration
-        let refreshedFiles: [FileStatus]
-        let refreshedDiffStats: DiffStats
-        let refreshedError: String?
-        let refreshedIsGitRepository: Bool
-
-        do {
-            refreshedFiles = try await gitService.status(in: request.directory)
-            refreshedDiffStats = (try? await gitService.diffStats(in: request.directory, knownStatuses: refreshedFiles)) ?? .empty
-            refreshedError = nil
-            refreshedIsGitRepository = true
-        } catch let error as GitError {
-            if error == .notARepository {
-                refreshedFiles = []
-                refreshedDiffStats = .empty
-                refreshedError = nil
-                refreshedIsGitRepository = false
-            } else {
-                refreshedFiles = []
-                refreshedDiffStats = .empty
-                refreshedError = "Git status failed: \(error.localizedDescription)"
-                refreshedIsGitRepository = true
-            }
-        } catch {
-            refreshedFiles = []
-            refreshedDiffStats = .empty
-            refreshedError = "Git status failed: \(error.localizedDescription)"
-            refreshedIsGitRepository = true
-        }
-
-        guard isCurrentBinding(directory: request.directory, generation: generation) else {
+        guard let snapshot = await diffStore.refreshStatusAndStartStats(for: request.directory) else {
             return
         }
 
-        updateDiffStatsCache(refreshedDiffStats, for: request.directory, refreshedError: refreshedError)
-
-        files = refreshedFiles
-        diffStats = refreshedDiffStats
-        gitError = refreshedError
-        isGitRepository = refreshedIsGitRepository
-        isLoadingFiles = false
-
-        if refreshedError != nil {
+        if snapshot.error != nil {
             contextualAction = .none
+            diffStore.applyContextualRefreshErrorIfCurrent(snapshot)
             return
         }
 
-        if !refreshedIsGitRepository {
+        if !snapshot.isGitRepository {
             contextualAction = .none
-            await refreshSelectedDiffIfNeeded(in: request.directory, generation: generation, reason: request.reason)
+            diffStore.applyContextualRefreshErrorIfCurrent(snapshot)
             return
         }
 
         let action = await contextualActionResolver.determineAction(
-            files: refreshedFiles,
-            baseRef: baseRef,
-            remoteName: remoteName,
-            directory: request.directory
+            files: snapshot.files,
+            baseRef: snapshot.target.baseRef,
+            remoteName: snapshot.target.remoteName,
+            directory: snapshot.target.directory
         )
-        guard isCurrentBinding(directory: request.directory, generation: generation) else {
+        guard diffStore.isCurrent(snapshot) else {
             return
         }
 
         contextualAction = action
-        await refreshSelectedDiffIfNeeded(in: request.directory, generation: generation, reason: request.reason)
-    }
-
-    private func beginDiffLoad(for file: FileStatus) -> DiffLoadContext {
-        selectedFile = file
-        let bindingGeneration = directoryGeneration
-        fileSelectionGeneration &+= 1
-        inFlightDiffLoad?.task.cancel()
-        inFlightDiffLoad = nil
-        rawDiffContent = ""
-        parsedDiff = nil
-        gitError = nil
-        isLoadingSelectedDiff = true
-        return DiffLoadContext(
-            bindingGeneration: bindingGeneration,
-            selectionGeneration: fileSelectionGeneration
-        )
-    }
-
-    private func updateDiffStatsCache(_ stats: DiffStats, for directory: String, refreshedError: String?) {
-        let cacheKey = diffStatsCacheKey(directory: directory)
-        if refreshedError == nil {
-            diffStatsCache[cacheKey] = stats
-        } else {
-            // A failing refresh means the previously cached toolbar count is no
-            // longer trustworthy for this target.
-            diffStatsCache.removeValue(forKey: cacheKey)
-        }
-    }
-
-    private func diffStatsCacheKey(directory: String) -> DiffViewerDiffStatsCacheKey {
-        DiffViewerDiffStatsCacheKey(directory: directory, baseRef: baseRef, remoteName: remoteName)
-    }
-
-    private func applyDiffLoadResult(
-        _ result: DiffLoadResult,
-        for file: FileStatus,
-        in directory: String,
-        context: DiffLoadContext,
-        diffLoadID: UUID
-    ) {
-        guard matchesCurrentDiffLoad(file: file, directory: directory, context: context, diffLoadID: diffLoadID) else {
-            return
-        }
-
-        rawDiffContent = result.raw
-        parsedDiff = result.parsed
-        gitError = nil
-    }
-
-    private func applyDiffLoadError(
-        _ error: Error,
-        for file: FileStatus,
-        in directory: String,
-        context: DiffLoadContext,
-        diffLoadID: UUID
-    ) {
-        guard matchesCurrentDiffLoad(file: file, directory: directory, context: context, diffLoadID: diffLoadID) else {
-            return
-        }
-
-        rawDiffContent = ""
-        parsedDiff = nil
-        gitError = "Diff failed: \(error.localizedDescription)"
-    }
-
-    private func matchesCurrentDiffLoad(
-        file: FileStatus,
-        directory: String,
-        context: DiffLoadContext,
-        diffLoadID: UUID
-    ) -> Bool {
-        isCurrentBinding(directory: directory, generation: context.bindingGeneration)
-            && fileSelectionGeneration == context.selectionGeneration
-            && selectedFile?.path == file.path
-            && selectedFile?.isStaged == file.isStaged
-            && inFlightDiffLoad?.id == diffLoadID
-    }
-
-    private func finishDiffLoad(_ diffLoadID: UUID) {
-        if inFlightDiffLoad?.id == diffLoadID {
-            inFlightDiffLoad = nil
-            isLoadingSelectedDiff = false
-        }
-    }
-
-    private func refreshSelectedDiffIfNeeded(in directory: String, generation: UInt64, reason: RefreshReason) async {
-        guard isCurrentBinding(directory: directory, generation: generation) else {
-            return
-        }
-        guard let selectedFile else {
-            return
-        }
-
-        let selectedAnchor = selectedFile.originalPath ?? selectedFile.path
-        let updatedSelection = files.first {
-            $0.path == selectedFile.path && $0.isStaged == selectedFile.isStaged
-        } ?? files.first {
-            $0.path == selectedFile.path
-        } ?? files.first {
-            ($0.originalPath ?? $0.path) == selectedAnchor && $0.isStaged == selectedFile.isStaged
-        } ?? files.first {
-            ($0.originalPath ?? $0.path) == selectedAnchor
-        }
-
-        guard let updatedSelection else {
-            inFlightDiffLoad?.task.cancel()
-            inFlightDiffLoad = nil
-            self.selectedFile = nil
-            parsedDiff = nil
-            rawDiffContent = ""
-            isLoadingSelectedDiff = false
-            return
-        }
-
-        let selectionChanged = updatedSelection.path != selectedFile.path
-            || updatedSelection.originalPath != selectedFile.originalPath
-            || updatedSelection.isStaged != selectedFile.isStaged
-            || updatedSelection.status != selectedFile.status
-
-        let shouldReloadDiff: Bool
-        switch reason {
-        case .manual, .appBecameActive, .localGitMutation:
-            shouldReloadDiff = true
-        case .threadSwitch, .agentTurnCompleted, .idlePoll:
-            shouldReloadDiff = selectionChanged
-        case .fsEvent(let changedPaths):
-            let selectedPaths = Set([updatedSelection.path, updatedSelection.originalPath].compactMap { $0 })
-            shouldReloadDiff = selectionChanged || !changedPaths.isDisjoint(with: selectedPaths)
-        }
-
-        guard shouldReloadDiff else {
-            self.selectedFile = updatedSelection
-            return
-        }
-
-        await selectFile(updatedSelection, in: directory)
-    }
-
-    private func isCurrentBinding(directory: String, generation: UInt64) -> Bool {
-        activeDirectory == directory && directoryGeneration == generation
+        await diffStore.refreshSelectedDiffIfNeeded(snapshot: snapshot, reason: request.reason)
     }
 }
-
-// swiftlint:enable file_length

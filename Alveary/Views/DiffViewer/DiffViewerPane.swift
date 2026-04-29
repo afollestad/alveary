@@ -10,6 +10,7 @@ struct DiffViewerPane: View {
     let onOpenPRRequested: () -> Void
 
     @State private var pendingDiscardFiles: [FileStatus] = []
+    @State private var isManualRefreshIndicatorVisible = false
 
     init(
         viewModel: DiffViewerViewModel,
@@ -34,13 +35,9 @@ struct DiffViewerPane: View {
                 contextualAction: viewModel.contextualAction,
                 selectedFile: viewModel.selectedFile,
                 areAgentActionsEnabled: areAgentActionsEnabled,
+                isRefreshing: isManualRefreshIndicatorVisible,
                 onRefresh: {
-                    guard let directory = viewModel.activeDirectory else {
-                        return
-                    }
-                    Task {
-                        await viewModel.refreshAndInvalidateFileList(in: directory, reason: .manual)
-                    }
+                    performManualRefresh()
                 },
                 onCommitRequested: onCommitRequested,
                 onOpenPRRequested: onOpenPRRequested,
@@ -157,6 +154,7 @@ struct DiffViewerPane: View {
                             selectedFile: viewModel.selectedFile,
                             parsedDiff: viewModel.parsedDiff,
                             rawDiffContent: viewModel.rawDiffContent,
+                            isPending: viewModel.isSelectedDiffPending,
                             isLoading: viewModel.isLoadingSelectedDiff,
                             fileDisplayName: fileDisplayName,
                             statusTitle: statusTitle,
@@ -201,6 +199,20 @@ struct DiffViewerPane: View {
 }
 
 private extension DiffViewerPane {
+    func performManualRefresh() {
+        guard !isManualRefreshIndicatorVisible else {
+            return
+        }
+
+        isManualRefreshIndicatorVisible = true
+        Task { @MainActor in
+            async let refresh: Void = viewModel.forceRefreshActiveDiff()
+            try? await Task.sleep(for: .milliseconds(500))
+            await refresh
+            isManualRefreshIndicatorVisible = false
+        }
+    }
+
     func clampedTopSectionFraction(_ candidate: CGFloat) -> CGFloat {
         let lowerBound = CGFloat(AppSettings.supportedDiffViewerSplitRange.lowerBound)
         let upperBound = CGFloat(AppSettings.supportedDiffViewerSplitRange.upperBound)

@@ -2,6 +2,13 @@ import Foundation
 
 typealias DiffViewerDiffLoadResult = (raw: String, parsed: DiffFile?)
 
+enum DiffWorkspaceLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed
+}
+
 enum DiffViewerContextualAction: Equatable {
     case none
     case commit
@@ -67,11 +74,39 @@ struct DiffViewerRefreshRequest {
     }
 }
 
-struct DiffViewerDiffStatsCacheKey: Hashable {
+struct DiffWorkspaceTarget: Equatable, Hashable {
+    let projectPath: String
+    let worktreePath: String?
     let directory: String
+    let baseRef: String
+    let remoteName: String?
+
+    var statsCacheKey: DiffWorkspaceStatsCacheKey {
+        DiffWorkspaceStatsCacheKey(
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            baseRef: baseRef,
+            remoteName: remoteName
+        )
+    }
+}
+
+struct DiffWorkspaceStatsCacheKey: Hashable {
+    // Project and worktree paths deliberately both participate in the key: the
+    // base checkout and each active worktree can have different local changes.
+    let projectPath: String
+    let worktreePath: String?
     // Different compare bases can produce different counts for the same folder.
     let baseRef: String
     let remoteName: String?
+}
+
+struct DiffWorkspaceRefreshSnapshot: Equatable {
+    let target: DiffWorkspaceTarget
+    let generation: UInt64
+    let files: [FileStatus]
+    let error: String?
+    let isGitRepository: Bool
 }
 
 enum DiffViewerPathSupport {
