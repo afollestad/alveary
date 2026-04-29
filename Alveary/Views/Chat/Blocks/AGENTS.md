@@ -6,6 +6,8 @@ Shared transcript block primitives live here. Narrower scopes:
 - `Prompts/AGENTS.md`: `PromptBlock`.
 - `Tasks/AGENTS.md`: `TaskListBlock`.
 - `Tools/AGENTS.md`: tool rows, groups, details, headers.
+- `ChatBlocks+TextBubbles.swift`: user, assistant, streaming, thinking, and error bubble surfaces.
+- `ChatBlocks+CenteredNotes.swift`: centered lifecycle notes.
 
 ## Bubble Widths
 
