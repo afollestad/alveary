@@ -193,47 +193,31 @@ struct ContentView: View {
         }
         .environment(terminalManager)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if let thread = selectedThread,
-                   !toolbarProjectActions.isEmpty {
-                    ForEach(Array(toolbarProjectActions.enumerated()), id: \.offset) { _, action in
-                        Button {
-                            runProjectAction(thread: thread, action: action)
-                        } label: {
-                            Label(action.name, systemImage: action.icon ?? "terminal")
-                        }
-                        .help(action.name)
-                    }
-                }
-
-                TerminalToolbarButton(
-                    title: terminalToggleTitle,
-                    displayState: terminalToolbarDisplayState,
-                    action: toggleTerminalPane
-                )
-                .help("\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))")
-                .accessibilityLabel(terminalToggleTitle)
-
-                DiffViewerToolbarButton(
-                    displayState: diffViewerToolbarDisplayState,
-                    action: {
+            ToolbarItem(placement: .primaryAction) {
+                PrimaryToolbarButtonGroup(
+                    selectedThread: selectedThread,
+                    projectActions: toolbarProjectActions,
+                    terminalTitle: terminalToggleTitle,
+                    terminalDisplayState: terminalToolbarDisplayState,
+                    terminalHelpText: "\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))",
+                    diffDisplayState: diffViewerToolbarDisplayState,
+                    diffHelpText: diffViewerToggleHelpText
+                        + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
+                    diffAccessibilityLabel: appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
+                    diffAccessibilityValue: diffViewerToggleAccessibilityValue,
+                    onProjectAction: { thread, action in
+                        runProjectAction(thread: thread, action: action)
+                    },
+                    onToggleTerminal: toggleTerminalPane,
+                    onToggleDiffViewer: {
                         appState.toggleRightPane()
+                    },
+                    onOpenSettings: {
+                        appState.openSettings()
                     }
                 )
-                .help(
-                    diffViewerToggleHelpText
-                        + " (\(KeyboardShortcut.toggleDiffViewer.displayString))"
-                )
-                .accessibilityLabel(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer")
-                .accessibilityValue(diffViewerToggleAccessibilityValue)
-
-                Button {
-                    appState.openSettings()
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .help("Open Settings (\(KeyboardShortcut.settings.displayString))")
             }
+            .sharedBackgroundVisibility(.hidden)
         }
         .onChange(of: appState.isLeftPaneVisible) { _, isVisible in
             splitVisibility = isVisible ? .all : .detailOnly

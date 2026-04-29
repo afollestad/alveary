@@ -25,22 +25,25 @@ struct TerminalToolbarButton: View {
 
     var body: some View {
         Button(action: action) {
-            // Keep ProgressView outside the icon slot; AppKit gives direct
-            // control-based icon content its own toolbar chrome.
             Label {
                 Text(title)
             } icon: {
                 Image(systemName: "terminal")
                     .opacity(displayState == .idle ? 1 : 0)
+                    .frame(
+                        width: PrimaryToolbarMetrics.iconButtonSize,
+                        height: PrimaryToolbarMetrics.iconButtonSize
+                    )
             }
                 .overlay {
                     TerminalToolbarStatusOverlay(displayState: displayState)
                 }
+                .labelStyle(.iconOnly)
                 .animation(Self.iconAnimation, value: displayState)
         }
     }
 
-    private static let iconAnimation = Animation.easeInOut(duration: 0.18)
+    private static let iconAnimation = PrimaryToolbarMetrics.statusAnimation
 }
 
 private struct TerminalToolbarStatusOverlay: View {
@@ -49,7 +52,7 @@ private struct TerminalToolbarStatusOverlay: View {
     var body: some View {
         ZStack {
             if isRunning {
-                TerminalToolbarProgressView()
+                PrimaryToolbarProgressSlot()
             }
 
             if let completedOutcome {
@@ -58,7 +61,10 @@ private struct TerminalToolbarStatusOverlay: View {
                     .transition(.symbolEffect(.drawOn))
             }
         }
-        .frame(width: Self.iconSize, height: Self.iconSize)
+        .frame(
+            width: PrimaryToolbarMetrics.iconButtonSize,
+            height: PrimaryToolbarMetrics.iconButtonSize
+        )
     }
 
     private var isRunning: Bool {
@@ -92,16 +98,5 @@ private struct TerminalToolbarStatusOverlay: View {
         case .cancelled:
             return .orange
         }
-    }
-
-    private static let iconSize: CGFloat = 16
-}
-
-private struct TerminalToolbarProgressView: View {
-    var body: some View {
-        ProgressView()
-            .controlSize(.small)
-            .tint(.blue)
-            .scaleEffect(0.95)
     }
 }

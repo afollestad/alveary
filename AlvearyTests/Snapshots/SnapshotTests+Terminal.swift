@@ -8,10 +8,15 @@ extension SnapshotTests {
         assertMacSnapshot(
             HStack(spacing: 10) {
                 TerminalToolbarButton(title: "Terminal", displayState: .idle, action: {})
+                    .primaryToolbarIconButtonStyle()
                 TerminalToolbarButton(title: "Terminal", displayState: .running, action: {})
+                    .primaryToolbarIconButtonStyle()
                 TerminalToolbarButton(title: "Terminal", displayState: .completed(.succeeded), action: {})
+                    .primaryToolbarIconButtonStyle()
                 TerminalToolbarButton(title: "Terminal", displayState: .completed(.failed), action: {})
+                    .primaryToolbarIconButtonStyle()
                 TerminalToolbarButton(title: "Terminal", displayState: .completed(.cancelled), action: {})
+                    .primaryToolbarIconButtonStyle()
             }
             .padding(12),
             size: CGSize(width: 640, height: 64),

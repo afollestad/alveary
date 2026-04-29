@@ -31,6 +31,57 @@ extension SnapshotTests {
         )
     }
 
+    func testPrimaryToolbarButtonGroupEmptyDiff() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(diffDisplayState: .idle(.empty))
+                .padding(8),
+            size: CGSize(width: 180, height: 64),
+            named: "primary_toolbar_button_group_empty_diff"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupLoadingDiff() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                terminalDisplayState: .running,
+                diffDisplayState: .loading
+            )
+            .padding(8),
+            size: CGSize(width: 220, height: 64),
+            named: "primary_toolbar_button_group_loading_diff"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupPopulatedDiff() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(diffDisplayState: .idle(DiffStats(additions: 120, deletions: 45)))
+                .padding(8),
+            size: CGSize(width: 260, height: 64),
+            named: "primary_toolbar_button_group_populated_diff"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupProjectAction() {
+        let thread = AgentThread(name: "Toolbar Action")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "hammer",
+                        name: "Build",
+                        command: "swift build"
+                    )
+                ],
+                diffDisplayState: .idle(DiffStats(additions: 120, deletions: 45))
+            )
+            .padding(8),
+            size: CGSize(width: 320, height: 64),
+            named: "primary_toolbar_button_group_project_action"
+        )
+    }
+
     func testDiffViewerPaneHeaderOpenPRAction() {
         assertMacSnapshot(
             DiffViewerPaneHeader(
@@ -225,6 +276,31 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_renamed_metadata"
+        )
+    }
+}
+
+private extension SnapshotTests {
+    func primaryToolbarButtonGroup(
+        selectedThread: AgentThread? = nil,
+        projectActions: [AlvearyProjectConfig.ProjectAction] = [],
+        terminalDisplayState: TerminalToolbarDisplayState = .idle,
+        diffDisplayState: DiffViewerToolbarDisplayState
+    ) -> some View {
+        PrimaryToolbarButtonGroup(
+            selectedThread: selectedThread,
+            projectActions: projectActions,
+            terminalTitle: "Show Terminal",
+            terminalDisplayState: terminalDisplayState,
+            terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",
+            diffDisplayState: diffDisplayState,
+            diffHelpText: "Show Diff Viewer (\(KeyboardShortcut.toggleDiffViewer.displayString))",
+            diffAccessibilityLabel: "Show Diff Viewer",
+            diffAccessibilityValue: "",
+            onProjectAction: { _, _ in },
+            onToggleTerminal: {},
+            onToggleDiffViewer: {},
+            onOpenSettings: {}
         )
     }
 }
