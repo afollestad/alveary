@@ -27,7 +27,8 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Session/AGENTS.md`: session persistence.
 - `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
 - `Alveary/Services/Terminal/AGENTS.md`: terminal session state and pruning.
-- `Alveary/ViewModels/AGENTS.md`: view-model coordination and diff workspace state.
+- `Alveary/ViewModels/AGENTS.md`: view-model coordination.
+- `Alveary/ViewModels/DiffViewer/AGENTS.md`: diff viewer coordination and workspace state.
 - `Alveary/Views/AGENTS.md`: shared SwiftUI, status colors, focus.
 - `Alveary/Views/Components/AGENTS.md`: general shared controls.
 - `Alveary/Views/Components/Accent/AGENTS.md`: accent tokens and dynamic colors.
@@ -45,12 +46,13 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Chat/Transcript/AGENTS.md`: transcript shell and approval plumbing.
 - `Alveary/Views/Chat/Transcript/Links/AGENTS.md`: markdown link resolution.
 - `Alveary/Views/Chat/Transcript/Scrolling/AGENTS.md`: follow-mode and scroll mechanics.
-- `Alveary/Views/DiffViewer/AGENTS.md`: diff routing and loading overlays.
+- `Alveary/Views/DiffViewer/AGENTS.md`: diff viewer pane UI and loading overlays.
 - `Alveary/Views/Input/AGENTS.md`: composer, autocomplete, worktree picker.
 - `Alveary/Views/Projects/AGENTS.md`: project settings editor.
 - `Alveary/Views/Sidebar/AGENTS.md`: sidebar interactions.
 - `Alveary/Views/Terminal/AGENTS.md`: terminal pane.
 - `AlvearyTests/AGENTS.md`: tests and snapshots.
+- `AlvearyTests/ViewModels/DiffViewer/AGENTS.md`: diff viewer view-model tests.
 - `scripts/ci/AGENTS.md`: release CI helper scripts.
 - `.agents/AGENTS.md`: repo-local agent skills.
 
