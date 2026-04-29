@@ -20,7 +20,7 @@ final class SettingsServiceTests: XCTestCase {
         service.update {
             $0.permissionMode = "plan"
             $0.effort = "high"
-            $0.deleteKeyAction = .delete
+            $0.defaultThreadCleanupAction = .delete
             $0.defaultEnterBehavior = .steer
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
@@ -37,7 +37,7 @@ final class SettingsServiceTests: XCTestCase {
 
         XCTAssertEqual(reloadedService.current.permissionMode, "plan")
         XCTAssertEqual(reloadedService.current.effort, "high")
-        XCTAssertEqual(reloadedService.current.deleteKeyAction, .delete)
+        XCTAssertEqual(reloadedService.current.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(reloadedService.current.defaultEnterBehavior, .steer)
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
@@ -257,7 +257,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
     }
 
-    func testUserDefaultsSettingsServiceUsesDefaultDeleteKeyActionWhenStoredJSONPredatesField() throws {
+    func testUserDefaultsSettingsServiceUsesDefaultThreadCleanupActionWhenStoredJSONPredatesField() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
             "defaultProvider": "claude",
@@ -286,7 +286,23 @@ final class SettingsServiceTests: XCTestCase {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(service.current.deleteKeyAction, .archive)
+        XCTAssertEqual(service.current.defaultThreadCleanupAction, .archive)
+    }
+
+    func testUserDefaultsSettingsServiceIgnoresLegacyDeleteKeyAction() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "deleteKeyAction": "delete"
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.defaultThreadCleanupAction, .archive)
     }
 
     func testUserDefaultsSettingsServiceUsesDefaultLaunchRestoreWhenStoredJSONPredatesField() throws {

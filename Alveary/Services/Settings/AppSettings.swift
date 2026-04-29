@@ -47,7 +47,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
-    var deleteKeyAction = ThreadDeleteKeyAction.archive
+    var defaultThreadCleanupAction = ThreadCleanupAction.archive
     var defaultEnterBehavior = Self.defaultEnterBehavior
     var reopenLastThreadAndConversationOnLaunch = true
     var autoTrustProjects = false
@@ -227,7 +227,7 @@ extension AppSettings {
         case defaultModel
         case permissionMode
         case effort
-        case deleteKeyAction
+        case defaultThreadCleanupAction
         case defaultEnterBehavior
         case reopenLastThreadAndConversationOnLaunch
         case autoTrustProjects
@@ -280,7 +280,10 @@ extension AppSettings {
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaultModel
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
         effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
-        deleteKeyAction = try container.decodeIfPresent(ThreadDeleteKeyAction.self, forKey: .deleteKeyAction) ?? deleteKeyAction
+        defaultThreadCleanupAction = try container.decodeIfPresent(
+            ThreadCleanupAction.self,
+            forKey: .defaultThreadCleanupAction
+        ) ?? defaultThreadCleanupAction
         defaultEnterBehavior = Self.normalizedDefaultEnterBehavior(
             try container.decodeIfPresent(String.self, forKey: .defaultEnterBehavior)
         )
@@ -404,7 +407,7 @@ struct NotificationSettings: Codable, Sendable, Equatable {
     var soundName: String? = NotificationSettings.defaultSoundName
 }
 
-enum ThreadDeleteKeyAction: String, Codable, Sendable, CaseIterable {
+enum ThreadCleanupAction: String, Codable, Sendable, CaseIterable {
     case archive
     case delete
 
@@ -414,6 +417,15 @@ enum ThreadDeleteKeyAction: String, Codable, Sendable, CaseIterable {
             return "Archive"
         case .delete:
             return "Delete"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .archive:
+            return "archivebox"
+        case .delete:
+            return "trash"
         }
     }
 }

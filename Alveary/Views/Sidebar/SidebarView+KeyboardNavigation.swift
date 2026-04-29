@@ -64,14 +64,17 @@ extension SidebarView {
     }
 
     func handleDeleteKey() -> KeyPress.Result {
-        guard case .thread(let thread) = appState.selectedSidebarItem else {
+        guard let confirmation = threadCleanupConfirmation(
+            for: appState.selectedSidebarItem,
+            action: viewModel.defaultThreadCleanupAction
+        ) else {
             return .ignored
         }
 
-        switch viewModel.deleteKeyAction {
-        case .archive:
+        switch confirmation {
+        case .archive(let thread):
             pendingArchiveThread = thread
-        case .delete:
+        case .delete(let thread):
             pendingDeleteThread = thread
         }
         return .handled
@@ -153,6 +156,27 @@ func shouldNavigateDownOnRightArrow(
 // without needing to instantiate `SidebarView`.
 func shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: PersistentIdentifier?) -> Bool {
     editingThreadID != nil
+}
+
+enum SidebarThreadCleanupConfirmation {
+    case archive(AgentThread)
+    case delete(AgentThread)
+}
+
+func threadCleanupConfirmation(
+    for selection: SidebarItem?,
+    action: ThreadCleanupAction
+) -> SidebarThreadCleanupConfirmation? {
+    guard case .thread(let thread) = selection else {
+        return nil
+    }
+
+    switch action {
+    case .archive:
+        return .archive(thread)
+    case .delete:
+        return .delete(thread)
+    }
 }
 
 func renameThreadID(

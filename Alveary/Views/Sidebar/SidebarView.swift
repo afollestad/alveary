@@ -96,13 +96,25 @@ struct SidebarView: View {
 
                             ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
                                 let isSelected = appState.selectedSidebarItem == .thread(thread)
+                                let cleanupAction = viewModel.defaultThreadCleanupAction
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
                                     isSelected: isSelected,
                                     editingThreadID: $editingThreadID,
+                                    cleanupAction: cleanupAction,
                                     onCommitRename: { newName in
                                         renameThread(thread, to: newName)
+                                    },
+                                    onConfirmCleanup: {
+                                        Task {
+                                            switch cleanupAction {
+                                            case .archive:
+                                                await archive(thread)
+                                            case .delete:
+                                                await confirmDeleteThread(thread)
+                                            }
+                                        }
                                     }
                                 )
                                     .padding(.leading, 14)

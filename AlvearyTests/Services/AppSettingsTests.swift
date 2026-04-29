@@ -115,6 +115,27 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.defaultEnterBehavior, .queue)
     }
 
+    func testDecodeDefaultsThreadCleanupActionWhenFieldIsMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.defaultThreadCleanupAction, .archive)
+    }
+
+    func testDecodeIgnoresLegacyDeleteKeyAction() throws {
+        let json = Data(#"{"deleteKeyAction":"delete"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.defaultThreadCleanupAction, .archive)
+    }
+
+    func testDecodePreservesDefaultThreadCleanupAction() throws {
+        let json = Data(#"{"defaultThreadCleanupAction":"delete"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.defaultThreadCleanupAction, .delete)
+    }
+
     func testDecodeDefaultsEnterBehaviorWhenFieldIsInvalid() throws {
         let json = Data(#"{"defaultEnterBehavior":"send"}"#.utf8)
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)

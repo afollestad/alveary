@@ -6,7 +6,7 @@ struct ThreadsSettingsTabView: View {
     @Binding var defaultModel: String
     @Binding var permissionMode: String
     @Binding var effort: String
-    @Binding var deleteKeyAction: ThreadDeleteKeyAction
+    @Binding var defaultThreadCleanupAction: ThreadCleanupAction
     @Binding var defaultEnterBehavior: ThreadEnterDefaultBehavior
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var createWorktreeByDefault: Bool
@@ -60,11 +60,11 @@ struct ThreadsSettingsTabView: View {
                 }
 
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Delete key action", horizontalControlSizing: .intrinsic) {
+                    SettingsResponsiveControlRow("Default thread cleanup action", horizontalControlSizing: .intrinsic) {
                         SettingsMenuPicker(
-                            "Delete key action",
-                            selection: $deleteKeyAction,
-                            options: ThreadDeleteKeyAction.allCases,
+                            "Default thread cleanup action",
+                            selection: $defaultThreadCleanupAction,
+                            options: ThreadCleanupAction.allCases,
                             label: \.label
                         )
                     }

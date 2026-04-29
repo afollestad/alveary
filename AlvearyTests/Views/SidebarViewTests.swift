@@ -98,6 +98,45 @@ final class SidebarViewTests: XCTestCase {
         )
     }
 
+    func testDeleteKeyDecisionUsesArchiveConfirmationByDefault() throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project"
+        )
+
+        switch threadCleanupConfirmation(for: .thread(thread), action: .archive) {
+        case .archive(let confirmedThread):
+            XCTAssertEqual(confirmedThread.persistentModelID, thread.persistentModelID)
+        default:
+            XCTFail("Expected archive confirmation")
+        }
+    }
+
+    func testDeleteKeyDecisionUsesDeleteConfirmationWhenConfigured() throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project"
+        )
+
+        switch threadCleanupConfirmation(for: .thread(thread), action: .delete) {
+        case .delete(let confirmedThread):
+            XCTAssertEqual(confirmedThread.persistentModelID, thread.persistentModelID)
+        default:
+            XCTFail("Expected delete confirmation")
+        }
+    }
+
+    func testDeleteKeyDecisionIgnoresNonThreadSelection() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
+
+        XCTAssertNil(threadCleanupConfirmation(for: .project(project), action: .archive))
+        XCTAssertNil(threadCleanupConfirmation(for: .skills, action: .delete))
+        XCTAssertNil(threadCleanupConfirmation(for: nil, action: .archive))
+    }
+
     private func makeThread(name: String, project: Project) -> AgentThread {
         let thread = AgentThread(name: name, project: project)
         let conversation = Conversation(

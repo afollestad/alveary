@@ -95,6 +95,82 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowHoverShowsArchiveCleanupButton() {
+        let thread = AgentThread(name: AgentThread.untitledName)
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .archive,
+                initialRowHover: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_hover_archive_cleanup"
+        )
+    }
+
+    func testSidebarThreadRowHoverShowsDeleteCleanupButton() {
+        let thread = AgentThread(name: AgentThread.untitledName)
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .delete,
+                initialRowHover: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_hover_delete_cleanup"
+        )
+    }
+
+    func testSidebarThreadRowCleanupConfirmationExpandsLeft() {
+        let thread = AgentThread(name: AgentThread.untitledName)
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .delete,
+                initialCleanupConfirmationArmed: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_cleanup_confirm"
+        )
+    }
+
+    func testSidebarThreadRowCleanupConfirmationEllipsizesLongTitle() {
+        let thread = AgentThread(name: "Investigate the very long thread cleanup confirmation layout")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .delete,
+                initialCleanupConfirmationArmed: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 260, height: 52),
+            named: "thread_row_cleanup_confirm_long_title"
+        )
+    }
+
     // Pins `.busy` to the fixed-size spinner; no other sidebar snapshot exercises `.busy`.
     func testSidebarThreadRowBusyStatusSpinnerVisible() {
         let thread = AgentThread(name: AgentThread.untitledName)

@@ -91,7 +91,7 @@ final class SettingsViewModelTests: XCTestCase {
             $0.defaultModel = "opus"
             $0.permissionMode = "plan"
             $0.effort = "high"
-            $0.deleteKeyAction = .delete
+            $0.defaultThreadCleanupAction = .delete
             $0.defaultEnterBehavior = .steer
             $0.reopenLastThreadAndConversationOnLaunch = true
             $0.autoTrustProjects = false
@@ -115,7 +115,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.defaultModel, "opus")
         XCTAssertEqual(viewModel.permissionMode, "plan")
         XCTAssertEqual(viewModel.effort, "high")
-        XCTAssertEqual(viewModel.deleteKeyAction, .delete)
+        XCTAssertEqual(viewModel.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(viewModel.defaultEnterBehavior, .steer)
         XCTAssertTrue(viewModel.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(viewModel.autoTrustProjects)
@@ -158,7 +158,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.defaultModel = "sonnet"
         viewModel.permissionMode = "acceptEdits"
         viewModel.effort = "max"
-        viewModel.deleteKeyAction = .delete
+        viewModel.defaultThreadCleanupAction = .delete
         viewModel.defaultEnterBehavior = .steer
         viewModel.reopenLastThreadAndConversationOnLaunch = true
         viewModel.autoTrustProjects = false
@@ -183,7 +183,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.defaultModel, "sonnet")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
-        XCTAssertEqual(service.current.deleteKeyAction, .delete)
+        XCTAssertEqual(service.current.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(service.current.defaultEnterBehavior, .steer)
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertFalse(service.current.autoTrustProjects)

@@ -173,9 +173,9 @@ final class SettingsViewModel {
         set { settingsService.update { $0.effort = newValue } }
     }
 
-    var deleteKeyAction: ThreadDeleteKeyAction {
-        get { settingsService.current.deleteKeyAction }
-        set { settingsService.update { $0.deleteKeyAction = newValue } }
+    var defaultThreadCleanupAction: ThreadCleanupAction {
+        get { settingsService.current.defaultThreadCleanupAction }
+        set { settingsService.update { $0.defaultThreadCleanupAction = newValue } }
     }
 
     var defaultEnterBehavior: ThreadEnterDefaultBehavior {

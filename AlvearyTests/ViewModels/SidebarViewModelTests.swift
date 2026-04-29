@@ -432,14 +432,14 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .archived)
     }
 
-    func testDeleteKeyActionReflectsSettingsService() throws {
+    func testDefaultThreadCleanupActionReflectsSettingsService() throws {
         let fixture = try SidebarTestFixture()
 
-        XCTAssertEqual(fixture.viewModel.deleteKeyAction, .archive)
+        XCTAssertEqual(fixture.viewModel.defaultThreadCleanupAction, .archive)
 
-        fixture.settingsService.update { $0.deleteKeyAction = .delete }
+        fixture.settingsService.update { $0.defaultThreadCleanupAction = .delete }
 
-        XCTAssertEqual(fixture.viewModel.deleteKeyAction, .delete)
+        XCTAssertEqual(fixture.viewModel.defaultThreadCleanupAction, .delete)
     }
 
     func testStatusVersionIncrementsForAgentStatusNotifications() async throws {
