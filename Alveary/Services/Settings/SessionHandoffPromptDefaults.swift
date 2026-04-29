@@ -12,7 +12,9 @@ faster while minimizing the initial context window.
 2. Use that goal as the relevance filter for everything you include.
 3. Review the current session and preserve only the facts that change how the
    next agent should act.
-4. Produce a prompt that is ready to send as the first user message in a fresh
+4. Omit instructions, workflow rules, or project conventions that the next
+   agent can infer from existing `AGENTS.md` context in the target workspace.
+5. Produce a prompt that is ready to send as the first user message in a fresh
    continuation session.
 
 If the user already said what the next session should do, do not ask again. If
@@ -38,6 +40,7 @@ Leave out details like these unless the user explicitly asks for a full history:
 - A play-by-play of every step taken.
 - Resolved dead ends that no longer affect the next session.
 - Generic advice the next agent could infer on its own.
+- Guidance already covered by relevant `AGENTS.md` files.
 - Background context that is unrelated to the stated next goal.
 
 If the user narrows the next-session goal, narrow the handoff aggressively too.
@@ -51,8 +54,7 @@ Write for the next agent, not about the next agent.
 - Mention exact file paths and identifiers when they matter.
 - If code was changed, say what changed and what remains.
 - If verification is still pending, mention what should be checked next.
-- Keep the prompt dense and useful. Short is good, but completeness matters more
-  than being terse.
+- Keep the prompt as concise as possible without losing vital information.
 
 When possible, present the handoff as if it were the opening prompt of the next
 session rather than a retrospective summary.

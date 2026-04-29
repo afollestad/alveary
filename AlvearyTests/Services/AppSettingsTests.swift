@@ -27,6 +27,7 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertTrue(settings.sessionHandoffPrompt.hasPrefix("Turn the current session into a prompt"))
+        XCTAssertTrue(settings.sessionHandoffPrompt.contains("existing `AGENTS.md` context"))
         XCTAssertFalse(settings.sessionHandoffPrompt.contains("name: session-handoff"))
     }
 
