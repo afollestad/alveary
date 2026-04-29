@@ -329,7 +329,7 @@ private struct DiffViewerVerticalResizeHandle: View {
     @State private var hasPushedCursor = false
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Rectangle()
                 .fill(isHovering ? Color.accentColor : Color(nsColor: .separatorColor))
                 .frame(height: 1)
@@ -337,6 +337,7 @@ private struct DiffViewerVerticalResizeHandle: View {
             Rectangle()
                 .fill(isHovering ? Color.accentColor.opacity(0.18) : Color.clear)
                 .frame(height: 6)
+                .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(height: Self.thickness)
         .contentShape(Rectangle())

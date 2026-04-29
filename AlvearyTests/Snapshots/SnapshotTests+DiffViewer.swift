@@ -276,6 +276,38 @@ extension SnapshotTests {
         )
     }
 
+    func testDiffViewerPaneUntrackedFileCompactGutter() async {
+        let path = "onyx-page-5891.txt"
+        let selectedFile = FileStatus(path: path, originalPath: nil, status: .untracked, isStaged: false)
+        let fixture = SnapshotDiffViewerFixture(
+            gitService: SnapshotMockGitService(
+                statusResults: [[selectedFile]],
+                diffResults: [],
+                syntheticDiffResults: [Self.newFileDiff(path: path)]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: Set(["main"])
+        )
+        await fixture.viewModel.selectFile(selectedFile, in: fixture.directory)
+
+        assertMacSnapshot(
+            DiffViewerPane(
+                viewModel: fixture.viewModel,
+                areAgentActionsEnabled: true,
+                onCommitRequested: {},
+                onOpenPRRequested: {}
+            ),
+            size: CGSize(width: 460, height: 520),
+            named: "diff_viewer_untracked_compact_gutter"
+        )
+    }
+
     func testDiffViewerPaneMultiSelectionPreviewState() async {
         let firstFile = FileStatus(path: "Alveary/Views/Input/ChatInputField.swift", originalPath: nil, status: .modified, isStaged: false)
         let secondFile = FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .added, isStaged: true)

@@ -117,7 +117,7 @@ struct StructuredDiffPreview: View {
                     ForEach(Array(diff.hunks.enumerated()), id: \.offset) { index, hunk in
                         DiffHunkSection(
                             hunk: hunk,
-                            lineNumberWidth: lineNumberWidth,
+                            gutterLayout: DiffGutterLayout(hunk: hunk, defaultLineNumberWidth: lineNumberWidth),
                             fillsRemainingHeight: index == diff.hunks.indices.last
                         )
                     }
@@ -153,7 +153,7 @@ struct StructuredDiffPreview: View {
             diff.hunks.compactMap { $0.lines.compactMap(\.newLineNumber).max() }.max() ?? 0
         )
         let digits = max(String(maximumLineNumber).count, 2)
-        return CGFloat((digits * 8) + 16)
+        return CGFloat((digits * 8) + 8)
     }
 
     @ViewBuilder
@@ -189,7 +189,7 @@ struct StructuredDiffPreview: View {
 
 struct DiffHunkSection: View {
     let hunk: DiffHunk
-    let lineNumberWidth: CGFloat
+    let gutterLayout: DiffGutterLayout
     let fillsRemainingHeight: Bool
 
     private let collapsedContextMinimum = 8
@@ -208,9 +208,9 @@ struct DiffHunkSection: View {
             ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
                 switch row {
                 case .line(let line):
-                    DiffLineRow(line: line, lineNumberWidth: lineNumberWidth)
+                    DiffLineRow(line: line, gutterLayout: gutterLayout)
                 case .omitted(let summary):
-                    DiffCollapsedContextRow(summary: summary, lineNumberWidth: lineNumberWidth)
+                    DiffCollapsedContextRow(summary: summary, gutterLayout: gutterLayout)
                 }
             }
 

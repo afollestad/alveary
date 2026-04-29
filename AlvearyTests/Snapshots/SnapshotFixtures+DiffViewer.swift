@@ -36,11 +36,18 @@ actor SnapshotMockGitService: GitService {
     private var statusResults: [[FileStatus]]
     private var diffStatsResults: [DiffStats]
     private var diffResults: [String]
+    private var syntheticDiffResults: [String]
 
-    init(statusResults: [[FileStatus]], diffStatsResults: [DiffStats] = [.empty], diffResults: [String]) {
+    init(
+        statusResults: [[FileStatus]],
+        diffStatsResults: [DiffStats] = [.empty],
+        diffResults: [String],
+        syntheticDiffResults: [String] = []
+    ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
         self.diffResults = diffResults
+        self.syntheticDiffResults = syntheticDiffResults
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -65,7 +72,10 @@ actor SnapshotMockGitService: GitService {
     }
 
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {
-        ""
+        if syntheticDiffResults.isEmpty {
+            return ""
+        }
+        return syntheticDiffResults.removeFirst()
     }
 
     func stage(paths: [String], in directory: String) async throws {}

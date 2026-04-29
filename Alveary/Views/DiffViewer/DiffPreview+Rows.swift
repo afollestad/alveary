@@ -9,15 +9,53 @@ struct CollapsedContextSummary {
     let newEnd: Int?
 }
 
+struct DiffGutterLayout {
+    let showsOldLineNumbers: Bool
+    let showsNewLineNumbers: Bool
+    let lineNumberWidth: CGFloat
+    let lineNumberTrailingPadding: CGFloat
+    let markerWidth: CGFloat
+
+    init(hunk: DiffHunk, defaultLineNumberWidth: CGFloat) {
+        showsOldLineNumbers = hunk.lines.contains { $0.oldLineNumber != nil }
+        showsNewLineNumbers = hunk.lines.contains { $0.newLineNumber != nil }
+
+        if showsOldLineNumbers && showsNewLineNumbers {
+            lineNumberWidth = defaultLineNumberWidth
+            lineNumberTrailingPadding = 4
+            markerWidth = 16
+        } else {
+            lineNumberWidth = Self.compactLineNumberWidth(for: hunk)
+            lineNumberTrailingPadding = 4
+            markerWidth = 16
+        }
+    }
+
+    private static func compactLineNumberWidth(for hunk: DiffHunk) -> CGFloat {
+        let maximumLineNumber = max(
+            hunk.lines.compactMap(\.oldLineNumber).max() ?? 0,
+            hunk.lines.compactMap(\.newLineNumber).max() ?? 0
+        )
+        let digits = max(String(maximumLineNumber).count, 1)
+        return CGFloat((digits * 8) + 10)
+    }
+}
+
 struct DiffCollapsedContextRow: View {
     let summary: CollapsedContextSummary
-    let lineNumberWidth: CGFloat
+    let gutterLayout: DiffGutterLayout
 
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: 0) {
-                omissionColumn
-                omissionColumn
+                if gutterLayout.showsOldLineNumbers {
+                    omissionColumn
+                }
+
+                if gutterLayout.showsNewLineNumbers {
+                    omissionColumn
+                }
+
                 omissionMarker
             }
             .background(Color.primary.opacity(0.04))
@@ -41,7 +79,7 @@ struct DiffCollapsedContextRow: View {
         Text("…")
             .font(.system(.caption2, design: .monospaced))
             .foregroundStyle(.secondary)
-            .frame(width: lineNumberWidth, alignment: .center)
+            .frame(width: gutterLayout.lineNumberWidth, alignment: .center)
             .padding(.vertical, 4)
             .accessibilityHidden(true)
     }
@@ -50,7 +88,7 @@ struct DiffCollapsedContextRow: View {
         Text("…")
             .font(.system(.caption, design: .monospaced).weight(.semibold))
             .foregroundStyle(.secondary)
-            .frame(width: 18)
+            .frame(width: gutterLayout.markerWidth)
             .accessibilityHidden(true)
     }
 
@@ -80,18 +118,23 @@ struct DiffCollapsedContextRow: View {
 
 struct DiffLineRow: View {
     let line: DiffLine
-    let lineNumberWidth: CGFloat
+    let gutterLayout: DiffGutterLayout
 
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: 0) {
-                lineNumber(line.oldLineNumber)
-                lineNumber(line.newLineNumber)
+                if gutterLayout.showsOldLineNumbers {
+                    lineNumber(line.oldLineNumber)
+                }
+
+                if gutterLayout.showsNewLineNumbers {
+                    lineNumber(line.newLineNumber)
+                }
 
                 Text(verbatim: marker)
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .foregroundStyle(markerColor)
-                    .frame(width: 18)
+                    .frame(width: gutterLayout.markerWidth)
                     .accessibilityHidden(true)
             }
             .background(gutterBackgroundColor)
@@ -116,8 +159,8 @@ struct DiffLineRow: View {
         Text(value.map(String.init) ?? " ")
             .font(.system(.caption2, design: .monospaced))
             .foregroundStyle(.secondary)
-            .frame(width: lineNumberWidth, alignment: .trailing)
-            .padding(.trailing, 8)
+            .frame(width: gutterLayout.lineNumberWidth, alignment: .trailing)
+            .padding(.trailing, gutterLayout.lineNumberTrailingPadding)
             .padding(.vertical, 4)
             .accessibilityHidden(true)
     }

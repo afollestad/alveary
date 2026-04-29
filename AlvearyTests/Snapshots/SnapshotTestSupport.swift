@@ -116,6 +116,44 @@ extension SnapshotTests {
         return lines.joined(separator: "\n")
     }
 
+    static func newFileDiff(path: String) -> String {
+        let lines = [
+            "Nullam quis risus eget urna mollis ornare",
+            "",
+            "Integer posuere erat a ante venenatis dapibus",
+            "",
+            "Donec sed odio dui. Morbi leo risus, porta ac consectetur ac"
+        ]
+
+        return """
+        diff --git a/\(path) b/\(path)
+        new file mode 100644
+        --- /dev/null
+        +++ b/\(path)
+        @@ -0,0 +1,\(lines.count) @@
+        \(lines.map { "+\($0)" }.joined(separator: "\n"))
+        """
+    }
+
+    static func deletedFileDiff(path: String) -> String {
+        let lines = [
+            "Aenean lacinia bibendum nulla sed consectetur",
+            "",
+            "Cras justo odio, dapibus ac facilisis in",
+            "",
+            "Vestibulum id ligula porta felis euismod semper"
+        ]
+
+        return """
+        diff --git a/\(path) b/\(path)
+        deleted file mode 100644
+        --- a/\(path)
+        +++ /dev/null
+        @@ -1,\(lines.count) +0,0 @@
+        \(lines.map { "-\($0)" }.joined(separator: "\n"))
+        """
+    }
+
     static func renamedDiff(oldPath: String, newPath: String) -> String {
         """
         diff --git a/\(oldPath) b/\(newPath)
