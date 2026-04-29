@@ -374,7 +374,7 @@ private extension DiffViewerViewModel {
 
         do {
             refreshedFiles = try await gitService.status(in: request.directory)
-            refreshedDiffStats = (try? await gitService.diffStats(in: request.directory)) ?? .empty
+            refreshedDiffStats = (try? await gitService.diffStats(in: request.directory, knownStatuses: refreshedFiles)) ?? .empty
             refreshedError = nil
             refreshedIsGitRepository = true
         } catch let error as GitError {

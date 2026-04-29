@@ -17,7 +17,10 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 
 ## Diff Stats
 
-- `GitService.diffStats(in:)` feeds the toolbar's green `+N` and red `-N` summary:
+- `GitService.diffStats(in:knownStatuses:)` feeds the toolbar's green `+N` and red `-N` summary:
     - **Use `git diff --numstat`.** Keep parsing machine-readable numstat output instead of localized shortstat text.
     - **Include both scopes.** Sum unstaged `git diff --numstat --` and staged `git diff --cached --numstat --` output so the toolbar reflects all tracked current changes.
-    - **Skip binary rows.** Numstat reports binary files as `-\t-`; ignore those rows rather than guessing line counts.
+    - **Include readable untracked files.** Since Git omits untracked files from `diff --numstat`, add Git-style new-file line counts from porcelain status for small readable untracked files.
+    - **Reuse status rows.** When a caller already loaded `status(in:)`, pass those rows into `diffStats(in:knownStatuses:)` instead of running another porcelain status scan.
+    - **Share synthetic new-file logic.** Keep untracked toolbar stats and `syntheticAddedDiff(for:in:)` using the same helper so the toolbar and lower-pane preview agree. Match Git intent-to-add behavior: a final newline terminates the last line, it does not add another blank line.
+    - **Skip binary rows.** Numstat reports binary files as `-\t-`; ignore those rows rather than guessing line counts. Apply the same skip behavior to untracked files that are binary, too large, or unreadable.

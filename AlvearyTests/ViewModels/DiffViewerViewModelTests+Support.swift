@@ -98,7 +98,7 @@ actor DiffViewerMockGitService: GitService {
         return try statusResults.removeFirst().get()
     }
 
-    func diffStats(in directory: String) async throws -> DiffStats {
+    func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats {
         guard !diffStatsResults.isEmpty else {
             return .empty
         }

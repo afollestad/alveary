@@ -91,6 +91,17 @@ final class GitServiceTests: XCTestCase {
                 )
             )
         )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
 
         let service = CLIGitService(shell: shell)
 
@@ -99,9 +110,131 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(stats, DiffStats(additions: 5, deletions: 6))
 
         let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 2)
+        XCTAssertEqual(invocations.count, 3)
         XCTAssertEqual(invocations[0].args, ["diff", "--numstat", "--"])
         XCTAssertEqual(invocations[1].args, ["diff", "--cached", "--numstat", "--"])
+        XCTAssertEqual(
+            invocations[2].args,
+            ["--no-optional-locks", "status", "--porcelain=v2", "-z", "--no-ahead-behind", "--untracked-files=all"]
+        )
+    }
+
+    func testDiffStatsIncludesReadableUntrackedTextFiles() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        try "first\nsecond\n".write(to: tempDirectory.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+        try Data([0x00, 0x01, 0x02]).write(to: tempDirectory.appendingPathComponent("image.bin"))
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "? notes.txt\0? image.bin\0",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let stats = try await service.diffStats(in: tempDirectory.path)
+
+        XCTAssertEqual(stats, DiffStats(additions: 2, deletions: 0))
+    }
+
+    func testDiffStatsUsesKnownStatusesWithoutRequestingStatus() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        try "first\nsecond\n".write(to: tempDirectory.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+
+        let shell = MockShellRunner()
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+        await shell.enqueue(
+            .success(
+                ShellResult(
+                    stdout: "",
+                    stderr: "",
+                    exitCode: 0,
+                    stdoutWasTruncated: false,
+                    stderrWasTruncated: false
+                )
+            )
+        )
+
+        let service = CLIGitService(shell: shell)
+
+        let stats = try await service.diffStats(
+            in: tempDirectory.path,
+            knownStatuses: [
+                FileStatus(path: "notes.txt", originalPath: nil, status: .untracked, isStaged: false)
+            ]
+        )
+
+        XCTAssertEqual(stats, DiffStats(additions: 2, deletions: 0))
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations.map(\.args), [
+            ["diff", "--numstat", "--"],
+            ["diff", "--cached", "--numstat", "--"]
+        ])
+    }
+
+    func testSyntheticAddedDiffMatchesGitNewFileLineCounting() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        try "first\nsecond\n".write(to: tempDirectory.appendingPathComponent("trailing.txt"), atomically: true, encoding: .utf8)
+        try "first\nsecond".write(to: tempDirectory.appendingPathComponent("unterminated.txt"), atomically: true, encoding: .utf8)
+
+        let service = CLIGitService(shell: MockShellRunner())
+
+        let trailingDiff = try await service.syntheticAddedDiff(for: "trailing.txt", in: tempDirectory.path)
+        let unterminatedDiff = try await service.syntheticAddedDiff(for: "unterminated.txt", in: tempDirectory.path)
+
+        XCTAssertEqual(DiffParser.parse(trailingDiff).first?.linesAdded, 2)
+        XCTAssertFalse(trailingDiff.contains("\\ No newline at end of file"))
+        XCTAssertEqual(DiffParser.parse(unterminatedDiff).first?.linesAdded, 2)
+        XCTAssertTrue(unterminatedDiff.contains("\\ No newline at end of file"))
     }
 
     func testDiscardRestoresTrackedFilesAndDeletesUntrackedFiles() async throws {

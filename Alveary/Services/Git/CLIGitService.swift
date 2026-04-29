@@ -1,6 +1,8 @@
 import Foundation
 
 final class CLIGitService: GitService {
+    static let untrackedDiffMaxFileSize = 100_000
+
     private let shell: ShellRunner
 
     init(shell: ShellRunner) {
@@ -19,10 +21,11 @@ final class CLIGitService: GitService {
         return parseStatus(result.stdout)
     }
 
-    func diffStats(in directory: String) async throws -> DiffStats {
+    func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats {
         let unstaged = try await diffStats(args: ["diff", "--numstat", "--"], in: directory)
         let staged = try await diffStats(args: ["diff", "--cached", "--numstat", "--"], in: directory)
-        return unstaged.adding(staged)
+        let untracked = (try? await untrackedDiffStats(in: directory, knownStatuses: knownStatuses)) ?? .empty
+        return unstaged.adding(staged).adding(untracked)
     }
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
@@ -55,7 +58,7 @@ final class CLIGitService: GitService {
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {
         let fileURL = URL(fileURLWithPath: directory).appendingPathComponent(path)
         let byteCount = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        guard byteCount <= 100_000 else {
+        guard byteCount <= Self.untrackedDiffMaxFileSize else {
             throw GitError.outputTooLarge("Untracked file is too large to preview (>100KB)")
         }
 
@@ -69,17 +72,21 @@ final class CLIGitService: GitService {
             """
         }
 
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
-        let lineCount = max(lines.count, 1)
-        let body = lines.map { "+\($0)" }.joined(separator: "\n")
+        let addedText = addedTextDiffContent(for: content)
+        guard addedText.lineCount > 0 else {
+            return """
+            diff --git a/\(path) b/\(path)
+            new file mode 100644
+            """
+        }
 
         return """
         diff --git a/\(path) b/\(path)
         new file mode 100644
         --- /dev/null
         +++ b/\(path)
-        @@ -0,0 +1,\(lineCount) @@
-        \(body)
+        @@ -0,0 +1,\(addedText.lineCount) @@
+        \(addedText.body)
         """
     }
 
@@ -230,33 +237,6 @@ private extension CLIGitService {
             throw Self.makeError(from: result)
         }
         return parseDiffStats(result.stdout)
-    }
-
-    func isLikelyBinary(_ data: Data) -> Bool {
-        guard !data.isEmpty else {
-            return false
-        }
-
-        if data.contains(0) {
-            return true
-        }
-
-        return false
-    }
-
-    func parseDiffStats(_ output: String) -> DiffStats {
-        output
-            .split(separator: "\n")
-            .reduce(.empty) { partialResult, line in
-                let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
-                guard parts.count >= 2,
-                      let additions = Int(parts[0]),
-                      let deletions = Int(parts[1]) else {
-                    return partialResult
-                }
-
-                return partialResult.adding(DiffStats(additions: additions, deletions: deletions))
-            }
     }
 
     static func makeError(from result: ShellResult) -> GitError {

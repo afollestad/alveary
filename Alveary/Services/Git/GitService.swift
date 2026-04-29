@@ -77,7 +77,9 @@ extension GitError: LocalizedError {
 
 protocol GitService: Sendable {
     func status(in directory: String) async throws -> [FileStatus]
-    func diffStats(in directory: String) async throws -> DiffStats
+    // Pass freshly loaded status rows when available so callers do not run a
+    // second porcelain status scan just to include untracked files in stats.
+    func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String
     func stage(paths: [String], in directory: String) async throws
@@ -90,6 +92,10 @@ protocol GitService: Sendable {
 }
 
 extension GitService {
+    func diffStats(in directory: String) async throws -> DiffStats {
+        try await diffStats(in: directory, knownStatuses: nil)
+    }
+
     func discard(paths: [String], in directory: String) async throws {
         try await discard(paths: paths, scope: .all, in: directory)
     }

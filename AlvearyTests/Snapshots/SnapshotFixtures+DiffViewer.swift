@@ -50,7 +50,7 @@ actor SnapshotMockGitService: GitService {
         return statusResults.removeFirst()
     }
 
-    func diffStats(in directory: String) async throws -> DiffStats {
+    func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats {
         if diffStatsResults.isEmpty {
             return .empty
         }
