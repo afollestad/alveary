@@ -82,6 +82,75 @@ extension SnapshotTests {
         )
     }
 
+    func testPrimaryToolbarButtonGroupProjectActionEmptyDiff() {
+        let thread = AgentThread(name: "Toolbar Action")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "hammer",
+                        name: "Build",
+                        command: "swift build"
+                    )
+                ],
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 240, height: 64),
+            named: "primary_toolbar_button_group_project_action_empty_diff"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupProjectActionLoadingDiff() {
+        let thread = AgentThread(name: "Toolbar Action")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "hammer",
+                        name: "Build",
+                        command: "swift build"
+                    )
+                ],
+                terminalDisplayState: .running,
+                diffDisplayState: .loading
+            )
+            .padding(8),
+            size: CGSize(width: 260, height: 64),
+            named: "primary_toolbar_button_group_project_action_loading_diff"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupMultipleProjectActions() {
+        let thread = AgentThread(name: "Toolbar Actions")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "hammer",
+                        name: "Build",
+                        command: "swift build"
+                    ),
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "checkmark.circle",
+                        name: "Test",
+                        command: "swift test"
+                    )
+                ],
+                diffDisplayState: .idle(DiffStats(additions: 120, deletions: 45))
+            )
+            .padding(8),
+            size: CGSize(width: 360, height: 64),
+            named: "primary_toolbar_button_group_multiple_project_actions"
+        )
+    }
+
     func testDiffViewerPaneHeaderOpenPRAction() {
         assertMacSnapshot(
             DiffViewerPaneHeader(

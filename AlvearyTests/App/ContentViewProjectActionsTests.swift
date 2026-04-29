@@ -207,4 +207,31 @@ final class ContentViewProjectActionsTests: XCTestCase {
 
         XCTAssertEqual(ProjectActionTerminalPresentation.maxSessions(settings: settings), 12)
     }
+
+    func testPrimaryToolbarGroupWidthIncludesAnimatedProjectActionSlot() {
+        let twoActionStripWidth = PrimaryToolbarGroupWidth.projectActionStripWidth(actionCount: 2)
+        XCTAssertEqual(
+            twoActionStripWidth,
+            PrimaryToolbarMetrics.iconButtonSize * 2 + PrimaryToolbarMetrics.buttonSpacing
+        )
+
+        let twoActionSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(actionCount: 2)
+        XCTAssertEqual(
+            twoActionSlotWidth,
+            twoActionStripWidth + PrimaryToolbarMetrics.buttonSpacing
+        )
+
+        let groupWidth = PrimaryToolbarGroupWidth.groupWidth(
+            projectActionsSlotWidth: twoActionSlotWidth,
+            diffStatusWidth: 42
+        )
+        XCTAssertEqual(
+            groupWidth,
+            PrimaryToolbarMetrics.containerHorizontalInset * 2
+                + PrimaryToolbarMetrics.iconButtonSize * 3
+                + PrimaryToolbarMetrics.buttonSpacing * 2
+                + twoActionSlotWidth
+                + 42
+        )
+    }
 }

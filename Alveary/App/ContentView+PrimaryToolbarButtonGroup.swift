@@ -16,21 +16,80 @@ struct PrimaryToolbarButtonGroup: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var animatedProjectActionsSlotWidth: CGFloat
+    @State private var areProjectActionsVisible: Bool
+
+    init(
+        selectedThread: AgentThread?,
+        projectActions: [AlvearyProjectConfig.ProjectAction],
+        terminalTitle: String,
+        terminalDisplayState: TerminalToolbarDisplayState,
+        terminalHelpText: String,
+        diffDisplayState: DiffViewerToolbarDisplayState,
+        diffHelpText: String,
+        diffAccessibilityLabel: String,
+        diffAccessibilityValue: String,
+        onProjectAction: @escaping (AgentThread, AlvearyProjectConfig.ProjectAction) -> Void,
+        onToggleTerminal: @escaping () -> Void,
+        onToggleDiffViewer: @escaping () -> Void,
+        onOpenSettings: @escaping () -> Void
+    ) {
+        self.selectedThread = selectedThread
+        self.projectActions = projectActions
+        self.terminalTitle = terminalTitle
+        self.terminalDisplayState = terminalDisplayState
+        self.terminalHelpText = terminalHelpText
+        self.diffDisplayState = diffDisplayState
+        self.diffHelpText = diffHelpText
+        self.diffAccessibilityLabel = diffAccessibilityLabel
+        self.diffAccessibilityValue = diffAccessibilityValue
+        self.onProjectAction = onProjectAction
+        self.onToggleTerminal = onToggleTerminal
+        self.onToggleDiffViewer = onToggleDiffViewer
+        self.onOpenSettings = onOpenSettings
+
+        let initialProjectActionsSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(
+            actionCount: Self.projectActionButtonCount(
+                selectedThread: selectedThread,
+                projectActions: projectActions
+            )
+        )
+        _animatedProjectActionsSlotWidth = State(initialValue: initialProjectActionsSlotWidth)
+        _areProjectActionsVisible = State(initialValue: initialProjectActionsSlotWidth > 0)
+    }
 
     var body: some View {
         toolbarContent
-            // Give AppKit the destination width while the visible capsule animates
-            // inside it from the trailing edge; the final position must not carry
-            // any persistent offset.
-            .frame(width: toolbarGroupWidth, alignment: .trailing)
+            // Reserve the target width immediately for AppKit; only the
+            // trailing-aligned visible capsule animates, so the right edge is fixed.
+            .frame(width: targetToolbarGroupWidth, alignment: .trailing)
+            .onChange(of: projectActionButtonCount) { _, _ in
+                updateProjectActionsPresentation()
+            }
     }
 
     private var toolbarContent: some View {
-        // Keep these controls in one SwiftUI-owned toolbar item so the group's
-        // width follows the diff status slot's animated width on the same layout pass.
-        HStack(spacing: PrimaryToolbarMetrics.buttonSpacing) {
-            projectActionButtons
+        // Keep these controls in one SwiftUI-owned toolbar item so the visible
+        // capsule follows the animated action and diff slots on the same layout pass.
+        HStack(spacing: 0) {
+            PrimaryToolbarProjectActionsSlot(
+                selectedThread: selectedThread,
+                projectActions: projectActions,
+                width: animatedProjectActionsSlotWidth,
+                areActionsVisible: areProjectActionsVisible,
+                onProjectAction: onProjectAction
+            )
 
+            coreToolbarButtons
+        }
+        .padding(.horizontal, PrimaryToolbarMetrics.containerHorizontalInset)
+        .padding(.vertical, PrimaryToolbarMetrics.containerVerticalInset)
+        .background(PrimaryToolbarContainerBackground(colorScheme: colorScheme))
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var coreToolbarButtons: some View {
+        HStack(spacing: PrimaryToolbarMetrics.buttonSpacing) {
             TerminalToolbarButton(
                 title: terminalTitle,
                 displayState: terminalDisplayState,
@@ -56,10 +115,111 @@ struct PrimaryToolbarButtonGroup: View {
             .primaryToolbarIconButtonStyle()
             .help("Open Settings (\(KeyboardShortcut.settings.displayString))")
         }
-        .padding(.horizontal, PrimaryToolbarMetrics.containerHorizontalInset)
-        .padding(.vertical, PrimaryToolbarMetrics.containerVerticalInset)
-        .background(PrimaryToolbarContainerBackground(colorScheme: colorScheme))
-        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var targetToolbarGroupWidth: CGFloat {
+        PrimaryToolbarGroupWidth.groupWidth(
+            projectActionsSlotWidth: targetProjectActionsSlotWidth,
+            diffStatusWidth: diffDisplayState.statusSlotWidth
+        )
+    }
+
+    private var targetProjectActionsSlotWidth: CGFloat {
+        PrimaryToolbarGroupWidth.projectActionsSlotWidth(actionCount: projectActionButtonCount)
+    }
+
+    private var projectActionButtonCount: Int {
+        Self.projectActionButtonCount(
+            selectedThread: selectedThread,
+            projectActions: projectActions
+        )
+    }
+
+    private func updateProjectActionsPresentation() {
+        withAnimation(PrimaryToolbarMetrics.statusAnimation) {
+            animatedProjectActionsSlotWidth = targetProjectActionsSlotWidth
+            areProjectActionsVisible = targetProjectActionsSlotWidth > 0
+        }
+    }
+
+    private static func projectActionButtonCount(
+        selectedThread: AgentThread?,
+        projectActions: [AlvearyProjectConfig.ProjectAction]
+    ) -> Int {
+        selectedThread == nil ? 0 : projectActions.count
+    }
+}
+
+enum PrimaryToolbarGroupWidth {
+    static func projectActionStripWidth(actionCount: Int) -> CGFloat {
+        guard actionCount > 0 else {
+            return 0
+        }
+
+        return CGFloat(actionCount) * PrimaryToolbarMetrics.iconButtonSize
+            + CGFloat(actionCount - 1) * PrimaryToolbarMetrics.buttonSpacing
+    }
+
+    static func projectActionsSlotWidth(actionCount: Int) -> CGFloat {
+        guard actionCount > 0 else {
+            return 0
+        }
+
+        return projectActionStripWidth(actionCount: actionCount)
+            + PrimaryToolbarMetrics.buttonSpacing
+    }
+
+    static func groupWidth(projectActionsSlotWidth: CGFloat, diffStatusWidth: CGFloat) -> CGFloat {
+        PrimaryToolbarMetrics.containerHorizontalInset * 2
+            + coreToolbarButtonWidth
+            + coreToolbarSpacingWidth
+            + projectActionsSlotWidth
+            + diffStatusWidth
+    }
+
+    private static let coreToolbarButtonCount: CGFloat = 3
+    private static let coreToolbarButtonWidth = coreToolbarButtonCount * PrimaryToolbarMetrics.iconButtonSize
+    private static let coreToolbarSpacingWidth = (coreToolbarButtonCount - 1) * PrimaryToolbarMetrics.buttonSpacing
+}
+
+enum PrimaryToolbarMetrics {
+    static let buttonSpacing: CGFloat = 4
+    static let containerHorizontalInset: CGFloat = 8
+    static let containerVerticalInset: CGFloat = 4
+    static let containerBorderWidth: CGFloat = 1
+    static let iconButtonSize: CGFloat = 30
+    static let iconFont = Font.system(size: 16, weight: .medium)
+    static let statusFont = Font.body.weight(.medium)
+    static let statusSpacing: CGFloat = 6
+    static let diffSummarySpacing: CGFloat = 6
+    static let diffSummaryTrailingPadding: CGFloat = 4
+    static let progressIndicatorSize: CGFloat = 16
+    static let progressScale: CGFloat = 0.95
+    static let statusAnimation = Animation.spring(response: 0.24, dampingFraction: 0.9)
+    static let interactionAnimation = Animation.easeOut(duration: 0.12)
+}
+
+private struct PrimaryToolbarProjectActionsSlot: View {
+    let selectedThread: AgentThread?
+    let projectActions: [AlvearyProjectConfig.ProjectAction]
+    let width: CGFloat
+    let areActionsVisible: Bool
+    let onProjectAction: (AgentThread, AlvearyProjectConfig.ProjectAction) -> Void
+
+    var body: some View {
+        // Project actions are an animated leading slot so inserting toolbar
+        // children cannot fight the diff button's own width animation.
+        HStack(spacing: PrimaryToolbarMetrics.buttonSpacing) {
+            projectActionButtons
+        }
+        .padding(.trailing, slotTrailingPadding)
+        // Reveal leftward from the terminal button, clipping content until the
+        // shared capsule has enough width for the action buttons.
+        .frame(width: width, alignment: .trailing)
+        .clipped()
+        .opacity(areActionsVisible ? 1 : 0)
+        .scaleEffect(areActionsVisible ? 1 : 0.92, anchor: .trailing)
+        .animation(PrimaryToolbarMetrics.statusAnimation, value: areActionsVisible)
     }
 
     @ViewBuilder
@@ -78,35 +238,9 @@ struct PrimaryToolbarButtonGroup: View {
         }
     }
 
-    private var toolbarGroupWidth: CGFloat {
-        let buttonCount = projectActionButtonCount + 3
-        let interButtonSpacing = CGFloat(max(buttonCount - 1, 0)) * PrimaryToolbarMetrics.buttonSpacing
-        return PrimaryToolbarMetrics.containerHorizontalInset * 2
-            + CGFloat(buttonCount) * PrimaryToolbarMetrics.iconButtonSize
-            + interButtonSpacing
-            + diffDisplayState.statusSlotWidth
+    private var slotTrailingPadding: CGFloat {
+        projectActions.isEmpty || selectedThread == nil ? 0 : PrimaryToolbarMetrics.buttonSpacing
     }
-
-    private var projectActionButtonCount: Int {
-        selectedThread == nil ? 0 : projectActions.count
-    }
-}
-
-enum PrimaryToolbarMetrics {
-    static let buttonSpacing: CGFloat = 4
-    static let containerHorizontalInset: CGFloat = 8
-    static let containerVerticalInset: CGFloat = 4
-    static let containerBorderWidth: CGFloat = 1
-    static let iconButtonSize: CGFloat = 30
-    static let iconFont = Font.system(size: 16, weight: .medium)
-    static let statusFont = Font.body.weight(.medium)
-    static let statusSpacing: CGFloat = 6
-    static let diffSummarySpacing: CGFloat = 6
-    static let diffSummaryTrailingPadding: CGFloat = 4
-    static let progressIndicatorSize: CGFloat = 16
-    static let progressScale: CGFloat = 0.95
-    static let statusAnimation = Animation.spring(response: 0.24, dampingFraction: 0.9)
-    static let interactionAnimation = Animation.easeOut(duration: 0.12)
 }
 
 private struct PrimaryToolbarContainerBackground: View {
