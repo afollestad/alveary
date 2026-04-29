@@ -20,9 +20,7 @@ extension DefaultAgentsManager {
             )
             recordDeniedToolUseIdsIfNeeded(request)
             eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-            if request.approval.toolName == "AskUserQuestion" {
-                updateStatus(.busy, for: request.conversationId)
-            }
+            updateStatus(.busy, for: request.conversationId)
             return context.sessionApprovalRecordResult.isEffective
         }
 

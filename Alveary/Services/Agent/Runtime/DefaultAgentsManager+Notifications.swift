@@ -142,6 +142,10 @@ extension DefaultAgentsManager {
             return .idle
         }
 
+        if !permissionDenials.isEmpty {
+            return .idle
+        }
+
         if permissionDenials.isEmpty,
            ConversationInterruption.isRequestInterruptedByUserReason(stopReason) {
             return .idle
