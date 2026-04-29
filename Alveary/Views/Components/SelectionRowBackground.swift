@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AppSelectionRowBackground: View {
@@ -12,11 +13,13 @@ struct AppSelectionRowBackground: View {
             .padding(.horizontal, 10)
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
+            .animation(.easeOut(duration: 0.22), value: isPressed)
+            .animation(.easeOut(duration: 0.22), value: isSelected)
     }
 
     private var fillColor: Color {
         if isPressed {
-            return AppAccentFill.pressed
+            return AppSelectionRowFill.pressed
         } else if isSelected {
             return AppAccentFill.primary
         } else {
@@ -25,8 +28,20 @@ struct AppSelectionRowBackground: View {
     }
 }
 
+private enum AppSelectionRowFill {
+    static let pressed: Color = Color(nsColor: .accentDerived { accent, appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return accent.blended(withFraction: 0.50, of: .black) ?? accent
+        default:
+            return accent.blended(withFraction: 0.45, of: .white) ?? accent
+        }
+    })
+}
+
 private struct SelectableRowModifier: ViewModifier {
     let isSelected: Bool
+    let identity: AnyHashable?
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -36,6 +51,8 @@ private struct SelectableRowModifier: ViewModifier {
     // `DragGesture.onEnded` fires on mouse-up regardless of hold duration, and we gate the
     // action on a small translation so it still reads as a click, not a drag-release.
     @State private var isPressed = false
+    @State private var isSelectionPending = false
+    @State private var wasSelectedOnPress = false
 
     func body(content: Content) -> some View {
         content
@@ -43,26 +60,53 @@ private struct SelectableRowModifier: ViewModifier {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
-                        if !isPressed { isPressed = true }
+                        if !isPressed {
+                            wasSelectedOnPress = isSelected
+                            isSelectionPending = false
+                            isPressed = true
+                        }
                     }
                     .onEnded { value in
-                        isPressed = false
-                        if abs(value.translation.width) < 10,
-                           abs(value.translation.height) < 10 {
+                        let isClick = abs(value.translation.width) < 10
+                            && abs(value.translation.height) < 10
+                        if isClick {
+                            // Optimistically keep the released row selected until the
+                            // owning model publishes, avoiding a pressed -> clear flash.
+                            isSelectionPending = !wasSelectedOnPress
                             action()
                         }
+                        isPressed = false
                     }
             )
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityAction { action() }
             .listRowBackground(
                 AppSelectionRowBackground(
-                    isSelected: isSelected,
+                    isSelected: isSelected || isSelectionPending,
                     isPressed: isPressed,
                     topInset: 0,
                     bottomInset: 0
                 )
             )
+            .onDisappear {
+                resetTransientState()
+            }
+            .onChange(of: isSelected) { _, selected in
+                if selected {
+                    isSelectionPending = false
+                } else if !isPressed {
+                    isSelectionPending = false
+                }
+            }
+            .onChange(of: identity) {
+                resetTransientState()
+            }
+    }
+
+    private func resetTransientState() {
+        isPressed = false
+        isSelectionPending = false
+        wasSelectedOnPress = false
     }
 }
 
@@ -87,8 +131,9 @@ extension View {
     /// so every selectable list row behaves consistently.
     func appSelectableRow(
         isSelected: Bool,
+        identity: AnyHashable? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        modifier(SelectableRowModifier(isSelected: isSelected, action: action))
+        modifier(SelectableRowModifier(isSelected: isSelected, identity: identity, action: action))
     }
 }

@@ -16,6 +16,12 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 - **Show toolbar loading for any visible diff load.** The toolbar should replace `+N` / `-N` with a fixed-size spinner while either all-file stats or the selected-file preview diff is past the spinner grace period.
 - **Keep preview pending neutral.** During the spinner grace period, the lower pane should avoid showing an empty/error preview for a diff that is still loading.
 
+## File List Interaction
+
+- **Keep right-click selection synchronous.** Context-menu selection uses an AppKit local event monitor so the clicked row is visibly selected before SwiftUI opens the menu. Do not route that first visual selection only through an async `Task`.
+- **Drive the top divider from scroll offset.** The header divider should appear from the file list's y scroll offset, not row indices. `DiffViewerFileListScrollMonitor` finds the backing `NSScrollView` because SwiftUI `List` does not guarantee the monitor view is inside it.
+- **Preserve top on inserts.** When the list is already at the top and rows are inserted above, keep scrolling to the new top without animation so the first row is not clipped under the header.
+
 ## File List Overlay Ordering
 
 `DiffViewerFileListSection` layers three states on the same `.overlay`:

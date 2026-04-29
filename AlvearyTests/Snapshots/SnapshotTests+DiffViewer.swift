@@ -156,19 +156,45 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 contextualAction: .openPR,
-                selectedFile: nil,
+                selectedFiles: [],
                 areAgentActionsEnabled: true,
                 isRefreshing: false,
+                showsFileListDivider: false,
                 onRefresh: {},
                 onCommitRequested: {},
                 onOpenPRRequested: {},
                 onViewPRRequested: { _ in },
-                onStageSelectedFile: {},
-                onUnstageSelectedFile: {},
-                onDiscardSelectedFile: {}
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 92),
             named: "diff_viewer_header_open_pr"
+        )
+    }
+
+    func testDiffViewerPaneHeaderMixedSelectionActions() {
+        assertMacSnapshot(
+            DiffViewerPaneHeader(
+                activeDirectory: "/tmp/alveary",
+                contextualAction: .commit,
+                selectedFiles: [
+                    FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
+                    FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
+                ],
+                areAgentActionsEnabled: true,
+                isRefreshing: false,
+                showsFileListDivider: false,
+                onRefresh: {},
+                onCommitRequested: {},
+                onOpenPRRequested: {},
+                onViewPRRequested: { _ in },
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {}
+            ),
+            size: CGSize(width: 520, height: 92),
+            named: "diff_viewer_header_mixed_selection"
         )
     }
 
@@ -250,6 +276,41 @@ extension SnapshotTests {
         )
     }
 
+    func testDiffViewerPaneMultiSelectionPreviewState() async {
+        let firstFile = FileStatus(path: "Alveary/Views/Input/ChatInputField.swift", originalPath: nil, status: .modified, isStaged: false)
+        let secondFile = FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .added, isStaged: true)
+        let fixture = SnapshotDiffViewerFixture(
+            gitService: SnapshotMockGitService(
+                statusResults: [[firstFile, secondFile]],
+                diffResults: [
+                    Self.modifiedDiff(path: firstFile.path),
+                    Self.modifiedDiff(path: secondFile.path)
+                ]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: Set(["main"])
+        )
+        await fixture.viewModel.selectFile(firstFile, in: fixture.directory)
+        await fixture.viewModel.selectFile(secondFile, in: fixture.directory, behavior: .toggle)
+
+        assertMacSnapshot(
+            DiffViewerPane(
+                viewModel: fixture.viewModel,
+                areAgentActionsEnabled: true,
+                onCommitRequested: {},
+                onOpenPRRequested: {}
+            ),
+            size: CGSize(width: 460, height: 720),
+            named: "diff_viewer_multi_selection_preview"
+        )
+    }
+
     func testDiffViewerPaneRawFallback() async {
         let path = "AlvearyTests/Services/ShellRunnerTests.swift"
         let fixture = SnapshotDiffViewerFixture(
@@ -293,18 +354,48 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerFileListSection(
                 files: [],
+                selectedFiles: [],
                 isGitRepository: true,
                 isLoading: true,
                 isSelected: { _ in false },
                 fileDisplayName: { $0.path },
                 statusSymbol: { _ in "●" },
-                onSelectFile: { _ in },
-                onStageFile: { _ in },
-                onUnstageFile: { _ in },
-                onDiscardFile: { _ in }
+                onSelectFile: { _, _ in },
+                onStageFiles: { _ in },
+                onUnstageFiles: { _ in },
+                onDiscardFiles: { _ in },
+                isTopDividerVisible: .constant(false)
             ),
             size: CGSize(width: 420, height: 240),
             named: "diff_viewer_file_list_loading"
+        )
+    }
+
+    func testDiffViewerFileListSectionMultipleSelection() {
+        let files = [
+            FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "Sources/Composer.swift", originalPath: nil, status: .added, isStaged: false),
+            FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
+        ]
+        let selectedFiles = [files[0], files[2]]
+
+        assertMacSnapshot(
+            DiffViewerFileListSection(
+                files: files,
+                selectedFiles: selectedFiles,
+                isGitRepository: true,
+                isLoading: false,
+                isSelected: { selectedFiles.contains($0) },
+                fileDisplayName: { $0.path },
+                statusSymbol: { file in file.isStaged ? "+" : "●" },
+                onSelectFile: { _, _ in },
+                onStageFiles: { _ in },
+                onUnstageFiles: { _ in },
+                onDiscardFiles: { _ in },
+                isTopDividerVisible: .constant(false)
+            ),
+            size: CGSize(width: 420, height: 240),
+            named: "diff_viewer_file_list_multiple_selection"
         )
     }
 

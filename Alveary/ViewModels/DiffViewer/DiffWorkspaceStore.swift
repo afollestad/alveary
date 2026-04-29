@@ -15,6 +15,7 @@ final class DiffWorkspaceStore {
     var statsLoadState: DiffWorkspaceLoadState = .idle
     var isStatsLoadingIndicatorVisible = false
     private(set) var selectedFile: FileStatus?
+    var selectedFileKeys: Set<DiffViewerFileSelectionKey> = []
     private(set) var parsedDiff: DiffFile?
     private(set) var rawDiffContent = ""
     var selectedDiffLoadState: DiffWorkspaceLoadState = .idle
@@ -25,6 +26,7 @@ final class DiffWorkspaceStore {
 
     private var targetGeneration: UInt64 = 0
     private var fileSelectionGeneration: UInt64 = 0
+    var selectionAnchorKey: DiffViewerFileSelectionKey?
     var statsLoadingIndicatorGeneration: UInt64 = 0
     var selectedDiffLoadingIndicatorGeneration: UInt64 = 0
     private var statsCache: [DiffWorkspaceStatsCacheKey: DiffStats] = [:]
@@ -39,10 +41,8 @@ final class DiffWorkspaceStore {
     }
 
     var activeDirectory: String? { activeTarget?.directory }
-
-    var isToolbarLoading: Bool {
-        isStatsLoadingIndicatorVisible || isSelectedDiffLoadingIndicatorVisible
-    }
+    var selectedFiles: [FileStatus] { files.filter { selectedFileKeys.contains(DiffViewerFileSelectionKey($0)) } }
+    var isToolbarLoading: Bool { isStatsLoadingIndicatorVisible || isSelectedDiffLoadingIndicatorVisible }
 
     @discardableResult
     func switchToTarget(_ target: DiffWorkspaceTarget) -> Bool {
@@ -60,6 +60,8 @@ final class DiffWorkspaceStore {
         // project/worktree so returning to that target can hydrate immediately.
         files = []
         selectedFile = nil
+        selectedFileKeys = []
+        selectionAnchorKey = nil
         parsedDiff = nil
         rawDiffContent = ""
         setSelectedDiffLoadState(.idle)
@@ -84,6 +86,8 @@ final class DiffWorkspaceStore {
         stats = .empty
         setStatsLoadState(.idle)
         selectedFile = nil
+        selectedFileKeys = []
+        selectionAnchorKey = nil
         parsedDiff = nil
         rawDiffContent = ""
         setSelectedDiffLoadState(.idle)
@@ -92,13 +96,8 @@ final class DiffWorkspaceStore {
         isGitRepository = true
     }
 
-    func clearGitError() {
-        gitError = nil
-    }
-
-    func presentGitError(_ message: String) {
-        gitError = message
-    }
+    func clearGitError() { gitError = nil }
+    func presentGitError(_ message: String) { gitError = message }
 
     func refreshStatusAndStartStats(for directory: String) async -> DiffWorkspaceRefreshSnapshot? {
         guard let target = activeTarget, target.directory == directory else {
@@ -114,7 +113,9 @@ final class DiffWorkspaceStore {
                 return nil
             }
 
+            let previousSelectedFiles = selectedFiles
             files = refreshedFiles
+            reconcileSelectionAfterStatusRefresh(previousSelectedFiles: previousSelectedFiles)
             gitError = nil
             isGitRepository = true
             isLoadingFiles = false
@@ -143,32 +144,63 @@ final class DiffWorkspaceStore {
         if snapshot.error != nil || !snapshot.isGitRepository {
             cancelSelectedDiffLoad()
             selectedFile = nil
+            selectedFileKeys = []
+            selectionAnchorKey = nil
             parsedDiff = nil
             rawDiffContent = ""
             setSelectedDiffLoadState(.idle)
         }
     }
 
-    func selectFile(_ file: FileStatus, in directory: String) async {
-        guard let target = activeTarget, target.directory == directory else {
+    func selectFile(
+        _ file: FileStatus,
+        in directory: String,
+        behavior: DiffViewerFileSelectionBehavior = .single
+    ) async {
+        guard let preparedSelection = selectFileImmediately(file, in: directory, behavior: behavior) else {
             return
         }
 
-        let context = beginDiffLoad(for: file, target: target)
-        let task = DiffViewerDiffTaskFactory.makeTask(for: file, in: directory, gitService: gitService)
-        let diffLoadID = UUID()
-        inFlightDiffLoad = (id: diffLoadID, task: task)
+        await loadSelectedFileDiff(preparedSelection)
+    }
 
-        do {
-            let result = try await task.value
-            applyDiffLoadResult(result, for: file, in: directory, context: context, diffLoadID: diffLoadID)
-        } catch is CancellationError {
-            // A newer target or file selection superseded this load.
-        } catch {
-            applyDiffLoadError(error, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+    func loadSelectedFileDiff(_ preparedSelection: DiffViewerPreparedFileSelection) async {
+        guard isCurrent(target: preparedSelection.target, generation: preparedSelection.generation),
+              activeTarget?.directory == preparedSelection.directory else {
+            return
         }
 
-        finishDiffLoad(diffLoadID)
+        await loadDiff(
+            for: preparedSelection.file,
+            target: preparedSelection.target,
+            in: preparedSelection.directory
+        )
+    }
+
+    func selectFileImmediately(
+        _ file: FileStatus,
+        in directory: String,
+        behavior: DiffViewerFileSelectionBehavior = .single
+    ) -> DiffViewerPreparedFileSelection? {
+        guard let target = activeTarget, target.directory == directory else {
+            return nil
+        }
+
+        guard let previewFile = applySelection(file, behavior: behavior) else {
+            clearSelectedDiffPreview()
+            return nil
+        }
+
+        guard selectedFile != previewFile || parsedDiff == nil && rawDiffContent.isEmpty else {
+            return nil
+        }
+
+        return DiffViewerPreparedFileSelection(
+            file: previewFile,
+            target: target,
+            generation: targetGeneration,
+            directory: directory
+        )
     }
 
     func refreshSelectedDiffIfNeeded(snapshot: DiffWorkspaceRefreshSnapshot, reason: DiffViewerRefreshReason) async {
@@ -179,54 +211,33 @@ final class DiffWorkspaceStore {
             return
         }
 
-        let selectedAnchor = selectedFile.originalPath ?? selectedFile.path
-        let updatedSelection = files.first {
-            $0.path == selectedFile.path && $0.isStaged == selectedFile.isStaged
-        } ?? files.first {
-            $0.path == selectedFile.path
-        } ?? files.first {
-            ($0.originalPath ?? $0.path) == selectedAnchor && $0.isStaged == selectedFile.isStaged
-        } ?? files.first {
-            ($0.originalPath ?? $0.path) == selectedAnchor
-        }
-
-        guard let updatedSelection else {
+        guard let updatedSelection = updatedSelection(matching: selectedFile) else {
             cancelSelectedDiffLoad()
             self.selectedFile = nil
+            selectedFileKeys.remove(DiffViewerFileSelectionKey(selectedFile))
+            if selectionAnchorKey == DiffViewerFileSelectionKey(selectedFile) {
+                selectionAnchorKey = selectedFiles.first.map(DiffViewerFileSelectionKey.init)
+            }
+            if let fallbackSelection = selectedFiles.first {
+                await loadDiff(for: fallbackSelection, target: snapshot.target, in: snapshot.target.directory)
+                return
+            }
             parsedDiff = nil
             rawDiffContent = ""
             setSelectedDiffLoadState(.idle)
             return
         }
 
-        let selectionChanged = updatedSelection.path != selectedFile.path
-            || updatedSelection.originalPath != selectedFile.originalPath
-            || updatedSelection.isStaged != selectedFile.isStaged
-            || updatedSelection.status != selectedFile.status
-
-        let shouldReloadDiff: Bool
-        switch reason {
-        case .manual, .appBecameActive, .localGitMutation:
-            shouldReloadDiff = true
-        case .threadSwitch, .agentTurnCompleted, .idlePoll:
-            shouldReloadDiff = selectionChanged
-        case .fsEvent(let changedPaths):
-            let selectedPaths = Set([updatedSelection.path, updatedSelection.originalPath].compactMap { $0 })
-            shouldReloadDiff = selectionChanged || !changedPaths.isDisjoint(with: selectedPaths)
-        }
-
-        guard shouldReloadDiff else {
+        updateSelectionKey(from: selectedFile, to: updatedSelection)
+        guard shouldReloadDiffPreview(from: selectedFile, to: updatedSelection, reason: reason) else {
             self.selectedFile = updatedSelection
             return
         }
 
-        await selectFile(updatedSelection, in: snapshot.target.directory)
+        await loadDiff(for: updatedSelection, target: snapshot.target, in: snapshot.target.directory)
     }
 
-    func isCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) -> Bool {
-        isCurrent(target: snapshot.target, generation: snapshot.generation)
-    }
-
+    func isCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) -> Bool { isCurrent(target: snapshot.target, generation: snapshot.generation) }
     func waitForStatsForTesting() async {
         guard let task = inFlightStatsLoad?.task else {
             return
@@ -248,7 +259,6 @@ private extension DiffWorkspaceStore {
         let bindingGeneration: UInt64
         let selectionGeneration: UInt64
     }
-
     struct StatsLoad {
         let id: UUID
         let generation: UInt64
@@ -266,6 +276,8 @@ private extension DiffWorkspaceStore {
 
         cancelStatsLoad()
         files = []
+        selectedFileKeys = []
+        selectionAnchorKey = nil
         stats = .empty
         setStatsLoadState(.idle)
         // The active target's cached count is no longer trustworthy after a
@@ -388,6 +400,33 @@ private extension DiffWorkspaceStore {
         )
     }
 
+    private func loadDiff(for file: FileStatus, target: DiffWorkspaceTarget, in directory: String) async {
+        let context = beginDiffLoad(for: file, target: target)
+        let task = DiffViewerDiffTaskFactory.makeTask(for: file, in: directory, gitService: gitService)
+        let diffLoadID = UUID()
+        inFlightDiffLoad = (id: diffLoadID, task: task)
+
+        do {
+            let result = try await task.value
+            applyDiffLoadResult(result, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+        } catch is CancellationError {
+            // A newer target or file selection superseded this load.
+        } catch {
+            applyDiffLoadError(error, for: file, in: directory, context: context, diffLoadID: diffLoadID)
+        }
+
+        finishDiffLoad(diffLoadID)
+    }
+
+    private func clearSelectedDiffPreview() {
+        fileSelectionGeneration &+= 1
+        cancelSelectedDiffLoad()
+        selectedFile = nil
+        rawDiffContent = ""
+        parsedDiff = nil
+        setSelectedDiffLoadState(.idle)
+    }
+
     private func applyDiffLoadResult(
         _ result: DiffLoadResult,
         for file: FileStatus,
@@ -456,8 +495,6 @@ private extension DiffWorkspaceStore {
         hideSelectedDiffLoadingIndicator()
     }
 
-    private func isCurrent(target: DiffWorkspaceTarget, generation: UInt64) -> Bool {
-        activeTarget == target && targetGeneration == generation
-    }
+    private func isCurrent(target: DiffWorkspaceTarget, generation: UInt64) -> Bool { activeTarget == target && targetGeneration == generation }
 
 }

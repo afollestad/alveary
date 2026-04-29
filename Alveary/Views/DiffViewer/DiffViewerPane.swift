@@ -11,6 +11,7 @@ struct DiffViewerPane: View {
 
     @State private var pendingDiscardFiles: [FileStatus] = []
     @State private var isManualRefreshIndicatorVisible = false
+    @State private var isFileListTopDividerVisible = false
 
     init(
         viewModel: DiffViewerViewModel,
@@ -33,9 +34,10 @@ struct DiffViewerPane: View {
             DiffViewerPaneHeader(
                 activeDirectory: viewModel.activeDirectory,
                 contextualAction: viewModel.contextualAction,
-                selectedFile: viewModel.selectedFile,
+                selectedFiles: viewModel.selectedFiles,
                 areAgentActionsEnabled: areAgentActionsEnabled,
                 isRefreshing: isManualRefreshIndicatorVisible,
+                showsFileListDivider: isFileListTopDividerVisible,
                 onRefresh: {
                     performManualRefresh()
                 },
@@ -47,35 +49,32 @@ struct DiffViewerPane: View {
                     }
                     NSWorkspace.shared.open(url)
                 },
-                onStageSelectedFile: {
-                    guard let selectedFile = viewModel.selectedFile,
-                          let directory = viewModel.activeDirectory else {
+                onStageSelectedFiles: {
+                    guard let directory = viewModel.activeDirectory else {
                         return
                     }
+                    let files = viewModel.selectedFiles.filter { !$0.isStaged }
 
                     Task {
                         await performGitAction(errorPrefix: "Stage failed") {
-                            try await viewModel.stage(files: [selectedFile], in: directory)
+                            try await viewModel.stage(files: files, in: directory)
                         }
                     }
                 },
-                onUnstageSelectedFile: {
-                    guard let selectedFile = viewModel.selectedFile,
-                          let directory = viewModel.activeDirectory else {
+                onUnstageSelectedFiles: {
+                    guard let directory = viewModel.activeDirectory else {
                         return
                     }
+                    let files = viewModel.selectedFiles.filter(\.isStaged)
 
                     Task {
                         await performGitAction(errorPrefix: "Unstage failed") {
-                            try await viewModel.unstage(files: [selectedFile], in: directory)
+                            try await viewModel.unstage(files: files, in: directory)
                         }
                     }
                 },
-                onDiscardSelectedFile: {
-                    guard let selectedFile = viewModel.selectedFile else {
-                        return
-                    }
-                    pendingDiscardFiles = [selectedFile]
+                onDiscardSelectedFiles: {
+                    pendingDiscardFiles = viewModel.selectedFiles
                 }
             )
 
@@ -100,45 +99,51 @@ struct DiffViewerPane: View {
                     VStack(spacing: 0) {
                         DiffViewerFileListSection(
                             files: viewModel.files,
+                            selectedFiles: viewModel.selectedFiles,
                             isGitRepository: viewModel.isGitRepository,
                             isLoading: viewModel.isLoadingFiles,
                             isSelected: isSelected,
                             fileDisplayName: fileDisplayName,
                             statusSymbol: statusSymbol,
-                            onSelectFile: { file in
+                            onSelectFile: { file, behavior in
                                 guard let directory = viewModel.activeDirectory else {
                                     return
                                 }
 
+                                guard let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: behavior) else {
+                                    return
+                                }
+
                                 Task {
-                                    await viewModel.selectFile(file, in: directory)
+                                    await viewModel.loadSelectedFileDiff(preparedSelection)
                                 }
                             },
-                            onStageFile: { file in
+                            onStageFiles: { files in
                                 guard let directory = viewModel.activeDirectory else {
                                     return
                                 }
 
                                 Task {
                                     await performGitAction(errorPrefix: "Stage failed") {
-                                        try await viewModel.stage(files: [file], in: directory)
+                                        try await viewModel.stage(files: files.filter { !$0.isStaged }, in: directory)
                                     }
                                 }
                             },
-                            onUnstageFile: { file in
+                            onUnstageFiles: { files in
                                 guard let directory = viewModel.activeDirectory else {
                                     return
                                 }
 
                                 Task {
                                     await performGitAction(errorPrefix: "Unstage failed") {
-                                        try await viewModel.unstage(files: [file], in: directory)
+                                        try await viewModel.unstage(files: files.filter(\.isStaged), in: directory)
                                     }
                                 }
                             },
-                            onDiscardFile: { file in
-                                pendingDiscardFiles = [file]
-                            }
+                            onDiscardFiles: { files in
+                                pendingDiscardFiles = files
+                            },
+                            isTopDividerVisible: $isFileListTopDividerVisible
                         )
                         .frame(maxWidth: .infinity)
                         .frame(height: topSectionHeight)
@@ -152,6 +157,7 @@ struct DiffViewerPane: View {
 
                         DiffViewerPreviewSection(
                             selectedFile: viewModel.selectedFile,
+                            selectedFileCount: viewModel.selectedFiles.count,
                             parsedDiff: viewModel.parsedDiff,
                             rawDiffContent: viewModel.rawDiffContent,
                             isPending: viewModel.isSelectedDiffPending,
@@ -169,7 +175,7 @@ struct DiffViewerPane: View {
             }
         }
         .confirmationDialog(
-            "Discard changes?",
+            discardConfirmationTitle,
             isPresented: Binding(
                 get: { !pendingDiscardFiles.isEmpty },
                 set: { isPresented in
@@ -193,7 +199,7 @@ struct DiffViewerPane: View {
                 pendingDiscardFiles = []
             }
         } message: {
-            Text("This will permanently discard the selected uncommitted changes.")
+            Text(discardConfirmationMessage)
         }
     }
 }
@@ -230,6 +236,17 @@ private extension DiffViewerPane {
         }
     }
 
+    var discardConfirmationMessage: String {
+        if pendingDiscardFiles.count == 1 {
+            return "This will permanently discard the selected uncommitted change."
+        }
+        return "This will permanently discard the selected uncommitted changes."
+    }
+
+    var discardConfirmationTitle: String {
+        pendingDiscardFiles.count == 1 ? "Discard change?" : "Discard changes?"
+    }
+
     func performGitAction(errorPrefix: String, action: () async throws -> Void) async {
         do {
             try await action()
@@ -239,7 +256,7 @@ private extension DiffViewerPane {
     }
 
     func isSelected(_ file: FileStatus) -> Bool {
-        viewModel.selectedFile?.path == file.path && viewModel.selectedFile?.isStaged == file.isStaged
+        viewModel.isFileSelected(file)
     }
 
     func fileDisplayName(_ file: FileStatus) -> String {

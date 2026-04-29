@@ -17,6 +17,8 @@ General shared controls live here. Narrower scopes:
 - Keep the movement guard so long clicks still fire but drags do not.
 - Do not replace it with `.onTapGesture`; macOS drops long-held taps after the press highlight appears.
 - Keep the sibling `.accessibilityAction { action() }` so VoiceOver activation works.
+- Keep the pending-selection state for click releases; it bridges mouse-up to model publication so rows do not visually flash clear before becoming selected.
+- Pass a stable row identity when selectable rows can be inserted, removed, or reordered so transient press/pending state cannot leak into recycled `List` rows.
 
 ## Split Buttons
 

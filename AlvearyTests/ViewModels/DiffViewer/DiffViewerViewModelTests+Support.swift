@@ -51,6 +51,11 @@ actor DiffViewerMockGitService: GitService {
         let directory: String
     }
 
+    struct PathMutationCall: Equatable {
+        let paths: [String]
+        let directory: String
+    }
+
     private var statusResults: [Result<[FileStatus], Error>]
     private var statusDelays: [Duration]
     private var diffStatsResults: [Result<DiffStats, Error>]
@@ -65,6 +70,8 @@ actor DiffViewerMockGitService: GitService {
     private var recordedDiffStatsCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
+    private var recordedStageCalls: [PathMutationCall] = []
+    private var recordedUnstageCalls: [PathMutationCall] = []
     private var recordedDiscardCalls: [DiscardCall] = []
     private var onStatus: (@Sendable () -> Void)?
 
@@ -148,9 +155,13 @@ actor DiffViewerMockGitService: GitService {
         return syntheticDiffResults.isEmpty ? "" : syntheticDiffResults.removeFirst()
     }
 
-    func stage(paths: [String], in directory: String) async throws {}
+    func stage(paths: [String], in directory: String) async throws {
+        recordedStageCalls.append(PathMutationCall(paths: paths, directory: directory))
+    }
 
-    func unstage(paths: [String], in directory: String) async throws {}
+    func unstage(paths: [String], in directory: String) async throws {
+        recordedUnstageCalls.append(PathMutationCall(paths: paths, directory: directory))
+    }
 
     func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {
         recordedDiscardCalls.append(DiscardCall(paths: paths, scope: scope, directory: directory))
@@ -182,6 +193,14 @@ actor DiffViewerMockGitService: GitService {
 
     func discardCalls() -> [DiscardCall] {
         recordedDiscardCalls
+    }
+
+    func stageCalls() -> [PathMutationCall] {
+        recordedStageCalls
+    }
+
+    func unstageCalls() -> [PathMutationCall] {
+        recordedUnstageCalls
     }
 
     func statusCallCount() -> Int {

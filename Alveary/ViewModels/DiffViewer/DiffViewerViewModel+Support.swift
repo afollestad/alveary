@@ -16,6 +16,32 @@ enum DiffViewerContextualAction: Equatable {
     case viewPR(url: String)
 }
 
+// File rows can appear twice for the same path when staged and unstaged changes coexist.
+// Include staged state so batch selection addresses the row the user actually selected.
+struct DiffViewerFileSelectionKey: Hashable {
+    let path: String
+    let isStaged: Bool
+
+    init(_ file: FileStatus) {
+        self.path = file.path
+        self.isStaged = file.isStaged
+    }
+}
+
+enum DiffViewerFileSelectionBehavior {
+    case single
+    case toggle
+    case range
+    case rangeUnion
+}
+
+struct DiffViewerPreparedFileSelection {
+    let file: FileStatus
+    let target: DiffWorkspaceTarget
+    let generation: UInt64
+    let directory: String
+}
+
 enum DiffViewerRefreshReason: Equatable {
     case fsEvent(changedPaths: Set<String>)
     case agentTurnCompleted

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DiffViewerPreviewSection: View {
     let selectedFile: FileStatus?
+    let selectedFileCount: Int
     let parsedDiff: DiffFile?
     let rawDiffContent: String
     let isPending: Bool
@@ -12,7 +13,14 @@ struct DiffViewerPreviewSection: View {
 
     var body: some View {
         Group {
-            if let selectedFile {
+            if selectedFileCount > 1 {
+                EmptyStateView(
+                    icon: "doc.on.doc",
+                    heading: "\(selectedFileCount) files selected",
+                    subtext: "Select one file to preview its diff.",
+                    actions: []
+                )
+            } else if let selectedFile {
                 VStack(alignment: .leading, spacing: 4) {
                     DiffPreviewHeader(
                         title: fileDisplayName(selectedFile),

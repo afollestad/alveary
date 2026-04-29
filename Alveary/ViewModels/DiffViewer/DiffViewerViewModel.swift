@@ -14,6 +14,7 @@ final class DiffViewerViewModel {
     var diffStats: DiffStats { diffStore.stats }
     var diffStatsLoadState: DiffWorkspaceLoadState { diffStore.statsLoadState }
     var selectedFile: FileStatus? { diffStore.selectedFile }
+    var selectedFiles: [FileStatus] { diffStore.selectedFiles }
     var parsedDiff: DiffFile? { diffStore.parsedDiff }
     var rawDiffContent: String { diffStore.rawDiffContent }
     var isLoadingFiles: Bool { diffStore.isLoadingFiles }
@@ -239,8 +240,28 @@ final class DiffViewerViewModel {
         await refreshAndInvalidateFileList(in: activeDirectory, reason: .manual)
     }
 
-    func selectFile(_ file: FileStatus, in directory: String) async {
-        await diffStore.selectFile(file, in: directory)
+    func selectFile(
+        _ file: FileStatus,
+        in directory: String,
+        behavior: DiffViewerFileSelectionBehavior = .single
+    ) async {
+        await diffStore.selectFile(file, in: directory, behavior: behavior)
+    }
+
+    func selectFileImmediately(
+        _ file: FileStatus,
+        in directory: String,
+        behavior: DiffViewerFileSelectionBehavior = .single
+    ) -> DiffViewerPreparedFileSelection? {
+        diffStore.selectFileImmediately(file, in: directory, behavior: behavior)
+    }
+
+    func loadSelectedFileDiff(_ preparedSelection: DiffViewerPreparedFileSelection) async {
+        await diffStore.loadSelectedFileDiff(preparedSelection)
+    }
+
+    func isFileSelected(_ file: FileStatus) -> Bool {
+        diffStore.selectedFileKeys.contains(DiffViewerFileSelectionKey(file))
     }
 
     func stage(files: [FileStatus], in directory: String) async throws {
