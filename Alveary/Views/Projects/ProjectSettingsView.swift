@@ -54,9 +54,10 @@ struct ProjectSettingsActionDraft: Identifiable, Equatable {
 
 struct ProjectSettingsView: View {
     let project: Project
+    @Bindable var appState: AppState
 
     private let loadConfig: @Sendable (String) async -> AlvearyProjectConfig
-    private let notificationManager: any NotificationManager
+    private let sidebarViewModel: SidebarViewModel
 
     @Environment(\.modelContext) private var modelContext
     @State private var config: AlvearyProjectConfig
@@ -67,17 +68,20 @@ struct ProjectSettingsView: View {
     @State private var pendingSaveTask: Task<Void, Never>?
     @State private var screenError: String?
     @State private var pendingRestoreThread: AgentThread?
+    @State private var pendingDeleteThread: AgentThread?
 
     init(
         project: Project,
-        notificationManager: any NotificationManager,
+        appState: AppState,
+        sidebarViewModel: SidebarViewModel,
         initialConfig: AlvearyProjectConfig = .empty,
         loadConfig: @escaping @Sendable (String) async -> AlvearyProjectConfig = { projectPath in
             await AlvearyProjectConfig(projectPath: projectPath)
         }
     ) {
         self.project = project
-        self.notificationManager = notificationManager
+        self.appState = appState
+        self.sidebarViewModel = sidebarViewModel
         self.loadConfig = loadConfig
 
         let editorState = ProjectSettingsEditorState(config: initialConfig)
@@ -135,7 +139,8 @@ struct ProjectSettingsView: View {
 
                 ProjectSettingsArchivedThreadsCard(
                     threads: archivedThreads,
-                    onRequestRestoreThread: { pendingRestoreThread = $0 }
+                    onRequestRestoreThread: { pendingRestoreThread = $0 },
+                    onRequestDeleteThread: { pendingDeleteThread = $0 }
                 )
             }
             .padding(28)
@@ -166,29 +171,70 @@ struct ProjectSettingsView: View {
         } message: { thread in
             Text(restoreConfirmationMessage(for: thread))
         }
-    }
-}
+        .confirmationDialog(
+            "Delete thread?",
+            isPresented: Binding(
+                get: { pendingDeleteThread != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteThread = nil
+                    }
+                }
+            ),
+            presenting: pendingDeleteThread
+        ) { thread in
+            Button("Delete", role: .destructive) {
+                Task { await deleteArchivedThread(thread) }
+            }
 
-@MainActor
-func restoreProjectSettingsArchivedThread(
-    _ thread: AgentThread,
-    modelContext: ModelContext,
-    notificationManager: any NotificationManager
-) throws {
-    guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID) else {
-        return
+            Button("Cancel", role: .cancel) {
+                pendingDeleteThread = nil
+            }
+        } message: { thread in
+            Text(deleteConfirmationMessage(for: thread))
+        }
     }
-
-    dbThread.prepareForRestore()
-    try modelContext.save()
-    // SwiftData does not emit `.agentStatusChanged` on restore, so the dock badge would miss the
-    // newly-unarchived unread conversations without this explicit refresh.
-    notificationManager.refreshBadgeCount()
 }
 
 func projectSettingsRestoreConfirmationMessage(for thread: AgentThread) -> String {
     "Restoring \"\(thread.displayName())\" puts it back in the project list. Local transcript and worktree metadata stay in Alveary. "
         + "The next run starts a fresh provider session, and Alveary attaches a restore summary to your next message."
+}
+
+@MainActor
+func deleteProjectSettingsArchivedThread(
+    _ thread: AgentThread,
+    appState: AppState,
+    sidebarViewModel: SidebarViewModel
+) async throws {
+    let threadID = thread.persistentModelID
+    let previousSelectedItem = appState.selectedSidebarItem
+    let previousBookmark = appState.previousSelection
+    let previousConversationIDs = appState.selectedConversationIDs
+    let replacementItem = thread.project.map(SidebarItem.project)
+
+    // Archived rows are usually not selected, but stale selection/bookmark state can still
+    // point at them after external routing or restore fallback.
+    if case .thread(let selectedThread) = appState.selectedSidebarItem,
+       selectedThread.persistentModelID == threadID {
+        appState.selectedSidebarItem = replacementItem
+    }
+
+    if case .threadId(let bookmarkedID) = appState.previousSelection,
+       bookmarkedID == threadID {
+        appState.previousSelection = replacementItem.flatMap(AppState.SidebarBookmark.init)
+    }
+
+    appState.selectedConversationIDs.removeValue(forKey: threadID)
+
+    do {
+        try await sidebarViewModel.deleteThread(thread)
+    } catch {
+        appState.selectedSidebarItem = previousSelectedItem
+        appState.previousSelection = previousBookmark
+        appState.selectedConversationIDs = previousConversationIDs
+        throw error
+    }
 }
 
 private extension ProjectSettingsView {
@@ -346,10 +392,19 @@ private extension ProjectSettingsView {
 
     func restoreArchivedThread(_ thread: AgentThread) {
         do {
-            try restoreProjectSettingsArchivedThread(
+            try sidebarViewModel.restoreThread(thread)
+        } catch {
+            screenError = error.localizedDescription
+        }
+    }
+
+    func deleteArchivedThread(_ thread: AgentThread) async {
+        pendingDeleteThread = nil
+        do {
+            try await deleteProjectSettingsArchivedThread(
                 thread,
-                modelContext: modelContext,
-                notificationManager: notificationManager
+                appState: appState,
+                sidebarViewModel: sidebarViewModel
             )
         } catch {
             screenError = error.localizedDescription
@@ -358,6 +413,10 @@ private extension ProjectSettingsView {
 
     func restoreConfirmationMessage(for thread: AgentThread) -> String {
         projectSettingsRestoreConfirmationMessage(for: thread)
+    }
+
+    func deleteConfirmationMessage(for thread: AgentThread) -> String {
+        threadDeleteConfirmationMessage(for: thread)
     }
 }
 

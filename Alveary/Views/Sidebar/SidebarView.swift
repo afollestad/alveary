@@ -261,7 +261,7 @@ struct SidebarView: View {
     }
 
     func deleteConfirmationMessage(for thread: AgentThread) -> String {
-        "This permanently deletes \"\(thread.displayName())\" and removes its worktree and branch if present."
+        threadDeleteConfirmationMessage(for: thread)
     }
 
     // Driven by explicit user actions (row tap, selection change, expansion toggle),

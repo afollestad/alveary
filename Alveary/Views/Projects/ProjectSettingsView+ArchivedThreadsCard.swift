@@ -4,11 +4,12 @@ import SwiftUI
 struct ProjectSettingsArchivedThreadsCard: View {
     let threads: [AgentThread]
     let onRequestRestoreThread: (AgentThread) -> Void
+    let onRequestDeleteThread: (AgentThread) -> Void
 
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Archived threads are hidden from the sidebar. Restore one to move it back into the project list.")
+                Text("Archived threads are hidden from the sidebar. Restore one to move it back into the project list, or delete it permanently.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -19,7 +20,8 @@ struct ProjectSettingsArchivedThreadsCard: View {
                     ForEach(threads, id: \.persistentModelID) { thread in
                         ProjectSettingsArchivedThreadRow(
                             thread: thread,
-                            onRestore: { onRequestRestoreThread(thread) }
+                            onRestore: { onRequestRestoreThread(thread) },
+                            onDelete: { onRequestDeleteThread(thread) }
                         )
                     }
                 }
@@ -36,6 +38,7 @@ struct ProjectSettingsArchivedThreadsCard: View {
 private struct ProjectSettingsArchivedThreadRow: View {
     let thread: AgentThread
     let onRestore: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -54,9 +57,15 @@ private struct ProjectSettingsArchivedThreadRow: View {
 
             Spacer(minLength: 16)
 
-            Button("Restore", action: onRestore)
-                .secondaryActionButtonStyle()
-                .controlSize(.small)
+            HStack(spacing: 6) {
+                Button("Restore", action: onRestore)
+                    .secondaryActionButtonStyle()
+                    .controlSize(.small)
+
+                Button("Delete", action: onDelete)
+                    .destructiveActionButtonStyle()
+                    .controlSize(.small)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -19,7 +19,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             ProjectSettingsView(
                 project: project,
-                notificationManager: RecordingNotificationManager(),
+                appState: AppState(),
+                sidebarViewModel: fixture.viewModel,
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
@@ -56,7 +57,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             ProjectSettingsView(
                 project: project,
-                notificationManager: RecordingNotificationManager(),
+                appState: AppState(),
+                sidebarViewModel: fixture.viewModel,
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
@@ -91,7 +93,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             ProjectSettingsView(
                 project: project,
-                notificationManager: RecordingNotificationManager(),
+                appState: AppState(),
+                sidebarViewModel: fixture.viewModel,
                 initialConfig: config,
                 loadConfig: { _ in config }
             )

@@ -126,6 +126,7 @@ struct ContentView: View {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
+            sidebarViewModel: sidebarViewModel,
             loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []
             },

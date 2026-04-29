@@ -14,6 +14,7 @@ struct MiddlePane: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let sidebarViewModel: SidebarViewModel
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     let skillsViewModel: SkillsViewModel
@@ -30,7 +31,11 @@ struct MiddlePane: View {
         case .mcp:
             MCPScreen(viewModel: mcpViewModel)
         case .project(let project):
-            ProjectSettingsView(project: project, notificationManager: notificationManager)
+            ProjectSettingsView(
+                project: project,
+                appState: appState,
+                sidebarViewModel: sidebarViewModel
+            )
                 .id(project.path)
         case .thread(let thread):
             ThreadDetailView(

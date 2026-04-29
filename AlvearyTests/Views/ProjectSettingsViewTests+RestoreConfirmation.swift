@@ -18,4 +18,19 @@ extension ProjectSettingsViewTests {
         XCTAssertTrue(message.contains("fresh provider session"))
         XCTAssertTrue(message.contains("attaches a restore summary to your next message"))
     }
+
+    func testProjectSettingsDeleteConfirmationMessageMatchesNormalDeleteBehavior() {
+        let thread = AgentThread(
+            name: "Delete archived auth thread",
+            worktreePath: "/tmp/alveary-worktree",
+            archivedAt: Date()
+        )
+
+        let message = threadDeleteConfirmationMessage(for: thread)
+
+        XCTAssertEqual(
+            message,
+            "This permanently deletes \"Delete archived auth thread\" and removes its worktree and branch if present."
+        )
+    }
 }
