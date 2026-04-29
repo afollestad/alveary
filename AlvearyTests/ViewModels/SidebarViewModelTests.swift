@@ -184,7 +184,7 @@ final class SidebarViewModelTests: XCTestCase {
         let restoredThread = try fixture.requireThread(thread)
         XCTAssertNil(restoredThread.archivedAt)
         let pendingRestoreContext = restoredThread.conversations.first?.pendingRestoreContext
-        XCTAssertEqual(pendingRestoreContext?.contains("Fresh session restore context"), true)
+        XCTAssertEqual(pendingRestoreContext?.contains("Restoring context from local history."), true)
         XCTAssertEqual(pendingRestoreContext?.contains("Investigate the flaky sidebar reload"), true)
         XCTAssertEqual(pendingRestoreContext?.contains("I found a stale observer during restore."), true)
     }

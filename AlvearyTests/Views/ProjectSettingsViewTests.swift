@@ -41,7 +41,7 @@ final class ProjectSettingsViewTests: XCTestCase {
         XCTAssertNil(restoredThread.archivedAt)
         let pendingRestoreContext = restoredThread.conversations.first?.pendingRestoreContext
         XCTAssertEqual(pendingRestoreContext?.contains("Reconnect me to the earlier diff discussion"), true)
-        XCTAssertEqual(pendingRestoreContext?.contains("Fresh session restore context"), true)
+        XCTAssertEqual(pendingRestoreContext?.contains("Restoring context from local history."), true)
     }
 
     func testRestoreProjectSettingsArchivedThreadRefreshesBadgeCount() throws {

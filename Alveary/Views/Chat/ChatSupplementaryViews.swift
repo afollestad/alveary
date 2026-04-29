@@ -438,21 +438,21 @@ struct StagedContextBanner: View {
     let onDismiss: () -> Void
 
     private var summary: String {
-        let singleLine = context.replacingOccurrences(of: "\n", with: " ")
-        if singleLine.count > 140 {
-            return String(singleLine.prefix(137)) + "..."
+        let firstLine = context
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? "Context included."
+
+        if firstLine.count > 96 {
+            return String(firstLine.prefix(93)) + "..."
         }
-        return singleLine
+        return firstLine
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            Label("Including context", systemImage: "paperclip")
+            Label(summary, systemImage: "paperclip")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            Text(summary)
-                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
@@ -463,6 +463,7 @@ struct StagedContextBanner: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .accessibilityLabel("Dismiss context")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

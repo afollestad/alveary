@@ -90,7 +90,8 @@ private extension Conversation {
         }
 
         var lines = [
-            "Fresh session restore context from Alveary's saved local history. Do not assume provider-side memory from earlier turns.",
+            "Restoring context from local history.",
+            "This is a fresh provider session; do not assume memory from earlier turns.",
             "Conversation: \(conversationName)"
         ]
 

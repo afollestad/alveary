@@ -38,7 +38,8 @@ final class ConversationRestoreContextTests: XCTestCase {
         conversation.refreshPendingRestoreContextFromHistory()
 
         let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
-        XCTAssertTrue(pendingRestoreContext.contains("Fresh session restore context"))
+        XCTAssertTrue(pendingRestoreContext.contains("Restoring context from local history."))
+        XCTAssertTrue(pendingRestoreContext.contains("This is a fresh provider session; do not assume memory from earlier turns."))
         XCTAssertTrue(pendingRestoreContext.contains("User: Please continue the auth rollback investigation"))
         XCTAssertTrue(pendingRestoreContext.contains("Assistant: I narrowed it down to the session recreation path."))
         XCTAssertTrue(pendingRestoreContext.contains("Read: succeeded. Opened the runtime lifecycle code"))
