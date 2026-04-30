@@ -52,6 +52,52 @@ extension SnapshotTests {
         )
     }
 
+    func testDiffViewerPaneHeaderCommitsDropdownHidesCommitAction() {
+        assertMacSnapshot(
+            DiffViewerPaneHeader(
+                activeDirectory: "/tmp/alveary",
+                mode: .commits,
+                contextualAction: .commit,
+                selectedFiles: [],
+                areAgentActionsEnabled: true,
+                showsFileListDivider: false,
+                showsFileActions: false,
+                onModeSelected: { _ in },
+                onCommitRequested: {},
+                onOpenPRRequested: {},
+                onViewPRRequested: { _ in },
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {}
+            ),
+            size: CGSize(width: 460, height: 72),
+            named: "diff_viewer_header_commits_dropdown_no_actions"
+        )
+    }
+
+    func testDiffViewerPaneHeaderCommitsDropdownShowsViewPRAction() {
+        assertMacSnapshot(
+            DiffViewerPaneHeader(
+                activeDirectory: "/tmp/alveary",
+                mode: .commits,
+                contextualAction: .viewPR(url: "https://example.com/pull/42"),
+                selectedFiles: [],
+                areAgentActionsEnabled: true,
+                showsFileListDivider: false,
+                showsFileActions: false,
+                onModeSelected: { _ in },
+                onCommitRequested: {},
+                onOpenPRRequested: {},
+                onViewPRRequested: { _ in },
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {}
+            ),
+            size: CGSize(width: 460, height: 72),
+            named: "diff_viewer_header_commits_dropdown_view_pr"
+        )
+    }
+
     func testDiffViewerPaneCurrentChangesMode() async {
         let selectedFile = FileStatus(
             path: "Alveary/Views/Input/ChatInputField.swift",

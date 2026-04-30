@@ -38,7 +38,7 @@ struct DiffViewerPaneHeader: View {
     private var headerActions: [DiffViewerHeaderAction] {
         var actions: [DiffViewerHeaderAction] = []
 
-        switch contextualAction {
+        switch visibleContextualAction {
         case .commit:
             actions.append(DiffViewerHeaderAction(
                 id: "commit",
@@ -51,7 +51,7 @@ struct DiffViewerPaneHeader: View {
         case .openPR:
             actions.append(DiffViewerHeaderAction(
                 id: "open-pr",
-                title: "Open PR",
+                title: "Create PR",
                 systemImage: "arrow.triangle.branch",
                 tone: .primary,
                 isEnabled: areAgentActionsEnabled,
@@ -105,6 +105,19 @@ struct DiffViewerPaneHeader: View {
         }
 
         return actions
+    }
+
+    private var visibleContextualAction: DiffViewerViewModel.ContextualAction {
+        guard mode == .commits else {
+            return contextualAction
+        }
+
+        switch contextualAction {
+        case .openPR, .viewPR:
+            return contextualAction
+        case .commit, .none:
+            return .none
+        }
     }
 
     private var headerActionLayoutID: String {

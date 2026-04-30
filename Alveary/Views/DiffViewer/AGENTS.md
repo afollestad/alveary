@@ -33,7 +33,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
     - Keep action buttons inside `DiffViewerHeaderActionContainer`.
     - Animate the container's reserved width so the mode menu width changes smoothly when actions appear or disappear.
 - **Keep toolbar stats independent.** The main toolbar button always summarizes working-tree changes, regardless of the selected pane mode.
-- **Hide file actions outside current changes.** `Stage`, `Unstage`, and `Discard` are current-change actions and should not render in commit mode; keep `Commit` and PR actions visible.
+- **Hide non-PR actions outside current changes.** `Commit`, `Stage`, `Unstage`, and `Discard` are current-change actions. Commit mode should only render PR actions (`Create PR` or `View PR`), and the action container should animate to zero width when no PR action is available.
 
 ## Commits Mode
 
