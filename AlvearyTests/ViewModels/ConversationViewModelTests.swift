@@ -266,6 +266,7 @@ struct ConversationViewModelTestFixture {
     let conversation: Conversation
     let agentsManager: MockAgentsManager
     let runtimeStore: MockConversationRuntimeStore
+    let keepAwakeService: RecordingKeepAwakeService
     let worktreeManager: MockWorktreeManager
     let providerSetup: MockProviderSetupService
     let contextWindowCache: MockContextWindowCache
@@ -312,6 +313,7 @@ struct ConversationViewModelTestFixture {
             sessionApprovalEffective: sessionApprovalEffective
         )
         let runtimeStore = MockConversationRuntimeStore()
+        let keepAwakeService = RecordingKeepAwakeService()
         let worktreeManager = MockWorktreeManager(
             worktreeInfo: worktreeInfo,
             blocksCreateUntilCancelled: pausesWorktreeCreate
@@ -322,6 +324,7 @@ struct ConversationViewModelTestFixture {
             conversation: conversation,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
+            keepAwakeService: keepAwakeService,
             modelContext: context,
             settingsService: settingsService,
             worktreeManager: worktreeManager,
@@ -329,13 +332,11 @@ struct ConversationViewModelTestFixture {
             contextWindowCache: contextWindowCache
         )
 
-        self.container = container
-        self.context = context
-        self.project = project
-        self.thread = thread
+        self.container = container; self.context = context
+        self.project = project; self.thread = thread
         self.conversation = conversation
-        self.agentsManager = agentsManager
-        self.runtimeStore = runtimeStore
+        self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
+        self.keepAwakeService = keepAwakeService
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache

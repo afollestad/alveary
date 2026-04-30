@@ -213,6 +213,21 @@ extension AppAssembly {
         AppAssembly()
     }
 }
+/// Generated from ``PowerAssembly``
+extension Resolver {
+    func keepAwakeService(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> KeepAwakeService {
+        let resolver = unsafeResolver(file: file, function: function, line: line)
+        return knitUnwrap(resolver.resolve(KeepAwakeService.self), callsiteFile: file, callsiteFunction: function, callsiteLine: line)
+    }
+}
+extension PowerAssembly {
+    public static var _assemblyFlags: [ModuleAssemblyFlags] {
+        [.autoInit]
+    }
+    public static func _autoInstantiate() -> (any ModuleAssembly)? {
+        PowerAssembly()
+    }
+}
 /// Generated from ``ShellAssembly``
 extension Resolver {
     func shellRunner(file: StaticString = #fileID, function: StaticString = #function, line: UInt = #line) -> ShellRunner {

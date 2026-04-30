@@ -8,6 +8,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let environmentBuilder: AgentEnvironmentBuilder
     let providerRegistry: ProviderRegistry
     let settingsService: SettingsService
+    let keepAwakeService: KeepAwakeService
     let notificationManager: NotificationManager
     let claudeHookServer: any ClaudeHookServer
     let adapterFactory: @Sendable (String) -> AgentAdapter
@@ -38,6 +39,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         environmentBuilder: AgentEnvironmentBuilder,
         providerRegistry: ProviderRegistry,
         settingsService: SettingsService,
+        keepAwakeService: KeepAwakeService,
         notificationManager: NotificationManager,
         claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
         adapterFactory: @escaping @Sendable (String) -> AgentAdapter = { providerID in
@@ -54,6 +56,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         self.environmentBuilder = environmentBuilder
         self.providerRegistry = providerRegistry
         self.settingsService = settingsService
+        self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
         self.claudeHookServer = claudeHookServer
         self.adapterFactory = adapterFactory
@@ -110,6 +113,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
     nonisolated func updateStatus(_ signal: ActivitySignal, for conversationId: String) {
         statusSnapshot.withLock { $0[conversationId] = signal }
+        syncKeepAwakeRuntimeActivity()
         Task { @MainActor in
             NotificationCenter.default.post(
                 name: .agentStatusChanged,
@@ -121,6 +125,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
     nonisolated func clearStatus(for conversationId: String) {
         _ = statusSnapshot.withLock { $0.removeValue(forKey: conversationId) }
+        syncKeepAwakeRuntimeActivity()
         Task { @MainActor in
             NotificationCenter.default.post(
                 name: .agentStatusChanged,
@@ -130,4 +135,21 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         }
     }
 
+}
+
+private extension DefaultAgentsManager {
+    nonisolated func syncKeepAwakeRuntimeActivity() {
+        Task { [weak self, keepAwakeService] in
+            let active = self?.hasKeepAwakeRuntimeActivity() ?? false
+            await keepAwakeService.setActive(active, for: .runtimeActivity)
+        }
+    }
+
+    nonisolated func hasKeepAwakeRuntimeActivity() -> Bool {
+        statusSnapshot.withLock { statuses in
+            statuses.values.contains { signal in
+                signal == .busy || signal == .waitingForUser
+            }
+        }
+    }
 }

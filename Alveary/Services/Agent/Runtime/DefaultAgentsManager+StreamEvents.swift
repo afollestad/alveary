@@ -59,10 +59,8 @@ extension DefaultAgentsManager {
             )
         case .toolApprovalFailed(let failure):
             handleToolApprovalFailureStatus(failure, conversationId: conversationId)
-        case .toolApprovalRequested(let request):
-            if request.toolName == "AskUserQuestion" {
-                updateStatus(.waitingForUser, for: conversationId)
-            }
+        case .toolApprovalRequested:
+            updateStatus(.waitingForUser, for: conversationId)
         case .error:
             updateStatus(.error, for: conversationId)
         default:
@@ -78,8 +76,7 @@ extension DefaultAgentsManager {
             decrementPendingLiveToolApprovals(conversationId: conversationId, count: 1)
             eventBuffers[conversationId]?.hasSentPendingUserActionNotification = false
         }
-        if failure.toolName == "AskUserQuestion",
-           status(for: conversationId) == .waitingForUser {
+        if status(for: conversationId) == .waitingForUser {
             updateStatus(.busy, for: conversationId)
         }
     }

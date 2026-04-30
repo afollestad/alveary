@@ -12,6 +12,7 @@ struct ContentViewDependencies {
     let mcpService: MCPService
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -36,6 +37,7 @@ struct ContentViewDependencies {
             mcpService: resolver.mcpService(),
             agentsManager: resolver.agentsManager(),
             runtimeStore: resolver.conversationRuntimeStore(),
+            keepAwakeService: resolver.keepAwakeService(),
             worktreeManager: resolver.worktreeManager(),
             providerSetup: resolver.providerSetupService(),
             contextWindowCache: resolver.contextWindowCache(),

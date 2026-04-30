@@ -353,6 +353,7 @@ private struct ThreadDetailStatusFixture {
             modelContext: context,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
+            keepAwakeService: RecordingKeepAwakeService(),
             settingsService: settingsService,
             providerRegistry: providerRegistry,
             worktreeManager: worktreeManager,

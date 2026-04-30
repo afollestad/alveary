@@ -9,6 +9,8 @@ struct ThreadsSettingsTabView: View {
     @Binding var defaultThreadCleanupAction: ThreadCleanupAction
     @Binding var defaultEnterBehavior: ThreadEnterDefaultBehavior
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
+    @Binding var turnAwakeEnabled: Bool
+    @Binding var turnAwakePreventDisplaySleep: Bool
     @Binding var createWorktreeByDefault: Bool
     @Binding var autoTrustProjects: Bool
 
@@ -91,6 +93,20 @@ struct ThreadsSettingsTabView: View {
                     "Re-open the last thread and conversation on launch",
                     isOn: $reopenLastThreadAndConversationOnLaunch,
                     showsDivider: false
+                )
+            }
+
+            SettingsFormSection("Turns") {
+                SettingsToggleRow(
+                    "Keep Mac awake during turns",
+                    isOn: $turnAwakeEnabled
+                )
+
+                SettingsToggleRow(
+                    "Keep display awake",
+                    isOn: $turnAwakePreventDisplaySleep,
+                    showsDivider: false,
+                    isDisabled: !turnAwakeEnabled
                 )
             }
         }

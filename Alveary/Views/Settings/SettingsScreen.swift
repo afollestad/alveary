@@ -147,6 +147,8 @@ struct SettingsScreen: View {
                 defaultThreadCleanupAction: binding(for: \.defaultThreadCleanupAction),
                 defaultEnterBehavior: binding(for: \.defaultEnterBehavior),
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
+                turnAwakeEnabled: binding(for: \.turnAwakeEnabled),
+                turnAwakePreventDisplaySleep: binding(for: \.turnAwakePreventDisplaySleep),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 autoTrustProjects: binding(for: \.autoTrustProjects)
             )

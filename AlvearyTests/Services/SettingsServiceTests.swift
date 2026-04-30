@@ -23,6 +23,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.defaultThreadCleanupAction = .delete
             $0.defaultEnterBehavior = .steer
             $0.reopenLastThreadAndConversationOnLaunch = false
+            $0.turnAwake = TurnAwakeSettings(enabled: true, preventDisplaySleep: false)
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
             $0.diffViewerTopSectionFraction = 0.35
@@ -43,6 +44,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(reloadedService.current.defaultEnterBehavior, .steer)
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
+        XCTAssertEqual(
+            reloadedService.current.turnAwake,
+            TurnAwakeSettings(enabled: true, preventDisplaySleep: false)
+        )
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
         XCTAssertEqual(reloadedService.current.diffViewerTopSectionFraction, 0.35)
@@ -313,6 +318,44 @@ final class SettingsServiceTests: XCTestCase {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
+    }
+
+    func testUserDefaultsSettingsServiceUsesDefaultTurnAwakeWhenStoredJSONPredatesField() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "plan",
+            "effort": "high",
+            "providerConfigs": [:]
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.turnAwake, TurnAwakeSettings())
+    }
+
+    func testUserDefaultsSettingsServiceDefaultsMissingTurnAwakeDisplayOptionToEnabled() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "turnAwake": [
+                "enabled": true
+            ]
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(
+            service.current.turnAwake,
+            TurnAwakeSettings(enabled: true, preventDisplaySleep: true)
+        )
     }
 
     func testUserDefaultsSettingsServiceUsesDefaultContextManagementWhenStoredJSONPredatesFields() throws {

@@ -11,6 +11,7 @@ struct ConversationView: View {
     let conversation: Conversation
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let keepAwakeService: KeepAwakeService
     let modelContext: ModelContext
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
@@ -50,6 +51,7 @@ struct ConversationView: View {
         conversation: Conversation,
         agentsManager: any AgentsManager,
         runtimeStore: any ConversationRuntimeStore,
+        keepAwakeService: KeepAwakeService,
         modelContext: ModelContext,
         settingsService: SettingsService,
         providerRegistry: ProviderRegistry,
@@ -68,6 +70,7 @@ struct ConversationView: View {
         self.conversation = conversation
         self.agentsManager = agentsManager
         self.runtimeStore = runtimeStore
+        self.keepAwakeService = keepAwakeService
         self.modelContext = modelContext
         self.settingsService = settingsService
         self.providerRegistry = providerRegistry
@@ -86,6 +89,7 @@ struct ConversationView: View {
             conversation: conversation,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
+            keepAwakeService: keepAwakeService,
             modelContext: modelContext,
             settingsService: settingsService,
             worktreeManager: worktreeManager,

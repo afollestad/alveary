@@ -34,6 +34,7 @@ final class UserDefaultsSettingsService: SettingsService {
             let data = try encode(updated)
             defaults.set(data, forKey: Self.storageKey)
             current = updated
+            NotificationCenter.default.post(name: .appSettingsChanged, object: self)
         } catch {
             print("[SettingsService] Failed to persist app settings: \(error)")
         }

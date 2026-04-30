@@ -17,6 +17,7 @@ struct ContentView: View {
     private let mcpService: MCPService
     private let agentsManager: any AgentsManager
     private let runtimeStore: any ConversationRuntimeStore
+    private let keepAwakeService: KeepAwakeService
     private let worktreeManager: WorktreeManager
     private let providerSetup: ProviderSetupService
     private let contextWindowCache: any ContextWindowCache
@@ -61,6 +62,7 @@ struct ContentView: View {
         self.mcpService = dependencies.mcpService
         self.agentsManager = dependencies.agentsManager
         self.runtimeStore = dependencies.runtimeStore
+        self.keepAwakeService = dependencies.keepAwakeService
         self.worktreeManager = dependencies.worktreeManager
         self.providerSetup = dependencies.providerSetup
         self.contextWindowCache = dependencies.contextWindowCache
@@ -124,6 +126,7 @@ struct ContentView: View {
             gitHubCLI: gitHubCLI,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
+            keepAwakeService: keepAwakeService,
             settingsService: settingsService,
             providerRegistry: providerRegistry,
             worktreeManager: worktreeManager,

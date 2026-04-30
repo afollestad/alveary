@@ -7,6 +7,7 @@ struct ThreadDetailView: View {
     let modelContext: ModelContext
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let keepAwakeService: KeepAwakeService
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
     let worktreeManager: WorktreeManager
@@ -97,6 +98,7 @@ struct ThreadDetailView: View {
                         conversation: conversation,
                         agentsManager: agentsManager,
                         runtimeStore: runtimeStore,
+                        keepAwakeService: keepAwakeService,
                         modelContext: modelContext,
                         settingsService: settingsService,
                         providerRegistry: providerRegistry,

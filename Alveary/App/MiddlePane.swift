@@ -7,6 +7,7 @@ struct MiddlePane: View {
     let gitHubCLI: GitHubCLIService
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let keepAwakeService: KeepAwakeService
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
     let worktreeManager: WorktreeManager
@@ -44,6 +45,7 @@ struct MiddlePane: View {
                 modelContext: modelContext,
                 agentsManager: agentsManager,
                 runtimeStore: runtimeStore,
+                keepAwakeService: keepAwakeService,
                 settingsService: settingsService,
                 providerRegistry: providerRegistry,
                 worktreeManager: worktreeManager,

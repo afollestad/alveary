@@ -188,6 +188,16 @@ final class SettingsViewModel {
         set { settingsService.update { $0.reopenLastThreadAndConversationOnLaunch = newValue } }
     }
 
+    var turnAwakeEnabled: Bool {
+        get { settingsService.current.turnAwake.enabled }
+        set { settingsService.update { $0.turnAwake.enabled = newValue } }
+    }
+
+    var turnAwakePreventDisplaySleep: Bool {
+        get { settingsService.current.turnAwake.preventDisplaySleep }
+        set { settingsService.update { $0.turnAwake.preventDisplaySleep = newValue } }
+    }
+
     var autoTrustProjects: Bool {
         get { settingsService.current.autoTrustProjects }
         set { settingsService.update { $0.autoTrustProjects = newValue } }

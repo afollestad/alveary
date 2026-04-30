@@ -9,9 +9,11 @@ final class ConversationViewModel {
 
     private(set) var state: ConversationState
     private var hasActivatedViewLifecycle = false
+    var activeKeepAwakeSource: KeepAwakeActivitySource?
 
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let keepAwakeService: KeepAwakeService
     let modelContext: ModelContext
     let conversationModelID: PersistentIdentifier
     let settingsService: SettingsService
@@ -66,6 +68,7 @@ final class ConversationViewModel {
         conversation: Conversation,
         agentsManager: any AgentsManager,
         runtimeStore: any ConversationRuntimeStore,
+        keepAwakeService: KeepAwakeService,
         modelContext: ModelContext,
         settingsService: SettingsService,
         worktreeManager: WorktreeManager,
@@ -75,6 +78,7 @@ final class ConversationViewModel {
         self.conversation = conversation
         self.agentsManager = agentsManager
         self.runtimeStore = runtimeStore
+        self.keepAwakeService = keepAwakeService
         self.modelContext = modelContext
         self.conversationModelID = conversation.persistentModelID
         self.settingsService = settingsService
@@ -399,7 +403,11 @@ final class ConversationViewModel {
         self.state = state
     }
 
-    deinit {}
+    isolated deinit {
+        if let activeKeepAwakeSource {
+            keepAwakeService.setActive(false, for: activeKeepAwakeSource)
+        }
+    }
 }
 
 private extension ConversationViewModel {

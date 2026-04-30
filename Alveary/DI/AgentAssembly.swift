@@ -4,7 +4,7 @@ final class AgentAssembly: AutoInitModuleAssembly {
     typealias TargetResolver = Resolver
 
     static var dependencies: [any ModuleAssembly.Type] {
-        [DetectionAssembly.self, NotificationAssembly.self, SessionAssembly.self, SettingsAssembly.self]
+        [DetectionAssembly.self, NotificationAssembly.self, PowerAssembly.self, SessionAssembly.self, SettingsAssembly.self]
     }
 
     @MainActor
@@ -43,6 +43,7 @@ final class AgentAssembly: AutoInitModuleAssembly {
                 environmentBuilder: resolver.agentEnvironmentBuilder(),
                 providerRegistry: resolver.providerRegistry(),
                 settingsService: resolver.settingsService(),
+                keepAwakeService: resolver.keepAwakeService(),
                 notificationManager: resolver.notificationManager(),
                 claudeHookServer: resolver.claudeHookServer()
             )

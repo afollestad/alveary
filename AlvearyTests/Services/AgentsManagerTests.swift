@@ -80,6 +80,7 @@ final class AgentsManagerTests: XCTestCase {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: settings,
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: StubNotificationManager(),
             adapterFactory: { _ in adapter }
         )
@@ -131,6 +132,7 @@ final class AgentsManagerTests: XCTestCase {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: InMemorySettingsService(),
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: StubNotificationManager(),
             adapterFactory: { _ in adapter }
         )
@@ -172,6 +174,7 @@ final class AgentsManagerTests: XCTestCase {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: InMemorySettingsService(),
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: StubNotificationManager(),
             adapterFactory: { _ in adapter }
         )
@@ -213,6 +216,7 @@ final class AgentsManagerTests: XCTestCase {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: InMemorySettingsService(),
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: StubNotificationManager(),
             adapterFactory: { _ in adapter }
         )
@@ -271,6 +275,7 @@ final class AgentsManagerTests: XCTestCase {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: makeSettings(),
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: notificationManager,
             adapterFactory: { _ in
                 SlashCommandTokenAdapter(

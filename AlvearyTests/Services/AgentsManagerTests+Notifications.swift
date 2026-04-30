@@ -343,6 +343,7 @@ extension AgentsManagerTests {
             environmentBuilder: DefaultAgentEnvironmentBuilder(),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: makeSettings(),
+            keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: notificationManager,
             adapterFactory: { _ in InterruptedTokenAdapter() }
         )

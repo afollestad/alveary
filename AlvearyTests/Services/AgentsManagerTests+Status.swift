@@ -76,6 +76,10 @@ extension AgentsManagerTests {
             )
         )
 
+        try await waitUntil("expected live tool approval to show waiting status") {
+            fixture.manager.status(for: fixture.conversationId) == .waitingForUser
+        }
+
         _ = try await fixture.manager.resolveToolApproval(
             AgentToolApprovalResolutionRequest(
                 conversationId: fixture.conversationId,
@@ -107,12 +111,130 @@ extension AgentsManagerTests {
 
         XCTAssertEqual(fixture.manager.status(for: fixture.conversationId), .idle)
     }
+
+    func testToolApprovalWaitingKeepsRuntimeAwakeUntilApprovalFailureClearsIt() async throws {
+        let fixture = try makeStatusFixture(conversationId: "conversation-approval-waiting-keep-awake")
+        defer { fixture.cleanup() }
+
+        let subscription = try await fixture.start()
+        let approval = bashApprovalRequest(command: "date")
+        await fixture.manager.handleStreamEvent(
+            .toolApprovalRequested(approval),
+            conversationId: fixture.conversationId,
+            generation: subscription.generation,
+            providerId: "claude"
+        )
+
+        try await waitUntil("expected pending approval to keep Mac awake") {
+            fixture.manager.status(for: fixture.conversationId) == .waitingForUser &&
+                fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        await fixture.manager.handleStreamEvent(
+            .toolApprovalFailed(ToolApprovalFailure(
+                sessionId: approval.sessionId,
+                toolUseId: approval.toolUseId,
+                toolName: approval.toolName,
+                message: "Hook failed"
+            )),
+            conversationId: fixture.conversationId,
+            generation: subscription.generation,
+            providerId: "claude"
+        )
+
+        try await waitUntil("expected approval failure to return to busy status") {
+            fixture.manager.status(for: fixture.conversationId) == .busy
+        }
+    }
+
+    func testBusyAndWaitingStatusesKeepAwakeActiveUntilRuntimeClears() async throws {
+        let fixture = try makeStatusFixture(conversationId: "conversation-keep-awake-status")
+        defer { fixture.cleanup() }
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        try await waitUntil("expected busy runtime to keep Mac awake") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.waitingForUser, for: fixture.conversationId)
+        try await waitUntil("expected waiting runtime to keep Mac awake") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.idle, for: fixture.conversationId)
+        try await waitUntil("expected idle runtime to clear keep-awake activity") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        try await waitUntil("expected busy runtime to keep Mac awake again") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.error, for: fixture.conversationId)
+        try await waitUntil("expected error runtime to clear keep-awake activity") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        try await waitUntil("expected busy runtime to keep Mac awake before stopped status") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.stopped, for: fixture.conversationId)
+        try await waitUntil("expected stopped runtime to clear keep-awake activity") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        try await waitUntil("expected busy runtime to keep Mac awake before neutral status") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.neutral, for: fixture.conversationId)
+        try await waitUntil("expected neutral runtime to clear keep-awake activity") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        try await waitUntil("expected busy runtime to keep Mac awake before clearStatus") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.clearStatus(for: fixture.conversationId)
+        try await waitUntil("expected clearStatus to keep runtime activity clear") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+    }
+
+    func testRuntimeKeepAwakeStaysActiveForBackgroundConversation() async throws {
+        let fixture = try makeStatusFixture(conversationId: "conversation-keep-awake-status")
+        defer { fixture.cleanup() }
+        let backgroundConversationId = "conversation-keep-awake-background-status"
+
+        fixture.manager.updateStatus(.busy, for: fixture.conversationId)
+        fixture.manager.updateStatus(.busy, for: backgroundConversationId)
+        try await waitUntil("expected busy runtimes to keep Mac awake") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.updateStatus(.idle, for: fixture.conversationId)
+        try await waitUntil("expected second busy runtime to keep Mac awake") {
+            fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+
+        fixture.manager.clearStatus(for: backgroundConversationId)
+        try await waitUntil("expected final cleared runtime to release keep-awake activity") {
+            !fixture.keepAwakeService.isActive(.runtimeActivity)
+        }
+    }
 }
 
 @MainActor
 private struct AgentsManagerStatusFixture {
     let executable: TempExecutable
     let manager: DefaultAgentsManager
+    let keepAwakeService: RecordingKeepAwakeService
     let conversationId: String
     let config: AgentSpawnConfig
 
@@ -134,14 +256,17 @@ private struct AgentsManagerStatusFixture {
 private extension AgentsManagerTests {
     func makeStatusFixture(conversationId: String) throws -> AgentsManagerStatusFixture {
         let executable = try TempExecutable()
+        let keepAwakeService = RecordingKeepAwakeService()
         let manager = makeTestManager(
             settings: makeSettings(),
             providerDetection: StubProviderDetectionService(resolvedPath: executable.url.path),
+            keepAwakeService: keepAwakeService,
             adapterFactory: { _ in RecordingLaunchAdapter() }
         )
         return AgentsManagerStatusFixture(
             executable: executable,
             manager: manager,
+            keepAwakeService: keepAwakeService,
             conversationId: conversationId,
             config: hookSpawnConfig(workingDirectory: executable.workingDirectory.path)
         )

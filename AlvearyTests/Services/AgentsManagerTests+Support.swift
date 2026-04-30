@@ -14,6 +14,7 @@ func makeTestManager(
     settings: InMemorySettingsService,
     providerDetection: any ProviderDetectionService,
     sessionManager: InMemorySessionManager = InMemorySessionManager(),
+    keepAwakeService: RecordingKeepAwakeService = RecordingKeepAwakeService(),
     notificationManager: NotificationManager = StubNotificationManager(),
     claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
     adapterFactory: @escaping @Sendable (String) -> AgentAdapter
@@ -24,6 +25,7 @@ func makeTestManager(
         environmentBuilder: DefaultAgentEnvironmentBuilder(),
         providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
         settingsService: settings,
+        keepAwakeService: keepAwakeService,
         notificationManager: notificationManager,
         claudeHookServer: claudeHookServer,
         adapterFactory: adapterFactory

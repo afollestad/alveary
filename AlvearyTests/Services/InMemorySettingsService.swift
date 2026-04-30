@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @testable import Alveary
@@ -14,5 +15,6 @@ final class InMemorySettingsService: SettingsService {
     func update(_ transform: (inout AppSettings) -> Void) {
         transform(&current)
         current = current.normalized()
+        NotificationCenter.default.post(name: .appSettingsChanged, object: self)
     }
 }

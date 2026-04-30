@@ -24,6 +24,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Detection/AGENTS.md`: provider detection.
 - `Alveary/Services/Git/AGENTS.md`: worktrees and GitHub CLI.
 - `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
+- `Alveary/Services/Power/AGENTS.md`: keep-awake power assertions.
 - `Alveary/Services/Session/AGENTS.md`: session persistence.
 - `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
 - `Alveary/Services/Shell/AGENTS.md`: process execution and output draining.

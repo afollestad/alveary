@@ -51,6 +51,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var defaultThreadCleanupAction = ThreadCleanupAction.archive
     var defaultEnterBehavior = Self.defaultEnterBehavior
     var reopenLastThreadAndConversationOnLaunch = true
+    var turnAwake = TurnAwakeSettings()
     var autoTrustProjects = false
     var createWorktreeByDefault = false
     var theme = "system"
@@ -81,6 +82,7 @@ struct AppSettings: Codable, Sendable, Equatable {
 
         copy.normalizeProviderDefaults()
         copy.normalizeThreadDefaults()
+        copy.turnAwake = copy.turnAwake.normalized()
         copy.normalizeAppearanceDefaults()
         copy.normalizeLayoutDefaults()
         copy.normalizeContextManagement()
@@ -246,6 +248,7 @@ extension AppSettings {
         case defaultThreadCleanupAction
         case defaultEnterBehavior
         case reopenLastThreadAndConversationOnLaunch
+        case turnAwake
         case autoTrustProjects
         case createWorktreeByDefault
         case theme
@@ -309,6 +312,7 @@ extension AppSettings {
             Bool.self,
             forKey: .reopenLastThreadAndConversationOnLaunch
         ) ?? reopenLastThreadAndConversationOnLaunch
+        turnAwake = try container.decodeIfPresent(TurnAwakeSettings.self, forKey: .turnAwake) ?? turnAwake
         autoTrustProjects = try container.decodeIfPresent(Bool.self, forKey: .autoTrustProjects)
             ?? legacyContainer.decodeIfPresent(Bool.self, forKey: .autoTrustWorktrees)
             ?? autoTrustProjects
