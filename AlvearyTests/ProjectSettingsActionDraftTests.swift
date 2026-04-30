@@ -17,4 +17,21 @@ final class ProjectSettingsActionDraftTests: XCTestCase {
 
         XCTAssertNil(draft.resolvedAction)
     }
+
+    func testSupportedIconOptionsIncludeRequestedSymbols() {
+        let symbols = Set(ProjectSettingsActionIconOption.supported.map(\.symbolName))
+
+        XCTAssertTrue(symbols.contains("checkmark.circle"))
+        XCTAssertTrue(symbols.contains("arrow.triangle.branch"))
+        XCTAssertTrue(symbols.contains("arrow.trianglehead.branch"))
+        XCTAssertTrue(symbols.contains("icloud.and.arrow.up"))
+        XCTAssertTrue(symbols.contains("icloud.and.arrow.down"))
+        XCTAssertTrue(symbols.contains("arrow.trianglehead.2.clockwise.rotate.90.icloud"))
+    }
+
+    func testSupportedIconOptionsAreSortedByLabel() {
+        let labels = ProjectSettingsActionIconOption.supported.map(\.label)
+
+        XCTAssertEqual(labels, labels.sorted())
+    }
 }

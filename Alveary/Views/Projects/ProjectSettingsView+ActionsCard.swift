@@ -167,22 +167,27 @@ private struct ProjectSettingsActionIconRow: View {
     }
 }
 
-private struct ProjectSettingsActionIconOption: Identifiable {
+struct ProjectSettingsActionIconOption: Identifiable {
     let symbolName: String
     let label: String
 
     var id: String { symbolName }
 
     static let supported: [Self] = [
-        .init(symbolName: "terminal", label: "Terminal"),
+        .init(symbolName: "arrow.trianglehead.branch", label: "Branch"),
+        .init(symbolName: "safari", label: "Browser"),
         .init(symbolName: "hammer", label: "Build"),
         .init(symbolName: "checkmark.circle", label: "Check"),
-        .init(symbolName: "play", label: "Run"),
-        .init(symbolName: "shippingbox", label: "Package"),
-        .init(symbolName: "wand.and.stars", label: "Generate"),
+        .init(symbolName: "sparkles", label: "Custom"),
         .init(symbolName: "ladybug", label: "Debug"),
-        .init(symbolName: "safari", label: "Browser"),
-        .init(symbolName: "sparkles", label: "Custom")
+        .init(symbolName: "icloud.and.arrow.down", label: "Download"),
+        .init(symbolName: "wand.and.stars", label: "Generate"),
+        .init(symbolName: "shippingbox", label: "Package"),
+        .init(symbolName: "arrow.triangle.branch", label: "Pull Request"),
+        .init(symbolName: "play", label: "Run"),
+        .init(symbolName: "arrow.trianglehead.2.clockwise.rotate.90.icloud", label: "Sync"),
+        .init(symbolName: "terminal", label: "Terminal"),
+        .init(symbolName: "icloud.and.arrow.up", label: "Upload")
     ]
 
     static func resolved(for symbolName: String) -> Self {
