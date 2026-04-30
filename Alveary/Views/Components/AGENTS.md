@@ -27,3 +27,8 @@ General shared controls live here. Narrower scopes:
 - The left side runs the selected option; the menu only changes selection.
 - Reuse the shared chrome instead of hand-rolling an `HStack` divider and menu.
 - Keep SwiftUI `Menu` out of the chrome. The component uses AppKit `NSMenu` to avoid snapshot indicator leaks and height inflation.
+
+## Expandable Headers
+
+- Use `AppHeaderToggle` for compact expand/collapse headers that need the AppKit mouse fallback.
+- Pair `withAnimation(appExpansionAnimation)` with `.appExpansionAnimationOverride(value:)` so header toggles and surrounding lazy-list reflow share timing.

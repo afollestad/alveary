@@ -6,7 +6,7 @@ struct DiffPreviewFileHeader: View {
 
     var body: some View {
         if let collapseState {
-            TranscriptHeaderToggle(action: collapseState.onToggle) {
+            AppHeaderToggle(action: collapseState.onToggle) {
                 headerContent(collapseState: collapseState)
             }
             .help(helpText(for: collapseState))
@@ -44,7 +44,7 @@ struct DiffPreviewFileHeader: View {
                     .rotationEffect(.degrees(collapseState.isCollapsed ? 0 : 90))
                     .frame(width: 18, height: 18)
                     .accessibilityHidden(true)
-                    .animation(toolExpansionAnimation, value: collapseState.isCollapsed)
+                    .animation(appExpansionAnimation, value: collapseState.isCollapsed)
             }
         }
     }

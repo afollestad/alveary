@@ -262,7 +262,7 @@ struct TranscriptToolLeadingIcon: View {
             .rotationEffect(.degrees(rotationDegrees))
             .frame(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize, alignment: .center)
             .allowsHitTesting(false)
-            .animation(toolExpansionAnimation, value: rotationDegrees)
+            .animation(appExpansionAnimation, value: rotationDegrees)
     }
 
     private var systemName: String {

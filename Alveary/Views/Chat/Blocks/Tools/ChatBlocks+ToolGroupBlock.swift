@@ -24,12 +24,12 @@ struct ToolGroupBlock: View {
             InlineToolRow(tool: only, isExpanded: expansion, headerFrameID: headerFrameID)
         } else {
             let toggleExpansion = {
-                withAnimation(toolExpansionAnimation) {
+                withAnimation(appExpansionAnimation) {
                     expansion.wrappedValue.toggle()
                 }
             }
             VStack(alignment: .leading, spacing: 0) {
-                TranscriptHeaderToggle(action: toggleExpansion) {
+                AppHeaderToggle(action: toggleExpansion) {
                     TranscriptDisclosureHeaderRow(
                         summary: summary,
                         isExpanded: expansion.wrappedValue,
@@ -45,8 +45,8 @@ struct ToolGroupBlock: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .toolAnimationOverride(value: tools)
-            .toolAnimationOverride(value: expansion.wrappedValue)
+            .appExpansionAnimationOverride(value: tools)
+            .appExpansionAnimationOverride(value: expansion.wrappedValue)
         }
     }
 

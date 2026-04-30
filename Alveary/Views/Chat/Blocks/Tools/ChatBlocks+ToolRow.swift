@@ -51,12 +51,12 @@ struct InlineToolRow: View {
             // animation to the surrounding layout (the expanded `ToolGroupBlock`
             // list or a `SubAgentBlock`) so nested sibling rows reflow in step
             // with this row's expansion instead of snapping.
-            withAnimation(toolExpansionAnimation) {
+            withAnimation(appExpansionAnimation) {
                 expansion.wrappedValue.toggle()
             }
         }
         VStack(alignment: .leading, spacing: 0) {
-            TranscriptHeaderToggle(action: toggleExpansion) {
+            AppHeaderToggle(action: toggleExpansion) {
                 ToolHeaderRow(
                     tool: tool,
                     isExpanded: expansion.wrappedValue,
@@ -77,7 +77,7 @@ struct InlineToolRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .toolAnimationOverride(value: expansion.wrappedValue)
+        .appExpansionAnimationOverride(value: expansion.wrappedValue)
     }
 
     private var expansionBinding: Binding<Bool> {

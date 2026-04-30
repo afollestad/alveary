@@ -119,7 +119,7 @@ struct ToolApprovalBlock: View {
                 actionButtons(enableMatchedGeometry: false)
             }
         }
-        .animation(toolExpansionAnimation, value: actionAnimationID)
+        .animation(appExpansionAnimation, value: actionAnimationID)
     }
 
     @ViewBuilder

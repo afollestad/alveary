@@ -1,17 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// Mouse target for compact transcript controls that sit beside selectable or
-/// animated content. AppKit owns the actual mouse hit after SwiftUI lays out the
-/// tiny overlay, while the surrounding SwiftUI `Button` remains in place for
-/// keyboard and accessibility activation.
-struct TranscriptMouseTarget: NSViewRepresentable {
-    let activation: TranscriptMouseActivationCoordinator
+/// Mouse target for compact controls that sit beside selectable or animated
+/// content. AppKit owns the actual mouse hit after SwiftUI lays out the tiny
+/// overlay, while the surrounding SwiftUI `Button` remains in place for keyboard
+/// and accessibility activation.
+struct AppMouseTarget: NSViewRepresentable {
+    let activation: AppMouseActivationCoordinator
     let action: () -> Void
     let pressedChanged: (Bool) -> Void
 
     init(
-        activation: TranscriptMouseActivationCoordinator,
+        activation: AppMouseActivationCoordinator,
         action: @escaping () -> Void,
         pressedChanged: @escaping (Bool) -> Void
     ) {
@@ -20,27 +20,27 @@ struct TranscriptMouseTarget: NSViewRepresentable {
         self.pressedChanged = pressedChanged
     }
 
-    func makeNSView(context: Context) -> TranscriptMouseTargetView {
-        let view = TranscriptMouseTargetView()
+    func makeNSView(context: Context) -> AppMouseTargetView {
+        let view = AppMouseTargetView()
         view.activation = activation
         view.action = action
         view.pressedChanged = pressedChanged
         return view
     }
 
-    func updateNSView(_ nsView: TranscriptMouseTargetView, context: Context) {
+    func updateNSView(_ nsView: AppMouseTargetView, context: Context) {
         nsView.activation = activation
         nsView.action = action
         nsView.pressedChanged = pressedChanged
     }
 
-    static func dismantleNSView(_ nsView: TranscriptMouseTargetView, coordinator: ()) {
+    static func dismantleNSView(_ nsView: AppMouseTargetView, coordinator: ()) {
         nsView.dismantle()
     }
 }
 
-final class TranscriptMouseTargetView: NSView {
-    var activation: TranscriptMouseActivationCoordinator?
+final class AppMouseTargetView: NSView {
+    var activation: AppMouseActivationCoordinator?
     var action: (() -> Void)?
     var pressedChanged: ((Bool) -> Void)?
     private var eventMonitor: Any?
@@ -183,7 +183,7 @@ final class TranscriptMouseTargetView: NSView {
     }
 }
 
-final class TranscriptMouseActivationCoordinator {
+final class AppMouseActivationCoordinator {
     private(set) var activationCount = 0
 
     func markActivation() {

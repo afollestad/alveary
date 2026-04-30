@@ -15,7 +15,6 @@ let approvalCommandChipVPadding: CGFloat = 1
 let toolApprovalSummaryTopSpacing: CGFloat = 8
 let toolApprovalActionsTopSpacing: CGFloat = 12
 let transcriptToolStatusSpinnerScale: CGFloat = 0.72
-let transcriptToolPressedOpacity = 0.78
 let transcriptToolRowVerticalPadding: CGFloat = 4
 let transcriptToolExpandedContentTopSpacing: CGFloat = 8
 let toolExpandedContentBottomSpacing: CGFloat = 8
@@ -35,13 +34,9 @@ let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
 let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
 let transcriptBubbleCompactTrailingInset: CGFloat = 24
 
-/// Shared expand/collapse easing for tool bubbles. Centralized here so all bubbles
-/// ease at the same speed and a future tuning happens in one place.
-let toolExpansionAnimationDuration: TimeInterval = 0.22
 let transcriptExpandedHeaderRevealInset: CGFloat = 8
 let expandedHeaderRevealLayoutDelay: TimeInterval = 0.04
 let expandedHeaderRevealScrollTimeout: TimeInterval = 0.25
-let toolExpansionAnimation: Animation = .easeInOut(duration: toolExpansionAnimationDuration)
 let transcriptScrollCoordinateSpace = "TranscriptScrollCoordinateSpace"
 
 /// Wide transcripts look better when inbound bubbles stop around two-thirds of the
@@ -84,16 +79,6 @@ extension View {
                 .fill(Color.secondary.opacity(0.08))
         )
         .frame(maxWidth: maxWidth, alignment: .leading)
-    }
-
-    /// Pins tool-row subtree reflow to the shared expansion easing for a specific
-    /// value change. The per-toggle `withAnimation(toolExpansionAnimation)` drives
-    /// the surrounding `LazyVStack`; this keeps the row's own inserted details and
-    /// status/list changes on the same timing.
-    func toolAnimationOverride<Value: Equatable>(value: Value) -> some View {
-        transaction(value: value) { transaction in
-            transaction.animation = toolExpansionAnimation
-        }
     }
 
     @ViewBuilder

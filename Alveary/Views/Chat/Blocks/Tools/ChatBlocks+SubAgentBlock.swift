@@ -22,12 +22,12 @@ struct SubAgentBlock: View {
     var body: some View {
         let expansion = expansionBinding
         let toggleExpansion = {
-            withAnimation(toolExpansionAnimation) {
+            withAnimation(appExpansionAnimation) {
                 expansion.wrappedValue.toggle()
             }
         }
         VStack(alignment: .leading, spacing: 0) {
-            TranscriptHeaderToggle(action: toggleExpansion) {
+            AppHeaderToggle(action: toggleExpansion) {
                 TranscriptDisclosureHeaderRow(
                     summary: headerSummary,
                     isExpanded: expansion.wrappedValue,
@@ -42,7 +42,7 @@ struct SubAgentBlock: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .toolAnimationOverride(value: expansion.wrappedValue)
+        .appExpansionAnimationOverride(value: expansion.wrappedValue)
     }
 
     private var expansionBinding: Binding<Bool> {
@@ -89,12 +89,12 @@ private struct SubAgentInlineRow: View {
     var body: some View {
         let headerBottomPadding = isExpanded ? 0 : transcriptToolRowVerticalPadding
         let toggleExpansion = {
-            withAnimation(toolExpansionAnimation) {
+            withAnimation(appExpansionAnimation) {
                 isExpanded.toggle()
             }
         }
         VStack(alignment: .leading, spacing: 0) {
-            TranscriptHeaderToggle(action: toggleExpansion) {
+            AppHeaderToggle(action: toggleExpansion) {
                 TranscriptDisclosureHeaderRow(
                     summary: agent.description,
                     isExpanded: isExpanded,
@@ -121,7 +121,7 @@ private struct SubAgentInlineRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .toolAnimationOverride(value: isExpanded)
+        .appExpansionAnimationOverride(value: isExpanded)
     }
 }
 

@@ -158,11 +158,11 @@ private struct LongTextBubbleContent<Content: View>: View {
             // Rebuild the text subtree when the cap toggles so selectable runs and
             // task controls inherit the current clipped layout.
             .id(isCollapsed)
-            .animation(toolExpansionAnimation, value: isCollapsed)
+            .animation(appExpansionAnimation, value: isCollapsed)
     }
 
     private var expansionToggle: some View {
-        TranscriptHeaderToggle(fillsWidth: false, action: toggleExpansion) {
+        AppHeaderToggle(fillsWidth: false, action: toggleExpansion) {
             Label(isExpanded ? "Show less" : "Show more", systemImage: isExpanded ? "chevron.up" : "chevron.down")
                 .frame(minHeight: longBubbleToggleMinHeight, alignment: .center)
         }
@@ -173,7 +173,7 @@ private struct LongTextBubbleContent<Content: View>: View {
 
     private func toggleExpansion() {
         let newValue = !isExpanded
-        withAnimation(toolExpansionAnimation) {
+        withAnimation(appExpansionAnimation) {
             isExpanded = newValue
         }
     }

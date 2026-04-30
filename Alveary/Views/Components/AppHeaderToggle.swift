@@ -1,10 +1,10 @@
 import SwiftUI
 
-struct TranscriptHeaderToggle<Label: View>: View {
+struct AppHeaderToggle<Label: View>: View {
     let action: () -> Void
     let label: Label
     let fillsWidth: Bool
-    @State private var mouseActivation = TranscriptMouseActivationCoordinator()
+    @State private var mouseActivation = AppMouseActivationCoordinator()
     @State private var isPressed = false
 
     init(
@@ -20,14 +20,14 @@ struct TranscriptHeaderToggle<Label: View>: View {
     var body: some View {
         Button(action: performAction) {
             label
-                .opacity(isPressed ? transcriptToolPressedOpacity : 1)
+                .opacity(isPressed ? appHeaderTogglePressedOpacity : 1)
                 .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
         .overlay {
-            TranscriptMouseTarget(
+            AppMouseTarget(
                 activation: mouseActivation,
                 action: performAction,
                 pressedChanged: { isPressed = $0 }

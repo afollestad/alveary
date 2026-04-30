@@ -99,6 +99,7 @@ struct FlattenedDiffPreview: View {
                     )
                 }
             }
+            .appExpansionAnimationOverride(value: collapsedFileIDs)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .textSelection(.enabled)
         }
@@ -190,7 +191,7 @@ private extension DiffLine.LineType {
 }
 
 private enum FlattenedDiffPreviewRows {
-    private static let fileHeaderTopPadding: CGFloat = 8
+    private static let expandedFileBottomPadding: CGFloat = 12
 
     static func makeRows(
         files: [DiffFile],
@@ -241,7 +242,7 @@ private enum FlattenedDiffPreviewRows {
                         id: "file-\(fileIndex)-header",
                         fileID: fileID,
                         file: file,
-                        topPadding: fileIndex == 0 ? 0 : Self.fileHeaderTopPadding
+                        topPadding: 0
                     )
                 )
             }
@@ -267,6 +268,9 @@ private enum FlattenedDiffPreviewRows {
                 rows.append(.emptyCallout(id: "file-\(fileIndex)-empty", isRenamed: file.isRenamed))
             } else {
                 rows.append(contentsOf: try hunkRows(for: file, fileIndex: fileIndex, checksCancellation: checksCancellation))
+            }
+            if showsFileHeaders {
+                rows.append(.fileContentSpacer(id: "file-\(fileIndex)-bottom-spacer", height: Self.expandedFileBottomPadding))
             }
 
             allRows.append(contentsOf: rows)
@@ -357,6 +361,7 @@ private enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     case hunkHeader(id: String, hunk: DiffHunk, topPadding: CGFloat)
     case line(id: String, line: DiffLine, gutterLayout: DiffGutterLayout, isLastInHunk: Bool, bottomPadding: CGFloat)
     case collapsed(id: String, summary: CollapsedContextSummary, gutterLayout: DiffGutterLayout, isLastInHunk: Bool, bottomPadding: CGFloat)
+    case fileContentSpacer(id: String, height: CGFloat)
 
     var id: String {
         switch self {
@@ -366,7 +371,8 @@ private enum FlattenedDiffPreviewRow: Identifiable, Sendable {
              .emptyCallout(let id, _),
              .hunkHeader(let id, _, _),
              .line(let id, _, _, _, _),
-             .collapsed(let id, _, _, _, _):
+             .collapsed(let id, _, _, _, _),
+             .fileContentSpacer(let id, _):
             return id
         }
     }
@@ -388,6 +394,7 @@ private struct FlattenedDiffPreviewRenderRow: View {
             )
                 .padding(.top, topPadding)
                 .padding(.bottom, collapseState?.isCollapsed == true ? 4 : 10)
+                .zIndex(1)
         case .renameSummary(_, let oldPath, let newPath):
             DiffPreviewRenameSummary(oldPath: oldPath, newPath: newPath)
                 .padding(.bottom, 14)
@@ -414,6 +421,9 @@ private struct FlattenedDiffPreviewRenderRow: View {
         case .collapsed(_, let summary, let gutterLayout, let isLastInHunk, let bottomPadding):
             DiffCollapsedContextRow(summary: summary, gutterLayout: gutterLayout)
                 .diffPreviewFlattenedHunkRow(isLastInHunk: isLastInHunk, bottomPadding: bottomPadding)
+        case .fileContentSpacer(_, let height):
+            Color.clear
+                .frame(height: height)
         }
     }
 
@@ -425,7 +435,7 @@ private struct FlattenedDiffPreviewRenderRow: View {
         return DiffPreviewFileHeaderCollapseState(
             isCollapsed: collapsedFileIDs.contains(fileID),
             onToggle: {
-                withAnimation(toolExpansionAnimation) {
+                withAnimation(appExpansionAnimation) {
                     onToggleFileCollapse(fileID)
                 }
             }

@@ -25,7 +25,7 @@ extension ChatTranscriptView {
         pendingExpandedHeaderRevealToken = token
 
         DispatchQueue.main.asyncAfter(
-            deadline: .now() + toolExpansionAnimationDuration + expandedHeaderRevealLayoutDelay
+            deadline: .now() + appExpansionAnimationDuration + expandedHeaderRevealLayoutDelay
         ) {
             guard pendingExpandedHeaderRevealID == rowID,
                   pendingExpandedHeaderRevealToken == token else {

@@ -8,7 +8,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Use `ToolHeaderRow` and `TranscriptDisclosureHeaderRow`: fixed leading slot, summary text column, fixed status slot.
 - Keep slots near glyph size so rows do not grow wider or taller than needed.
 - Bash rows use `dollarsign`; generic tools, groups, and sub-agents use a disclosure chevron; static approval headers use `lock.fill`.
-- Rotate one `chevron.right` with `toolExpansionAnimation`; do not swap static chevrons.
+- Rotate one `chevron.right` with `appExpansionAnimation`; do not swap static chevrons.
 - Keep `ToolStatusIndicator` inside the fixed status frame.
 - Use `ProgressView()`, green `checkmark`, or red `xmark`; do not tint summary text red.
 - Keep row padding in `TranscriptToolHeaderContent`.
@@ -20,11 +20,10 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 
 ## Toggle And Expansion State
 
-- Expand/collapse headers use `TranscriptHeaderToggle`.
+- Expand/collapse headers use `AppHeaderToggle`.
 - Keep the plain SwiftUI `Button` path for keyboard and accessibility activation.
-- `TranscriptMouseTarget` should catch mouse hits only inside the control it overlays.
-- Its AppKit local-monitor fallback is secondary to the SwiftUI button and exists for stale lazy-list hit regions after animated height changes; do not replace it with scroll-view-wide dispatch.
-- Keep pressed feedback routed through `TranscriptHeaderToggle`.
+- `AppMouseTarget` should catch mouse hits only inside the control it overlays. Its AppKit local-monitor fallback is secondary to the SwiftUI button and exists for stale lazy-list hit regions after animated height changes.
+- Keep pressed feedback routed through `AppHeaderToggle`.
 - Do not move row toggling to scroll-view hit dispatch or bubble-wide gestures.
 - Expanded `ToolDetails` stays as a sibling below the header so output selection and horizontal scrolling still work.
 - `ChatTranscriptView` owns top-level expansion bindings keyed by `ChatItem.id`.
