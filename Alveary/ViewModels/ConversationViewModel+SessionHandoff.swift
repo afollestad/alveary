@@ -43,7 +43,7 @@ extension ConversationViewModel {
                 state.respawnAttempts = 0
             }
 
-            try await agentsManager.sendMessage(settingsService.current.sessionHandoffPrompt, conversationId: conversation.id)
+            try await agentsManager.sendMessage(makeHiddenSessionHandoffPrompt(), conversationId: conversation.id)
             state.turnState.beginTurn()
         } catch {
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
@@ -167,7 +167,7 @@ extension ConversationViewModel {
         let retryableMessageCount = state.retryableFailedMessageIDs.count
         do {
             try await withOutboundReservation {
-                try await deliverMessageReserved(output)
+                try await deliverMessageReserved(makeSessionHandoffOutgoingMessage(output: output))
             }
         } catch {
             if state.retryableFailedMessageIDs.count == retryableMessageCount {
@@ -214,6 +214,22 @@ private extension ConversationViewModel {
             return false
         }
         return true
+    }
+
+    func makeHiddenSessionHandoffPrompt() -> String {
+        SessionHandoffPromptBuilder.hiddenPrompt(
+            configuredPrompt: settingsService.current.sessionHandoffPrompt,
+            steeringPrompt: nil,
+            isSteeringEnabled: settingsService.current.handoffSteeringEnabled
+        )
+    }
+
+    func makeSessionHandoffOutgoingMessage(output: String) -> String {
+        SessionHandoffPromptBuilder.outgoingMessage(
+            handoffOutput: output,
+            steeringPrompt: nil,
+            isSteeringEnabled: settingsService.current.handoffSteeringEnabled
+        )
     }
 
     func handleHiddenSessionHandoffTokens(_ payload: TokenEventPayload) {
