@@ -33,6 +33,7 @@ final class DiffViewerViewModel {
     var selectedCommitDiffLoadState: DiffWorkspaceLoadState = .idle
     var selectedCommitDiffErrorMessage: String?
     private(set) var workspaceRefreshRevision: UInt64 = 0
+    var pendingCommitReloadTarget: DiffWorkspaceTarget?
 
     var isLoadingCommits: Bool { commitsLoadState == .loading }
     var isLoadingSelectedCommitDiff: Bool { selectedCommitDiffLoadState == .loading }

@@ -239,12 +239,11 @@ final class DiffWorkspaceStore {
 
     func isCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) -> Bool { isCurrent(target: snapshot.target, generation: snapshot.generation) }
     func waitForStatsForTesting() async {
-        guard let task = inFlightStatsLoad?.task else {
-            return
-        }
+        guard let statsLoad = inFlightStatsLoad else { return }
 
-        _ = try? await task.value
-        await Task.yield()
+        _ = try? await statsLoad.task.value
+        // Stats publish from a follow-up main-actor task after the service task resolves.
+        for _ in 0..<100 where inFlightStatsLoad?.id == statsLoad.id { await Task.yield() }
     }
 
     func waitForLoadingIndicatorsForTesting() async {

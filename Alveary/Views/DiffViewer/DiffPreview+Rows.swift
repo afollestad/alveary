@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct CollapsedContextSummary {
+struct CollapsedContextSummary: Sendable {
     let lineCount: Int
     let oldStart: Int?
     let oldEnd: Int?
@@ -29,7 +29,7 @@ struct CollapsedContextSummary {
     }
 }
 
-struct DiffGutterLayout {
+struct DiffGutterLayout: Sendable {
     let showsOldLineNumbers: Bool
     let showsNewLineNumbers: Bool
     let lineNumberWidth: CGFloat

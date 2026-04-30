@@ -93,36 +93,45 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
     }
 
     private func readBoundedOutput(from handle: FileHandle, maxBytes: Int?) async -> (Data, Bool) {
-        defer {
-            try? handle.close()
-        }
+        // Drain pipes on a detached task so children with output larger than the pipe buffer
+        // can keep writing while the caller waits for process exit.
+        await Task.detached(priority: .utility) {
+            defer {
+                try? handle.close()
+            }
 
-        var captured = Data()
-        var wasTruncated = false
+            var captured = Data()
+            var wasTruncated = false
 
-        do {
-            // `FileHandle.AsyncBytes` can raise an Objective-C exception if the handle is closed
-            // while iteration is starting or in flight, so cancellation relies on terminating the
-            // child process and letting the pipe drain to EOF instead of closing the read end.
-            for try await byte in handle.bytes {
-                guard let maxBytes else {
-                    captured.append(byte)
-                    continue
+            do {
+                while true {
+                    let chunk = try handle.read(upToCount: 64 * 1024) ?? Data()
+                    guard !chunk.isEmpty else {
+                        break
+                    }
+
+                    guard let maxBytes else {
+                        captured.append(chunk)
+                        continue
+                    }
+
+                    let remainingByteCount = maxBytes - captured.count
+                    if remainingByteCount > 0 {
+                        captured.append(contentsOf: chunk.prefix(remainingByteCount))
+                    }
+
+                    if chunk.count > remainingByteCount {
+                        wasTruncated = true
+                    }
                 }
-
-                if captured.count < maxBytes {
-                    captured.append(byte)
-                } else {
-                    wasTruncated = true
+            } catch {
+                if !Task.isCancelled {
+                    print("[ShellRunner] Failed to read process output: \(error)")
                 }
             }
-        } catch {
-            if !Task.isCancelled {
-                print("[ShellRunner] Failed to read process output: \(error)")
-            }
-        }
 
-        return (captured, wasTruncated)
+            return (captured, wasTruncated)
+        }.value
     }
 }
 

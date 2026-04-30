@@ -26,6 +26,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
 - `Alveary/Services/Session/AGENTS.md`: session persistence.
 - `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
+- `Alveary/Services/Shell/AGENTS.md`: process execution and output draining.
 - `Alveary/Services/Terminal/AGENTS.md`: terminal session state and pruning.
 - `Alveary/ViewModels/AGENTS.md`: view-model coordination.
 - `Alveary/ViewModels/DiffViewer/AGENTS.md`: diff viewer coordination and workspace state.

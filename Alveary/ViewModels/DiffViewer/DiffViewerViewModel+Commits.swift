@@ -1,18 +1,30 @@
 import Foundation
 
+struct CommitListResultContext {
+    let target: DiffWorkspaceTarget
+    let generation: UInt64
+    let loadID: UUID
+    let preferredCommitHash: String?
+    let preservesSelectedDiff: Bool
+}
+
 @MainActor
 extension DiffViewerViewModel {
-    func loadAheadCommits(for target: DiffWorkspaceTarget) async {
+    func loadAheadCommits(for target: DiffWorkspaceTarget, preservesSelectedDiff: Bool = false) async {
+        guard inFlightCommitListLoad == nil,
+              inFlightCommitDiffLoad == nil else {
+            // Workspace refreshes can arrive while a commit diff is loading; coalesce
+            // them so the visible diff task can publish instead of being restarted.
+            pendingCommitReloadTarget = target
+            return
+        }
+
         commitGeneration &+= 1
         let generation = commitGeneration
         cancelCommitLoads()
-        commitsLoadState = .loading
-        selectedCommitDiffLoadState = .idle
-        aheadCommits = []
-        selectedCommit = nil
-        commitDiffFiles = []
-        rawCommitDiffContent = ""
-        selectedCommitDiffErrorMessage = nil
+        pendingCommitReloadTarget = nil
+        let preferredCommitHash = selectedCommit?.hash
+        beginCommitListLoad(preservesSelectedDiff: preservesSelectedDiff)
 
         let gitService = gitService
         let task = Task.detached(priority: .userInitiated) {
@@ -27,24 +39,31 @@ extension DiffViewerViewModel {
 
         do {
             let commits = try await task.value
-            guard matchesCurrentCommitLoad(target: target, generation: generation, listLoadID: loadID) else {
-                return
-            }
-
-            aheadCommits = commits
-            commitsLoadState = .loaded
-            inFlightCommitListLoad = nil
-            if let firstCommit = commits.first {
-                await loadCommitDiff(for: firstCommit, target: target)
-            }
+            await applyCommitListResult(
+                commits,
+                context: CommitListResultContext(
+                    target: target,
+                    generation: generation,
+                    loadID: loadID,
+                    preferredCommitHash: preferredCommitHash,
+                    preservesSelectedDiff: preservesSelectedDiff
+                )
+            )
+            await runPendingCommitReloadIfNeeded(after: target)
         } catch is CancellationError {
             finishCommitListLoadIfCurrent(target: target, generation: generation, loadID: loadID, state: .idle)
+            await runPendingCommitReloadIfNeeded(after: target)
         } catch {
             applyCommitListError(error, target: target, generation: generation, loadID: loadID)
+            await runPendingCommitReloadIfNeeded(after: target)
         }
     }
 
-    func loadCommitDiff(for commit: CommitInfo, target: DiffWorkspaceTarget) async {
+    func loadCommitDiff(
+        for commit: CommitInfo,
+        target: DiffWorkspaceTarget,
+        processesPendingReload: Bool = true
+    ) async {
         commitGeneration &+= 1
         let generation = commitGeneration
         cancelCommitDiffLoad()
@@ -66,11 +85,16 @@ extension DiffViewerViewModel {
         } catch {
             applyCommitDiffError(error, commit: commit, target: target, generation: generation, loadID: loadID)
         }
+
+        if processesPendingReload {
+            await runPendingCommitReloadIfNeeded(after: target)
+        }
     }
 
     func clearCommitState() {
         commitGeneration &+= 1
         cancelCommitLoads()
+        pendingCommitReloadTarget = nil
         aheadCommits = []
         selectedCommit = nil
         commitDiffFiles = []
@@ -80,15 +104,73 @@ extension DiffViewerViewModel {
         selectedCommitDiffLoadState = .idle
     }
 
+    func beginCommitListLoad(preservesSelectedDiff: Bool) {
+        commitsLoadState = .loading
+        aheadCommits = []
+        if !preservesSelectedDiff {
+            selectedCommitDiffLoadState = .idle
+            selectedCommit = nil
+            commitDiffFiles = []
+            rawCommitDiffContent = ""
+            selectedCommitDiffErrorMessage = nil
+        }
+    }
+
+    func applyCommitListResult(
+        _ commits: [CommitInfo],
+        context: CommitListResultContext
+    ) async {
+        guard matchesCurrentCommitLoad(target: context.target, generation: context.generation, listLoadID: context.loadID) else {
+            return
+        }
+
+        aheadCommits = commits
+        commitsLoadState = .loaded
+        inFlightCommitListLoad = nil
+        guard let commitToLoad = commits.first(where: { $0.hash == context.preferredCommitHash }) ?? commits.first else {
+            clearSelectedCommitDiffState()
+            return
+        }
+
+        if context.preservesSelectedDiff,
+           selectedCommit?.hash == commitToLoad.hash,
+           selectedCommitDiffLoadState == .loaded {
+            selectedCommit = commitToLoad
+        } else {
+            await loadCommitDiff(for: commitToLoad, target: context.target, processesPendingReload: false)
+        }
+    }
+
     func cancelCommitLoads() {
         inFlightCommitListLoad?.task.cancel()
         inFlightCommitListLoad = nil
         cancelCommitDiffLoad()
     }
 
+    func runPendingCommitReloadIfNeeded(after target: DiffWorkspaceTarget) async {
+        guard let pendingTarget = pendingCommitReloadTarget,
+              pendingTarget == target,
+              diffStore.activeTarget == target,
+              inFlightCommitListLoad == nil,
+              inFlightCommitDiffLoad == nil else {
+            return
+        }
+
+        pendingCommitReloadTarget = nil
+        await loadAheadCommits(for: pendingTarget, preservesSelectedDiff: true)
+    }
+
     func cancelCommitDiffLoad() {
         inFlightCommitDiffLoad?.task.cancel()
         inFlightCommitDiffLoad = nil
+    }
+
+    func clearSelectedCommitDiffState() {
+        selectedCommit = nil
+        commitDiffFiles = []
+        rawCommitDiffContent = ""
+        selectedCommitDiffErrorMessage = nil
+        selectedCommitDiffLoadState = .idle
     }
 
     func matchesCurrentCommitLoad(

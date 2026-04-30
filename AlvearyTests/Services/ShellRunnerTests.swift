@@ -47,6 +47,21 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertTrue(result.stderrWasTruncated)
     }
 
+    func testBoundedOutputDrainsStdoutBeyondPipeCapacity() async throws {
+        let runner = DefaultShellRunner()
+
+        let result = try await runner.run(
+            executable: "/usr/bin/perl",
+            args: ["-e", "print 'A' x 200000;"],
+            timeout: .seconds(5),
+            stdoutLimitBytes: 4096
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdout.count, 4096)
+        XCTAssertTrue(result.stdoutWasTruncated)
+    }
+
     func testTimeoutTerminatesLongRunningProcess() async throws {
         let runner = DefaultShellRunner()
         let clock = ContinuousClock()
