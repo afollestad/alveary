@@ -3,6 +3,8 @@
 These instructions apply to Diff Viewer coordination and state under `Alveary/ViewModels/DiffViewer/`.
 
 - `DiffViewerViewModel` coordinates routing, watchers, contextual actions, and store delegation. Keep durable Git-backed file/stat/diff state in `DiffWorkspaceStore`.
+    - **Own commit mode state here.** Ahead commits, selected commit, parsed commit diffs, raw fallback text, and commit load/error state belong on `DiffViewerViewModel`, not in SwiftUI views.
+    - **Guard commit async publishes.** Commit-list and commit-diff tasks must check the current target plus a generation/load id before publishing so stale work cannot update a newer project, worktree, or selected commit.
 - `DiffWorkspaceStore` is the single source of truth for Diff Viewer files, stats, selected diff content, loading state, and per-project/worktree stats caching.
     - **Preserve visible-state clearing.** Target switches must clear visible files, selected diff, and toolbar stats immediately without deleting cached stats for other targets.
     - **Guard async publishes.** Status, stats, and selected-diff tasks must check target/load generation or IDs before publishing so stale work cannot update a newer selection.

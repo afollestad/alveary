@@ -25,10 +25,19 @@ final class DiffViewerViewModel {
     var gitError: String? { diffStore.gitError }
     var activeDirectory: String? { diffStore.activeDirectory }
     var isGitRepository: Bool { diffStore.isGitRepository }
+    var aheadCommits: [CommitInfo] = []
+    var selectedCommit: CommitInfo?
+    var commitDiffFiles: [DiffFile] = []
+    var rawCommitDiffContent = ""
+    var commitsLoadState: DiffWorkspaceLoadState = .idle
+    var selectedCommitDiffLoadState: DiffWorkspaceLoadState = .idle
+
+    var isLoadingCommits: Bool { commitsLoadState == .loading }
+    var isLoadingSelectedCommitDiff: Bool { selectedCommitDiffLoadState == .loading }
 
     private var activeConversationIds: Set<String> = []
-    private let gitService: GitService
-    private let diffStore: DiffWorkspaceStore
+    let gitService: GitService
+    let diffStore: DiffWorkspaceStore
     private let fileListManager: FileListManager
     private let agentsManager: any AgentsManager
     private let contextualActionResolver: DiffViewerContextualActionResolver
@@ -62,6 +71,9 @@ final class DiffViewerViewModel {
         }
     )
     private var watchingEnabled = false
+    var commitGeneration: UInt64 = 0
+    var inFlightCommitListLoad: (id: UUID, task: Task<[CommitInfo], Error>)?
+    var inFlightCommitDiffLoad: (id: UUID, task: Task<DiffViewerCommitDiffLoadResult, Error>)?
     private var agentStatusObserver: NSObjectProtocol?
     private var appActiveObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
@@ -171,6 +183,7 @@ final class DiffViewerViewModel {
         watchController.stopWatching()
         _ = diffStore.switchToTarget(target.workspaceTarget)
         contextualAction = .none
+        clearCommitState()
 
         contextualActionResolver.invalidatePRCache()
         refreshScheduler.clearPending()
@@ -202,6 +215,7 @@ final class DiffViewerViewModel {
         activeConversationIds = []
         diffStore.clear()
         contextualAction = .none
+        clearCommitState()
         refreshScheduler.clearPending()
         contextualActionResolver.invalidatePRCache()
     }
@@ -232,14 +246,6 @@ final class DiffViewerViewModel {
         )
     }
 
-    func forceRefreshActiveDiff() async {
-        guard let activeDirectory else {
-            return
-        }
-
-        await refreshAndInvalidateFileList(in: activeDirectory, reason: .manual)
-    }
-
     func selectFile(
         _ file: FileStatus,
         in directory: String,
@@ -258,6 +264,24 @@ final class DiffViewerViewModel {
 
     func loadSelectedFileDiff(_ preparedSelection: DiffViewerPreparedFileSelection) async {
         await diffStore.loadSelectedFileDiff(preparedSelection)
+    }
+
+    func loadAheadCommitsForActiveTarget() async {
+        guard let target = diffStore.activeTarget else {
+            clearCommitState()
+            return
+        }
+
+        await loadAheadCommits(for: target)
+    }
+
+    func selectCommit(_ commit: CommitInfo) async {
+        guard let target = diffStore.activeTarget else {
+            clearCommitState()
+            return
+        }
+
+        await loadCommitDiff(for: commit, target: target)
     }
 
     func isFileSelected(_ file: FileStatus) -> Bool {
@@ -323,6 +347,7 @@ final class DiffViewerViewModel {
         }
 
         watchController.stopWatching()
+        cancelCommitLoads()
     }
 
     func handleFSEventsForTesting(changedPaths: Set<String>) {
@@ -369,4 +394,5 @@ private extension DiffViewerViewModel {
         contextualAction = action
         await diffStore.refreshSelectedDiffIfNeeded(snapshot: snapshot, reason: request.reason)
     }
+
 }

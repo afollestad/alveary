@@ -32,6 +32,7 @@ struct ContentView: View {
     @State var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
     @State private var diffViewerTopSectionFraction: CGFloat
+    @State private var diffViewerMode: DiffViewerMode
     @State private var terminalPaneHeight: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
@@ -71,6 +72,7 @@ struct ContentView: View {
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
         _diffViewerWidth = State(initialValue: CGFloat(settings.diffViewerWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
+        _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
         _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies))
         _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
@@ -164,6 +166,8 @@ struct ContentView: View {
                             DiffViewerPane(
                                 viewModel: diffViewModel,
                                 areAgentActionsEnabled: activeDiffActionTarget() != nil,
+                                mode: $diffViewerMode,
+                                onModeCommit: persistDiffViewerMode,
                                 topSectionFraction: $diffViewerTopSectionFraction,
                                 onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
                                 onCommitRequested: requestAgentCommit,
@@ -444,7 +448,11 @@ private extension ContentView {
     }
 
     var diffViewerToolbarDisplayState: DiffViewerToolbarDisplayState {
-        diffViewModel.isDiffToolbarLoading ? .loading : .idle(diffViewModel.diffStats)
+        Self.diffViewerToolbarDisplayState(
+            stats: diffViewModel.diffStats,
+            isLoading: diffViewModel.isDiffToolbarLoading,
+            paneMode: diffViewerMode
+        )
     }
 
     func effectiveDiffViewerWidth(availableWidth: CGFloat) -> CGFloat {
@@ -453,6 +461,22 @@ private extension ContentView {
 
     func effectiveDiffViewerBounds(availableWidth: CGFloat) -> ClosedRange<Double> {
         ContentDiffViewerWidthPolicy.bounds(availableWidth: availableWidth)
+    }
+}
+
+extension ContentView {
+    static func diffViewerToolbarDisplayState(
+        stats: DiffStats,
+        isLoading: Bool,
+        paneMode _: DiffViewerMode
+    ) -> DiffViewerToolbarDisplayState {
+        // The global toolbar always summarizes working-tree changes; pane mode only affects
+        // the right-pane content so switching to commit inspection cannot change this source.
+        if isLoading {
+            return .loading
+        }
+
+        return .idle(stats)
     }
 }
 

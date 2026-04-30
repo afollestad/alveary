@@ -27,6 +27,18 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertTrue(dependencies.modelContainer.mainContext === resolver.modelContainer().mainContext)
     }
 
+    func testDiffToolbarStateUsesWorkingTreeStatsWhenPaneModeIsCommits() {
+        let stats = DiffStats(additions: 9, deletions: 3)
+
+        let displayState = ContentView.diffViewerToolbarDisplayState(
+            stats: stats,
+            isLoading: false,
+            paneMode: .commits
+        )
+
+        XCTAssertEqual(displayState, .idle(stats))
+    }
+
     func testProjectActionExecutionContextPrefersWorktreePathAndCarriesThreadMetadata() throws {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)

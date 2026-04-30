@@ -8,7 +8,6 @@ struct DiffViewerFileListSection: View {
     let isLoading: Bool
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
-    let statusSymbol: (FileStatus) -> String
     let onSelectFile: (FileStatus, DiffViewerFileSelectionBehavior) -> Void
     let onStageFiles: ([FileStatus]) -> Void
     let onUnstageFiles: ([FileStatus]) -> Void
@@ -22,9 +21,9 @@ struct DiffViewerFileListSection: View {
         ScrollViewReader { scrollProxy in
             List(files) { file in
                 HStack(spacing: 10) {
-                    Text(statusSymbol(file))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(file.isStaged ? .green : .secondary)
+                    Circle()
+                        .fill(statusColor(for: file))
+                        .frame(width: 8, height: 8)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(fileDisplayName(file))
@@ -40,6 +39,7 @@ struct DiffViewerFileListSection: View {
                 }
                 .padding(.vertical, 2)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(file.path)
                 .appSelectableRow(
                     isSelected: isSelected(file),
                     identity: file.id,
@@ -125,6 +125,10 @@ struct DiffViewerFileListSection: View {
 
     private var fileIDs: [String] {
         files.map(\.id)
+    }
+
+    private func statusColor(for file: FileStatus) -> Color {
+        file.isStaged ? .green : .secondary
     }
 
     private var shouldShowTopDivider: Bool {

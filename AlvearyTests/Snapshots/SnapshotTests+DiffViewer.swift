@@ -155,12 +155,13 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
+                mode: .currentChanges,
                 contextualAction: .openPR,
                 selectedFiles: [],
                 areAgentActionsEnabled: true,
-                isRefreshing: false,
                 showsFileListDivider: false,
-                onRefresh: {},
+                showsFileActions: true,
+                onModeSelected: { _ in },
                 onCommitRequested: {},
                 onOpenPRRequested: {},
                 onViewPRRequested: { _ in },
@@ -168,7 +169,7 @@ extension SnapshotTests {
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
             ),
-            size: CGSize(width: 460, height: 92),
+            size: CGSize(width: 460, height: 72),
             named: "diff_viewer_header_open_pr"
         )
     }
@@ -177,15 +178,16 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
+                mode: .currentChanges,
                 contextualAction: .commit,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
                 ],
                 areAgentActionsEnabled: true,
-                isRefreshing: false,
                 showsFileListDivider: false,
-                onRefresh: {},
+                showsFileActions: true,
+                onModeSelected: { _ in },
                 onCommitRequested: {},
                 onOpenPRRequested: {},
                 onViewPRRequested: { _ in },
@@ -193,7 +195,7 @@ extension SnapshotTests {
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
             ),
-            size: CGSize(width: 520, height: 92),
+            size: CGSize(width: 520, height: 72),
             named: "diff_viewer_header_mixed_selection"
         )
     }
@@ -391,7 +393,6 @@ extension SnapshotTests {
                 isLoading: true,
                 isSelected: { _ in false },
                 fileDisplayName: { $0.path },
-                statusSymbol: { _ in "●" },
                 onSelectFile: { _, _ in },
                 onStageFiles: { _ in },
                 onUnstageFiles: { _ in },
@@ -419,7 +420,6 @@ extension SnapshotTests {
                 isLoading: false,
                 isSelected: { selectedFiles.contains($0) },
                 fileDisplayName: { $0.path },
-                statusSymbol: { file in file.isStaged ? "+" : "●" },
                 onSelectFile: { _, _ in },
                 onStageFiles: { _ in },
                 onUnstageFiles: { _ in },
@@ -468,31 +468,6 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_renamed_metadata"
-        )
-    }
-}
-
-private extension SnapshotTests {
-    func primaryToolbarButtonGroup(
-        selectedThread: AgentThread? = nil,
-        projectActions: [AlvearyProjectConfig.ProjectAction] = [],
-        terminalDisplayState: TerminalToolbarDisplayState = .idle,
-        diffDisplayState: DiffViewerToolbarDisplayState
-    ) -> some View {
-        PrimaryToolbarButtonGroup(
-            selectedThread: selectedThread,
-            projectActions: projectActions,
-            terminalTitle: "Show Terminal",
-            terminalDisplayState: terminalDisplayState,
-            terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",
-            diffDisplayState: diffDisplayState,
-            diffHelpText: "Show Diff Viewer (\(KeyboardShortcut.toggleDiffViewer.displayString))",
-            diffAccessibilityLabel: "Show Diff Viewer",
-            diffAccessibilityValue: "",
-            onProjectAction: { _, _ in },
-            onToggleTerminal: {},
-            onToggleDiffViewer: {},
-            onOpenSettings: {}
         )
     }
 }

@@ -25,6 +25,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
+            $0.diffViewerMode = .commits
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
             $0.contextManagementEnabled = false
@@ -42,6 +43,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
+        XCTAssertEqual(reloadedService.current.diffViewerMode, .commits)
         XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
         XCTAssertFalse(reloadedService.current.contextManagementEnabled)
@@ -199,6 +201,7 @@ final class SettingsServiceTests: XCTestCase {
             "codeFontSize": 16,
             "chatFontSize": 18,
             "diffViewerWidth": 40,
+            "diffViewerMode": "branches",
             "notifications": [
                 "enabled": true,
                 "osNotifications": true,
@@ -220,6 +223,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(service.current.theme, "system")
         XCTAssertEqual(service.current.diffViewerWidth, 320)
+        XCTAssertEqual(service.current.diffViewerMode, .currentChanges)
         XCTAssertEqual(service.current.notifications.soundName, "Glass")
     }
 
@@ -255,6 +259,22 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.permissionMode, "plan")
         XCTAssertEqual(service.current.diffViewerWidth, 520)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
+    }
+
+    func testUserDefaultsSettingsServiceUsesDefaultDiffViewerModeWhenStoredJSONPredatesField() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "diffViewerWidth": 520
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.diffViewerMode, AppSettings.defaultDiffViewerMode)
     }
 
     func testUserDefaultsSettingsServiceUsesDefaultThreadCleanupActionWhenStoredJSONPredatesField() throws {

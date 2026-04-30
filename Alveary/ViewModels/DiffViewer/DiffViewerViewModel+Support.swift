@@ -1,6 +1,7 @@
 import Foundation
 
 typealias DiffViewerDiffLoadResult = (raw: String, parsed: DiffFile?)
+typealias DiffViewerCommitDiffLoadResult = (raw: String, parsed: [DiffFile])
 
 enum DiffWorkspaceLoadState: Equatable {
     case idle
@@ -192,6 +193,27 @@ enum DiffViewerDiffTaskFactory {
             let parsed = try await Task.detached(priority: .userInitiated) {
                 try Task.checkCancellation()
                 return DiffParser.parse(raw).first
+            }.value
+
+            try Task.checkCancellation()
+            return (raw: raw, parsed: parsed)
+        }
+    }
+}
+
+enum DiffViewerCommitDiffTaskFactory {
+    static func makeTask(
+        for commit: CommitInfo,
+        in directory: String,
+        gitService: GitService
+    ) -> Task<DiffViewerCommitDiffLoadResult, Error> {
+        Task(priority: .userInitiated) {
+            let raw = try await gitService.diffForCommit(hash: commit.hash, in: directory)
+            try Task.checkCancellation()
+
+            let parsed = try await Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                return DiffParser.parse(raw)
             }.value
 
             try Task.checkCancellation()

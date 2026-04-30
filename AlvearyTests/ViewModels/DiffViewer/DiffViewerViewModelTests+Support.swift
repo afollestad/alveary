@@ -56,6 +56,17 @@ actor DiffViewerMockGitService: GitService {
         let directory: String
     }
 
+    struct CommitDetailCall: Equatable {
+        let baseBranch: String
+        let remoteName: String?
+        let directory: String
+    }
+
+    struct CommitDiffCall: Equatable {
+        let hash: String
+        let directory: String
+    }
+
     private var statusResults: [Result<[FileStatus], Error>]
     private var statusDelays: [Duration]
     private var diffStatsResults: [Result<DiffStats, Error>]
@@ -64,6 +75,10 @@ actor DiffViewerMockGitService: GitService {
     private var diffResults: [String]
     private var diffDelays: [Duration]
     private var syntheticDiffResults: [String]
+    private var commitsAheadDetailsResults: [Result<[CommitInfo], Error>]
+    private var commitsAheadDetailsDelays: [Duration]
+    private var commitDiffResults: [Result<String, Error>]
+    private var commitDiffDelays: [Duration]
     private let currentBranchResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
     private var recordedStatusCallCount = 0
@@ -73,6 +88,8 @@ actor DiffViewerMockGitService: GitService {
     private var recordedStageCalls: [PathMutationCall] = []
     private var recordedUnstageCalls: [PathMutationCall] = []
     private var recordedDiscardCalls: [DiscardCall] = []
+    private var recordedCommitsAheadDetailsCalls: [CommitDetailCall] = []
+    private var recordedCommitDiffCalls: [CommitDiffCall] = []
     private var onStatus: (@Sendable () -> Void)?
 
     init(
@@ -84,6 +101,10 @@ actor DiffViewerMockGitService: GitService {
         diffResults: [String] = [],
         diffDelays: [Duration] = [],
         syntheticDiffResults: [String] = [],
+        commitsAheadDetailsResults: [Result<[CommitInfo], Error>] = [.success([])],
+        commitsAheadDetailsDelays: [Duration] = [],
+        commitDiffResults: [Result<String, Error>] = [],
+        commitDiffDelays: [Duration] = [],
         currentBranchResult: Result<String, Error> = .success("feature"),
         commitsAheadResult: Result<Int, Error> = .success(0)
     ) {
@@ -95,6 +116,10 @@ actor DiffViewerMockGitService: GitService {
         self.diffResults = diffResults
         self.diffDelays = diffDelays
         self.syntheticDiffResults = syntheticDiffResults
+        self.commitsAheadDetailsResults = commitsAheadDetailsResults
+        self.commitsAheadDetailsDelays = commitsAheadDetailsDelays
+        self.commitDiffResults = commitDiffResults
+        self.commitDiffDelays = commitDiffDelays
         self.currentBranchResult = currentBranchResult
         self.commitsAheadResult = commitsAheadResult
     }
@@ -184,11 +209,35 @@ actor DiffViewerMockGitService: GitService {
     }
 
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
-        []
+        recordedCommitsAheadDetailsCalls.append(
+            CommitDetailCall(baseBranch: baseBranch, remoteName: remoteName, directory: directory)
+        )
+
+        if !commitsAheadDetailsDelays.isEmpty {
+            let delay = commitsAheadDetailsDelays.removeFirst()
+            if delay > .zero {
+                try await Task.sleep(for: delay)
+            }
+        }
+
+        let result: Result<[CommitInfo], Error> = commitsAheadDetailsResults.isEmpty
+            ? .success([])
+            : commitsAheadDetailsResults.removeFirst()
+        return try result.get()
     }
 
     func diffForCommit(hash: String, in directory: String) async throws -> String {
-        ""
+        recordedCommitDiffCalls.append(CommitDiffCall(hash: hash, directory: directory))
+        let result: Result<String, Error> = commitDiffResults.isEmpty ? .success("") : commitDiffResults.removeFirst()
+
+        if !commitDiffDelays.isEmpty {
+            let delay = commitDiffDelays.removeFirst()
+            if delay > .zero {
+                try await Task.sleep(for: delay)
+            }
+        }
+
+        return try result.get()
     }
 
     func diffCalls() -> [DiffCall] {
@@ -209,6 +258,14 @@ actor DiffViewerMockGitService: GitService {
 
     func unstageCalls() -> [PathMutationCall] {
         recordedUnstageCalls
+    }
+
+    func commitsAheadDetailsCalls() -> [CommitDetailCall] {
+        recordedCommitsAheadDetailsCalls
+    }
+
+    func commitDiffCalls() -> [CommitDiffCall] {
+        recordedCommitDiffCalls
     }
 
     func statusCallCount() -> Int {

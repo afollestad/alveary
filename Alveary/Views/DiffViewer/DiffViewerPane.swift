@@ -4,18 +4,21 @@ import SwiftUI
 struct DiffViewerPane: View {
     let viewModel: DiffViewerViewModel
     let areAgentActionsEnabled: Bool
+    @Binding private var mode: DiffViewerMode
+    let onModeCommit: (DiffViewerMode) -> Void
     @Binding private var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
     let onCommitRequested: () -> Void
     let onOpenPRRequested: () -> Void
 
     @State private var pendingDiscardFiles: [FileStatus] = []
-    @State private var isManualRefreshIndicatorVisible = false
     @State private var isFileListTopDividerVisible = false
 
     init(
         viewModel: DiffViewerViewModel,
         areAgentActionsEnabled: Bool,
+        mode: Binding<DiffViewerMode> = .constant(.currentChanges),
+        onModeCommit: @escaping (DiffViewerMode) -> Void = { _ in },
         topSectionFraction: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultDiffViewerTopSectionFraction)),
         onTopSectionFractionCommit: @escaping (CGFloat) -> Void = { _ in },
         onCommitRequested: @escaping () -> Void,
@@ -23,6 +26,8 @@ struct DiffViewerPane: View {
     ) {
         self.viewModel = viewModel
         self.areAgentActionsEnabled = areAgentActionsEnabled
+        _mode = mode
+        self.onModeCommit = onModeCommit
         _topSectionFraction = topSectionFraction
         self.onTopSectionFractionCommit = onTopSectionFractionCommit
         self.onCommitRequested = onCommitRequested
@@ -33,14 +38,13 @@ struct DiffViewerPane: View {
         VStack(spacing: 0) {
             DiffViewerPaneHeader(
                 activeDirectory: viewModel.activeDirectory,
+                mode: mode,
                 contextualAction: viewModel.contextualAction,
                 selectedFiles: viewModel.selectedFiles,
                 areAgentActionsEnabled: areAgentActionsEnabled,
-                isRefreshing: isManualRefreshIndicatorVisible,
                 showsFileListDivider: isFileListTopDividerVisible,
-                onRefresh: {
-                    performManualRefresh()
-                },
+                showsFileActions: mode == .currentChanges,
+                onModeSelected: selectMode,
                 onCommitRequested: onCommitRequested,
                 onOpenPRRequested: onOpenPRRequested,
                 onViewPRRequested: { url in
@@ -91,73 +95,19 @@ struct DiffViewerPane: View {
                     actions: []
                 )
             } else {
-                DiffViewerVerticalSplit(
-                    splitFraction: $topSectionFraction,
-                    bounds: AppSettings.supportedDiffViewerSplitRange,
-                    onCommit: onTopSectionFractionCommit
-                ) {
-                    DiffViewerFileListSection(
-                        files: viewModel.files,
-                        selectedFiles: viewModel.selectedFiles,
-                        isGitRepository: viewModel.isGitRepository,
-                        isLoading: viewModel.isLoadingFiles,
-                        isSelected: isSelected,
-                        fileDisplayName: fileDisplayName,
-                        statusSymbol: statusSymbol,
-                        onSelectFile: { file, behavior in
-                            guard let directory = viewModel.activeDirectory else {
-                                return
-                            }
-
-                            guard let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: behavior) else {
-                                return
-                            }
-
-                            Task {
-                                await viewModel.loadSelectedFileDiff(preparedSelection)
-                            }
-                        },
-                        onStageFiles: { files in
-                            guard let directory = viewModel.activeDirectory else {
-                                return
-                            }
-
-                            Task {
-                                await performGitAction(errorPrefix: "Stage failed") {
-                                    try await viewModel.stage(files: files.filter { !$0.isStaged }, in: directory)
-                                }
-                            }
-                        },
-                        onUnstageFiles: { files in
-                            guard let directory = viewModel.activeDirectory else {
-                                return
-                            }
-
-                            Task {
-                                await performGitAction(errorPrefix: "Unstage failed") {
-                                    try await viewModel.unstage(files: files.filter(\.isStaged), in: directory)
-                                }
-                            }
-                        },
-                        onDiscardFiles: { files in
-                            pendingDiscardFiles = files
-                        },
-                        isTopDividerVisible: $isFileListTopDividerVisible
-                    )
-                } bottom: {
-                    DiffViewerPreviewSection(
-                        selectedFile: viewModel.selectedFile,
-                        selectedFileCount: viewModel.selectedFiles.count,
-                        parsedDiff: viewModel.parsedDiff,
-                        rawDiffContent: viewModel.rawDiffContent,
-                        isPending: viewModel.isSelectedDiffPending,
-                        isLoading: viewModel.isLoadingSelectedDiff,
-                        fileDisplayName: fileDisplayName,
-                        statusTitle: statusTitle,
-                        diffPreviewIdentity: diffPreviewIdentity
-                    )
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                content
+            }
+        }
+        .onAppear(perform: loadCommitsIfNeeded)
+        .onChange(of: mode) { _, newMode in
+            if newMode == .commits {
+                isFileListTopDividerVisible = false
+                loadCommitsIfNeeded()
+            }
+        }
+        .onChange(of: viewModel.activeDirectory) { _, _ in
+            if mode == .commits {
+                loadCommitsIfNeeded()
             }
         }
         .confirmationDialog(
@@ -191,17 +141,42 @@ struct DiffViewerPane: View {
 }
 
 private extension DiffViewerPane {
-    func performManualRefresh() {
-        guard !isManualRefreshIndicatorVisible else {
+    @ViewBuilder
+    var content: some View {
+        switch mode {
+        case .currentChanges:
+            DiffViewerCurrentChangesContent(
+                viewModel: viewModel,
+                topSectionFraction: $topSectionFraction,
+                onTopSectionFractionCommit: onTopSectionFractionCommit,
+                isFileListTopDividerVisible: $isFileListTopDividerVisible,
+                fileDisplayName: fileDisplayName,
+                statusTitle: statusTitle,
+                diffPreviewIdentity: diffPreviewIdentity,
+                onPresentGitError: viewModel.presentGitError,
+                onDiscardFiles: { pendingDiscardFiles = $0 }
+            )
+        case .commits:
+            DiffViewerCommitsContent(
+                viewModel: viewModel,
+                topSectionFraction: $topSectionFraction,
+                onTopSectionFractionCommit: onTopSectionFractionCommit
+            )
+        }
+    }
+
+    func selectMode(_ selectedMode: DiffViewerMode) {
+        mode = selectedMode
+        onModeCommit(selectedMode)
+    }
+
+    func loadCommitsIfNeeded() {
+        guard mode == .commits else {
             return
         }
 
-        isManualRefreshIndicatorVisible = true
-        Task { @MainActor in
-            async let refresh: Void = viewModel.forceRefreshActiveDiff()
-            try? await Task.sleep(for: .milliseconds(500))
-            await refresh
-            isManualRefreshIndicatorVisible = false
+        Task {
+            await viewModel.loadAheadCommitsForActiveTarget()
         }
     }
 
@@ -245,23 +220,6 @@ private extension DiffViewerPane {
             return "\(originalPath) → \(file.path)"
         }
         return file.path
-    }
-
-    func statusSymbol(for file: FileStatus) -> String {
-        switch file.status {
-        case .modified:
-            return "●"
-        case .added, .untracked:
-            return "+"
-        case .deleted:
-            return "−"
-        case .renamed:
-            return "→"
-        case .copied:
-            return "⧉"
-        case .unmerged:
-            return "!"
-        }
     }
 
     func statusTitle(for status: FileStatus.Status) -> String {

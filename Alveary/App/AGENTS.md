@@ -19,6 +19,7 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
     - **Drive width from the status slot.** Animate the diff button's trailing status slot and individual stat-label widths directly; the primary toolbar group must derive its width from that child width instead of running a separate parent-width animation.
     - **Clip stats during reveal.** When moving from empty/loading to stats, animate the status slot's real width and clip to that width before fading in stats text so it cannot render under neighboring toolbar buttons.
     - **Match toolbar icon styling.** Render the leading diff-viewer glyph through `Label(...).labelStyle(.iconOnly)` so it inherits the same icon treatment as the other toolbar buttons even though the count label uses custom layout.
+    - **Keep pane modes independent.** The diff-viewer pane may switch between modes such as current changes and commits, but the toolbar button's stats, loading state, and visibility must continue to summarize working-tree changes only.
 - The top-right toolbar uses one custom SwiftUI `ToolbarItem` for project actions, terminal, diff viewer, and settings:
     - **Hide shared toolbar chrome.** Keep `.sharedBackgroundVisibility(.hidden)` on the custom toolbar item so AppKit does not draw one large hover/background pill around the whole group.
     - **Own the container background.** `PrimaryToolbarButtonGroup` must draw the theme-aware capsule fill and border itself, after the container inset, so the background follows the SwiftUI-owned group bounds.

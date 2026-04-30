@@ -32,6 +32,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedDiffViewerWidthRange = 320.0...960.0
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
+    static let defaultDiffViewerMode = DiffViewerMode.currentChanges
     static let supportedTerminalPaneHeightRange = 240.0...560.0
     static let defaultTerminalPaneHeight = 320.0
     static let supportedMaxTerminalSessionsRange = 1...50
@@ -58,6 +59,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var chatFontSize = 14
     var diffViewerWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
+    var diffViewerMode = Self.defaultDiffViewerMode
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
@@ -181,6 +183,7 @@ struct AppSettings: Codable, Sendable, Equatable {
             max(diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
             Self.supportedDiffViewerSplitRange.upperBound
         )
+        diffViewerMode = Self.normalizedDiffViewerMode(diffViewerMode.rawValue)
         terminalPaneHeight = min(
             max(terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
             Self.supportedTerminalPaneHeightRange.upperBound
@@ -219,6 +222,14 @@ struct AppSettings: Codable, Sendable, Equatable {
             ? AppSettings().worktreesBaseDirectory
             : trimmedWorktreesBase
     }
+
+    static func normalizedDiffViewerMode(_ rawValue: String?) -> DiffViewerMode {
+        guard let rawValue,
+              let mode = DiffViewerMode(rawValue: rawValue) else {
+            return defaultDiffViewerMode
+        }
+        return mode
+    }
 }
 
 extension AppSettings {
@@ -238,6 +249,7 @@ extension AppSettings {
         case chatFontSize
         case diffViewerWidth
         case diffViewerTopSectionFraction
+        case diffViewerMode
         case terminalPaneHeight
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
@@ -313,6 +325,9 @@ extension AppSettings {
             Double.self,
             forKey: .diffViewerTopSectionFraction
         ) ?? diffViewerTopSectionFraction
+        diffViewerMode = Self.normalizedDiffViewerMode(
+            try container.decodeIfPresent(String.self, forKey: .diffViewerMode)
+        )
         terminalPaneHeight = try container.decodeIfPresent(Double.self, forKey: .terminalPaneHeight) ?? terminalPaneHeight
         expandTerminalWhenActionsRun = try container.decodeIfPresent(
             Bool.self,

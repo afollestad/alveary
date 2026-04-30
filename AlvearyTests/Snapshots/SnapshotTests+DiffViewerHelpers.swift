@@ -1,0 +1,28 @@
+import SwiftUI
+
+@testable import Alveary
+
+extension SnapshotTests {
+    func primaryToolbarButtonGroup(
+        selectedThread: AgentThread? = nil,
+        projectActions: [AlvearyProjectConfig.ProjectAction] = [],
+        terminalDisplayState: TerminalToolbarDisplayState = .idle,
+        diffDisplayState: DiffViewerToolbarDisplayState
+    ) -> some View {
+        PrimaryToolbarButtonGroup(
+            selectedThread: selectedThread,
+            projectActions: projectActions,
+            terminalTitle: "Show Terminal",
+            terminalDisplayState: terminalDisplayState,
+            terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",
+            diffDisplayState: diffDisplayState,
+            diffHelpText: "Show Diff Viewer (\(KeyboardShortcut.toggleDiffViewer.displayString))",
+            diffAccessibilityLabel: "Show Diff Viewer",
+            diffAccessibilityValue: "",
+            onProjectAction: { _, _ in },
+            onToggleTerminal: {},
+            onToggleDiffViewer: {},
+            onOpenSettings: {}
+        )
+    }
+}

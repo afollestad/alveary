@@ -37,17 +37,23 @@ actor SnapshotMockGitService: GitService {
     private var diffStatsResults: [DiffStats]
     private var diffResults: [String]
     private var syntheticDiffResults: [String]
+    private var aheadCommitResults: [[CommitInfo]]
+    private var commitDiffResults: [String]
 
     init(
         statusResults: [[FileStatus]],
         diffStatsResults: [DiffStats] = [.empty],
         diffResults: [String],
-        syntheticDiffResults: [String] = []
+        syntheticDiffResults: [String] = [],
+        aheadCommitResults: [[CommitInfo]] = [],
+        commitDiffResults: [String] = []
     ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
         self.diffResults = diffResults
         self.syntheticDiffResults = syntheticDiffResults
+        self.aheadCommitResults = aheadCommitResults
+        self.commitDiffResults = commitDiffResults
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -101,11 +107,17 @@ actor SnapshotMockGitService: GitService {
     }
 
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
-        []
+        if aheadCommitResults.isEmpty {
+            return []
+        }
+        return aheadCommitResults.removeFirst()
     }
 
     func diffForCommit(hash: String, in directory: String) async throws -> String {
-        ""
+        if commitDiffResults.isEmpty {
+            return ""
+        }
+        return commitDiffResults.removeFirst()
     }
 }
 
