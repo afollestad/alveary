@@ -141,6 +141,31 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.parsedDiff?.path, files[0].path)
     }
 
+    func testAdjacentFileUsesImmediateSelectionBeforePreviewLoad() async {
+        let files = [
+            FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "two.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "three.swift", originalPath: nil, status: .modified, isStaged: false)
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success(files)],
+                diffResults: [Self.modifiedDiff(path: files[0].path)]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+        await fixture.viewModel.selectFile(files[0], in: fixture.directory)
+
+        XCTAssertNotNil(fixture.viewModel.selectFileImmediately(files[1], in: fixture.directory, behavior: .single))
+
+        XCTAssertEqual(fixture.viewModel.selectedFiles, [files[1]])
+        XCTAssertEqual(fixture.viewModel.selectedFile, files[0])
+        XCTAssertEqual(fixture.viewModel.adjacentFile(forward: true), files[2])
+        XCTAssertEqual(fixture.viewModel.adjacentFile(forward: false), files[0])
+    }
+
     func testKeyboardNavigationSelectsFirstFileFromNoSelectionOnlyWhenMovingDown() async {
         let files = [
             FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false),

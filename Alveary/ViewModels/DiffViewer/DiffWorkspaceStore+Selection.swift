@@ -44,26 +44,33 @@ extension DiffWorkspaceStore {
         forward: Bool,
         in directory: String
     ) async -> Bool {
-        guard let target = activeTarget, target.directory == directory else {
+        guard let target = activeTarget, target.directory == directory,
+              let nextFile = adjacentFile(forward: forward, in: directory) else {
             return false
         }
 
-        let currentIndex = selectedFile.flatMap { selectedFile in
-            let selectedKey = DiffViewerFileSelectionKey(selectedFile)
-            return files.firstIndex { DiffViewerFileSelectionKey($0) == selectedKey }
-        }
-
-        guard let nextIndex = diffViewerAdjacentIndex(in: files.indices, from: currentIndex, forward: forward) else {
-            return false
-        }
-
-        let nextFile = files[nextIndex]
         guard let preparedSelection = selectFileImmediately(nextFile, in: target.directory, behavior: .single) else {
             return false
         }
 
         await loadSelectedFileDiff(preparedSelection)
         return true
+    }
+
+    func adjacentFile(
+        forward: Bool,
+        in directory: String
+    ) -> FileStatus? {
+        guard let target = activeTarget, target.directory == directory else {
+            return nil
+        }
+
+        let currentIndex = keyboardNavigationAnchorIndex()
+        guard let nextIndex = diffViewerAdjacentIndex(in: files.indices, from: currentIndex, forward: forward) else {
+            return nil
+        }
+
+        return files[nextIndex]
     }
 
     func reconcileSelectionAfterStatusRefresh(previousSelectedFiles: [FileStatus]) {
@@ -127,6 +134,23 @@ extension DiffWorkspaceStore {
 }
 
 private extension DiffWorkspaceStore {
+    func keyboardNavigationAnchorIndex() -> Int? {
+        if let selectedFile {
+            let selectedKey = DiffViewerFileSelectionKey(selectedFile)
+            if selectedFileKeys.contains(selectedKey),
+               let index = files.firstIndex(where: { DiffViewerFileSelectionKey($0) == selectedKey }) {
+                return index
+            }
+        }
+
+        guard selectedFileKeys.count == 1,
+              let selectedKey = selectedFileKeys.first else {
+            return nil
+        }
+
+        return files.firstIndex { DiffViewerFileSelectionKey($0) == selectedKey }
+    }
+
     func selectionAnchor(previousSelectedFiles: [FileStatus]) -> DiffViewerFileSelectionKey? {
         let previousAnchorFile = previousSelectedFiles.first { DiffViewerFileSelectionKey($0) == selectionAnchorKey }
         if let previousAnchorFile,

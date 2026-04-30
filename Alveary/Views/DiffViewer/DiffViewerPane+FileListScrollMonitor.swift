@@ -1,19 +1,23 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 struct DiffViewerFileListScrollMonitor: NSViewRepresentable {
     let fileIDs: [String]
     @Binding var verticalOffsetFromTop: CGFloat
+    let scrollController: DiffViewerListScrollController?
 
     func makeNSView(context: Context) -> DiffViewerFileListScrollMonitorView {
         let view = DiffViewerFileListScrollMonitorView()
         view.fileIDs = fileIDs
         view.onVerticalOffsetChange = { verticalOffsetFromTop = $0 }
+        view.scrollController = scrollController
         return view
     }
 
     func updateNSView(_ nsView: DiffViewerFileListScrollMonitorView, context: Context) {
         nsView.onVerticalOffsetChange = { verticalOffsetFromTop = $0 }
+        nsView.scrollController = scrollController
         nsView.update(fileIDs: fileIDs)
     }
 
@@ -25,6 +29,7 @@ struct DiffViewerFileListScrollMonitor: NSViewRepresentable {
 @MainActor
 final class DiffViewerFileListScrollMonitorView: NSView {
     var onVerticalOffsetChange: ((CGFloat) -> Void)?
+    var scrollController: DiffViewerListScrollController?
     var fileIDs: [String] = []
 
     private weak var observedScrollView: NSScrollView?
@@ -65,6 +70,7 @@ final class DiffViewerFileListScrollMonitorView: NSView {
 
     func dismantle() {
         removeBoundsObserver()
+        scrollController?.detach()
     }
 
     private func scheduleScrollStateRefresh(scrollToTopAfterContentChange: Bool) {
@@ -84,6 +90,7 @@ final class DiffViewerFileListScrollMonitorView: NSView {
 
         unresolvedRefreshAttempts = 0
         observe(scrollView)
+        scrollController?.attach(scrollView)
         if scrollToTopAfterContentChange {
             scrollToTop(scrollView)
             DispatchQueue.main.async { [weak self, weak scrollView] in
@@ -199,15 +206,11 @@ final class DiffViewerFileListScrollMonitorView: NSView {
     }
 
     private func topContentOriginY(scrollView: NSScrollView, documentView: NSView) -> CGFloat {
-        if documentView.isFlipped {
-            return 0
-        }
-
-        return max(documentView.bounds.height - scrollView.contentView.bounds.height, 0)
+        DiffViewerListScrollGeometry.topContentOriginY(scrollView: scrollView, documentView: documentView)
     }
 
     private func scrollableHeight(scrollView: NSScrollView, documentView: NSView) -> CGFloat {
-        max(documentView.bounds.height - scrollView.contentView.bounds.height, 0)
+        DiffViewerListScrollGeometry.scrollableHeight(scrollView: scrollView, documentView: documentView)
     }
 
     private func enclosingScrollView() -> NSScrollView? {
@@ -260,6 +263,99 @@ final class DiffViewerFileListScrollMonitorView: NSView {
 
                 return lhsRect.area > rhsRect.area
             }
+    }
+}
+
+@MainActor
+private enum DiffViewerListScrollGeometry {
+    static func topContentOriginY(scrollView: NSScrollView, documentView: NSView) -> CGFloat {
+        if documentView.isFlipped {
+            return 0
+        }
+
+        return scrollableHeight(scrollView: scrollView, documentView: documentView)
+    }
+
+    static func bottomContentOriginY(scrollView: NSScrollView, documentView: NSView) -> CGFloat {
+        if documentView.isFlipped {
+            return scrollableHeight(scrollView: scrollView, documentView: documentView)
+        }
+
+        return 0
+    }
+
+    static func scrollableHeight(scrollView: NSScrollView, documentView: NSView) -> CGFloat {
+        max(documentView.bounds.height - scrollView.contentView.bounds.height, 0)
+    }
+}
+
+@MainActor
+final class DiffViewerListScrollController {
+    private weak var scrollView: NSScrollView?
+
+    func attach(_ scrollView: NSScrollView) {
+        self.scrollView = scrollView
+    }
+
+    func detach() {
+        scrollView = nil
+    }
+
+    @discardableResult
+    func scroll(to edge: DiffViewerListScrollEdge, animated: Bool) -> Bool {
+        guard let scrollView,
+              let documentView = scrollView.documentView else {
+            return false
+        }
+
+        let verticalOrigin: CGFloat
+        switch edge {
+        case .top:
+            verticalOrigin = DiffViewerListScrollGeometry.topContentOriginY(
+                scrollView: scrollView,
+                documentView: documentView
+            )
+        case .bottom:
+            verticalOrigin = DiffViewerListScrollGeometry.bottomContentOriginY(
+                scrollView: scrollView,
+                documentView: documentView
+            )
+        }
+
+        scrollToVerticalOrigin(
+            scrollView,
+            verticalOrigin: verticalOrigin,
+            animated: animated
+        )
+        return true
+    }
+
+    private func scrollToVerticalOrigin(_ scrollView: NSScrollView, verticalOrigin: CGFloat, animated: Bool) {
+        let origin = NSPoint(x: scrollView.contentView.bounds.origin.x, y: verticalOrigin)
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                scrollView.contentView.animator().setBoundsOrigin(origin)
+            }
+        } else {
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+    }
+}
+
+enum DiffViewerListScrollEdge {
+    case top
+    case bottom
+
+    var fallbackAnchor: UnitPoint {
+        switch self {
+        case .top:
+            return .top
+        case .bottom:
+            return .bottom
+        }
     }
 }
 

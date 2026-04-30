@@ -10,6 +10,7 @@ struct DiffViewerCurrentChangesContent: View {
     let diffPreviewIdentity: (FileStatus) -> String
     let onPresentGitError: (String) -> Void
     let onDiscardFiles: ([FileStatus]) -> Void
+    @State private var latestKeyboardNavigationLoadID = UUID()
 
     var body: some View {
         DiffViewerVerticalSplit(
@@ -22,7 +23,6 @@ struct DiffViewerCurrentChangesContent: View {
                 selectedFiles: viewModel.selectedFiles,
                 isGitRepository: viewModel.isGitRepository,
                 isLoading: viewModel.isLoadingFiles,
-                selectedFileID: viewModel.selectedFile?.id,
                 isSelected: viewModel.isFileSelected,
                 fileDisplayName: fileDisplayName,
                 onSelectFile: selectFile,
@@ -49,6 +49,7 @@ struct DiffViewerCurrentChangesContent: View {
     }
 
     private func selectFile(_ file: FileStatus, behavior: DiffViewerFileSelectionBehavior) {
+        latestKeyboardNavigationLoadID = UUID()
         guard let directory = viewModel.activeDirectory,
               let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: behavior) else {
             return
@@ -59,8 +60,23 @@ struct DiffViewerCurrentChangesContent: View {
         }
     }
 
-    private func navigateFile(forward: Bool) async -> Bool {
-        await viewModel.selectAdjacentFile(forward: forward)
+    private func navigateFile(forward: Bool) -> String? {
+        guard let directory = viewModel.activeDirectory,
+              let file = viewModel.adjacentFile(forward: forward),
+              let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: .single) else {
+            return nil
+        }
+
+        let loadID = UUID()
+        latestKeyboardNavigationLoadID = loadID
+        // Selection changes synchronously for row color; only the latest repeated key press should start preview work.
+        Task { @MainActor in
+            guard latestKeyboardNavigationLoadID == loadID else {
+                return
+            }
+            await viewModel.loadSelectedFileDiff(preparedSelection)
+        }
+        return file.id
     }
 
     private func stageFiles(_ files: [FileStatus]) {

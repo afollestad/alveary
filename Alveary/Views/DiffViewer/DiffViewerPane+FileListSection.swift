@@ -6,11 +6,10 @@ struct DiffViewerFileListSection: View {
     let selectedFiles: [FileStatus]
     let isGitRepository: Bool
     let isLoading: Bool
-    let selectedFileID: String?
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let onSelectFile: (FileStatus, DiffViewerFileSelectionBehavior) -> Void
-    let onNavigateFile: (Bool) async -> Bool
+    let onNavigateFile: (Bool) -> String?
     let onStageFiles: ([FileStatus]) -> Void
     let onUnstageFiles: ([FileStatus]) -> Void
     let onDiscardFiles: ([FileStatus]) -> Void
@@ -18,7 +17,8 @@ struct DiffViewerFileListSection: View {
     @Binding var isTopDividerVisible: Bool
 
     @State private var verticalOffsetFromTop: CGFloat = 0
-    @State private var pendingKeyboardNavigationScrollCount = 0
+    @State private var scrollController = DiffViewerListScrollController()
+    @State private var latestKeyboardNavigationScrollID = UUID()
     @FocusState private var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
 
@@ -89,11 +89,14 @@ struct DiffViewerFileListSection: View {
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
-            .onKeyPress(keys: [.upArrow, .downArrow], action: handleKeyPress)
+            .onKeyPress(keys: [.upArrow, .downArrow]) { keyPress in
+                handleKeyPress(keyPress, scrollProxy: scrollProxy)
+            }
             .background {
                 DiffViewerFileListScrollMonitor(
                     fileIDs: fileIDs,
-                    verticalOffsetFromTop: $verticalOffsetFromTop
+                    verticalOffsetFromTop: $verticalOffsetFromTop,
+                    scrollController: scrollController
                 )
             }
             .overlay {
@@ -131,19 +134,11 @@ struct DiffViewerFileListSection: View {
                 isTopDividerVisible = isVisible
             }
             .onDisappear {
+                latestKeyboardNavigationScrollID = UUID()
                 isTopDividerVisible = false
-                pendingKeyboardNavigationScrollCount = 0
             }
             .onChange(of: fileIDs) { _, newFileIDs in
                 preserveTopPositionIfNeeded(scrollProxy: scrollProxy, fileIDs: newFileIDs)
-            }
-            .onChange(of: selectedFileID) { _, fileID in
-                guard let fileID,
-                      pendingKeyboardNavigationScrollCount > 0 else {
-                    return
-                }
-                pendingKeyboardNavigationScrollCount -= 1
-                scrollSelectionIntoView(scrollProxy: scrollProxy, id: fileID)
             }
         }
     }
@@ -160,13 +155,13 @@ struct DiffViewerFileListSection: View {
         !files.isEmpty && verticalOffsetFromTop > 0.5
     }
 
-    private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+    private func handleKeyPress(_ keyPress: KeyPress, scrollProxy: ScrollViewProxy) -> KeyPress.Result {
         switch keyPress.key {
         case .upArrow:
-            navigateFile(forward: false)
+            navigateFile(forward: false, scrollProxy: scrollProxy)
             return .handled
         case .downArrow:
-            navigateFile(forward: true)
+            navigateFile(forward: true, scrollProxy: scrollProxy)
             return .handled
         default:
             return .ignored
@@ -174,19 +169,16 @@ struct DiffViewerFileListSection: View {
     }
 
     private func claimKeyboardFocus() {
-        pendingKeyboardNavigationScrollCount = 0
+        latestKeyboardNavigationScrollID = UUID()
         chatComposerFocus?.wrappedValue = false
         isKeyboardFocused = true
     }
 
-    private func navigateFile(forward: Bool) {
-        pendingKeyboardNavigationScrollCount += 1
-        Task { @MainActor in
-            let didMove = await onNavigateFile(forward)
-            if !didMove, pendingKeyboardNavigationScrollCount > 0 {
-                pendingKeyboardNavigationScrollCount -= 1
-            }
+    private func navigateFile(forward: Bool, scrollProxy: ScrollViewProxy) {
+        guard let fileID = onNavigateFile(forward) else {
+            return
         }
+        scrollSelectionIntoView(scrollProxy: scrollProxy, id: fileID)
     }
 
     private var currentSelectionBehavior: DiffViewerFileSelectionBehavior {
@@ -246,8 +238,65 @@ struct DiffViewerFileListSection: View {
     }
 
     private func scrollSelectionIntoView(scrollProxy: ScrollViewProxy, id: String) {
+        let scrollID = UUID()
+        latestKeyboardNavigationScrollID = scrollID
+        if id == fileIDs.first {
+            scrollToListBoundary(scrollProxy: scrollProxy, rowID: id, edge: .top, scrollID: scrollID)
+        } else if id == fileIDs.last {
+            scrollToListBoundary(scrollProxy: scrollProxy, rowID: id, edge: .bottom, scrollID: scrollID)
+        } else {
+            scrollToRow(scrollProxy: scrollProxy, rowID: id, scrollID: scrollID)
+        }
+    }
+
+    private func scrollToListBoundary(
+        scrollProxy: ScrollViewProxy,
+        rowID: String,
+        edge: DiffViewerListScrollEdge,
+        scrollID: UUID
+    ) {
+        let didScroll = scrollController.scroll(to: edge, animated: true)
+        if !didScroll {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(rowID, anchor: edge.fallbackAnchor)
+            }
+        }
+
+        // `List` can settle its AppKit document geometry after SwiftUI publishes selection.
+        // Reissue on later ticks so the final position reaches the actual content bound.
+        DispatchQueue.main.async {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            if !scrollController.scroll(to: edge, animated: true) {
+                scrollProxy.scrollTo(rowID, anchor: edge.fallbackAnchor)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            _ = scrollController.scroll(to: edge, animated: false)
+        }
+    }
+
+    private func scrollToRow(scrollProxy: ScrollViewProxy, rowID: String, scrollID: UUID) {
         withAnimation(.easeInOut(duration: 0.18)) {
-            scrollProxy.scrollTo(id)
+            scrollProxy.scrollTo(rowID)
+        }
+        DispatchQueue.main.async {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(rowID)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            scrollProxy.scrollTo(rowID)
         }
     }
 }

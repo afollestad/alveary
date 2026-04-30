@@ -307,6 +307,35 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.commitDiffFiles.map(\.path), ["First.swift"])
     }
 
+    func testAdjacentCommitUsesProvidedAnchorForFastRepeat() async {
+        let commits = [
+            Self.commit(hash: "abcdef1234567890", message: "First commit"),
+            Self.commit(hash: "1234567890abcdef", message: "Second commit"),
+            Self.commit(hash: "fedcba0987654321", message: "Third commit")
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success(commits)],
+                commitDiffResults: [.success(Self.modifiedDiff(path: "First.swift"))]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        XCTAssertEqual(fixture.viewModel.adjacentCommit(from: commits[0].id, forward: true), commits[1])
+        XCTAssertEqual(fixture.viewModel.adjacentCommit(from: commits[1].id, forward: true), commits[2])
+        XCTAssertEqual(fixture.viewModel.adjacentCommit(from: commits[1].id, forward: false), commits[0])
+        XCTAssertNil(fixture.viewModel.adjacentCommit(from: commits[2].id, forward: true))
+    }
+
     func testKeyboardNavigationAtCommitBoundsDoesNotChangeSelection() async {
         let commits = [
             Self.commit(hash: "abcdef1234567890", message: "First commit"),

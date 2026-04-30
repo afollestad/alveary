@@ -233,6 +233,14 @@ extension DiffViewerViewModel {
         return await diffStore.selectAdjacentFile(forward: forward, in: activeDirectory)
     }
 
+    func adjacentFile(forward: Bool) -> FileStatus? {
+        guard let activeDirectory else {
+            return nil
+        }
+
+        return diffStore.adjacentFile(forward: forward, in: activeDirectory)
+    }
+
     @discardableResult
     func selectAdjacentCommit(forward: Bool) async -> Bool {
         guard let target = diffStore.activeTarget else {
@@ -249,5 +257,16 @@ extension DiffViewerViewModel {
 
         await loadCommitDiff(for: aheadCommits[nextIndex], target: target)
         return true
+    }
+
+    func adjacentCommit(from commitID: String?, forward: Bool) -> CommitInfo? {
+        let currentIndex = commitID.flatMap { commitID in
+            aheadCommits.firstIndex { $0.id == commitID }
+        }
+        guard let nextIndex = diffViewerAdjacentIndex(in: aheadCommits.indices, from: currentIndex, forward: forward) else {
+            return nil
+        }
+
+        return aheadCommits[nextIndex]
     }
 }

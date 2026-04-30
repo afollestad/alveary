@@ -5,7 +5,10 @@ struct DiffViewerCommitsContent: View {
     @Binding var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
 
-    @State private var pendingKeyboardNavigationScrollCount = 0
+    @State private var scrollController = DiffViewerListScrollController()
+    @State private var latestKeyboardNavigationScrollID = UUID()
+    @State private var latestKeyboardNavigationLoadID = UUID()
+    @State private var keyboardNavigationCommitID: String?
     @FocusState private var isCommitListKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
 
@@ -54,8 +57,9 @@ struct DiffViewerCommitsContent: View {
                 List(viewModel.aheadCommits) { commit in
                     DiffViewerCommitRow(
                         commit: commit,
-                        isSelected: viewModel.selectedCommit?.id == commit.id
+                        isSelected: commitSelectionID == commit.id
                     ) {
+                        keyboardNavigationCommitID = commit.id
                         claimCommitListKeyboardFocus()
                         Task {
                             await viewModel.selectCommit(commit)
@@ -70,17 +74,26 @@ struct DiffViewerCommitsContent: View {
                 .focusable()
                 .focused($isCommitListKeyboardFocused)
                 .focusEffectDisabled()
-                .onKeyPress(keys: [.upArrow, .downArrow], action: handleCommitListKeyPress)
+                .onKeyPress(keys: [.upArrow, .downArrow]) { keyPress in
+                    handleCommitListKeyPress(keyPress, scrollProxy: scrollProxy)
+                }
+                .background {
+                    DiffViewerFileListScrollMonitor(
+                        fileIDs: viewModel.aheadCommits.map(\.id),
+                        verticalOffsetFromTop: .constant(0),
+                        scrollController: scrollController
+                    )
+                }
                 .onChange(of: viewModel.selectedCommit?.id) { _, commitID in
-                    guard let commitID,
-                          pendingKeyboardNavigationScrollCount > 0 else {
-                        return
-                    }
-                    pendingKeyboardNavigationScrollCount -= 1
-                    scrollSelectionIntoView(scrollProxy: scrollProxy, id: commitID)
+                    keyboardNavigationCommitID = commitID
+                }
+                .onAppear {
+                    keyboardNavigationCommitID = viewModel.selectedCommit?.id
                 }
                 .onDisappear {
-                    pendingKeyboardNavigationScrollCount = 0
+                    latestKeyboardNavigationScrollID = UUID()
+                    latestKeyboardNavigationLoadID = UUID()
+                    keyboardNavigationCommitID = nil
                 }
             }
         }
@@ -152,38 +165,105 @@ struct DiffViewerCommitsContent: View {
         viewModel.selectedCommitDiffErrorMessage ?? "Select the commit again to try again."
     }
 
-    private func handleCommitListKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+    private var commitSelectionID: String? {
+        keyboardNavigationCommitID ?? viewModel.selectedCommit?.id
+    }
+
+    private func handleCommitListKeyPress(_ keyPress: KeyPress, scrollProxy: ScrollViewProxy) -> KeyPress.Result {
         switch keyPress.key {
         case .upArrow:
-            navigateCommitList(forward: false)
+            navigateCommitList(forward: false, scrollProxy: scrollProxy)
             return .handled
         case .downArrow:
-            navigateCommitList(forward: true)
+            navigateCommitList(forward: true, scrollProxy: scrollProxy)
             return .handled
         default:
             return .ignored
         }
     }
 
-    private func navigateCommitList(forward: Bool) {
-        pendingKeyboardNavigationScrollCount += 1
-        Task { @MainActor in
-            let didMove = await viewModel.selectAdjacentCommit(forward: forward)
-            if !didMove, pendingKeyboardNavigationScrollCount > 0 {
-                pendingKeyboardNavigationScrollCount -= 1
-            }
+    private func navigateCommitList(forward: Bool, scrollProxy: ScrollViewProxy) {
+        guard let commit = viewModel.adjacentCommit(from: commitSelectionID, forward: forward) else {
+            return
         }
+        keyboardNavigationCommitID = commit.id
+        let loadID = UUID()
+        latestKeyboardNavigationLoadID = loadID
+        // Selection changes synchronously for row color; only the latest repeated key press should start preview work.
+        Task { @MainActor in
+            guard latestKeyboardNavigationLoadID == loadID else {
+                return
+            }
+            await viewModel.selectCommit(commit)
+        }
+        scrollSelectionIntoView(scrollProxy: scrollProxy, id: commit.id)
     }
 
     private func claimCommitListKeyboardFocus() {
-        pendingKeyboardNavigationScrollCount = 0
+        latestKeyboardNavigationScrollID = UUID()
+        latestKeyboardNavigationLoadID = UUID()
         chatComposerFocus?.wrappedValue = false
         isCommitListKeyboardFocused = true
     }
 
     private func scrollSelectionIntoView(scrollProxy: ScrollViewProxy, id: String) {
+        let scrollID = UUID()
+        latestKeyboardNavigationScrollID = scrollID
+        if id == viewModel.aheadCommits.first?.id {
+            scrollToListBoundary(scrollProxy: scrollProxy, rowID: id, edge: .top, scrollID: scrollID)
+        } else if id == viewModel.aheadCommits.last?.id {
+            scrollToListBoundary(scrollProxy: scrollProxy, rowID: id, edge: .bottom, scrollID: scrollID)
+        } else {
+            scrollToRow(scrollProxy: scrollProxy, rowID: id, scrollID: scrollID)
+        }
+    }
+
+    private func scrollToListBoundary(
+        scrollProxy: ScrollViewProxy,
+        rowID: String,
+        edge: DiffViewerListScrollEdge,
+        scrollID: UUID
+    ) {
+        let didScroll = scrollController.scroll(to: edge, animated: true)
+        if !didScroll {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(rowID, anchor: edge.fallbackAnchor)
+            }
+        }
+
+        DispatchQueue.main.async {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            if !scrollController.scroll(to: edge, animated: true) {
+                scrollProxy.scrollTo(rowID, anchor: edge.fallbackAnchor)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            _ = scrollController.scroll(to: edge, animated: false)
+        }
+    }
+
+    private func scrollToRow(scrollProxy: ScrollViewProxy, rowID: String, scrollID: UUID) {
         withAnimation(.easeInOut(duration: 0.18)) {
-            scrollProxy.scrollTo(id)
+            scrollProxy.scrollTo(rowID)
+        }
+        DispatchQueue.main.async {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(rowID)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            guard latestKeyboardNavigationScrollID == scrollID else {
+                return
+            }
+            scrollProxy.scrollTo(rowID)
         }
     }
 }
