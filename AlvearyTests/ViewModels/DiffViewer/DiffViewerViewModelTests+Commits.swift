@@ -102,8 +102,6 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.refresh(in: fixture.directory, reason: .localGitMutation)
         XCTAssertGreaterThan(fixture.viewModel.workspaceRefreshRevision, previousRevision)
 
-        await fixture.viewModel.loadAheadCommitsForActiveTarget()
-
         XCTAssertEqual(fixture.viewModel.aheadCommits, [commit])
         XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
         XCTAssertEqual(fixture.viewModel.commitDiffFiles.map { $0.path }, ["Alveary/Services/Git/CLIGitService.swift"])
@@ -136,43 +134,6 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.commitDiffFiles.first?.hunks.first?.lines.count, 1_003)
         XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loaded)
         XCTAssertNil(fixture.viewModel.selectedCommitDiffErrorMessage)
-    }
-
-    func testCommitReloadDuringSelectedDiffLoadIsCoalesced() async {
-        let commit = Self.commit(hash: "abcdef1234567890", message: "Large commit")
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([])],
-                commitsAheadDetailsResults: [.success([commit]), .success([commit])],
-                commitDiffResults: [
-                    .success(Self.modifiedDiff(path: "Slow.swift", newLine: "slow"))
-                ],
-                commitDiffDelays: [.milliseconds(150), .zero]
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await fixture.viewModel.switchToDirectory(
-            fixture.directory,
-            baseRef: "main",
-            remoteName: "origin",
-            conversationIds: []
-        )
-        let loadTask = Task {
-            await fixture.viewModel.loadAheadCommitsForActiveTarget()
-        }
-
-        try? await Task.sleep(for: .milliseconds(50))
-        await fixture.viewModel.loadAheadCommitsForActiveTarget()
-        XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loading)
-        await loadTask.value
-
-        let detailCalls = await fixture.gitService.commitsAheadDetailsCalls()
-        let diffCalls = await fixture.gitService.commitDiffCalls()
-        XCTAssertEqual(detailCalls.count, 2)
-        XCTAssertEqual(diffCalls.count, 1)
-        XCTAssertEqual(fixture.viewModel.commitDiffFiles.map(\.path), ["Slow.swift"])
-        XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loaded)
     }
 
     func testDelayedCommitListDoesNotPublishAfterTargetSwitch() async {

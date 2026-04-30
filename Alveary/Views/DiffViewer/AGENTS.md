@@ -39,6 +39,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 
 - **Preserve commit row shape.** Commit rows should stay one ellipsizing line with the bold short hash, 6pt spacing, then the title, with 4pt vertical content padding.
 - **Keep commit selection singular.** File lists support modifier/range multi-selection; commit lists should disable native multi-selection and select only one commit at a time.
+- **Preserve visible commits while refreshing.** If a same-target commit reload is loading or fails with existing commits still available, keep those rows visible; only use list-level loading/error states when there are no commits to preserve.
 - **Flatten file diff previews.** Current changes and commits should render through `FlattenedDiffPreview`, which supports one or more `DiffFile` values and keeps file headers, hunk headers, and line rows in one lazy row stream. Large flattened row models should be prepared off the main actor.
 - **Render explicit states.** Show separate loading, empty-ahead-commits, Git/error, selected-diff loading, diff-too-large, raw fallback, and no-diff states.
 

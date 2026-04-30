@@ -20,7 +20,7 @@ struct DiffViewerCommitsContent: View {
 
     @ViewBuilder
     private var commitList: some View {
-        if viewModel.isLoadingCommits {
+        if viewModel.isLoadingCommits && viewModel.aheadCommits.isEmpty {
             VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
@@ -31,7 +31,7 @@ struct DiffViewerCommitsContent: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityElement(children: .combine)
-        } else if viewModel.commitsLoadState == .failed {
+        } else if viewModel.commitsLoadState == .failed && viewModel.aheadCommits.isEmpty {
             EmptyStateView(
                 icon: "exclamationmark.triangle",
                 heading: "Unable to load commits",

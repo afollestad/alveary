@@ -10,12 +10,22 @@ struct CommitListResultContext {
 
 @MainActor
 extension DiffViewerViewModel {
-    func loadAheadCommits(for target: DiffWorkspaceTarget, preservesSelectedDiff: Bool = false) async {
+    func loadAheadCommits(
+        for target: DiffWorkspaceTarget,
+        preservesSelectedDiff: Bool = false,
+        forceReload: Bool = false
+    ) async {
         guard inFlightCommitListLoad == nil,
               inFlightCommitDiffLoad == nil else {
-            // Workspace refreshes can arrive while a commit diff is loading; coalesce
-            // them so the visible diff task can publish instead of being restarted.
-            pendingCommitReloadTarget = target
+            if forceReload {
+                // Workspace refreshes can arrive while a commit diff is loading; coalesce
+                // them so the visible diff task can publish instead of being restarted.
+                pendingCommitReloadTarget = target
+            }
+            return
+        }
+
+        guard forceReload || commitListTarget != target || commitsLoadState != .loaded else {
             return
         }
 
@@ -23,6 +33,8 @@ extension DiffViewerViewModel {
         let generation = commitGeneration
         cancelCommitLoads()
         pendingCommitReloadTarget = nil
+        commitListTarget = target
+        isCommitListRefreshNeeded = false
         let preferredCommitHash = selectedCommit?.hash
         beginCommitListLoad(preservesSelectedDiff: preservesSelectedDiff)
 
@@ -64,7 +76,8 @@ extension DiffViewerViewModel {
         target: DiffWorkspaceTarget,
         processesPendingReload: Bool = true
     ) async {
-        commitGeneration &+= 1
+        // Keep manual commit selection from invalidating an in-flight list reload; diff
+        // staleness is guarded by the selected hash and load id below.
         let generation = commitGeneration
         cancelCommitDiffLoad()
         selectedCommit = commit
@@ -95,6 +108,8 @@ extension DiffViewerViewModel {
         commitGeneration &+= 1
         cancelCommitLoads()
         pendingCommitReloadTarget = nil
+        commitListTarget = nil
+        isCommitListRefreshNeeded = false
         aheadCommits = []
         selectedCommit = nil
         commitDiffFiles = []
@@ -106,8 +121,8 @@ extension DiffViewerViewModel {
 
     func beginCommitListLoad(preservesSelectedDiff: Bool) {
         commitsLoadState = .loading
-        aheadCommits = []
         if !preservesSelectedDiff {
+            aheadCommits = []
             selectedCommitDiffLoadState = .idle
             selectedCommit = nil
             commitDiffFiles = []
@@ -127,14 +142,18 @@ extension DiffViewerViewModel {
         aheadCommits = commits
         commitsLoadState = .loaded
         inFlightCommitListLoad = nil
-        guard let commitToLoad = commits.first(where: { $0.hash == context.preferredCommitHash }) ?? commits.first else {
+        let selectedCommitHash = selectedCommit?.hash
+        let commitToLoad = commits.first(where: { $0.hash == selectedCommitHash })
+            ?? commits.first(where: { $0.hash == context.preferredCommitHash })
+            ?? commits.first
+        guard let commitToLoad else {
             clearSelectedCommitDiffState()
             return
         }
 
         if context.preservesSelectedDiff,
            selectedCommit?.hash == commitToLoad.hash,
-           selectedCommitDiffLoadState == .loaded {
+           selectedCommitDiffLoadState == .loaded || selectedCommitDiffLoadState == .loading {
             selectedCommit = commitToLoad
         } else {
             await loadCommitDiff(for: commitToLoad, target: context.target, processesPendingReload: false)
@@ -149,6 +168,7 @@ extension DiffViewerViewModel {
 
     func runPendingCommitReloadIfNeeded(after target: DiffWorkspaceTarget) async {
         guard let pendingTarget = pendingCommitReloadTarget,
+              isCommitModeActive,
               pendingTarget == target,
               diffStore.activeTarget == target,
               inFlightCommitListLoad == nil,
@@ -157,7 +177,7 @@ extension DiffViewerViewModel {
         }
 
         pendingCommitReloadTarget = nil
-        await loadAheadCommits(for: pendingTarget, preservesSelectedDiff: true)
+        await loadAheadCommits(for: pendingTarget, preservesSelectedDiff: true, forceReload: true)
     }
 
     func cancelCommitDiffLoad() {
@@ -236,6 +256,7 @@ extension DiffViewerViewModel {
         }
         commitsLoadState = .failed
         inFlightCommitListLoad = nil
+        commitListTarget = target
         diffStore.presentGitError("Commit list failed: \(error.localizedDescription)")
     }
 

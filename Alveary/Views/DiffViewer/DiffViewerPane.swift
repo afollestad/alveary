@@ -98,19 +98,19 @@ struct DiffViewerPane: View {
                 content
             }
         }
-        .onAppear(perform: loadCommitsIfNeeded)
+        .onAppear(perform: syncCommitModeActivity)
+        .onDisappear {
+            viewModel.setCommitModeActive(false)
+        }
         .onChange(of: mode) { _, newMode in
             if newMode == .commits {
                 isFileListTopDividerVisible = false
                 loadCommitsIfNeeded()
+            } else {
+                viewModel.setCommitModeActive(false)
             }
         }
         .onChange(of: viewModel.activeDirectory) { _, _ in
-            if mode == .commits {
-                loadCommitsIfNeeded()
-            }
-        }
-        .onChange(of: viewModel.workspaceRefreshRevision) { _, _ in
             if mode == .commits {
                 loadCommitsIfNeeded()
             }
@@ -173,6 +173,14 @@ private extension DiffViewerPane {
     func selectMode(_ selectedMode: DiffViewerMode) {
         mode = selectedMode
         onModeCommit(selectedMode)
+    }
+
+    func syncCommitModeActivity() {
+        if mode == .commits {
+            loadCommitsIfNeeded()
+        } else {
+            viewModel.setCommitModeActive(false)
+        }
     }
 
     func loadCommitsIfNeeded() {

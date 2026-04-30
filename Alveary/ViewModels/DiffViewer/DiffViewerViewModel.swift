@@ -33,6 +33,9 @@ final class DiffViewerViewModel {
     var selectedCommitDiffLoadState: DiffWorkspaceLoadState = .idle
     var selectedCommitDiffErrorMessage: String?
     private(set) var workspaceRefreshRevision: UInt64 = 0
+    var isCommitModeActive = false
+    var commitListTarget: DiffWorkspaceTarget?
+    var isCommitListRefreshNeeded = false
     var pendingCommitReloadTarget: DiffWorkspaceTarget?
 
     var isLoadingCommits: Bool { commitsLoadState == .loading }
@@ -278,7 +281,28 @@ final class DiffViewerViewModel {
             return
         }
 
-        await loadAheadCommits(for: target)
+        isCommitModeActive = true
+        let needsRefresh = isCommitListRefreshNeeded && commitListTarget == target
+        let shouldPreserveVisibleCommitState = commitListTarget == target &&
+            (!aheadCommits.isEmpty || selectedCommit != nil || !commitDiffFiles.isEmpty || !rawCommitDiffContent.isEmpty)
+        await loadAheadCommits(
+            for: target,
+            preservesSelectedDiff: needsRefresh || shouldPreserveVisibleCommitState,
+            forceReload: needsRefresh
+        )
+    }
+
+    func setCommitModeActive(_ isActive: Bool) {
+        isCommitModeActive = isActive
+        if !isActive {
+            // Leaving commit mode discards queued reload work, but the cached list still needs
+            // a preserving refresh when the user comes back to the same target.
+            if let pendingCommitReloadTarget,
+               pendingCommitReloadTarget == commitListTarget {
+                isCommitListRefreshNeeded = true
+            }
+            pendingCommitReloadTarget = nil
+        }
     }
 
     func selectCommit(_ commit: CommitInfo) async {
@@ -374,6 +398,9 @@ private extension DiffViewerViewModel {
         guard let snapshot = await diffStore.refreshStatusAndStartStats(for: request.directory) else {
             return
         }
+        if shouldMarkCommitListStaleAfterInactiveRefresh(snapshot: snapshot, reason: request.reason) {
+            isCommitListRefreshNeeded = true
+        }
 
         if snapshot.error != nil {
             contextualAction = .none
@@ -400,6 +427,38 @@ private extension DiffViewerViewModel {
         contextualAction = action
         await diffStore.refreshSelectedDiffIfNeeded(snapshot: snapshot, reason: request.reason)
         workspaceRefreshRevision &+= 1
+        if shouldReloadCommitsAfterWorkspaceRefresh(snapshot: snapshot, reason: request.reason) {
+            await loadAheadCommits(for: snapshot.target, preservesSelectedDiff: true, forceReload: true)
+        }
     }
 
+}
+
+private extension DiffViewerViewModel {
+    func shouldReloadCommitsAfterWorkspaceRefresh(snapshot: DiffWorkspaceRefreshSnapshot, reason: RefreshReason) -> Bool {
+        // Thread switches already trigger an initial commit load from the view; reloading after
+        // that first status refresh causes the commits pane to clear and repopulate.
+        guard reason != .threadSwitch,
+              isCommitModeActive,
+              commitListTarget == snapshot.target,
+              diffStore.isCurrent(snapshot),
+              commitsLoadState == .loaded || commitsLoadState == .failed || selectedCommit != nil || !aheadCommits.isEmpty else {
+            return false
+        }
+
+        return true
+    }
+
+    func shouldMarkCommitListStaleAfterInactiveRefresh(snapshot: DiffWorkspaceRefreshSnapshot, reason: RefreshReason) -> Bool {
+        // Inactive refreshes skip the Git log work; remember that cached commits
+        // need a preserving reload the next time commit mode becomes visible.
+        guard reason != .threadSwitch,
+              !isCommitModeActive,
+              commitListTarget == snapshot.target,
+              diffStore.isCurrent(snapshot) else {
+            return false
+        }
+
+        return true
+    }
 }
