@@ -77,6 +77,67 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.idle)
     }
 
+    func testRefreshRevisionAllowsCommitModeToReloadAheadCommitsAfterRepositoryChanges() async {
+        let commit = Self.commit(hash: "abcdef1234567890", message: "Add Git service update")
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([]), .success([])],
+                commitsAheadDetailsResults: [.success([]), .success([commit])],
+                commitDiffResults: [.success(Self.modifiedDiff(path: "Alveary/Services/Git/CLIGitService.swift"))]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        XCTAssertTrue(fixture.viewModel.aheadCommits.isEmpty)
+        let previousRevision = fixture.viewModel.workspaceRefreshRevision
+
+        await fixture.viewModel.refresh(in: fixture.directory, reason: .localGitMutation)
+        XCTAssertGreaterThan(fixture.viewModel.workspaceRefreshRevision, previousRevision)
+
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        XCTAssertEqual(fixture.viewModel.aheadCommits, [commit])
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
+        XCTAssertEqual(fixture.viewModel.commitDiffFiles.map { $0.path }, ["Alveary/Services/Git/CLIGitService.swift"])
+    }
+
+    func testLargeCommitDiffParsesWithoutPreviewLineCap() async {
+        let commit = Self.commit(hash: "abcdef1234567890", message: "Large commit")
+        let largeDiff = Self.modifiedDiff(path: "Large.swift")
+            + "\n"
+            + Array(repeating: " context", count: 1_001).joined(separator: "\n")
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success([commit])],
+                commitDiffResults: [.success(largeDiff)]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
+        XCTAssertEqual(fixture.viewModel.commitDiffFiles.map(\.path), ["Large.swift"])
+        XCTAssertEqual(fixture.viewModel.commitDiffFiles.first?.hunks.first?.lines.count, 1_003)
+        XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loaded)
+        XCTAssertNil(fixture.viewModel.selectedCommitDiffErrorMessage)
+    }
+
     func testDelayedCommitListDoesNotPublishAfterTargetSwitch() async {
         let staleCommit = Self.commit(hash: "abcdef1234567890", message: "Stale result")
         let fixture = DiffViewerTestFixture(

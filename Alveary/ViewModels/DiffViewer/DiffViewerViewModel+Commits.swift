@@ -12,6 +12,7 @@ extension DiffViewerViewModel {
         selectedCommit = nil
         commitDiffFiles = []
         rawCommitDiffContent = ""
+        selectedCommitDiffErrorMessage = nil
 
         let gitService = gitService
         let task = Task.detached(priority: .userInitiated) {
@@ -50,6 +51,7 @@ extension DiffViewerViewModel {
         selectedCommit = commit
         commitDiffFiles = []
         rawCommitDiffContent = ""
+        selectedCommitDiffErrorMessage = nil
         selectedCommitDiffLoadState = .loading
 
         let task = DiffViewerCommitDiffTaskFactory.makeTask(for: commit, in: target.directory, gitService: gitService)
@@ -73,6 +75,7 @@ extension DiffViewerViewModel {
         selectedCommit = nil
         commitDiffFiles = []
         rawCommitDiffContent = ""
+        selectedCommitDiffErrorMessage = nil
         commitsLoadState = .idle
         selectedCommitDiffLoadState = .idle
     }
@@ -166,6 +169,7 @@ extension DiffViewerViewModel {
         }
         rawCommitDiffContent = result.raw
         commitDiffFiles = result.parsed
+        selectedCommitDiffErrorMessage = nil
         selectedCommitDiffLoadState = .loaded
         inFlightCommitDiffLoad = nil
     }
@@ -182,6 +186,7 @@ extension DiffViewerViewModel {
         }
         rawCommitDiffContent = ""
         commitDiffFiles = []
+        selectedCommitDiffErrorMessage = error.localizedDescription
         selectedCommitDiffLoadState = .failed
         inFlightCommitDiffLoad = nil
         diffStore.presentGitError("Commit diff failed: \(error.localizedDescription)")

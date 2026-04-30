@@ -25,6 +25,8 @@ final class SettingsServiceTests: XCTestCase {
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.branchPrefix = "feature/"
             $0.diffViewerWidth = 520
+            $0.diffViewerTopSectionFraction = 0.35
+            $0.diffViewerCommitsTopSectionFraction = 0.65
             $0.diffViewerMode = .commits
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
@@ -43,6 +45,8 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
         XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
+        XCTAssertEqual(reloadedService.current.diffViewerTopSectionFraction, 0.35)
+        XCTAssertEqual(reloadedService.current.diffViewerCommitsTopSectionFraction, 0.65)
         XCTAssertEqual(reloadedService.current.diffViewerMode, .commits)
         XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
@@ -201,6 +205,8 @@ final class SettingsServiceTests: XCTestCase {
             "codeFontSize": 16,
             "chatFontSize": 18,
             "diffViewerWidth": 40,
+            "diffViewerTopSectionFraction": 0.1,
+            "diffViewerCommitsTopSectionFraction": 1.2,
             "diffViewerMode": "branches",
             "notifications": [
                 "enabled": true,
@@ -223,58 +229,10 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(service.current.theme, "system")
         XCTAssertEqual(service.current.diffViewerWidth, 320)
+        XCTAssertEqual(service.current.diffViewerTopSectionFraction, 0.25)
+        XCTAssertEqual(service.current.diffViewerCommitsTopSectionFraction, 0.75)
         XCTAssertEqual(service.current.diffViewerMode, .currentChanges)
         XCTAssertEqual(service.current.notifications.soundName, "Glass")
-    }
-
-    func testUserDefaultsSettingsServiceUsesDefaultSplitFractionWhenStoredJSONPredatesField() throws {
-        let defaults = try makeDefaults()
-        let payload: [String: Any] = [
-            "defaultProvider": "claude",
-            "permissionMode": "plan",
-            "effort": "high",
-            "autoTrustProjects": true,
-            "createWorktreeByDefault": false,
-            "theme": "dark",
-            "codeFontFamily": "Monaco",
-            "codeFontSize": 16,
-            "chatFontSize": 18,
-            "diffViewerWidth": 520,
-            "notifications": [
-                "enabled": true,
-                "osNotifications": true,
-                "sound": true,
-                "soundName": "Glass"
-            ],
-            "branchPrefix": "feature/",
-            "providerConfigs": [:]
-        ]
-        defaults.set(
-            try JSONSerialization.data(withJSONObject: payload),
-            forKey: UserDefaultsSettingsService.storageKey
-        )
-
-        let service = UserDefaultsSettingsService(defaults: defaults)
-
-        XCTAssertEqual(service.current.permissionMode, "plan")
-        XCTAssertEqual(service.current.diffViewerWidth, 520)
-        XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
-    }
-
-    func testUserDefaultsSettingsServiceUsesDefaultDiffViewerModeWhenStoredJSONPredatesField() throws {
-        let defaults = try makeDefaults()
-        let payload: [String: Any] = [
-            "defaultProvider": "claude",
-            "diffViewerWidth": 520
-        ]
-        defaults.set(
-            try JSONSerialization.data(withJSONObject: payload),
-            forKey: UserDefaultsSettingsService.storageKey
-        )
-
-        let service = UserDefaultsSettingsService(defaults: defaults)
-
-        XCTAssertEqual(service.current.diffViewerMode, AppSettings.defaultDiffViewerMode)
     }
 
     func testUserDefaultsSettingsServiceUsesDefaultThreadCleanupActionWhenStoredJSONPredatesField() throws {
@@ -443,7 +401,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(inMemoryService.current.notifications.soundName, "Glass")
     }
 
-    private func makeDefaults() throws -> UserDefaults {
+    func makeDefaults() throws -> UserDefaults {
         let suiteName = "SettingsServiceTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         addTeardownBlock {

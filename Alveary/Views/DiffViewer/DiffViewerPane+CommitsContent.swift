@@ -79,8 +79,8 @@ struct DiffViewerCommitsContent: View {
         } else if viewModel.selectedCommitDiffLoadState == .failed {
             EmptyStateView(
                 icon: "exclamationmark.triangle",
-                heading: "Unable to load commit diff",
-                subtext: "Select the commit again to try again.",
+                heading: commitDiffFailureHeading,
+                subtext: commitDiffFailureSubtext,
                 actions: []
             )
         } else if viewModel.selectedCommit == nil {
@@ -105,6 +105,20 @@ struct DiffViewerCommitsContent: View {
                 actions: []
             )
         }
+    }
+
+    private var commitDiffFailureHeading: String {
+        guard let message = viewModel.selectedCommitDiffErrorMessage,
+              message.localizedCaseInsensitiveContains("too large")
+                || message.localizedCaseInsensitiveContains("exceeded") else {
+            return "Unable to load commit diff"
+        }
+
+        return "Commit diff is too large"
+    }
+
+    private var commitDiffFailureSubtext: String {
+        viewModel.selectedCommitDiffErrorMessage ?? "Select the commit again to try again."
     }
 }
 
@@ -198,7 +212,8 @@ private struct DiffViewerCommitDiffFileSection: View {
                     DiffHunkSection(
                         hunk: hunk,
                         gutterLayout: DiffGutterLayout(hunk: hunk, defaultLineNumberWidth: lineNumberWidth),
-                        fillsRemainingHeight: index == file.hunks.indices.last
+                        fillsRemainingHeight: index == file.hunks.indices.last,
+                        displayPolicy: .commitPreview
                     )
                 }
             }

@@ -7,6 +7,26 @@ struct CollapsedContextSummary {
     let oldEnd: Int?
     let newStart: Int?
     let newEnd: Int?
+    let addedCount: Int
+    let deletedCount: Int
+
+    init(
+        lineCount: Int,
+        oldStart: Int?,
+        oldEnd: Int?,
+        newStart: Int?,
+        newEnd: Int?,
+        addedCount: Int = 0,
+        deletedCount: Int = 0
+    ) {
+        self.lineCount = lineCount
+        self.oldStart = oldStart
+        self.oldEnd = oldEnd
+        self.newStart = newStart
+        self.newEnd = newEnd
+        self.addedCount = addedCount
+        self.deletedCount = deletedCount
+    }
 }
 
 struct DiffGutterLayout {
@@ -93,7 +113,18 @@ struct DiffCollapsedContextRow: View {
     }
 
     private var omissionText: String {
-        "\(summary.lineCount) unchanged lines hidden"
+        guard summary.addedCount > 0 || summary.deletedCount > 0 else {
+            return "\(summary.lineCount) unchanged lines hidden"
+        }
+
+        let changeCounts = [
+            summary.addedCount > 0 ? "+\(summary.addedCount)" : nil,
+            summary.deletedCount > 0 ? "-\(summary.deletedCount)" : nil
+        ]
+        .compactMap { $0 }
+        .joined(separator: ", ")
+
+        return "\(summary.lineCount) diff lines hidden (\(changeCounts))"
     }
 
     private var accessibilityText: Text {

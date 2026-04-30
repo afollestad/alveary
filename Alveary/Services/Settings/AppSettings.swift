@@ -59,6 +59,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var chatFontSize = 14
     var diffViewerWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
+    var diffViewerCommitsTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerMode = Self.defaultDiffViewerMode
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
@@ -183,6 +184,10 @@ struct AppSettings: Codable, Sendable, Equatable {
             max(diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
             Self.supportedDiffViewerSplitRange.upperBound
         )
+        diffViewerCommitsTopSectionFraction = min(
+            max(diffViewerCommitsTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
+            Self.supportedDiffViewerSplitRange.upperBound
+        )
         diffViewerMode = Self.normalizedDiffViewerMode(diffViewerMode.rawValue)
         terminalPaneHeight = min(
             max(terminalPaneHeight, Self.supportedTerminalPaneHeightRange.lowerBound),
@@ -249,6 +254,7 @@ extension AppSettings {
         case chatFontSize
         case diffViewerWidth
         case diffViewerTopSectionFraction
+        case diffViewerCommitsTopSectionFraction
         case diffViewerMode
         case terminalPaneHeight
         case expandTerminalWhenActionsRun
@@ -325,6 +331,10 @@ extension AppSettings {
             Double.self,
             forKey: .diffViewerTopSectionFraction
         ) ?? diffViewerTopSectionFraction
+        diffViewerCommitsTopSectionFraction = try container.decodeIfPresent(
+            Double.self,
+            forKey: .diffViewerCommitsTopSectionFraction
+        ) ?? diffViewerCommitsTopSectionFraction
         diffViewerMode = Self.normalizedDiffViewerMode(
             try container.decodeIfPresent(String.self, forKey: .diffViewerMode)
         )

@@ -31,8 +31,9 @@ struct ContentView: View {
     @State var sidebarViewModel: SidebarViewModel
     @State var diffViewModel: DiffViewerViewModel
     @State private var diffViewerWidth: CGFloat
-    @State private var diffViewerTopSectionFraction: CGFloat
-    @State private var diffViewerMode: DiffViewerMode
+    @State var diffViewerTopSectionFraction: CGFloat
+    @State var diffViewerCommitsTopSectionFraction: CGFloat
+    @State var diffViewerMode: DiffViewerMode
     @State private var terminalPaneHeight: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
@@ -72,6 +73,7 @@ struct ContentView: View {
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
         _diffViewerWidth = State(initialValue: CGFloat(settings.diffViewerWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
+        _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
         _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies))
@@ -168,8 +170,10 @@ struct ContentView: View {
                                 areAgentActionsEnabled: activeDiffActionTarget() != nil,
                                 mode: $diffViewerMode,
                                 onModeCommit: persistDiffViewerMode,
-                                topSectionFraction: $diffViewerTopSectionFraction,
-                                onTopSectionFractionCommit: persistDiffViewerTopSectionFraction,
+                                topSectionFraction: activeDiffViewerTopSectionFraction,
+                                onTopSectionFractionCommit: { fraction in
+                                    persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
+                                },
                                 onCommitRequested: requestAgentCommit,
                                 onOpenPRRequested: requestAgentOpenPR
                             )

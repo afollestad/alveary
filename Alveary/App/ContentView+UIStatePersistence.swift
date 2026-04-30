@@ -1,15 +1,38 @@
 import SwiftUI
 
 extension ContentView {
+    var activeDiffViewerTopSectionFraction: Binding<CGFloat> {
+        Binding(
+            get: {
+                diffViewerMode == .commits
+                    ? diffViewerCommitsTopSectionFraction
+                    : diffViewerTopSectionFraction
+            },
+            set: { newValue in
+                switch diffViewerMode {
+                case .currentChanges:
+                    diffViewerTopSectionFraction = newValue
+                case .commits:
+                    diffViewerCommitsTopSectionFraction = newValue
+                }
+            }
+        )
+    }
+
     func persistDiffViewerWidth(_ width: CGFloat) {
         settingsService.update {
             $0.diffViewerWidth = width
         }
     }
 
-    func persistDiffViewerTopSectionFraction(_ fraction: CGFloat) {
+    func persistDiffViewerTopSectionFraction(_ fraction: CGFloat, mode: DiffViewerMode) {
         settingsService.update {
-            $0.diffViewerTopSectionFraction = fraction
+            switch mode {
+            case .currentChanges:
+                $0.diffViewerTopSectionFraction = fraction
+            case .commits:
+                $0.diffViewerCommitsTopSectionFraction = fraction
+            }
         }
     }
 

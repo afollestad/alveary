@@ -110,6 +110,11 @@ struct DiffViewerPane: View {
                 loadCommitsIfNeeded()
             }
         }
+        .onChange(of: viewModel.workspaceRefreshRevision) { _, _ in
+            if mode == .commits {
+                loadCommitsIfNeeded()
+            }
+        }
         .confirmationDialog(
             discardConfirmationTitle,
             isPresented: Binding(

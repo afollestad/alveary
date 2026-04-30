@@ -118,7 +118,8 @@ struct StructuredDiffPreview: View {
                         DiffHunkSection(
                             hunk: hunk,
                             gutterLayout: DiffGutterLayout(hunk: hunk, defaultLineNumberWidth: lineNumberWidth),
-                            fillsRemainingHeight: index == diff.hunks.indices.last
+                            fillsRemainingHeight: index == diff.hunks.indices.last,
+                            displayPolicy: .standard
                         )
                     }
                 }
@@ -191,9 +192,22 @@ struct DiffHunkSection: View {
     let hunk: DiffHunk
     let gutterLayout: DiffGutterLayout
     let fillsRemainingHeight: Bool
+    let displayPolicy: DiffHunkDisplayPolicy
 
     private let collapsedContextMinimum = 8
     private let visibleContextRadius = 3
+
+    init(
+        hunk: DiffHunk,
+        gutterLayout: DiffGutterLayout,
+        fillsRemainingHeight: Bool,
+        displayPolicy: DiffHunkDisplayPolicy = .standard
+    ) {
+        self.hunk = hunk
+        self.gutterLayout = gutterLayout
+        self.fillsRemainingHeight = fillsRemainingHeight
+        self.displayPolicy = displayPolicy
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -258,6 +272,16 @@ struct DiffHunkSection: View {
     }
 
     private var displayRows: [DiffHunkDisplayRow] {
+        let contextCollapsedRows = makeContextCollapsedDisplayRows()
+        guard let maximumVisibleLineRows = displayPolicy.maximumVisibleLineRows,
+              contextCollapsedRows.count > maximumVisibleLineRows else {
+            return contextCollapsedRows
+        }
+
+        return makeBoundedDisplayRows(maximumVisibleLineRows: maximumVisibleLineRows)
+    }
+
+    private func makeContextCollapsedDisplayRows() -> [DiffHunkDisplayRow] {
         let changedIndices = hunk.lines.indices.filter { hunk.lines[$0].type != .context }
         guard !changedIndices.isEmpty else {
             return hunk.lines.map(DiffHunkDisplayRow.line)
@@ -287,7 +311,7 @@ struct DiffHunkSection: View {
                 index += 1
             }
 
-            let omittedLines = Array(hunk.lines[omittedStart..<index])
+            let omittedLines = hunk.lines[omittedStart..<index]
             if omittedLines.count < collapsedContextMinimum {
                 rows.append(contentsOf: omittedLines.map(DiffHunkDisplayRow.line))
                 continue
@@ -299,14 +323,51 @@ struct DiffHunkSection: View {
         return rows
     }
 
-    private func summary(for omittedLines: [DiffLine]) -> CollapsedContextSummary {
+    private func makeBoundedDisplayRows(maximumVisibleLineRows: Int) -> [DiffHunkDisplayRow] {
+        let visibleLineRows = max(2, maximumVisibleLineRows)
+        guard hunk.lines.count > visibleLineRows else {
+            return hunk.lines.map(DiffHunkDisplayRow.line)
+        }
+
+        let leadingCount = max(1, visibleLineRows / 2)
+        let trailingCount = max(1, visibleLineRows - leadingCount)
+        let trailingStart = hunk.lines.count - trailingCount
+        guard leadingCount < trailingStart else {
+            return hunk.lines.map(DiffHunkDisplayRow.line)
+        }
+
+        var rows = hunk.lines[..<leadingCount].map(DiffHunkDisplayRow.line)
+        rows.append(.omitted(summary: summary(for: hunk.lines[leadingCount..<trailingStart])))
+        rows.append(contentsOf: hunk.lines[trailingStart...].map(DiffHunkDisplayRow.line))
+        return rows
+    }
+
+    private func summary(for omittedLines: ArraySlice<DiffLine>) -> CollapsedContextSummary {
         CollapsedContextSummary(
             lineCount: omittedLines.count,
             oldStart: omittedLines.first?.oldLineNumber,
             oldEnd: omittedLines.last?.oldLineNumber,
             newStart: omittedLines.first?.newLineNumber,
-            newEnd: omittedLines.last?.newLineNumber
+            newEnd: omittedLines.last?.newLineNumber,
+            addedCount: omittedLines.filter { $0.type == .added }.count,
+            deletedCount: omittedLines.filter { $0.type == .deleted }.count
         )
+    }
+}
+
+enum DiffHunkDisplayPolicy {
+    case standard
+    case commitPreview
+
+    fileprivate var maximumVisibleLineRows: Int? {
+        switch self {
+        case .standard:
+            return nil
+        case .commitPreview:
+            // Commit previews can contain every file in a commit; bounding each hunk
+            // prevents SwiftUI from instantiating thousands of selectable line rows at once.
+            return 80
+        }
     }
 }
 

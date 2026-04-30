@@ -18,6 +18,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 
 - **Share vertical resizing.** Diff Viewer modes that show top and bottom panes should use `DiffViewerVerticalSplit`
   instead of duplicating split-height, resize-handle, or accessibility behavior.
+- **Persist split positions by mode.** Current changes and commits have separate saved split fractions; do not reuse one mode's resize position for the other.
 
 ## Pane Modes
 
@@ -38,7 +39,8 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 
 - **Preserve commit row shape.** Commit rows should stay one ellipsizing line with the bold short hash, 6pt spacing, then the title, with 4pt vertical content padding.
 - **Keep commit selection singular.** File lists support modifier/range multi-selection; commit lists should disable native multi-selection and select only one commit at a time.
-- **Render explicit states.** Show separate loading, empty-ahead-commits, Git/error, selected-diff loading, raw fallback, and no-diff states.
+- **Collapse large commit hunks.** Commit mode may parse every file in one commit; keep previews responsive by collapsing oversized hunks instead of rejecting moderate patches before parsing.
+- **Render explicit states.** Show separate loading, empty-ahead-commits, Git/error, selected-diff loading, diff-too-large, raw fallback, and no-diff states.
 
 ## File List Interaction
 

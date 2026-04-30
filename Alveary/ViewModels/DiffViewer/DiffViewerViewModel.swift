@@ -31,6 +31,8 @@ final class DiffViewerViewModel {
     var rawCommitDiffContent = ""
     var commitsLoadState: DiffWorkspaceLoadState = .idle
     var selectedCommitDiffLoadState: DiffWorkspaceLoadState = .idle
+    var selectedCommitDiffErrorMessage: String?
+    private(set) var workspaceRefreshRevision: UInt64 = 0
 
     var isLoadingCommits: Bool { commitsLoadState == .loading }
     var isLoadingSelectedCommitDiff: Bool { selectedCommitDiffLoadState == .loading }
@@ -181,7 +183,9 @@ final class DiffViewerViewModel {
         }
 
         watchController.stopWatching()
-        _ = diffStore.switchToTarget(target.workspaceTarget)
+        if diffStore.switchToTarget(target.workspaceTarget) {
+            workspaceRefreshRevision &+= 1
+        }
         contextualAction = .none
         clearCommitState()
 
@@ -214,6 +218,7 @@ final class DiffViewerViewModel {
         watchController.stopWatching()
         activeConversationIds = []
         diffStore.clear()
+        workspaceRefreshRevision &+= 1
         contextualAction = .none
         clearCommitState()
         refreshScheduler.clearPending()
@@ -393,6 +398,7 @@ private extension DiffViewerViewModel {
 
         contextualAction = action
         await diffStore.refreshSelectedDiffIfNeeded(snapshot: snapshot, reason: request.reason)
+        workspaceRefreshRevision &+= 1
     }
 
 }
