@@ -52,9 +52,13 @@ struct DiffPreviewHeader: View {
 
 struct DiffPreviewContent: View {
     let parsedDiff: DiffFile?
+    let imagePreview: DiffImagePreview?
     let rawDiffContent: String
+    let errorMessage: String?
     let isPending: Bool
     let isLoading: Bool
+    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
         Group {
@@ -72,6 +76,19 @@ struct DiffPreviewContent: View {
                 // During the spinner grace period, avoid flashing an empty-state
                 // message for a diff that is still actively loading.
                 Color.clear
+            } else if let errorMessage {
+                EmptyStateView(
+                    icon: "exclamationmark.triangle",
+                    heading: "Diff preview failed",
+                    subtext: errorMessage,
+                    actions: []
+                )
+            } else if let imagePreview {
+                DiffImagePreviewScrollView(
+                    preview: imagePreview,
+                    loadImage: loadImage,
+                    openImage: openImage
+                )
             } else if let parsedDiff {
                 StructuredDiffPreview(diff: parsedDiff, rawDiffContent: rawDiffContent)
             } else if rawDiffContent.isEmpty {

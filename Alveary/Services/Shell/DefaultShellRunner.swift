@@ -51,6 +51,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
 
             return ShellResult(
                 stdout: String(bytes: stdout, encoding: .utf8) ?? "",
+                stdoutData: stdout,
                 stderr: String(bytes: stderr, encoding: .utf8) ?? "",
                 exitCode: process.terminationStatus,
                 stdoutWasTruncated: stdoutWasTruncated,

@@ -1,7 +1,16 @@
 import Foundation
 
-typealias DiffViewerDiffLoadResult = (raw: String, parsed: DiffFile?)
-typealias DiffViewerCommitDiffLoadResult = (raw: String, parsed: [DiffFile])
+struct DiffViewerDiffLoadResult {
+    let raw: String
+    let parsed: DiffFile?
+    let imagePreview: DiffImagePreview?
+}
+
+struct DiffViewerCommitDiffLoadResult {
+    let raw: String
+    let parsed: [DiffFile]
+    let imagePreviews: [String: DiffImagePreview]
+}
 
 enum DiffWorkspaceLoadState: Equatable {
     case idle
@@ -175,7 +184,13 @@ enum DiffViewerDiffTaskFactory {
         Task(priority: .userInitiated) {
             let raw: String
             if file.status == .untracked {
-                raw = try await gitService.syntheticAddedDiff(for: file.path, in: directory)
+                do {
+                    raw = try await gitService.syntheticAddedDiff(for: file.path, in: directory)
+                } catch GitError.outputTooLarge(_) where DiffImagePreviewSupport.canPreviewImage(path: file.path) {
+                    // Large raster images should skip text diff synthesis and let the
+                    // background ImageIO preview loader enforce image-specific bounds.
+                    raw = DiffImagePreviewSupport.syntheticAddedBinaryDiff(for: file.path)
+                }
             } else {
                 raw = try await gitService.diff(
                     paths: DiffViewerPathSupport.diffPaths(for: file),
@@ -195,8 +210,17 @@ enum DiffViewerDiffTaskFactory {
                 return DiffParser.parse(raw).first
             }.value
 
+            let imagePreview: DiffImagePreview?
+            if let parsed,
+               DiffImagePreviewSupport.canPreviewCurrentImage(for: parsed, fileStatus: file) {
+                let headHash = (try? await gitService.currentHeadHash(in: directory)) ?? "no-head"
+                imagePreview = DiffImagePreviewSupport.preview(for: parsed, fileStatus: file, headHash: headHash)
+            } else {
+                imagePreview = nil
+            }
+
             try Task.checkCancellation()
-            return (raw: raw, parsed: parsed)
+            return DiffViewerDiffLoadResult(raw: raw, parsed: parsed, imagePreview: imagePreview)
         }
     }
 }
@@ -216,8 +240,16 @@ enum DiffViewerCommitDiffTaskFactory {
                 return DiffParser.parse(raw)
             }.value
 
+            let imagePreviews = Dictionary(
+                uniqueKeysWithValues: parsed.enumerated().compactMap { fileIndex, file in
+                    DiffImagePreviewSupport.preview(for: file, commitHash: commit.hash).map {
+                        (DiffImagePreviewSupport.fileID(for: file, fileIndex: fileIndex), $0)
+                    }
+                }
+            )
+
             try Task.checkCancellation()
-            return (raw: raw, parsed: parsed)
+            return DiffViewerCommitDiffLoadResult(raw: raw, parsed: parsed, imagePreviews: imagePreviews)
         }
     }
 }

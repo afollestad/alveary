@@ -169,9 +169,10 @@ extension GitServiceTests {
     }
 }
 
-private extension GitServiceTests {
+extension GitServiceTests {
     static func shellResult(
         stdout: String = "",
+        stdoutData: Data? = nil,
         stderr: String = "",
         exitCode: Int32 = 0,
         stdoutWasTruncated: Bool = false,
@@ -179,6 +180,7 @@ private extension GitServiceTests {
     ) -> ShellResult {
         ShellResult(
             stdout: stdout,
+            stdoutData: stdoutData,
             stderr: stderr,
             exitCode: exitCode,
             stdoutWasTruncated: stdoutWasTruncated,

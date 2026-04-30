@@ -16,7 +16,9 @@ final class DiffViewerViewModel {
     var selectedFile: FileStatus? { diffStore.selectedFile }
     var selectedFiles: [FileStatus] { diffStore.selectedFiles }
     var parsedDiff: DiffFile? { diffStore.parsedDiff }
+    var imagePreview: DiffImagePreview? { diffStore.imagePreview }
     var rawDiffContent: String { diffStore.rawDiffContent }
+    var selectedDiffErrorMessage: String? { diffStore.selectedDiffErrorMessage }
     var isLoadingFiles: Bool { diffStore.isLoadingFiles }
     var isSelectedDiffPending: Bool { diffStore.selectedDiffLoadState == .loading }
     var isLoadingSelectedDiff: Bool { diffStore.isSelectedDiffLoadingIndicatorVisible }
@@ -28,6 +30,7 @@ final class DiffViewerViewModel {
     var aheadCommits: [CommitInfo] = []
     var selectedCommit: CommitInfo?
     var commitDiffFiles: [DiffFile] = []
+    var commitImagePreviews: [String: DiffImagePreview] = [:]
     var rawCommitDiffContent = ""
     var commitsLoadState: DiffWorkspaceLoadState = .idle
     var selectedCommitDiffLoadState: DiffWorkspaceLoadState = .idle
@@ -91,6 +94,8 @@ final class DiffViewerViewModel {
     private var agentStatusObserver: NSObjectProtocol?
     private var appActiveObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
+    let imagePreviewLoader: DiffImagePreviewLoader
+    let imagePreviewOpener: @MainActor (URL) -> Void
 
     init(
         gitService: GitService,
@@ -98,6 +103,8 @@ final class DiffViewerViewModel {
         diffStore: DiffWorkspaceStore? = nil,
         fileListManager: FileListManager,
         agentsManager: any AgentsManager,
+        imagePreviewLoader: DiffImagePreviewLoader = .shared,
+        imagePreviewOpener: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) },
         fsEventDebounceDuration: Duration = .milliseconds(500),
         idlePollInterval: Duration = .seconds(60)
     ) {
@@ -105,6 +112,8 @@ final class DiffViewerViewModel {
         self.diffStore = diffStore ?? DiffWorkspaceStore(gitService: gitService)
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
+        self.imagePreviewLoader = imagePreviewLoader
+        self.imagePreviewOpener = imagePreviewOpener
         self.contextualActionResolver = DiffViewerContextualActionResolver(gitService: gitService, gitHubService: gitHubService)
         self.fsEventDebounceDuration = fsEventDebounceDuration
         self.idlePollInterval = idlePollInterval

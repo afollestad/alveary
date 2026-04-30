@@ -4,12 +4,16 @@ struct DiffViewerPreviewSection: View {
     let selectedFile: FileStatus?
     let selectedFileCount: Int
     let parsedDiff: DiffFile?
+    let imagePreview: DiffImagePreview?
     let rawDiffContent: String
+    let errorMessage: String?
     let isPending: Bool
     let isLoading: Bool
     let fileDisplayName: (FileStatus) -> String
     let statusTitle: (FileStatus.Status) -> String
     let diffPreviewIdentity: (FileStatus) -> String
+    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
         Group {
@@ -31,9 +35,13 @@ struct DiffViewerPreviewSection: View {
 
                     DiffPreviewContent(
                         parsedDiff: parsedDiff,
+                        imagePreview: imagePreview,
                         rawDiffContent: rawDiffContent,
+                        errorMessage: errorMessage,
                         isPending: isPending,
-                        isLoading: isLoading
+                        isLoading: isLoading,
+                        loadImage: loadImage,
+                        openImage: openImage
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(diffPreviewIdentity(selectedFile))

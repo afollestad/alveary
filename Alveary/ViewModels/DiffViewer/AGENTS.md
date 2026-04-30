@@ -19,3 +19,8 @@ These instructions apply to Diff Viewer coordination and state under `Alveary/Vi
 - `DiffViewerSwitchTarget` is the pure sidebar-to-diff target factory.
     - **Prefer worktree paths.** Thread targets should use `worktreePath` over `project.path`; non-worktree threads fall back to the project path.
     - **Filter project conversations.** Project targets should include only live non-worktree conversations, plus threads whose `worktreePath` equals the project path.
+
+## Image Previews
+
+- **Preserve full identity keys.** Image preview cache/temp filenames must include the readable commit/content prefix, full diff path identity, old/new side, and a stable hash of the unsanitized identity so different folders or sanitized paths cannot collide.
+- **Avoid extra Git work.** Current-change diff loading should request `HEAD` only after a parsed diff is known to be raster-previewable.

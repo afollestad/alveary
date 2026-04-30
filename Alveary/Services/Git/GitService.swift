@@ -75,6 +75,14 @@ extension GitError: LocalizedError {
     }
 }
 
+enum GitImageBlobSource: Sendable, Hashable {
+    case worktree(path: String)
+    case head(path: String)
+    case index(path: String)
+    case commit(hash: String, path: String)
+    case commitParent(hash: String, path: String)
+}
+
 protocol GitService: Sendable {
     func status(in directory: String) async throws -> [FileStatus]
     // Pass freshly loaded status rows when available so callers do not run a
@@ -87,10 +95,12 @@ protocol GitService: Sendable {
     func discard(paths: [String], scope: DiscardScope, in directory: String) async throws
     func log(in directory: String, limit: Int) async throws -> [CommitInfo]
     func currentBranch(in directory: String) async throws -> String
+    func currentHeadHash(in directory: String) async throws -> String
     func listFiles(in directory: String) async throws -> [String]
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo]
     func diffForCommit(hash: String, in directory: String) async throws -> String
+    func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data
 }
 
 extension GitService {

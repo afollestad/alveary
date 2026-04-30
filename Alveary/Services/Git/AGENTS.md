@@ -32,3 +32,8 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
     - **Reuse status rows.** When a caller already loaded `status(in:)`, pass those rows into `diffStats(in:knownStatuses:)` instead of running another porcelain status scan.
     - **Share synthetic new-file logic.** Keep untracked toolbar stats and `syntheticAddedDiff(for:in:)` using the same helper so the toolbar and lower-pane preview agree. Match Git intent-to-add behavior: a final newline terminates the last line, it does not add another blank line.
     - **Skip binary rows.** Numstat reports binary files as `-\t-`; ignore those rows rather than guessing line counts. Apply the same skip behavior to untracked files that are binary, too large, or unreadable.
+
+## Image Blobs
+
+- **Keep blob reads binary-safe and bounded.** Image preview loading uses `GitService.imageBlob(source:maxBytes:in:)`; preserve raw stdout bytes for git objects and reject oversized source blobs before decode.
+- **Open worktree images directly.** Worktree image sources already exist on disk and should not be copied to temp files for Preview. Commit, parent, HEAD, and index sources still need temp materialization.

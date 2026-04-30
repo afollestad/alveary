@@ -197,7 +197,8 @@ extension DiffViewerViewModelTests {
         XCTAssertFalse(fixture.viewModel.isSelectedDiffPending)
         XCTAssertNil(fixture.viewModel.parsedDiff)
         XCTAssertEqual(fixture.viewModel.rawDiffContent, "")
-        XCTAssertEqual(fixture.viewModel.gitError, "Diff failed: bad diff")
+        XCTAssertNil(fixture.viewModel.gitError)
+        XCTAssertEqual(fixture.viewModel.selectedDiffErrorMessage, "bad diff")
     }
 
     func testDirectorySwitchUsesCachedDiffStatsWhileRefreshRuns() async {

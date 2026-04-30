@@ -82,6 +82,7 @@ extension DiffViewerViewModel {
         cancelCommitDiffLoad()
         selectedCommit = commit
         commitDiffFiles = []
+        commitImagePreviews = [:]
         rawCommitDiffContent = ""
         selectedCommitDiffErrorMessage = nil
         selectedCommitDiffLoadState = .loading
@@ -113,6 +114,7 @@ extension DiffViewerViewModel {
         aheadCommits = []
         selectedCommit = nil
         commitDiffFiles = []
+        commitImagePreviews = [:]
         rawCommitDiffContent = ""
         selectedCommitDiffErrorMessage = nil
         commitsLoadState = .idle
@@ -127,6 +129,7 @@ extension DiffViewerViewModel {
             selectedCommitDiffLoadState = .idle
             selectedCommit = nil
             commitDiffFiles = []
+            commitImagePreviews = [:]
             rawCommitDiffContent = ""
             selectedCommitDiffErrorMessage = nil
         }
@@ -190,6 +193,7 @@ extension DiffViewerViewModel {
     func clearSelectedCommitDiffState() {
         selectedCommit = nil
         commitDiffFiles = []
+        commitImagePreviews = [:]
         rawCommitDiffContent = ""
         selectedCommitDiffErrorMessage = nil
         selectedCommitDiffLoadState = .idle
@@ -274,6 +278,7 @@ extension DiffViewerViewModel {
         }
         rawCommitDiffContent = result.raw
         commitDiffFiles = result.parsed
+        commitImagePreviews = result.imagePreviews
         selectedCommitDiffErrorMessage = nil
         selectedCommitDiffLoadState = .loaded
         inFlightCommitDiffLoad = nil
@@ -291,6 +296,7 @@ extension DiffViewerViewModel {
         }
         rawCommitDiffContent = ""
         commitDiffFiles = []
+        commitImagePreviews = [:]
         selectedCommitDiffErrorMessage = error.localizedDescription
         selectedCommitDiffLoadState = .failed
         inFlightCommitDiffLoad = nil

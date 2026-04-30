@@ -3,12 +3,11 @@ import Foundation
 final class CLIGitService: GitService {
     static let untrackedDiffMaxFileSize = 100_000
 
-    private let shell: ShellRunner
+    let shell: ShellRunner
 
     init(shell: ShellRunner) {
         self.shell = shell
     }
-
     func status(in directory: String) async throws -> [FileStatus] {
         let result = try await shell.run(
             executable: "/usr/bin/git",
@@ -182,7 +181,17 @@ final class CLIGitService: GitService {
         }
         return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
+    func currentHeadHash(in directory: String) async throws -> String {
+        let result = try await shell.run(
+            executable: "/usr/bin/git",
+            args: ["rev-parse", "--verify", "HEAD"],
+            in: directory
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+        return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     func listFiles(in directory: String) async throws -> [String] {
         // `-co --exclude-standard` returns tracked plus untracked-but-not-ignored
         // files so agent-created files show up in @-mention autocomplete before
@@ -243,7 +252,7 @@ final class CLIGitService: GitService {
     }
 }
 
-private extension CLIGitService {
+extension CLIGitService {
     func aheadCompareRef(baseBranch: String, remoteName: String?, in directory: String) async throws -> String {
         // Keep ahead counts and ahead commit lists aligned, including older projects that
         // predate persisted remote metadata but still have a usable branch upstream.

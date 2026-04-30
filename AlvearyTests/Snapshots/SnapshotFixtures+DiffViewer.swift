@@ -37,6 +37,7 @@ actor SnapshotMockGitService: GitService {
     private var diffStatsResults: [DiffStats]
     private var diffResults: [String]
     private var syntheticDiffResults: [String]
+    private var imageBlobResults: [Data]
     private var aheadCommitResults: [[CommitInfo]]
     private var commitDiffResults: [String]
 
@@ -45,6 +46,7 @@ actor SnapshotMockGitService: GitService {
         diffStatsResults: [DiffStats] = [.empty],
         diffResults: [String],
         syntheticDiffResults: [String] = [],
+        imageBlobResults: [Data] = [],
         aheadCommitResults: [[CommitInfo]] = [],
         commitDiffResults: [String] = []
     ) {
@@ -52,6 +54,7 @@ actor SnapshotMockGitService: GitService {
         self.diffStatsResults = diffStatsResults
         self.diffResults = diffResults
         self.syntheticDiffResults = syntheticDiffResults
+        self.imageBlobResults = imageBlobResults
         self.aheadCommitResults = aheadCommitResults
         self.commitDiffResults = commitDiffResults
     }
@@ -98,6 +101,10 @@ actor SnapshotMockGitService: GitService {
         "feature/chat-input"
     }
 
+    func currentHeadHash(in directory: String) async throws -> String {
+        "abcdef1234567890"
+    }
+
     func listFiles(in directory: String) async throws -> [String] {
         []
     }
@@ -118,6 +125,13 @@ actor SnapshotMockGitService: GitService {
             return ""
         }
         return commitDiffResults.removeFirst()
+    }
+
+    func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data {
+        if imageBlobResults.isEmpty {
+            return Data()
+        }
+        return imageBlobResults.removeFirst()
     }
 }
 

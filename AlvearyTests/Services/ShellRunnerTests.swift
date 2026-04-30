@@ -47,6 +47,18 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertTrue(result.stderrWasTruncated)
     }
 
+    func testStdoutDataPreservesNonUTF8Bytes() async throws {
+        let runner = DefaultShellRunner()
+
+        let result = try await runner.run(
+            executable: "/usr/bin/perl",
+            args: ["-e", "print pack('C*', 0x89, 0x50, 0x4e, 0x47, 0x00, 0xff);"]
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdoutData, Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF]))
+    }
+
     func testBoundedOutputDrainsStdoutBeyondPipeCapacity() async throws {
         let runner = DefaultShellRunner()
 

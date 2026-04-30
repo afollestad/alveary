@@ -37,12 +37,16 @@ struct DiffViewerCurrentChangesContent: View {
                 selectedFile: viewModel.selectedFile,
                 selectedFileCount: viewModel.selectedFiles.count,
                 parsedDiff: viewModel.parsedDiff,
+                imagePreview: viewModel.imagePreview,
                 rawDiffContent: viewModel.rawDiffContent,
+                errorMessage: viewModel.selectedDiffErrorMessage,
                 isPending: viewModel.isSelectedDiffPending,
                 isLoading: viewModel.isLoadingSelectedDiff,
                 fileDisplayName: fileDisplayName,
                 statusTitle: statusTitle,
-                diffPreviewIdentity: diffPreviewIdentity
+                diffPreviewIdentity: diffPreviewIdentity,
+                loadImage: viewModel.loadImagePreview,
+                openImage: viewModel.openImagePreview
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

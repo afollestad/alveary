@@ -129,12 +129,15 @@ struct DiffViewerCommitsContent: View {
         } else if !viewModel.commitDiffFiles.isEmpty {
             FlattenedDiffPreview(
                 files: viewModel.commitDiffFiles,
+                imagePreviews: viewModel.commitImagePreviews,
                 showsFileHeaders: true,
                 allowsFileCollapse: true,
                 collapsedFileIDs: viewModel.selectedCommitCollapsedFileIDs,
                 onToggleFileCollapse: { fileID in
                     viewModel.toggleSelectedCommitFileCollapse(fileID: fileID)
-                }
+                },
+                loadImage: viewModel.loadImagePreview,
+                openImage: viewModel.openImagePreview
             )
         } else if !viewModel.rawCommitDiffContent.isEmpty {
             RawDiffFallbackView(

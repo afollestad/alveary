@@ -63,6 +63,7 @@ private actor MockGitService: GitService {
     func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {}
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] { [] }
     func currentBranch(in directory: String) async throws -> String { "main" }
+    func currentHeadHash(in directory: String) async throws -> String { "abc123" }
 
     func listFiles(in directory: String) async throws -> [String] {
         callCount += 1
@@ -82,6 +83,7 @@ private actor MockGitService: GitService {
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int { 0 }
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] { [] }
     func diffForCommit(hash: String, in directory: String) async throws -> String { "" }
+    func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data { Data() }
 
     func listFilesCallCount() -> Int {
         callCount

@@ -17,7 +17,9 @@ final class DiffWorkspaceStore {
     private(set) var selectedFile: FileStatus?
     var selectedFileKeys: Set<DiffViewerFileSelectionKey> = []
     private(set) var parsedDiff: DiffFile?
+    private(set) var imagePreview: DiffImagePreview?
     private(set) var rawDiffContent = ""
+    private(set) var selectedDiffErrorMessage: String?
     var selectedDiffLoadState: DiffWorkspaceLoadState = .idle
     var isSelectedDiffLoadingIndicatorVisible = false
     private(set) var isLoadingFiles = false
@@ -62,8 +64,7 @@ final class DiffWorkspaceStore {
         selectedFile = nil
         selectedFileKeys = []
         selectionAnchorKey = nil
-        parsedDiff = nil
-        rawDiffContent = ""
+        clearSelectedDiffPayload()
         setSelectedDiffLoadState(.idle)
         gitError = nil
         isGitRepository = true
@@ -88,8 +89,7 @@ final class DiffWorkspaceStore {
         selectedFile = nil
         selectedFileKeys = []
         selectionAnchorKey = nil
-        parsedDiff = nil
-        rawDiffContent = ""
+        clearSelectedDiffPayload()
         setSelectedDiffLoadState(.idle)
         isLoadingFiles = false
         gitError = nil
@@ -98,6 +98,12 @@ final class DiffWorkspaceStore {
 
     func clearGitError() { gitError = nil }
     func presentGitError(_ message: String) { gitError = message }
+    func clearSelectedDiffPayload() {
+        rawDiffContent = ""
+        parsedDiff = nil
+        imagePreview = nil
+        selectedDiffErrorMessage = nil
+    }
 
     func refreshStatusAndStartStats(for directory: String) async -> DiffWorkspaceRefreshSnapshot? {
         guard let target = activeTarget, target.directory == directory else {
@@ -146,8 +152,7 @@ final class DiffWorkspaceStore {
             selectedFile = nil
             selectedFileKeys = []
             selectionAnchorKey = nil
-            parsedDiff = nil
-            rawDiffContent = ""
+            clearSelectedDiffPayload()
             setSelectedDiffLoadState(.idle)
         }
     }
@@ -222,8 +227,7 @@ final class DiffWorkspaceStore {
                 await loadDiff(for: fallbackSelection, target: snapshot.target, in: snapshot.target.directory)
                 return
             }
-            parsedDiff = nil
-            rawDiffContent = ""
+            clearSelectedDiffPayload()
             setSelectedDiffLoadState(.idle)
             return
         }
@@ -388,8 +392,7 @@ private extension DiffWorkspaceStore {
         let bindingGeneration = targetGeneration
         fileSelectionGeneration &+= 1
         cancelSelectedDiffLoad()
-        rawDiffContent = ""
-        parsedDiff = nil
+        clearSelectedDiffPayload()
         gitError = nil
         setSelectedDiffLoadState(.loading)
         return DiffLoadContext(
@@ -421,8 +424,7 @@ private extension DiffWorkspaceStore {
         fileSelectionGeneration &+= 1
         cancelSelectedDiffLoad()
         selectedFile = nil
-        rawDiffContent = ""
-        parsedDiff = nil
+        clearSelectedDiffPayload()
         setSelectedDiffLoadState(.idle)
     }
 
@@ -439,6 +441,8 @@ private extension DiffWorkspaceStore {
 
         rawDiffContent = result.raw
         parsedDiff = result.parsed
+        imagePreview = result.imagePreview
+        selectedDiffErrorMessage = nil
         gitError = nil
         setSelectedDiffLoadState(.loaded)
     }
@@ -454,9 +458,8 @@ private extension DiffWorkspaceStore {
             return
         }
 
-        rawDiffContent = ""
-        parsedDiff = nil
-        gitError = "Diff failed: \(error.localizedDescription)"
+        clearSelectedDiffPayload()
+        selectedDiffErrorMessage = error.localizedDescription
         setSelectedDiffLoadState(.failed)
     }
 
@@ -493,7 +496,5 @@ private extension DiffWorkspaceStore {
         inFlightDiffLoad = nil
         hideSelectedDiffLoadingIndicator()
     }
-
     private func isCurrent(target: DiffWorkspaceTarget, generation: UInt64) -> Bool { activeTarget == target && targetGeneration == generation }
-
 }

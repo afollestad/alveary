@@ -5,25 +5,34 @@ struct FlattenedDiffPreview: View {
     private static let synchronousLineThreshold = 1_000
 
     let files: [DiffFile]
+    let imagePreviews: [String: DiffImagePreview]
     let showsFileHeaders: Bool
     let allowsFileCollapse: Bool
     let collapsedFileIDs: Set<String>
     let onToggleFileCollapse: (String) -> Void
+    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let openImage: (DiffImageVersion) async throws -> Void
     @State private var preparedRows: [FlattenedDiffPreviewRow] = []
     @State private var preparedRowsID: Int?
 
     init(
         files: [DiffFile],
+        imagePreviews: [String: DiffImagePreview] = [:],
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool = false,
         collapsedFileIDs: Set<String> = [],
-        onToggleFileCollapse: @escaping (String) -> Void = { _ in }
+        onToggleFileCollapse: @escaping (String) -> Void = { _ in },
+        loadImage: @escaping (DiffImageVersion) async throws -> DiffImagePreviewOutput = { _ in throw DiffImagePreviewLoaderError.unsupportedImage },
+        openImage: @escaping (DiffImageVersion) async throws -> Void = { _ in }
     ) {
         self.files = files
+        self.imagePreviews = imagePreviews
         self.showsFileHeaders = showsFileHeaders
         self.allowsFileCollapse = allowsFileCollapse
         self.collapsedFileIDs = collapsedFileIDs
         self.onToggleFileCollapse = onToggleFileCollapse
+        self.loadImage = loadImage
+        self.openImage = openImage
     }
 
     var body: some View {
@@ -32,6 +41,7 @@ struct FlattenedDiffPreview: View {
             rowsView(
                 FlattenedDiffPreviewRows.makeRows(
                     files: files,
+                    imagePreviews: imagePreviews,
                     showsFileHeaders: showsFileHeaders,
                     allowsFileCollapse: allowsFileCollapse,
                     collapsedFileIDs: collapsedFileIDs
@@ -47,6 +57,7 @@ struct FlattenedDiffPreview: View {
                 .task(id: currentRenderID) {
                     let files = files
                     let showsFileHeaders = showsFileHeaders
+                    let imagePreviews = imagePreviews
                     let allowsFileCollapse = allowsFileCollapse
                     let collapsedFileIDs = collapsedFileIDs
                     let currentRenderID = currentRenderID
@@ -55,6 +66,7 @@ struct FlattenedDiffPreview: View {
                     let rowTask = Task.detached(priority: .userInitiated) {
                         try FlattenedDiffPreviewRows.makeRowsUnlessCancelled(
                             files: files,
+                            imagePreviews: imagePreviews,
                             showsFileHeaders: showsFileHeaders,
                             allowsFileCollapse: allowsFileCollapse,
                             collapsedFileIDs: collapsedFileIDs
@@ -95,7 +107,9 @@ struct FlattenedDiffPreview: View {
                         row: row,
                         allowsFileCollapse: allowsFileCollapse,
                         collapsedFileIDs: collapsedFileIDs,
-                        onToggleFileCollapse: onToggleFileCollapse
+                        onToggleFileCollapse: onToggleFileCollapse,
+                        loadImage: loadImage,
+                        openImage: openImage
                     )
                 }
             }
@@ -145,6 +159,7 @@ struct FlattenedDiffPreview: View {
             hasher.combine(file.newPath)
             hasher.combine(file.isBinary)
             hasher.combine(file.isRenamed)
+            hasher.combine(imagePreviews[DiffImagePreviewSupport.fileID(for: file, fileIndex: fileIndex)])
             if isFileCollapsed(file, fileIndex: fileIndex) {
                 // Collapsed headers still show counts, but hidden line content should not
                 // force large prepared previews to rebuild.
@@ -195,12 +210,14 @@ private enum FlattenedDiffPreviewRows {
 
     static func makeRows(
         files: [DiffFile],
+        imagePreviews: [String: DiffImagePreview],
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>
     ) -> [FlattenedDiffPreviewRow] {
         (try? makeRows(
             files: files,
+            imagePreviews: imagePreviews,
             showsFileHeaders: showsFileHeaders,
             allowsFileCollapse: allowsFileCollapse,
             collapsedFileIDs: collapsedFileIDs,
@@ -210,12 +227,14 @@ private enum FlattenedDiffPreviewRows {
 
     static func makeRowsUnlessCancelled(
         files: [DiffFile],
+        imagePreviews: [String: DiffImagePreview],
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>
     ) throws -> [FlattenedDiffPreviewRow] {
         try makeRows(
             files: files,
+            imagePreviews: imagePreviews,
             showsFileHeaders: showsFileHeaders,
             allowsFileCollapse: allowsFileCollapse,
             collapsedFileIDs: collapsedFileIDs,
@@ -223,8 +242,10 @@ private enum FlattenedDiffPreviewRows {
         )
     }
 
+    // swiftlint:disable:next function_parameter_count
     private static func makeRows(
         files: [DiffFile],
+        imagePreviews: [String: DiffImagePreview],
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>,
@@ -262,7 +283,9 @@ private enum FlattenedDiffPreviewRows {
                 rows.append(.renameSummary(id: "file-\(fileIndex)-rename", oldPath: oldPath, newPath: newPath))
             }
 
-            if file.isBinary {
+            if let imagePreview = imagePreviews[fileID] {
+                rows.append(.imagePreview(id: "file-\(fileIndex)-image", preview: imagePreview))
+            } else if file.isBinary {
                 rows.append(.binaryCallout(id: "file-\(fileIndex)-binary"))
             } else if file.hunks.isEmpty {
                 rows.append(.emptyCallout(id: "file-\(fileIndex)-empty", isRenamed: file.isRenamed))
@@ -356,6 +379,7 @@ private enum FlattenedDiffPreviewRows {
 private enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     case fileHeader(id: String, fileID: String, file: DiffFile, topPadding: CGFloat)
     case renameSummary(id: String, oldPath: String, newPath: String)
+    case imagePreview(id: String, preview: DiffImagePreview)
     case binaryCallout(id: String)
     case emptyCallout(id: String, isRenamed: Bool)
     case hunkHeader(id: String, hunk: DiffHunk, topPadding: CGFloat)
@@ -367,6 +391,7 @@ private enum FlattenedDiffPreviewRow: Identifiable, Sendable {
         switch self {
         case .fileHeader(let id, _, _, _),
              .renameSummary(let id, _, _),
+             .imagePreview(let id, _),
              .binaryCallout(let id),
              .emptyCallout(let id, _),
              .hunkHeader(let id, _, _),
@@ -383,6 +408,8 @@ private struct FlattenedDiffPreviewRenderRow: View {
     let allowsFileCollapse: Bool
     let collapsedFileIDs: Set<String>
     let onToggleFileCollapse: (String) -> Void
+    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
         switch row {
@@ -398,6 +425,14 @@ private struct FlattenedDiffPreviewRenderRow: View {
         case .renameSummary(_, let oldPath, let newPath):
             DiffPreviewRenameSummary(oldPath: oldPath, newPath: newPath)
                 .padding(.bottom, 14)
+        case .imagePreview(_, let preview):
+            DiffImagePreviewSlots(
+                preview: preview,
+                loadImage: loadImage,
+                openImage: openImage
+            )
+            .frame(minHeight: 280)
+            .padding(.bottom, 14)
         case .binaryCallout:
             DiffCalloutCard(
                 icon: "doc.fill",
@@ -439,32 +474,6 @@ private struct FlattenedDiffPreviewRenderRow: View {
                     onToggleFileCollapse(fileID)
                 }
             }
-        )
-    }
-}
-
-private struct DiffPreviewRenameSummary: View {
-    let oldPath: String
-    let newPath: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Renamed file", systemImage: "arrow.left.arrow.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: oldPath)
-                Image(systemName: "arrow.down")
-                    .foregroundStyle(.secondary)
-                Text(verbatim: newPath)
-            }
-            .font(.system(.caption, design: .monospaced))
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.06))
         )
     }
 }

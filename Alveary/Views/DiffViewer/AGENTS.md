@@ -13,6 +13,8 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 - **Delay visible loading indicators.** The store should start Git work immediately, but toolbar and selected-preview spinners should appear only after the configured grace period if the load is still active.
 - **Show toolbar loading for any visible diff load.** The toolbar should replace `+N` / `-N` with a fixed-size spinner while either all-file stats or the selected-file preview diff is past the spinner grace period.
 - **Keep preview pending neutral.** During the spinner grace period, the lower pane should avoid showing an empty/error preview for a diff that is still loading.
+- **Keep image slots recyclable.** Diff image previews should start loading on visibility, cancel load/open work when recycled, clear strong decoded-image state on disappear, and rely on memory/disk cache for reloads.
+- **Keep split image diffs labeled.** When both old and new raster previews are shown, render centered `Deleted` and `Added` column headers above the slots and preserve the 8pt split spacing.
 
 ## Split Pane Layout
 

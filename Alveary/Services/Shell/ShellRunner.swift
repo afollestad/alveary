@@ -2,10 +2,27 @@ import Foundation
 
 struct ShellResult: Sendable, Equatable {
     let stdout: String
+    let stdoutData: Data
     let stderr: String
     let exitCode: Int32
     let stdoutWasTruncated: Bool
     let stderrWasTruncated: Bool
+
+    init(
+        stdout: String,
+        stdoutData: Data? = nil,
+        stderr: String,
+        exitCode: Int32,
+        stdoutWasTruncated: Bool,
+        stderrWasTruncated: Bool
+    ) {
+        self.stdout = stdout
+        self.stdoutData = stdoutData ?? Data(stdout.utf8)
+        self.stderr = stderr
+        self.exitCode = exitCode
+        self.stdoutWasTruncated = stdoutWasTruncated
+        self.stderrWasTruncated = stderrWasTruncated
+    }
 
     var succeeded: Bool {
         exitCode == 0

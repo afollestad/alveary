@@ -67,6 +67,12 @@ actor DiffViewerMockGitService: GitService {
         let directory: String
     }
 
+    struct ImageBlobCall: Equatable {
+        let source: GitImageBlobSource
+        let maxBytes: Int
+        let directory: String
+    }
+
     private var statusResults: [Result<[FileStatus], Error>]
     private var statusDelays: [Duration]
     private var diffStatsResults: [Result<DiffStats, Error>]
@@ -75,16 +81,22 @@ actor DiffViewerMockGitService: GitService {
     private var diffResults: [String]
     private var diffDelays: [Duration]
     private var syntheticDiffResults: [String]
+    private var syntheticDiffResultQueue: [Result<String, Error>]
+    private var imageBlobResults: [Result<Data, Error>]
+    private var imageBlobDelays: [Duration]
     private var commitsAheadDetailsResults: [Result<[CommitInfo], Error>]
     private var commitsAheadDetailsDelays: [Duration]
     private var commitDiffResults: [Result<String, Error>]
     private var commitDiffDelays: [Duration]
     private let currentBranchResult: Result<String, Error>
+    private let currentHeadHashResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
     private var recordedStatusCallCount = 0
     private var recordedDiffStatsCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
+    private var recordedCurrentHeadHashCallCount = 0
+    private var recordedImageBlobCalls: [ImageBlobCall] = []
     private var recordedStageCalls: [PathMutationCall] = []
     private var recordedUnstageCalls: [PathMutationCall] = []
     private var recordedDiscardCalls: [DiscardCall] = []
@@ -101,11 +113,15 @@ actor DiffViewerMockGitService: GitService {
         diffResults: [String] = [],
         diffDelays: [Duration] = [],
         syntheticDiffResults: [String] = [],
+        syntheticDiffResultQueue: [Result<String, Error>] = [],
+        imageBlobResults: [Result<Data, Error>] = [],
+        imageBlobDelays: [Duration] = [],
         commitsAheadDetailsResults: [Result<[CommitInfo], Error>] = [.success([])],
         commitsAheadDetailsDelays: [Duration] = [],
         commitDiffResults: [Result<String, Error>] = [],
         commitDiffDelays: [Duration] = [],
         currentBranchResult: Result<String, Error> = .success("feature"),
+        currentHeadHashResult: Result<String, Error> = .success("abcdef1234567890"),
         commitsAheadResult: Result<Int, Error> = .success(0)
     ) {
         self.statusResults = statusResults
@@ -116,11 +132,15 @@ actor DiffViewerMockGitService: GitService {
         self.diffResults = diffResults
         self.diffDelays = diffDelays
         self.syntheticDiffResults = syntheticDiffResults
+        self.syntheticDiffResultQueue = syntheticDiffResultQueue
+        self.imageBlobResults = imageBlobResults
+        self.imageBlobDelays = imageBlobDelays
         self.commitsAheadDetailsResults = commitsAheadDetailsResults
         self.commitsAheadDetailsDelays = commitsAheadDetailsDelays
         self.commitDiffResults = commitDiffResults
         self.commitDiffDelays = commitDiffDelays
         self.currentBranchResult = currentBranchResult
+        self.currentHeadHashResult = currentHeadHashResult
         self.commitsAheadResult = commitsAheadResult
     }
 
@@ -177,6 +197,9 @@ actor DiffViewerMockGitService: GitService {
 
     func syntheticAddedDiff(for path: String, in directory: String) async throws -> String {
         recordedSyntheticDiffCalls.append(path)
+        if !syntheticDiffResultQueue.isEmpty {
+            return try syntheticDiffResultQueue.removeFirst().get()
+        }
         return syntheticDiffResults.isEmpty ? "" : syntheticDiffResults.removeFirst()
     }
 
@@ -198,6 +221,11 @@ actor DiffViewerMockGitService: GitService {
 
     func currentBranch(in directory: String) async throws -> String {
         try currentBranchResult.get()
+    }
+
+    func currentHeadHash(in directory: String) async throws -> String {
+        recordedCurrentHeadHashCallCount += 1
+        return try currentHeadHashResult.get()
     }
 
     func listFiles(in directory: String) async throws -> [String] {
@@ -240,12 +268,32 @@ actor DiffViewerMockGitService: GitService {
         return try result.get()
     }
 
+    func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data {
+        recordedImageBlobCalls.append(ImageBlobCall(source: source, maxBytes: maxBytes, directory: directory))
+        let result: Result<Data, Error> = imageBlobResults.isEmpty ? .success(Data()) : imageBlobResults.removeFirst()
+        if !imageBlobDelays.isEmpty {
+            let delay = imageBlobDelays.removeFirst()
+            if delay > .zero {
+                try await Task.sleep(for: delay)
+            }
+        }
+        return try result.get()
+    }
+
     func diffCalls() -> [DiffCall] {
         recordedDiffCalls
     }
 
     func syntheticDiffCalls() -> [String] {
         recordedSyntheticDiffCalls
+    }
+
+    func currentHeadHashCallCount() -> Int {
+        recordedCurrentHeadHashCallCount
+    }
+
+    func imageBlobCalls() -> [ImageBlobCall] {
+        recordedImageBlobCalls
     }
 
     func discardCalls() -> [DiscardCall] {
