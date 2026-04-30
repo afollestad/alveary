@@ -15,6 +15,14 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 
 - `gh auth login --web` does not auto-open the browser without a TTY. GitHub auth flows in the app must continue parsing the emitted URL/code and opening the browser explicitly.
 
+## Ahead Commits
+
+- `GitService.commitsAheadOfBase` and `commitsAheadOfBaseDetails` must share the same compare-ref resolution:
+    - Prefer `remoteName/baseBranch` when `refs/remotes/<remoteName>/<baseBranch>` exists.
+    - When `remoteName` is missing, prefer the current branch upstream, then `origin/baseBranch` if that remote-tracking ref exists.
+    - Fall back to the local `baseBranch` only when no remote compare ref can be resolved.
+    - Keep count and detail behavior aligned so contextual actions and commit views agree about which commits are ahead.
+
 ## Diff Stats
 
 - `GitService.diffStats(in:knownStatuses:)` provides low-level line counts consumed by `DiffWorkspaceStore`:

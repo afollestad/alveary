@@ -89,6 +89,8 @@ protocol GitService: Sendable {
     func currentBranch(in directory: String) async throws -> String
     func listFiles(in directory: String) async throws -> [String]
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int
+    func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo]
+    func diffForCommit(hash: String, in directory: String) async throws -> String
 }
 
 extension GitService {

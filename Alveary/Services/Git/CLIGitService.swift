@@ -199,18 +199,7 @@ final class CLIGitService: GitService {
     }
 
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
-        let compareRef: String
-        if let remoteName {
-            let remoteRef = "refs/remotes/\(remoteName)/\(baseBranch)"
-            let remoteExists = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["show-ref", "--verify", "--quiet", remoteRef],
-                in: directory
-            )
-            compareRef = remoteExists?.succeeded == true ? "\(remoteName)/\(baseBranch)" : baseBranch
-        } else {
-            compareRef = baseBranch
-        }
+        let compareRef = try await aheadCompareRef(baseBranch: baseBranch, remoteName: remoteName, in: directory)
 
         let result = try await shell.run(
             executable: "/usr/bin/git",
@@ -222,9 +211,84 @@ final class CLIGitService: GitService {
         }
         return Int(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
     }
+
+    func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
+        let compareRef = try await aheadCompareRef(baseBranch: baseBranch, remoteName: remoteName, in: directory)
+        let result = try await shell.run(
+            executable: "/usr/bin/git",
+            args: ["log", "--pretty=format:%H%n%s%n%an%n%aI", "\(compareRef)..HEAD"],
+            in: directory
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+        return parseLog(result.stdout)
+    }
+
+    func diffForCommit(hash: String, in directory: String) async throws -> String {
+        let result = try await shell.run(
+            executable: "/usr/bin/git",
+            args: ["show", "--no-color", "--unified=2000", "--format=", hash],
+            in: directory,
+            stdoutLimitBytes: 30 * 1024 * 1024,
+            stderrLimitBytes: 512 * 1024
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+        guard !result.stdoutWasTruncated else {
+            throw GitError.outputTooLarge("Commit diff output exceeded 30MB")
+        }
+        return result.stdout
+    }
 }
 
 private extension CLIGitService {
+    func aheadCompareRef(baseBranch: String, remoteName: String?, in directory: String) async throws -> String {
+        // Keep ahead counts and ahead commit lists aligned, including older projects that
+        // predate persisted remote metadata but still have a usable branch upstream.
+        if let remoteName,
+           await remoteTrackingRefExists(remoteName: remoteName, baseBranch: baseBranch, in: directory) {
+            return "\(remoteName)/\(baseBranch)"
+        }
+
+        if remoteName == nil,
+           let upstream = await currentBranchUpstream(in: directory) {
+            return upstream
+        }
+
+        if remoteName == nil,
+           await remoteTrackingRefExists(remoteName: "origin", baseBranch: baseBranch, in: directory) {
+            return "origin/\(baseBranch)"
+        }
+
+        return baseBranch
+    }
+
+    func remoteTrackingRefExists(remoteName: String, baseBranch: String, in directory: String) async -> Bool {
+        let remoteRef = "refs/remotes/\(remoteName)/\(baseBranch)"
+        let remoteExists = try? await shell.run(
+            executable: "/usr/bin/git",
+            args: ["show-ref", "--verify", "--quiet", remoteRef],
+            in: directory
+        )
+        return remoteExists?.succeeded == true
+    }
+
+    func currentBranchUpstream(in directory: String) async -> String? {
+        let upstream = try? await shell.run(
+            executable: "/usr/bin/git",
+            args: ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+            in: directory
+        )
+        guard upstream?.succeeded == true else {
+            return nil
+        }
+
+        let ref = upstream?.stdout.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return ref.isEmpty ? nil : ref
+    }
+
     func diffStats(args: [String], in directory: String) async throws -> DiffStats {
         let result = try await shell.run(
             executable: "/usr/bin/git",

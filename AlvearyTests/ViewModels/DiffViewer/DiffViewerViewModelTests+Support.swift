@@ -183,6 +183,14 @@ actor DiffViewerMockGitService: GitService {
         try commitsAheadResult.get()
     }
 
+    func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
+        []
+    }
+
+    func diffForCommit(hash: String, in directory: String) async throws -> String {
+        ""
+    }
+
     func diffCalls() -> [DiffCall] {
         recordedDiffCalls
     }

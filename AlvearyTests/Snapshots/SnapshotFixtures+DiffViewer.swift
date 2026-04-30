@@ -99,6 +99,14 @@ actor SnapshotMockGitService: GitService {
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
         0
     }
+
+    func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
+        []
+    }
+
+    func diffForCommit(hash: String, in directory: String) async throws -> String {
+        ""
+    }
 }
 
 @MainActor
