@@ -139,6 +139,9 @@ final class SettingsViewModelTests: XCTestCase {
         service.update {
             $0.contextManagementEnabled = false
             $0.sessionHandoffWindowPercentage = 75
+            $0.handoffSteeringEnabled = false
+            $0.handoffSteeringCountdownSeconds = 15
+            $0.handoffPromptSendCountdownSeconds = 0
             $0.handoffContextCustomizationEnabled = false
             $0.sessionHandoffPrompt = "Custom handoff prompt"
         }
@@ -146,8 +149,32 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertFalse(viewModel.contextManagementEnabled)
         XCTAssertEqual(viewModel.sessionHandoffWindowPercentage, 75)
+        XCTAssertFalse(viewModel.handoffSteeringEnabled)
+        XCTAssertEqual(viewModel.handoffSteeringCountdownSeconds, 15)
+        XCTAssertEqual(viewModel.handoffPromptSendCountdownSeconds, 0)
         XCTAssertFalse(viewModel.handoffContextCustomizationEnabled)
         XCTAssertEqual(viewModel.sessionHandoffPrompt, "Custom handoff prompt")
+    }
+
+    func testContextManagementSettersWriteBackToSettingsService() {
+        let service = InMemorySettingsService()
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        viewModel.contextManagementEnabled = false
+        viewModel.sessionHandoffWindowPercentage = 80
+        viewModel.handoffSteeringEnabled = false
+        viewModel.handoffSteeringCountdownSeconds = 20
+        viewModel.handoffPromptSendCountdownSeconds = 0
+        viewModel.handoffContextCustomizationEnabled = false
+        viewModel.sessionHandoffPrompt = "Updated handoff prompt"
+
+        XCTAssertFalse(service.current.contextManagementEnabled)
+        XCTAssertEqual(service.current.sessionHandoffWindowPercentage, 80)
+        XCTAssertFalse(service.current.handoffSteeringEnabled)
+        XCTAssertEqual(service.current.handoffSteeringCountdownSeconds, 20)
+        XCTAssertEqual(service.current.handoffPromptSendCountdownSeconds, 0)
+        XCTAssertFalse(service.current.handoffContextCustomizationEnabled)
+        XCTAssertEqual(service.current.sessionHandoffPrompt, "Updated handoff prompt")
     }
 
     func testSettersWriteBackToSettingsService() {
@@ -169,10 +196,6 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.chatFontSize = 17
         viewModel.expandTerminalWhenActionsRun = true
         viewModel.maxTerminalSessions = 12
-        viewModel.contextManagementEnabled = false
-        viewModel.sessionHandoffWindowPercentage = 80
-        viewModel.handoffContextCustomizationEnabled = false
-        viewModel.sessionHandoffPrompt = "Updated handoff prompt"
         viewModel.notificationsEnabled = false
         viewModel.osNotificationsEnabled = false
         viewModel.soundEnabled = false
@@ -194,10 +217,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.chatFontSize, 17)
         XCTAssertTrue(service.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(service.current.maxTerminalSessions, 12)
-        XCTAssertFalse(service.current.contextManagementEnabled)
-        XCTAssertEqual(service.current.sessionHandoffWindowPercentage, 80)
-        XCTAssertFalse(service.current.handoffContextCustomizationEnabled)
-        XCTAssertEqual(service.current.sessionHandoffPrompt, "Updated handoff prompt")
         XCTAssertFalse(service.current.notifications.enabled)
         XCTAssertFalse(service.current.notifications.osNotifications)
         XCTAssertFalse(service.current.notifications.sound)

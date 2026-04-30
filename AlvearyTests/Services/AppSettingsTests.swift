@@ -25,6 +25,9 @@ final class AppSettingsTests: XCTestCase {
 
         XCTAssertTrue(settings.contextManagementEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
+        XCTAssertTrue(settings.handoffSteeringEnabled)
+        XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
+        XCTAssertEqual(settings.handoffPromptSendCountdownSeconds, AppSettings.defaultHandoffPromptSendCountdownSeconds)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertTrue(settings.sessionHandoffPrompt.hasPrefix("Turn the current session into a prompt"))
         XCTAssertTrue(settings.sessionHandoffPrompt.contains("existing `AGENTS.md` context"))
@@ -105,6 +108,9 @@ final class AppSettingsTests: XCTestCase {
 
         XCTAssertTrue(settings.contextManagementEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
+        XCTAssertTrue(settings.handoffSteeringEnabled)
+        XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
+        XCTAssertEqual(settings.handoffPromptSendCountdownSeconds, AppSettings.defaultHandoffPromptSendCountdownSeconds)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertEqual(settings.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
     }
@@ -260,6 +266,33 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(
             steppedSettings.normalized().sessionHandoffWindowPercentage,
             AppSettings.defaultSessionHandoffWindowPercentage
+        )
+    }
+
+    func testNormalizedClampsHandoffCountdownSettingsToSupportedRanges() {
+        var lowSettings = AppSettings()
+        lowSettings.handoffSteeringCountdownSeconds = 0
+        lowSettings.handoffPromptSendCountdownSeconds = -1
+
+        var highSettings = AppSettings()
+        highSettings.handoffSteeringCountdownSeconds = 500
+        highSettings.handoffPromptSendCountdownSeconds = 500
+
+        XCTAssertEqual(
+            lowSettings.normalized().handoffSteeringCountdownSeconds,
+            AppSettings.supportedHandoffSteeringCountdownRange.lowerBound
+        )
+        XCTAssertEqual(
+            lowSettings.normalized().handoffPromptSendCountdownSeconds,
+            AppSettings.supportedHandoffPromptSendCountdownRange.lowerBound
+        )
+        XCTAssertEqual(
+            highSettings.normalized().handoffSteeringCountdownSeconds,
+            AppSettings.supportedHandoffSteeringCountdownRange.upperBound
+        )
+        XCTAssertEqual(
+            highSettings.normalized().handoffPromptSendCountdownSeconds,
+            AppSettings.supportedHandoffPromptSendCountdownRange.upperBound
         )
     }
 

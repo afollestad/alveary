@@ -37,12 +37,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultTerminalPaneHeight = 320.0
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
-    static let minimumSessionHandoffWindowPercentage = 70
-    static let sessionHandoffWindowPercentageStep = 5
-    static let defaultSessionHandoffWindowPercentage = 90
-    static let supportedHandoffPercentageRange = minimumSessionHandoffWindowPercentage...100
-    static let defaultSessionHandoffPrompt = SessionHandoffPromptDefaults.defaultPrompt
-
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var defaultProvider = "claude"
     var defaultModel = Self.defaultModelValue
@@ -67,6 +61,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
     var contextManagementEnabled = true
     var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
+    var handoffSteeringEnabled = true
+    var handoffSteeringCountdownSeconds = Self.defaultHandoffSteeringCountdownSeconds
+    var handoffPromptSendCountdownSeconds = Self.defaultHandoffPromptSendCountdownSeconds
     var handoffContextCustomizationEnabled = true
     var sessionHandoffPrompt = Self.defaultSessionHandoffPrompt
     var notifications = NotificationSettings()
@@ -133,15 +130,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         return override
     }
 
-    static func normalizedSessionHandoffWindowPercentage(_ percentage: Int) -> Int {
-        let clamped = min(
-            max(percentage, supportedHandoffPercentageRange.lowerBound),
-            supportedHandoffPercentageRange.upperBound
-        )
-        let step = sessionHandoffWindowPercentageStep
-        return Int((Double(clamped) / Double(step)).rounded()) * step
-    }
-
     private mutating func normalizeProviderDefaults() {
         if !Self.supportedProviderIDs.contains(defaultProvider) {
             defaultProvider = Self.supportedProviderIDs[0]
@@ -203,6 +191,8 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     private mutating func normalizeContextManagement() {
         sessionHandoffWindowPercentage = Self.normalizedSessionHandoffWindowPercentage(sessionHandoffWindowPercentage)
+        handoffSteeringCountdownSeconds = Self.normalizedHandoffSteeringCountdownSeconds(handoffSteeringCountdownSeconds)
+        handoffPromptSendCountdownSeconds = Self.normalizedHandoffPromptSendCountdownSeconds(handoffPromptSendCountdownSeconds)
         if sessionHandoffPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             sessionHandoffPrompt = Self.defaultSessionHandoffPrompt
         }
@@ -264,6 +254,9 @@ extension AppSettings {
         case maxTerminalSessions
         case contextManagementEnabled
         case sessionHandoffWindowPercentage
+        case handoffSteeringEnabled
+        case handoffSteeringCountdownSeconds
+        case handoffPromptSendCountdownSeconds
         case handoffContextCustomizationEnabled
         case sessionHandoffPrompt
         case notifications
@@ -359,6 +352,18 @@ extension AppSettings {
             Int.self,
             forKey: .sessionHandoffWindowPercentage
         ) ?? sessionHandoffWindowPercentage
+        handoffSteeringEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .handoffSteeringEnabled
+        ) ?? handoffSteeringEnabled
+        handoffSteeringCountdownSeconds = try container.decodeIfPresent(
+            Int.self,
+            forKey: .handoffSteeringCountdownSeconds
+        ) ?? handoffSteeringCountdownSeconds
+        handoffPromptSendCountdownSeconds = try container.decodeIfPresent(
+            Int.self,
+            forKey: .handoffPromptSendCountdownSeconds
+        ) ?? handoffPromptSendCountdownSeconds
         handoffContextCustomizationEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .handoffContextCustomizationEnabled

@@ -251,6 +251,21 @@ final class SettingsViewModel {
         set { settingsService.update { $0.sessionHandoffWindowPercentage = newValue } }
     }
 
+    var handoffSteeringEnabled: Bool {
+        get { settingsService.current.handoffSteeringEnabled }
+        set { settingsService.update { $0.handoffSteeringEnabled = newValue } }
+    }
+
+    var handoffSteeringCountdownSeconds: Int {
+        get { settingsService.current.handoffSteeringCountdownSeconds }
+        set { settingsService.update { $0.handoffSteeringCountdownSeconds = newValue } }
+    }
+
+    var handoffPromptSendCountdownSeconds: Int {
+        get { settingsService.current.handoffPromptSendCountdownSeconds }
+        set { settingsService.update { $0.handoffPromptSendCountdownSeconds = newValue } }
+    }
+
     var handoffContextCustomizationEnabled: Bool {
         get { settingsService.current.handoffContextCustomizationEnabled }
         set { settingsService.update { $0.handoffContextCustomizationEnabled = newValue } }

@@ -107,6 +107,9 @@ struct SettingsScreen: View {
                 providerExtraArgsBinding: providerExtraArgsBinding,
                 contextManagementEnabled: binding(for: \.contextManagementEnabled),
                 sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
+                handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
+                handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),
+                handoffPromptSendCountdownSeconds: binding(for: \.handoffPromptSendCountdownSeconds),
                 handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )

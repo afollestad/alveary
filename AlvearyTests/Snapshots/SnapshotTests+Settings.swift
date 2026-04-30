@@ -58,6 +58,35 @@ extension SnapshotTests {
         )
     }
 
+    func testSettingsScreenAgentsTabHandoffSteeringDisabled() {
+        var settings = AppSettings()
+        settings.handoffSteeringEnabled = false
+        settings.providerConfigs["claude"] = ProviderCustomConfig(
+            extraArgs: "--verbose"
+        )
+
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: settings),
+            providerDetection: SnapshotProviderDetectionService(statuses: [
+                "claude": .connected(
+                    path: "/Users/test/.local/bin/claude",
+                    version: "2.1.104"
+                )
+            ])
+        )
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                onClose: {},
+                initialTabRawValue: "agents"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_agents_handoff_steering_disabled"
+        )
+    }
+
     func testSettingsScreenThreadsTab() {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"

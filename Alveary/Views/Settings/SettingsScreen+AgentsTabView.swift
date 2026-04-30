@@ -7,6 +7,9 @@ struct AgentsSettingsTabView: View {
 
     @Binding var contextManagementEnabled: Bool
     @Binding var sessionHandoffWindowPercentage: Int
+    @Binding var handoffSteeringEnabled: Bool
+    @Binding var handoffSteeringCountdownSeconds: Int
+    @Binding var handoffPromptSendCountdownSeconds: Int
     @Binding var handoffContextCustomizationEnabled: Bool
     @Binding var sessionHandoffPrompt: String
 
@@ -76,10 +79,44 @@ private extension AgentsSettingsTabView {
             .disabled(!contextManagementEnabled)
 
             SettingsToggleRow(
+                "Enable handoff steering",
+                isOn: $handoffSteeringEnabled,
+                isDisabled: !contextManagementEnabled
+            )
+
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Handoff steering countdown", horizontalControlSizing: .intrinsic) {
+                    SettingsValueStepper(
+                        "Handoff steering countdown",
+                        value: $handoffSteeringCountdownSeconds,
+                        in: AppSettings.supportedHandoffSteeringCountdownRange,
+                        unit: "s",
+                        unitSeparator: "",
+                        accessibilityUnit: "seconds"
+                    )
+                }
+            }
+            .disabled(!contextManagementEnabled || !handoffSteeringEnabled)
+
+            SettingsToggleRow(
                 "Allow session handoff context customization",
                 isOn: $handoffContextCustomizationEnabled,
                 isDisabled: !contextManagementEnabled
             )
+
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Handoff prompt send countdown", horizontalControlSizing: .intrinsic) {
+                    SettingsValueStepper(
+                        "Handoff prompt send countdown",
+                        value: $handoffPromptSendCountdownSeconds,
+                        in: AppSettings.supportedHandoffPromptSendCountdownRange,
+                        unit: "s",
+                        unitSeparator: "",
+                        accessibilityUnit: "seconds"
+                    )
+                }
+            }
+            .disabled(!contextManagementEnabled)
 
             SettingsFormRow(showsDivider: false) {
                 SettingsResponsiveControlRow("Default session handoff prompt", horizontalControlSizing: .intrinsicInline) {

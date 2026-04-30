@@ -33,6 +33,9 @@ final class SettingsServiceTests: XCTestCase {
             $0.maxTerminalSessions = 12
             $0.contextManagementEnabled = false
             $0.sessionHandoffWindowPercentage = 75
+            $0.handoffSteeringEnabled = false
+            $0.handoffSteeringCountdownSeconds = 15
+            $0.handoffPromptSendCountdownSeconds = 0
             $0.handoffContextCustomizationEnabled = false
             $0.sessionHandoffPrompt = "Custom handoff prompt"
         }
@@ -57,6 +60,9 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
         XCTAssertFalse(reloadedService.current.contextManagementEnabled)
         XCTAssertEqual(reloadedService.current.sessionHandoffWindowPercentage, 75)
+        XCTAssertFalse(reloadedService.current.handoffSteeringEnabled)
+        XCTAssertEqual(reloadedService.current.handoffSteeringCountdownSeconds, 15)
+        XCTAssertEqual(reloadedService.current.handoffPromptSendCountdownSeconds, 0)
         XCTAssertFalse(reloadedService.current.handoffContextCustomizationEnabled)
         XCTAssertEqual(reloadedService.current.sessionHandoffPrompt, "Custom handoff prompt")
     }
@@ -356,30 +362,6 @@ final class SettingsServiceTests: XCTestCase {
             service.current.turnAwake,
             TurnAwakeSettings(enabled: true, preventDisplaySleep: true)
         )
-    }
-
-    func testUserDefaultsSettingsServiceUsesDefaultContextManagementWhenStoredJSONPredatesFields() throws {
-        let defaults = try makeDefaults()
-        let payload: [String: Any] = [
-            "defaultProvider": "claude",
-            "permissionMode": "plan",
-            "effort": "high",
-            "providerConfigs": [:]
-        ]
-        defaults.set(
-            try JSONSerialization.data(withJSONObject: payload),
-            forKey: UserDefaultsSettingsService.storageKey
-        )
-
-        let service = UserDefaultsSettingsService(defaults: defaults)
-
-        XCTAssertTrue(service.current.contextManagementEnabled)
-        XCTAssertEqual(
-            service.current.sessionHandoffWindowPercentage,
-            AppSettings.defaultSessionHandoffWindowPercentage
-        )
-        XCTAssertTrue(service.current.handoffContextCustomizationEnabled)
-        XCTAssertEqual(service.current.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
     }
 
     func testUserDefaultsSettingsServicePreservesExplicitStoredLaunchRestoreFalse() throws {
