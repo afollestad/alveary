@@ -58,6 +58,7 @@ struct DiffViewerCommitsContent: View {
             }
             .selectionDisabled()
             .contentMargins(.top, 0, for: .scrollContent)
+            .contentMargins(.horizontal, 0, for: .scrollContent)
             .contentMargins(.bottom, 4, for: .scrollContent)
             .clipped()
         }
@@ -139,7 +140,13 @@ private struct DiffViewerCommitRow: View {
         .font(.body)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
-        .appSelectableRow(isSelected: isSelected, identity: commit.id, action: onSelect)
+        .appSelectableRow(
+            isSelected: isSelected,
+            identity: commit.id,
+            selectionBackgroundLeadingInset: DiffViewerPaneMetrics.selectionBackgroundLeadingInset,
+            selectionBackgroundTrailingInset: DiffViewerPaneMetrics.selectionBackgroundTrailingInset,
+            action: onSelect
+        )
         .accessibilityLabel("\(shortHash) \(commitTitle)")
     }
 

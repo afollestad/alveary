@@ -284,14 +284,16 @@ struct RawDiffFallbackView: View {
 }
 
 struct DiffPreviewScrollContainer<Content: View>: View {
-    private let contentPadding: CGFloat = 14
+    private let horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset
+    private let topContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewTopInset
+    private let bottomContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewBottomInset
 
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         GeometryReader { proxy in
-            let availableWidth = max(proxy.size.width - (contentPadding * 2), 0)
-            let availableHeight = max(proxy.size.height - (contentPadding * 2), 0)
+            let availableWidth = max(proxy.size.width - (horizontalContentPadding * 2), 0)
+            let availableHeight = max(proxy.size.height - topContentPadding - bottomContentPadding, 0)
 
             ScrollView([.horizontal, .vertical]) {
                 content()
@@ -300,7 +302,9 @@ struct DiffPreviewScrollContainer<Content: View>: View {
                         minHeight: availableHeight,
                         alignment: .topLeading
                     )
-                    .padding(contentPadding)
+                    .padding(.horizontal, horizontalContentPadding)
+                    .padding(.top, topContentPadding)
+                    .padding(.bottom, bottomContentPadding)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }

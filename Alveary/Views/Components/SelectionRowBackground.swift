@@ -4,13 +4,16 @@ import SwiftUI
 struct AppSelectionRowBackground: View {
     let isSelected: Bool
     let isPressed: Bool
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
     let topInset: CGFloat
     let bottomInset: CGFloat
 
     var body: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
             .fill(fillColor)
-            .padding(.horizontal, 10)
+            .padding(.leading, leadingInset)
+            .padding(.trailing, trailingInset)
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
             .animation(.easeOut(duration: 0.22), value: isPressed)
@@ -42,6 +45,8 @@ private enum AppSelectionRowFill {
 private struct SelectableRowModifier: ViewModifier {
     let isSelected: Bool
     let identity: AnyHashable?
+    let selectionBackgroundLeadingInset: CGFloat
+    let selectionBackgroundTrailingInset: CGFloat
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -84,6 +89,8 @@ private struct SelectableRowModifier: ViewModifier {
                 AppSelectionRowBackground(
                     isSelected: isSelected || isSelectionPending,
                     isPressed: isPressed,
+                    leadingInset: selectionBackgroundLeadingInset,
+                    trailingInset: selectionBackgroundTrailingInset,
                     topInset: 0,
                     bottomInset: 0
                 )
@@ -113,6 +120,8 @@ private struct SelectableRowModifier: ViewModifier {
 extension View {
     func appSelectionRowBackground(
         isSelected: Bool,
+        leadingInset: CGFloat = 10,
+        trailingInset: CGFloat = 10,
         topInset: CGFloat = 0,
         bottomInset: CGFloat = 0
     ) -> some View {
@@ -120,6 +129,8 @@ extension View {
             AppSelectionRowBackground(
                 isSelected: isSelected,
                 isPressed: false,
+                leadingInset: leadingInset,
+                trailingInset: trailingInset,
                 topInset: topInset,
                 bottomInset: bottomInset
             )
@@ -132,8 +143,16 @@ extension View {
     func appSelectableRow(
         isSelected: Bool,
         identity: AnyHashable? = nil,
+        selectionBackgroundLeadingInset: CGFloat = 10,
+        selectionBackgroundTrailingInset: CGFloat = 10,
         action: @escaping () -> Void
     ) -> some View {
-        modifier(SelectableRowModifier(isSelected: isSelected, identity: identity, action: action))
+        modifier(SelectableRowModifier(
+            isSelected: isSelected,
+            identity: identity,
+            selectionBackgroundLeadingInset: selectionBackgroundLeadingInset,
+            selectionBackgroundTrailingInset: selectionBackgroundTrailingInset,
+            action: action
+        ))
     }
 }

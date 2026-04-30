@@ -24,7 +24,8 @@ struct DiffViewerPaneHeader: View {
         }
         .animation(diffViewerHeaderActionAnimation, value: headerActionLayoutID)
         .padding(.top, 14)
-        .padding(.horizontal, 14)
+        .padding(.leading, DiffViewerPaneMetrics.headerLeadingInset)
+        .padding(.trailing, DiffViewerPaneMetrics.headerTrailingInset)
         .padding(.bottom, 10)
         .background(.bar)
         .overlay(alignment: .bottom) {

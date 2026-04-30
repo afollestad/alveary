@@ -22,6 +22,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 
 ## Pane Modes
 
+- **Keep pane edges aligned.** Header controls, selectable row backgrounds, and diff-preview content should render 10pt from the pane's horizontal edges in both Current changes and Commits modes. Use `DiffViewerPaneMetrics` instead of inline padding because macOS `Menu`, `List`, and scroll views add different chrome.
 - **Expose mode through the header menu.** The title-only control is the pane-mode menu:
     - Keep the full rounded rectangle as the hit target.
     - Keep the visual label title-only, but keep the accessibility value carrying the current mode and active path.

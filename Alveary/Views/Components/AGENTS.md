@@ -19,6 +19,7 @@ General shared controls live here. Narrower scopes:
 - Keep the sibling `.accessibilityAction { action() }` so VoiceOver activation works.
 - Keep the pending-selection state for click releases; it bridges mouse-up to model publication so rows do not visually flash clear before becoming selected.
 - Pass a stable row identity when selectable rows can be inserted, removed, or reordered so transient press/pending state cannot leak into recycled `List` rows.
+- Keep selectable row background insets at their 10pt defaults unless a surface must compensate for host chrome to hit a measured visual edge.
 
 ## Split Buttons
 

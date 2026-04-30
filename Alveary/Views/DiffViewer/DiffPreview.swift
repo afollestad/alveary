@@ -32,7 +32,7 @@ struct DiffPreviewHeader: View {
             }
             .accessibilityElement(children: .contain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, DiffViewerPaneMetrics.diffPreviewHorizontalInset)
         .padding(.top, 14)
     }
 

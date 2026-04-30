@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+enum DiffViewerPaneMetrics {
+    // These compensate for macOS Menu/List/ScrollView chrome so rendered edges land on the 10pt pane inset.
+    static let headerLeadingInset: CGFloat = 7
+    static let headerTrailingInset: CGFloat = 11
+    static let selectionBackgroundLeadingInset: CGFloat = 6
+    static let selectionBackgroundTrailingInset: CGFloat = 11
+    static let diffPreviewHorizontalInset: CGFloat = 6
+    static let diffPreviewTopInset: CGFloat = 1
+    static let diffPreviewBottomInset: CGFloat = 14
+}
+
 struct DiffViewerPane: View {
     let viewModel: DiffViewerViewModel
     let areAgentActionsEnabled: Bool

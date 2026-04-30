@@ -43,6 +43,8 @@ struct DiffViewerFileListSection: View {
                 .appSelectableRow(
                     isSelected: isSelected(file),
                     identity: file.id,
+                    selectionBackgroundLeadingInset: DiffViewerPaneMetrics.selectionBackgroundLeadingInset,
+                    selectionBackgroundTrailingInset: DiffViewerPaneMetrics.selectionBackgroundTrailingInset,
                     action: { onSelectFile(file, currentSelectionBehavior) }
                 )
                 .background {
@@ -72,6 +74,7 @@ struct DiffViewerFileListSection: View {
                 }
             }
             .contentMargins(.top, 0, for: .scrollContent)
+            .contentMargins(.horizontal, 0, for: .scrollContent)
             .contentMargins(.bottom, 4, for: .scrollContent)
             .clipped()
             .background {
