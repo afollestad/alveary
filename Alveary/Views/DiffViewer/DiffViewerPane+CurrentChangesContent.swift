@@ -22,9 +22,11 @@ struct DiffViewerCurrentChangesContent: View {
                 selectedFiles: viewModel.selectedFiles,
                 isGitRepository: viewModel.isGitRepository,
                 isLoading: viewModel.isLoadingFiles,
+                selectedFileID: viewModel.selectedFile?.id,
                 isSelected: viewModel.isFileSelected,
                 fileDisplayName: fileDisplayName,
                 onSelectFile: selectFile,
+                onNavigateFile: navigateFile,
                 onStageFiles: stageFiles,
                 onUnstageFiles: unstageFiles,
                 onDiscardFiles: onDiscardFiles,
@@ -55,6 +57,10 @@ struct DiffViewerCurrentChangesContent: View {
         Task {
             await viewModel.loadSelectedFileDiff(preparedSelection)
         }
+    }
+
+    private func navigateFile(forward: Bool) async -> Bool {
+        await viewModel.selectAdjacentFile(forward: forward)
     }
 
     private func stageFiles(_ files: [FileStatus]) {

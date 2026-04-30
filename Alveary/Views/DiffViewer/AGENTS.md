@@ -48,8 +48,11 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 ## File List Interaction
 
 - **Keep file-row dots consistent.** File-list rows should render fixed-size colored `Circle` views like thread rows; staged rows are green and unstaged rows are secondary.
+- **Claim keyboard focus on row clicks.** File and commit lists own local `@FocusState` for arrow-key navigation; row clicks must release `chatComposerFocus` before setting list focus so Up/Down stay in the diff pane.
 - **Expose full file paths.** File-list row help text should be `FileStatus.path` so truncated paths remain discoverable from any hover point on the row.
 - **Keep right-click selection synchronous.** Context-menu selection uses an AppKit local event monitor so the clicked row is visibly selected before SwiftUI opens the menu. Do not route that first visual selection only through an async `Task`.
+- **Anchor keyboard navigation to preview selection.** File-list Up/Down uses `selectedFile` as the anchor and selects the destination with `.single`, clearing multi-selection; commit-list Up/Down uses `selectedCommit`.
+- **Reveal keyboard targets minimally.** Up/Down navigation should scroll the selected file or commit into view with `scrollTo(id)` and no explicit center anchor, and ordinary row clicks should not inherit pending keyboard scrolls.
 - **Drive the top divider from scroll offset.** The header divider should appear from the file list's y scroll offset, not row indices. `DiffViewerFileListScrollMonitor` finds the backing `NSScrollView` because SwiftUI `List` does not guarantee the monitor view is inside it.
 - **Preserve top on inserts.** When the list is already at the top and rows are inserted above, keep scrolling to the new top without animation so the first row is not clipped under the header.
 

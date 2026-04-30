@@ -221,3 +221,33 @@ enum DiffViewerCommitDiffTaskFactory {
         }
     }
 }
+
+@MainActor
+extension DiffViewerViewModel {
+    @discardableResult
+    func selectAdjacentFile(forward: Bool) async -> Bool {
+        guard let activeDirectory else {
+            return false
+        }
+
+        return await diffStore.selectAdjacentFile(forward: forward, in: activeDirectory)
+    }
+
+    @discardableResult
+    func selectAdjacentCommit(forward: Bool) async -> Bool {
+        guard let target = diffStore.activeTarget else {
+            clearCommitState()
+            return false
+        }
+
+        let currentIndex = selectedCommit.flatMap { selectedCommit in
+            aheadCommits.firstIndex { $0.id == selectedCommit.id }
+        }
+        guard let nextIndex = diffViewerAdjacentIndex(in: aheadCommits.indices, from: currentIndex, forward: forward) else {
+            return false
+        }
+
+        await loadCommitDiff(for: aheadCommits[nextIndex], target: target)
+        return true
+    }
+}

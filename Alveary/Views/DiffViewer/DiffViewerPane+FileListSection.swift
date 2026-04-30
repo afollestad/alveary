@@ -6,9 +6,11 @@ struct DiffViewerFileListSection: View {
     let selectedFiles: [FileStatus]
     let isGitRepository: Bool
     let isLoading: Bool
+    let selectedFileID: String?
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let onSelectFile: (FileStatus, DiffViewerFileSelectionBehavior) -> Void
+    let onNavigateFile: (Bool) async -> Bool
     let onStageFiles: ([FileStatus]) -> Void
     let onUnstageFiles: ([FileStatus]) -> Void
     let onDiscardFiles: ([FileStatus]) -> Void
@@ -16,6 +18,9 @@ struct DiffViewerFileListSection: View {
     @Binding var isTopDividerVisible: Bool
 
     @State private var verticalOffsetFromTop: CGFloat = 0
+    @State private var pendingKeyboardNavigationScrollCount = 0
+    @FocusState private var isKeyboardFocused: Bool
+    @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -45,10 +50,14 @@ struct DiffViewerFileListSection: View {
                     identity: file.id,
                     selectionBackgroundLeadingInset: DiffViewerPaneMetrics.selectionBackgroundLeadingInset,
                     selectionBackgroundTrailingInset: DiffViewerPaneMetrics.selectionBackgroundTrailingInset,
-                    action: { onSelectFile(file, currentSelectionBehavior) }
+                    action: {
+                        claimKeyboardFocus()
+                        onSelectFile(file, currentSelectionBehavior)
+                    }
                 )
                 .background {
                     DiffViewerSecondaryClickSelectionTarget {
+                        claimKeyboardFocus()
                         if !isSelected(file) {
                             onSelectFile(file, .single)
                         }
@@ -77,6 +86,10 @@ struct DiffViewerFileListSection: View {
             .contentMargins(.horizontal, 0, for: .scrollContent)
             .contentMargins(.bottom, 4, for: .scrollContent)
             .clipped()
+            .focusable()
+            .focused($isKeyboardFocused)
+            .focusEffectDisabled()
+            .onKeyPress(keys: [.upArrow, .downArrow], action: handleKeyPress)
             .background {
                 DiffViewerFileListScrollMonitor(
                     fileIDs: fileIDs,
@@ -119,9 +132,18 @@ struct DiffViewerFileListSection: View {
             }
             .onDisappear {
                 isTopDividerVisible = false
+                pendingKeyboardNavigationScrollCount = 0
             }
             .onChange(of: fileIDs) { _, newFileIDs in
                 preserveTopPositionIfNeeded(scrollProxy: scrollProxy, fileIDs: newFileIDs)
+            }
+            .onChange(of: selectedFileID) { _, fileID in
+                guard let fileID,
+                      pendingKeyboardNavigationScrollCount > 0 else {
+                    return
+                }
+                pendingKeyboardNavigationScrollCount -= 1
+                scrollSelectionIntoView(scrollProxy: scrollProxy, id: fileID)
             }
         }
     }
@@ -136,6 +158,35 @@ struct DiffViewerFileListSection: View {
 
     private var shouldShowTopDivider: Bool {
         !files.isEmpty && verticalOffsetFromTop > 0.5
+    }
+
+    private func handleKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        switch keyPress.key {
+        case .upArrow:
+            navigateFile(forward: false)
+            return .handled
+        case .downArrow:
+            navigateFile(forward: true)
+            return .handled
+        default:
+            return .ignored
+        }
+    }
+
+    private func claimKeyboardFocus() {
+        pendingKeyboardNavigationScrollCount = 0
+        chatComposerFocus?.wrappedValue = false
+        isKeyboardFocused = true
+    }
+
+    private func navigateFile(forward: Bool) {
+        pendingKeyboardNavigationScrollCount += 1
+        Task { @MainActor in
+            let didMove = await onNavigateFile(forward)
+            if !didMove, pendingKeyboardNavigationScrollCount > 0 {
+                pendingKeyboardNavigationScrollCount -= 1
+            }
+        }
     }
 
     private var currentSelectionBehavior: DiffViewerFileSelectionBehavior {
@@ -192,5 +243,11 @@ struct DiffViewerFileListSection: View {
             scrollProxy.scrollTo(firstFileID, anchor: .top)
         }
         verticalOffsetFromTop = 0
+    }
+
+    private func scrollSelectionIntoView(scrollProxy: ScrollViewProxy, id: String) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            scrollProxy.scrollTo(id)
+        }
     }
 }

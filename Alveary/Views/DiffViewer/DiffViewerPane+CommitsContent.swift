@@ -5,6 +5,10 @@ struct DiffViewerCommitsContent: View {
     @Binding var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
 
+    @State private var pendingKeyboardNavigationScrollCount = 0
+    @FocusState private var isCommitListKeyboardFocused: Bool
+    @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
+
     var body: some View {
         DiffViewerVerticalSplit(
             splitFraction: $topSectionFraction,
@@ -46,21 +50,39 @@ struct DiffViewerCommitsContent: View {
                 actions: []
             )
         } else {
-            List(viewModel.aheadCommits) { commit in
-                DiffViewerCommitRow(
-                    commit: commit,
-                    isSelected: viewModel.selectedCommit?.id == commit.id
-                ) {
-                    Task {
-                        await viewModel.selectCommit(commit)
+            ScrollViewReader { scrollProxy in
+                List(viewModel.aheadCommits) { commit in
+                    DiffViewerCommitRow(
+                        commit: commit,
+                        isSelected: viewModel.selectedCommit?.id == commit.id
+                    ) {
+                        claimCommitListKeyboardFocus()
+                        Task {
+                            await viewModel.selectCommit(commit)
+                        }
                     }
                 }
+                .selectionDisabled()
+                .contentMargins(.top, 0, for: .scrollContent)
+                .contentMargins(.horizontal, 0, for: .scrollContent)
+                .contentMargins(.bottom, 4, for: .scrollContent)
+                .clipped()
+                .focusable()
+                .focused($isCommitListKeyboardFocused)
+                .focusEffectDisabled()
+                .onKeyPress(keys: [.upArrow, .downArrow], action: handleCommitListKeyPress)
+                .onChange(of: viewModel.selectedCommit?.id) { _, commitID in
+                    guard let commitID,
+                          pendingKeyboardNavigationScrollCount > 0 else {
+                        return
+                    }
+                    pendingKeyboardNavigationScrollCount -= 1
+                    scrollSelectionIntoView(scrollProxy: scrollProxy, id: commitID)
+                }
+                .onDisappear {
+                    pendingKeyboardNavigationScrollCount = 0
+                }
             }
-            .selectionDisabled()
-            .contentMargins(.top, 0, for: .scrollContent)
-            .contentMargins(.horizontal, 0, for: .scrollContent)
-            .contentMargins(.bottom, 4, for: .scrollContent)
-            .clipped()
         }
     }
 
@@ -128,6 +150,41 @@ struct DiffViewerCommitsContent: View {
 
     private var commitDiffFailureSubtext: String {
         viewModel.selectedCommitDiffErrorMessage ?? "Select the commit again to try again."
+    }
+
+    private func handleCommitListKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        switch keyPress.key {
+        case .upArrow:
+            navigateCommitList(forward: false)
+            return .handled
+        case .downArrow:
+            navigateCommitList(forward: true)
+            return .handled
+        default:
+            return .ignored
+        }
+    }
+
+    private func navigateCommitList(forward: Bool) {
+        pendingKeyboardNavigationScrollCount += 1
+        Task { @MainActor in
+            let didMove = await viewModel.selectAdjacentCommit(forward: forward)
+            if !didMove, pendingKeyboardNavigationScrollCount > 0 {
+                pendingKeyboardNavigationScrollCount -= 1
+            }
+        }
+    }
+
+    private func claimCommitListKeyboardFocus() {
+        pendingKeyboardNavigationScrollCount = 0
+        chatComposerFocus?.wrappedValue = false
+        isCommitListKeyboardFocused = true
+    }
+
+    private func scrollSelectionIntoView(scrollProxy: ScrollViewProxy, id: String) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            scrollProxy.scrollTo(id)
+        }
     }
 }
 

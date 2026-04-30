@@ -40,6 +40,32 @@ extension DiffWorkspaceStore {
         }
     }
 
+    func selectAdjacentFile(
+        forward: Bool,
+        in directory: String
+    ) async -> Bool {
+        guard let target = activeTarget, target.directory == directory else {
+            return false
+        }
+
+        let currentIndex = selectedFile.flatMap { selectedFile in
+            let selectedKey = DiffViewerFileSelectionKey(selectedFile)
+            return files.firstIndex { DiffViewerFileSelectionKey($0) == selectedKey }
+        }
+
+        guard let nextIndex = diffViewerAdjacentIndex(in: files.indices, from: currentIndex, forward: forward) else {
+            return false
+        }
+
+        let nextFile = files[nextIndex]
+        guard let preparedSelection = selectFileImmediately(nextFile, in: target.directory, behavior: .single) else {
+            return false
+        }
+
+        await loadSelectedFileDiff(preparedSelection)
+        return true
+    }
+
     func reconcileSelectionAfterStatusRefresh(previousSelectedFiles: [FileStatus]) {
         let availableKeys = Set(files.map(DiffViewerFileSelectionKey.init))
         // Prefer exact row keys, then fall back through path/original-path matching so
@@ -153,4 +179,29 @@ private extension DiffWorkspaceStore {
         }
         return files[nearestIndex]
     }
+}
+
+func diffViewerAdjacentIndex(
+    in indices: Range<Int>,
+    from currentIndex: Int?,
+    forward: Bool
+) -> Int? {
+    guard !indices.isEmpty else {
+        return nil
+    }
+
+    let nextIndex: Int
+    if forward {
+        nextIndex = (currentIndex ?? indices.lowerBound - 1) + 1
+    } else {
+        guard let currentIndex else {
+            return nil
+        }
+        nextIndex = currentIndex - 1
+    }
+
+    guard indices.contains(nextIndex) else {
+        return nil
+    }
+    return nextIndex
 }

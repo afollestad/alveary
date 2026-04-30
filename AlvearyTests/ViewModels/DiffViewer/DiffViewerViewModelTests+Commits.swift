@@ -269,6 +269,82 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [firstFileID])
     }
 
+    func testKeyboardNavigationMovesSelectedCommitAndLoadsDiff() async {
+        let commits = [
+            Self.commit(hash: "abcdef1234567890", message: "First commit"),
+            Self.commit(hash: "1234567890abcdef", message: "Second commit"),
+            Self.commit(hash: "fedcba0987654321", message: "Third commit")
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success(commits)],
+                commitDiffResults: [
+                    .success(Self.modifiedDiff(path: "First.swift")),
+                    .success(Self.modifiedDiff(path: "Second.swift")),
+                    .success(Self.modifiedDiff(path: "First.swift"))
+                ]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        await fixture.viewModel.selectAdjacentCommit(forward: true)
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commits[1])
+        XCTAssertEqual(fixture.viewModel.commitDiffFiles.map(\.path), ["Second.swift"])
+
+        await fixture.viewModel.selectAdjacentCommit(forward: false)
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commits[0])
+        XCTAssertEqual(fixture.viewModel.commitDiffFiles.map(\.path), ["First.swift"])
+    }
+
+    func testKeyboardNavigationAtCommitBoundsDoesNotChangeSelection() async {
+        let commits = [
+            Self.commit(hash: "abcdef1234567890", message: "First commit"),
+            Self.commit(hash: "1234567890abcdef", message: "Second commit")
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success(commits)],
+                commitDiffResults: [
+                    .success(Self.modifiedDiff(path: "First.swift")),
+                    .success(Self.modifiedDiff(path: "Second.swift"))
+                ]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        await fixture.viewModel.selectAdjacentCommit(forward: false)
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commits[0])
+
+        await fixture.viewModel.selectAdjacentCommit(forward: true)
+        await fixture.viewModel.selectAdjacentCommit(forward: true)
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commits[1])
+
+        let diffCalls = await fixture.gitService.commitDiffCalls()
+        XCTAssertEqual(diffCalls.map(\.hash), [commits[0].hash, commits[1].hash])
+    }
+
     func testDelayedCommitListDoesNotPublishAfterTargetSwitch() async {
         let staleCommit = Self.commit(hash: "abcdef1234567890", message: "Stale result")
         let fixture = DiffViewerTestFixture(
