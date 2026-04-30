@@ -203,6 +203,48 @@ extension SnapshotTests {
         )
     }
 
+    func testDiffViewerPaneCommitsModeCollapsedFileDiff() async {
+        let commits = [
+            Self.commit(hash: "abcdef1234567890", message: "Add diff viewer commit mode")
+        ]
+        let firstPath = "Alveary/Views/DiffViewer/DiffViewerPane.swift"
+        let secondPath = "Alveary/ViewModels/DiffViewer/DiffViewerViewModel.swift"
+        let commitDiff = [
+            Self.modifiedDiff(path: firstPath),
+            Self.modifiedDiff(path: secondPath)
+        ].joined(separator: "\n")
+        let fixture = SnapshotDiffViewerFixture(
+            gitService: SnapshotMockGitService(
+                statusResults: [[]],
+                diffResults: [],
+                aheadCommitResults: [commits, commits],
+                commitDiffResults: [commitDiff, commitDiff]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: Set(["main"])
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: "0:\(firstPath)")
+
+        assertMacSnapshot(
+            DiffViewerPane(
+                viewModel: fixture.viewModel,
+                areAgentActionsEnabled: true,
+                mode: .constant(.commits),
+                onCommitRequested: {},
+                onOpenPRRequested: {}
+            ),
+            size: CGSize(width: 460, height: 720),
+            named: "diff_viewer_mode_commits_collapsed_file_diff"
+        )
+    }
+
     func testDiffViewerPaneCommitRowTruncation() async {
         let commits = [
             Self.commit(

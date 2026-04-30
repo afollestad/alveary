@@ -117,6 +117,7 @@ extension DiffViewerViewModel {
         selectedCommitDiffErrorMessage = nil
         commitsLoadState = .idle
         selectedCommitDiffLoadState = .idle
+        collapsedCommitFileIDsByCommitHash = [:]
     }
 
     func beginCommitListLoad(preservesSelectedDiff: Bool) {
@@ -140,6 +141,7 @@ extension DiffViewerViewModel {
         }
 
         aheadCommits = commits
+        pruneCollapsedCommitFileState(availableCommits: commits)
         commitsLoadState = .loaded
         inFlightCommitListLoad = nil
         let selectedCommitHash = selectedCommit?.hash
@@ -293,5 +295,10 @@ extension DiffViewerViewModel {
         selectedCommitDiffLoadState = .failed
         inFlightCommitDiffLoad = nil
         diffStore.presentGitError("Commit diff failed: \(error.localizedDescription)")
+    }
+
+    func pruneCollapsedCommitFileState(availableCommits: [CommitInfo]) {
+        let availableHashes = Set(availableCommits.map(\.hash))
+        collapsedCommitFileIDsByCommitHash = collapsedCommitFileIDsByCommitHash.filter { availableHashes.contains($0.key) }
     }
 }

@@ -37,9 +37,17 @@ final class DiffViewerViewModel {
     var commitListTarget: DiffWorkspaceTarget?
     var isCommitListRefreshNeeded = false
     var pendingCommitReloadTarget: DiffWorkspaceTarget?
+    var collapsedCommitFileIDsByCommitHash: [String: Set<String>] = [:]
 
     var isLoadingCommits: Bool { commitsLoadState == .loading }
     var isLoadingSelectedCommitDiff: Bool { selectedCommitDiffLoadState == .loading }
+    var selectedCommitCollapsedFileIDs: Set<String> {
+        guard let selectedCommit else {
+            return []
+        }
+
+        return collapsedCommitFileIDsByCommitHash[selectedCommit.hash] ?? []
+    }
 
     private var activeConversationIds: Set<String> = []
     let gitService: GitService
@@ -312,6 +320,24 @@ final class DiffViewerViewModel {
         }
 
         await loadCommitDiff(for: commit, target: target)
+    }
+
+    func toggleSelectedCommitFileCollapse(fileID: String) {
+        guard let selectedCommit else {
+            return
+        }
+
+        var collapsedFileIDs = collapsedCommitFileIDsByCommitHash[selectedCommit.hash] ?? []
+        if collapsedFileIDs.contains(fileID) {
+            collapsedFileIDs.remove(fileID)
+        } else {
+            collapsedFileIDs.insert(fileID)
+        }
+        if collapsedFileIDs.isEmpty {
+            collapsedCommitFileIDsByCommitHash.removeValue(forKey: selectedCommit.hash)
+        } else {
+            collapsedCommitFileIDsByCommitHash[selectedCommit.hash] = collapsedFileIDs
+        }
     }
 
     func isFileSelected(_ file: FileStatus) -> Bool {

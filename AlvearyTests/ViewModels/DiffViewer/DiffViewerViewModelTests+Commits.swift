@@ -61,6 +61,8 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.loadAheadCommitsForActiveTarget()
 
         XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: "0:Sources/App.swift")
+        XCTAssertFalse(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
 
         await fixture.viewModel.switchToDirectory(
             "/tmp/alveary-other-project",
@@ -75,6 +77,8 @@ extension DiffViewerViewModelTests {
         XCTAssertTrue(fixture.viewModel.rawCommitDiffContent.isEmpty)
         XCTAssertEqual(fixture.viewModel.commitsLoadState, DiffWorkspaceLoadState.idle)
         XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.idle)
+        XCTAssertTrue(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
+        XCTAssertTrue(fixture.viewModel.collapsedCommitFileIDsByCommitHash.isEmpty)
     }
 
     func testRefreshRevisionAllowsCommitModeToReloadAheadCommitsAfterRepositoryChanges() async {
@@ -134,6 +138,135 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.commitDiffFiles.first?.hunks.first?.lines.count, 1_003)
         XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loaded)
         XCTAssertNil(fixture.viewModel.selectedCommitDiffErrorMessage)
+    }
+
+    func testCommitFileCollapseStartsExpandedAfterLoadingCommitDiff() async {
+        let commit = Self.commit(hash: "abcdef1234567890", message: "Add commit mode")
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success([commit])],
+                commitDiffResults: [.success(Self.modifiedDiff(path: "Sources/App.swift"))]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
+        XCTAssertTrue(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
+    }
+
+    func testToggleCommitFileCollapseRecordsStateForSelectedCommit() async {
+        let commit = Self.commit(hash: "abcdef1234567890", message: "Add commit mode")
+        let fileID = "0:Sources/App.swift"
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success([commit])],
+                commitDiffResults: [.success(Self.modifiedDiff(path: "Sources/App.swift"))]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: fileID)
+        XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [fileID])
+
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: fileID)
+        XCTAssertTrue(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
+        XCTAssertTrue(fixture.viewModel.collapsedCommitFileIDsByCommitHash.isEmpty)
+    }
+
+    func testCommitFileCollapseStateIsSeparatePerSelectedCommit() async {
+        let firstCommit = Self.commit(hash: "abcdef1234567890", message: "First commit")
+        let secondCommit = Self.commit(hash: "1234567890abcdef", message: "Second commit")
+        let firstFileID = "0:Sources/First.swift"
+        let secondFileID = "0:Sources/Second.swift"
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([])],
+                commitsAheadDetailsResults: [.success([firstCommit, secondCommit])],
+                commitDiffResults: [
+                    .success(Self.modifiedDiff(path: "Sources/First.swift")),
+                    .success(Self.modifiedDiff(path: "Sources/Second.swift")),
+                    .success(Self.modifiedDiff(path: "Sources/First.swift"))
+                ]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: firstFileID)
+        XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [firstFileID])
+
+        await fixture.viewModel.selectCommit(secondCommit)
+        XCTAssertTrue(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
+
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: secondFileID)
+        XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [secondFileID])
+
+        await fixture.viewModel.selectCommit(firstCommit)
+        XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [firstFileID])
+    }
+
+    func testCommitRefreshPrunesCollapseStateForCommitsNoLongerAhead() async {
+        let firstCommit = Self.commit(hash: "abcdef1234567890", message: "First commit")
+        let secondCommit = Self.commit(hash: "1234567890abcdef", message: "Second commit")
+        let firstFileID = "0:Sources/First.swift"
+        let secondFileID = "0:Sources/Second.swift"
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([]), .success([])],
+                commitsAheadDetailsResults: [
+                    .success([firstCommit, secondCommit]),
+                    .success([firstCommit])
+                ],
+                commitDiffResults: [
+                    .success(Self.modifiedDiff(path: "Sources/First.swift")),
+                    .success(Self.modifiedDiff(path: "Sources/Second.swift")),
+                    .success(Self.modifiedDiff(path: "Sources/First.swift"))
+                ]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.loadAheadCommitsForActiveTarget()
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: firstFileID)
+
+        await fixture.viewModel.selectCommit(secondCommit)
+        fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: secondFileID)
+        await fixture.viewModel.refresh(in: fixture.directory, reason: .localGitMutation)
+
+        XCTAssertEqual(Set(fixture.viewModel.collapsedCommitFileIDsByCommitHash.keys), [firstCommit.hash])
+        XCTAssertEqual(fixture.viewModel.selectedCommit, firstCommit)
+        XCTAssertEqual(fixture.viewModel.selectedCommitCollapsedFileIDs, [firstFileID])
     }
 
     func testDelayedCommitListDoesNotPublishAfterTargetSwitch() async {

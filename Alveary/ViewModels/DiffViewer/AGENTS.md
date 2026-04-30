@@ -4,6 +4,7 @@ These instructions apply to Diff Viewer coordination and state under `Alveary/Vi
 
 - `DiffViewerViewModel` coordinates routing, watchers, contextual actions, and store delegation. Keep durable Git-backed file/stat/diff state in `DiffWorkspaceStore`.
     - **Own commit mode state here.** Ahead commits, selected commit, parsed commit diffs, raw fallback text, and commit load/error state belong on `DiffViewerViewModel`, not in SwiftUI views.
+    - **Keep commit file collapse transient.** Per-file collapse state belongs on `DiffViewerViewModel`, keyed by commit hash, pruned when commits are no longer ahead, and cleared on target switch.
     - **Guard commit async publishes.** Commit-list and commit-diff tasks must check the current target plus a generation/load id before publishing so stale work cannot update a newer project, worktree, or selected commit.
     - **Reload commits centrally.** Same-target workspace refreshes should refresh ahead commits from the view model only while commit mode is active; inactive same-target refreshes or discarded pending reloads should mark commits stale so the next commit-mode activation reloads. Commit-mode views should not independently reload from `workspaceRefreshRevision`.
     - **Avoid duplicate commit loads.** Ignore non-forced same-target commit loads when a list is already loading or loaded; thread-switch refreshes should not reload a list that was just requested for the new target.

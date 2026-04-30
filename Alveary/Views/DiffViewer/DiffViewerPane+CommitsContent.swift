@@ -92,7 +92,15 @@ struct DiffViewerCommitsContent: View {
                 actions: []
             )
         } else if !viewModel.commitDiffFiles.isEmpty {
-            FlattenedDiffPreview(files: viewModel.commitDiffFiles, showsFileHeaders: true)
+            FlattenedDiffPreview(
+                files: viewModel.commitDiffFiles,
+                showsFileHeaders: true,
+                allowsFileCollapse: true,
+                collapsedFileIDs: viewModel.selectedCommitCollapsedFileIDs,
+                onToggleFileCollapse: { fileID in
+                    viewModel.toggleSelectedCommitFileCollapse(fileID: fileID)
+                }
+            )
         } else if !viewModel.rawCommitDiffContent.isEmpty {
             RawDiffFallbackView(
                 rawDiffContent: viewModel.rawCommitDiffContent,
