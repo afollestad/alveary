@@ -23,11 +23,13 @@ extension ConversationViewModel {
             return
         }
 
+        clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: retryingFailedHandoff)
         if shouldRequestHandoffSteering(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) {
             beginSessionHandoffSteeringPrompt()
             return
         }
 
+        preserveVisibleDraftForAutomaticHandoffIfNeeded(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff)
         await startHiddenSessionHandoff()
     }
 
@@ -36,6 +38,7 @@ extension ConversationViewModel {
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()
         sessionHandoffSteeringCountdownTask = nil
+        stashVisibleDraftForHandoffIfNeeded()
         state.isAwaitingHandoffSteering = false
         state.handoffSteeringCountdownRemaining = nil
         state.handoffSteeringDraftBaseline = nil
@@ -183,6 +186,7 @@ extension ConversationViewModel {
             try await withOutboundReservation {
                 try await deliverMessageReserved(makeSessionHandoffOutgoingMessage(output: output))
             }
+            restoreSessionHandoffDraftIfNeeded()
             clearSubmittedHandoffSteering()
         } catch {
             if state.retryableFailedMessageIDs.count == retryableMessageCount {
@@ -364,7 +368,7 @@ private extension ConversationViewModel {
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()
         sessionHandoffSteeringCountdownTask = nil
-        let restorableDraft = state.handoffSteeringRestorableDraft
+        let restorableDraft = state.sessionHandoffRestorableDraft
         state.isAwaitingHandoffSteering = false
         state.isHandingOffSession = false
         state.hiddenHandoffResponse = ""
@@ -372,7 +376,6 @@ private extension ConversationViewModel {
         state.failedSessionHandoffMessage = message
         state.handoffSteeringCountdownRemaining = nil
         state.handoffSteeringDraftBaseline = nil
-        state.handoffSteeringRestorableDraft = nil
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
         state.clearStreamingText()
@@ -385,7 +388,51 @@ private extension ConversationViewModel {
 
     func clearSubmittedHandoffSteering() {
         state.submittedHandoffSteeringPrompt = nil
-        state.handoffSteeringRestorableDraft = nil
+        state.sessionHandoffRestorableDraft = nil
+    }
+
+    func clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: Bool) {
+        guard retryingFailedHandoff,
+              state.sessionHandoffRestorableDraft != nil,
+              state.inputDraft.isEmpty else {
+            return
+        }
+
+        state.sessionHandoffRestorableDraft = nil
+    }
+
+    func preserveVisibleDraftForAutomaticHandoffIfNeeded(
+        trigger: SessionHandoffTrigger,
+        retryingFailedHandoff: Bool
+    ) {
+        guard trigger == .automatic,
+              !retryingFailedHandoff,
+              !state.inputDraft.isEmpty else {
+            return
+        }
+
+        state.sessionHandoffRestorableDraft = state.inputDraft
+    }
+
+    func stashVisibleDraftForHandoffIfNeeded() {
+        let hasSubmittedSteeringOrRestorableDraft = state.submittedHandoffSteeringPrompt != nil ||
+            state.sessionHandoffRestorableDraft != nil
+        guard hasSubmittedSteeringOrRestorableDraft,
+              !state.inputDraft.isEmpty else {
+            return
+        }
+
+        state.sessionHandoffRestorableDraft = state.inputDraft
+        state.inputDraft = ""
+    }
+
+    func restoreSessionHandoffDraftIfNeeded() {
+        guard let restorableDraft = state.sessionHandoffRestorableDraft,
+              state.inputDraft.isEmpty else {
+            return
+        }
+
+        state.inputDraft = restorableDraft
     }
 
     func appendSessionHandoffNote() {

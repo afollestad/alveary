@@ -25,7 +25,7 @@ final class ConversationState {
     var isAwaitingHandoffSteering = false
     var handoffSteeringCountdownRemaining: Int?
     var handoffSteeringDraftBaseline: String?
-    var handoffSteeringRestorableDraft: String?
+    var sessionHandoffRestorableDraft: String?
     var submittedHandoffSteeringPrompt: String?
     var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
     var hiddenHandoffResponse = ""

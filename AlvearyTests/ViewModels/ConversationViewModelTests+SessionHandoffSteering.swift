@@ -20,7 +20,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.isHandingOffSession)
         XCTAssertFalse(fixture.viewModel.turnState.isActive)
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
-        XCTAssertEqual(fixture.viewModel.state.handoffSteeringRestorableDraft, "Existing draft")
+        XCTAssertEqual(fixture.viewModel.state.sessionHandoffRestorableDraft, "Existing draft")
         XCTAssertEqual(
             fixture.viewModel.state.handoffSteeringCountdownRemaining,
             AppSettings.defaultHandoffSteeringCountdownSeconds
@@ -55,6 +55,9 @@ extension ConversationViewModelTests {
         }
 
         XCTAssertTrue(fixture.viewModel.submitSessionHandoffSteeringPrompt("Focus on prompt entry."))
+        XCTAssertFalse(fixture.viewModel.state.isAwaitingHandoffSteering)
+        XCTAssertTrue(fixture.viewModel.state.isHandingOffSession)
+        XCTAssertFalse(fixture.viewModel.submitSessionHandoffSteeringPrompt("Duplicate submit."))
 
         try await waitUntil("steered handoff prompt sent") {
             await fixture.agentsManager.sentMessages().count == 1

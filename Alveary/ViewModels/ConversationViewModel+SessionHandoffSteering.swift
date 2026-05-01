@@ -26,6 +26,8 @@ extension ConversationViewModel {
         cancelSessionHandoffSteeringCountdown()
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         state.submittedHandoffSteeringPrompt = trimmedPrompt.isEmpty ? nil : prompt
+        state.isAwaitingHandoffSteering = false
+        state.isHandingOffSession = true
         state.inputDraft = ""
 
         Task { @MainActor [self] in
@@ -67,7 +69,7 @@ extension ConversationViewModel {
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
         state.submittedHandoffSteeringPrompt = nil
-        state.handoffSteeringRestorableDraft = state.inputDraft
+        state.sessionHandoffRestorableDraft = state.inputDraft
         state.handoffSteeringDraftBaseline = ""
         state.inputDraft = ""
         state.lastTurnInterrupted = false

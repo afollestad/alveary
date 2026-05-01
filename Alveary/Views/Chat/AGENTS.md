@@ -50,6 +50,10 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
     - **Hide the handoff exchange.** The handoff prompt/response must not render as transcript rows; after the fresh provider session starts, append only the centered `Session handoff` lifecycle note.
     - **Keep handoff context ahead of queues.** Staged, edited, and immediate handoff output must use the handoff send path so it seeds the fresh session before any queued messages resume.
     - **Keep failures blocking.** Failed hidden handoffs stay in a blocking retry state so later visible sends cannot continue from provider-only context.
+    - **Keep steering automatic-only.** Handoff steering is prompted only for automatic handoffs. Manual handoff commands and retries go straight to the hidden handoff flow, reusing any already-submitted steering after a failure.
+    - **Keep countdowns independent.** `handoffSteeringCountdownSeconds` controls only the user's steering prompt. `handoffPromptSendCountdownSeconds` controls only generated handoff output sending, and `0s` means send the generated output immediately without staging it in the composer.
+    - **Keep steering app-owned.** User steering must be appended through `SessionHandoffPromptBuilder`, not through the customizable default prompt. The hidden prompt receives the non-customizable steering contract, and the fresh-session seed appends raw steering under `## User Prompt`.
+    - **Preserve interrupted drafts.** When automatic handoff temporarily takes over a non-empty composer draft, restore that draft after the handoff seed message sends successfully, and restore it on hidden handoff failure.
 - Other subtle runtime lifecycle cues should use the same centered-note transcript treatment instead of inventing new bubble styles. Claude plan-mode transitions belong on that centered-note path, including `Entered plan mode`, `Exited plan mode`, and denied `ExitPlanMode` as `Staying in plan mode`, not in standalone tool pills.
 - First sends are durable transcript attempts once accepted:
     - **Persist before setup.** `deliverMessageReserved` inserts the user row before initial setup starts.
