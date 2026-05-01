@@ -2,7 +2,14 @@
 
 These instructions apply to files under `Alveary/ViewModels/`.
 
+### Ownership Boundary
+
 - Keep view models as coordination layers: route UI intent, own observers/watchers, and delegate service-backed state to focused collaborators when state becomes shared or long-running.
+- **Own side effects.** View models own mutable runtime state, persistence, and side effects.
+- **Keep presentation derived.** Renderer-neutral `*Presentation` types may derive display/action values from view-model state, but must not replace view-model ownership or perform service/model mutations.
+
+### File Organization
+
 - Put feature-specific view-model rules in the narrowest subfolder guidance, such as `Alveary/ViewModels/DiffViewer/AGENTS.md`.
 - Keep `ConversationViewModel` companions focused by behavior:
   - **Route outbound work.** Put message sending, queued-message dispatch, and transport message construction in `ConversationViewModel+MessageDispatch.swift`.

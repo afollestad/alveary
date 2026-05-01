@@ -1,9 +1,9 @@
-enum ComposerMode: Sendable {
+enum ComposerMode: Equatable, Sendable {
     case idle
     case busy(canStop: Bool)
     case progressOnly(ProgressReason)
 
-    enum ProgressReason: Sendable {
+    enum ProgressReason: Equatable, Sendable {
         case initialSetup
         case cancellingInitialSetup
         case reconfiguringSession

@@ -29,6 +29,15 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 
 These capture conversation-view interaction patterns. Keep new UI aligned with them unless intentionally redesigning.
 
+### Presentation Contracts
+
+- **Share contracts.** Route content-mode, composer-mode, and thread-setting display decisions through `ChatPresentation` / `ChatThreadPresentation`.
+- **Keep presentation pure.** Presentation types may read caller-owned state and compute labels/modes, but must not own runtime state, start tasks, save models, or call services.
+- **Avoid branch drift.** SwiftUI hosts and native AppKit views should consume the same contracts instead of duplicating branching.
+- **Preserve visuals during native migration.** AppKit replacements must match the SwiftUI surface they replace for sizing, spacing, typography, colors, disabled treatment, hover, and pressed states unless the change is explicitly approved as a redesign.
+
+### Conversation Behavior
+
 - `ThreadDetailView` should fetch live conversations for the selected thread before sorting/rendering tabs. Do not sort `thread.conversations` directly in its render path; stale relationship entries can trap when SwiftUI refreshes after a conversation delete.
 - `ThreadDetailView` must observe `.agentStatusChanged` for the current thread's conversation IDs and invalidate itself when one fires. The tab row reads `agentsManager.status(for:)` synchronously during render; without an explicit invalidation, a selected conversation tab can miss busy/idle/error transitions until some unrelated view state happens to re-render the header. Keep that invalidation token threaded into `ThreadDetailConversationTabs` as an explicit input (`statusVersion` today) rather than hiding it in a closure-side effect — the tabs need a real view input dependency so SwiftUI re-evaluates the selected chip immediately.
 - `ThreadDetailView` owns the Claude project-trust gate for new threads. Keep trust-state checks and denial deletion in `ThreadDetailView+ProjectTrust.swift`, and pass a plain disabled flag down to composer surfaces instead of letting input controls read Claude config directly.

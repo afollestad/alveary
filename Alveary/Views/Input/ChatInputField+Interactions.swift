@@ -64,10 +64,10 @@ extension ChatInputField {
             return
         }
 
-        switch (defaultEnterBehavior, usesAlternateBehavior) {
-        case (.queue, false), (.steer, true):
+        switch presentation.busyReturnAction(usesAlternateBehavior: usesAlternateBehavior) {
+        case .submit:
             performSubmit()
-        case (.steer, false), (.queue, true):
+        case .steer:
             performSteer()
         }
     }
@@ -132,16 +132,14 @@ extension ChatInputField {
     }
 
     func performSubmit() {
-        guard !isProjectTrustBlocked,
-              isHandoffSteeringPromptActive || !trimmedText.isEmpty else {
+        guard presentation.canSubmit else {
             return
         }
         onSubmit()
     }
 
     func performSteer() {
-        guard !isProjectTrustBlocked,
-              !trimmedText.isEmpty else {
+        guard presentation.canSteer else {
             return
         }
         onSteer()

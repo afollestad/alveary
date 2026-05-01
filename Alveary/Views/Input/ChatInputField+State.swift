@@ -1,65 +1,46 @@
 import SwiftUI
 
 extension ChatInputField {
+    var presentation: ComposerPresentation {
+        ComposerPresentation(
+            text: text,
+            mode: mode,
+            defaultEnterBehavior: defaultEnterBehavior,
+            supportsMidTurnSteering: supportsMidTurnSteering,
+            isHandoffSteeringPromptActive: isHandoffSteeringPromptActive,
+            isHandoffOutputPromptActive: isHandoffOutputPromptActive,
+            handoffSteeringCountdown: handoffSteeringCountdown,
+            sendCountdown: sendCountdown,
+            isProjectTrustBlocked: isProjectTrustBlocked
+        )
+    }
+
     var trimmedText: String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
+        presentation.trimmedText
     }
 
     var primaryActionTitle: String {
-        if isHandoffSteeringPromptActive {
-            guard let handoffSteeringCountdown else {
-                return "Submit"
-            }
-            return "Submit (\(handoffSteeringCountdown))"
-        }
-
-        if let sendCountdown {
-            return "Submit (\(sendCountdown))"
-        }
-
-        if isHandoffOutputPromptActive {
-            return "Submit"
-        }
-
-        return "Send"
+        presentation.primaryActionTitle
     }
 
     var primaryActionSystemImage: String {
-        (isHandoffSteeringPromptActive || isHandoffOutputPromptActive || sendCountdown != nil) ? "checkmark" : "paperplane.fill"
+        presentation.primaryActionSystemImage
     }
 
     var isPrimaryActionDisabled: Bool {
-        if isProjectTrustBlocked {
-            return true
-        }
-        return !isHandoffSteeringPromptActive && trimmedText.isEmpty
+        presentation.isPrimaryActionDisabled
     }
 
     var isTextEditorDisabled: Bool {
-        if isProjectTrustBlocked { return true }
-        if case .progressOnly = mode { return true }
-        return false
+        presentation.isTextEditorDisabled
     }
 
     var areControlsDisabled: Bool {
-        if isProjectTrustBlocked {
-            return true
-        }
-
-        switch mode {
-        case .idle:
-            return isHandoffSteeringPromptActive
-        case .busy, .progressOnly:
-            return true
-        }
+        presentation.areControlsDisabled
     }
 
     var canUseEscapeToStop: Bool {
-        switch mode {
-        case .busy(let canStop): return canStop
-        case .progressOnly(let reason): return reason.canStop
-        case .idle: return false
-        }
+        presentation.canUseEscapeToStop
     }
 
     var modelOptions: [String] {
@@ -75,29 +56,7 @@ extension ChatInputField {
     }
 
     var placeholder: String {
-        if isProjectTrustBlocked {
-            return "Trust this project to enable the composer"
-        }
-
-        switch mode {
-        case .idle:
-            if isHandoffSteeringPromptActive {
-                return ConversationViewModel.handoffSteeringPlaceholder
-            }
-            return "Ask anything, @ to add files, / for skills"
-        case .busy(let canStop):
-            if canStop, supportsMidTurnSteering {
-                switch defaultEnterBehavior {
-                case .queue:
-                    return "Enter to queue for the next turn, or Cmd+Enter to steer..."
-                case .steer:
-                    return "Enter to steer the current turn, or Cmd+Enter to queue..."
-                }
-            }
-            return "Type a message to queue for the next turn..."
-        case .progressOnly(let reason):
-            return ChatInputFieldTextSupport.placeholder(for: reason)
-        }
+        presentation.placeholder
     }
 
     var inlineSlashCommandHint: AppTextEditorInlineHint? {

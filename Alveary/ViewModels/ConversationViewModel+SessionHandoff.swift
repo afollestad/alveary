@@ -10,8 +10,6 @@ enum SessionHandoffTrigger: Sendable {
 }
 
 extension ConversationViewModel {
-    static let handoffSteeringPlaceholder = "Add steering for the session handoff, or submit empty to continue..."
-
     func triggerSessionHandoffFromCommand() {
         Task { @MainActor [self] in
             await startSessionHandoff(trigger: .automatic)

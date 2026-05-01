@@ -66,7 +66,7 @@ final class ChatInputFieldTests: XCTestCase {
 
         XCTAssertEqual(input.primaryActionTitle, "Submit (10)")
         XCTAssertEqual(input.primaryActionSystemImage, "checkmark")
-        XCTAssertEqual(input.placeholder, ConversationViewModel.handoffSteeringPlaceholder)
+        XCTAssertEqual(input.placeholder, ComposerPresentation.handoffSteeringPlaceholder)
         XCTAssertFalse(input.isPrimaryActionDisabled)
         XCTAssertTrue(input.areControlsDisabled)
     }

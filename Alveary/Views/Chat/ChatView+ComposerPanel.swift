@@ -39,8 +39,10 @@ struct ChatComposerPanel: View {
     // instead of replacing it so a provider that ships a narrower set (future
     // adapters) stays authoritative.
     private var visibleEffortLevels: [String] {
-        let modelSupported = Set(AppSettings.supportedEffortLevels(forModel: selectedModel.wrappedValue))
-        return composerCapabilities.supportedEffortLevels.filter(modelSupported.contains)
+        ComposerSettingsPresentation.visibleEffortLevels(
+            selectedModel: selectedModel.wrappedValue,
+            providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
+        )
     }
 
     private var hasTopContent: Bool {

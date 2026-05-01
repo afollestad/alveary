@@ -23,11 +23,15 @@ struct ChatView: View {
     @State private var lastScrollTime: Date = .distantPast
     @State private var isFollowing = true
     @State private var scrollToBottomRequest = 0
-    @State private var displayedContentMode: ChatMainContentMode?
+    @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
 
     private var hasVisibleChatContent: Bool {
-        !events.isEmpty || !viewModel.state.grouper.items.isEmpty || viewModel.streamingText != nil
+        ChatPresentation.hasVisibleChatContent(
+            hasEvents: !events.isEmpty,
+            hasGroupedItems: !viewModel.state.grouper.items.isEmpty,
+            hasStreamingText: viewModel.streamingText != nil
+        )
     }
 
     private var composerIsBusy: Bool {
@@ -35,39 +39,24 @@ struct ChatView: View {
     }
 
     private var composerMode: ComposerMode {
-        if viewModel.state.isCancellingInitialSetup {
-            return .progressOnly(.cancellingInitialSetup)
-        }
-        if viewModel.setupPhase != nil {
-            return .progressOnly(.initialSetup)
-        }
-        if viewModel.state.isReconfiguringSession {
-            return .progressOnly(.reconfiguringSession)
-        }
-        if viewModel.state.isAwaitingHandoffSteering {
-            return .idle
-        }
-        if viewModel.state.isHandingOffSession {
-            return .progressOnly(.sessionHandoff)
-        }
-        if let pendingToolApproval = viewModel.state.pendingToolApproval {
-            return .progressOnly(.toolApproval(pendingToolApproval.request.composerStatusText))
-        }
-        if viewModel.turnState.isActive {
-            return .busy(canStop: true)
-        }
-        if viewModel.state.isSendingMessage {
-            return .busy(canStop: false)
-        }
-        return .idle
+        ChatPresentation.composerMode(for: ChatComposerModeState(
+            isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
+            hasSetupPhase: viewModel.setupPhase != nil,
+            isReconfiguringSession: viewModel.state.isReconfiguringSession,
+            isAwaitingHandoffSteering: viewModel.state.isAwaitingHandoffSteering,
+            isHandingOffSession: viewModel.state.isHandingOffSession,
+            pendingToolApprovalStatusText: viewModel.state.pendingToolApproval?.request.composerStatusText,
+            isTurnActive: viewModel.turnState.isActive,
+            isSendingMessage: viewModel.state.isSendingMessage
+        ))
     }
 
-    private var selectedModelValue: String {
-        conversation.thread?.model ?? AppSettings.defaultModelValue
+    private var threadPresentation: ChatThreadPresentation {
+        ChatThreadPresentation(thread: conversation.thread, providerID: providerID)
     }
 
     private var contextWindowCacheLookupID: String {
-        "\(providerID):\(selectedModelValue)"
+        threadPresentation.contextWindowCacheLookupID
     }
 
     private var usageSummary: ConversationUsageSummary? {
@@ -79,53 +68,38 @@ struct ChatView: View {
 
     private var selectedModelBinding: Binding<String> {
         Binding(
-            get: { conversation.thread?.model ?? AppSettings.defaultModelValue },
+            get: { threadPresentation.selectedModel },
             set: { viewModel.applyModelChange($0) }
         )
     }
 
     private var selectedEffortBinding: Binding<String> {
         Binding(
-            get: { AppSettings.normalizedEffortLevel(conversation.thread?.effort) },
+            get: { threadPresentation.selectedEffort },
             set: { viewModel.applyEffortChange($0) }
         )
     }
 
     private var selectedPermissionModeBinding: Binding<String> {
         Binding(
-            get: { conversation.thread?.permissionMode ?? "default" },
+            get: { threadPresentation.selectedPermissionMode },
             set: { viewModel.applyPermissionModeChange($0) }
         )
     }
 
     private var selectedUseWorktreeBinding: Binding<Bool> {
         Binding(
-            get: { conversation.thread?.useWorktree ?? false },
+            get: { threadPresentation.selectedUseWorktree },
             set: { viewModel.applyWorktreePreferenceChange($0) }
         )
     }
 
     private var showWorktreePicker: Bool {
-        guard let thread = conversation.thread,
-              let project = thread.project else {
-            return false
-        }
-
-        return project.isGitRepository && !thread.hasCompletedInitialSetup
+        threadPresentation.showWorktreePicker
     }
 
     private var sessionLocationLabel: String? {
-        guard let thread = conversation.thread,
-              let project = thread.project,
-              project.isGitRepository,
-              thread.hasCompletedInitialSetup else {
-            return nil
-        }
-
-        return ChatInputFieldTextSupport.sessionLocationLabel(
-            useWorktree: thread.useWorktree,
-            worktreePath: thread.worktreePath
-        )
+        threadPresentation.sessionLocationLabel
     }
 
     init(
@@ -211,7 +185,7 @@ struct ChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: contextWindowCacheLookupID) {
             let providerID = providerID
-            let selectedModel = selectedModelValue
+            let selectedModel = threadPresentation.selectedModel
             cachedContextWindowSize = nil
             let size = await contextWindowCache.contextWindowSize(providerId: providerID, model: selectedModel)
             guard !Task.isCancelled else {
@@ -226,22 +200,16 @@ struct ChatView: View {
 }
 
 private extension ChatView {
-    var targetContentMode: ChatMainContentMode {
-        if let projectTrustPrompt {
-            return .projectTrust(projectTrustPrompt)
-        }
-        // Keep the main pane blank while the initial trust refresh is still resolving.
-        if isProjectTrustBlocked, !hasVisibleChatContent {
-            return .projectTrustPlaceholder
-        }
-        if !hasVisibleChatContent {
-            return .emptyThread
-        }
-        return .transcript
+    var targetContentMode: ChatContentMode {
+        ChatContentMode.resolve(
+            projectTrustPrompt: projectTrustPrompt,
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            hasVisibleChatContent: hasVisibleChatContent
+        )
     }
 
     @ViewBuilder
-    func mainContentView(for mode: ChatMainContentMode) -> some View {
+    func mainContentView(for mode: ChatContentMode) -> some View {
         switch mode {
         case .projectTrust(let projectTrustPrompt):
             ProjectTrustPromptView(
@@ -339,25 +307,5 @@ private extension ChatView {
 
     func outboundMessage(from message: String) -> String {
         ChatInputFieldTextSupport.outboundMessage(from: message, workingDirectory: workingDirectory)
-    }
-}
-
-private enum ChatMainContentMode: Equatable {
-    case projectTrust(ProjectTrustPrompt)
-    case projectTrustPlaceholder
-    case emptyThread
-    case transcript
-
-    var transitionID: String {
-        switch self {
-        case .projectTrust(let prompt):
-            return "projectTrust-\(prompt.threadID)"
-        case .projectTrustPlaceholder:
-            return "projectTrustPlaceholder"
-        case .emptyThread:
-            return "emptyThread"
-        case .transcript:
-            return "transcript"
-        }
     }
 }
