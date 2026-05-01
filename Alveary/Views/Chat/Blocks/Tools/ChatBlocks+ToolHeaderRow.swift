@@ -2,96 +2,6 @@ import Foundation
 import SwiftUI
 
 private let toolGroupStatusIndicatorDebounce: Duration = .milliseconds(250)
-private let transcriptToolSummarySlashCommandPattern = #"(^|[\s\(\[\{<"'])(/[A-Za-z][A-Za-z0-9_-]*)(?=$|[\s\)\]\}>"'.,;:])"#
-
-/// Parse a tool summary as inline Markdown and apply the same lightweight chip treatment
-/// used by transcript text for backticked spans, slash commands, and file mentions.
-/// Parsing and run-walking on every body evaluation showed up as a hot path during
-/// transcript scrolling, so results are memoized for the lifetime of the session.
-@MainActor
-private func attributedToolSummary(_ text: String) -> AttributedString {
-    AttributedSummaryCache.attributed(text)
-}
-
-@MainActor
-private func attributedToolSummary(_ text: String, typography: TranscriptTypography) -> AttributedString {
-    var attributed = attributedToolSummary(text)
-    for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
-        attributed[run.range].font = typography.codeFont
-    }
-    return attributed
-}
-
-@MainActor
-private enum AttributedSummaryCache {
-    static var cache: [String: AttributedString] = [:]
-    private static let slashCommandRegex = try? NSRegularExpression(pattern: transcriptToolSummarySlashCommandPattern)
-
-    static func attributed(_ text: String) -> AttributedString {
-        if let cached = cache[text] {
-            return cached
-        }
-
-        let result: AttributedString
-        let parser = AppMarkdownParser(
-            composerChipProvider: toolSummaryTextChips(in:),
-            parsingMode: .inline
-        )
-        if var attributed = try? parser.attributedString(for: text) {
-            applyInlineChipStyle(to: &attributed)
-            result = attributed
-        } else {
-            result = AttributedString(text)
-        }
-
-        cache[text] = result
-        return result
-    }
-
-    private static func applyInlineChipStyle(to attributed: inout AttributedString) {
-        for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            attributed[run.range].backgroundColor = Color.secondary.opacity(0.18)
-        }
-    }
-
-    private static func toolSummaryTextChips(in text: String) -> [AppTextEditorChip] {
-        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: text)
-        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
-        let source = text as NSString
-
-        var chips = ChatInputFieldTextSupport.fileMentionMatches(in: text).map { match in
-            AppTextEditorChip(
-                range: match.highlightRange,
-                displayText: ChatInputFieldTextSupport.mentionChipDisplayText(for: match.path),
-                style: .fileMention
-            )
-        }
-
-        if let slashCommandRegex {
-            let fullRange = NSRange(location: 0, length: source.length)
-            chips.append(contentsOf: slashCommandRegex.matches(in: text, range: fullRange).compactMap { match in
-                guard match.numberOfRanges >= 3 else {
-                    return nil
-                }
-                let commandRange = match.range(at: 2)
-                guard commandRange.location != NSNotFound else {
-                    return nil
-                }
-                return AppTextEditorChip(
-                    range: commandRange,
-                    displayText: source.substring(with: commandRange),
-                    style: .slashCommand
-                )
-            })
-        }
-
-        return chips
-            .filter { chip in
-                !excludedRanges.contains { NSIntersectionRange($0, chip.range).length > 0 }
-            }
-            .sorted { $0.range.location < $1.range.location }
-    }
-}
 
 struct ToolHeaderRow: View {
     let tool: ToolEntry
@@ -244,6 +154,11 @@ private struct TranscriptToolHeaderContent<LeadingIcon: View, Status: View>: Vie
             text
         }
     }
+}
+
+@MainActor
+private func attributedToolSummary(_ text: String, typography: TranscriptTypography) -> AttributedString {
+    TranscriptToolSummaryFormatter.attributedString(text, typography: typography)
 }
 
 enum TranscriptToolLeadingIconKind: Equatable {

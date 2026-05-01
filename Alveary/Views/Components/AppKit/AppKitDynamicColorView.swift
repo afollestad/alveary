@@ -96,6 +96,7 @@ final class AppKitDynamicColorTextField: NSTextField {
 /// effective-appearance changes.
 final class AppKitDynamicTintImageView: NSImageView {
     private var dynamicTintColor: NSColor?
+    private var dynamicTintAlpha: CGFloat = 1
 
     override var image: NSImage? {
         didSet {
@@ -112,6 +113,13 @@ final class AppKitDynamicTintImageView: NSImageView {
 
     func setDynamicContentTintColor(_ color: NSColor?) {
         dynamicTintColor = color
+        dynamicTintAlpha = 1
+        refreshDynamicTintColor()
+    }
+
+    func setDynamicContentTintColor(_ color: NSColor?, alpha: CGFloat) {
+        dynamicTintColor = color
+        dynamicTintAlpha = alpha
         refreshDynamicTintColor()
     }
 
@@ -126,7 +134,7 @@ final class AppKitDynamicTintImageView: NSImageView {
     }
 
     private func refreshDynamicTintColor() {
-        contentTintColor = dynamicTintColor?.appKitResolvedColor(in: self)
+        contentTintColor = dynamicTintColor?.appKitResolvedColor(in: self, alpha: dynamicTintAlpha)
     }
 }
 

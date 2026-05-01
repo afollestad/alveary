@@ -6,9 +6,7 @@ struct TaskListBlock: View {
     @Environment(\.transcriptBubbleMaxWidth) private var bubbleMaxWidth
 
     private var orderedTasks: [TaskEntry] {
-        tasks.sorted { lhs, rhs in
-            rank(lhs.status) < rank(rhs.status)
-        }
+        tasks.taskListPresentationOrder
     }
 
     var body: some View {
@@ -33,17 +31,6 @@ struct TaskListBlock: View {
         .padding(chatBlockPadding)
         .bubbleBackground(maxWidth: bubbleMaxWidth)
     }
-
-    private func rank(_ status: TaskEntry.Status) -> Int {
-        switch status {
-        case .inProgress:
-            return 0
-        case .pending:
-            return 1
-        case .completed:
-            return 2
-        }
-    }
 }
 
 private struct TaskStatusIndicator: View {
@@ -55,7 +42,7 @@ private struct TaskStatusIndicator: View {
             case .inProgress:
                 ProgressView()
                     .controlSize(.small)
-                    .scaleEffect(0.72)
+                    .scaleEffect(taskProgressSpinnerScale)
                     .frame(width: 16, height: 16)
             case .pending:
                 Image(systemName: "square")
@@ -68,7 +55,7 @@ private struct TaskStatusIndicator: View {
         .transcriptFont(.caption, weight: .semibold)
         .frame(width: 16, height: 16, alignment: .center)
         .transaction(value: branchKey) { $0.animation = nil }
-        .accessibilityLabel(status.accessibilityLabel)
+        .accessibilityLabel(status.taskListAccessibilityLabel)
     }
 
     private var branchKey: Int {
@@ -83,15 +70,4 @@ private struct TaskStatusIndicator: View {
     }
 }
 
-private extension TaskEntry.Status {
-    var accessibilityLabel: String {
-        switch self {
-        case .inProgress:
-            return "In progress"
-        case .pending:
-            return "Pending"
-        case .completed:
-            return "Completed"
-        }
-    }
-}
+private let taskProgressSpinnerScale: CGFloat = 0.72

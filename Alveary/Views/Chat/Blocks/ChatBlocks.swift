@@ -1,5 +1,9 @@
 import SwiftUI
 
+let chatBubbleHorizontalPadding: CGFloat = 12
+let chatBubbleCornerRadius: CGFloat = 12
+let userBubbleMaxWidth: CGFloat = 640
+let userBubbleLeadingClearance: CGFloat = 60
 let chatBlockPadding: CGFloat = 14
 /// Shared vertical rhythm for bubble-style chat surfaces.
 let chatVerticalPadding: CGFloat = 10
@@ -33,11 +37,6 @@ let transcriptToolDetailTrailingInset = transcriptToolDetailLeadingInset - 5
 let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
 let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
 let transcriptBubbleCompactTrailingInset: CGFloat = 24
-
-let transcriptExpandedHeaderRevealInset: CGFloat = 8
-let expandedHeaderRevealLayoutDelay: TimeInterval = 0.04
-let expandedHeaderRevealScrollTimeout: TimeInterval = 0.25
-let transcriptScrollCoordinateSpace = "TranscriptScrollCoordinateSpace"
 
 /// Wide transcripts look better when inbound bubbles stop around two-thirds of the
 /// available width, but once that cap would squeeze below a comfortable reading width
@@ -81,35 +80,15 @@ extension View {
         .frame(maxWidth: maxWidth, alignment: .leading)
     }
 
-    @ViewBuilder
-    func transcriptToolHeaderFramePreference(id: String?) -> some View {
-        if let id {
-            background {
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: TranscriptToolHeaderFramePreferenceKey.self,
-                        value: [id: proxy.frame(in: .named(transcriptScrollCoordinateSpace))]
-                    )
-                }
-            }
-        } else {
-            self
-        }
-    }
-}
-
-struct TranscriptToolHeaderFramePreferenceKey: PreferenceKey {
-    static let defaultValue: [String: CGRect] = [:]
-
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, newValue in newValue })
-    }
 }
 
 struct DetailCodeBlock: View {
     let title: String
     let content: String
     var tint: Color = .secondary
+    var usesCodeChrome = true
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -124,7 +103,7 @@ struct DetailCodeBlock: View {
             // parent bubble's own `.frame(maxWidth: bubbleMaxWidth)` still caps the outer
             // width and makes oversized content scroll inside the bubble.
             ScrollView(.horizontal) {
-                Text(content)
+                Text(appMarkdownCodeDisplayContent(content))
                     .transcriptCodeFont()
                     .textSelection(.enabled)
                     .fixedSize(horizontal: true, vertical: false)
@@ -134,9 +113,25 @@ struct DetailCodeBlock: View {
             .padding(.top, 12)
             .padding(.bottom, 4)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(tint.opacity(0.08))
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(codeFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(codeBorder, lineWidth: 1)
             )
         }
+    }
+
+    private var codeFill: Color {
+        usesCodeChrome ? AppMarkdownCodeBlockPalette.fillColor(for: colorScheme) : tint.opacity(0.08)
+    }
+
+    private var codeBorder: Color {
+        usesCodeChrome ? AppMarkdownCodeBlockPalette.borderColor(for: colorScheme) : .clear
+    }
+
+    private var cornerRadius: CGFloat {
+        usesCodeChrome ? 8 : 14
     }
 }

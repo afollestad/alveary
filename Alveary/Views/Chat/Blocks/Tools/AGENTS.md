@@ -8,7 +8,8 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Use `ToolHeaderRow` and `TranscriptDisclosureHeaderRow`: fixed leading slot, summary text column, fixed status slot.
 - Keep slots near glyph size so rows do not grow wider or taller than needed.
 - Bash rows use `dollarsign`; generic tools, groups, and sub-agents use a disclosure chevron; static approval headers use `lock.fill`.
-- Rotate one `chevron.right` with `appExpansionAnimation`; do not swap static chevrons.
+- SwiftUI tool rows rotate one `chevron.right` with `appExpansionAnimation`; do not swap static chevrons there.
+- AppKit tool rows use native `chevron.right`/`chevron.down` symbols instead of layer rotation so SF Symbol bounds stay stable.
 - Keep `ToolStatusIndicator` inside the fixed status frame.
 - Use `ProgressView()`, green `checkmark`, or red `xmark`; do not tint summary text red.
 - Keep row padding in `TranscriptToolHeaderContent`.
@@ -16,7 +17,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Single tools use current tense while running and past tense when complete.
 - Skill invocation rows use the `book` SF Symbol, stay standalone, and do not expand.
 - Group headers stay current tense until all children complete, then switch every category summary to past tense.
-- Preserve `attributedToolSummary` so inline-code, slash-command, and file-mention chips render.
+- Preserve `TranscriptToolSummaryFormatter` so SwiftUI and AppKit inline-code, slash-command, and file-mention chips render together.
 
 ## Toggle And Expansion State
 
@@ -42,6 +43,9 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 ## Details And Connectors
 
 - Expanded content routes through `ToolDetails`, `DetailCodeBlock`, `HighlightedCodeBlock`, or `ErrorContentBlock`.
+- AppKit counterparts live under `../AppKit/`; keep their paging and syntax-highlighting behavior aligned with these SwiftUI views.
+- Default `DetailCodeBlock` surfaces use the shared code palette chrome; keep tinted variants as explicit exceptions such as `stderr`.
+- Shared tool-summary parsing lives in `TranscriptToolSummaryFormatter`; update SwiftUI and AppKit together when chip rules change.
 - Do not dump raw text directly under a row.
 - Inline row details are indented by `transcriptToolDetailLeadingInset`.
 - Rounded code/output containers start under the summary column, not the leading icon.

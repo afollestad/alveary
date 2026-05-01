@@ -4,6 +4,8 @@ Rules for `ChatView+Transcript+LinkResolution.swift`.
 
 - Markdown links open through the `.environment(\.openURL, ...)` modifier on `ChatTranscriptView`.
 - Keep the modifier on the outer transcript so user and assistant bubbles inherit it.
+- AppKit transcript rows must route markdown clicks through `AppKitTranscriptRowFactory.Configuration.onOpenMarkdownLink`.
+    - Use the same resolver here before calling `NSWorkspace.shared.open`.
 - Resolve schemeless URLs against `workingDirectory`; SwiftUI's default handler no-ops relative paths without `file://`.
 - Expand `~` before working-directory resolution.
     - Decode percent escapes before `expandingTildeInPath`.

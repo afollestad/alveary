@@ -258,25 +258,18 @@ private extension ConversationViewModel {
         if !isResolvingLiveHookApproval {
             resetSubscriptionTrackingForToolApprovalResume()
         }
-        let additionalApprovals = relatedDeferredToolApprovals(for: pendingApproval.request)
-        let sessionApprovalEffective = try await agentsManager.resolveToolApproval(
-            AgentToolApprovalResolutionRequest(
-                conversationId: conversation.id,
-                approval: pendingApproval.request,
-                resolution: ClaudeToolApprovalResolution(
-                    decision: decision,
-                    updatedInput: updatedToolInput
-                ),
-                additionalApprovals: additionalApprovals,
-                sessionApproval: sessionApproval,
-                config: config
-            )
+        let liveResolution = try await resolveAgentToolApproval(
+            pendingApproval,
+            decision: decision,
+            updatedToolInput: updatedToolInput,
+            sessionApproval: sessionApproval,
+            config: config
         )
         var relatedApprovalStatus = pendingApproval.status
         var resolvedPendingApproval = pendingApproval
         if decision == .allow,
            sessionApprovalScope != nil,
-           !sessionApprovalEffective {
+           !liveResolution.sessionApprovalEffective {
             relatedApprovalStatus = .approving
             resolvedPendingApproval = PendingToolApproval(
                 request: pendingApproval.request,
@@ -285,8 +278,12 @@ private extension ConversationViewModel {
         }
         updateResolvedToolApprovalState(
             resolvedPendingApproval,
-            additionalApprovals: additionalApprovals,
+            additionalApprovals: liveResolution.additionalApprovals,
             relatedApprovalStatus: relatedApprovalStatus
+        )
+        finishLiveDeniedToolApprovalIfNeeded(
+            isResolvingLiveHookApproval: isResolvingLiveHookApproval,
+            decision: decision
         )
         state.lastTurnError = nil
         if !isResolvingLiveHookApproval {

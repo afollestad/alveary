@@ -12,3 +12,6 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - Keep automatic session handoff terminal-aware:
   - **Mark pending from usage.** Context-window token rows may mark handoff pending before the provider turn is complete.
   - **Trigger on completion.** Start handoff only from a successful terminal token stop, keep queued messages behind pending handoff, and clear pending state on errors, interruptions, explicit stops, or handoff start.
+- Keep live tool-approval decisions terminal-aware:
+  - **Allow stays active.** Live approval can continue the provider turn, so leave `turnState` active until a terminal event arrives.
+  - **Deny ends UI turn.** After a live denial decision is accepted, end the local turn even if Claude's trailing permission-denial token is delayed; later terminal tokens are still safe to process.

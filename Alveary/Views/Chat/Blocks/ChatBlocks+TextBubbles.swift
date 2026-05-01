@@ -1,7 +1,5 @@
 import SwiftUI
 
-private let chatBubbleHorizontalPadding: CGFloat = 12
-private let chatBubbleCornerRadius: CGFloat = 12
 private let longBubbleCollapsedMaxContentHeight: CGFloat = 260
 private let longBubbleCollapseFadeHeight: CGFloat = 56
 private let longBubbleControlClearance: CGFloat = 8
@@ -41,7 +39,7 @@ struct UserBubble: View {
 
     var body: some View {
         HStack {
-            Spacer(minLength: 60)
+            Spacer(minLength: userBubbleLeadingClearance)
 
             VStack(alignment: .trailing, spacing: 6) {
                 LongMarkdownBubbleContent(
@@ -75,7 +73,7 @@ struct UserBubble: View {
                     }
                 }
             }
-            .frame(maxWidth: 640, alignment: .trailing)
+            .frame(maxWidth: userBubbleMaxWidth, alignment: .trailing)
         }
     }
 }

@@ -5,10 +5,11 @@ import XCTest
 @MainActor
 final class ChatTranscriptScrollBehaviorTests: XCTestCase {
     // Content growth (e.g. bubble expand/collapse, streaming text wrap) must NOT trigger
-    // preserve-follow re-scroll. `.defaultScrollAnchor(.bottom, for: .sizeChanges)` pins the
-    // bottom during size changes, and the dedicated `events.count` / `streamingText` onChange
-    // handlers snap to bottom when a new message or stream chunk arrives. Firing re-scrolls
-    // on every intermediate animation frame of a bubble expand caused scroll jank.
+    // preserve-follow re-scroll. The AppKit container owns bottom anchoring during
+    // row-height changes, and the dedicated `events.count` / `streamingText` onChange
+    // handlers request bottom scrolls when a new message or stream chunk arrives.
+    // Firing re-scrolls on every intermediate animation frame of a bubble expand
+    // caused scroll jank.
     func testDoesNotPreserveFollowModeOnContentGrowthAlone() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 500, contentHeight: 1_040, containerHeight: 460)
@@ -47,11 +48,11 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
 
     // REGRESSION: error banners and other composer-panel content can appear while
     // a thread is visible, shrinking the transcript's viewport. When that happens
-    // with the user at bottom, `.scrollPosition(_, anchor: .bottom)` bumps offsetY
-    // *up* to keep the content-bottom aligned to the viewport-bottom — so offsetY
-    // CHANGED but the user didn't scroll. The old `!offsetChanged` guard excluded
-    // this case and left the transcript above the bottom once the banner appeared.
-    // `!offsetDecreased` correctly allows anchor-driven offset increases while
+    // with the user at bottom, the AppKit scroll owner can bump offsetY *up* to
+    // keep the content-bottom aligned to the viewport-bottom — so offsetY CHANGED
+    // but the user didn't scroll. The old `!offsetChanged` guard excluded this case
+    // and left the transcript above the bottom once the banner appeared.
+    // `!offsetDecreased` correctly allows owner-driven offset increases while
     // still rejecting real user drags.
     func testPreservesFollowModeOnContainerShrinkWithAnchorDrivenOffsetIncrease() {
         // Was at bottom (distance=0), container shrinks by 100, anchor bumps offsetY
@@ -171,7 +172,7 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
     }
 
     // Content growth is intentionally excluded so streaming / bubble-expand frames do not
-    // re-issue `scrollTo` — `.defaultScrollAnchor(.bottom, for: .sizeChanges)` pins those,
+    // re-issue bottom-scroll requests; the AppKit container owns row-height anchoring,
     // and re-issuing here would re-introduce the bubble-expand jank the narrowing fixed.
     func testDoesNotReissuePendingPreserveFollowOnContentGrowth() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
@@ -197,53 +198,6 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    func testExpandedHeaderRevealSkipsVisibleHeader() {
-        let metrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 400)
-
-        XCTAssertNil(
-            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
-                headerFrame: CGRect(x: 0, y: 48, width: 300, height: 24),
-                metrics: metrics,
-                inset: 8
-            )
-        )
-    }
-
-    func testExpandedHeaderRevealTargetsClippedHeaders() {
-        let metrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 400)
-
-        XCTAssertEqual(
-            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
-                headerFrame: CGRect(x: 0, y: -16, width: 300, height: 24),
-                metrics: metrics,
-                inset: 8
-            ),
-            176
-        )
-
-        XCTAssertEqual(
-            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
-                headerFrame: CGRect(x: 0, y: 386, width: 300, height: 24),
-                metrics: metrics,
-                inset: 8
-            ),
-            218
-        )
-    }
-
-    func testExpandedHeaderRevealClampsToScrollableRange() {
-        let metrics = ChatTranscriptScrollMetrics(offsetY: 596, contentHeight: 1_000, containerHeight: 400)
-
-        XCTAssertEqual(
-            ChatTranscriptScrollBehavior.expandedHeaderRevealTargetOffset(
-                headerFrame: CGRect(x: 0, y: 430, width: 300, height: 24),
-                metrics: metrics,
-                inset: 8
-            ),
-            600
-        )
-    }
-
     // `.preserveFollow` has no content-growth reissue case, so `isAtBottom` means
     // the pending scroll has landed and the mode can clear.
     func testPendingScrollActionPreserveFollowClearsOnIsAtBottom() {
@@ -260,13 +214,12 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    // REGRESSION: the thread-reopen blank-transcript bug. `LazyVStack` initially
-    // materializes a small window of rows (viewport briefly fits all rendered
-    // content, `isAtBottom` fires), then over-estimates remaining rows as it
-    // expands. If `.jumpToLatest` cleared on this transient `isAtBottom`, the
-    // reissue loop would disarm and the viewport would be left in estimated-
-    // but-unmaterialized space. Instead we mark as following but keep the mode
-    // live so subsequent content growth re-enters `shouldReissuePendingJumpToLatest`.
+    // REGRESSION: row-height settling can briefly report `isAtBottom` before the
+    // AppKit document view has published all final heights. If `.jumpToLatest`
+    // cleared on this transient `isAtBottom`, the reissue loop would disarm and
+    // the viewport could be left above the actual bottom. Instead we mark as
+    // following but keep the mode live so subsequent content growth re-enters
+    // `shouldReissuePendingJumpToLatest`.
     func testPendingScrollActionJumpToLatestKeepsPendingOnIsAtBottom() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 200, contentHeight: 1_000, containerHeight: 400)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
@@ -298,8 +251,8 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
 
     // Composed check on top of the unit test for `shouldCancelProgrammaticScroll`.
     // A `.jumpToLatest` pending scroll during streaming should NOT cancel when the
-    // anchor is catching up to content growth (offsetY increasing toward bottom,
-    // content grew by more). It should reissue instead.
+    // AppKit owner is catching up to content growth (offsetY increasing toward
+    // bottom, content grew by more). It should reissue instead.
     func testPendingScrollActionReissuesOnAnchorCatchUpDuringJumpToLatest() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 620, contentHeight: 1_100, containerHeight: 400)
@@ -315,8 +268,8 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
     }
 
     // Same scenario under `.preserveFollow` resolves to `.noop` (content growth is
-    // intentionally excluded from preserveFollow's reissue predicate; default
-    // scroll anchor handles it).
+    // intentionally excluded from preserveFollow's reissue predicate; the AppKit
+    // owner handles it).
     func testPendingScrollActionNoopsOnAnchorCatchUpDuringPreserveFollow() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 620, contentHeight: 1_100, containerHeight: 400)
@@ -395,12 +348,11 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
     }
 
     // REGRESSION: streaming chunks can make `contentHeight` jump by >60pt in a
-    // single render pass before `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
-    // bumps `offsetY`. A naive `isFollowing = isNearBottom` on that tick would flip
-    // follow mode off mid-stream (offset didn't move — user didn't scroll), which
-    // then disarms the default scroll anchor via `isFollowing ? .bottom : nil` and
-    // the jump-to-bottom button flickers. `nextFollowingState` must hold the line
-    // and leave `isFollowing` alone in that case.
+    // single render pass before AppKit row-height anchoring bumps `offsetY`. A
+    // naive `isFollowing = isNearBottom` on that tick would flip follow mode off
+    // mid-stream (offset didn't move — user didn't scroll), which then disarms
+    // follow-mode preservation and makes the jump-to-bottom button flicker.
+    // `nextFollowingState` must hold the line and leave `isFollowing` alone.
     func testNextFollowingStateKeepsFollowingOnContentGrowthWithoutUserScroll() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_120, containerHeight: 460)

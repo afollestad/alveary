@@ -35,8 +35,8 @@ enum PendingProgrammaticScrollMode {
 }
 
 enum PendingProgrammaticScrollAction: Equatable {
-    /// The user (or `.defaultScrollAnchor`) has already landed at the bottom and
-    /// the pending mode's job is done — clear it and mark us as following.
+    /// The AppKit scroll owner has already landed at the bottom and the pending
+    /// mode's job is done — clear it and mark us as following.
     case settleFollowingAndClear
     /// Already at the bottom but the pending mode is `.jumpToLatest` — mark us
     /// as following but keep the pending mode live so subsequent content-size
@@ -44,7 +44,7 @@ enum PendingProgrammaticScrollAction: Equatable {
     case followWithoutClearing
     /// User dragged away from the bottom — clear pending mode and stop following.
     case cancelled
-    /// Re-issue `scrollPosition.scrollTo(edge: .bottom)` (and refresh the watchdog).
+    /// Re-issue the AppKit bottom-scroll request (and refresh the watchdog).
     case reissue
     /// Geometry change is not interesting for the pending mode — leave state alone.
     case noop
@@ -58,20 +58,20 @@ enum ChatTranscriptScrollBehavior {
     /// - **Container shrinks, not any change.** Container *growth* pulls the user toward
     ///   the bottom on its own (more viewport, less to scroll) and doesn't need a re-pin.
     ///   `shouldReissuePendingPreserveFollow` already uses the same shrunk-only rule.
-    /// - **Offset didn't *decrease*, not "didn't change".** `.scrollPosition(_, anchor: .bottom)`
-    ///   bumps `offsetY` *up* when the container shrinks to keep the content-bottom aligned
-    ///   to the viewport-bottom. That anchor-driven offset increase is not a user scroll —
+    /// - **Offset didn't *decrease*, not "didn't change".** The AppKit scroll owner
+    ///   can bump `offsetY` *up* when the container shrinks to keep the content-bottom
+    ///   aligned to the viewport-bottom. That owner-driven offset increase is not a user scroll —
     ///   excluding all offset changes (the old `!offsetChanged`) made us miss composer
     ///   banners that appear *after* the initial thread-open scroll has settled and
     ///   `.jumpToLatest` pending has timed out. A real user drag up *decreases* offsetY,
     ///   so `!offsetDecreased` is the correct guard: it rejects user drags but allows
     ///   anchor adjustments.
     ///
-    /// Content-size growth is still deliberately excluded: `.defaultScrollAnchor(.bottom, for: .sizeChanges)`
-    /// already pins the bottom during content growth, and new-message / streaming snaps are
-    /// handled by the dedicated `events.count` / `streamingText` onChange paths. Firing here
-    /// on content growth caused `scrollToBottom` to run on every frame of a bubble expand or
-    /// collapse animation, fighting the animation and producing jank.
+    /// Content-size growth is still deliberately excluded: the AppKit container owns
+    /// bottom anchoring during row-height changes, and new-message / streaming snaps
+    /// are handled by the dedicated `events.count` / `streamingText` onChange paths.
+    /// Firing here on content growth caused bottom-scroll requests on every frame of
+    /// a bubble expand or collapse animation, fighting the animation and producing jank.
     static func shouldPreserveFollowMode(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
@@ -82,21 +82,20 @@ enum ChatTranscriptScrollBehavior {
     }
 
     /// A user scroll-away should cancel a pending programmatic scroll, but normal
-    /// `.defaultScrollAnchor(.bottom, for: .sizeChanges)` catch-up during streaming,
-    /// `.scrollPosition(anchor: .bottom)` anchor adjustments, and turn-end rebuild
-    /// scroll-state disturbances must not.
+    /// AppKit bottom-anchor catch-up during streaming, owner-driven anchor adjustments,
+    /// and turn-end rebuild scroll-state disturbances must not.
     ///
     /// Three guards working together:
     /// - **offsetDecreased**: a real user drag up decreases offsetY; anchor catch-up
     ///   during content growth *increases* it. Rejecting catch-up requires the
     ///   offset to have actually decreased.
     /// - **clearlyAwayFromBottom** (`!newMetrics.isNearBottom`): when content fits
-    ///   the viewport, `.scrollPosition(anchor: .bottom)` uses *negative* offsetY
-    ///   to pin content to the viewport bottom. A programmatic `scrollTo(edge: .bottom)`
-    ///   in that state causes a large offsetY decrease (e.g. 0 → -377) that looks
-    ///   like a user drag per the offset-decrease rule, but `distanceFromBottom`
-    ///   lands within the near-bottom band (e.g. 12pt). A real user drag-away moves
-    ///   past the near-bottom threshold; anchor adjustments don't.
+    ///   the viewport, bottom anchoring can use *negative* offsetY to pin content
+    ///   to the viewport bottom. A programmatic bottom request in that state causes
+    ///   a large offsetY decrease (e.g. 0 → -377) that looks like a user drag per
+    ///   the offset-decrease rule, but `distanceFromBottom` lands within the
+    ///   near-bottom band (e.g. 12pt). A real user drag-away moves past the
+    ///   near-bottom threshold; anchor adjustments don't.
     /// - **plausibleUserVelocity** (`offsetDrop < transcriptCancelMaxPerTickDrop`):
     ///   turn-end `forceFullRebuild` regenerates tool-group identities, so the
     ///   ScrollView loses its anchor view mid-diff and offsetY can snap to a stale
@@ -134,8 +133,8 @@ enum ChatTranscriptScrollBehavior {
     /// multiple layout passes. Re-issue `scrollTo` whenever the viewport shrinks further so
     /// the transcript stays pinned through the full banner animation, not just at the initial
     /// scrollTo + timeout snapshots. Unlike `shouldReissuePendingJumpToLatest`, content growth
-    /// is not considered here: `.defaultScrollAnchor(.bottom, for: .sizeChanges)` handles content
-    /// growth while `isFollowing` is true, and re-issuing on every streaming frame would
+    /// is not considered here: the AppKit container handles content growth while
+    /// `isFollowing` is true, and re-issuing on every streaming frame would
     /// re-introduce the bubble-expand jank that the preserve-follow narrowing was meant to fix.
     static func shouldReissuePendingPreserveFollow(
         oldMetrics: ChatTranscriptScrollMetrics,
@@ -144,48 +143,19 @@ enum ChatTranscriptScrollBehavior {
         newMetrics.containerHeight < oldMetrics.containerHeight - 0.5
     }
 
-    static func expandedHeaderRevealTargetOffset(
-        headerFrame: CGRect,
-        metrics: ChatTranscriptScrollMetrics,
-        inset: CGFloat
-    ) -> CGFloat? {
-        let visibleMinY = inset
-        let visibleMaxY = metrics.containerHeight - inset
-        guard visibleMaxY > visibleMinY,
-              headerFrame.minY < visibleMinY || headerFrame.maxY > visibleMaxY else {
-            return nil
-        }
-
-        let targetOffsetY: CGFloat
-        if headerFrame.minY < visibleMinY || headerFrame.height > visibleMaxY - visibleMinY {
-            targetOffsetY = metrics.offsetY + headerFrame.minY - visibleMinY
-        } else {
-            targetOffsetY = metrics.offsetY + headerFrame.maxY - visibleMaxY
-        }
-
-        let maxOffsetY = max(metrics.contentHeight - metrics.containerHeight, 0)
-        let clampedTargetOffsetY = min(max(targetOffsetY, 0), maxOffsetY)
-        guard abs(clampedTargetOffsetY - metrics.offsetY) > 0.5 else {
-            return nil
-        }
-        return clampedTargetOffsetY
-    }
-
     /// Decide whether `isFollowing` should change in the fallback branch of
     /// `onScrollGeometryChange` (no pending programmatic scroll, not a
     /// `shouldPreserveFollowMode` case). Returns the next `isFollowing` value;
     /// passes `currentIsFollowing` through when the geometry change is ambiguous.
     ///
     /// Why this isn't just `newMetrics.isNearBottom`: during streaming, a markdown
-    /// chunk can mount a ~100pt+ block on a single render pass. SwiftUI fires
-    /// `onScrollGeometryChange` with the new `contentHeight` before
-    /// `.defaultScrollAnchor(.bottom, for: .sizeChanges)` has bumped `offsetY`
+    /// chunk can mount a ~100pt+ block on a single render pass. Metrics can report
+    /// the new `contentHeight` before the AppKit scroll owner has bumped `offsetY`
     /// to re-pin the bottom, so `distanceFromBottom` momentarily spikes past the
     /// `isNearBottom` threshold. Naively writing `isFollowing = isNearBottom`
     /// on that tick flips the flag to `false`, which cascades:
-    /// - `.defaultScrollAnchor(isFollowing ? .bottom : nil, for: .sizeChanges)`
-    ///   stops pinning on the very next size change, so further content growth
-    ///   silently extends below the viewport.
+    /// - The AppKit scroll owner stops preserving the bottom on the next row-height change,
+    ///   so further content growth silently extends below the viewport.
     /// - `onChange(of: streamingText)`'s `guard isFollowing` short-circuits and
     ///   blocks follow-up programmatic scrolls.
     /// - The jump-to-latest button appears mid-stream.
@@ -213,11 +183,10 @@ enum ChatTranscriptScrollBehavior {
     /// real `ScrollView`.
     ///
     /// The load-bearing subtlety: `.jumpToLatest` must NOT clear pending mode on a
-    /// transient `isAtBottom`. On thread re-open, `LazyVStack` materializes a small
-    /// window first (viewport briefly fits all rows → `isAtBottom` fires), then
-    /// over-estimates remaining row heights as it expands — the real bottom moves
-    /// out from under the scroll. Clearing pending on that first `isAtBottom` would
-    /// disarm `shouldReissuePendingJumpToLatest` and leave the viewport stranded.
+    /// transient `isAtBottom`. During thread re-open or row-height settling, AppKit
+    /// metrics can briefly report a bottom position before the document view has
+    /// published all final row heights. Clearing pending on that first `isAtBottom`
+    /// would disarm `shouldReissuePendingJumpToLatest` and leave the viewport stranded.
     /// `.preserveFollow` has no equivalent growth scenario, so it clears normally.
     static func pendingScrollAction(
         pending: PendingProgrammaticScrollMode,

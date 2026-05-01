@@ -3,18 +3,15 @@ import SwiftUI
 
 struct SubAgentBlock: View {
     let agents: [SubAgentEntry]
-    let headerFrameID: String?
     private let externalIsExpanded: Binding<Bool>?
     @State private var isExpanded: Bool
 
     init(
         agents: [SubAgentEntry],
         initiallyExpanded: Bool = false,
-        isExpanded: Binding<Bool>? = nil,
-        headerFrameID: String? = nil
+        isExpanded: Binding<Bool>? = nil
     ) {
         self.agents = agents
-        self.headerFrameID = headerFrameID
         self.externalIsExpanded = isExpanded
         _isExpanded = State(initialValue: initiallyExpanded)
     }
@@ -34,7 +31,6 @@ struct SubAgentBlock: View {
                     phase: aggregateStatusPhase,
                     bottomPadding: expansion.wrappedValue ? 0 : transcriptToolRowVerticalPadding
                 )
-                .transcriptToolHeaderFramePreference(id: headerFrameID)
             }
 
             if expansion.wrappedValue {

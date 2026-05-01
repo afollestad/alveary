@@ -7,7 +7,6 @@ import SwiftUI
 struct InlineToolRow: View {
     let tool: ToolEntry
     var headerPreferenceID: String?
-    var headerFrameID: String?
     private let externalIsExpanded: Binding<Bool>?
     @State private var localIsExpanded: Bool
 
@@ -15,12 +14,10 @@ struct InlineToolRow: View {
         tool: ToolEntry,
         initiallyExpanded: Bool = false,
         isExpanded: Binding<Bool>? = nil,
-        headerPreferenceID: String? = nil,
-        headerFrameID: String? = nil
+        headerPreferenceID: String? = nil
     ) {
         self.tool = tool
         self.headerPreferenceID = headerPreferenceID
-        self.headerFrameID = headerFrameID
         self.externalIsExpanded = isExpanded
         _localIsExpanded = State(initialValue: initiallyExpanded)
     }
@@ -32,7 +29,6 @@ struct InlineToolRow: View {
                 isExpanded: false,
                 bottomPadding: transcriptToolRowVerticalPadding
             )
-                .transcriptToolHeaderFramePreference(id: headerFrameID)
                 .background {
                     headerCenterPreference(bottomPadding: transcriptToolRowVerticalPadding)
                 }
@@ -62,7 +58,6 @@ struct InlineToolRow: View {
                     isExpanded: expansion.wrappedValue,
                     bottomPadding: headerBottomPadding
                 )
-                    .transcriptToolHeaderFramePreference(id: headerFrameID)
                     .background {
                         headerCenterPreference(bottomPadding: headerBottomPadding)
                     }

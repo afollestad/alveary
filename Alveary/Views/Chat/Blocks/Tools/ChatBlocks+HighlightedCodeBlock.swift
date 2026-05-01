@@ -38,7 +38,7 @@ struct HighlightedCodeBlock: View {
 
     private var attributedContent: AttributedString {
         SyntaxHighlighter.highlighted(
-            content,
+            appMarkdownCodeDisplayContent(content),
             language: language,
             colorScheme: colorScheme,
             preserveLineNumberPrefixes: preservesLeadingLineNumberPrefixes

@@ -12,7 +12,7 @@ struct ToolDetails: View {
 
             if let stderr = tool.stderr,
                !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                DetailCodeBlock(title: "stderr", content: stderr, tint: .orange)
+                DetailCodeBlock(title: "stderr", content: stderr, tint: .orange, usesCodeChrome: false)
             }
         }
     }
@@ -125,7 +125,7 @@ private struct ErrorContentBlock: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Text(content)
+        Text(appMarkdownCodeDisplayContent(content))
             .transcriptCodeFont()
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -297,13 +297,13 @@ struct ToolOutputView: View {
                     Spacer(minLength: 0)
                 }
             } else {
-                DetailCodeBlock(title: "Output", content: content)
+                DetailCodeBlock(title: "Output", content: displayContent)
             }
         }
     }
 
     private var totalLineCount: Int {
-        content.split(separator: "\n", omittingEmptySubsequences: false).count
+        displayContent.split(separator: "\n", omittingEmptySubsequences: false).count
     }
 
     private var isPaged: Bool {
@@ -319,9 +319,13 @@ struct ToolOutputView: View {
     }
 
     private var visibleContent: String {
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = displayContent.split(separator: "\n", omittingEmptySubsequences: false)
         let tail = lines.suffix(visibleTailLines)
         return tail.joined(separator: "\n")
+    }
+
+    private var displayContent: String {
+        appMarkdownCodeDisplayContent(content)
     }
 
     private var outputTitle: String {

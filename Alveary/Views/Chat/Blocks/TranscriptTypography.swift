@@ -33,7 +33,19 @@ struct TranscriptTypography: Equatable {
         )
     }
 
-    private var codeNSFont: NSFont {
+    var appKitMarkdownTypography: AppKitMarkdownTypography {
+        AppKitMarkdownTypography(
+            title1: nsFont(.title, weight: .semibold),
+            title2: nsFont(.title, weight: .semibold),
+            headline: nsFont(.headline, weight: .semibold),
+            subheadline: nsFont(.subheadline, weight: .semibold),
+            body: nsFont(.body),
+            codeBlock: codeNSFont,
+            inlineCode: codeNSFont
+        )
+    }
+
+    var codeNSFont: NSFont {
         NSFontManager.shared.font(
             withFamily: codeFontFamily,
             traits: [],
@@ -57,6 +69,10 @@ struct TranscriptTypography: Equatable {
         case .toolIcon, .toolStatusIcon:
             return 11
         }
+    }
+
+    func nsFont(_ level: TranscriptFontLevel, weight: NSFont.Weight = .regular) -> NSFont {
+        NSFont.systemFont(ofSize: size(for: level), weight: weight)
     }
 }
 
