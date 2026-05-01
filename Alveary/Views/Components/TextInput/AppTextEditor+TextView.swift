@@ -338,6 +338,14 @@ final class AppKitTextView: NSTextView {
         guard clampedRange.length > 0 else {
             return []
         }
+        // SwiftUI can configure the native composer before AppKit has assigned
+        // a real text-container width. Forcing glyph layout in that zero-width
+        // mount window has triggered NSLayoutManager exceptions on chip-bearing
+        // drafts, so compact-chip measurement waits for the first real layout.
+        guard textContainer.containerSize.width.isFinite,
+              textContainer.containerSize.width > 0 else {
+            return []
+        }
 
         layoutManager.ensureLayout(for: textContainer)
         let glyphRange = layoutManager.glyphRange(forCharacterRange: clampedRange, actualCharacterRange: nil)

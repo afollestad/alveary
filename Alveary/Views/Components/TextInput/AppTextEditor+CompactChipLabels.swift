@@ -15,21 +15,14 @@ extension AppKitTextView {
               !textChips.isEmpty else {
             return
         }
+        guard textContainer.containerSize.width.isFinite,
+              textContainer.containerSize.width > 0 else {
+            return
+        }
 
         layoutManager.ensureLayout(for: textContainer)
         let drawingOffset = textContainerOrigin
-        // Match `AppTextEditorCodeBlockStyling.textChipAttributes` exactly — the chip
-        // font used for the stored glyphs must be the same one used here so our kern
-        // compression, which is derived from the stored glyph advance, stays aligned
-        // with the decoded label's rendered width.
-        let chipFont = NSFont.monospacedSystemFont(
-            ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize * 0.94,
-            weight: .regular
-        )
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: chipFont,
-            .foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
-        ]
+        let attributes = compactChipLabelAttributes
 
         for chip in textChips where chip.style == .fileMention {
             guard case .compactLabel(let storedDisplayText) = textChipDisplayMode(for: chip) else {
@@ -70,5 +63,18 @@ extension AppKitTextView {
                 )
             }
         }
+    }
+
+    private var compactChipLabelAttributes: [NSAttributedString.Key: Any] {
+        // Match `AppTextEditorCodeBlockStyling.textChipAttributes` exactly — the
+        // stored glyph font and decoded-label font must align for kern compression.
+        let chipFont = NSFont.monospacedSystemFont(
+            ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize * 0.94,
+            weight: .regular
+        )
+        return [
+            .font: chipFont,
+            .foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor
+        ]
     }
 }

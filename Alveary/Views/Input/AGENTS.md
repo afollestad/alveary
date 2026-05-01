@@ -48,6 +48,8 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 ### Controls
 
+- **Prefer native AppKit ownership.** Migrated composer controls should use native AppKit views such as `ChatTextEditorView` instead of adding more SwiftUI text-input bridges.
+- **Reuse text primitives.** Native composer views should reuse `AppKitTextView` chip/code/inline-hint behavior so compact basename chips and outbound mention storage stay aligned with current coverage.
 - Use `blockedComposerCursorOverlay(when:)` for SwiftUI composer controls that are disabled by the project-trust gate. The AppKit editor path uses `AppTextEditor.showsDisabledCursor` instead.
 - `ComposerMode.ProgressReason.canStop` is the single source of truth for whether the composer's action slot renders a stop button and whether double-tap-escape is armed. `.initialSetup` is the only reason that opts in today; `.cancellingInitialSetup`, `.reconfiguringSession`, `.sessionHandoff`, and `.toolApproval` deliberately opt out so the user cannot double-cancel or send while a non-text action is pending.
 - Tool-specific waiting copy for deferred tools must flow through the `ComposerMode.ProgressReason.toolApproval(...)` payload, not through new `toolName` switches in `ChatInputField` or `ChatInputFieldTextSupport`.
