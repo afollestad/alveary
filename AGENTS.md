@@ -3,7 +3,7 @@
 - Keep `AGENTS.md` information concise to minimize token usage.
 - Keep `AGENTS.md` accurate when changes create useful future-agent context.
 - Put new rules in the narrowest `AGENTS.md` that covers the affected files.
-- Split dense rules into short sub-bullets with bold imperative leads.
+- Categorize bullets inside of `AGENTS.md` files with their own sections, if there are enough points; split dense rules into short sub-bullets with bold imperative leads.
 - Call out oversized guidance files or sections that should be split.
 - When adding a nested `AGENTS.md`, also add sibling `CLAUDE.md` as `ln -s AGENTS.md CLAUDE.md`, then list the new scope below. `project.yml` already excludes `**/CLAUDE.md`.
 - Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
