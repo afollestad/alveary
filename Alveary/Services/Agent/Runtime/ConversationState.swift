@@ -28,6 +28,7 @@ final class ConversationState {
     var sessionHandoffRestorableDraft: String?
     var submittedHandoffSteeringPrompt: String?
     var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
+    var isAutomaticSessionHandoffPending = false
     var hiddenHandoffResponse = ""
     var pendingHandoffOutput: String?
     var failedSessionHandoffMessage: String?

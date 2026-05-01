@@ -9,3 +9,6 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Handle inbound events.** Put provider event filtering, token stop handling, and synthetic event records in `ConversationViewModel+EventHandling.swift`.
   - **Record local user messages.** Put transcript-local user message insertion and auto-naming side effects in `ConversationViewModel+LocalMessages.swift`.
   - **Persist runtime state.** Put debounced SwiftData saves and runtime-buffer cursor acknowledgement in `ConversationViewModel+Persistence.swift`.
+- Keep automatic session handoff terminal-aware:
+  - **Mark pending from usage.** Context-window token rows may mark handoff pending before the provider turn is complete.
+  - **Trigger on completion.** Start handoff only from a successful terminal token stop, keep queued messages behind pending handoff, and clear pending state on errors, interruptions, explicit stops, or handoff start.

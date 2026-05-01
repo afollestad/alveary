@@ -100,10 +100,7 @@ private extension ConversationViewModel {
             stopReason: payload.stopReason,
             permissionDenials: payload.permissionDenials
         ) {
-            state.isCancellingTurn = false
-            state.lastTurnError = nil
-            state.lastTurnInterrupted = true
-            state.turnState.endTurn()
+            handleInterruptedTokenTurn()
             return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
         }
 
@@ -116,14 +113,15 @@ private extension ConversationViewModel {
 
         state.isCancellingTurn = false
         if payload.isError || !payload.permissionDenials.isEmpty {
-            state.lastTurnInterrupted = false
-            state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
+            handleFailedTokenTurn(payload)
         }
 
         if !payload.isError && payload.permissionDenials.isEmpty {
             if shouldTriggerAutomaticSessionHandoff(for: payload) {
                 state.turnState.endTurn()
                 Task { @MainActor [self] in await startSessionHandoff(trigger: .automatic) }
+            } else if isAwaitingAutomaticSessionHandoffTurnCompletion(for: payload) {
+                // Keep queued messages parked until the real terminal token starts handoff.
             } else {
                 handleTurnCompleted()
             }
@@ -152,7 +150,22 @@ private extension ConversationViewModel {
         }
     }
 
+    func handleInterruptedTokenTurn() {
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.lastTurnInterrupted = true
+        state.turnState.endTurn()
+    }
+
+    func handleFailedTokenTurn(_ payload: TokenEventPayload) {
+        state.isAutomaticSessionHandoffPending = false
+        state.lastTurnInterrupted = false
+        state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
+    }
+
     func shouldPersistStopEvent(message: String?) -> Bool {
+        state.isAutomaticSessionHandoffPending = false
         if state.isCancellingTurn || ConversationInterruption.isDisplayMessage(message) {
             state.isCancellingTurn = false
             state.lastTurnError = nil

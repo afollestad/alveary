@@ -41,6 +41,7 @@ extension ConversationViewModel {
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()
         sessionHandoffSteeringCountdownTask = nil
+        state.isAutomaticSessionHandoffPending = false
         stashVisibleDraftForHandoffIfNeeded()
         state.isAwaitingHandoffSteering = false
         state.handoffSteeringCountdownRemaining = nil
@@ -68,26 +69,6 @@ extension ConversationViewModel {
         } catch {
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
         }
-    }
-
-    func shouldTriggerAutomaticSessionHandoff(for payload: TokenEventPayload) -> Bool {
-        let settings = settingsService.current
-        guard settings.contextManagementEnabled,
-              !state.hasActiveSessionHandoff,
-              !state.isSendingMessage,
-              !state.isReconfiguringSession,
-              state.pendingToolApproval == nil,
-              !hasUnansweredPrompt,
-              let contextWindowSize = payload.contextWindowSize,
-              contextWindowSize > 0 else {
-            return false
-        }
-
-        let contextUsedTokens = payload.input + payload.cacheRead + payload.cacheCreation
-        let threshold = AppSettings.normalizedSessionHandoffWindowPercentage(
-            settings.sessionHandoffWindowPercentage
-        )
-        return Double(contextUsedTokens) / Double(contextWindowSize) * 100 >= Double(threshold)
     }
 
     // Hidden handoff events drive fresh-session setup, but never transcript rows.
