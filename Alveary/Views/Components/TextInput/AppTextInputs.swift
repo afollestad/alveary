@@ -288,11 +288,36 @@ struct AppTextEditor: View {
                 maxHeight: resolvedHeight,
                 alignment: .topLeading
             )
+            .onChange(of: text) { _, newText in
+                primeMeasuredHeightForProgrammaticText(newText)
+            }
+            .onAppear {
+                primeMeasuredHeightForProgrammaticText(text)
+            }
         }
     }
 }
 
 private extension AppTextEditor {
+    func primeMeasuredHeightForProgrammaticText(_ text: String) {
+        guard sizesToContent else {
+            return
+        }
+
+        guard !text.isEmpty else {
+            measuredTextHeight = minHeight
+            return
+        }
+
+        // Binding-driven text replacement can arrive before AppKit has a stable
+        // layout width. Prime from explicit lines so the SwiftUI frame can grow
+        // immediately, then let AppKit's measured height refine it.
+        let estimatedHeight = estimatedHeightFromExplicitLines(in: text)
+        if estimatedHeight > measuredTextHeight {
+            measuredTextHeight = estimatedHeight
+        }
+    }
+
     var resolvedHeight: CGFloat {
         guard sizesToContent else {
             return idealHeight ?? minHeight
@@ -303,6 +328,11 @@ private extension AppTextEditor {
             return min(unclampedHeight, maxHeight)
         }
         return unclampedHeight
+    }
+
+    func estimatedHeightFromExplicitLines(in text: String) -> CGFloat {
+        let lineCount = text.split(separator: "\n", omittingEmptySubsequences: false).count
+        return CGFloat(max(lineCount, 1) * 20) + (verticalPadding * 2)
     }
 }
 

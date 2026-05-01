@@ -55,6 +55,28 @@ final class SessionHandoffPromptBuilderTests: XCTestCase {
         XCTAssertEqual(message, output)
     }
 
+    func testOutgoingMessageStripsOuterMarkdownFence() {
+        let message = SessionHandoffPromptBuilder.outgoingMessage(
+            handoffOutput: "```markdown\nPrimary goal:\n- Continue the work.\n```",
+            steeringPrompt: nil,
+            isSteeringEnabled: false
+        )
+
+        XCTAssertEqual(message, "Primary goal:\n- Continue the work.")
+    }
+
+    func testOutgoingMessageKeepsInnerMarkdownFence() {
+        let output = "Primary goal:\n```swift\nlet value = true\n```\nContinue."
+
+        let message = SessionHandoffPromptBuilder.outgoingMessage(
+            handoffOutput: output,
+            steeringPrompt: nil,
+            isSteeringEnabled: false
+        )
+
+        XCTAssertEqual(message, output)
+    }
+
     func testOutgoingMessageReturnsHandoffOutputWhenSteeringIsEmpty() {
         let output = "Generated handoff output."
 

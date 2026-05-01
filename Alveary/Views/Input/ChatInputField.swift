@@ -24,6 +24,7 @@ struct ChatInputField: View {
     let isProjectTrustBlocked: Bool
     let inFlightQueuedMessageID: UUID?
     let isHandoffSteeringPromptActive: Bool
+    let isHandoffOutputPromptActive: Bool
     let handoffSteeringCountdown: Int?
     let sendCountdown: Int?
     let onSteerQueuedMessage: ((UUID) -> Void)?
@@ -91,6 +92,7 @@ struct ChatInputField: View {
         isProjectTrustBlocked: Bool = false,
         inFlightQueuedMessageID: UUID? = nil,
         isHandoffSteeringPromptActive: Bool = false,
+        isHandoffOutputPromptActive: Bool = false,
         handoffSteeringCountdown: Int? = nil,
         sendCountdown: Int? = nil,
         onSteerQueuedMessage: ((UUID) -> Void)? = nil,
@@ -124,6 +126,7 @@ struct ChatInputField: View {
         self.isProjectTrustBlocked = isProjectTrustBlocked
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
         self.isHandoffSteeringPromptActive = isHandoffSteeringPromptActive
+        self.isHandoffOutputPromptActive = isHandoffOutputPromptActive
         self.handoffSteeringCountdown = handoffSteeringCountdown
         self.sendCountdown = sendCountdown
         self.onSteerQueuedMessage = onSteerQueuedMessage

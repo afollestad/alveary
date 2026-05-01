@@ -102,6 +102,7 @@ struct ChatComposerPanel: View {
                 isProjectTrustBlocked: isProjectTrustBlocked,
                 inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
                 isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
+                isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
                 handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
                 sendCountdown: viewModel.state.handoffCountdownRemaining,
                 onSteerQueuedMessage: { messageID in

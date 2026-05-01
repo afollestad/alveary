@@ -71,6 +71,38 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertTrue(input.areControlsDisabled)
     }
 
+    func testHandoffOutputComposerUsesSubmitCopy() {
+        let input = makeInput(
+            text: "Carry this context forward.",
+            isHandoffOutputPromptActive: true,
+            sendCountdown: 10,
+            isProjectTrustBlocked: false,
+            onSubmit: {},
+            onSteer: {}
+        )
+
+        XCTAssertEqual(input.primaryActionTitle, "Submit (10)")
+        XCTAssertEqual(input.primaryActionSystemImage, "checkmark")
+        XCTAssertFalse(input.isPrimaryActionDisabled)
+        XCTAssertFalse(input.areControlsDisabled)
+    }
+
+    func testEditedHandoffOutputComposerKeepsSubmitCopyAfterCountdownCancels() {
+        let input = makeInput(
+            text: "Edited handoff context.",
+            isHandoffOutputPromptActive: true,
+            sendCountdown: nil,
+            isProjectTrustBlocked: false,
+            onSubmit: {},
+            onSteer: {}
+        )
+
+        XCTAssertEqual(input.primaryActionTitle, "Submit")
+        XCTAssertEqual(input.primaryActionSystemImage, "checkmark")
+        XCTAssertFalse(input.isPrimaryActionDisabled)
+        XCTAssertFalse(input.areControlsDisabled)
+    }
+
     func testBusyReturnUsesQueueDefaultAndCommandReturnSteers() {
         var didSubmit = false
         var didSteer = false
@@ -230,7 +262,9 @@ final class ChatInputFieldTests: XCTestCase {
         defaultEnterBehavior: ThreadEnterDefaultBehavior = AppSettings.defaultEnterBehavior,
         supportsMidTurnSteering: Bool = true,
         isHandoffSteeringPromptActive: Bool = false,
+        isHandoffOutputPromptActive: Bool = false,
         handoffSteeringCountdown: Int? = nil,
+        sendCountdown: Int? = nil,
         isProjectTrustBlocked: Bool,
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void
@@ -256,7 +290,9 @@ final class ChatInputFieldTests: XCTestCase {
             supportsMidTurnSteering: supportsMidTurnSteering,
             isProjectTrustBlocked: isProjectTrustBlocked,
             isHandoffSteeringPromptActive: isHandoffSteeringPromptActive,
+            isHandoffOutputPromptActive: isHandoffOutputPromptActive,
             handoffSteeringCountdown: handoffSteeringCountdown,
+            sendCountdown: sendCountdown,
             workingDirectory: "/tmp/alveary",
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }

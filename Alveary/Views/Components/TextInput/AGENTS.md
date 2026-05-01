@@ -11,6 +11,10 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 - Selection-change callbacks must not synchronously trigger layout-dependent restyling.
     - Lightweight typing state may update inline.
     - Full chip/code restyles should defer to the next main-runloop turn.
+- `sizesToContent` editors must handle binding-driven text replacement before AppKit has a stable layout width.
+    - Prime SwiftUI height from explicit line breaks for immediate growth.
+    - Let the AppKit measured height refine the value after layout catches up.
+    - Keep delayed measurement guarded by the text value that was measured so stale async work cannot resize a newer draft.
 - Use `showsDisabledCursor` only for disabled editors that should show a blocked cursor; normal progress-only read-only editors should leave it false.
 - Command-Return can arrive through `performKeyEquivalent(with:)` instead of `textView(_:doCommandBy:)`; keep `AppKitTextView.onKeyEquivalent` forwarding into `AppKitTextEditorCoordinator.handleKeyEquivalent(_:)` so composer `onKeyPress` handlers see `.return` with `.command`.
 

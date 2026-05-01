@@ -10,6 +10,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     var suppressCallbacks = false
     var lastLaidOutTextWidth: CGFloat = 0
     private var selectionRestyleScheduled = false
+    private var needsFullTextLayoutForMeasurement = false
     private var lastConsumedFocusRequestToken: UUID?
     private var firstResponderClaimInFlight = false
 
@@ -63,12 +64,20 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
         suppressCallbacks = true
         textView.string = parent.text
+        if let layoutManager = textView.layoutManager {
+            layoutManager.invalidateLayout(
+                forCharacterRange: NSRange(location: 0, length: (textView.string as NSString).length),
+                actualCharacterRange: nil
+            )
+        }
+        needsFullTextLayoutForMeasurement = true
         suppressCallbacks = false
         syncInlineCodePresentation(for: textView)
         syncTextChipPresentation(for: textView)
         applyTextHighlights()
         textView.refreshInlineHintView()
         textView.needsDisplay = true
+        scheduleHeightRecalculation(measuredText: parent.text)
     }
 
     func syncSelectionIfNeeded() {
@@ -259,7 +268,15 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         if abs(textView.frame.width - availableWidth) > 0.5 {
             textView.frame.size.width = availableWidth
         }
+        textContainer.containerSize = NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude)
 
+        let shouldDeferHeightUpdate = needsFullTextLayoutForMeasurement
+        if needsFullTextLayoutForMeasurement {
+            needsFullTextLayoutForMeasurement = false
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            layoutManager.ensureGlyphs(forCharacterRange: fullRange)
+            layoutManager.ensureLayout(forCharacterRange: fullRange)
+        }
         layoutManager.ensureLayout(for: textContainer)
         let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
         let usedHeight = layoutManager.usedRect(for: textContainer).height
@@ -269,8 +286,50 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             textView.frame.size.height = max(contentHeight, scrollView.contentSize.height)
         }
 
-        if abs(parent.measuredTextHeight - contentHeight) > 0.5 {
-            parent.measuredTextHeight = contentHeight
+        updateMeasuredTextHeight(
+            contentHeight,
+            measuredText: textView.string,
+            deferInitialUpdate: shouldDeferHeightUpdate
+        )
+    }
+
+    private func updateMeasuredTextHeight(
+        _ height: CGFloat,
+        measuredText: String,
+        deferInitialUpdate: Bool
+    ) {
+        guard abs(parent.measuredTextHeight - height) > 0.5 else {
+            return
+        }
+
+        guard !deferInitialUpdate else {
+            scheduleMeasuredTextHeightUpdate(height, measuredText: measuredText)
+            return
+        }
+
+        parent.measuredTextHeight = height
+    }
+
+    private func scheduleMeasuredTextHeightUpdate(_ height: CGFloat, measuredText: String) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.parent.text == measuredText,
+                  abs(self.parent.measuredTextHeight - height) > 0.5 else {
+                return
+            }
+
+            self.parent.measuredTextHeight = height
+        }
+    }
+
+    private func scheduleHeightRecalculation(measuredText: String) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.parent.text == measuredText else {
+                return
+            }
+
+            self.recalculateHeight()
         }
     }
 

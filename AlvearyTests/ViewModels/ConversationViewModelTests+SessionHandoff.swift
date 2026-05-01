@@ -254,6 +254,36 @@ extension ConversationViewModelTests {
         XCTAssertNil(records.first { $0.role == "assistant" })
     }
 
+    func testHiddenSessionHandoffKeepsStreamedChunksWhenFinalAssistantMessageIsEmpty() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+        try await waitUntil("handoff prompt sent") { await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt] }
+
+        fixture.viewModel.handleEvent(.messageChunk(text: "Collected ", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.messageChunk(text: "context.", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 10,
+            output: 5,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0.01,
+            contextWindowSize: 200,
+            permissionDenials: []
+        ))
+
+        try await waitUntil("session handoff finished hidden response") {
+            let freshSessionCount = await fixture.agentsManager.freshSessionCalls().count
+            return !fixture.viewModel.state.isHandingOffSession && freshSessionCount == 1
+        }
+        XCTAssertNil(fixture.viewModel.state.failedSessionHandoffMessage)
+        XCTAssertEqual(fixture.viewModel.state.pendingHandoffOutput, "Collected context.")
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Collected context.")
+    }
+
     func testSessionHandoffCountdownCancelsWhenComposerDraftChanges() async throws {
         let fixture = try ConversationViewModelTestFixture()
         try await beginAndCompleteHiddenSessionHandoff(fixture: fixture, output: "Carry this context forward.")

@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import SwiftData
+
+private let sessionHandoffLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Alveary", category: "SessionHandoff")
 
 enum SessionHandoffTrigger: Sendable {
     case automatic
@@ -102,11 +105,21 @@ extension ConversationViewModel {
             }
             state.clearStreamingText()
             state.hiddenHandoffResponse.append(text)
+            sessionHandoffLogger.debug(
+                "Hidden handoff chunk length=\(text.count) totalLength=\(self.state.hiddenHandoffResponse.count)"
+            )
             return false
         case .message(let role, let content, _):
             if role == "assistant" {
                 state.clearStreamingText()
-                state.hiddenHandoffResponse = content
+                if !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    state.hiddenHandoffResponse = content
+                    sessionHandoffLogger.debug("Hidden handoff assistant message captured length=\(content.count)")
+                } else {
+                    sessionHandoffLogger.debug(
+                        "Hidden handoff ignored empty assistant message existingLength=\(self.state.hiddenHandoffResponse.count)"
+                    )
+                }
             }
             return false
         case .tokens:
@@ -254,19 +267,30 @@ private extension ConversationViewModel {
 
     func handleHiddenSessionHandoffTokens(_ payload: TokenEventPayload) {
         state.clearStreamingText()
+        sessionHandoffLogger.debug(
+            """
+            Hidden handoff tokens stopReason=\(payload.stopReason ?? "nil") \
+            isError=\(payload.isError) denials=\(payload.permissionDenials.count) \
+            responseLength=\(self.state.hiddenHandoffResponse.count)
+            """
+        )
+        guard payload.stopReason != ConversationEvent.interimUsageStopReason else {
+            return
+        }
         guard !payload.isError, payload.permissionDenials.isEmpty else {
             state.turnState.endTurn()
             failSessionHandoff(payload.stopReason ?? "Session handoff failed.")
             return
         }
 
-        let output = state.hiddenHandoffResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        let output = SessionHandoffPromptBuilder.editableHandoffOutput(state.hiddenHandoffResponse)
         guard !output.isEmpty else {
             state.turnState.endTurn()
             failSessionHandoff("Session handoff failed: the hidden handoff prompt returned no context.")
             return
         }
 
+        sessionHandoffLogger.debug("Hidden handoff completed with outputLength=\(output.count)")
         state.turnState.endTurn()
         Task { @MainActor [self] in
             await finishSessionHandoff(with: output)
@@ -300,8 +324,10 @@ private extension ConversationViewModel {
         state.hiddenHandoffResponse = ""
         state.pendingHandoffOutput = output
         state.failedSessionHandoffMessage = nil
+        state.lastTurnError = nil
         state.handoffDraftBaseline = output
         state.inputDraft = output
+        sessionHandoffLogger.debug("Hidden handoff output staged for customization length=\(output.count)")
         startSessionHandoffCountdown()
     }
 
@@ -310,6 +336,7 @@ private extension ConversationViewModel {
         state.hiddenHandoffResponse = ""
         state.pendingHandoffOutput = nil
         state.failedSessionHandoffMessage = nil
+        state.lastTurnError = nil
         state.handoffDraftBaseline = nil
         state.handoffCountdownRemaining = nil
         let retryableMessageCount = state.retryableFailedMessageIDs.count
@@ -364,6 +391,7 @@ private extension ConversationViewModel {
     }
 
     func failSessionHandoff(_ message: String) {
+        sessionHandoffLogger.error("Hidden handoff failed: \(message, privacy: .public)")
         sessionHandoffCountdownTask?.cancel()
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()

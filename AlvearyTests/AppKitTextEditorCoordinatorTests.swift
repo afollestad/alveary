@@ -29,6 +29,8 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
         let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 760, height: 120))
         textView.baseTextFont = .preferredFont(forTextStyle: .body)
         textView.font = textView.baseTextFont
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
         textView.textContainerInset = NSSize(width: 10, height: 10)
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
@@ -146,6 +148,57 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             0
         )
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 0, length: 0))
+    }
+
+    func testSyncTextIfNeededRecalculatesHeightForProgrammaticMultilineText() async throws {
+        var text = ""
+        var measuredHeight: CGFloat = 0
+        let measuredHeightBinding = Binding(get: { measuredHeight }, set: { measuredHeight = $0 })
+        let textBinding = Binding(get: { text }, set: { text = $0 })
+        let parent = AppKitTextEditorView(
+            text: textBinding,
+            measuredTextHeight: measuredHeightBinding,
+            placeholder: nil,
+            horizontalPadding: 10,
+            verticalPadding: 10,
+            isDisabled: false,
+            focus: nil,
+            keyPressKeys: [],
+            onKeyPress: nil
+        )
+        let coordinator = AppKitTextEditorCoordinator(parent: parent)
+        let scrollView = AppKitTextEditorScrollView(frame: NSRect(x: 0, y: 0, width: 240, height: 40))
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 40))
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.font = textView.baseTextFont
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.string = text
+        scrollView.documentView = textView
+        coordinator.attach(textView: textView, scrollView: scrollView)
+        coordinator.recalculateHeight()
+        let initialHeight = measuredHeight
+
+        text = "Primary goal:\n- Test session handoff.\n\nCurrent state:\n- Generated context should fit."
+        coordinator.parent = parent
+        coordinator.syncTextIfNeeded()
+        coordinator.recalculateHeight()
+        await Task.yield()
+
+        XCTAssertEqual(textView.string, text)
+        XCTAssertGreaterThan(measuredHeight, initialHeight + 20)
+        XCTAssertGreaterThan(textView.textContainer?.containerSize.width ?? 0, 0)
+        let multilineHeight = measuredHeight
+
+        text = ""
+        coordinator.parent = parent
+        coordinator.syncTextIfNeeded()
+        coordinator.recalculateHeight()
+        await Task.yield()
+
+        XCTAssertEqual(textView.string, "")
+        XCTAssertLessThan(measuredHeight, multilineHeight - 20)
     }
 
     func testApplyConfigurationThreadsDisabledCursorStateThroughEditorViews() {

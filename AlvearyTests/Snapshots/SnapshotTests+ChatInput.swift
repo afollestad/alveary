@@ -301,7 +301,15 @@ extension SnapshotTests {
     func testChatInputFieldGeneratedHandoffSendCountdown() {
         assertMacSnapshot(
             ChatInputField(
-                text: .constant("Carry this context forward into the fresh session."),
+                text: .constant("""
+                Primary goal:
+                - Continue the session handoff implementation and validation.
+
+                Current state:
+                - Generated handoff context is staged for review.
+                - The composer should expand to fit this handoff result.
+                - The submit countdown remains visible while the user can edit.
+                """),
                 mode: .idle,
                 onSubmit: {},
                 onSteer: {},
@@ -312,6 +320,7 @@ extension SnapshotTests {
                 supportedPermissionModes: samplePermissionModes,
                 supportedEffortLevels: ["low", "medium", "high"],
                 supportsMidTurnSteering: false,
+                isHandoffOutputPromptActive: true,
                 sendCountdown: 10,
                 workingDirectory: "/tmp/alveary",
                 loadFileCompletions: { [] },

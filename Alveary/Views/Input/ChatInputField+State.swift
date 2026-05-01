@@ -13,14 +13,19 @@ extension ChatInputField {
             return "Submit (\(handoffSteeringCountdown))"
         }
 
-        guard let sendCountdown else {
-            return "Send"
+        if let sendCountdown {
+            return "Submit (\(sendCountdown))"
         }
-        return "Send (\(sendCountdown))"
+
+        if isHandoffOutputPromptActive {
+            return "Submit"
+        }
+
+        return "Send"
     }
 
     var primaryActionSystemImage: String {
-        isHandoffSteeringPromptActive ? "checkmark" : "paperplane.fill"
+        (isHandoffSteeringPromptActive || isHandoffOutputPromptActive || sendCountdown != nil) ? "checkmark" : "paperplane.fill"
     }
 
     var isPrimaryActionDisabled: Bool {

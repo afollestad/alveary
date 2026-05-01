@@ -29,6 +29,7 @@ User steering prompt:
         steeringPrompt: String?,
         isSteeringEnabled: Bool
     ) -> String {
+        let handoffOutput = editableHandoffOutput(handoffOutput)
         guard isSteeringEnabled,
               let steeringPrompt,
               !steeringPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -36,5 +37,24 @@ User steering prompt:
         }
 
         return handoffOutput + "\n\n## User Prompt\n" + steeringPrompt
+    }
+
+    static func editableHandoffOutput(_ output: String) -> String {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("```") else {
+            return trimmed
+        }
+
+        var lines = trimmed.components(separatedBy: .newlines)
+        guard let firstLine = lines.first,
+              firstLine.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```"),
+              let lastLine = lines.last,
+              lastLine.trimmingCharacters(in: .whitespacesAndNewlines) == "```" else {
+            return trimmed
+        }
+
+        lines.removeFirst()
+        lines.removeLast()
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
