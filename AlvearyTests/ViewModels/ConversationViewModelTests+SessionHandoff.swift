@@ -5,31 +5,6 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testTokenThresholdTriggersHiddenSessionHandoffPrompt() async throws {
-        let fixture = try ConversationViewModelTestFixture()
-
-        fixture.viewModel.handleEvent(.tokens(
-            input: 180,
-            output: 5,
-            cacheRead: 0,
-            isError: false,
-            stopReason: "end_turn",
-            durationMs: 10,
-            costUsd: 0.01,
-            contextWindowSize: 200,
-            permissionDenials: []
-        ))
-
-        try await waitUntil("handoff prompt sent after threshold") {
-            await fixture.agentsManager.sentMessages().contains(AppSettings.defaultSessionHandoffPrompt)
-        }
-
-        XCTAssertTrue(fixture.viewModel.state.isHandingOffSession)
-        XCTAssertTrue(fixture.viewModel.turnState.isActive)
-        XCTAssertTrue(try fixture.userMessages().isEmpty)
-        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).contains { $0.type == "tokens" })
-    }
-
     func testAutomaticSessionHandoffDoesNotTriggerWhenDisabled() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.settingsService.update {

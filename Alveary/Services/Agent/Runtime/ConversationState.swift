@@ -22,6 +22,12 @@ final class ConversationState {
     var activeBufferGeneration: UUID?
     var activeSubscriptionToken: UUID?
     var inputDraft = ""
+    var isAwaitingHandoffSteering = false
+    var handoffSteeringCountdownRemaining: Int?
+    var handoffSteeringDraftBaseline: String?
+    var handoffSteeringRestorableDraft: String?
+    var submittedHandoffSteeringPrompt: String?
+    var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
     var hiddenHandoffResponse = ""
     var pendingHandoffOutput: String?
     var failedSessionHandoffMessage: String?
@@ -39,7 +45,8 @@ final class ConversationState {
     var retryableFailedMessageStagedContexts: [String: String] = [:]
 
     var hasActiveSessionHandoff: Bool {
-        isHandingOffSession
+        isAwaitingHandoffSteering
+            || isHandingOffSession
             || pendingHandoffOutput != nil
             || handoffCountdownRemaining != nil
             || failedSessionHandoffMessage != nil

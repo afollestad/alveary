@@ -39,6 +39,38 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertTrue(didSteer)
     }
 
+    func testHandoffSteeringComposerAllowsEmptySubmit() {
+        var didSubmit = false
+        let input = makeInput(
+            text: "",
+            isHandoffSteeringPromptActive: true,
+            isProjectTrustBlocked: false,
+            onSubmit: { didSubmit = true },
+            onSteer: {}
+        )
+
+        input.performSubmit()
+
+        XCTAssertTrue(didSubmit)
+    }
+
+    func testHandoffSteeringComposerUsesSubmitCopyAndPlaceholder() {
+        let input = makeInput(
+            text: "",
+            isHandoffSteeringPromptActive: true,
+            handoffSteeringCountdown: 10,
+            isProjectTrustBlocked: false,
+            onSubmit: {},
+            onSteer: {}
+        )
+
+        XCTAssertEqual(input.primaryActionTitle, "Submit (10)")
+        XCTAssertEqual(input.primaryActionSystemImage, "checkmark")
+        XCTAssertEqual(input.placeholder, ConversationViewModel.handoffSteeringPlaceholder)
+        XCTAssertFalse(input.isPrimaryActionDisabled)
+        XCTAssertTrue(input.areControlsDisabled)
+    }
+
     func testBusyReturnUsesQueueDefaultAndCommandReturnSteers() {
         var didSubmit = false
         var didSteer = false
@@ -197,6 +229,8 @@ final class ChatInputFieldTests: XCTestCase {
         mode: ComposerMode = .idle,
         defaultEnterBehavior: ThreadEnterDefaultBehavior = AppSettings.defaultEnterBehavior,
         supportsMidTurnSteering: Bool = true,
+        isHandoffSteeringPromptActive: Bool = false,
+        handoffSteeringCountdown: Int? = nil,
         isProjectTrustBlocked: Bool,
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void
@@ -221,6 +255,8 @@ final class ChatInputFieldTests: XCTestCase {
             supportedEffortLevels: ["low", "medium", "high"],
             supportsMidTurnSteering: supportsMidTurnSteering,
             isProjectTrustBlocked: isProjectTrustBlocked,
+            isHandoffSteeringPromptActive: isHandoffSteeringPromptActive,
+            handoffSteeringCountdown: handoffSteeringCountdown,
             workingDirectory: "/tmp/alveary",
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }

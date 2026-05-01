@@ -8,6 +8,7 @@ enum SessionHandoffTrigger: Sendable {
 
 extension ConversationViewModel {
     static let handoffCountdownSeconds = 8
+    static let handoffSteeringPlaceholder = "Add steering for the session handoff, or submit empty to continue..."
 
     func triggerSessionHandoffFromCommand() {
         Task { @MainActor [self] in
@@ -23,8 +24,22 @@ extension ConversationViewModel {
             return
         }
 
+        if shouldRequestHandoffSteering(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) {
+            beginSessionHandoffSteeringPrompt()
+            return
+        }
+
+        await startHiddenSessionHandoff()
+    }
+
+    func startHiddenSessionHandoff() async {
         sessionHandoffCountdownTask?.cancel()
         sessionHandoffCountdownTask = nil
+        sessionHandoffSteeringCountdownTask?.cancel()
+        sessionHandoffSteeringCountdownTask = nil
+        state.isAwaitingHandoffSteering = false
+        state.handoffSteeringCountdownRemaining = nil
+        state.handoffSteeringDraftBaseline = nil
         state.isHandingOffSession = true
         state.hiddenHandoffResponse = ""
         state.pendingHandoffOutput = nil
@@ -169,6 +184,7 @@ extension ConversationViewModel {
             try await withOutboundReservation {
                 try await deliverMessageReserved(makeSessionHandoffOutgoingMessage(output: output))
             }
+            clearSubmittedHandoffSteering()
         } catch {
             if state.retryableFailedMessageIDs.count == retryableMessageCount {
                 state.pendingHandoffOutput = output
@@ -195,6 +211,7 @@ private extension ConversationViewModel {
             return false
         }
         let hasBlockingHandoff = state.isHandingOffSession ||
+            state.isAwaitingHandoffSteering ||
             state.pendingHandoffOutput != nil ||
             state.handoffCountdownRemaining != nil ||
             (!retryingFailedHandoff && state.failedSessionHandoffMessage != nil)
@@ -219,7 +236,7 @@ private extension ConversationViewModel {
     func makeHiddenSessionHandoffPrompt() -> String {
         SessionHandoffPromptBuilder.hiddenPrompt(
             configuredPrompt: settingsService.current.sessionHandoffPrompt,
-            steeringPrompt: nil,
+            steeringPrompt: state.submittedHandoffSteeringPrompt,
             isSteeringEnabled: settingsService.current.handoffSteeringEnabled
         )
     }
@@ -227,7 +244,7 @@ private extension ConversationViewModel {
     func makeSessionHandoffOutgoingMessage(output: String) -> String {
         SessionHandoffPromptBuilder.outgoingMessage(
             handoffOutput: output,
-            steeringPrompt: nil,
+            steeringPrompt: state.submittedHandoffSteeringPrompt,
             isSteeringEnabled: settingsService.current.handoffSteeringEnabled
         )
     }
@@ -335,15 +352,30 @@ private extension ConversationViewModel {
     func failSessionHandoff(_ message: String) {
         sessionHandoffCountdownTask?.cancel()
         sessionHandoffCountdownTask = nil
+        sessionHandoffSteeringCountdownTask?.cancel()
+        sessionHandoffSteeringCountdownTask = nil
+        let restorableDraft = state.handoffSteeringRestorableDraft
+        state.isAwaitingHandoffSteering = false
         state.isHandingOffSession = false
         state.hiddenHandoffResponse = ""
         state.pendingHandoffOutput = nil
         state.failedSessionHandoffMessage = message
+        state.handoffSteeringCountdownRemaining = nil
+        state.handoffSteeringDraftBaseline = nil
+        state.handoffSteeringRestorableDraft = nil
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
         state.clearStreamingText()
         state.turnState.endTurn()
         state.lastTurnError = message
+        if let restorableDraft, state.inputDraft.isEmpty {
+            state.inputDraft = restorableDraft
+        }
+    }
+
+    func clearSubmittedHandoffSteering() {
+        state.submittedHandoffSteeringPrompt = nil
+        state.handoffSteeringRestorableDraft = nil
     }
 
     func appendSessionHandoffNote() {

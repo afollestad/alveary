@@ -101,6 +101,8 @@ struct ChatComposerPanel: View {
                 isTurnActive: viewModel.state.turnState.isActive,
                 isProjectTrustBlocked: isProjectTrustBlocked,
                 inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
+                isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
+                handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
                 sendCountdown: viewModel.state.handoffCountdownRemaining,
                 onSteerQueuedMessage: { messageID in
                     Task { try? await viewModel.steerQueuedMessage(id: messageID) }
@@ -117,6 +119,7 @@ struct ChatComposerPanel: View {
                 focusRequestToken: $focusRequestToken
             )
             .onChange(of: viewModel.state.inputDraft) { _, newValue in
+                viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
             }
         }

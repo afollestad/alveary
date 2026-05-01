@@ -133,7 +133,7 @@ extension ChatInputField {
 
     func performSubmit() {
         guard !isProjectTrustBlocked,
-              !trimmedText.isEmpty else {
+              isHandoffSteeringPromptActive || !trimmedText.isEmpty else {
             return
         }
         onSubmit()

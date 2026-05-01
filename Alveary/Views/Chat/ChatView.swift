@@ -44,6 +44,9 @@ struct ChatView: View {
         if viewModel.state.isReconfiguringSession {
             return .progressOnly(.reconfiguringSession)
         }
+        if viewModel.state.isAwaitingHandoffSteering {
+            return .idle
+        }
         if viewModel.state.isHandingOffSession {
             return .progressOnly(.sessionHandoff)
         }
@@ -273,6 +276,10 @@ private extension ChatView {
 
     func sendDraft() {
         let message = viewModel.state.inputDraft
+        if viewModel.submitSessionHandoffSteeringPrompt(message) {
+            return
+        }
+
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }

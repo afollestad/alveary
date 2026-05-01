@@ -23,6 +23,8 @@ struct ChatInputField: View {
     let isTurnActive: Bool
     let isProjectTrustBlocked: Bool
     let inFlightQueuedMessageID: UUID?
+    let isHandoffSteeringPromptActive: Bool
+    let handoffSteeringCountdown: Int?
     let sendCountdown: Int?
     let onSteerQueuedMessage: ((UUID) -> Void)?
     let onEditQueuedMessage: ((UUID) -> Void)?
@@ -59,7 +61,7 @@ struct ChatInputField: View {
     @State var skillArgumentHints: [String: String] = [:]
     @State var hasLoadedSkillArgumentHints = false
     @State var skillHintLoadTask: Task<Void, Never>?
-    @State private var isDropTargeted = false
+    @State var isDropTargeted = false
     @State private var isKeymapPresented = false
     @State private var autocompletePopupHeight: CGFloat = 0
     @State var isStopConfirmationArmed = false
@@ -88,6 +90,8 @@ struct ChatInputField: View {
         isTurnActive: Bool = false,
         isProjectTrustBlocked: Bool = false,
         inFlightQueuedMessageID: UUID? = nil,
+        isHandoffSteeringPromptActive: Bool = false,
+        handoffSteeringCountdown: Int? = nil,
         sendCountdown: Int? = nil,
         onSteerQueuedMessage: ((UUID) -> Void)? = nil,
         onEditQueuedMessage: ((UUID) -> Void)? = nil,
@@ -119,6 +123,8 @@ struct ChatInputField: View {
         self.isTurnActive = isTurnActive
         self.isProjectTrustBlocked = isProjectTrustBlocked
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
+        self.isHandoffSteeringPromptActive = isHandoffSteeringPromptActive
+        self.handoffSteeringCountdown = handoffSteeringCountdown
         self.sendCountdown = sendCountdown
         self.onSteerQueuedMessage = onSteerQueuedMessage
         self.onEditQueuedMessage = onEditQueuedMessage
@@ -333,11 +339,13 @@ struct ChatInputField: View {
                 case .idle:
                     Button(action: performSubmit) {
                         ChatInputSendFootprintLabel {
-                            ChatInputActionLabel(sendButtonTitle, systemImage: "paperplane.fill")
+                            ChatInputActionLabel(primaryActionTitle, systemImage: primaryActionSystemImage)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                     }
                     .primaryActionButtonStyle()
-                    .disabled(isProjectTrustBlocked || trimmedText.isEmpty)
+                    .disabled(isPrimaryActionDisabled)
+                    .animation(.easeInOut(duration: 0.18), value: primaryActionTitle)
 
                 case .busy(let canStop):
                     if canStop {
@@ -387,112 +395,5 @@ struct ChatInputField: View {
             )
         }
         .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
-    }
-}
-
-extension ChatInputField {
-    var trimmedText: String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var sendButtonTitle: String {
-        guard let sendCountdown else {
-            return "Send"
-        }
-        return "Send (\(sendCountdown))"
-    }
-
-    var isTextEditorDisabled: Bool {
-        if isProjectTrustBlocked { return true }
-        if case .progressOnly = mode { return true }
-        return false
-    }
-
-    var areControlsDisabled: Bool {
-        if isProjectTrustBlocked {
-            return true
-        }
-
-        switch mode {
-        case .idle:
-            return false
-        case .busy, .progressOnly:
-            return true
-        }
-    }
-
-    var canUseEscapeToStop: Bool {
-        switch mode {
-        case .busy(let canStop): return canStop
-        case .progressOnly(let reason): return reason.canStop
-        case .idle: return false
-        }
-    }
-
-    var modelOptions: [String] {
-        knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
-    }
-
-    var inputBorderColor: Color {
-        isDropTargeted ? .accentColor : Color.secondary.opacity(0.18)
-    }
-
-    var inputBorderWidth: CGFloat {
-        isDropTargeted ? 1.5 : 1
-    }
-
-    var placeholder: String {
-        if isProjectTrustBlocked {
-            return "Trust this project to enable the composer"
-        }
-
-        switch mode {
-        case .idle:
-            return "Ask anything, @ to add files, / for skills"
-        case .busy(let canStop):
-            if canStop, supportsMidTurnSteering {
-                switch defaultEnterBehavior {
-                case .queue:
-                    return "Enter to queue for the next turn, or Cmd+Enter to steer..."
-                case .steer:
-                    return "Enter to steer the current turn, or Cmd+Enter to queue..."
-                }
-            }
-            return "Type a message to queue for the next turn..."
-        case .progressOnly(let reason):
-            return ChatInputFieldTextSupport.placeholder(for: reason)
-        }
-    }
-
-    var inlineSlashCommandHint: AppTextEditorInlineHint? {
-        guard let hint = ChatInputFieldTextSupport.inlineSlashCommandHint(
-            in: text,
-            textSelection: textSelection,
-            isInputFocused: isComposerFirstResponder,
-            commandHints: skillArgumentHints
-        ) else {
-            return nil
-        }
-
-        return AppTextEditorInlineHint(text: hint)
-    }
-}
-
-private struct ChatInputStopButton: View {
-    let isConfirmationArmed: Bool
-    let action: () -> Void
-
-    private var title: String {
-        isConfirmationArmed ? "Confirm" : "Stop"
-    }
-
-    var body: some View {
-        Button(action: action) {
-            ChatInputActionLabel(title, systemImage: "stop.fill")
-                .fixedSize(horizontal: true, vertical: false)
-        }
-        .destructiveActionButtonStyle()
-        .accessibilityLabel(isConfirmationArmed ? "Confirm stop" : "Stop")
-        .animation(.easeInOut(duration: 0.18), value: isConfirmationArmed)
     }
 }
