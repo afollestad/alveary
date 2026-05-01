@@ -39,25 +39,3 @@ struct AppMarkdownTaskCheckbox: View {
         AppMarkdownTaskCheckboxStore.set(isChecked, for: id)
     }
 }
-
-enum AppMarkdownTaskCheckboxStore {
-    nonisolated(unsafe) private static let cache: NSCache<NSString, NSNumber> = {
-        let cache = NSCache<NSString, NSNumber>()
-        cache.countLimit = 1_000
-        return cache
-    }()
-
-    static func value(
-        for id: String,
-        defaultValue: Bool
-    ) -> Bool {
-        cache.object(forKey: id as NSString)?.boolValue ?? defaultValue
-    }
-
-    static func set(
-        _ value: Bool,
-        for id: String
-    ) {
-        cache.setObject(NSNumber(value: value), forKey: id as NSString)
-    }
-}

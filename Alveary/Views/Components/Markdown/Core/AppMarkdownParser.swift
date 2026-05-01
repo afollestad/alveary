@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 // Foundation's markdown parser has no native underline intent. These private-use
 // markers survive parsing, then get removed after their enclosed range is underlined.

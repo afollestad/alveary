@@ -1,22 +1,7 @@
 import Foundation
 import SwiftUI
 
-let markdownInlineCodeFontScale: CGFloat = 0.94
 private let deferredMarkdownDocumentSwapDelay: UInt64 = 250_000_000
-
-enum AppMarkdownInlineCodeStyle: Sendable {
-    case standard
-    case userBubble
-    /// Accent-derived palette used by composer surfaces. The live input field draws
-    /// chips directly from `AppMarkdownCodeBlockPalette.composerChip*`, and queue
-    /// items render through this style so they match composer chrome.
-    case composer
-}
-
-enum AppMarkdownComposerChipMode: Sendable {
-    case none
-    case composer
-}
 
 struct AppMarkdownTypography {
     // Defaults preserve shared markdown surfaces; transcript callers inject settings-backed values.

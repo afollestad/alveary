@@ -118,7 +118,7 @@ enum AppTextEditorCodeBlockStyling {
         return [
             .font: NSFont.monospacedSystemFont(ofSize: font.pointSize * 0.94, weight: .regular),
             .paragraphStyle: paragraphStyle,
-            .backgroundColor: AppMarkdownCodeBlockPalette.fillNSColor(for: colorScheme)
+            .backgroundColor: AppMarkdownCodeBlockPalette.fillNSColor(isDark: colorScheme == .dark)
         ]
     }
 

@@ -3,6 +3,7 @@
 General shared controls live here. Narrower scopes:
 
 - `Accent/AGENTS.md`: `AppAccentFill`, accent-derived `NSColor`.
+- `AppKit/AGENTS.md`: shared AppKit-only primitives.
 - `Markdown/AGENTS.md`: `AppMarkdown*`, inline labels, code palettes.
 - `TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.

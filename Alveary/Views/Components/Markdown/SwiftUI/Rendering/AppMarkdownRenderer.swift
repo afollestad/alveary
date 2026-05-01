@@ -1,19 +1,6 @@
 import Foundation
 import SwiftUI
 
-struct AppMarkdownDocument: Equatable, Sendable {
-    let content: AttributedString
-    let taskStateNamespace: String
-
-    init(
-        content: AttributedString,
-        taskStateNamespace: String = ""
-    ) {
-        self.content = content
-        self.taskStateNamespace = taskStateNamespace
-    }
-}
-
 struct AppMarkdownRenderer: View {
     let document: AppMarkdownDocument
     let inlineCodeStyle: AppMarkdownInlineCodeStyle

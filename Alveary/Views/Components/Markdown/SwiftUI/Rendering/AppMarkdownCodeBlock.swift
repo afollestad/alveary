@@ -24,7 +24,7 @@ struct AppMarkdownCodeBlock: View {
     }
 
     private var attributedCode: AttributedString {
-        SyntaxHighlighter.highlighted(code, language: languageHint ?? "", colorScheme: colorScheme)
+        SyntaxHighlighter.highlighted(appMarkdownCodeDisplayContent(code), language: languageHint ?? "", colorScheme: colorScheme)
     }
 
     private func codeBlockText(attributedCode: AttributedString) -> some View {

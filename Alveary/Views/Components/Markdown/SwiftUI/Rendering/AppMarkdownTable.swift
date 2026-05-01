@@ -48,9 +48,9 @@ struct AppMarkdownTable: View {
             }
         }
         .background(AppMarkdownCodeBlockPalette.fillColor(for: colorScheme).opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: markdownTableCornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: markdownTableCornerRadius, style: .continuous)
                 .stroke(AppMarkdownCodeBlockPalette.borderColor(for: colorScheme), lineWidth: 1)
         )
     }

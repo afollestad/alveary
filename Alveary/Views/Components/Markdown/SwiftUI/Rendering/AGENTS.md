@@ -2,7 +2,7 @@
 
 Rules for the SwiftUI-only markdown block renderer, tables, and code highlighting.
 
-- **Keep it SwiftUI-only.** Do not import AppKit, JavaScriptCore, or WebKit in this folder.
+- **Keep it SwiftUI-only.** Do not import AppKit, JavaScriptCore, or WebKit in this folder; AppKit markdown lives in sibling `../../AppKit/`.
 - **Preserve content.** Unknown markdown structures and unknown fenced-code languages must fall back to readable text, never blank output.
 - **Respect lazy lists.** Avoid renderer-owned geometry loops, AppKit bridges, and long-lived row state.
 - **Cache task state.** Task-list checkboxes are interactive, but their state is local UI state keyed by document and source-order path.
@@ -16,9 +16,8 @@ File map:
 
 - `AppMarkdownRenderer.swift`: parsed document entry point.
 - `AppMarkdownBlockContent.swift`: block dispatch for headings, lists, quotes, rules, tables, and code.
-- `AppMarkdownBlockRuns.swift`: PresentationIntent run grouping helpers.
 - `AppMarkdownInlineText.swift`: inline text, link, and inline-code styling.
 - `AppMarkdownCodeBlock.swift`: fenced-code chrome and syntax highlighting.
 - `AppMarkdownList.swift`: ordered, unordered, nested, and task-list rendering.
 - `AppMarkdownTable.swift`: transcript table layout.
-- `AppMarkdownTaskCheckbox.swift`: interactive task checkbox and local state cache.
+- `AppMarkdownTaskCheckbox.swift`: interactive task checkbox view; shared task state lives in `../../Core/`.

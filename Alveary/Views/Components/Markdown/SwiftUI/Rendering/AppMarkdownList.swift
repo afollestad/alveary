@@ -77,33 +77,3 @@ struct AppMarkdownList: View {
             .joined(separator: ":")
     }
 }
-
-struct AppMarkdownTaskListState {
-    let isChecked: Bool
-    let contentWithoutMarker: AttributedString
-
-    init?(content: AttributedString) {
-        var content = content
-        let text = String(content.characters)
-        let markerLength: Int
-        if text.hasPrefix("[ ] ") {
-            isChecked = false
-            markerLength = 4
-        } else if text.hasPrefix("[ ]") {
-            isChecked = false
-            markerLength = 3
-        } else if text.lowercased().hasPrefix("[x] ") {
-            isChecked = true
-            markerLength = 4
-        } else if text.lowercased().hasPrefix("[x]") {
-            isChecked = true
-            markerLength = 3
-        } else {
-            return nil
-        }
-
-        let markerEnd = content.characters.index(content.startIndex, offsetBy: markerLength)
-        content.removeSubrange(content.startIndex..<markerEnd)
-        contentWithoutMarker = content
-    }
-}

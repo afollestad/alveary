@@ -1,21 +1,20 @@
 @preconcurrency import AppKit
-import SwiftUI
 
 enum AppMarkdownCodeBlockPalette {
-    static func fillColor(for colorScheme: ColorScheme) -> Color {
-        Color(nsColor: fillNSColor(for: colorScheme))
-    }
-
-    static func borderColor(for colorScheme: ColorScheme) -> Color {
-        Color(nsColor: borderNSColor(for: colorScheme))
-    }
-
-    static func fillNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
+    static func fillNSColor(isDark: Bool) -> NSColor {
+        if isDark {
             return NSColor(srgbRed: 0.16, green: 0.17, blue: 0.20, alpha: 1)
-        default:
+        } else {
             return NSColor(srgbRed: 0.95, green: 0.95, blue: 0.97, alpha: 1)
+        }
+    }
+
+    static func fillNSColor(for appearance: NSAppearance) -> NSColor {
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return fillNSColor(isDark: true)
+        default:
+            return fillNSColor(isDark: false)
         }
     }
 
@@ -107,12 +106,20 @@ enum AppMarkdownCodeBlockPalette {
         }
     })
 
-    static func borderNSColor(for colorScheme: ColorScheme) -> NSColor {
-        switch colorScheme {
-        case .dark:
+    static func borderNSColor(isDark: Bool) -> NSColor {
+        if isDark {
             return NSColor(srgbRed: 0.26, green: 0.27, blue: 0.31, alpha: 1)
-        default:
+        } else {
             return NSColor(srgbRed: 0.87, green: 0.87, blue: 0.90, alpha: 1)
+        }
+    }
+
+    static func borderNSColor(for appearance: NSAppearance) -> NSColor {
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return borderNSColor(isDark: true)
+        default:
+            return borderNSColor(isDark: false)
         }
     }
 }
