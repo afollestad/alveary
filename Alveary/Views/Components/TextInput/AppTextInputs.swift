@@ -336,7 +336,7 @@ private extension AppTextEditor {
     }
 }
 
-private struct AppTextInputContainer<Content: View>: View {
+struct AppTextInputContainer<Content: View>: View {
     let cornerRadius: CGFloat
     let cornerRadii: RectangleCornerRadii?
     let backgroundColor: Color

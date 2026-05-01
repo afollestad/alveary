@@ -1,0 +1,181 @@
+import AppKit
+import SwiftUI
+import XCTest
+
+@testable import Alveary
+
+@MainActor
+extension SnapshotTests {
+    func testChatComposerNativeActionControlInteractionStates() {
+        assertMacSnapshot(
+            nativeActionControlInteractionStates,
+            size: CGSize(width: 570, height: 76),
+            named: "chat_composer_native_action_control_interaction_states"
+        )
+    }
+
+    func testChatComposerNativeActionControlInteractionStatesDark() {
+        assertMacSnapshot(
+            nativeActionControlInteractionStates,
+            size: CGSize(width: 570, height: 76),
+            named: "chat_composer_native_action_control_interaction_states_dark",
+            colorScheme: .dark
+        )
+    }
+
+    private var nativeActionControlInteractionStates: some View {
+        HStack(spacing: 16) {
+            ComposerMenuButtonSnapshot(title: "Sonnet", state: .hovered)
+                .frame(width: 100, height: 24)
+            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .idle)
+                .frame(width: 30, height: 30)
+            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .hovered)
+                .frame(width: 30, height: 30)
+            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .pressed)
+                .frame(width: 30, height: 30)
+            ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .hovered)
+                .frame(width: 76, height: 30)
+            ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .pressed)
+                .frame(width: 76, height: 30)
+            ComposerActionButtonSnapshot(style: .destructive, title: "Stop", symbolName: "stop.fill", state: .pressed)
+                .frame(width: 76, height: 30)
+        }
+        .padding(20)
+    }
+}
+
+private enum ComposerControlSnapshotState {
+    case idle
+    case hovered
+    case pressed
+}
+
+private struct ComposerMenuButtonSnapshot: NSViewRepresentable {
+    let title: String
+    let state: ComposerControlSnapshotState
+
+    func makeNSView(context: Context) -> ComposerMenuButton {
+        let view = ComposerMenuButton()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerMenuButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerMenuButton) {
+        view.setAccessibilityLabel("Model")
+        view.setMenuHeaderTitle("Model")
+        view.configure(
+            title: title,
+            options: [.init(value: "sonnet", title: title)],
+            selectedValue: "sonnet",
+            isEnabled: true,
+            onSelect: { _ in }
+        )
+        if case .hovered = state {
+            view.mouseEntered(with: Self.event)
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ComposerIconButtonSnapshot: NSViewRepresentable {
+    let symbolName: String
+    let state: ComposerControlSnapshotState
+
+    func makeNSView(context: Context) -> ComposerIconButton {
+        let view = ComposerIconButton(symbolName: symbolName)
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerIconButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerIconButton) {
+        view.setAccessibilityLabel("Show chat keyboard shortcuts")
+        switch state {
+        case .idle:
+            break
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ComposerActionButtonSnapshot: NSViewRepresentable {
+    let style: ComposerActionButton.Style
+    let title: String
+    let symbolName: String
+    let state: ComposerControlSnapshotState
+
+    func makeNSView(context: Context) -> ComposerActionButton {
+        let view = ComposerActionButton(style: style)
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerActionButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerActionButton) {
+        view.configure(title: title, symbolName: symbolName, isEnabled: true, accessibilityLabel: title)
+        switch state {
+        case .idle:
+            break
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}

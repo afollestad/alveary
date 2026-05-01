@@ -40,6 +40,7 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         applyConfiguration()
         syncTextIfNeeded()
         syncSelectionIfNeeded()
+        syncFocusIfNeeded()
         syncFocusRequestIfNeeded()
         recalculateHeight()
     }
@@ -212,6 +213,15 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         DispatchQueue.main.async { [configuration] in
             configuration.onFocusRequestConsumed()
         }
+    }
+
+    private func syncFocusIfNeeded() {
+        guard configuration.wantsFirstResponder,
+              textView.window?.firstResponder !== textView else {
+            return
+        }
+
+        claimFirstResponder(retriesRemaining: 6)
     }
 
     private func reportFocusChange(_ isFocused: Bool) {

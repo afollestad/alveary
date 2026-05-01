@@ -20,6 +20,7 @@ struct ChatTextEditorConfiguration {
     var inlineCodeDelimiterRanges: (String) -> [NSRange]
     var inlineHint: AppTextEditorInlineHint?
     var keyPressKeys: Set<AppTextEditorKey>
+    var wantsFirstResponder: Bool
     var requestFirstResponder: UUID?
     var disablesAppKitDragDestination: Bool
     var onTextChange: (String) -> Void
@@ -46,6 +47,7 @@ struct ChatTextEditorConfiguration {
         inlineCodeDelimiterRanges: @escaping (String) -> [NSRange] = { _ in [] },
         inlineHint: AppTextEditorInlineHint? = nil,
         keyPressKeys: Set<AppTextEditorKey> = [],
+        wantsFirstResponder: Bool = false,
         requestFirstResponder: UUID? = nil,
         disablesAppKitDragDestination: Bool = false,
         onTextChange: @escaping (String) -> Void = { _ in },
@@ -71,6 +73,7 @@ struct ChatTextEditorConfiguration {
         self.inlineCodeDelimiterRanges = inlineCodeDelimiterRanges
         self.inlineHint = inlineHint
         self.keyPressKeys = keyPressKeys
+        self.wantsFirstResponder = wantsFirstResponder
         self.requestFirstResponder = requestFirstResponder
         self.disablesAppKitDragDestination = disablesAppKitDragDestination
         self.onTextChange = onTextChange

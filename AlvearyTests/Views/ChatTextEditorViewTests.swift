@@ -162,6 +162,52 @@ final class ChatTextEditorViewTests: XCTestCase {
         XCTAssertGreaterThan(measuredHeights.last ?? 0, measuredHeights.first ?? 0)
     }
 
+    func testProgrammaticMultilineTextReportsMeasuredHeightShrink() {
+        let editor = makeEditor()
+        var measuredHeights: [CGFloat] = []
+        editor.configure(ChatTextEditorConfiguration(
+            text: "One\nTwo\nThree\nFour\nFive",
+            onMeasuredHeightChange: { measuredHeights.append($0) }
+        ))
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: "f\nf",
+            onMeasuredHeightChange: { measuredHeights.append($0) }
+        ))
+
+        let tallHeight = measuredHeights.first ?? 0
+        let shortHeight = measuredHeights.last ?? 0
+        XCTAssertLessThan(shortHeight, tallHeight)
+    }
+
+    func testProgrammaticHeightPrimingShrinksAfterShorterDraftRestore() {
+        let tallHeight = ChatTextEditor.primedMeasuredHeight(
+            for: "One\nTwo\nThree\nFour\nFive",
+            minHeight: 68,
+            verticalPadding: 10
+        )
+        let shortHeight = ChatTextEditor.primedMeasuredHeight(
+            for: "f\nf",
+            minHeight: 68,
+            verticalPadding: 10
+        )
+
+        XCTAssertEqual(shortHeight, 68)
+        XCTAssertLessThan(shortHeight, tallHeight)
+    }
+
+    func testProgrammaticHeightPrimingUsesNativeLineHeight() {
+        let height = ChatTextEditor.primedMeasuredHeight(
+            for: "d\nd\nd\nd\nd",
+            minHeight: 68,
+            verticalPadding: 10
+        )
+        let expectedHeight = (ChatTextEditor.primedLineHeight * 5) + 20
+
+        XCTAssertEqual(height, expectedHeight, accuracy: 0.5)
+        XCTAssertLessThan(height, 120)
+    }
+
     func testDisabledCursorStateThreadsThroughNativeViews() {
         let editor = makeEditor()
         editor.configure(ChatTextEditorConfiguration(
@@ -192,6 +238,24 @@ final class ChatTextEditorViewTests: XCTestCase {
         let expectation = XCTestExpectation(description: "focus token consumed once")
         DispatchQueue.main.async {
             XCTAssertEqual(consumeCount, 1)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1)
+    }
+
+    func testPlainFocusRequestClaimsFirstResponderWhenWindowIsAvailable() {
+        let editor = makeEditor()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 96), styleMask: [], backing: .buffered, defer: false)
+        window.contentView = editor
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: "",
+            wantsFirstResponder: true
+        ))
+
+        let expectation = XCTestExpectation(description: "plain focus claimed")
+        DispatchQueue.main.async {
+            XCTAssertTrue(window.firstResponder === editor.textViewForTesting)
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 1)

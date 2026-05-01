@@ -64,7 +64,7 @@ struct ChatInputField: View {
     @State var skillHintLoadTask: Task<Void, Never>?
     @State var isDropTargeted = false
     @State private var isKeymapPresented = false
-    @State private var autocompletePopupHeight: CGFloat = 0
+    @State var autocompletePopupHeight: CGFloat = 0
     @State var isStopConfirmationArmed = false
     @State var stopConfirmationResetTask: Task<Void, Never>?
 
@@ -159,66 +159,7 @@ struct ChatInputField: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                AppTextEditor(
-                    text: $text,
-                    selection: $textSelection,
-                    minHeight: composerBaseHeight,
-                    idealHeight: composerBaseHeight,
-                    maxHeight: 144,
-                    placeholder: placeholder,
-                    cornerRadius: 18,
-                    cornerRadii: queuedMessages.isEmpty ? nil : RectangleCornerRadii(
-                        topLeading: 0,
-                        bottomLeading: 18,
-                        bottomTrailing: 18,
-                        topTrailing: 0
-                    ),
-                    horizontalPadding: composerHorizontalPadding,
-                    verticalPadding: composerVerticalPadding,
-                    borderColor: inputBorderColor,
-                    borderWidth: inputBorderWidth,
-                    isDisabled: isTextEditorDisabled,
-                    showsDisabledCursor: isProjectTrustBlocked,
-                    sizesToContent: true,
-                    focus: $isInputFocused,
-                    textChips: ChatInputFieldTextSupport.composerTextChips(in:),
-                    codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
-                    inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
-                    inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
-                    inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges },
-                    inlineHint: inlineSlashCommandHint,
-                    keyPressKeys: [.upArrow, .downArrow, .tab, .escape, .return],
-                    onKeyPress: handleKeyPress,
-                    requestFirstResponder: focusRequestToken,
-                    onFocusRequestConsumed: { focusRequestToken = nil },
-                    isAppKitFirstResponder: $isComposerFirstResponder,
-                    disablesAppKitDragDestination: true
-                )
-                .overlay(alignment: .topLeading) {
-                    if let autocomplete = activeAutocomplete {
-                        ComposerAutocompletePopup(
-                            autocomplete: autocomplete,
-                            onSelect: applyAutocompleteSuggestion
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .background {
-                            GeometryReader { proxy in
-                                Color.clear
-                                    .onAppear {
-                                        autocompletePopupHeight = proxy.size.height
-                                    }
-                                    .onChange(of: proxy.size.height) { _, newHeight in
-                                        autocompletePopupHeight = newHeight
-                                    }
-                            }
-                        }
-                        .opacity(autocompletePopupHeight == 0 ? 0 : 1)
-                        .offset(y: -(autocompletePopupHeight + 8))
-                        .zIndex(1)
-                    }
-                }
-                .zIndex(activeAutocomplete == nil ? 0 : 1)
+                composerTextEditor
             }
             .animation(queuedMessagesAnimation, value: queuedMessages.map(\.id))
             .dropDestination(for: URL.self) { items, _ in
@@ -264,125 +205,33 @@ struct ChatInputField: View {
             .task {
                 loadSkillArgumentHintsIfNeeded()
             }
-            HStack(spacing: 10) {
-                Picker("Model", selection: $selectedModel) {
-                    Section(header: Text("Model")) {
-                        ForEach(modelOptions, id: \.self) { option in
-                            Text(ChatInputFieldTextSupport.modelLabel(for: option)).tag(option)
-                        }
-                    }
+            ChatComposerActionRow(
+                modelOptions: modelOptions,
+                selectedModel: $selectedModel,
+                supportedEffortLevels: supportedEffortLevels,
+                selectedEffort: $selectedEffort,
+                supportedPermissionModes: supportedPermissionModes,
+                selectedPermissionMode: $selectedPermissionMode,
+                showWorktreePicker: showWorktreePicker,
+                selectedUseWorktree: $selectedUseWorktree,
+                sessionLocationLabel: sessionLocationLabel,
+                usageSummary: usageSummary,
+                isTextEditorDisabled: isTextEditorDisabled,
+                areControlsDisabled: areControlsDisabled,
+                mode: mode,
+                primaryActionTitle: primaryActionTitle,
+                primaryActionSystemImage: primaryActionSystemImage,
+                isPrimaryActionDisabled: isPrimaryActionDisabled,
+                isStopConfirmationArmed: isStopConfirmationArmed,
+                composerActionRowHeight: composerActionRowHeight,
+                contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
+                onSubmit: performSubmit,
+                onStop: performStop,
+                onShowKeymap: {
+                    isKeymapPresented = true
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .disabled(areControlsDisabled)
-
-                if !supportedEffortLevels.isEmpty {
-                    Picker("Effort", selection: $selectedEffort) {
-                        Section(header: Text("Effort")) {
-                            ForEach(supportedEffortLevels, id: \.self) { option in
-                                Text(ChatInputFieldTextSupport.effortLabel(for: option)).tag(option)
-                            }
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(areControlsDisabled)
-                }
-
-                if !supportedPermissionModes.isEmpty {
-                    Picker("Permissions", selection: $selectedPermissionMode) {
-                        Section(header: Text("Permissions")) {
-                            ForEach(supportedPermissionModes, id: \.value) { option in
-                                Text(ChatInputFieldTextSupport.permissionModeLabel(for: option)).tag(option.value)
-                            }
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(areControlsDisabled)
-                }
-
-                if showWorktreePicker {
-                    Picker("Thread location", selection: $selectedUseWorktree) {
-                        Text(ChatInputFieldTextSupport.worktreeLocationLabel(for: false)).tag(false)
-                        Text(ChatInputFieldTextSupport.worktreeLocationLabel(for: true)).tag(true)
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(areControlsDisabled)
-                } else if let sessionLocationLabel {
-                    Text(sessionLocationLabel)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(sessionLocationLabel)
-                }
-
-                Spacer()
-
-                if usageSummary != nil || !isTextEditorDisabled {
-                    HStack(spacing: contextIndicatorKeyboardSpacing) {
-                        if let usageSummary {
-                            ContextWindowIndicator(summary: usageSummary)
-                        }
-
-                        if !isTextEditorDisabled {
-                            Button {
-                                isKeymapPresented = true
-                            } label: {
-                                Image(systemName: "keyboard")
-                            }
-                            .iconActionButtonStyle()
-                            .accessibilityLabel("Show chat keyboard shortcuts")
-                        }
-                    }
-                }
-                switch mode {
-                case .idle:
-                    Button(action: performSubmit) {
-                        ChatInputSendFootprintLabel {
-                            ChatInputActionLabel(primaryActionTitle, systemImage: primaryActionSystemImage)
-                                .fixedSize(horizontal: true, vertical: false)
-                        }
-                    }
-                    .primaryActionButtonStyle()
-                    .disabled(isPrimaryActionDisabled)
-                    .animation(.easeInOut(duration: 0.18), value: primaryActionTitle)
-
-                case .busy(let canStop):
-                    if canStop {
-                        ChatInputStopButton(
-                            isConfirmationArmed: isStopConfirmationArmed,
-                            action: performStop
-                        )
-                    } else {
-                        ChatInputSendFootprintSlot {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                        .accessibilityLabel("Sending message")
-                    }
-
-                case .progressOnly(let reason):
-                    if reason.canStop {
-                        ChatInputStopButton(
-                            isConfirmationArmed: isStopConfirmationArmed,
-                            action: performStop
-                        )
-                    } else {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text(ChatInputFieldTextSupport.progressLabel(for: reason))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(height: composerActionRowHeight)
-                    }
-                }
-            }
-            .frame(minHeight: composerActionRowHeight)
+            )
+            .frame(height: composerActionRowHeight)
         }
         .padding(outerPadding)
         .zIndex(activeAutocomplete == nil ? 0 : 1)
@@ -390,6 +239,10 @@ struct ChatInputField: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)
         )
+        // The composer shell is still SwiftUI while the action row migrates
+        // native; keep it content-height so parents cannot stretch the native
+        // row away from the editor and change the SwiftUI-era spacing.
+        .fixedSize(horizontal: false, vertical: true)
         .blockedComposerCursorOverlay(when: isProjectTrustBlocked)
         .sheet(isPresented: $isKeymapPresented) {
             ChatInputKeymapSheet(

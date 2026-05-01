@@ -256,6 +256,14 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertFalse(ChatInputStopConfirmationDecision.shouldClearAfterConfirmationTimeout(false))
     }
 
+    func testFocusRequestConsumptionDoesNotClearNewerToken() {
+        let oldToken = UUID()
+        let newToken = UUID()
+
+        XCTAssertTrue(ChatInputField.shouldClearFocusRequestToken(current: oldToken, consumed: oldToken))
+        XCTAssertFalse(ChatInputField.shouldClearFocusRequestToken(current: newToken, consumed: oldToken))
+    }
+
     private func makeInput(
         text: String,
         mode: ComposerMode = .idle,
