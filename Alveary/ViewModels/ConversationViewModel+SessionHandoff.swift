@@ -11,7 +11,7 @@ extension ConversationViewModel {
 
     func triggerSessionHandoffFromCommand() {
         Task { @MainActor [self] in
-            await startSessionHandoff(trigger: .manual)
+            await startSessionHandoff(trigger: .automatic)
         }
     }
 

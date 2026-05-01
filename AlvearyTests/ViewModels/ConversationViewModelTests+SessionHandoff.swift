@@ -411,18 +411,30 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Seed immediately."])
     }
 
-    func testManualSessionHandoffCommandUsesSameHiddenFlowAndDoesNotRetriggerWhileActive() async throws {
+    func testSessionHandoffCommandUsesAutomaticFlowAndDoesNotRetriggerWhileActive() async throws {
         let fixture = try ConversationViewModelTestFixture()
 
         fixture.viewModel.triggerSessionHandoffFromCommand()
-        try await waitUntil("manual handoff prompt sent") {
-            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        try await waitUntil("handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
         }
 
-        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+        let sentMessagesBeforeSubmit = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessagesBeforeSubmit.isEmpty)
+
+        XCTAssertTrue(fixture.viewModel.submitSessionHandoffSteeringPrompt("Focus command-triggered handoff."))
+        try await waitUntil("command-triggered handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+
+        await fixture.viewModel.startSessionHandoff(trigger: .automatic)
 
         let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, [AppSettings.defaultSessionHandoffPrompt])
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertTrue(hiddenPrompt.hasPrefix(AppSettings.defaultSessionHandoffPrompt))
+        XCTAssertTrue(hiddenPrompt.contains("## User Handoff Steering"))
+        XCTAssertTrue(hiddenPrompt.hasSuffix("Focus command-triggered handoff."))
+        XCTAssertEqual(sentMessages.count, 1)
     }
 }
 
