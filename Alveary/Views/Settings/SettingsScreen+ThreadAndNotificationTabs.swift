@@ -62,7 +62,11 @@ struct ThreadsSettingsTabView: View {
                 }
 
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Default thread cleanup action", horizontalControlSizing: .intrinsic) {
+                    SettingsResponsiveControlRow(
+                        "Default thread cleanup action",
+                        helpText: ThreadSettingsHelp.defaultThreadCleanupAction,
+                        horizontalControlSizing: .intrinsic
+                    ) {
                         SettingsMenuPicker(
                             "Default thread cleanup action",
                             selection: $defaultThreadCleanupAction,
@@ -73,7 +77,11 @@ struct ThreadsSettingsTabView: View {
                 }
 
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Default Enter button behavior", horizontalControlSizing: .intrinsic) {
+                    SettingsResponsiveControlRow(
+                        "Default Enter button behavior",
+                        helpText: ThreadSettingsHelp.defaultEnterBehavior,
+                        horizontalControlSizing: .intrinsic
+                    ) {
                         SettingsMenuPicker(
                             "Default Enter button behavior",
                             selection: $defaultEnterBehavior,
@@ -83,9 +91,18 @@ struct ThreadsSettingsTabView: View {
                     }
                 }
 
-                SettingsToggleRow("Create worktree by default", isOn: $createWorktreeByDefault)
+                SettingsToggleRow(
+                    "Create worktree by default",
+                    helpText: ThreadSettingsHelp.createWorktreeByDefault,
+                    isOn: $createWorktreeByDefault
+                )
 
-                SettingsToggleRow("Auto-trust projects", isOn: $autoTrustProjects, showsDivider: false)
+                SettingsToggleRow(
+                    "Auto-trust projects",
+                    helpText: ThreadSettingsHelp.autoTrustProjects,
+                    isOn: $autoTrustProjects,
+                    showsDivider: false
+                )
             }
 
             SettingsFormSection("Startup") {
@@ -112,6 +129,17 @@ struct ThreadsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+private enum ThreadSettingsHelp {
+    static let defaultThreadCleanupAction =
+        "Sets what Delete does for a selected thread and which action appears at the trailing edge of thread rows in the left pane."
+    static let createWorktreeByDefault =
+        "New threads default to creating a worktree instead of using the main project folder. You can override this in the composer."
+    static let autoTrustProjects =
+        "Skips the trust prompt for projects newly added to Alveary."
+    static let defaultEnterBehavior =
+        "Queue waits for the current turn to finish. Steer sends immediately and may affect the current turn. Cmd+Enter uses the inverse action."
 }
 
 struct NotificationsSettingsTabView: View {

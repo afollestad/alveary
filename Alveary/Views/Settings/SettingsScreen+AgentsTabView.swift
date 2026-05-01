@@ -60,6 +60,7 @@ private extension AgentsSettingsTabView {
         SettingsFormSection("Context management") {
             SettingsToggleRow(
                 "Enable automatic session handoff",
+                helpText: ContextManagementHelp.contextManagementEnabled,
                 isOn: $contextManagementEnabled
             )
 
@@ -196,6 +197,8 @@ private extension AgentsSettingsTabView {
 }
 
 private enum ContextManagementHelp {
+    static let contextManagementEnabled =
+        "Alveary's Amp-inspired version of compaction. Uses a stored prompt to gather focused context for a follow-up session."
     static let sessionHandoffWindowPercentage =
         "Triggers session handoff when the context window reaches this percentage."
     static let defaultSessionHandoffPrompt =
