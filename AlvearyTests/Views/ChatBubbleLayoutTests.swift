@@ -31,6 +31,15 @@ final class ChatBubbleLayoutTests: XCTestCase {
         XCTAssertEqual(typography.size(for: .approvalBody), 16)
     }
 
+    func testLongMarkdownBubbleLikelyOverflowingAccountsForLineCount() {
+        let multilineMarkdown = (0..<10)
+            .map { "Short line \($0)" }
+            .joined(separator: "\n")
+
+        XCTAssertLessThan(multilineMarkdown.count, 900)
+        XCTAssertTrue(LongMarkdownBubbleSizing.isLikelyOverflowing(multilineMarkdown))
+    }
+
     func testToolStatusIndicatorDebouncerDelaysTerminalState() async throws {
         let debouncer = ToolStatusIndicatorDebouncer(
             initialPhase: .loading,

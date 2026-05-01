@@ -1,12 +1,12 @@
 import SwiftUI
 
-struct AppTextEditorChip: Equatable {
+struct AppTextEditorChip: Equatable, Sendable {
     let range: NSRange
     let displayText: String
     let style: AppTextEditorChipStyle
 }
 
-enum AppTextEditorChipStyle: Equatable {
+enum AppTextEditorChipStyle: Equatable, Sendable {
     case slashCommand
     case fileMention
 }

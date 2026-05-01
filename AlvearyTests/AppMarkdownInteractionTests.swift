@@ -32,6 +32,31 @@ final class AppMarkdownInteractionTests: XCTestCase {
         XCTAssertNotEqual(checkedSignature, uncheckedSignature)
     }
 
+    func testDeferredMarkdownTextSwapsPreviewForFullDocument() throws {
+        let markdown = """
+        # Full Document
+
+        The parsed document includes content that is absent from the preview.
+
+        - first
+        - second
+        """
+        let host = MarkdownInteractionHost(
+            DeferredAppMarkdownText(
+                markdown: markdown,
+                placeholder: "Preview only"
+            )
+            .padding(16),
+            size: CGSize(width: 360, height: 220)
+        )
+        let previewSignature = try XCTUnwrap(host.renderedContentSignature())
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.35))
+
+        let fullDocumentSignature = try XCTUnwrap(host.renderedContentSignature())
+        XCTAssertNotEqual(previewSignature, fullDocumentSignature)
+    }
+
     private func markdownView(
         markdown: String,
         taskStateScope: String
@@ -54,7 +79,7 @@ final class AppMarkdownInteractionTests: XCTestCase {
             context: AppMarkdownDocumentCacheContext(
                 baseURL: nil,
                 inlineCodeStyle: .standard,
-                hasComposerChipProvider: false,
+                composerChipMode: .none,
                 taskStateScope: taskStateScope
             )
         ) {
@@ -112,6 +137,16 @@ private final class MarkdownInteractionHost<Content: View> {
         }
     }
 
+    func renderedContentSignature() -> Int? {
+        let pixels = contentPixels(in: renderedImage())
+        guard !pixels.isEmpty else {
+            return nil
+        }
+        return pixels.reduce(0) { signature, point in
+            signature &+ point.column &* 31 &+ point.row &* 17
+        }
+    }
+
     private func flushLayout() {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(nil)
@@ -133,11 +168,18 @@ private final class MarkdownInteractionHost<Content: View> {
     }
 
     private func markerPixels(in image: NSBitmapImageRep) -> [PixelPoint] {
-        let scanRect = CGRect(x: 8, y: 0, width: 48, height: size.height)
-        let minX = max(0, Int(scanRect.minX.rounded(.down)))
-        let maxX = min(image.pixelsWide - 1, Int(scanRect.maxX.rounded(.up)))
-        let minY = max(0, Int(scanRect.minY.rounded(.down)))
-        let maxY = min(image.pixelsHigh - 1, Int(scanRect.maxY.rounded(.up)))
+        pixelPoints(in: image, rect: CGRect(x: 8, y: 0, width: 48, height: size.height))
+    }
+
+    private func contentPixels(in image: NSBitmapImageRep) -> [PixelPoint] {
+        pixelPoints(in: image, rect: CGRect(origin: .zero, size: size))
+    }
+
+    private func pixelPoints(in image: NSBitmapImageRep, rect: CGRect) -> [PixelPoint] {
+        let minX = max(0, Int(rect.minX.rounded(.down)))
+        let maxX = min(image.pixelsWide - 1, Int(rect.maxX.rounded(.up)))
+        let minY = max(0, Int(rect.minY.rounded(.down)))
+        let maxY = min(image.pixelsHigh - 1, Int(rect.maxY.rounded(.up)))
         var pixels: [PixelPoint] = []
 
         for row in minY...maxY {

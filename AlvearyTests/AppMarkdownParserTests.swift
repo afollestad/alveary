@@ -216,7 +216,7 @@ final class AppMarkdownParserTests: XCTestCase {
             context: AppMarkdownDocumentCacheContext(
                 baseURL: nil,
                 inlineCodeStyle: .standard,
-                hasComposerChipProvider: false,
+                composerChipMode: .none,
                 taskStateScope: taskStateScope
             )
         ) {

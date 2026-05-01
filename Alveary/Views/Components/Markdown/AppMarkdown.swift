@@ -2,13 +2,19 @@ import Foundation
 import SwiftUI
 
 let markdownInlineCodeFontScale: CGFloat = 0.94
+private let deferredMarkdownDocumentSwapDelay: UInt64 = 250_000_000
 
-enum AppMarkdownInlineCodeStyle {
+enum AppMarkdownInlineCodeStyle: Sendable {
     case standard
     case userBubble
     /// Accent-derived palette used by composer surfaces. The live input field draws
     /// chips directly from `AppMarkdownCodeBlockPalette.composerChip*`, and queue
     /// items render through this style so they match composer chrome.
+    case composer
+}
+
+enum AppMarkdownComposerChipMode: Sendable {
+    case none
     case composer
 }
 
@@ -103,7 +109,7 @@ struct AppMarkdownText: View {
             context: AppMarkdownDocumentCacheContext(
                 baseURL: baseURL,
                 inlineCodeStyle: inlineCodeStyle,
-                hasComposerChipProvider: composerChipProvider != nil,
+                composerChipMode: composerChipProvider == nil ? .none : .composer,
                 taskStateScope: taskStateScope
             )
         ) {
@@ -114,5 +120,102 @@ struct AppMarkdownText: View {
             return parser.documentPreservingSource(for: markdown)
         }
         return AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+    }
+}
+
+struct DeferredAppMarkdownText: View {
+    let markdown: String
+    var baseURL: URL?
+    var foregroundColor: Color?
+    var inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard
+    var composerChipMode: AppMarkdownComposerChipMode = .none
+    var taskStateScope: String?
+    var placeholder: String?
+
+    @State private var renderedDocument: DeferredAppMarkdownRenderedDocument?
+
+    var body: some View {
+        Group {
+            if let renderedDocument, renderedDocument.taskID == taskID {
+                rendered(renderedDocument.document)
+            } else if let placeholder {
+                AppMarkdownText(
+                    markdown: placeholder,
+                    baseURL: baseURL,
+                    foregroundColor: foregroundColor,
+                    inlineCodeStyle: inlineCodeStyle,
+                    composerChipProvider: composerChipProvider,
+                    taskStateScope: taskStateScope
+                )
+            } else {
+                Text(markdown)
+                    .textSelection(.enabled)
+            }
+        }
+        .task(id: taskID) {
+            let currentTaskID = taskID
+            let parsedDocument = await AppMarkdownDocumentCache.document(markdown: markdown, context: cacheContext)
+            try? await Task.sleep(nanoseconds: deferredMarkdownDocumentSwapDelay)
+            guard !Task.isCancelled,
+                  taskID == currentTaskID else {
+                return
+            }
+            renderedDocument = DeferredAppMarkdownRenderedDocument(
+                taskID: currentTaskID,
+                document: parsedDocument
+            )
+        }
+    }
+
+    private var taskID: String {
+        [
+            baseURL?.absoluteString ?? "",
+            inlineCodeStyle.cacheKey,
+            composerChipMode.cacheKey,
+            taskStateScope ?? "",
+            markdown
+        ].joined(separator: "|")
+    }
+
+    private var cacheContext: AppMarkdownDocumentCacheContext {
+        AppMarkdownDocumentCacheContext(
+            baseURL: baseURL,
+            inlineCodeStyle: inlineCodeStyle,
+            composerChipMode: composerChipMode,
+            taskStateScope: taskStateScope
+        )
+    }
+
+    @ViewBuilder
+    private func rendered(_ document: AppMarkdownDocument) -> some View {
+        if let foregroundColor {
+            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+                .foregroundStyle(foregroundColor)
+        } else {
+            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+        }
+    }
+
+    private var composerChipProvider: ((String) -> [AppTextEditorChip])? {
+        switch composerChipMode {
+        case .none:
+            return nil
+        case .composer:
+            return ChatInputFieldTextSupport.composerTextChips(in:)
+        }
+    }
+}
+
+private struct DeferredAppMarkdownRenderedDocument {
+    let taskID: String
+    let document: AppMarkdownDocument
+}
+
+private extension AppMarkdownComposerChipMode {
+    var cacheKey: String {
+        switch self {
+        case .none: return "plain"
+        case .composer: return "chips"
+        }
     }
 }

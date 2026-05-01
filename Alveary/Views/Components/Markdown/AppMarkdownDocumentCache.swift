@@ -33,6 +33,36 @@ enum AppMarkdownDocumentCache {
         )
     }
 
+    static func document(
+        markdown: String,
+        context: AppMarkdownDocumentCacheContext
+    ) async -> AppMarkdownDocument {
+        let key = cacheKey(markdown: markdown, context: context)
+        if let cached = cache.object(forKey: key) {
+            return document(
+                content: cached.document.content,
+                cacheKey: key,
+                taskStateScope: context.taskStateScope
+            )
+        }
+
+        let parsedContent = await Task.detached(priority: .userInitiated) {
+            let parser = AppMarkdownParser(
+                baseURL: context.baseURL,
+                composerChipProvider: context.composerChipMode.composerChipProvider
+            )
+            return parser.documentPreservingSource(for: markdown).content
+        }.value
+
+        let parsedDocument = AppMarkdownDocument(content: parsedContent)
+        cache.setObject(AppMarkdownDocumentBox(parsedDocument), forKey: key, cost: markdown.count)
+        return document(
+            content: parsedContent,
+            cacheKey: key,
+            taskStateScope: context.taskStateScope
+        )
+    }
+
     private static func document(
         content: AttributedString,
         cacheKey: NSString,
@@ -63,7 +93,7 @@ enum AppMarkdownDocumentCache {
         [
             component(context.baseURL?.absoluteString ?? ""),
             component(context.inlineCodeStyle.cacheKey),
-            component(context.hasComposerChipProvider ? "chips" : "plain"),
+            component(context.composerChipMode.cacheKey),
             component(markdown)
         ].joined(separator: "|") as NSString
     }
@@ -73,10 +103,10 @@ enum AppMarkdownDocumentCache {
     }
 }
 
-struct AppMarkdownDocumentCacheContext {
+struct AppMarkdownDocumentCacheContext: Sendable {
     let baseURL: URL?
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
-    let hasComposerChipProvider: Bool
+    let composerChipMode: AppMarkdownComposerChipMode
     let taskStateScope: String?
 }
 
@@ -88,7 +118,25 @@ private final class AppMarkdownDocumentBox: NSObject {
     }
 }
 
-private extension AppMarkdownInlineCodeStyle {
+private extension AppMarkdownComposerChipMode {
+    var cacheKey: String {
+        switch self {
+        case .none: return "plain"
+        case .composer: return "chips"
+        }
+    }
+
+    var composerChipProvider: ((String) -> [AppTextEditorChip])? {
+        switch self {
+        case .none:
+            return nil
+        case .composer:
+            return ChatInputFieldTextSupport.composerTextChips(in:)
+        }
+    }
+}
+
+extension AppMarkdownInlineCodeStyle {
     var cacheKey: String {
         switch self {
         case .standard: return "standard"

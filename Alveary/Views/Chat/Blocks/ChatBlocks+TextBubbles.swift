@@ -7,6 +7,16 @@ private let longBubbleCollapseFadeHeight: CGFloat = 56
 private let longBubbleControlClearance: CGFloat = 8
 private let longBubbleControlSpacing: CGFloat = 4
 private let longBubbleToggleMinHeight: CGFloat = 24
+private let longBubbleLikelyOverflowCharacterCount = 900
+private let longBubbleLikelyOverflowLineCount = 9
+private let longBubbleCollapsedPreviewCharacterCount = 1_400
+
+enum LongMarkdownBubbleSizing {
+    static func isLikelyOverflowing(_ markdown: String) -> Bool {
+        markdown.count > longBubbleLikelyOverflowCharacterCount ||
+            markdown.filter(\.isNewline).count >= longBubbleLikelyOverflowLineCount
+    }
+}
 
 struct UserBubble: View {
     let id: String?
@@ -34,15 +44,14 @@ struct UserBubble: View {
             Spacer(minLength: 60)
 
             VStack(alignment: .trailing, spacing: 6) {
-                LongTextBubbleContent(initiallyExpanded: initiallyExpanded) {
-                    AppMarkdownText(
-                        markdown: text,
-                        foregroundColor: .primary,
-                        inlineCodeStyle: .userBubble,
-                        composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:),
-                        taskStateScope: id
-                    )
-                }
+                LongMarkdownBubbleContent(
+                    id: id,
+                    markdown: text,
+                    inlineCodeStyle: .userBubble,
+                    foregroundColor: .primary,
+                    composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:),
+                    initiallyExpanded: initiallyExpanded
+                )
                 .padding(.horizontal, chatBubbleHorizontalPadding)
                 .padding(.vertical, chatVerticalPadding)
                 .transcriptMarkdownTypography()
@@ -89,12 +98,11 @@ struct AssistantBubble: View {
     }
 
     var body: some View {
-        LongTextBubbleContent(initiallyExpanded: initiallyExpanded) {
-            AppMarkdownText(
-                markdown: markdown,
-                taskStateScope: id
-            )
-        }
+        LongMarkdownBubbleContent(
+            id: id,
+            markdown: markdown,
+            initiallyExpanded: initiallyExpanded
+        )
         .padding(.horizontal, chatBubbleHorizontalPadding)
         .padding(.vertical, chatVerticalPadding)
         .transcriptMarkdownTypography()
@@ -108,18 +116,32 @@ struct AssistantBubble: View {
     }
 }
 
-private struct LongTextBubbleContent<Content: View>: View {
+private struct LongMarkdownBubbleContent: View {
+    let id: String?
+    let markdown: String
+    var inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard
+    var foregroundColor: Color?
+    var composerChipProvider: ((String) -> [AppTextEditorChip])?
+    let initiallyExpanded: Bool
+
     @State private var isExpanded: Bool
     @State private var contentHeight: CGFloat = 0
 
-    private let content: Content
-
     init(
-        initiallyExpanded: Bool = false,
-        @ViewBuilder content: () -> Content
+        id: String?,
+        markdown: String,
+        inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
+        foregroundColor: Color? = nil,
+        composerChipProvider: ((String) -> [AppTextEditorChip])? = nil,
+        initiallyExpanded: Bool = false
     ) {
+        self.id = id
+        self.markdown = markdown
+        self.inlineCodeStyle = inlineCodeStyle
+        self.foregroundColor = foregroundColor
+        self.composerChipProvider = composerChipProvider
+        self.initiallyExpanded = initiallyExpanded
         _isExpanded = State(initialValue: initiallyExpanded)
-        self.content = content()
     }
 
     var body: some View {
@@ -132,8 +154,12 @@ private struct LongTextBubbleContent<Content: View>: View {
         }
     }
 
+    private var isLikelyOverflowing: Bool {
+        Self.isLikelyOverflowing(markdown)
+    }
+
     private var isOverflowing: Bool {
-        contentHeight > longBubbleCollapsedMaxContentHeight + 1
+        isLikelyOverflowing || contentHeight > longBubbleCollapsedMaxContentHeight + 1
     }
 
     private var isCollapsed: Bool {
@@ -143,7 +169,7 @@ private struct LongTextBubbleContent<Content: View>: View {
     private var visibleContent: some View {
         Group {
             if isCollapsed {
-                measuredContent
+                collapsedContent
                     .frame(height: longBubbleCollapsedMaxContentHeight, alignment: .top)
                     .contentShape(Rectangle())
                     .clipped()
@@ -151,14 +177,58 @@ private struct LongTextBubbleContent<Content: View>: View {
                         collapsedFadeMask
                     }
             } else {
-                measuredContent
+                measuredFullContent
             }
         }
             .padding(.bottom, isOverflowing ? longBubbleControlClearance : 0)
-            // Rebuild the text subtree when the cap toggles so selectable runs and
-            // task controls inherit the current clipped layout.
             .id(isCollapsed)
             .animation(appExpansionAnimation, value: isCollapsed)
+    }
+
+    @ViewBuilder
+    private var collapsedContent: some View {
+        DeferredAppMarkdownText(
+            markdown: markdown,
+            foregroundColor: foregroundColor,
+            inlineCodeStyle: inlineCodeStyle,
+            composerChipMode: composerChipProvider == nil ? .none : .composer,
+            taskStateScope: id,
+            placeholder: collapsedMarkdownPreview
+        )
+    }
+
+    private var measuredFullContent: some View {
+        markdownContent(markdown)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newValue in
+                Task { @MainActor in
+                    await Task.yield()
+                    guard contentHeight != newValue else {
+                        return
+                    }
+                    contentHeight = newValue
+                }
+            }
+    }
+
+    private func markdownContent(_ markdown: String) -> some View {
+        AppMarkdownText(
+            markdown: markdown,
+            foregroundColor: foregroundColor,
+            inlineCodeStyle: inlineCodeStyle,
+            composerChipProvider: composerChipProvider,
+            taskStateScope: id
+        )
+    }
+
+    private var collapsedMarkdownPreview: String {
+        guard markdown.count > longBubbleCollapsedPreviewCharacterCount else {
+            return markdown
+        }
+
+        let endIndex = markdown.index(markdown.startIndex, offsetBy: longBubbleCollapsedPreviewCharacterCount)
+        return String(markdown[..<endIndex])
     }
 
     private var expansionToggle: some View {
@@ -190,16 +260,10 @@ private struct LongTextBubbleContent<Content: View>: View {
         }
     }
 
-    private var measuredContent: some View {
-        content
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { newValue in
-                contentHeight = newValue
-            }
+    private static func isLikelyOverflowing(_ markdown: String) -> Bool {
+        LongMarkdownBubbleSizing.isLikelyOverflowing(markdown)
     }
 }
-
 struct StreamingBubble: View {
     let text: String
     @State private var cursorVisible = true

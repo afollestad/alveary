@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct AppMarkdownDocument: Equatable {
+struct AppMarkdownDocument: Equatable, Sendable {
     let content: AttributedString
     let taskStateNamespace: String
 
