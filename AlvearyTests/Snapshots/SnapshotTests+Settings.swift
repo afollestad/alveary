@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -84,6 +85,21 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 1100, height: 820),
             named: "settings_screen_agents_handoff_steering_disabled"
+        )
+    }
+
+    func testSettingsHelpTextPopup() {
+        assertMacSnapshot(
+            AppHoverPopup(horizontalPadding: 12, verticalPadding: 10, textAlignment: .leading) {
+                Text("Seconds to enter steering before continuing with the default handoff. " +
+                    "The countdown stops when you start typing in the composer.")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 280)
+            }
+            .padding(24),
+            size: CGSize(width: 360, height: 160),
+            named: "settings_help_text_popup"
         )
     }
 

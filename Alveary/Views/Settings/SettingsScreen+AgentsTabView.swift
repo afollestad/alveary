@@ -64,7 +64,11 @@ private extension AgentsSettingsTabView {
             )
 
             SettingsFormRow {
-                SettingsResponsiveControlRow("Session handoff window percentage", horizontalControlSizing: .intrinsic) {
+                SettingsResponsiveControlRow(
+                    "Session handoff window percentage",
+                    helpText: ContextManagementHelp.sessionHandoffWindowPercentage,
+                    horizontalControlSizing: .intrinsic
+                ) {
                     SettingsValueStepper(
                         "Session handoff window percentage",
                         value: $sessionHandoffWindowPercentage,
@@ -78,14 +82,35 @@ private extension AgentsSettingsTabView {
             }
             .disabled(!contextManagementEnabled)
 
+            SettingsFormRow {
+                SettingsResponsiveControlRow(
+                    "Default session handoff prompt",
+                    helpText: ContextManagementHelp.defaultSessionHandoffPrompt,
+                    horizontalControlSizing: .intrinsicInline
+                ) {
+                    Button("Edit") {
+                        promptDraft = sessionHandoffPrompt
+                        isPromptEditorPresented = true
+                    }
+                    .secondaryActionButtonStyle()
+                    .disabled(!contextManagementEnabled)
+                }
+            }
+            .disabled(!contextManagementEnabled)
+
             SettingsToggleRow(
                 "Enable handoff steering",
+                helpText: ContextManagementHelp.handoffSteeringEnabled,
                 isOn: $handoffSteeringEnabled,
                 isDisabled: !contextManagementEnabled
             )
 
             SettingsFormRow {
-                SettingsResponsiveControlRow("Handoff steering countdown", horizontalControlSizing: .intrinsic) {
+                SettingsResponsiveControlRow(
+                    "Handoff steering countdown",
+                    helpText: ContextManagementHelp.handoffSteeringCountdown,
+                    horizontalControlSizing: .intrinsic
+                ) {
                     SettingsValueStepper(
                         "Handoff steering countdown",
                         value: $handoffSteeringCountdownSeconds,
@@ -99,13 +124,18 @@ private extension AgentsSettingsTabView {
             .disabled(!contextManagementEnabled || !handoffSteeringEnabled)
 
             SettingsToggleRow(
-                "Allow session handoff context customization",
+                "Allow handoff context customization",
+                helpText: ContextManagementHelp.handoffContextCustomization,
                 isOn: $handoffContextCustomizationEnabled,
                 isDisabled: !contextManagementEnabled
             )
 
-            SettingsFormRow {
-                SettingsResponsiveControlRow("Handoff prompt send countdown", horizontalControlSizing: .intrinsic) {
+            SettingsFormRow(showsDivider: false) {
+                SettingsResponsiveControlRow(
+                    "Handoff prompt send countdown",
+                    helpText: ContextManagementHelp.handoffPromptSendCountdown,
+                    horizontalControlSizing: .intrinsic
+                ) {
                     SettingsValueStepper(
                         "Handoff prompt send countdown",
                         value: $handoffPromptSendCountdownSeconds,
@@ -114,18 +144,6 @@ private extension AgentsSettingsTabView {
                         unitSeparator: "",
                         accessibilityUnit: "seconds"
                     )
-                }
-            }
-            .disabled(!contextManagementEnabled)
-
-            SettingsFormRow(showsDivider: false) {
-                SettingsResponsiveControlRow("Default session handoff prompt", horizontalControlSizing: .intrinsicInline) {
-                    Button("Edit") {
-                        promptDraft = sessionHandoffPrompt
-                        isPromptEditorPresented = true
-                    }
-                    .secondaryActionButtonStyle()
-                    .disabled(!contextManagementEnabled)
                 }
             }
             .disabled(!contextManagementEnabled)
@@ -175,6 +193,24 @@ private extension AgentsSettingsTabView {
             .padding(.vertical, 4)
         }
     }
+}
+
+private enum ContextManagementHelp {
+    static let sessionHandoffWindowPercentage =
+        "Triggers session handoff when the context window reaches this percentage."
+    static let defaultSessionHandoffPrompt =
+        "Prompt sent to the agent to collect context for the next session."
+    static let handoffSteeringEnabled =
+        "Lets you steer the handoff output when automatic session handoff starts."
+    static let handoffSteeringCountdown =
+        "Seconds to enter steering before continuing with the default handoff. " +
+        "The countdown stops when you start typing in the composer."
+    static let handoffContextCustomization =
+        "Lets you edit the generated handoff context before it is sent to the next session. " +
+        "This happens after steering."
+    static let handoffPromptSendCountdown =
+        "Seconds to edit generated handoff context before it is sent automatically to the next session. " +
+        "The countdown stops when you start typing in the composer."
 }
 
 private struct SessionHandoffPromptEditorSheet: View {

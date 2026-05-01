@@ -61,38 +61,28 @@ private struct ContextWindowTooltip: View {
     let summary: ConversationUsageSummary
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("Context window:")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            if summary.hasReportedUsage {
-                Text("\(summary.contextUsagePercent)% full")
-                    .font(.headline.weight(.semibold))
-                Text("\(Self.tokenText(summary.contextUsedTokens)) / \(Self.tokenText(summary.contextWindowSize)) tokens used")
+        AppHoverPopup {
+            VStack(spacing: 8) {
+                Text("Context window:")
                     .font(.callout.weight(.semibold))
-            } else {
-                Text("No usage yet")
-                    .font(.headline.weight(.semibold))
-                Text("\(Self.tokenText(summary.contextWindowSize)) token window")
-                    .font(.callout.weight(.semibold))
-            }
+                    .foregroundStyle(.secondary)
 
-            Text("Session spend: \(Self.costText(summary.totalCostUsd))")
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
-        .multilineTextAlignment(.center)
-        .padding(.vertical, 14)
-        .padding(.horizontal, 18)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
+                if summary.hasReportedUsage {
+                    Text("\(summary.contextUsagePercent)% full")
+                        .font(.headline.weight(.semibold))
+                    Text("\(Self.tokenText(summary.contextUsedTokens)) / \(Self.tokenText(summary.contextWindowSize)) tokens used")
+                        .font(.callout.weight(.semibold))
+                } else {
+                    Text("No usage yet")
+                        .font(.headline.weight(.semibold))
+                    Text("\(Self.tokenText(summary.contextWindowSize)) token window")
+                        .font(.callout.weight(.semibold))
                 }
+
+                Text("Session spend: \(Self.costText(summary.totalCostUsd))")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

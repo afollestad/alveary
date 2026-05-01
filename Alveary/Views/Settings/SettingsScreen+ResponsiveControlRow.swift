@@ -2,27 +2,50 @@ import SwiftUI
 
 struct SettingsResponsiveControlRow<Control: View>: View {
     let title: String
+    private let helpText: String?
     private let horizontalControlSizing: SettingsControlHorizontalSizing
     private let control: Control
 
     init(
         _ title: String,
+        helpText: String? = nil,
         horizontalControlSizing: SettingsControlHorizontalSizing = .fillsAvailableWidth,
         @ViewBuilder control: () -> Control
     ) {
         self.title = title
+        self.helpText = helpText
         self.horizontalControlSizing = horizontalControlSizing
         self.control = control()
     }
 
     var body: some View {
         SettingsResponsiveControlRowLayout(horizontalControlSizing: horizontalControlSizing) {
-            Text(title)
-                .accessibilityHidden(true)
+            SettingsResponsiveControlLabel(title, helpText: helpText)
 
             control
         }
         .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
+    }
+}
+
+private struct SettingsResponsiveControlLabel: View {
+    let title: String
+    let helpText: String?
+
+    init(_ title: String, helpText: String?) {
+        self.title = title
+        self.helpText = helpText
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title)
+                .accessibilityHidden(true)
+
+            if let helpText {
+                AppHoverInfoIcon(text: helpText)
+            }
+        }
     }
 }
 

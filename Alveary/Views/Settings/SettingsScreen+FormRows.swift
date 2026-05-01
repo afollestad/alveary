@@ -75,6 +75,7 @@ struct SettingsFormRow<Content: View>: View {
 
 struct SettingsToggleRow: View {
     let title: String
+    private let helpText: String?
     private let showsDivider: Bool
     private let isDisabled: Bool
 
@@ -82,11 +83,13 @@ struct SettingsToggleRow: View {
 
     init(
         _ title: String,
+        helpText: String? = nil,
         isOn: Binding<Bool>,
         showsDivider: Bool = true,
         isDisabled: Bool = false
     ) {
         self.title = title
+        self.helpText = helpText
         _isOn = isOn
         self.showsDivider = showsDivider
         self.isDisabled = isDisabled
@@ -95,7 +98,7 @@ struct SettingsToggleRow: View {
     var body: some View {
         Button(action: toggle) {
             SettingsFormRow(showsDivider: showsDivider) {
-                SettingsResponsiveControlRow(title, horizontalControlSizing: .intrinsicInline) {
+                SettingsResponsiveControlRow(title, helpText: helpText, horizontalControlSizing: .intrinsicInline) {
                     Toggle(title, isOn: $isOn)
                         .toggleStyle(.switch)
                         .controlSize(.small)
@@ -111,6 +114,7 @@ struct SettingsToggleRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityHint(helpText ?? "")
         .accessibilityAddTraits(.isButton)
     }
 
