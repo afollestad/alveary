@@ -164,6 +164,55 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages[1], "Carry this context forward.\n\n## User Prompt\n" + steeringPrompt)
     }
+
+    func testSteeredHandoffGeneratedResultCountdownUsesPromptSendSettingOnly() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.handoffSteeringCountdownSeconds = AppSettings.supportedHandoffSteeringCountdownRange.lowerBound
+            $0.handoffPromptSendCountdownSeconds = 22
+        }
+        triggerAutomaticSessionHandoffThreshold(fixture: fixture)
+        try await waitUntil("handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
+        }
+
+        XCTAssertTrue(fixture.viewModel.submitSessionHandoffSteeringPrompt("Focus on the outgoing seed."))
+        try await waitUntil("steered handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+
+        fixture.viewModel.handleEvent(.message(
+            role: "assistant",
+            content: "Carry this context forward.",
+            parentToolUseId: nil
+        ))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 10,
+            output: 5,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0.01,
+            contextWindowSize: 200,
+            permissionDenials: []
+        ))
+        try await waitUntil("session handoff finished hidden response") {
+            let freshSessionCount = await fixture.agentsManager.freshSessionCalls().count
+            return !fixture.viewModel.state.isHandingOffSession && freshSessionCount == 1
+        }
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Carry this context forward.")
+        XCTAssertEqual(fixture.viewModel.state.handoffCountdownRemaining, 22)
+
+        fixture.viewModel.state.inputDraft = "Edited handoff context."
+        fixture.viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: fixture.viewModel.state.inputDraft)
+        fixture.viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: fixture.viewModel.state.inputDraft)
+
+        XCTAssertNil(fixture.viewModel.state.handoffCountdownRemaining)
+        XCTAssertFalse(fixture.viewModel.state.isAwaitingHandoffSteering)
+        XCTAssertEqual(fixture.viewModel.state.submittedHandoffSteeringPrompt, "Focus on the outgoing seed.")
+    }
 }
 
 @MainActor

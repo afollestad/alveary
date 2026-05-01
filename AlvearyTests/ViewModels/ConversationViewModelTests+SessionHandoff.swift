@@ -61,7 +61,10 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.isHandingOffSession)
         XCTAssertEqual(fixture.viewModel.state.pendingHandoffOutput, "Carry this context forward.")
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Carry this context forward.")
-        XCTAssertEqual(fixture.viewModel.state.handoffCountdownRemaining, ConversationViewModel.handoffCountdownSeconds)
+        XCTAssertEqual(
+            fixture.viewModel.state.handoffCountdownRemaining,
+            AppSettings.defaultHandoffPromptSendCountdownSeconds
+        )
 
         let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
         XCTAssertNil(records.first { $0.role == "assistant" })
@@ -70,6 +73,19 @@ extension ConversationViewModelTests {
         XCTAssertTrue(records.contains { ConversationSessionHandoff.isDisplayMessage($0.content) })
         let noteRecord = try XCTUnwrap(records.first { ConversationSessionHandoff.isDisplayMessage($0.content) })
         XCTAssertTrue(fixture.viewModel.state.grouper.items.contains(.centeredNote(id: noteRecord.id, kind: .sessionHandoff)))
+    }
+
+    func testSessionHandoffPromptSendCountdownUsesPromptSendSetting() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.handoffSteeringCountdownSeconds = AppSettings.supportedHandoffSteeringCountdownRange.lowerBound
+            $0.handoffPromptSendCountdownSeconds = 12
+        }
+
+        try await beginAndCompleteHiddenSessionHandoff(fixture: fixture, output: "Carry this context forward.")
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Carry this context forward.")
+        XCTAssertEqual(fixture.viewModel.state.handoffCountdownRemaining, 12)
     }
 
     func testSessionHandoffClearsSessionContinuityNotice() async throws {
@@ -351,6 +367,28 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Send this immediately."])
         let freshSessionCalls = await fixture.agentsManager.freshSessionCalls()
         XCTAssertEqual(freshSessionCalls.count, 1)
+    }
+
+    func testZeroSecondPromptSendCountdownImmediatelySendsCapturedOutputIntoFreshSession() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.handoffContextCustomizationEnabled = true
+            $0.handoffPromptSendCountdownSeconds = 0
+        }
+
+        try await beginAndCompleteHiddenSessionHandoff(fixture: fixture, output: "Send this immediately.")
+
+        try await waitUntil("zero countdown handoff output sent immediately") {
+            await fixture.agentsManager.sentMessages() == [
+                AppSettings.defaultSessionHandoffPrompt,
+                "Send this immediately."
+            ]
+        }
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNil(fixture.viewModel.state.pendingHandoffOutput)
+        XCTAssertNil(fixture.viewModel.state.handoffCountdownRemaining)
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Send this immediately."])
     }
 
     func testSessionHandoffImmediateModeBypassesExistingQueueToSeedFreshSession() async throws {

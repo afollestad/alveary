@@ -7,7 +7,6 @@ enum SessionHandoffTrigger: Sendable {
 }
 
 extension ConversationViewModel {
-    static let handoffCountdownSeconds = 8
     static let handoffSteeringPlaceholder = "Add steering for the session handoff, or submit empty to continue..."
 
     func triggerSessionHandoffFromCommand() {
@@ -282,7 +281,7 @@ private extension ConversationViewModel {
             recordContextWindowInvalidation()
             appendSessionHandoffNote()
 
-            if settingsService.current.handoffContextCustomizationEnabled {
+            if shouldCustomizeSessionHandoffOutput {
                 beginSessionHandoffCustomization(output: output)
             } else {
                 await sendSessionHandoffOutputImmediately(output)
@@ -321,7 +320,7 @@ private extension ConversationViewModel {
     }
 
     func startSessionHandoffCountdown() {
-        state.handoffCountdownRemaining = Self.handoffCountdownSeconds
+        state.handoffCountdownRemaining = promptSendCountdownSeconds
         sessionHandoffCountdownTask?.cancel()
         sessionHandoffCountdownTask = Task { @MainActor [self] in
             while let remaining = state.handoffCountdownRemaining, remaining > 0 {
@@ -347,6 +346,17 @@ private extension ConversationViewModel {
         if clearPendingOutput {
             state.pendingHandoffOutput = nil
         }
+    }
+
+    var promptSendCountdownSeconds: Int {
+        AppSettings.normalizedHandoffPromptSendCountdownSeconds(
+            settingsService.current.handoffPromptSendCountdownSeconds
+        )
+    }
+
+    var shouldCustomizeSessionHandoffOutput: Bool {
+        settingsService.current.handoffContextCustomizationEnabled &&
+            promptSendCountdownSeconds > 0
     }
 
     func failSessionHandoff(_ message: String) {
