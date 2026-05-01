@@ -57,7 +57,7 @@ struct InlineBanner: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: severity.iconName)
                 .foregroundStyle(severity.accentColor)
 

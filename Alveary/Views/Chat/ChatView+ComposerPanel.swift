@@ -4,9 +4,11 @@ import SwiftUI
 private enum ChatComposerPanelLayout {
     static let horizontalPadding = EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 21)
     static let verticalPadding: CGFloat = 0
+    static let topContentSpacing: CGFloat = 8
     // This is the visible top/bottom clearance inside the composer panel.
     // Keep panel vertical padding at zero so it does not stack with this inset.
     static let inputOuterPadding = EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)
+    static let inputOuterPaddingWithTopContent = EdgeInsets(top: 0, leading: 0, bottom: 16, trailing: 0)
 }
 
 struct ChatComposerPanel: View {
@@ -41,8 +43,18 @@ struct ChatComposerPanel: View {
         return composerCapabilities.supportedEffortLevels.filter(modelSupported.contains)
     }
 
+    private var hasTopContent: Bool {
+        viewModel.lastTurnError != nil ||
+            viewModel.sessionContinuityNotice != nil ||
+            viewModel.stagedContext != nil
+    }
+
+    private var inputOuterPadding: EdgeInsets {
+        hasTopContent ? ChatComposerPanelLayout.inputOuterPaddingWithTopContent : ChatComposerPanelLayout.inputOuterPadding
+    }
+
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: ChatComposerPanelLayout.topContentSpacing) {
             if let lastTurnError = viewModel.lastTurnError {
                 if viewModel.canRetryFailedSessionHandoff {
                     InlineBanner(
@@ -86,7 +98,7 @@ struct ChatComposerPanel: View {
                 onSubmit: onSubmit,
                 onSteer: onSteer,
                 onStop: onStop,
-                outerPadding: ChatComposerPanelLayout.inputOuterPadding,
+                outerPadding: inputOuterPadding,
                 selectedModel: selectedModel,
                 selectedEffort: selectedEffort,
                 selectedPermissionMode: selectedPermissionMode,
@@ -124,6 +136,7 @@ struct ChatComposerPanel: View {
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
             }
         }
+        .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
         .padding(ChatComposerPanelLayout.horizontalPadding)
         .padding(.vertical, ChatComposerPanelLayout.verticalPadding)
         .background {
