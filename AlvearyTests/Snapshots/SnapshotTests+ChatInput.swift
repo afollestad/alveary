@@ -249,6 +249,79 @@ extension SnapshotTests {
         )
     }
 
+    func testChatInputFieldHandoffSteeringSubmit() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Focus the handoff on the remaining snapshot and integration checks."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                isHandoffSteeringPromptActive: true,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_handoff_steering_submit"
+        )
+    }
+
+    func testChatInputFieldHandoffSteeringSubmitCountdown() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant(""),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                isHandoffSteeringPromptActive: true,
+                handoffSteeringCountdown: 10,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_handoff_steering_submit_countdown"
+        )
+    }
+
+    func testChatInputFieldGeneratedHandoffSendCountdown() {
+        assertMacSnapshot(
+            ChatInputField(
+                text: .constant("Carry this context forward into the fresh session."),
+                mode: .idle,
+                onSubmit: {},
+                onSteer: {},
+                onStop: nil,
+                selectedModel: .constant("sonnet"),
+                selectedEffort: .constant("medium"),
+                selectedPermissionMode: .constant("default"),
+                supportedPermissionModes: samplePermissionModes,
+                supportedEffortLevels: ["low", "medium", "high"],
+                supportsMidTurnSteering: false,
+                sendCountdown: 10,
+                workingDirectory: "/tmp/alveary",
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] }
+            ),
+            size: CGSize(width: 760, height: 240),
+            named: "chat_input_generated_handoff_send_countdown"
+        )
+    }
+
     func testInlineBannerErrorWithRetryAction() {
         assertMacSnapshot(
             InlineBanner(
