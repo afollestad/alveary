@@ -14,16 +14,17 @@ Perform a repo-aware quality audit of the current Alveary changes before they ar
 1. First say exactly: `Performing a self review...`
 2. Inspect `git status --short` and the relevant diffs.
 3. Read the nearest `AGENTS.md` files for changed paths when they were not already read in the current turn.
-4. Review uncommitted changes for:
+4. Review changes for:
    - Bugs.
    - Edge cases.
    - Regressions (do a broad search for unintended consequences).
    - Performance issues. 
-   - Dead or stale code. 
+   - Dead or stale code.
+   - Any external code that is now unused due to these changes.
    - File-size pressure.
    - Missing unit or snapshot test coverage.
-   - Missing docs or code comments. 
-   - Missing or stale AGENTS.md guidance.
+   - Missing class docs, or code comments. 
+   - Missing or stale `AGENTS.md` guidance.
    - Lint risks and Swift style issues.
    - Accessibility issues in UI changes.
 5. Confirm snapshot recording or verification when UI snapshots are affected.
@@ -31,7 +32,7 @@ Perform a repo-aware quality audit of the current Alveary changes before they ar
 7. Ask before risky or broad changes.
 8. Report findings first, ordered by severity and grounded in file/line references.
 
-**WHEN DONE:** If anything was addressed, loop and do another pass. Continue to loop until there is nothing more to address.
+**WHEN DONE:** If anything was changed, loop and do another pass with fresh eyes. Continue to loop until there is nothing more to change. If nothing was changed, ask if the user wants another pass.
 
 ## Output
 
