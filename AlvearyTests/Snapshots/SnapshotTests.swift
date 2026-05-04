@@ -266,67 +266,6 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testSubAgentBlockMixedStates() {
-        assertMacSnapshot(
-            SubAgentBlock(agents: sampleSubAgents, initiallyExpanded: true),
-            size: CGSize(width: 760, height: 300),
-            named: "subagent_block_mixed"
-        )
-    }
-
-    func testSubAgentBlockExpandedBashTools() {
-        assertMacSnapshot(
-            SubAgentBlock(agents: [sampleSubAgentWithBashTools], initiallyExpanded: true),
-            size: CGSize(width: 760, height: 160),
-            named: "subagent_block_expanded_bash_tools"
-        )
-    }
-
-    func testTaskListBlockMixedStates() {
-        assertMacSnapshot(
-            TaskListBlock(tasks: sampleTasks),
-            size: CGSize(width: 760, height: 240),
-            named: "task_list_mixed"
-        )
-    }
-
-    func testPromptBlockUnanswered() {
-        assertMacSnapshot(
-            PromptBlock(prompt: samplePrompt, isBusy: false) { _ in nil },
-            size: CGSize(width: 760, height: 420),
-            named: "prompt_block_unanswered"
-        )
-    }
-
-    func testPromptBlockAnswered() {
-        assertMacSnapshot(
-            PromptBlock(prompt: answeredPrompt, isBusy: false) { _ in nil },
-            size: CGSize(width: 760, height: 220),
-            named: "prompt_block_answered"
-        )
-    }
-
-    func testPromptBlockCustomResponseSelected() {
-        assertMacSnapshot(
-            PromptBlock(
-                prompt: customResponsePrompt,
-                isBusy: false,
-                initialSelections: [0: [PromptEntry.PromptOption.customResponseID]],
-                initialCustomResponses: [0: "Use a bespoke AppKit harness"]
-            ) { _ in nil },
-            size: CGSize(width: 760, height: 420),
-            named: "prompt_block_custom_response_selected"
-        )
-    }
-
-    func testPromptBlockPlanModeMultiQuestion() {
-        assertMacSnapshot(
-            PromptBlock(prompt: planModePrompt, isBusy: false) { _ in nil },
-            size: CGSize(width: 1200, height: 900),
-            named: "prompt_block_plan_mode_multi_question"
-        )
-    }
-
     func testSkillsScreenPopulated() async {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
         await viewModel.load()

@@ -37,7 +37,7 @@ Examples:
 ### Coverage Guidance
 
 - When changing transcript bubble spacing or bubble chrome, keep grouped chat-bubble snapshots (for example stacked outbound and stacked assistant bubbles) alongside single-bubble cases; single-item baselines do not catch inter-bubble spacing regressions.
-- AppKit owns the live transcript surface. Keep native transcript snapshots in `SnapshotTests+AppKitTranscript.swift`; SwiftUI transcript snapshots are legacy/non-transcript coverage until the cleanup phase removes old components.
+- AppKit owns the live transcript surface. Keep native transcript snapshots in `SnapshotTests+AppKitTranscript.swift`; do not add new SwiftUI transcript-row snapshots.
 - Native migration snapshots are parity gates. Verify the replaced SwiftUI surface before recording baselines, and add focused coverage for hover or pressed states when a migrated AppKit control has custom interaction styling.
 
 ### `assertMacSnapshot()` Internals

@@ -49,7 +49,7 @@ final class AppKitTranscriptToolOutputView: NSView {
         let shouldResetPaging = self.configuration?.toolName != configuration.toolName
         self.configuration = configuration
         if shouldResetPaging {
-            visibleTailLines = ToolOutputView.initialTailLineCount(for: configuration.toolName)
+            visibleTailLines = TranscriptToolOutputPaging.initialTailLineCount(for: configuration.toolName)
         }
         updateRenderedContent()
         needsLayout = true
@@ -147,7 +147,7 @@ final class AppKitTranscriptToolOutputView: NSView {
         guard let configuration else {
             return false
         }
-        return ToolOutputView.pageStep(for: configuration.toolName) != nil && totalLineCount > visibleTailLines
+        return TranscriptToolOutputPaging.pageStep(for: configuration.toolName) != nil && totalLineCount > visibleTailLines
     }
 
     private var visibleContent: String {
@@ -184,7 +184,7 @@ final class AppKitTranscriptToolOutputView: NSView {
     }
 
     private func pageStep(for toolName: String) -> Int {
-        ToolOutputView.pageStep(for: toolName) ?? 10
+        TranscriptToolOutputPaging.pageStep(for: toolName) ?? 10
     }
 
     private func measuredHeight() -> CGFloat {

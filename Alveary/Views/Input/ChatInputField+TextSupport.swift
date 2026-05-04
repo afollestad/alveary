@@ -142,9 +142,9 @@ enum ChatInputFieldTextSupport {
     // because `FileMentionMatch.highlightRange` starts *at* the `@` and `match.range`
     // covers everything back to the preceding terminator char (group 1); the previous
     // `prefix + normalizedPath` shape silently dropped the `@` from the outbound text.
-    // Keeping the stored form is load-bearing — `UserBubble`'s re-detection pipeline
-    // runs the same regex over the persisted message, which terminates on whitespace,
-    // so a raw-spaced path would chip only its leading run.
+    // Keeping the stored form is load-bearing — AppKit user bubbles re-run
+    // `attachComposerChips(to:)` over the persisted message and the mention regex
+    // terminates on whitespace, so a raw-spaced path would chip only its leading run.
     static func outboundMessage(from message: String, workingDirectory: String?) -> String {
         guard message.contains("@") else {
             return message
@@ -451,9 +451,9 @@ enum ChatInputFieldTextSupport {
     // `lastPathComponent` yields the same filename regardless of whether the input is an
     // absolute path, tilde-abbreviated path, or workingDirectory-relative path. If chip
     // labels ever need to surface a parent directory or a relative path, restore the
-    // `relativeTo workingDirectory:` parameter and thread it from UserBubble and the
-    // composer call sites — there's no live-state reason to keep the knob while nothing
-    // reads it.
+    // `relativeTo workingDirectory:` parameter and thread it from AppKit user bubbles
+    // and the composer call sites — there's no live-state reason to keep the knob while
+    // nothing reads it.
     // Returns the stored (possibly percent-encoded) form of the filename. The two
     // consumers of `AppTextEditorChip.displayText` both decode at render time:
     // `AppKitTextView.drawCompactChipLabels` for the composer, and

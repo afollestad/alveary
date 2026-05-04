@@ -1,35 +1,32 @@
 ## Chat Block Primitives
 
-Shared transcript block primitives live here. Narrower scopes:
+Shared transcript block constants and presentation helpers live here. Narrower scopes:
 
 - `AppKit/AGENTS.md`: AppKit transcript row primitives.
-- `Prompts/AGENTS.md`: `PromptBlock`.
-- `Tasks/AGENTS.md`: `TaskListBlock`.
-- `Tools/AGENTS.md`: tool rows, groups, details, headers.
-- `ChatBlocks+TextBubbles.swift`: user, assistant, streaming, thinking, and error bubble surfaces.
-- `ChatBlocks+CenteredNotes.swift`: centered lifecycle notes.
+- `Prompts/AGENTS.md`: submitted prompt response parsing and prompt-row rules.
+- `Tasks/AGENTS.md`: task presentation ordering and task-row rules.
+- `Tools/AGENTS.md`: shared tool summary formatters and tool-row rules.
 
 ## Bubble Widths
 
-- Bubble widths use `transcriptBubbleMaxWidth`, not hard-coded 720pt.
-- `ChatTranscriptView` measures the scroll container, calls `adaptiveTranscriptBubbleMaxWidth(for:)`, then publishes the environment value.
-- Text bubbles, prompts, task lists, approvals, streaming/thinking blocks, and errors use the cap.
+- Bubble widths use the AppKit row configuration's adaptive cap, not hard-coded 720pt.
+- `ChatTranscriptView` measures the scroll container and calls `adaptiveTranscriptBubbleMaxWidth(for:)` before configuring AppKit rows.
+- AppKit text bubbles, prompts, task lists, approvals, streaming/thinking blocks, and errors use the cap.
 - Inline tool rows and sub-agent rows intentionally skip bubble chrome and `bubbleMaxWidth`.
-- `UserBubble` remains the narrower right-aligned exception capped by `userBubbleMaxWidth`.
+- User bubbles remain the narrower right-aligned exception capped by `userBubbleMaxWidth`.
 
 ## Transcript Typography
 
 - Transcript rows inherit `TranscriptTypography` from `ChatTranscriptView`.
 - Use inherited text for body copy; use `transcriptFont(...)` or `transcriptCodeFont()` for explicit variants.
-- When a transcript block renders `AppMarkdownText` directly, apply `transcriptMarkdownTypography()` at that surface.
-- Do not add raw SwiftUI `.font(...)` in transcript block files; SwiftLint enforces this outside `TranscriptTypography.swift`.
+- AppKit transcript rows should bridge `TranscriptTypography` into AppKit labels and markdown renderers directly.
+- Do not add raw SwiftUI `.font(...)` in any remaining transcript-adjacent SwiftUI wrappers; SwiftLint enforces this outside `TranscriptTypography.swift`.
 - Keep layout-critical icon sizes as named `TranscriptFontLevel` cases instead of ad hoc font constants.
 
 ## Centered Notes
 
-- Use `CenteredTranscriptNote` for subtle lifecycle text: `Interrupted`, plan-mode success, and denied `ExitPlanMode`.
+- Subtle lifecycle text like `Interrupted`, plan-mode success, and denied `ExitPlanMode` renders through `AppKitTranscriptCenteredNoteView`.
 - Render these as centered `info.circle` + text with compact vertical padding, not as bubbles or tool rows.
-- `TurnInterruptedNote` is only a thin wrapper; new subtle lifecycle rows should use `CenteredTranscriptNote` directly.
 
 ## Shared Expansion Controls
 

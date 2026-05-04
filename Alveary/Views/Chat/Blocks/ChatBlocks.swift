@@ -1,4 +1,4 @@
-import SwiftUI
+import CoreGraphics
 
 let chatBubbleHorizontalPadding: CGFloat = 12
 let chatBubbleCornerRadius: CGFloat = 12
@@ -34,9 +34,9 @@ let transcriptToolDetailLeadingInset = transcriptToolIconFrameSize + transcriptT
 // The output blocks inset their own trailing chrome by the remaining 5pt so the
 // visible edge lands at 44pt without rewrapping text.
 let transcriptToolDetailTrailingInset = transcriptToolDetailLeadingInset - 5
-let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
-let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
-let transcriptBubbleCompactTrailingInset: CGFloat = 24
+private let transcriptBubblePreferredWidthRatio: CGFloat = 2 / 3
+private let transcriptBubbleMinimumPreferredWidth: CGFloat = 640
+private let transcriptBubbleCompactTrailingInset: CGFloat = 24
 
 /// Wide transcripts look better when inbound bubbles stop around two-thirds of the
 /// available width, but once that cap would squeeze below a comfortable reading width
@@ -51,87 +51,4 @@ func adaptiveTranscriptBubbleMaxWidth(for transcriptContentWidth: CGFloat) -> CG
     let preferredWidth = transcriptContentWidth * transcriptBubblePreferredWidthRatio
     let compactWidth = max(transcriptContentWidth - transcriptBubbleCompactTrailingInset, 0)
     return min(compactWidth, max(preferredWidth, transcriptBubbleMinimumPreferredWidth))
-}
-
-/// Propagates the transcript's current width cap down to transcript bubbles.
-/// `ChatTranscriptView` computes it with `adaptiveTranscriptBubbleMaxWidth(for:)`
-/// after measuring the scroll container. A value of `.infinity` means "unbounded"
-/// and is used as the fallback when the transcript hasn't yet reported a size.
-private struct TranscriptBubbleMaxWidthKey: EnvironmentKey {
-    static let defaultValue: CGFloat = .infinity
-}
-
-extension EnvironmentValues {
-    var transcriptBubbleMaxWidth: CGFloat {
-        get { self[TranscriptBubbleMaxWidthKey.self] }
-        set { self[TranscriptBubbleMaxWidthKey.self] = newValue }
-    }
-}
-
-extension View {
-    /// Standard transcript-bubble chrome: rounded fill + width cap. Apply
-    /// `.padding(chatBlockPadding)` around the bubble's content before this
-    /// modifier. Inline tool rows intentionally do not use this chrome.
-    func bubbleBackground(maxWidth: CGFloat) -> some View {
-        background(
-            RoundedRectangle(cornerRadius: chatBlockCornerRadius, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .frame(maxWidth: maxWidth, alignment: .leading)
-    }
-
-}
-
-struct DetailCodeBlock: View {
-    let title: String
-    let content: String
-    var tint: Color = .secondary
-    var usesCodeChrome = true
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .transcriptFont(.caption, weight: .semibold)
-                .foregroundStyle(tint)
-
-            // Neither the trailing `Spacer` nor the `.frame(maxWidth: .infinity)` belong
-            // here: Spacer makes the HStack greedy, and the infinity-cap on the ScrollView
-            // forces the enclosing bubble to grow to `bubbleMaxWidth` every time a short
-            // Input/Output snippet appears. Let ScrollView hug its content width; the
-            // parent bubble's own `.frame(maxWidth: bubbleMaxWidth)` still caps the outer
-            // width and makes oversized content scroll inside the bubble.
-            ScrollView(.horizontal) {
-                Text(appMarkdownCodeDisplayContent(content))
-                    .transcriptCodeFont()
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .padding(.bottom, 8)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 4)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(codeFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(codeBorder, lineWidth: 1)
-            )
-        }
-    }
-
-    private var codeFill: Color {
-        usesCodeChrome ? AppMarkdownCodeBlockPalette.fillColor(for: colorScheme) : tint.opacity(0.08)
-    }
-
-    private var codeBorder: Color {
-        usesCodeChrome ? AppMarkdownCodeBlockPalette.borderColor(for: colorScheme) : .clear
-    }
-
-    private var cornerRadius: CGFloat {
-        usesCodeChrome ? 8 : 14
-    }
 }
