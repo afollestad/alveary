@@ -69,17 +69,14 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
     }
 
-    func testRowHeightInvalidationRelayoutsContainerAndCallsUpstream() {
+    func testRowHeightInvalidationRelayoutsContainer() {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
-        var invalidationCount = 0
 
         coordinator.update(
             container: container,
             items: [.assistantMessage(id: "assistant", text: "Short")],
-            rowConfiguration: .init(onHeightInvalidated: {
-                invalidationCount += 1
-            }),
+            rowConfiguration: .init(),
             isFollowing: true,
             scrollToBottomRequest: 0
         )
@@ -88,15 +85,12 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         coordinator.update(
             container: container,
             items: [.assistantMessage(id: "assistant", text: String(repeating: "Wrapping text ", count: 80))],
-            rowConfiguration: .init(bubbleMaxWidth: 160, onHeightInvalidated: {
-                invalidationCount += 1
-            }),
+            rowConfiguration: .init(bubbleMaxWidth: 160),
             isFollowing: true,
             scrollToBottomRequest: 0
         )
 
         XCTAssertGreaterThan(container.documentHeight, initialHeight)
-        XCTAssertGreaterThan(invalidationCount, 0)
     }
 
     func testTypographyChangeRemeasuresCachedRows() {

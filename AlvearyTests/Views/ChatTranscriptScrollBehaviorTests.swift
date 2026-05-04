@@ -108,7 +108,7 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    // Cancel-predicate regression tests covering SwiftUI-initiated false
+    // Cancel-predicate regression tests covering programmatic scroll false
     // positives live in `ChatTranscriptScrollBehaviorTests+CancelGuards.swift`.
 
     func testReissuesPendingJumpToLatestWhenContainerShrinks() {

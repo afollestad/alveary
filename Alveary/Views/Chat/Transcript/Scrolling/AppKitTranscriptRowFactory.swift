@@ -18,7 +18,6 @@ final class AppKitTranscriptRowFactory {
         var hasUnansweredPrompt = false
         var isPromptBusy: (PromptEntry) -> Bool = { _ in false }
         var selectedApprovalSelection: (ToolApprovalRequest) -> ToolApprovalSelection = { _ in .once }
-        var onHeightInvalidated: () -> Void = {}
         // Row-specific invalidation lets the AppKit container keep rows mounted
         // while remeasuring only the row whose variable-height content changed.
         // The Boolean carries animation intent: expansion rows animate, while
@@ -392,7 +391,6 @@ final class AppKitTranscriptRowFactory {
     ) -> () -> Void {
         {
             configuration.onRowHeightInvalidated(rowID, animatesLayoutChanges)
-            configuration.onHeightInvalidated()
         }
     }
 }

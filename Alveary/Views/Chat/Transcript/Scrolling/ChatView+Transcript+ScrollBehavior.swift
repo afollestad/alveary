@@ -5,10 +5,10 @@ private let transcriptNearBottomThreshold: CGFloat = 16
 
 /// Maximum single-tick offsetY drop that can plausibly be a user drag-away.
 /// Anything larger is treated as a programmatic scroll-state disturbance (e.g.
-/// the turn-end `forceFullRebuild` making the ScrollView lose its anchor view
-/// mid-diff and snap offset to a stale value — a 347pt single-tick drop was
-/// observed). 250pt is loose enough to admit very fast trackpad flings while
-/// rejecting the multi-hundred-pt programmatic snaps.
+/// turn-end rebuilds briefly publishing an intermediate AppKit document height
+/// and snap offset — a 347pt single-tick drop was observed). 250pt is loose
+/// enough to admit very fast trackpad flings while rejecting the multi-hundred-pt
+/// programmatic snaps.
 private let transcriptCancelMaxPerTickDrop: CGFloat = 250
 
 struct ChatTranscriptScrollMetrics: Equatable {
@@ -97,12 +97,11 @@ enum ChatTranscriptScrollBehavior {
     ///   near-bottom band (e.g. 12pt). A real user drag-away moves past the
     ///   near-bottom threshold; anchor adjustments don't.
     /// - **plausibleUserVelocity** (`offsetDrop < transcriptCancelMaxPerTickDrop`):
-    ///   turn-end `forceFullRebuild` regenerates tool-group identities, so the
-    ///   ScrollView loses its anchor view mid-diff and offsetY can snap to a stale
-    ///   value in a single geometry tick (e.g. 893 → 546 = 347pt drop in 1ms). No
-    ///   user can drag that fast between ticks — a 347pt single-tick offset decrease
-    ///   is programmatic disturbance, not user intent. Capping cancel to a plausible
-    ///   per-tick user drag magnitude rejects this case.
+    ///   turn-end rebuilds can briefly publish intermediate document metrics and
+    ///   snap offsetY to a stale value in a single metrics tick (e.g. 893 → 546 =
+    ///   347pt drop in 1ms). No user can drag that fast between ticks — a 347pt
+    ///   single-tick offset decrease is programmatic disturbance, not user intent.
+    ///   Capping cancel to a plausible per-tick user drag magnitude rejects this case.
     static func shouldCancelProgrammaticScroll(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
@@ -144,7 +143,7 @@ enum ChatTranscriptScrollBehavior {
     }
 
     /// Decide whether `isFollowing` should change in the fallback branch of
-    /// `onScrollGeometryChange` (no pending programmatic scroll, not a
+    /// `handleScrollMetricsChange` (no pending programmatic scroll, not a
     /// `shouldPreserveFollowMode` case). Returns the next `isFollowing` value;
     /// passes `currentIsFollowing` through when the geometry change is ambiguous.
     ///
@@ -177,10 +176,10 @@ enum ChatTranscriptScrollBehavior {
         return currentIsFollowing
     }
 
-    /// Resolve what to do when `onScrollGeometryChange` fires while a programmatic
+    /// Resolve what to do when AppKit scroll metrics change while a programmatic
     /// scroll is still pending. Keeps the priority order (`isAtBottom` → user-cancel →
     /// reissue) in one place so tests can assert the behavior without simulating a
-    /// real `ScrollView`.
+    /// real `NSScrollView`.
     ///
     /// The load-bearing subtlety: `.jumpToLatest` must NOT clear pending mode on a
     /// transient `isAtBottom`. During thread re-open or row-height settling, AppKit

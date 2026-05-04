@@ -80,16 +80,10 @@ struct ChatTranscriptView: View {
             } else {
                 viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
                 // Must re-pin after the rebuild even though `onChange(of: events.count)` also
-                // fires an `scrollToBottom()` at turn end — that earlier scroll gets neutered:
-                // the `forceFullRebuild` regenerates unstable item identities (e.g. tool-group
-                // UUIDs) and the streaming bubble (`id("streaming")`) unmounts as `streamingText`
-                // goes nil, producing geometry churn that either trips `shouldCancelProgrammaticScroll`
-                // (offset momentarily moves away from bottom) or transiently hits `isAtBottom`,
-                // either of which clears `pendingProgrammaticScrollMode` and disarms the
-                // remaining triple-fire retries. A fresh scroll after the rebuild lands against
-                // a settled baseline. Use `forceFollow: true` (jumpToLatest) so the wider
-                // `shouldReissuePendingJumpToLatest` predicate tracks the rebuild's content-size
-                // shifts — preserveFollow's container-only reissue would miss them.
+                // fires an `scrollToBottom()` at turn end. `forceFullRebuild` can swap transient
+                // rows for persisted rows and publish a sequence of AppKit document-height
+                // changes, so a fresh jump-to-latest scroll lands against the settled baseline
+                // and keeps reissuing for any remaining content-size shifts.
                 if isFollowing {
                     scrollToBottom(forceFollow: true)
                 }
@@ -197,7 +191,7 @@ private extension ChatTranscriptView {
     /// scroll after `transcriptProgrammaticScrollTimeout` of no further progress.
     /// Each call stamps a fresh token and only fires if the token is still current
     /// when the deadline lands, so a reissued `scrollTo` (from the jump-to-latest /
-    /// preserve-follow branches in `onScrollGeometryChange`) pushes the deadline
+    /// preserve-follow branches in `handleScrollMetricsChange`) pushes the deadline
     /// out while AppKit row heights settle.
     func schedulePendingProgrammaticScrollTimeout() {
         let token = UUID()
@@ -218,10 +212,10 @@ private extension ChatTranscriptView {
             //     early, so we wouldn't have made it here.
             //   - A raw `isFollowing = latestMetrics?.isNearBottom ?? false` fallback
             //     caused the jump-to-latest button to flash briefly on app launch to
-            //     a preselected thread: `onScrollGeometryChange` hadn't fired yet
+            //     a preselected thread: AppKit metrics had not been forwarded yet
             //     when the watchdog landed (`latestMetrics` was nil → `?? false`),
             //     so `isFollowing` flipped to `false` for one frame until a later
-            //     geometry tick restored it via `nextFollowingState`.
+            //     metrics tick restored it via `nextFollowingState`.
             pendingProgrammaticScrollMode = nil
         }
     }

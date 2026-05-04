@@ -28,7 +28,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 ## Following State
 
 - `isFollowing` is the source of truth.
-- Route geometry fallback through `ChatTranscriptScrollBehavior.nextFollowingState(...)`.
+- Route AppKit metrics fallback through `ChatTranscriptScrollBehavior.nextFollowingState(...)`.
 - Set `true` when `isNearBottom`.
 - Set `false` only when `shouldCancelProgrammaticScroll` confirms a real user drag.
 - Do not raw-write `isFollowing = newMetrics.isNearBottom`; streaming can momentarily report far from bottom before the anchor catches up.
@@ -37,7 +37,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 
 - `scrollToBottom(retries:)` has two strategies:
     - `.triple`: immediate, next-runloop, and 150ms AppKit request increments plus watchdog. Use for thread entry and content-growth callers.
-    - `.single`: immediate AppKit request plus watchdog. Use container-shrink preserve-follow; geometry reissues cover the animation.
+    - `.single`: immediate AppKit request plus watchdog. Use container-shrink preserve-follow; metrics reissues cover the animation.
 - Keep retry requests as `appKitScrollToBottomRequest` increments so the representable coordinator owns the actual scroll command.
 
 ## Pending Scroll Watchdog

@@ -161,14 +161,10 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
 
     func testHeightInvalidationCallbackIsAttachedToRows() {
         let factory = AppKitTranscriptRowFactory()
-        var invalidationCount = 0
         var invalidatedRowIDs: [String] = []
         let rows = factory.makeRows(
             for: [.assistantMessage(id: "assistant", text: "First")],
             configuration: .init(
-                onHeightInvalidated: {
-                    invalidationCount += 1
-                },
                 onRowHeightInvalidated: { rowID, _ in
                     invalidatedRowIDs.append(rowID)
                 }
@@ -178,7 +174,6 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         let bubble = rows[0].view as? AppKitTranscriptTextBubbleRowView
         bubble?.configure(.init(role: .assistant, markdown: String(repeating: "wrap ", count: 80), bubbleMaxWidth: 120))
 
-        XCTAssertGreaterThan(invalidationCount, 0)
         XCTAssertTrue(invalidatedRowIDs.contains("assistant"))
     }
 

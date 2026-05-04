@@ -9,17 +9,17 @@ import XCTest
 // pathway with metrics taken verbatim from instrumented live runs — do not relax
 // the guards without a replacement for the scenario captured here.
 extension ChatTranscriptScrollBehaviorTests {
-    // REGRESSION: at turn-end, `forceFullRebuild` regenerates tool-group
-    // identities with new UUIDs; rebuilding rows can snap offsetY to a stale value
-    // in a single geometry tick. The observed drop was 347pt in 1ms
+    // REGRESSION: at turn-end, rebuilding rows can briefly publish intermediate
+    // AppKit document metrics and snap offsetY to a stale value in a single
+    // metrics tick. The observed drop was 347pt in 1ms
     // (off=893 dist=0 → off=546 dist=347), which no user can produce with a
     // drag. The pre-guard predicate fired cancel here (distance=347 is clearly
     // past near-bottom), flipping `isFollowing` to false right as the turn ended
     // and the jump-to-latest button appeared. A per-tick velocity cap rejects
     // programmatic disturbances while still honoring plausible user drags.
     func testDoesNotCancelProgrammaticScrollOnTurnEndRebuildDisturbance() {
-        // offsetY snaps from 893 to 546 in a single tick — the rebuild's row
-        // identity churn lost the anchor view.
+        // offsetY snaps from 893 to 546 in a single tick — a programmatic
+        // disturbance, not a plausible user drag.
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 893, contentHeight: 1_486, containerHeight: 593)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 546, contentHeight: 1_486, containerHeight: 593)
 

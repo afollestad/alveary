@@ -63,7 +63,6 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             }
         }
         var rowConfiguration = rowConfiguration
-        let upstreamHeightInvalidated = rowConfiguration.onHeightInvalidated
         var pendingDirtyRowIDs: Set<String> = []
         var isBuildingRows = true
         rowConfiguration.onRowHeightInvalidated = { [weak container] rowID, animatesLayoutChanges in
@@ -81,9 +80,6 @@ final class AppKitTranscriptScrollBridgeCoordinator {
                 preserveBottomIfFollowing: true,
                 animatesLayoutChanges: animatesLayoutChanges
             )
-        }
-        rowConfiguration.onHeightInvalidated = {
-            upstreamHeightInvalidated()
         }
 
         let rows = rowFactory.makeRows(for: items, transientRows: transientRows, configuration: rowConfiguration)
