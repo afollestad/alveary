@@ -44,7 +44,6 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Chat/AGENTS.md`: chat view and conversation contracts.
 - `Alveary/Views/Chat/Blocks/AGENTS.md`: shared block primitives.
 - `Alveary/Views/Chat/Blocks/AppKit/AGENTS.md`: AppKit transcript row primitives.
-- `Alveary/Views/Chat/Blocks/Approvals/AGENTS.md`: tool approval blocks.
 - `Alveary/Views/Chat/Blocks/Prompts/AGENTS.md`: `AskUserQuestion` prompt blocks.
 - `Alveary/Views/Chat/Blocks/Tasks/AGENTS.md`: task-list blocks.
 - `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`: tool rows, groups, and details.

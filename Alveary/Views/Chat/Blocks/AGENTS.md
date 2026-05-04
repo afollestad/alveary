@@ -2,7 +2,6 @@
 
 Shared transcript block primitives live here. Narrower scopes:
 
-- `Approvals/AGENTS.md`: `ToolApprovalBlock`.
 - `AppKit/AGENTS.md`: AppKit transcript row primitives.
 - `Prompts/AGENTS.md`: `PromptBlock`.
 - `Tasks/AGENTS.md`: `TaskListBlock`.
