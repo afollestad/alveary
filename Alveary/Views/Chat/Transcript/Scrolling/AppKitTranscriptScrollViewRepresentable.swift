@@ -75,7 +75,10 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             }
             container?.rowHeightInvalidated(
                 rowID: rowID,
-                preserveBottomIfFollowing: isFollowing,
+                // Row height callbacks can arrive after SwiftUI's `isFollowing`
+                // snapshot was captured. Let the AppKit container gate bottom
+                // preservation against its current scroll position instead.
+                preserveBottomIfFollowing: true,
                 animatesLayoutChanges: animatesLayoutChanges
             )
         }
