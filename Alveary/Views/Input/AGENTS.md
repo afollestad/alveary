@@ -52,6 +52,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - **Keep adapters temporary and thin.** `ChatTextEditor` may bridge the native editor into SwiftUI until the composer root migrates, but it should only own SwiftUI chrome, measurement binding, selection conversion, and focus state handoff.
 - **Reuse text primitives.** Native composer views should reuse `AppKitTextView` chip/code/inline-hint behavior so compact basename chips and outbound mention storage stay aligned with current coverage.
 - `ChatComposerActionRow` owns the native bottom settings/action row while `ChatInputField` still hosts the composer shell in SwiftUI.
+    - **Keep shell migration explicit.** `ChatInputField` can be hosted inside `AppKitChatSurfaceView` during the transitional phase,
+      but it still owns SwiftUI composer chrome until a later composer-root migration moves banners, queued messages, autocomplete,
+      and editor layout into AppKit.
     - **Keep presentation shared.** The native row must consume `ComposerPresentation`-derived labels, disabled states, and progress reasons instead of duplicating composer-mode branching.
     - **Preserve control parity.** Native menu buttons, icon buttons, primary/stop buttons, disabled footprints, and progress slots must match the SwiftUI row's sizing, spacing, colors, hover, pressed, and disabled states; verify focused snapshots before recording any native baseline changes.
     - **Reset interaction state.** AppKit controls in the rebuilt native row must clear hover/pressed state when hidden, detached, removed from a window, disabled, or receiving mouse exit so stale hover backgrounds cannot survive row rebuilds.

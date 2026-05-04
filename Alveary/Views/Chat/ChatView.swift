@@ -143,20 +143,21 @@ struct ChatView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            let contentMode = displayedContentMode ?? targetContentMode
-            mainContentView(for: contentMode)
-                .id(contentMode.transitionID)
-                .onAppear {
-                    displayedContentMode = targetContentMode
-                }
-                .onChange(of: targetContentMode) { _, newMode in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        displayedContentMode = newMode
+        let contentMode = displayedContentMode ?? targetContentMode
+        AppKitChatSurfaceRepresentable(
+            content: AnyView(
+                mainContentView(for: contentMode)
+                    .id(contentMode.transitionID)
+                    .onAppear {
+                        displayedContentMode = targetContentMode
                     }
-                }
-
-            ChatComposerPanel(
+                    .onChange(of: targetContentMode) { _, newMode in
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            displayedContentMode = newMode
+                        }
+                    }
+            ),
+            composer: AnyView(ChatComposerPanel(
                 viewModel: viewModel,
                 composerCapabilities: composerCapabilities,
                 workingDirectory: workingDirectory,
@@ -180,8 +181,8 @@ struct ChatView: View {
                     Task { await viewModel.cancel() }
                 },
                 focusRequestToken: $appState.pendingComposerFocusToken
-            )
-        }
+            ))
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: contextWindowCacheLookupID) {
             let providerID = providerID
