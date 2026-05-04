@@ -363,44 +363,6 @@ private extension ConversationViewModel {
         conversation.provider ?? settingsService.current.defaultProvider
     }
 
-    func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval, refreshTranscript: Bool = true) {
-        guard let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
-            return
-        }
-        persistToolApprovalStatus(
-            resolvedStatus,
-            toolUseId: pendingApproval.request.toolUseId,
-            sessionId: pendingApproval.request.sessionId,
-            refreshTranscript: refreshTranscript
-        )
-    }
-
-    func resolvedStatus(for status: ToolApprovalStatus) -> ToolApprovalStatus? {
-        switch status {
-        case .approving, .approved:
-            return .approved
-        case .approvingForSessionExact, .approvedForSessionExact:
-            return .approvedForSessionExact
-        case .approvingForSessionGroup, .approvedForSessionGroup:
-            return .approvedForSessionGroup
-        case .denying, .denied:
-            return .denied
-        case .pending, .superseded:
-            return nil
-        }
-    }
-
-    func restorePermissionModeAfterPlanExitIfNeeded(_ pendingApproval: PendingToolApproval) {
-        guard pendingApproval.request.toolName == "ExitPlanMode",
-              pendingApproval.status != .denying,
-              pendingApproval.status != .denied,
-              effectivePermissionMode == "plan" else {
-            return
-        }
-
-        syncRuntimePermissionMode(state.lastNonPlanPermissionMode ?? "default")
-    }
-
     func supersedeUnresolvedToolApprovalRecords() {
         supersedeUnresolvedToolApprovalRecords(refreshTranscript: true)
     }
@@ -432,58 +394,6 @@ private extension ConversationViewModel {
             // Best-effort: transcript history is still preserved even if superseded
             // rows stay unresolved until the next successful save.
         }
-    }
-
-    func persistToolApprovalStatus(
-        _ status: ToolApprovalStatus,
-        toolUseId: String,
-        sessionId: String,
-        refreshTranscript: Bool = true
-    ) {
-        let conversationID = conversation.id
-        let approvalRecords = (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate {
-                    $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
-                        $0.toolId == toolUseId &&
-                        $0.content == sessionId
-                },
-                sortBy: [
-                    SortDescriptor(\.timestamp, order: .reverse),
-                    SortDescriptor(\.id, order: .reverse)
-                ]
-            )
-        )) ?? []
-
-        guard let approvalRecord = approvalRecords.first else {
-            return
-        }
-        approvalRecord.toolApprovalStatus = status.rawValue
-        do {
-            try modelContext.save()
-            if refreshTranscript {
-                refreshTranscriptForToolApprovalStatusChanges()
-            }
-        } catch {
-            // Best-effort: the live pending state already showed the chosen action.
-        }
-    }
-
-    func refreshTranscriptForToolApprovalStatusChanges() {
-        let conversationID = conversation.id
-        let records = (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate {
-                    $0.conversationId == conversationID
-                },
-                sortBy: [
-                    SortDescriptor(\.timestamp),
-                    SortDescriptor(\.id)
-                ]
-            )
-        )) ?? []
-        rebuildChatItemsIfNeeded(from: records, forceFullRebuild: true)
     }
 
 }

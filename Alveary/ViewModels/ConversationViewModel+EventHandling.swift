@@ -21,6 +21,10 @@ private extension ConversationViewModel {
         case .permissionModeChanged(let permissionMode):
             return handlePermissionModeChanged(permissionMode)
 
+        case .toolResult(let id, _, let isError, _, _):
+            clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: id, isError: isError)
+            return true
+
         case .messageChunk(let text, let parentToolUseId):
             return handleMessageChunk(text, parentToolUseId: parentToolUseId)
 
@@ -50,6 +54,7 @@ private extension ConversationViewModel {
 
     func handlePermissionModeChanged(_ permissionMode: String) -> Bool {
         syncRuntimePermissionMode(permissionMode)
+        clearApprovedExitPlanModeApprovalAfterPermissionModeChange(permissionMode)
         return false
     }
 

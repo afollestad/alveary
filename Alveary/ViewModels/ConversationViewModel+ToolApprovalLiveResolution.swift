@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct ToolApprovalLiveResolutionResult {
     let additionalApprovals: [ToolApprovalRequest]
@@ -47,5 +48,127 @@ extension ConversationViewModel {
         state.turnState.endTurn()
         state.clearStreamingText()
         state.isAutomaticSessionHandoffPending = false
+    }
+
+    func clearApprovedExitPlanModeApprovalAfterPermissionModeChange(_ permissionMode: String) {
+        guard permissionMode != "plan" else {
+            return
+        }
+        clearApprovedExitPlanModeApprovalIfNeeded()
+    }
+
+    func clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: String, isError: Bool) {
+        guard !isError else {
+            return
+        }
+        clearApprovedExitPlanModeApprovalIfNeeded(toolUseId: toolUseId)
+    }
+
+    func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval, refreshTranscript: Bool = true) {
+        guard let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
+            return
+        }
+        persistToolApprovalStatus(
+            resolvedStatus,
+            toolUseId: pendingApproval.request.toolUseId,
+            sessionId: pendingApproval.request.sessionId,
+            refreshTranscript: refreshTranscript
+        )
+    }
+
+    func persistToolApprovalStatus(
+        _ status: ToolApprovalStatus,
+        toolUseId: String,
+        sessionId: String,
+        refreshTranscript: Bool = true
+    ) {
+        let conversationID = conversation.id
+        let approvalRecords = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.type == "tool_approval" &&
+                        $0.toolId == toolUseId &&
+                        $0.content == sessionId
+                },
+                sortBy: [
+                    SortDescriptor(\.timestamp, order: .reverse),
+                    SortDescriptor(\.id, order: .reverse)
+                ]
+            )
+        )) ?? []
+
+        guard let approvalRecord = approvalRecords.first else {
+            return
+        }
+        approvalRecord.toolApprovalStatus = status.rawValue
+        do {
+            try modelContext.save()
+            if refreshTranscript {
+                refreshTranscriptForToolApprovalStatusChanges()
+            }
+        } catch {
+            // Best-effort: the live pending state already showed the chosen action.
+        }
+    }
+
+    func refreshTranscriptForToolApprovalStatusChanges() {
+        let conversationID = conversation.id
+        let records = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID
+                },
+                sortBy: [
+                    SortDescriptor(\.timestamp),
+                    SortDescriptor(\.id)
+                ]
+            )
+        )) ?? []
+        rebuildChatItemsIfNeeded(from: records, forceFullRebuild: true)
+    }
+
+    func resolvedStatus(for status: ToolApprovalStatus) -> ToolApprovalStatus? {
+        switch status {
+        case .approving, .approved:
+            return .approved
+        case .approvingForSessionExact, .approvedForSessionExact:
+            return .approvedForSessionExact
+        case .approvingForSessionGroup, .approvedForSessionGroup:
+            return .approvedForSessionGroup
+        case .denying, .denied:
+            return .denied
+        case .pending, .superseded:
+            return nil
+        }
+    }
+
+    func restorePermissionModeAfterPlanExitIfNeeded(_ pendingApproval: PendingToolApproval) {
+        guard pendingApproval.request.toolName == "ExitPlanMode",
+              pendingApproval.status != .denying,
+              pendingApproval.status != .denied,
+              effectivePermissionMode == "plan" else {
+            return
+        }
+
+        syncRuntimePermissionMode(state.lastNonPlanPermissionMode ?? "default")
+    }
+
+    func clearApprovedExitPlanModeApprovalIfNeeded(toolUseId: String? = nil) {
+        guard let pendingApproval = state.pendingToolApproval,
+              pendingApproval.request.toolName == "ExitPlanMode",
+              pendingApproval.status != .pending,
+              resolvedStatus(for: pendingApproval.status) == .approved,
+              toolUseId == nil || pendingApproval.request.toolUseId == toolUseId else {
+            return
+        }
+
+        // Live hooks unblock Claude immediately, so implementation work can stream
+        // before the terminal token that normally finalizes a deferred approval.
+        // Clear plan-exit approval as soon as the stream proves the exit happened.
+        restorePermissionModeAfterPlanExitIfNeeded(pendingApproval)
+        persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
+        state.pendingToolApproval = nil
+        refreshTranscriptForToolApprovalStatusChanges()
     }
 }

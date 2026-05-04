@@ -22,3 +22,4 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - Keep live tool-approval decisions terminal-aware:
   - **Allow stays active.** Live approval can continue the provider turn, so leave `turnState` active until a terminal event arrives.
   - **Deny ends UI turn.** After a live denial decision is accepted, end the local turn even if Claude's trailing permission-denial token is delayed; later terminal tokens are still safe to process.
+  - **Clear plan exits early.** A live `ExitPlanMode` approval should stop blocking the composer once the stream reports a non-plan permission mode or a successful matching tool result; do not wait for the final token while implementation is already streaming.
