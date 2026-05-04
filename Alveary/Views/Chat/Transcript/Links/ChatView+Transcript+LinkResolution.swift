@@ -2,9 +2,9 @@ import Foundation
 
 extension ChatTranscriptView {
     // Foundation's markdown parser preserves schemeless links like `[text](Alveary/DI/AGENTS.md)`
-    // or `[text](~/Desktop/file.png)` as relative URLs (scheme == nil). SwiftUI's default
-    // `openURL` hands those straight to `NSWorkspace.shared.open(_:)`, which silently no-ops
-    // without a `file://` scheme — so the link does nothing. Handle both shapes here:
+    // or `[text](~/Desktop/file.png)` as relative URLs (scheme == nil). The transcript opener
+    // eventually hands URLs to `NSWorkspace.shared.open(_:)`, which silently no-ops without
+    // a `file://` scheme — so the link does nothing. Handle both shapes here:
     // `~`/`~user` prefixes expand via `NSString.expandingTildeInPath` (URLs don't know about
     // shell home-directory shortcuts), and other relative paths resolve against the thread's
     // working directory. Absolute URLs (https, file, mailto, etc.) pass through unchanged.

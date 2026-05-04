@@ -1,6 +1,4 @@
-import AppKit
 import Foundation
-import SwiftData
 import SwiftUI
 
 let transcriptTopInset: CGFloat = 20
@@ -113,11 +111,6 @@ struct ChatTranscriptView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: isFollowing)
-        .environment(\.openURL, OpenURLAction { url in
-            let resolved = Self.resolveMarkdownLinkURL(url, workingDirectory: workingDirectory)
-            NSWorkspace.shared.open(resolved)
-            return .handled
-        })
     }
 
 }
