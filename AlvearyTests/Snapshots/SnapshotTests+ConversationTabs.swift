@@ -268,7 +268,7 @@ extension SnapshotTests {
         let fixture = try ThreadDetailStatusFixture()
         let host = MountedMacSnapshotHost(
             fixture.view,
-            size: CGSize(width: 760, height: 140)
+            size: CGSize(width: 760, height: 72)
         )
 
         host.assertSnapshot(named: "thread_detail_selected_tab_idle")

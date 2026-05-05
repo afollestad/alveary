@@ -319,20 +319,74 @@ private extension ChatView {
             },
             focusRequestToken: $appState.pendingComposerFocusToken,
             isStopConfirmationArmed: $isStopConfirmationArmed,
+            rendersTopContent: false,
             usesNativeActionRow: true
         )
 
         return AppKitChatComposerPanelConfiguration(
             content: AnyView(content),
+            topContentConfiguration: composerTopContentConfiguration,
             actionRowConfiguration: composerActionRowConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
-            hasTopContent: content.hasTopContent,
+            hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
                 topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
-                actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing
+                actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing,
+                bottomPadding: ChatComposerPanelLayout.nativeActionRowBottomPadding
             )
         )
+    }
+
+    var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
+        var items: [AppKitChatComposerTopContentView.Item] = []
+
+        if let lastTurnError = viewModel.lastTurnError {
+            if viewModel.canRetryFailedSessionHandoff {
+                items.append(.inlineBanner(.init(
+                    message: lastTurnError,
+                    severity: .error,
+                    actionTitle: "Retry",
+                    onAction: {
+                        viewModel.retryFailedSessionHandoff()
+                    },
+                    onDismiss: nil
+                )))
+            } else {
+                items.append(.inlineBanner(.init(
+                    message: lastTurnError,
+                    severity: .error,
+                    actionTitle: nil,
+                    onAction: nil,
+                    onDismiss: {
+                        viewModel.lastTurnError = nil
+                    }
+                )))
+            }
+        }
+
+        if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
+            items.append(.inlineBanner(.init(
+                message: sessionContinuityNotice,
+                severity: .warning,
+                actionTitle: nil,
+                onAction: nil,
+                onDismiss: {
+                    viewModel.sessionContinuityNotice = nil
+                }
+            )))
+        }
+
+        if let stagedContext = viewModel.stagedContext {
+            items.append(.stagedContext(.init(
+                context: stagedContext,
+                onDismiss: {
+                    viewModel.dismissStagedContext()
+                }
+            )))
+        }
+
+        return AppKitChatComposerTopContentView.Configuration(items: items)
     }
 
     var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {

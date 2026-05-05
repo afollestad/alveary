@@ -155,26 +155,180 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertEqual(size.height, 24)
         XCTAssertGreaterThan(size.width, 110)
     }
+
+    func testNarrowRowKeepsSettingsControlsInsideLeadingEdgeAndActionsInsideTrailingEdge() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 340, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                modelOptions: [
+                    .init(value: "sonnet", title: "Sonnet"),
+                    .init(value: "opus", title: "Extremely Wide Model Name")
+                ],
+                supportedEffortLevels: [.init(value: "medium", title: "Medium")],
+                supportedPermissionModes: [.init(value: "default", title: "Default")]
+            )
+        )
+
+        row.layoutSubtreeIfNeeded()
+
+        let menuFrames = row.descendants(of: ComposerMenuButton.self).map { $0.convert($0.bounds, to: row) }
+        XCTAssertFalse(menuFrames.isEmpty)
+        XCTAssertTrue(menuFrames.allSatisfy { $0.minX >= 0 })
+
+        let actionButton = try XCTUnwrap(row.descendants(of: ComposerActionButton.self).first)
+        let actionFrame = actionButton.convert(actionButton.bounds, to: row)
+        XCTAssertLessThanOrEqual(actionFrame.maxX, row.bounds.maxX)
+    }
+
+    func testWideRowPinsAccessoryAndActionControlsToTrailingEdge() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 900, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 10_000,
+                    contextWindowSize: 100_000,
+                    totalCostUsd: 0.12,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                )
+            )
+        )
+
+        row.layoutSubtreeIfNeeded()
+
+        let actionButton = try XCTUnwrap(row.descendants(of: ComposerActionButton.self).first)
+        let actionFrame = actionButton.convert(actionButton.bounds, to: row)
+        XCTAssertEqual(actionFrame.maxX, row.bounds.maxX, accuracy: 1)
+
+        let keyboardButton = try XCTUnwrap(
+            row.descendants(of: ComposerIconButton.self).first {
+                $0.accessibilityLabel() == "Show chat keyboard shortcuts"
+            }
+        )
+        let keyboardFrame = keyboardButton.convert(keyboardButton.bounds, to: row)
+        XCTAssertGreaterThan(keyboardFrame.minX, row.bounds.midX)
+        XCTAssertLessThan(keyboardFrame.maxX, actionFrame.minX)
+
+        let contextIndicator = try XCTUnwrap(row.descendants(of: AppKitContextWindowIndicatorView.self).first)
+        let contextFrame = contextIndicator.convert(contextIndicator.bounds, to: row)
+        XCTAssertGreaterThan(contextFrame.minX, row.bounds.midX)
+        XCTAssertLessThan(contextFrame.maxX, keyboardFrame.minX)
+    }
+
+    func testSessionLocationLabelKeepsIntrinsicWidthWhenDropdownsCompress() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 930, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                showWorktreePicker: false,
+                sessionLocationLabel: "Local",
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 10_000,
+                    contextWindowSize: 100_000,
+                    totalCostUsd: 0.12,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                )
+            )
+        )
+
+        row.layoutSubtreeIfNeeded()
+
+        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Local" })
+        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
+        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
+    }
+
+    func testSessionLocationLabelKeepsIntrinsicWidthWhenRowOverflowsMinimums() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 300, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                showWorktreePicker: false,
+                sessionLocationLabel: "Local",
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 10_000,
+                    contextWindowSize: 100_000,
+                    totalCostUsd: 0.12,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                )
+            )
+        )
+
+        row.layoutSubtreeIfNeeded()
+
+        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Local" })
+        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
+        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
+    }
+
+    func testSessionLocationWorktreeLabelKeepsNaturalWidthWhenDropdownsCompress() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 930, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                showWorktreePicker: false,
+                sessionLocationLabel: "Worktree",
+                usageSummary: ConversationUsageSummary(
+                    contextUsedTokens: 10_000,
+                    contextWindowSize: 100_000,
+                    totalCostUsd: 0.12,
+                    hasReportedUsage: true,
+                    isUsingCachedContextWindow: false
+                )
+            )
+        )
+
+        row.layoutSubtreeIfNeeded()
+
+        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Worktree" })
+        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
+        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
+    }
+
+    func testKeyboardButtonRoutesKeymapAction() throws {
+        let row = ChatComposerActionRowView()
+        var showKeymapCount = 0
+        row.configure(makeConfiguration(mode: .idle, onShowKeymap: { showKeymapCount += 1 }))
+
+        let keyboardButton = try XCTUnwrap(
+            row.descendants(of: ComposerIconButton.self).first {
+                $0.accessibilityLabel() == "Show chat keyboard shortcuts"
+            }
+        )
+        XCTAssertTrue(keyboardButton.accessibilityPerformPress())
+        XCTAssertEqual(showKeymapCount, 1)
+    }
 }
 
 private func makeConfiguration(
     mode: ComposerMode,
+    modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
+    supportedEffortLevels: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
+    showWorktreePicker: Bool = true,
+    sessionLocationLabel: String? = nil,
+    usageSummary: ConversationUsageSummary? = nil,
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
     onSubmit: @escaping () -> Void = {},
-    onStop: @escaping () -> Void = {}
+    onStop: @escaping () -> Void = {},
+    onShowKeymap: @escaping () -> Void = {}
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
-        modelOptions: [.init(value: "sonnet", title: "Sonnet")],
+        modelOptions: modelOptions,
         selectedModel: "sonnet",
-        supportedEffortLevels: [.init(value: "medium", title: "Medium")],
+        supportedEffortLevels: supportedEffortLevels,
         selectedEffort: "medium",
-        supportedPermissionModes: [.init(value: "default", title: "Default")],
+        supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: "default",
-        showWorktreePicker: true,
+        showWorktreePicker: showWorktreePicker,
         selectedUseWorktree: false,
-        sessionLocationLabel: nil,
-        usageSummary: nil,
+        sessionLocationLabel: sessionLocationLabel,
+        usageSummary: usageSummary,
         isTextEditorDisabled: false,
         areControlsDisabled: false,
         mode: mode,
@@ -190,7 +344,7 @@ private func makeConfiguration(
         onUseWorktreeChange: { _ in },
         onSubmit: onSubmit,
         onStop: onStop,
-        onShowKeymap: {}
+        onShowKeymap: onShowKeymap
     )
 }
 
@@ -204,6 +358,15 @@ private extension NSView {
             return matches
         }
     }
+}
+
+@MainActor
+private func measuredTextWidth(for field: NSTextField) -> CGFloat {
+    let font = field.font ?? .preferredFont(forTextStyle: .callout)
+    let textWidth = (field.stringValue as NSString).size(withAttributes: [.font: font]).width
+    let cellWidth = field.cell?.cellSize.width ?? 0
+    let intrinsicWidth = field.intrinsicContentSize.width
+    return ceil(max(textWidth, cellWidth, intrinsicWidth)) + 4
 }
 
 private func mouseEvent(type: NSEvent.EventType = .leftMouseUp, at point: NSPoint) -> NSEvent {

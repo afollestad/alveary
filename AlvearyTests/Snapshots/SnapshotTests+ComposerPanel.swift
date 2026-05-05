@@ -44,6 +44,23 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithNativeTopContent() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                topContentConfiguration: .init(items: [
+                    .stagedContext(.init(
+                        context: "Restoring context from local history.",
+                        onDismiss: {}
+                    ))
+                ]),
+                inputOuterPadding: ChatComposerPanelLayout.nativeInputPaddingWithTop
+            ),
+            size: CGSize(width: 1000, height: 190),
+            named: "appkit_composer_panel_native_top_content",
+            colorScheme: .dark
+        )
+    }
+
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedEffortLevels: ["low", "medium", "high"],
@@ -54,6 +71,16 @@ extension SnapshotTests {
 }
 
 private struct AppKitComposerPanelNativeRowSnapshot: View {
+    let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
+    let inputOuterPadding: EdgeInsets
+    let usageSummary = ConversationUsageSummary(
+        contextUsedTokens: 186_000,
+        contextWindowSize: 200_000,
+        totalCostUsd: 1.42,
+        hasReportedUsage: true,
+        isUsingCachedContextWindow: false
+    )
+
     @State private var text = ""
     @State private var selectedModel = "sonnet"
     @State private var selectedEffort = "medium"
@@ -62,9 +89,18 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
     @State private var focusRequestToken: UUID?
     @State private var isStopConfirmationArmed = false
 
+    init(
+        topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
+        inputOuterPadding: EdgeInsets = ChatComposerPanelLayout.nativeInputPadding
+    ) {
+        self.topContentConfiguration = topContentConfiguration
+        self.inputOuterPadding = inputOuterPadding
+    }
+
     var body: some View {
         AppKitComposerPanelSnapshotRepresentable(
             content: AnyView(content),
+            topContentConfiguration: topContentConfiguration,
             actionRowConfiguration: actionRowConfiguration
         )
     }
@@ -78,7 +114,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             onSteer: {},
             onStop: {},
             isStopConfirmationArmed: $isStopConfirmationArmed,
-            outerPadding: ChatComposerPanelLayout.nativeInputPadding,
+            outerPadding: inputOuterPadding,
             selectedModel: $selectedModel,
             selectedEffort: $selectedEffort,
             selectedPermissionMode: $selectedPermissionMode,
@@ -87,7 +123,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             supportedEffortLevels: ["low", "medium", "high"],
             showWorktreePicker: false,
             sessionLocationLabel: "Local",
-            usageSummary: nil,
+            usageSummary: usageSummary,
             supportsMidTurnSteering: true,
             workingDirectory: "/tmp/alveary",
             loadFileCompletions: { [] },
@@ -114,7 +150,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             showWorktreePicker: false,
             selectedUseWorktree: selectedUseWorktree,
             sessionLocationLabel: "Local",
-            usageSummary: nil,
+            usageSummary: usageSummary,
             isTextEditorDisabled: false,
             areControlsDisabled: false,
             mode: .idle,
@@ -145,6 +181,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
 private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     let content: AnyView
+    let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let actionRowConfiguration: ChatComposerActionRowView.Configuration
 
     func makeNSView(context: Context) -> AppKitChatComposerPanelView {
@@ -160,13 +197,15 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     private var configuration: AppKitChatComposerPanelConfiguration {
         AppKitChatComposerPanelConfiguration(
             content: content,
+            topContentConfiguration: topContentConfiguration,
             actionRowConfiguration: actionRowConfiguration,
             showsTopDivider: true,
             hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
                 topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
-                actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing
+                actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing,
+                bottomPadding: ChatComposerPanelLayout.nativeActionRowBottomPadding
             )
         )
     }

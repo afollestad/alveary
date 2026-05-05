@@ -12,6 +12,7 @@ enum ChatComposerPanelLayout {
     static let verticalPadding: CGFloat = 0
     static let topContentSpacing: CGFloat = 8
     static let actionRowSpacing: CGFloat = 14
+    static let nativeActionRowBottomPadding: CGFloat = 16
     // These are the visible top/bottom clearances inside the SwiftUI composer shell.
     // When AppKit owns the action row, bottom clearance moves to the panel so it
     // sits below the row instead of stacking between the editor and controls.
@@ -74,6 +75,7 @@ struct ChatComposerPanel: View {
             onStop: onStop,
             focusRequestToken: $focusRequestToken,
             isStopConfirmationArmed: $isStopConfirmationArmed,
+            rendersTopContent: true,
             usesNativeActionRow: false
         )
         .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
@@ -118,6 +120,7 @@ struct ChatComposerPanelContent: View {
     let onStop: () -> Void
     @Binding var focusRequestToken: UUID?
     @Binding var isStopConfirmationArmed: Bool
+    let rendersTopContent: Bool
     let usesNativeActionRow: Bool
 
     // Filter the provider's full effort list to those that the current model
@@ -148,39 +151,41 @@ struct ChatComposerPanelContent: View {
 
     var body: some View {
         VStack(spacing: ChatComposerPanelLayout.topContentSpacing) {
-            if let lastTurnError = viewModel.lastTurnError {
-                if viewModel.canRetryFailedSessionHandoff {
+            if rendersTopContent {
+                if let lastTurnError = viewModel.lastTurnError {
+                    if viewModel.canRetryFailedSessionHandoff {
+                        InlineBanner(
+                            message: lastTurnError,
+                            severity: .error,
+                            autoDismissAfter: nil,
+                            actionTitle: "Retry",
+                            onAction: {
+                                viewModel.retryFailedSessionHandoff()
+                            }
+                        )
+                    } else {
+                        InlineBanner(
+                            message: lastTurnError,
+                            severity: .error,
+                            autoDismissAfter: nil,
+                            onDismiss: { viewModel.lastTurnError = nil }
+                        )
+                    }
+                }
+
+                if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
                     InlineBanner(
-                        message: lastTurnError,
-                        severity: .error,
+                        message: sessionContinuityNotice,
+                        severity: .warning,
                         autoDismissAfter: nil,
-                        actionTitle: "Retry",
-                        onAction: {
-                            viewModel.retryFailedSessionHandoff()
-                        }
-                    )
-                } else {
-                    InlineBanner(
-                        message: lastTurnError,
-                        severity: .error,
-                        autoDismissAfter: nil,
-                        onDismiss: { viewModel.lastTurnError = nil }
+                        onDismiss: { viewModel.sessionContinuityNotice = nil }
                     )
                 }
-            }
 
-            if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
-                InlineBanner(
-                    message: sessionContinuityNotice,
-                    severity: .warning,
-                    autoDismissAfter: nil,
-                    onDismiss: { viewModel.sessionContinuityNotice = nil }
-                )
-            }
-
-            if let stagedContext = viewModel.stagedContext {
-                StagedContextBanner(context: stagedContext) {
-                    viewModel.dismissStagedContext()
+                if let stagedContext = viewModel.stagedContext {
+                    StagedContextBanner(context: stagedContext) {
+                        viewModel.dismissStagedContext()
+                    }
                 }
             }
 

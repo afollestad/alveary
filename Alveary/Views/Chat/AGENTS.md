@@ -21,6 +21,11 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
     - **Keep shell chrome native.** Transparent outer background, horizontal
       padding, top-content vertical offset, top divider, and panel measurement
       belong there.
+    - **Own production top content.** Last-turn errors, session-continuity
+      notices, and staged-context banners render through native AppKit top
+      content in the production panel so their height and hit testing share the
+      editor/action-row coordinate space. Legacy SwiftUI composer snapshots may
+      still render those rows inside `ChatComposerPanelContent`.
     - **Own production action-row placement.** Active `ChatView` routes
       `ChatComposerActionRowView` through the AppKit panel so editor/action-row
       spacing is measured natively. Legacy SwiftUI composer snapshots may still
@@ -35,8 +40,8 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 - Long static user and assistant bubbles should keep exact AppKit markdown measurement for frame/clipping/fade controls. Keep Show more/less on the AppKit header toggle; do not add bubble-wide gestures or nested vertical scroll views.
 - `attachComposerChips(to:)` skips any attributed-string range that already carries a markdown `.link`, a `.codeBlock` block-level `presentationIntent` (fenced code block), or a `.code` `inlinePresentationIntent` (backtick inline code). The inline-code guard is load-bearing: `composerTextChips` is invoked with the *parsed* flat string (backticks stripped), so the helper's own `codeRanges`-based filter returns nothing to exclude. Without the guard, a user writing `` `@path/to/file.swift` `` would have their inline code clobbered by a composer chip that truncates the path to `@file.swift`. Keep each condition; each covers a distinct case.
 - Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small while still letting composer/autocomplete z-order stay local to the panel.
-- Composer panel top/bottom clearance should come from `ChatComposerPanelLayout.inputOuterPadding`, not additional panel vertical padding. Stacking both doubles the visible inset between the divider and editor, and between the action row and panel bottom.
-- `StagedContextBanner` lives in `ChatComposerPanel+StagedContextBanner.swift`; keep staged context above the composer without introducing transcript rows.
+- Composer panel top/bottom clearance should have one owner per edge. While `ChatInputField` still hosts the editor, top/editor clearance comes from `ChatComposerPanelLayout.inputOuterPadding`; when AppKit owns the native action row, bottom clearance comes from the panel layout so `inputOuterPadding.bottom` does not stack between the editor and controls.
+- Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`; the SwiftUI `StagedContextBanner` remains only for legacy composer snapshots. Keep staged context above the composer without introducing transcript rows.
 - Do not reintroduce a changed-files strip above the composer. Diff status belongs in the main toolbar button that opens the Diff Viewer, so changed-file loading cannot alter transcript/composer height or leave stale transcript measurements.
 
 ## Interaction Contracts

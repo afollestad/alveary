@@ -3,19 +3,25 @@ import SwiftUI
 
 struct AppKitChatComposerPanelConfiguration {
     let content: AnyView
+    let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let actionRowConfiguration: ChatComposerActionRowView.Configuration?
     let showsTopDivider: Bool
+    /// True only for legacy hosted SwiftUI content that still renders its own
+    /// top-content rows. Native top content is measured by
+    /// `topContentConfiguration` instead.
     let hasTopContent: Bool
     let layout: AppKitChatComposerPanelView.Layout
 
     init(
         content: AnyView,
+        topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
         actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
         showsTopDivider: Bool,
         hasTopContent: Bool,
         layout: AppKitChatComposerPanelView.Layout
     ) {
         self.content = content
+        self.topContentConfiguration = topContentConfiguration
         self.actionRowConfiguration = actionRowConfiguration
         self.showsTopDivider = showsTopDivider
         self.hasTopContent = hasTopContent
@@ -35,9 +41,26 @@ final class AppKitChatComposerPanelView: NSView {
         let horizontalPadding: NSEdgeInsets
         let topContentSpacing: CGFloat
         let actionRowSpacing: CGFloat
+        /// Clearance below the native action row. Keep this out of the hosted
+        /// editor padding so the editor-to-controls gap stays at
+        /// `actionRowSpacing`.
+        let bottomPadding: CGFloat
+
+        init(
+            horizontalPadding: NSEdgeInsets,
+            topContentSpacing: CGFloat,
+            actionRowSpacing: CGFloat,
+            bottomPadding: CGFloat = 0
+        ) {
+            self.horizontalPadding = horizontalPadding
+            self.topContentSpacing = topContentSpacing
+            self.actionRowSpacing = actionRowSpacing
+            self.bottomPadding = bottomPadding
+        }
     }
 
     private let contentHost = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
+    private let topContentView = AppKitChatComposerTopContentView()
     private let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
 
@@ -72,6 +95,7 @@ final class AppKitChatComposerPanelView: NSView {
 
     func configure(_ configuration: AppKitChatComposerPanelConfiguration) {
         self.configuration = configuration
+        topContentView.configure(configuration.topContentConfiguration)
         contentHost.rootView = configuration.content
         configureActionRow(configuration.actionRowConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
@@ -91,18 +115,31 @@ final class AppKitChatComposerPanelView: NSView {
         }
 
         let contentWidth = contentWidth(for: bounds.width, layout: configuration.layout)
-        let topPadding = topPadding(for: configuration)
+        var currentY = topPadding(for: configuration)
+        if topContentView.hasContent {
+            let topContentHeight = measuredHeight(of: topContentView, width: contentWidth)
+            topContentView.frame = NSRect(
+                x: configuration.layout.horizontalPadding.left,
+                y: currentY,
+                width: contentWidth,
+                height: topContentHeight
+            )
+            currentY += topContentHeight + configuration.layout.topContentSpacing
+        } else {
+            topContentView.frame = .zero
+        }
         let contentHeight = measuredHeight(of: contentHost, width: contentWidth)
         contentHost.frame = NSRect(
             x: configuration.layout.horizontalPadding.left,
-            y: topPadding,
+            y: currentY,
             width: contentWidth,
             height: contentHeight
         )
+        currentY += contentHeight
         if configuration.actionRowConfiguration != nil {
             actionRow.frame = NSRect(
                 x: configuration.layout.horizontalPadding.left,
-                y: topPadding + contentHeight + configuration.layout.actionRowSpacing,
+                y: currentY + configuration.layout.actionRowSpacing,
                 width: contentWidth,
                 height: actionRow.intrinsicContentSize.height
             )
@@ -111,6 +148,7 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     private func setupViews() {
+        addSubview(topContentView)
         contentHost.configureChatSurfaceSizing()
         contentHost.onPreferredSizeInvalidated = { [weak self] in
             self?.invalidateIntrinsicContentSize()
@@ -171,7 +209,7 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     private func topPadding(for configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
-        configuration.hasTopContent ? configuration.layout.topContentSpacing : 0
+        configuration.hasTopContent || topContentView.hasContent ? configuration.layout.topContentSpacing : 0
     }
 
     private func updateColors() {
@@ -183,9 +221,13 @@ final class AppKitChatComposerPanelView: NSView {
             return 0
         }
         let contentWidth = contentWidth(for: width, layout: configuration.layout)
-        var height = topPadding(for: configuration) + measuredHeight(of: contentHost, width: contentWidth)
+        var height = topPadding(for: configuration)
+        if topContentView.hasContent {
+            height += measuredHeight(of: topContentView, width: contentWidth) + configuration.layout.topContentSpacing
+        }
+        height += measuredHeight(of: contentHost, width: contentWidth)
         if configuration.actionRowConfiguration != nil {
-            height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height
+            height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height + configuration.layout.bottomPadding
         }
         return ceil(height)
     }

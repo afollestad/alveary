@@ -14,6 +14,16 @@ final class AppKitChatSurfaceView: NSView {
         true
     }
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupClipping()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupClipping()
+    }
+
     func configure(contentView newContentView: NSView, composerView newComposerView: NSView) {
         if contentView !== newContentView {
             clearHostedInvalidation(contentView)
@@ -82,6 +92,14 @@ final class AppKitChatSurfaceView: NSView {
             return
         }
         hostedView.onPreferredSizeInvalidated = nil
+    }
+
+    private func setupClipping() {
+        // Hosted SwiftUI content can draw outside the AppKit frame we assign
+        // during the transcript/composer split. Clip at this boundary so empty
+        // states and transcript content cannot bleed under thread tabs.
+        wantsLayer = true
+        layer?.masksToBounds = true
     }
 }
 

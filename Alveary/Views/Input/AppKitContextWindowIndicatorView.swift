@@ -1,0 +1,297 @@
+import AppKit
+
+/// Native context-window meter used by AppKit composer controls.
+///
+/// Keep this native so the composer action row does not embed SwiftUI islands
+/// inside AppKit layout.
+@MainActor
+final class AppKitContextWindowIndicatorView: NSView {
+    private var summary: ConversationUsageSummary?
+    private var trackingArea: NSTrackingArea?
+    private var hoverPopover: NSPopover?
+    // Keep the visible ring smaller than the hover target so it matches the
+    // SwiftUI indicator while preserving the wider AppKit hit area.
+    private let hitTargetSize: CGFloat = 22
+    private let circleDiameter: CGFloat = 14
+    private let strokeWidth: CGFloat = 3
+
+    override var isFlipped: Bool { true }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: hitTargetSize, height: hitTargetSize)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Context window usage")
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Context window usage")
+    }
+
+    func configure(summary: ConversationUsageSummary?) {
+        self.summary = summary
+        isHidden = summary == nil
+        setAccessibilityValue(summary.map(Self.accessibilityValue(for:)) ?? "")
+        if summary == nil {
+            closeHoverPopover()
+        } else if hoverPopover?.isShown == true {
+            showHoverPopover()
+        }
+        needsDisplay = true
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let newTrackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self
+        )
+        trackingArea = newTrackingArea
+        addTrackingArea(newTrackingArea)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        showHoverPopover()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        closeHoverPopover()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        hoverPopover?.contentViewController?.view.needsDisplay = true
+        needsDisplay = true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            closeHoverPopover()
+        }
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        if superview == nil {
+            closeHoverPopover()
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let summary else {
+            return
+        }
+
+        let circleRect = NSRect(
+            x: floor((bounds.width - circleDiameter) / 2),
+            y: floor((bounds.height - circleDiameter) / 2),
+            width: circleDiameter,
+            height: circleDiameter
+        )
+        let basePath = NSBezierPath(ovalIn: circleRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2))
+        basePath.lineWidth = strokeWidth
+        NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: 0.28).setStroke()
+        basePath.stroke()
+
+        let progressPath = NSBezierPath()
+        let radius = (circleDiameter - strokeWidth) / 2
+        let center = NSPoint(x: circleRect.midX, y: circleRect.midY)
+        progressPath.appendArc(
+            withCenter: center,
+            radius: radius,
+            startAngle: 90,
+            endAngle: 90 - (360 * summary.contextUsageFraction),
+            clockwise: true
+        )
+        progressPath.lineCapStyle = .round
+        progressPath.lineWidth = strokeWidth
+        progressColor(for: summary).setStroke()
+        progressPath.stroke()
+    }
+
+    private func progressColor(for summary: ConversationUsageSummary) -> NSColor {
+        switch summary.contextUsageFraction {
+        case 0.9...:
+            return .systemRed
+        case 0.75..<0.9:
+            return .systemOrange
+        default:
+            return .secondaryLabelColor.appKitResolvedColor(in: self)
+        }
+    }
+
+    private func showHoverPopover() {
+        guard let summary, window != nil else {
+            return
+        }
+        closeHoverPopover()
+
+        let popover = NSPopover()
+        let tooltipView = AppKitContextWindowTooltipView(summary: summary)
+        tooltipView.frame = NSRect(origin: .zero, size: tooltipView.preferredSize)
+        let controller = NSViewController()
+        controller.view = tooltipView
+        popover.contentViewController = controller
+        popover.contentSize = tooltipView.frame.size
+        popover.behavior = .transient
+        popover.animates = true
+        popover.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
+        hoverPopover = popover
+    }
+
+    private func closeHoverPopover() {
+        hoverPopover?.close()
+        hoverPopover = nil
+    }
+
+    private static func accessibilityValue(for summary: ConversationUsageSummary) -> String {
+        if summary.hasReportedUsage {
+            return "\(summary.contextUsagePercent)% full"
+        }
+        return "No usage reported yet"
+    }
+}
+
+private final class AppKitContextWindowTooltipView: NSView {
+    private let titleField = NSTextField(labelWithString: "Context window:")
+    private let headlineField = NSTextField(labelWithString: "")
+    private let detailField = NSTextField(labelWithString: "")
+    private let costField = NSTextField(labelWithString: "")
+    private let horizontalInset: CGFloat = 16
+    private let verticalInset: CGFloat = 16
+    private let titleHeadlineSpacing: CGFloat = 8
+    private let bodySpacing: CGFloat = 8
+
+    override var isFlipped: Bool { true }
+
+    var preferredSize: NSSize {
+        let contentWidth = [titleField, headlineField, detailField, costField]
+            .map { ceil($0.intrinsicContentSize.width) }
+            .max() ?? 0
+        return NSSize(
+            width: contentWidth + (horizontalInset * 2),
+            height: verticalInset * 2 +
+                titleFieldHeight +
+                titleHeadlineSpacing +
+                headlineFieldHeight +
+                bodySpacing +
+                detailFieldHeight +
+                bodySpacing +
+                costFieldHeight
+        )
+    }
+
+    init(summary: ConversationUsageSummary) {
+        super.init(frame: .zero)
+        setup()
+        configure(summary: summary)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    override func layout() {
+        super.layout()
+        let contentWidth = bounds.width - (horizontalInset * 2)
+        var nextY = verticalInset
+        titleField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: titleFieldHeight)
+        nextY += titleFieldHeight + titleHeadlineSpacing
+        headlineField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: headlineFieldHeight)
+        nextY += headlineFieldHeight + bodySpacing
+        detailField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: detailFieldHeight)
+        nextY += detailFieldHeight + bodySpacing
+        costField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: costFieldHeight)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        NSColor.windowBackgroundColor.appKitResolvedColor(in: self, alpha: 0.98).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 12, yRadius: 12).fill()
+    }
+
+    private func setup() {
+        [titleField, headlineField, detailField, costField].forEach {
+            $0.alignment = .center
+            $0.lineBreakMode = .byTruncatingTail
+            addSubview($0)
+        }
+        titleField.font = Self.preferredFont(for: .callout, weight: .semibold)
+        titleField.textColor = .secondaryLabelColor
+        headlineField.font = Self.preferredFont(for: .headline, weight: .semibold)
+        headlineField.textColor = .labelColor
+        detailField.font = Self.preferredFont(for: .callout, weight: .semibold)
+        detailField.textColor = .labelColor
+        costField.font = Self.preferredFont(for: .callout, weight: .semibold)
+        costField.textColor = .secondaryLabelColor
+    }
+
+    private func configure(summary: ConversationUsageSummary) {
+        if summary.hasReportedUsage {
+            headlineField.stringValue = "\(summary.contextUsagePercent)% full"
+            detailField.stringValue = "\(Self.tokenText(summary.contextUsedTokens)) / \(Self.tokenText(summary.contextWindowSize)) tokens used"
+        } else {
+            headlineField.stringValue = "No usage yet"
+            detailField.stringValue = "\(Self.tokenText(summary.contextWindowSize)) token window"
+        }
+        costField.stringValue = "Session spend: \(Self.costText(summary.totalCostUsd))"
+    }
+
+    private static func tokenText(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return compactDecimal(Double(value) / 1_000_000) + "M"
+        }
+        if value >= 1_000 {
+            return compactDecimal(Double(value) / 1_000) + "k"
+        }
+        return value.formatted()
+    }
+
+    private static func compactDecimal(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
+    }
+
+    private static func costText(_ value: Double) -> String {
+        if value > 0, value < 0.01 {
+            return String(format: "$%.4f", value)
+        }
+        return String(format: "$%.2f", value)
+    }
+
+    private static func preferredFont(for textStyle: NSFont.TextStyle, weight: NSFont.Weight) -> NSFont {
+        NSFont.systemFont(ofSize: NSFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
+    }
+
+    private var titleFieldHeight: CGFloat {
+        ceil(titleField.intrinsicContentSize.height)
+    }
+
+    private var headlineFieldHeight: CGFloat {
+        ceil(headlineField.intrinsicContentSize.height)
+    }
+
+    private var detailFieldHeight: CGFloat {
+        ceil(detailField.intrinsicContentSize.height)
+    }
+
+    private var costFieldHeight: CGFloat {
+        ceil(costField.intrinsicContentSize.height)
+    }
+}

@@ -8,12 +8,14 @@
 class AppKitDynamicColorView: NSView {
     private var fillColorProvider: ((NSAppearance) -> NSColor?)?
     private var fillAlpha: CGFloat = 1
+    private var fillPreservesResolvedAlpha = false
     private var strokeColorProvider: ((NSAppearance) -> NSColor?)?
     private var strokeAlpha: CGFloat = 1
 
     func setLayerFillColor(_ color: NSColor?, alpha: CGFloat = 1) {
         fillColorProvider = { _ in color }
         fillAlpha = alpha
+        fillPreservesResolvedAlpha = false
         refreshDynamicLayerColors()
     }
 
@@ -26,6 +28,14 @@ class AppKitDynamicColorView: NSView {
     func setLayerFillColor(alpha: CGFloat = 1, provider: @escaping (NSAppearance) -> NSColor?) {
         fillColorProvider = provider
         fillAlpha = alpha
+        fillPreservesResolvedAlpha = false
+        refreshDynamicLayerColors()
+    }
+
+    func setLayerFillColorPreservingResolvedAlpha(provider: @escaping (NSAppearance) -> NSColor?) {
+        fillColorProvider = provider
+        fillAlpha = 1
+        fillPreservesResolvedAlpha = true
         refreshDynamicLayerColors()
     }
 
@@ -50,7 +60,10 @@ class AppKitDynamicColorView: NSView {
             return
         }
         let appearance = appKitRenderingAppearance
-        layer?.backgroundColor = fillColorProvider?(appearance)?.appKitResolvedCGColor(in: self, alpha: fillAlpha)
+        let fillColor = fillColorProvider?(appearance)
+        layer?.backgroundColor = fillPreservesResolvedAlpha ?
+            fillColor?.resolved(for: appearance).cgColor :
+            fillColor?.appKitResolvedCGColor(in: self, alpha: fillAlpha)
         layer?.borderColor = strokeColorProvider?(appearance)?.appKitResolvedCGColor(in: self, alpha: strokeAlpha)
     }
 }

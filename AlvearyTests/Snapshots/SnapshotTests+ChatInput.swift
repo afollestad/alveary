@@ -161,24 +161,6 @@ extension SnapshotTests {
         )
     }
 
-    func testContextWindowIndicatorHoverPopupWithSpend() {
-        assertMacSnapshot(
-            ContextWindowIndicator(
-                summary: ConversationUsageSummary(
-                    contextUsedTokens: 186_000,
-                    contextWindowSize: 200_000,
-                    totalCostUsd: 1.42,
-                    hasReportedUsage: true,
-                    isUsingCachedContextWindow: false
-                ),
-                showsTooltipOverride: true
-            )
-            .frame(width: 320, height: 180, alignment: .bottom),
-            size: CGSize(width: 320, height: 180),
-            named: "context_window_indicator_hover_popup"
-        )
-    }
-
     func testChatInputFieldBusyStopConfirm() {
         assertMacSnapshot(
             ChatInputField(

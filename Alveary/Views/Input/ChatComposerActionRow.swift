@@ -123,25 +123,27 @@ final class ChatComposerActionRowView: NSView {
     private let effortMenu = ComposerMenuButton()
     private let permissionMenu = ComposerMenuButton()
     private let worktreeMenu = ComposerMenuButton()
-    private let sessionLocationField = NSTextField(labelWithString: "")
-    private let spacer = NSView()
-    // Keep the remaining SwiftUI island explicit: `ContextWindowIndicator`
-    // still owns the tooltip's native-looking background and anchor behavior.
-    // Replace this host only after a native tooltip matches those visuals.
-    private let contextIndicatorHost = NSHostingView(rootView: AnyView(EmptyView()))
+    let sessionLocationField = NSTextField(labelWithString: "")
+    // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
+    // frame logic out of this already-large view type without widening behavior.
+    let spacer = NSView()
+    private let contextIndicatorView = AppKitContextWindowIndicatorView()
     private let keyboardButton = ComposerIconButton(symbolName: "keyboard")
     private let primaryButton = ComposerActionButton(style: .primary)
     private let stopButton = ComposerActionButton(style: .destructive)
-    private let disabledSendSlot = ComposerActionButton(style: .primary)
-    private let disabledProgressContainer = NSView()
+    let disabledSendSlot = ComposerActionButton(style: .primary)
+    let disabledProgressContainer = NSView()
     private let progressIndicator = NSProgressIndicator()
     private let disabledSlotProgressIndicator = NSProgressIndicator()
     private let progressLabel = NSTextField(labelWithString: "")
     private let progressStack = NSStackView()
-    private let stack = NSStackView()
+    let stack = NSView()
+    var rowSubviews: [NSView] = []
 
-    private var configuration: Configuration?
+    var configuration: Configuration?
     private var progressStackHeightConstraint: NSLayoutConstraint?
+    let rowSpacing: CGFloat = 10
+    let minimumSettingsControlWidth: CGFloat = 44
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -155,6 +157,11 @@ final class ChatComposerActionRowView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: configuration?.composerActionRowHeight ?? Self.defaultHeight)
+    }
+
+    override func layout() {
+        super.layout()
+        layoutArrangedSubviews()
     }
 
     func configure(_ configuration: Configuration) {
@@ -173,9 +180,6 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func setupStack() {
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -199,11 +203,11 @@ final class ChatComposerActionRowView: NSView {
     private func setupAccessoryViews() {
         sessionLocationField.font = .preferredFont(forTextStyle: .callout)
         sessionLocationField.textColor = .secondaryLabelColor
-        sessionLocationField.lineBreakMode = .byTruncatingMiddle
+        sessionLocationField.lineBreakMode = .byTruncatingTail
         sessionLocationField.maximumNumberOfLines = 1
 
-        contextIndicatorHost.translatesAutoresizingMaskIntoConstraints = false
-        contextIndicatorHost.setContentHuggingPriority(.required, for: .horizontal)
+        contextIndicatorView.translatesAutoresizingMaskIntoConstraints = false
+        contextIndicatorView.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func setupActions() {
@@ -275,6 +279,7 @@ final class ChatComposerActionRowView: NSView {
         applyActionConfiguration(configuration)
         rebuildArrangedSubviews(configuration)
         invalidateIntrinsicContentSize()
+        needsLayout = true
     }
 
     private func applyMenuConfiguration(_ configuration: Configuration) {
@@ -315,13 +320,7 @@ final class ChatComposerActionRowView: NSView {
         sessionLocationField.stringValue = configuration.sessionLocationLabel ?? ""
         sessionLocationField.toolTip = configuration.sessionLocationLabel
 
-        contextIndicatorHost.rootView = AnyView(
-            Group {
-                if let usageSummary = configuration.usageSummary {
-                    ContextWindowIndicator(summary: usageSummary)
-                }
-            }
-        )
+        contextIndicatorView.configure(summary: configuration.usageSummary)
         keyboardButton.isHidden = configuration.isTextEditorDisabled
     }
 
@@ -350,61 +349,63 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func rebuildArrangedSubviews(_ configuration: Configuration) {
-        stack.arrangedSubviews.forEach {
-            stack.removeArrangedSubview($0)
-            $0.removeFromSuperview()
-        }
+        rowSubviews.forEach { $0.removeFromSuperview() }
+        rowSubviews = []
 
         addSettingsControls(for: configuration)
-        stack.addArrangedSubview(spacer)
+        addRowSubview(spacer)
         addAccessoryControls(for: configuration)
         addActionControls(for: configuration)
     }
 
     private func addSettingsControls(for configuration: Configuration) {
-        stack.addArrangedSubview(modelMenu)
+        addRowSubview(modelMenu)
         if !configuration.supportedEffortLevels.isEmpty {
-            stack.addArrangedSubview(effortMenu)
+            addRowSubview(effortMenu)
         }
         if !configuration.supportedPermissionModes.isEmpty {
-            stack.addArrangedSubview(permissionMenu)
+            addRowSubview(permissionMenu)
         }
         if configuration.showWorktreePicker {
-            stack.addArrangedSubview(worktreeMenu)
+            addRowSubview(worktreeMenu)
         } else if configuration.sessionLocationLabel != nil {
-            stack.addArrangedSubview(sessionLocationField)
+            addRowSubview(sessionLocationField)
         }
     }
 
     private func addAccessoryControls(for configuration: Configuration) {
-        if configuration.usageSummary != nil || !configuration.isTextEditorDisabled {
-            let indicatorStack = NSStackView()
-            indicatorStack.orientation = .horizontal
-            indicatorStack.alignment = .centerY
-            indicatorStack.spacing = configuration.contextIndicatorKeyboardSpacing
-            if configuration.usageSummary != nil {
-                indicatorStack.addArrangedSubview(contextIndicatorHost)
-            }
-            if !configuration.isTextEditorDisabled {
-                indicatorStack.addArrangedSubview(keyboardButton)
-            }
-            stack.addArrangedSubview(indicatorStack)
+        guard configuration.usageSummary != nil || !configuration.isTextEditorDisabled else {
+            return
         }
+
+        let accessoryGroup = ChatComposerAccessoryGroupView(spacing: configuration.contextIndicatorKeyboardSpacing)
+        if configuration.usageSummary != nil {
+            accessoryGroup.addAccessory(contextIndicatorView)
+        }
+        if !configuration.isTextEditorDisabled {
+            accessoryGroup.addAccessory(keyboardButton)
+        }
+        addRowSubview(accessoryGroup)
     }
 
     private func addActionControls(for configuration: Configuration) {
         switch configuration.mode {
         case .idle:
-            stack.addArrangedSubview(primaryButton)
+            addRowSubview(primaryButton)
         case .busy(let canStop):
-            stack.addArrangedSubview(canStop ? stopButton : disabledProgressSlot())
+            addRowSubview(canStop ? stopButton : disabledProgressSlot())
         case .progressOnly(let reason):
             if reason.canStop {
-                stack.addArrangedSubview(stopButton)
+                addRowSubview(stopButton)
             } else {
-                stack.addArrangedSubview(progressStack)
+                addRowSubview(progressStack)
             }
         }
+    }
+
+    private func addRowSubview(_ view: NSView) {
+        rowSubviews.append(view)
+        stack.addSubview(view)
     }
 
     private func disabledProgressSlot() -> NSView {
@@ -421,5 +422,63 @@ final class ChatComposerActionRowView: NSView {
             return ""
         }
         return ChatInputFieldTextSupport.progressLabel(for: reason)
+    }
+}
+
+private final class ChatComposerAccessoryGroupView: NSView {
+    private let spacing: CGFloat
+    private var accessories: [NSView] = []
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard !accessories.isEmpty else {
+            return .zero
+        }
+
+        let widths = accessories
+            .map(\.intrinsicContentSize.width)
+            .filter { $0 != NSView.noIntrinsicMetric }
+        let heights = accessories
+            .map(\.intrinsicContentSize.height)
+            .filter { $0 != NSView.noIntrinsicMetric }
+        return NSSize(
+            width: widths.reduce(0, +) + spacing * CGFloat(max(0, accessories.count - 1)),
+            height: heights.max() ?? 0
+        )
+    }
+
+    init(spacing: CGFloat) {
+        self.spacing = spacing
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    func addAccessory(_ view: NSView) {
+        accessories.append(view)
+        addSubview(view)
+        invalidateIntrinsicContentSize()
+    }
+
+    override func layout() {
+        super.layout()
+        var nextX: CGFloat = 0
+        for view in accessories {
+            let size = view.intrinsicContentSize
+            let width = size.width == NSView.noIntrinsicMetric ? view.fittingSize.width : size.width
+            let height = size.height == NSView.noIntrinsicMetric ? bounds.height : size.height
+            view.frame = NSRect(
+                x: nextX,
+                y: floor((bounds.height - height) / 2),
+                width: width,
+                height: height
+            )
+            nextX += width + spacing
+        }
     }
 }
