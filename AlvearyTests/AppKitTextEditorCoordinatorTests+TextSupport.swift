@@ -378,6 +378,7 @@ extension AppKitTextEditorCoordinatorTests {
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
         textView.string = "/review-github-pr "
+        textView.updateTextContainerForCurrentBounds()
 
         guard let hintRect = textView.inlineHintDrawingRect() else {
             return XCTFail("Expected inline hint drawing rect")
@@ -483,18 +484,15 @@ extension AppKitTextEditorCoordinatorTests {
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
         textView.string = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
-
+        textView.updateTextContainerForCurrentBounds()
         let chip = AppTextEditorChip(
             range: NSRange(location: 8, length: 41),
             displayText: "@ChatInputField.swift",
             style: .fileMention
         )
         textView.textChips = [chip]
-
         XCTAssertEqual(textView.textChipDisplayMode(for: chip), .compactLabel("@ChatInputField.swift"))
-
         textView.setSelectedRange(NSRange(location: 20, length: 0))
-
         XCTAssertEqual(textView.textChipDisplayMode(for: chip), .fullText)
     }
 }

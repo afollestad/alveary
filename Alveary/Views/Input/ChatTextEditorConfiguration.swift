@@ -1,8 +1,11 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-/// Configuration passed through the temporary native-editor bridge while the
-/// composer root is still SwiftUI-hosted.
+/// Renderer-neutral configuration for the native composer text editor.
+///
+/// SwiftUI wrappers and future native composer surfaces pass this value into
+/// `ChatTextEditorView`, keeping chip styling, key handling, and focus requests
+/// on the same AppKit editor path.
 struct ChatTextEditorConfiguration {
     var text: String
     var selectedRange: NSRange?

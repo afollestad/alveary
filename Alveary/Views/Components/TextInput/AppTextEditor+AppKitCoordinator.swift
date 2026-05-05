@@ -45,9 +45,10 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         textView.placeholder = parent.placeholder ?? ""
         textView.inlineHint = parent.inlineHint
         textView.disablesAppKitDragDestination = parent.disablesAppKitDragDestination
+        textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
+        textView.updateTextContainerForCurrentBounds()
         syncInlineCodePresentation(for: textView)
         syncTextChipPresentation(for: textView)
-        textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
         applyTextHighlights()
         textView.refreshInlineHintView()
         textView.needsDisplay = true
@@ -64,6 +65,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
 
         suppressCallbacks = true
         textView.string = parent.text
+        textView.markTextLayoutNeedsPriming()
         if let layoutManager = textView.layoutManager {
             layoutManager.invalidateLayout(
                 forCharacterRange: NSRange(location: 0, length: (textView.string as NSString).length),
@@ -268,7 +270,9 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         if abs(textView.frame.width - availableWidth) > 0.5 {
             textView.frame.size.width = availableWidth
         }
-        textContainer.containerSize = NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude)
+        guard textView.updateTextContainerForCurrentBounds() else {
+            return
+        }
 
         let shouldDeferHeightUpdate = needsFullTextLayoutForMeasurement
         if needsFullTextLayoutForMeasurement {
@@ -277,7 +281,9 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             layoutManager.ensureGlyphs(forCharacterRange: fullRange)
             layoutManager.ensureLayout(forCharacterRange: fullRange)
         }
-        layoutManager.ensureLayout(for: textContainer)
+        guard textView.primeTextLayoutForDrawing() else {
+            return
+        }
         let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
         let usedHeight = layoutManager.usedRect(for: textContainer).height
         let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))

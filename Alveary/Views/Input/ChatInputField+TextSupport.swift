@@ -109,12 +109,15 @@ enum ChatInputFieldTextSupport {
         ensureLeadingSpace: Bool = false
     ) -> (text: String, insertionOffset: Int) {
         var inserted = replacement
-        let lowerIndex = index(at: offsets.lowerBound, in: sourceText)
-        let upperIndex = index(at: offsets.upperBound, in: sourceText)
+        let sourceLength = textLength(in: sourceText)
+        let lowerOffset = min(max(0, offsets.lowerBound), sourceLength)
+        let upperOffset = min(max(lowerOffset, offsets.upperBound), sourceLength)
+        let lowerIndex = index(at: lowerOffset, in: sourceText)
+        let upperIndex = index(at: upperOffset, in: sourceText)
 
         if ensureLeadingSpace,
-           offsets.lowerBound > 0 {
-            let previousIndex = index(at: offsets.lowerBound - 1, in: sourceText)
+           lowerOffset > 0 {
+            let previousIndex = index(at: lowerOffset - 1, in: sourceText)
             if !sourceText[previousIndex].isWhitespace {
                 inserted = " " + inserted
             }
@@ -128,7 +131,7 @@ enum ChatInputFieldTextSupport {
 
         var newText = sourceText
         newText.replaceSubrange(lowerIndex..<upperIndex, with: inserted)
-        let insertionOffset = offsets.lowerBound + textLength(in: inserted)
+        let insertionOffset = lowerOffset + textLength(in: inserted)
         return (newText, insertionOffset)
     }
 

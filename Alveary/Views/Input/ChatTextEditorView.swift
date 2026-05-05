@@ -1,25 +1,28 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-/// Native chat/composer text editor that owns measurement, selection styling,
-/// first-responder handoff, and AppKit text-chip/code highlighting.
-///
-/// This stays AppKit-owned because Alveary's variable-height transcript and
-/// composer UX needs deterministic measurement and first-responder control;
-/// SwiftUI lazy/recycling behavior caused scroll-position and performance issues
-/// here.
+/// AppKit-owned chat/composer editor for measurement, selection styling, first-responder handoff,
+/// and highlighting.
 @MainActor
 final class ChatTextEditorView: NSView, NSTextViewDelegate {
-    private let scrollView = AppKitTextEditorScrollView()
-    private let textView = AppKitTextView(frame: .zero)
-    private var configuration = ChatTextEditorConfiguration(text: "")
-    private var suppressCallbacks = false
-    private var lastMeasuredHeight: CGFloat = 0
-    private var lastLaidOutTextWidth: CGFloat = 0
+    let scrollView = AppKitTextEditorScrollView()
+    let textView = AppKitTextView(frame: .zero)
+    var configuration = ChatTextEditorConfiguration(text: "")
+    var suppressCallbacks = false
+    var lastMeasuredHeight: CGFloat = 0
+    var lastLaidOutTextWidth: CGFloat = 0
     private var lastConsumedFocusRequestToken: UUID?
     private var lastReportedFocus: Bool?
     private var firstResponderClaimInFlight = false
-    private var selectionRestyleScheduled = false
+    var selectionRestyleScheduled = false
+    var heightRecalculationScheduled = false
+    var isMeasuringLayout = false
+    var lastAppliedStylingFingerprint: ChatTextEditorStylingFingerprint?
+    var lastAppliedTypingFingerprint: ChatTextEditorTypingFingerprint?
+    #if DEBUG
+    var presentationApplyCountForTesting = 0
+    var typingAttrsApplyCountForTesting = 0
+    #endif
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -30,10 +33,10 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         super.init(coder: coder)
         setupViews()
     }
+    var textViewForTesting: AppKitTextView { textView }
+    var textViewForHitTesting: AppKitTextView { textView }
 
-    var textViewForTesting: AppKitTextView {
-        textView
-    }
+    override func mouseDown(with event: NSEvent) { focusTextViewForMouseDown(event) }
 
     func configure(_ configuration: ChatTextEditorConfiguration) {
         self.configuration = configuration
@@ -42,11 +45,12 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         syncSelectionIfNeeded()
         syncFocusIfNeeded()
         syncFocusRequestIfNeeded()
-        recalculateHeight()
+        scheduleHeightRecalculation()
     }
 
     override func layout() {
         super.layout()
+        textView.updateTextContainerForCurrentBounds()
         handleLayoutChange()
     }
 
@@ -151,23 +155,45 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
 
     private func applyConfiguration() {
         let showsDisabledCursor = configuration.isDisabled && configuration.showsDisabledCursor
-        textView.baseTextFont = .preferredFont(forTextStyle: .body)
-        textView.isEditable = !configuration.isDisabled
-        textView.isSelectable = !showsDisabledCursor
-        textView.showsDisabledCursor = showsDisabledCursor
-        scrollView.showsDisabledCursor = showsDisabledCursor
-        (scrollView.contentView as? AppKitTextEditorClipView)?.showsDisabledCursor = showsDisabledCursor
-        textView.textColor = .labelColor
-        textView.placeholder = configuration.placeholder
-        textView.inlineHint = configuration.inlineHint
-        textView.disablesAppKitDragDestination = configuration.disablesAppKitDragDestination
-        textView.textContainerInset = NSSize(
+        let baseFont = NSFont.preferredFont(forTextStyle: .body)
+        if textView.baseTextFont != baseFont {
+            textView.baseTextFont = baseFont
+            textView.font = baseFont
+            lastAppliedStylingFingerprint = nil
+            lastAppliedTypingFingerprint = nil
+        }
+        if textView.isEditable != !configuration.isDisabled {
+            textView.isEditable = !configuration.isDisabled
+        }
+        if textView.isSelectable != !showsDisabledCursor {
+            textView.isSelectable = !showsDisabledCursor
+        }
+        if textView.showsDisabledCursor != showsDisabledCursor {
+            textView.showsDisabledCursor = showsDisabledCursor
+        }
+        if scrollView.showsDisabledCursor != showsDisabledCursor {
+            scrollView.showsDisabledCursor = showsDisabledCursor
+        }
+        if (scrollView.contentView as? AppKitTextEditorClipView)?.showsDisabledCursor != showsDisabledCursor {
+            (scrollView.contentView as? AppKitTextEditorClipView)?.showsDisabledCursor = showsDisabledCursor
+        }
+        if textView.placeholder != configuration.placeholder {
+            textView.placeholder = configuration.placeholder
+        }
+        if textView.inlineHint != configuration.inlineHint {
+            textView.inlineHint = configuration.inlineHint
+        }
+        if textView.disablesAppKitDragDestination != configuration.disablesAppKitDragDestination {
+            textView.disablesAppKitDragDestination = configuration.disablesAppKitDragDestination
+        }
+        let textContainerInset = NSSize(
             width: configuration.horizontalPadding,
             height: configuration.verticalPadding
         )
-        syncInlineCodePresentation()
-        syncTextChipPresentation()
-        applyTextHighlights()
+        if textView.textContainerInset != textContainerInset {
+            textView.textContainerInset = textContainerInset
+        }
+        refreshTextPresentationIfNeeded()
         textView.refreshInlineHintView()
         textView.needsDisplay = true
     }
@@ -179,14 +205,15 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
 
         suppressCallbacks = true
         textView.string = configuration.text
+        textView.markTextLayoutNeedsPriming()
         textView.layoutManager?.invalidateLayout(
             forCharacterRange: NSRange(location: 0, length: (textView.string as NSString).length),
             actualCharacterRange: nil
         )
+        lastAppliedStylingFingerprint = nil
+        lastAppliedTypingFingerprint = nil
         suppressCallbacks = false
-        syncInlineCodePresentation()
-        syncTextChipPresentation()
-        applyTextHighlights()
+        refreshTextPresentationIfNeeded()
         textView.refreshInlineHintView()
         textView.needsDisplay = true
     }
@@ -263,132 +290,12 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         }
     }
 
-    private func handleLayoutChange() {
-        let availableWidth = scrollView.contentSize.width
-        recalculateHeight()
-
-        guard availableWidth > 0,
-              abs(availableWidth - lastLaidOutTextWidth) > 0.5 else {
+    func handleLayoutChange() {
+        guard !isMeasuringLayout else {
             return
         }
 
-        lastLaidOutTextWidth = availableWidth
-        applyTextHighlights()
-        textView.needsDisplay = true
-    }
-
-    private func syncInlineCodePresentation() {
-        textView.inlineCodeBackgroundRanges = configuration.inlineCodeBackgroundRanges(textView.string)
-        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.composerChipFillNSColor
-    }
-
-    private func syncTextChipPresentation() {
-        textView.textChips = configuration.textChips(textView.string)
-    }
-
-    private func applyTextHighlights() {
-        guard let textStorage = textView.textStorage else {
-            return
-        }
-
-        let fullRange = NSRange(location: 0, length: textStorage.length)
-        let baseFont = textView.baseTextFont
-        let baseColor = NSColor.labelColor
-        let blockRanges = configuration.codeBlockRanges(textView.string)
-        let inlineRanges = configuration.inlineCodeRanges(textView.string)
-        let inlineDelimiterRanges = configuration.inlineCodeDelimiterRanges(textView.string)
-        let compactDisplayChips = compactDisplayChips()
-        guard fullRange.length > 0 else {
-            textView.typingAttributes = AppTextEditorCodeBlockStyling.baseTypingAttributes(
-                font: baseFont,
-                foregroundColor: baseColor
-            )
-            return
-        }
-
-        textStorage.beginEditing()
-        AppTextEditorCodeBlockStyling.apply(
-            to: textStorage,
-            context: .init(
-                fullRange: fullRange,
-                highlightRanges: configuration.textHighlightRanges(textView.string),
-                blockRanges: blockRanges,
-                inlineRanges: inlineRanges,
-                inlineDelimiterRanges: inlineDelimiterRanges,
-                baseFont: baseFont,
-                baseColor: baseColor,
-                colorScheme: configuration.colorScheme
-            )
-        )
-        AppTextEditorCodeBlockStyling.applyTextChips(
-            to: textStorage,
-            chips: textView.textChips,
-            fullRange: fullRange,
-            compactDisplayResolver: { chip in
-                compactDisplayChips.contains(chip)
-            }
-        )
-        textStorage.endEditing()
-        updateTypingAttributes(
-            blockRanges: blockRanges,
-            inlineRanges: inlineRanges,
-            baseFont: baseFont,
-            baseColor: baseColor
-        )
-    }
-
-    private func refreshTypingAttributes() {
-        updateTypingAttributes(
-            blockRanges: configuration.codeBlockRanges(textView.string),
-            inlineRanges: configuration.inlineCodeRanges(textView.string),
-            baseFont: textView.baseTextFont,
-            baseColor: .labelColor
-        )
-    }
-
-    private func updateTypingAttributes(
-        blockRanges: [NSRange],
-        inlineRanges: [NSRange],
-        baseFont: NSFont,
-        baseColor: NSColor
-    ) {
-        textView.typingAttributes = AppTextEditorCodeBlockStyling.typingAttributes(
-            for: .init(
-                selectionRange: textView.selectedRange(),
-                blockRanges: blockRanges,
-                inlineRanges: inlineRanges,
-                textUTF16Count: textView.string.utf16.count,
-                baseFont: baseFont,
-                baseColor: baseColor,
-                colorScheme: configuration.colorScheme
-            )
-        )
-    }
-
-    private func scheduleSelectionRestyle() {
-        guard !selectionRestyleScheduled else {
-            return
-        }
-
-        selectionRestyleScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else {
-                return
-            }
-
-            self.selectionRestyleScheduled = false
-            self.applyTextHighlights()
-            self.textView.needsDisplay = true
-        }
-    }
-
-    private func compactDisplayChips() -> [AppTextEditorChip] {
-        // `textChipDisplayMode` asks NSLayoutManager for glyph rects, so compute
-        // it before `NSTextStorage.beginEditing()`. AppKit raises if glyph layout
-        // is forced while attributes are being mutated.
-        textView.textChips.filter { chip in
-            textView.textChipDisplayMode(for: chip) == .compactLabel(chip.displayText)
-        }
+        scheduleHeightRecalculation()
     }
 
     private func updateSelection(from textView: NSTextView) {
@@ -396,53 +303,5 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
             return
         }
         configuration.onSelectionChange(textView.selectedRange())
-    }
-
-    private func recalculateHeight() {
-        guard let layoutManager = textView.layoutManager,
-              let textContainer = textView.textContainer else {
-            return
-        }
-
-        let availableWidth = scrollView.contentSize.width
-        guard availableWidth > 0 else {
-            return
-        }
-
-        if abs(textView.frame.width - availableWidth) > 0.5 {
-            textView.frame.size.width = availableWidth
-        }
-        textContainer.containerSize = NSSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude)
-        layoutManager.ensureLayout(for: textContainer)
-
-        let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
-        let usedHeight = layoutManager.usedRect(for: textContainer).height
-        let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
-        if abs(textView.frame.height - max(contentHeight, scrollView.contentSize.height)) > 0.5 {
-            textView.frame.size.height = max(contentHeight, scrollView.contentSize.height)
-        }
-
-        guard abs(lastMeasuredHeight - contentHeight) > 0.5 else {
-            return
-        }
-        lastMeasuredHeight = contentHeight
-        configuration.onMeasuredHeightChange(contentHeight)
-    }
-
-    private func handleKeyEquivalent(_ event: NSEvent) -> Bool {
-        guard let key = AppTextEditorKey(chatTextEditorKeyEquivalentEvent: event) else {
-            return false
-        }
-
-        return handleKeyPress(key: key, modifiers: event.modifierFlags.chatTextEditorEventModifiers)
-    }
-
-    private func handleKeyPress(key: AppTextEditorKey, modifiers: EventModifiers) -> Bool {
-        guard configuration.keyPressKeys.contains(key) else {
-            return false
-        }
-
-        let result = configuration.onKeyPress(AppTextEditorKeyPress(key: key, modifiers: modifiers))
-        return result == .handled
     }
 }

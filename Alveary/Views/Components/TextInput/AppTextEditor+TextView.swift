@@ -4,12 +4,10 @@ import SwiftUI
 struct AppTextEditorInlineHint: Equatable {
     let text: String
 }
-
 enum AppTextEditorChipDisplayMode: Equatable {
     case fullText
     case compactLabel(String)
 }
-
 final class AppTextEditorInlineHintView: NSView {
     var text = "" {
         didSet {
@@ -29,13 +27,9 @@ final class AppTextEditorInlineHintView: NSView {
         }
     }
 
-    override var isFlipped: Bool {
-        true
-    }
+    override var isFlipped: Bool { true }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
         guard !text.isEmpty else {
@@ -56,6 +50,9 @@ final class AppTextEditorInlineHintView: NSView {
 }
 
 final class AppKitTextView: NSTextView {
+    var textLayoutReadyForDrawing = false
+    var textLayoutPrimedWidth: CGFloat = 0
+
     var baseTextFont: NSFont = .preferredFont(forTextStyle: .body) {
         didSet {
             needsDisplay = true
@@ -132,19 +129,19 @@ final class AppKitTextView: NSTextView {
     }
     var onKeyEquivalent: ((NSEvent) -> Bool)?
 
-    // The composer hosts this text view inside a SwiftUI card whose background is
-    // `.fill(.bar)` — an `NSVisualEffectView`-backed material. `NSTextView` opts into
-    // vibrancy by default, so `setFill()` / `NSBezierPath.fill()` calls in `draw(_:)`
-    // composite against that backdrop and shift the inline-code / slash / `@mention`
-    // chip fill away from the literal `NSColor`. User bubbles, primary buttons, and
-    // selected rows use pure SwiftUI shapes with `.fill(AppAccentFill.primary)` and
-    // don't go through vibrancy, so the same accent token renders visibly brighter
-    // over the composer than it does elsewhere. Forcing `allowsVibrancy` off keeps
-    // the AppKit-drawn chip fill aligned with every other `AppAccentFill.primary`
-    // surface. Editors not embedded in a material backdrop are unaffected.
+    // `NSTextView` opts into vibrancy by default, which can make custom-drawn
+    // inline-code, slash-command, and mention chip fills composite differently
+    // from SwiftUI accent surfaces. Forcing vibrancy off keeps AppKit-drawn
+    // chip fills pinned to the literal `NSColor` used by the rest of the UI.
     override var allowsVibrancy: Bool { false }
 
     override func draw(_ dirtyRect: NSRect) {
+        guard canDrawTextLayoutSafely() else {
+            if string.isEmpty, !placeholder.isEmpty {
+                drawPlaceholder(in: dirtyRect)
+            }
+            return
+        }
         if string.isEmpty, !placeholder.isEmpty {
             drawPlaceholder(in: dirtyRect)
         } else {
@@ -157,13 +154,25 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    override func mouseDown(with event: NSEvent) {
+        primeTextLayoutForInteraction()
+        if isEditable || isSelectable {
+            window?.makeFirstResponder(self)
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func didChangeText() {
+        markTextLayoutNeedsPriming()
         super.didChangeText()
         needsDisplay = true
         updateInlineHintView()
     }
 
     override func becomeFirstResponder() -> Bool {
+        primeTextLayoutForInteraction()
         let didBecomeFirstResponder = super.becomeFirstResponder()
         if didBecomeFirstResponder {
             onFocusChange?(true)
@@ -192,6 +201,7 @@ final class AppKitTextView: NSTextView {
     }
 
     override func layout() {
+        updateTextContainerForCurrentBounds()
         super.layout()
         updateInlineHintView()
         needsDisplay = true
@@ -241,6 +251,7 @@ final class AppKitTextView: NSTextView {
     private func drawInlineCodeBackgrounds(in dirtyRect: NSRect) {
         guard let layoutManager,
               let textContainer,
+              prepareForSafeTextLayout(),
               !inlineCodeBackgroundRanges.isEmpty else {
             return
         }
@@ -329,21 +340,14 @@ final class AppKitTextView: NSTextView {
 
     func textChipRects(for characterRange: NSRange) -> [NSRect] {
         guard let layoutManager,
-              let textContainer else {
+              let textContainer,
+              prepareForSafeTextLayout() else {
             return []
         }
 
         let textLength = (string as NSString).length
         let clampedRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: textLength))
         guard clampedRange.length > 0 else {
-            return []
-        }
-        // SwiftUI can configure the native composer before AppKit has assigned
-        // a real text-container width. Forcing glyph layout in that zero-width
-        // mount window has triggered NSLayoutManager exceptions on chip-bearing
-        // drafts, so compact-chip measurement waits for the first real layout.
-        guard textContainer.containerSize.width.isFinite,
-              textContainer.containerSize.width > 0 else {
             return []
         }
 
@@ -402,10 +406,12 @@ final class AppKitTextView: NSTextView {
     }
 
     func refreshInlineHintView() {
+        updateTextContainerForCurrentBounds()
         updateInlineHintView()
     }
 
     private func updateInlineHintView() {
+        updateTextContainerForCurrentBounds()
         guard let inlineHint,
               !inlineHint.text.isEmpty,
               !string.isEmpty,
@@ -427,7 +433,8 @@ final class AppKitTextView: NSTextView {
 
     func inlineHintDrawingRect() -> NSRect? {
         guard let layoutManager,
-               let textContainer else {
+              let textContainer,
+              prepareForSafeTextLayout() else {
             return nil
         }
 

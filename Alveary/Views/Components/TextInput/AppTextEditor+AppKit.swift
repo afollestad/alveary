@@ -210,6 +210,17 @@ final class AppKitTextEditorScrollView: NSScrollView {
         onLayout?()
     }
 
+    override func mouseDown(with event: NSEvent) {
+        // Hit testing can land on the scroll or clip wrapper when the editor
+        // fills the composer. Focus the document view before AppKit starts
+        // selection tracking so clicks behave like they hit `NSTextView`.
+        guard focusDocumentTextView() else {
+            super.mouseDown(with: event)
+            return
+        }
+        documentView?.mouseDown(with: event)
+    }
+
     override func resetCursorRects() {
         guard !showsDisabledCursor else {
             addCursorRect(bounds, cursor: .operationNotAllowed)
@@ -241,6 +252,16 @@ final class AppKitTextEditorClipView: NSClipView {
         true
     }
 
+    override func mouseDown(with event: NSEvent) {
+        // See `AppKitTextEditorScrollView.mouseDown(with:)`; both wrapper
+        // layers can receive the first click depending on composer layout.
+        guard focusDocumentTextView() else {
+            super.mouseDown(with: event)
+            return
+        }
+        documentView?.mouseDown(with: event)
+    }
+
     override func resetCursorRects() {
         guard !showsDisabledCursor else {
             addCursorRect(bounds, cursor: .operationNotAllowed)
@@ -257,6 +278,25 @@ final class AppKitTextEditorClipView: NSClipView {
         }
 
         super.cursorUpdate(with: event)
+    }
+}
+
+private extension NSView {
+    func focusDocumentTextView() -> Bool {
+        let textView: AppKitTextView?
+        if let scrollView = self as? NSScrollView {
+            textView = scrollView.documentView as? AppKitTextView
+        } else if let clipView = self as? NSClipView {
+            textView = clipView.documentView as? AppKitTextView
+        } else {
+            textView = nil
+        }
+
+        guard let textView else {
+            return false
+        }
+        textView.primeTextLayoutForInteraction()
+        return window?.makeFirstResponder(textView) == true
     }
 }
 

@@ -330,6 +330,7 @@ extension AppKitTextEditorCoordinatorTests {
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
         textView.string = "/android-emulator test"
+        textView.updateTextContainerForCurrentBounds()
 
         let chip = AppTextEditorChip(
             range: NSRange(location: 0, length: 17),
@@ -359,6 +360,7 @@ extension AppKitTextEditorCoordinatorTests {
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
         textView.string = "Test @pipeline.yaml file mention"
+        textView.updateTextContainerForCurrentBounds()
 
         let chip = AppTextEditorChip(
             range: NSRange(location: 5, length: 14),

@@ -61,41 +61,79 @@ extension AppKitTextEditorCoordinator {
                 font: baseFont,
                 foregroundColor: baseColor
             )
+            textView.primeTextLayoutForDrawing()
             return
         }
 
         let highlightRanges = parent.textHighlightRanges?(textView.string) ?? []
         let compactDisplayChips = compactDisplayChips(for: textView)
 
+        textView.markTextLayoutNeedsPriming()
         textStorage.beginEditing()
-        AppTextEditorCodeBlockStyling.apply(
+        applyStyling(
             to: textStorage,
-            context: .init(
-                fullRange: fullRange,
+            fullRange: fullRange,
+            ranges: .init(
                 highlightRanges: highlightRanges,
                 blockRanges: blockRanges,
                 inlineRanges: inlineRanges,
-                inlineDelimiterRanges: inlineDelimiterRanges,
-                baseFont: baseFont,
-                baseColor: baseColor,
-                colorScheme: parent.colorScheme
-            )
+                inlineDelimiterRanges: inlineDelimiterRanges
+            ),
+            baseFont: baseFont,
+            baseColor: baseColor
         )
-        AppTextEditorCodeBlockStyling.applyTextChips(
-            to: textStorage,
-            chips: textView.textChips,
-            fullRange: fullRange,
-            compactDisplayResolver: { chip in
-                compactDisplayChips.contains(chip)
-            }
-        )
+        applyTextChips(to: textStorage, textView: textView, fullRange: fullRange, compactDisplayChips: compactDisplayChips)
         textStorage.endEditing()
+        textView.primeTextLayoutForDrawing()
         updateTypingAttributes(
             for: textView,
             blockRanges: blockRanges,
             inlineRanges: inlineRanges,
             baseFont: baseFont,
             baseColor: baseColor
+        )
+    }
+
+    private struct HighlightRanges {
+        let highlightRanges: [NSRange]
+        let blockRanges: [NSRange]
+        let inlineRanges: [NSRange]
+        let inlineDelimiterRanges: [NSRange]
+    }
+
+    private func applyStyling(
+        to textStorage: NSTextStorage,
+        fullRange: NSRange,
+        ranges: HighlightRanges,
+        baseFont: NSFont,
+        baseColor: NSColor
+    ) {
+        AppTextEditorCodeBlockStyling.apply(
+            to: textStorage,
+            context: .init(
+                fullRange: fullRange,
+                highlightRanges: ranges.highlightRanges,
+                blockRanges: ranges.blockRanges,
+                inlineRanges: ranges.inlineRanges,
+                inlineDelimiterRanges: ranges.inlineDelimiterRanges,
+                baseFont: baseFont,
+                baseColor: baseColor,
+                colorScheme: parent.colorScheme
+            )
+        )
+    }
+
+    private func applyTextChips(
+        to textStorage: NSTextStorage,
+        textView: AppKitTextView,
+        fullRange: NSRange,
+        compactDisplayChips: [AppTextEditorChip]
+    ) {
+        AppTextEditorCodeBlockStyling.applyTextChips(
+            to: textStorage,
+            chips: textView.textChips,
+            fullRange: fullRange,
+            compactDisplayResolver: { compactDisplayChips.contains($0) }
         )
     }
 

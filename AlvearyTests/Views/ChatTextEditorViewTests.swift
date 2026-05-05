@@ -42,8 +42,31 @@ final class ChatTextEditorViewTests: XCTestCase {
 
         let textView = editor.textViewForTesting
         let chip = textView.textChips[0]
+        XCTAssertGreaterThan(textView.frame.width, 0)
+        XCTAssertGreaterThan(textView.textContainer?.containerSize.width ?? 0, 0)
         XCTAssertEqual(textView.textChipDisplayMode(for: chip), .compactLabel("@Chat%20Input.swift"))
         XCTAssertEqual(
+            textView.textStorage?.attribute(.foregroundColor, at: chip.range.location, effectiveRange: nil) as? NSColor,
+            .clear
+        )
+    }
+
+    func testWrappedFileMentionKeepsStoredTextVisible() {
+        let editor = ChatTextEditorView(frame: NSRect(x: 0, y: 0, width: 150, height: 160))
+        let text = "Review @/Users/alice/Development/Project/VeryLongFileNameThatCannotFitInTheComposer.swift"
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: text,
+            textChips: ChatInputFieldTextSupport.composerTextChips(in:)
+        ))
+        editor.layoutSubtreeIfNeeded()
+        flushMainQueue()
+
+        let textView = editor.textViewForTesting
+        let chip = textView.textChips[0]
+        XCTAssertGreaterThan(textView.textChipRects(for: chip.range).count, 1)
+        XCTAssertEqual(textView.textChipDisplayMode(for: chip), .fullText)
+        XCTAssertNotEqual(
             textView.textStorage?.attribute(.foregroundColor, at: chip.range.location, effectiveRange: nil) as? NSColor,
             .clear
         )
@@ -61,6 +84,110 @@ final class ChatTextEditorViewTests: XCTestCase {
         let textView = editor.textViewForTesting
         let chip = textView.textChips[0]
         XCTAssertEqual(textView.textChipDisplayMode(for: chip), .fullText)
+    }
+
+    func testRepeatedConfigureDoesNotReapplyTypingAttributesWhenInputsAreUnchanged() {
+        let editor = makeEditor()
+        let configuration = ChatTextEditorConfiguration(
+            text: "Review `inline code` and @/Users/alice/Development/Project/Chat%20Input.swift",
+            textChips: ChatInputFieldTextSupport.composerTextChips(in:),
+            codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
+            inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+            inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+            inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges }
+        )
+
+        editor.configure(configuration)
+        flushMainQueue()
+        let textPresentationApplications = editor.presentationApplyCountForTesting
+        let typingAttributeApplications = editor.typingAttrsApplyCountForTesting
+
+        editor.configure(configuration)
+        flushMainQueue()
+
+        XCTAssertEqual(editor.presentationApplyCountForTesting, textPresentationApplications)
+        XCTAssertEqual(editor.typingAttrsApplyCountForTesting, typingAttributeApplications)
+    }
+
+    func testTextViewPrimesContainerWidthBeforeLayoutDependentDrawing() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 80))
+        textView.string = "Use `code`"
+        textView.inlineCodeBackgroundRanges = [NSRange(location: 4, length: 4)]
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+
+        XCTAssertTrue(textView.updateTextContainerForCurrentBounds())
+        XCTAssertTrue(textView.prepareForSafeTextLayout())
+        XCTAssertFalse(textView.canDrawTextLayoutSafely())
+        XCTAssertTrue(textView.primeTextLayoutForDrawing())
+        XCTAssertTrue(textView.canDrawTextLayoutSafely())
+        XCTAssertEqual(textView.textContainer?.containerSize.width ?? 0, 240, accuracy: 0.5)
+        XCTAssertEqual(textView.layoutManager?.allowsNonContiguousLayout, false)
+    }
+
+    func testTextViewPrimesContainerWidthUsingTextInsets() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 80))
+        textView.textContainerInset = NSSize(width: 10, height: 8)
+        textView.textContainer?.containerSize = NSSize(width: 240, height: CGFloat.greatestFiniteMagnitude)
+
+        XCTAssertTrue(textView.updateTextContainerForCurrentBounds())
+        XCTAssertTrue(textView.prepareForSafeTextLayout())
+        XCTAssertEqual(textView.textContainer?.containerSize.width ?? 0, 220, accuracy: 0.5)
+    }
+
+    func testTextViewWidthChangeInvalidatesDrawReadinessUntilPrimed() {
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 80))
+        textView.string = "Use `code`"
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+
+        XCTAssertTrue(textView.updateTextContainerForCurrentBounds())
+        XCTAssertTrue(textView.primeTextLayoutForDrawing())
+        XCTAssertTrue(textView.isTextLayoutReadyForDrawingForTesting)
+
+        textView.frame.size.width = 300
+
+        XCTAssertTrue(textView.updateTextContainerForCurrentBounds())
+        XCTAssertFalse(textView.isTextLayoutReadyForDrawingForTesting)
+        XCTAssertFalse(textView.canDrawTextLayoutSafely())
+    }
+
+    func testTypedTextChangeLeavesLayoutPrimedForNextDraw() {
+        let editor = makeEditor()
+        editor.configure(ChatTextEditorConfiguration(
+            text: "Before",
+            inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+            inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+            inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges }
+        ))
+        flushMainQueue()
+
+        let textView = editor.textViewForTesting
+        textView.string = "After `code`"
+        textView.didChangeText()
+
+        XCTAssertTrue(textView.isTextLayoutReadyForDrawingForTesting)
+    }
+
+    func testDeferredHeightMeasurementRefreshesWidthDependentChipStyling() {
+        let editor = ChatTextEditorView(frame: .zero)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 96), styleMask: [], backing: .buffered, defer: false)
+        let text = "Review @/Users/alice/Development/Project/Chat%20Input.swift"
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: text,
+            textChips: ChatInputFieldTextSupport.composerTextChips(in:)
+        ))
+        window.contentView = editor
+        editor.frame = NSRect(x: 0, y: 0, width: 420, height: 96)
+        editor.layoutSubtreeIfNeeded()
+        flushMainQueue()
+
+        let textView = editor.textViewForTesting
+        let chip = textView.textChips[0]
+        XCTAssertEqual(textView.textChipDisplayMode(for: chip), .compactLabel("@Chat%20Input.swift"))
+        XCTAssertEqual(
+            textView.textStorage?.attribute(.foregroundColor, at: chip.range.location, effectiveRange: nil) as? NSColor,
+            .clear
+        )
     }
 
     func testTextChangeReportsUpdatedDraft() {
@@ -153,11 +280,13 @@ final class ChatTextEditorViewTests: XCTestCase {
             text: "One",
             onMeasuredHeightChange: { measuredHeights.append($0) }
         ))
+        flushMainQueue()
 
         editor.configure(ChatTextEditorConfiguration(
             text: "One\nTwo\nThree",
             onMeasuredHeightChange: { measuredHeights.append($0) }
         ))
+        flushMainQueue()
 
         XCTAssertGreaterThan(measuredHeights.last ?? 0, measuredHeights.first ?? 0)
     }
@@ -169,15 +298,50 @@ final class ChatTextEditorViewTests: XCTestCase {
             text: "One\nTwo\nThree\nFour\nFive",
             onMeasuredHeightChange: { measuredHeights.append($0) }
         ))
+        flushMainQueue()
 
         editor.configure(ChatTextEditorConfiguration(
             text: "f\nf",
             onMeasuredHeightChange: { measuredHeights.append($0) }
         ))
+        flushMainQueue()
 
         let tallHeight = measuredHeights.first ?? 0
         let shortHeight = measuredHeights.last ?? 0
         XCTAssertLessThan(shortHeight, tallHeight)
+    }
+
+    func testConfigureDefersProgrammaticHeightMeasurementUntilAfterUpdateCycle() {
+        let editor = makeEditor()
+        var measuredHeights: [CGFloat] = []
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: "One\nTwo",
+            onMeasuredHeightChange: { measuredHeights.append($0) }
+        ))
+
+        XCTAssertTrue(measuredHeights.isEmpty)
+        flushMainQueue()
+        XCTAssertFalse(measuredHeights.isEmpty)
+    }
+
+    func testLayoutChangeDefersHeightMeasurementUntilAfterUpdateCycle() {
+        let editor = makeEditor()
+        var measuredHeights: [CGFloat] = []
+        editor.configure(ChatTextEditorConfiguration(
+            text: "One very long composer line that wraps differently when the editor width changes during layout.",
+            onMeasuredHeightChange: { measuredHeights.append($0) }
+        ))
+        flushMainQueue()
+        measuredHeights.removeAll()
+
+        editor.frame.size.width = 180
+        editor.needsLayout = true
+        editor.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(measuredHeights.isEmpty)
+        flushMainQueue()
+        XCTAssertFalse(measuredHeights.isEmpty)
     }
 
     func testProgrammaticHeightPrimingShrinksAfterShorterDraftRestore() {
@@ -281,5 +445,13 @@ final class ChatTextEditorViewTests: XCTestCase {
         let editor = ChatTextEditorView(frame: NSRect(x: 0, y: 0, width: 420, height: 96))
         editor.layoutSubtreeIfNeeded()
         return editor
+    }
+
+    private func flushMainQueue() {
+        let expectation = XCTestExpectation(description: "main queue flushed")
+        DispatchQueue.main.async {
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1)
     }
 }

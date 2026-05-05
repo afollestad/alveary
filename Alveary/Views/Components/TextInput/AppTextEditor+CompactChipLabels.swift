@@ -12,11 +12,8 @@ extension AppKitTextView {
     func drawCompactChipLabels(in dirtyRect: NSRect) {
         guard let layoutManager,
               let textContainer,
+              prepareForSafeTextLayout(),
               !textChips.isEmpty else {
-            return
-        }
-        guard textContainer.containerSize.width.isFinite,
-              textContainer.containerSize.width > 0 else {
             return
         }
 

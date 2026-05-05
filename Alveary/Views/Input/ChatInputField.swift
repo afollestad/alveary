@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+/// SwiftUI composer shell that hosts the native AppKit text editor.
 struct ChatInputField: View {
     @Binding var text: String
     let mode: ComposerMode
@@ -234,14 +235,14 @@ struct ChatInputField: View {
             .frame(height: composerActionRowHeight)
         }
         .padding(outerPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .zIndex(activeAutocomplete == nil ? 0 : 1)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.bar)
         )
-        // The composer shell is still SwiftUI while the action row migrates
-        // native; keep it content-height so parents cannot stretch the native
-        // row away from the editor and change the SwiftUI-era spacing.
+        // Legacy snapshots still mount this SwiftUI shell. Keep it content-height
+        // so those callers cannot stretch the native action row away from the editor.
         .fixedSize(horizontal: false, vertical: true)
         .blockedComposerCursorOverlay(when: isProjectTrustBlocked)
         .sheet(isPresented: $isKeymapPresented) {

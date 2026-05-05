@@ -1,8 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// Temporary SwiftUI mount for the native composer editor while the surrounding
-/// composer controls are still SwiftUI-hosted.
+/// SwiftUI bridge for the native composer editor.
+///
+/// The composer shell is still SwiftUI-owned in this slice; this bridge keeps
+/// text measurement, focus, and chip drawing on the shared AppKit editor path.
 struct ChatTextEditor: View {
     @Binding private var text: String
     @State private var measuredTextHeight: CGFloat = 0

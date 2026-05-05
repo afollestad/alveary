@@ -6,11 +6,16 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 
 - Draw the placeholder inside `AppKitTextView`, not as a SwiftUI overlay, so insets and caret placement match the real text view.
 - Keep `AppKitTextView.allowsVibrancy = false`.
-    - The composer sits in material chrome; vibrancy shifts AppKit-drawn chip fills away from the literal `NSColor`.
-    - Disabling vibrancy is a no-op for editors outside materials and safer for future sheets or popovers.
+    - Vibrancy can shift AppKit-drawn chip fills away from the literal `NSColor` used by matching SwiftUI accent surfaces.
+    - Disabling vibrancy keeps editor chips stable across composer panels, sheets, popovers, and future host surfaces.
 - Selection-change callbacks must not synchronously trigger layout-dependent restyling.
     - Lightweight typing state may update inline.
     - Full chip/code restyles should defer to the next main-runloop turn.
+- Prime text-container width with `updateTextContainerForCurrentBounds()` from layout or measurement, not from `draw(_:)`.
+    - `draw(_:)` and chip/hint rect helpers may call `prepareForSafeTextLayout()` as a read-only guard.
+    - Use `markTextLayoutNeedsPriming()` after text/attribute changes and `primeTextLayoutForDrawing()` from measurement/layout before allowing `NSTextView.draw(_:)` to fill layout holes.
+    - AppKit can draw during mount or SwiftUI update cycles while the text container still has a zero width.
+    - Mutating the text container or forcing `NSLayoutManager` glyph layout in that state has caused crashes in `NSTextView.draw(_:)` and height measurement.
 - `sizesToContent` editors must handle binding-driven text replacement before AppKit has a stable layout width.
     - Prime SwiftUI height from explicit line breaks for immediate growth.
     - Let the AppKit measured height refine the value after layout catches up.
