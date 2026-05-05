@@ -21,6 +21,10 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
     - **Keep shell chrome native.** Transparent outer background, horizontal
       padding, top-content vertical offset, top divider, and panel measurement
       belong there.
+    - **Own production action-row placement.** Active `ChatView` routes
+      `ChatComposerActionRowView` through the AppKit panel so editor/action-row
+      spacing is measured natively. Legacy SwiftUI composer snapshots may still
+      keep the row inside `ChatInputField`.
     - **Keep body migration explicit.** The inner composer body may still be
       SwiftUI during transitional slices; do not move shell chrome back into
       `ChatComposerPanel`.

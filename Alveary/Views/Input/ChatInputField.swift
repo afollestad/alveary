@@ -43,9 +43,10 @@ struct ChatInputField: View {
     let composerHorizontalPadding: CGFloat = 10
     let composerVerticalPadding: CGFloat = 10
     let composerBaseHeight: CGFloat = 68
-    let composerActionRowHeight: CGFloat = 30
-    let contextIndicatorKeyboardSpacing: CGFloat = 6
+    let composerActionRowHeight: CGFloat = ChatComposerActionRowView.defaultHeight
+    let contextIndicatorKeyboardSpacing: CGFloat = ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing
     let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
+    let showsActionRow: Bool
 
     @FocusState var isInputFocused: Bool
     // Mirrors the NSTextView's first-responder state, synced via
@@ -66,7 +67,7 @@ struct ChatInputField: View {
     @State var isDropTargeted = false
     @State private var isKeymapPresented = false
     @State var autocompletePopupHeight: CGFloat = 0
-    @State var isStopConfirmationArmed = false
+    @Binding var isStopConfirmationArmed: Bool
     @State var stopConfirmationResetTask: Task<Void, Never>?
 
     init(
@@ -76,7 +77,7 @@ struct ChatInputField: View {
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
         onStop: (() -> Void)?,
-        isStopConfirmationArmed: Bool = false,
+        isStopConfirmationArmed: Binding<Bool> = .constant(false),
         outerPadding: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
         selectedModel: Binding<String>,
         selectedEffort: Binding<String>,
@@ -102,7 +103,8 @@ struct ChatInputField: View {
         workingDirectory: String?,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
-        focusRequestToken: Binding<UUID?> = .constant(nil)
+        focusRequestToken: Binding<UUID?> = .constant(nil),
+        showsActionRow: Bool = true
     ) {
         _text = text
         self.mode = mode
@@ -110,7 +112,7 @@ struct ChatInputField: View {
         self.onSubmit = onSubmit
         self.onSteer = onSteer
         self.onStop = onStop
-        _isStopConfirmationArmed = State(initialValue: isStopConfirmationArmed)
+        _isStopConfirmationArmed = isStopConfirmationArmed
         self.outerPadding = outerPadding
         _selectedModel = selectedModel
         _selectedEffort = selectedEffort
@@ -137,6 +139,7 @@ struct ChatInputField: View {
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         _focusRequestToken = focusRequestToken
+        self.showsActionRow = showsActionRow
     }
 
     var body: some View {
@@ -206,33 +209,35 @@ struct ChatInputField: View {
             .task {
                 loadSkillArgumentHintsIfNeeded()
             }
-            ChatComposerActionRow(
-                modelOptions: modelOptions,
-                selectedModel: $selectedModel,
-                supportedEffortLevels: supportedEffortLevels,
-                selectedEffort: $selectedEffort,
-                supportedPermissionModes: supportedPermissionModes,
-                selectedPermissionMode: $selectedPermissionMode,
-                showWorktreePicker: showWorktreePicker,
-                selectedUseWorktree: $selectedUseWorktree,
-                sessionLocationLabel: sessionLocationLabel,
-                usageSummary: usageSummary,
-                isTextEditorDisabled: isTextEditorDisabled,
-                areControlsDisabled: areControlsDisabled,
-                mode: mode,
-                primaryActionTitle: primaryActionTitle,
-                primaryActionSystemImage: primaryActionSystemImage,
-                isPrimaryActionDisabled: isPrimaryActionDisabled,
-                isStopConfirmationArmed: isStopConfirmationArmed,
-                composerActionRowHeight: composerActionRowHeight,
-                contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
-                onSubmit: performSubmit,
-                onStop: performStop,
-                onShowKeymap: {
-                    isKeymapPresented = true
-                }
-            )
-            .frame(height: composerActionRowHeight)
+            if showsActionRow {
+                ChatComposerActionRow(
+                    modelOptions: modelOptions,
+                    selectedModel: $selectedModel,
+                    supportedEffortLevels: supportedEffortLevels,
+                    selectedEffort: $selectedEffort,
+                    supportedPermissionModes: supportedPermissionModes,
+                    selectedPermissionMode: $selectedPermissionMode,
+                    showWorktreePicker: showWorktreePicker,
+                    selectedUseWorktree: $selectedUseWorktree,
+                    sessionLocationLabel: sessionLocationLabel,
+                    usageSummary: usageSummary,
+                    isTextEditorDisabled: isTextEditorDisabled,
+                    areControlsDisabled: areControlsDisabled,
+                    mode: mode,
+                    primaryActionTitle: primaryActionTitle,
+                    primaryActionSystemImage: primaryActionSystemImage,
+                    isPrimaryActionDisabled: isPrimaryActionDisabled,
+                    isStopConfirmationArmed: isStopConfirmationArmed,
+                    composerActionRowHeight: composerActionRowHeight,
+                    contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
+                    onSubmit: performSubmit,
+                    onStop: performStop,
+                    onShowKeymap: {
+                        isKeymapPresented = true
+                    }
+                )
+                .frame(height: composerActionRowHeight)
+            }
         }
         .padding(outerPadding)
         .frame(maxWidth: .infinity, alignment: .leading)

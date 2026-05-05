@@ -3,9 +3,24 @@ import SwiftUI
 
 struct AppKitChatComposerPanelConfiguration {
     let content: AnyView
+    let actionRowConfiguration: ChatComposerActionRowView.Configuration?
     let showsTopDivider: Bool
     let hasTopContent: Bool
     let layout: AppKitChatComposerPanelView.Layout
+
+    init(
+        content: AnyView,
+        actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
+        showsTopDivider: Bool,
+        hasTopContent: Bool,
+        layout: AppKitChatComposerPanelView.Layout
+    ) {
+        self.content = content
+        self.actionRowConfiguration = actionRowConfiguration
+        self.showsTopDivider = showsTopDivider
+        self.hasTopContent = hasTopContent
+        self.layout = layout
+    }
 }
 
 /// AppKit owner for the composer panel shell.
@@ -13,15 +28,17 @@ struct AppKitChatComposerPanelConfiguration {
 /// The inner composer body is still transitional SwiftUI content. This view
 /// owns the shell pieces that have regressed during the migration: transparent
 /// outer background, horizontal padding, top-content vertical offset, top
-/// divider color, and height measurement.
+/// divider color, native action-row placement, and height measurement.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
     struct Layout {
         let horizontalPadding: NSEdgeInsets
         let topContentSpacing: CGFloat
+        let actionRowSpacing: CGFloat
     }
 
     private let contentHost = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
+    private let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
 
     private var configuration: AppKitChatComposerPanelConfiguration?
@@ -56,6 +73,7 @@ final class AppKitChatComposerPanelView: NSView {
     func configure(_ configuration: AppKitChatComposerPanelConfiguration) {
         self.configuration = configuration
         contentHost.rootView = configuration.content
+        configureActionRow(configuration.actionRowConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
         invalidateIntrinsicContentSize()
         needsLayout = true
@@ -74,12 +92,21 @@ final class AppKitChatComposerPanelView: NSView {
 
         let contentWidth = contentWidth(for: bounds.width, layout: configuration.layout)
         let topPadding = topPadding(for: configuration)
+        let contentHeight = measuredHeight(of: contentHost, width: contentWidth)
         contentHost.frame = NSRect(
             x: configuration.layout.horizontalPadding.left,
             y: topPadding,
             width: contentWidth,
-            height: measuredHeight(of: contentHost, width: contentWidth)
+            height: contentHeight
         )
+        if configuration.actionRowConfiguration != nil {
+            actionRow.frame = NSRect(
+                x: configuration.layout.horizontalPadding.left,
+                y: topPadding + contentHeight + configuration.layout.actionRowSpacing,
+                width: contentWidth,
+                height: actionRow.intrinsicContentSize.height
+            )
+        }
         dividerView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
     }
 
@@ -91,12 +118,23 @@ final class AppKitChatComposerPanelView: NSView {
             self?.superview?.needsLayout = true
         }
         addSubview(contentHost)
+        actionRow.isHidden = true
+        addSubview(actionRow)
 
         dividerView.wantsLayer = true
         dividerView.isHidden = true
         dividerView.alphaValue = 0
         addSubview(dividerView)
         updateColors()
+    }
+
+    private func configureActionRow(_ configuration: ChatComposerActionRowView.Configuration?) {
+        guard let configuration else {
+            actionRow.isHidden = true
+            return
+        }
+        actionRow.isHidden = false
+        actionRow.configure(configuration)
     }
 
     private func configureDividerVisibility(_ isVisible: Bool) {
@@ -145,7 +183,11 @@ final class AppKitChatComposerPanelView: NSView {
             return 0
         }
         let contentWidth = contentWidth(for: width, layout: configuration.layout)
-        return ceil(topPadding(for: configuration) + measuredHeight(of: contentHost, width: contentWidth))
+        var height = topPadding(for: configuration) + measuredHeight(of: contentHost, width: contentWidth)
+        if configuration.actionRowConfiguration != nil {
+            height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height
+        }
+        return ceil(height)
     }
 
     private func measuredHeight(of view: NSView, width: CGFloat) -> CGFloat {

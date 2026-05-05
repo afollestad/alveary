@@ -81,6 +81,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
 /// context/keymap accessories, and send/stop/progress action slots.
 @MainActor
 final class ChatComposerActionRowView: NSView {
+    nonisolated static let defaultHeight: CGFloat = 30
+    nonisolated static let defaultContextIndicatorKeyboardSpacing: CGFloat = 6
+
     struct MenuOption: Equatable {
         let value: String
         let title: String
@@ -151,7 +154,7 @@ final class ChatComposerActionRowView: NSView {
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: configuration?.composerActionRowHeight ?? 30)
+        NSSize(width: NSView.noIntrinsicMetric, height: configuration?.composerActionRowHeight ?? Self.defaultHeight)
     }
 
     func configure(_ configuration: Configuration) {
@@ -237,7 +240,7 @@ final class ChatComposerActionRowView: NSView {
         progressStack.spacing = 8
         progressStack.addArrangedSubview(progressIndicator)
         progressStack.addArrangedSubview(progressLabel)
-        progressStackHeightConstraint = progressStack.heightAnchor.constraint(equalToConstant: 30)
+        progressStackHeightConstraint = progressStack.heightAnchor.constraint(equalToConstant: Self.defaultHeight)
         progressStackHeightConstraint?.isActive = true
 
         disabledSendSlot.translatesAutoresizingMaskIntoConstraints = false

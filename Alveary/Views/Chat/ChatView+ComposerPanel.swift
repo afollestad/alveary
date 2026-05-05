@@ -11,10 +11,14 @@ enum ChatComposerPanelLayout {
     )
     static let verticalPadding: CGFloat = 0
     static let topContentSpacing: CGFloat = 8
-    // This is the visible top/bottom clearance inside the composer panel.
-    // Keep panel vertical padding at zero so it does not stack with this inset.
+    static let actionRowSpacing: CGFloat = 14
+    // These are the visible top/bottom clearances inside the SwiftUI composer shell.
+    // When AppKit owns the action row, bottom clearance moves to the panel so it
+    // sits below the row instead of stacking between the editor and controls.
     static let inputOuterPadding = EdgeInsets(top: 16, leading: 0, bottom: 16, trailing: 0)
     static let inputOuterPaddingWithTopContent = EdgeInsets(top: 0, leading: 0, bottom: 16, trailing: 0)
+    static let nativeInputPadding = EdgeInsets(top: 16, leading: 0, bottom: 0, trailing: 0)
+    static let nativeInputPaddingWithTop = EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
 }
 
 struct ChatComposerPanel: View {
@@ -39,6 +43,7 @@ struct ChatComposerPanel: View {
     let onSteer: () -> Void
     let onStop: () -> Void
     @Binding var focusRequestToken: UUID?
+    @State private var isStopConfirmationArmed = false
 
     private var hasTopContent: Bool {
         viewModel.lastTurnError != nil ||
@@ -67,7 +72,9 @@ struct ChatComposerPanel: View {
             onSubmit: onSubmit,
             onSteer: onSteer,
             onStop: onStop,
-            focusRequestToken: $focusRequestToken
+            focusRequestToken: $focusRequestToken,
+            isStopConfirmationArmed: $isStopConfirmationArmed,
+            usesNativeActionRow: false
         )
         .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
         .padding(ChatComposerPanelLayout.swiftUIHorizontalPadding)
@@ -110,6 +117,8 @@ struct ChatComposerPanelContent: View {
     let onSteer: () -> Void
     let onStop: () -> Void
     @Binding var focusRequestToken: UUID?
+    @Binding var isStopConfirmationArmed: Bool
+    let usesNativeActionRow: Bool
 
     // Filter the provider's full effort list to those that the current model
     // supports (e.g. Opus 4.7's `xhigh`). Intersect with the provider list
@@ -129,7 +138,12 @@ struct ChatComposerPanelContent: View {
     }
 
     private var inputOuterPadding: EdgeInsets {
-        hasTopContent ? ChatComposerPanelLayout.inputOuterPaddingWithTopContent : ChatComposerPanelLayout.inputOuterPadding
+        if usesNativeActionRow {
+            return hasTopContent ?
+                ChatComposerPanelLayout.nativeInputPaddingWithTop :
+                ChatComposerPanelLayout.nativeInputPadding
+        }
+        return hasTopContent ? ChatComposerPanelLayout.inputOuterPaddingWithTopContent : ChatComposerPanelLayout.inputOuterPadding
     }
 
     var body: some View {
@@ -177,6 +191,7 @@ struct ChatComposerPanelContent: View {
                 onSubmit: onSubmit,
                 onSteer: onSteer,
                 onStop: onStop,
+                isStopConfirmationArmed: $isStopConfirmationArmed,
                 outerPadding: inputOuterPadding,
                 selectedModel: selectedModel,
                 selectedEffort: selectedEffort,
@@ -208,7 +223,8 @@ struct ChatComposerPanelContent: View {
                 workingDirectory: workingDirectory,
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
-                focusRequestToken: $focusRequestToken
+                focusRequestToken: $focusRequestToken,
+                showsActionRow: !usesNativeActionRow
             )
             .onChange(of: viewModel.state.inputDraft) { _, newValue in
                 viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)

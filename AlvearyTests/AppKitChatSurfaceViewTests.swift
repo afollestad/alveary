@@ -70,7 +70,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
                 hasTopContent: true,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
-                    topContentSpacing: 8
+                    topContentSpacing: 8,
+                    actionRowSpacing: 14
                 )
             )
         )
@@ -93,7 +94,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
                 hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
-                    topContentSpacing: 8
+                    topContentSpacing: 8,
+                    actionRowSpacing: 14
                 )
             )
         )
@@ -104,6 +106,32 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertEqual(divider.layer?.backgroundColor, expected)
         XCTAssertFalse(divider.isHidden)
         XCTAssertEqual(divider.alphaValue, 1)
+    }
+
+    func testComposerPanelLaysOutNativeActionRowBelowHostedContent() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 120))
+        panel.configure(
+            AppKitChatComposerPanelConfiguration(
+                content: AnyView(Color.clear.frame(height: 44)),
+                actionRowConfiguration: makeActionRowConfiguration(),
+                showsTopDivider: false,
+                hasTopContent: false,
+                layout: AppKitChatComposerPanelView.Layout(
+                    horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
+                    topContentSpacing: 8,
+                    actionRowSpacing: 14
+                )
+            )
+        )
+
+        panel.layoutSubtreeIfNeeded()
+
+        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
+        XCTAssertEqual(contentHost.frame, NSRect(x: 20, y: 0, width: 259, height: 44))
+        XCTAssertEqual(actionRow.frame, NSRect(x: 20, y: 58, width: 259, height: ChatComposerActionRowView.defaultHeight))
+        XCTAssertFalse(actionRow.isHidden)
+        XCTAssertEqual(panel.fittingSize.height, 88)
     }
 
     func testConfigureReplacesHostedViewsWithoutLeavingOldSubviews() {
@@ -130,7 +158,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
             hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
-                topContentSpacing: 8
+                topContentSpacing: 8,
+                actionRowSpacing: 14
             )
         )
 
@@ -145,6 +174,37 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertGreaterThan(coordinator.composerPanelView.fittingSize.height, 0)
         XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is AppKitChatSurfaceHostingView })
     }
+}
+
+private func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
+    ChatComposerActionRowView.Configuration(
+        modelOptions: [.init(value: "sonnet", title: "Sonnet")],
+        selectedModel: "sonnet",
+        supportedEffortLevels: [.init(value: "medium", title: "Medium")],
+        selectedEffort: "medium",
+        supportedPermissionModes: [.init(value: "default", title: "Default")],
+        selectedPermissionMode: "default",
+        showWorktreePicker: false,
+        selectedUseWorktree: false,
+        sessionLocationLabel: "Local",
+        usageSummary: nil,
+        isTextEditorDisabled: false,
+        areControlsDisabled: false,
+        mode: .idle,
+        primaryActionTitle: "Send",
+        primaryActionSystemImage: "paperplane.fill",
+        isPrimaryActionDisabled: false,
+        isStopConfirmationArmed: false,
+        composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
+        contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+        onModelChange: { _ in },
+        onEffortChange: { _ in },
+        onPermissionModeChange: { _ in },
+        onUseWorktreeChange: { _ in },
+        onSubmit: {},
+        onStop: {},
+        onShowKeymap: {}
+    )
 }
 
 private final class FixedHeightView: NSView {

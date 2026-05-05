@@ -25,6 +25,8 @@ struct ChatView: View {
     @State private var scrollToBottomRequest = 0
     @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
+    @State private var isStopConfirmationArmed = false
+    @State private var isKeymapPresented = false
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -173,6 +175,12 @@ struct ChatView: View {
         .focusedSceneValue(\.triggerSessionHandoffAction) {
             viewModel.triggerSessionHandoffFromCommand()
         }
+        .sheet(isPresented: $isKeymapPresented) {
+            ChatInputKeymapSheet(
+                supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+                defaultEnterBehavior: defaultEnterBehavior
+            )
+        }
     }
 }
 
@@ -309,17 +317,96 @@ private extension ChatView {
             onStop: {
                 Task { await viewModel.cancel() }
             },
-            focusRequestToken: $appState.pendingComposerFocusToken
+            focusRequestToken: $appState.pendingComposerFocusToken,
+            isStopConfirmationArmed: $isStopConfirmationArmed,
+            usesNativeActionRow: true
         )
 
         return AppKitChatComposerPanelConfiguration(
             content: AnyView(content),
+            actionRowConfiguration: composerActionRowConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
             hasTopContent: content.hasTopContent,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
-                topContentSpacing: ChatComposerPanelLayout.topContentSpacing
+                topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
+                actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing
             )
         )
+    }
+
+    var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
+        let presentation = composerPresentation
+        return ChatComposerActionRowView.Configuration(
+            modelOptions: composerModelOptions.map {
+                .init(value: $0, title: ChatInputFieldTextSupport.modelLabel(for: $0))
+            },
+            selectedModel: selectedModelBinding.wrappedValue,
+            supportedEffortLevels: visibleEffortLevels.map {
+                .init(value: $0, title: ChatInputFieldTextSupport.effortLabel(for: $0))
+            },
+            selectedEffort: selectedEffortBinding.wrappedValue,
+            supportedPermissionModes: composerCapabilities.supportedPermissionModes.map {
+                .init(value: $0.value, title: ChatInputFieldTextSupport.permissionModeLabel(for: $0))
+            },
+            selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
+            showWorktreePicker: showWorktreePicker,
+            selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,
+            sessionLocationLabel: sessionLocationLabel,
+            usageSummary: usageSummary,
+            isTextEditorDisabled: presentation.isTextEditorDisabled,
+            areControlsDisabled: presentation.areControlsDisabled,
+            mode: composerMode,
+            primaryActionTitle: presentation.primaryActionTitle,
+            primaryActionSystemImage: presentation.primaryActionSystemImage,
+            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled,
+            isStopConfirmationArmed: isStopConfirmationArmed,
+            composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
+            contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+            onModelChange: { selectedModelBinding.wrappedValue = $0 },
+            onEffortChange: { selectedEffortBinding.wrappedValue = $0 },
+            onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
+            onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
+            onSubmit: {
+                guard presentation.canSubmit else {
+                    return
+                }
+                sendDraft()
+            },
+            onStop: {
+                isStopConfirmationArmed = false
+                Task { await viewModel.cancel() }
+            },
+            onShowKeymap: {
+                isKeymapPresented = true
+            }
+        )
+    }
+
+    var composerPresentation: ComposerPresentation {
+        ComposerPresentation(
+            text: viewModel.state.inputDraft,
+            mode: composerMode,
+            defaultEnterBehavior: defaultEnterBehavior,
+            supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+            isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
+            isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
+            handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
+            sendCountdown: viewModel.state.handoffCountdownRemaining,
+            isProjectTrustBlocked: isProjectTrustBlocked
+        )
+    }
+
+    var visibleEffortLevels: [String] {
+        ComposerSettingsPresentation.visibleEffortLevels(
+            selectedModel: selectedModelBinding.wrappedValue,
+            providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
+        )
+    }
+
+    var composerModelOptions: [String] {
+        let selectedModel = selectedModelBinding.wrappedValue
+        let knownModels = AppSettings.supportedModels
+        return knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
     }
 }

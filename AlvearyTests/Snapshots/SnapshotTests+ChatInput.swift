@@ -187,7 +187,7 @@ extension SnapshotTests {
                 onSubmit: {},
                 onSteer: {},
                 onStop: {},
-                isStopConfirmationArmed: true,
+                isStopConfirmationArmed: .constant(true),
                 selectedModel: .constant("sonnet"),
                 selectedEffort: .constant("high"),
                 selectedPermissionMode: .constant("acceptEdits"),
