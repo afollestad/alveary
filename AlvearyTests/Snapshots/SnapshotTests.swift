@@ -175,61 +175,6 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
-    func testComposerAutocompletePopupFiles() {
-        assertMacSnapshot(
-            ComposerAutocompletePopup(
-                autocomplete: sampleFileAutocomplete,
-                onSelect: { _ in }
-            ),
-            size: CGSize(width: 540, height: 280),
-            named: "composer_autocomplete_files"
-        )
-    }
-
-    func testComposerAutocompletePopupScrolledHighlight() {
-        assertMacSnapshot(
-            ComposerAutocompletePopup(
-                autocomplete: sampleScrolledFileAutocomplete,
-                onSelect: { _ in }
-            ),
-            size: CGSize(width: 540, height: 280),
-            named: "composer_autocomplete_files_scrolled_highlight"
-        )
-    }
-
-    func testComposerAutocompletePopupSkills() {
-        assertMacSnapshot(
-            ComposerAutocompletePopup(
-                autocomplete: sampleSkillAutocomplete,
-                onSelect: { _ in }
-            ),
-            size: CGSize(width: 540, height: 280),
-            named: "composer_autocomplete_skills"
-        )
-    }
-
-    func testComposerAutocompletePopupEmptyState() {
-        assertMacSnapshot(
-            ComposerAutocompletePopup(
-                autocomplete: sampleEmptyAutocomplete,
-                onSelect: { _ in }
-            ),
-            size: CGSize(width: 540, height: 120),
-            named: "composer_autocomplete_empty"
-        )
-    }
-
-    func testComposerAutocompletePopupLoadingState() {
-        assertMacSnapshot(
-            ComposerAutocompletePopup(
-                autocomplete: sampleLoadingAutocomplete,
-                onSelect: { _ in }
-            ),
-            size: CGSize(width: 540, height: 120),
-            named: "composer_autocomplete_loading"
-        )
-    }
-
     func testQueuedMessageBubbleWithContextAndRetry() {
         assertMacSnapshot(
             ChatInputField(

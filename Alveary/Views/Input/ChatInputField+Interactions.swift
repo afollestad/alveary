@@ -350,6 +350,17 @@ extension ChatInputField {
         return true
     }
 
+    func highlightAutocompleteSuggestion(at index: Int) {
+        guard var autocomplete = activeAutocomplete,
+              autocomplete.suggestions.indices.contains(index),
+              autocomplete.highlightedIndex != index else {
+            return
+        }
+
+        autocomplete.highlightedIndex = index
+        activeAutocomplete = autocomplete
+    }
+
     func applyAutocompleteSuggestion(_ suggestion: ComposerAutocompleteSuggestion) {
         guard let autocomplete = activeAutocomplete else {
             return

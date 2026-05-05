@@ -44,6 +44,15 @@ final class AppKitChatSurfaceView: NSView {
         needsLayout = true
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // The autocomplete popup is mounted inside the composer but floats upward
+        // over transcript space, so route it before the surface clips normal hits.
+        if let autocompleteHitView = hitTestComposerAutocomplete(point) {
+            return autocompleteHitView
+        }
+        return super.hitTest(point)
+    }
+
     override func layout() {
         super.layout()
 
@@ -58,6 +67,18 @@ final class AppKitChatSurfaceView: NSView {
 
         contentView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
         composerView.frame = NSRect(x: 0, y: contentHeight, width: width, height: composerHeight)
+    }
+
+    private func hitTestComposerAutocomplete(_ point: NSPoint) -> NSView? {
+        guard let composerView,
+              let popup = visibleAutocompletePopup(in: composerView) else {
+            return nil
+        }
+        let popupPoint = popup.convert(point, from: self)
+        guard popup.bounds.contains(popupPoint) else {
+            return nil
+        }
+        return popup.hitTest(popupPoint)
     }
 
     private func measuredComposerHeight(for composerView: NSView, width: CGFloat) -> CGFloat {
@@ -76,6 +97,19 @@ final class AppKitChatSurfaceView: NSView {
         }
 
         return max(0, ceil(composerView.fittingSize.height))
+    }
+
+    private func visibleAutocompletePopup(in view: NSView) -> AppKitComposerAutocompletePopupView? {
+        if let popup = view as? AppKitComposerAutocompletePopupView,
+           !popup.isHidden {
+            return popup
+        }
+        for subview in view.subviews {
+            if let match = visibleAutocompletePopup(in: subview) {
+                return match
+            }
+        }
+        return nil
     }
 
     private func configureHostedInvalidation(_ view: NSView) {

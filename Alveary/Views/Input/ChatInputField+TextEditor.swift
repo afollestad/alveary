@@ -65,25 +65,16 @@ extension ChatInputField {
     @ViewBuilder
     var composerAutocompleteOverlay: some View {
         if let autocomplete = activeAutocomplete {
-            ComposerAutocompletePopup(
+            let popupHeight = AppKitComposerAutocompletePopupView.measuredHeight(for: autocomplete)
+            AppKitAutocompletePopupRepresentable(
                 autocomplete: autocomplete,
-                onSelect: applyAutocompleteSuggestion
+                onSelect: applyAutocompleteSuggestion,
+                onHighlight: highlightAutocompleteSuggestion
             )
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: popupHeight)
             .fixedSize(horizontal: false, vertical: true)
-            .background {
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear {
-                            autocompletePopupHeight = proxy.size.height
-                        }
-                        .onChange(of: proxy.size.height) { _, newHeight in
-                            autocompletePopupHeight = newHeight
-                        }
-                }
-            }
-            .opacity(autocompletePopupHeight == 0 ? 0 : 1)
-            .offset(y: -(autocompletePopupHeight + 8))
+            .offset(y: -(popupHeight + 8))
             .zIndex(1)
         }
     }

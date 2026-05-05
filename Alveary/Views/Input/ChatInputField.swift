@@ -67,7 +67,6 @@ struct ChatInputField: View {
     @State var skillHintLoadTask: Task<Void, Never>?
     @State var isDropTargeted = false
     @State private var isKeymapPresented = false
-    @State var autocompletePopupHeight: CGFloat = 0
     @Binding var isStopConfirmationArmed: Bool
     @State var stopConfirmationResetTask: Task<Void, Never>?
 
@@ -195,9 +194,6 @@ struct ChatInputField: View {
                 if isInputFocused {
                     refreshAutocomplete(forceReload: true)
                 }
-            }
-            .onChange(of: activeAutocomplete?.sessionID) {
-                autocompletePopupHeight = 0
             }
             .onChange(of: canUseEscapeToStop) { _, canUseEscapeToStop in
                 if ChatInputStopConfirmationDecision.shouldClearWhenStopUnavailable(canUseEscapeToStop) {

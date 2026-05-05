@@ -95,12 +95,80 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerAutocompletePopupFiles() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleFileAutocomplete),
+            size: CGSize(width: 540, height: 148),
+            named: "appkit_composer_autocomplete_files",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerAutocompletePopupFilesLight() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleFileAutocomplete),
+            size: CGSize(width: 540, height: 148),
+            named: "appkit_composer_autocomplete_files_light",
+            colorScheme: .light
+        )
+    }
+
+    func testAppKitComposerAutocompletePopupScrolledHighlight() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleScrolledFileAutocomplete),
+            size: CGSize(width: 540, height: 286),
+            named: "appkit_composer_autocomplete_files_scrolled_highlight",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerAutocompletePopupSkills() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleSkillAutocomplete),
+            size: CGSize(width: 540, height: 148),
+            named: "appkit_composer_autocomplete_skills",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerAutocompletePopupEmptyState() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleEmptyAutocomplete),
+            size: CGSize(width: 540, height: 48),
+            named: "appkit_composer_autocomplete_empty",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerAutocompletePopupLoadingState() {
+        assertMacSnapshot(
+            AppKitAutocompletePopupSnapshot(autocomplete: sampleLoadingAutocomplete),
+            size: CGSize(width: 540, height: 48),
+            named: "appkit_composer_autocomplete_loading",
+            colorScheme: .dark
+        )
+    }
+
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedEffortLevels: ["low", "medium", "high"],
             supportedPermissionModes: samplePermissionModes,
             supportsMidTurnSteering: true
         )
+    }
+}
+
+private struct AppKitAutocompletePopupSnapshot: NSViewRepresentable {
+    let autocomplete: ComposerAutocompleteState
+
+    func makeNSView(context: Context) -> AppKitComposerAutocompletePopupView {
+        let view = AppKitComposerAutocompletePopupView()
+        view.configure(autocomplete: autocomplete, onSelect: { _ in }, onHighlight: { _ in })
+        return view
+    }
+
+    func updateNSView(_ view: AppKitComposerAutocompletePopupView, context: Context) {
+        view.configure(autocomplete: autocomplete, onSelect: { _ in }, onHighlight: { _ in })
     }
 }
 

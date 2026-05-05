@@ -18,8 +18,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 - Composer autocomplete source loading and filtering must not inherit the live-turn `MainActor` workload. Run the expensive work off-main and only hop back to publish `activeAutocomplete` state so `@` mentions and `/` skills stay responsive while a turn is streaming.
 - Composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. Keep the popup as an overlay on the composer editor (`ChatTextEditor` on the native path) so it floats over queued-message rows, while file suggestions show canonical display paths and skill suggestions stay in the single-line icon/name/description/scope layout.
+- Production autocomplete popup rows render through `AppKitComposerAutocompletePopupView` even while `ChatInputField` owns autocomplete state. Keep popup hit testing routable from `AppKitChatSurfaceView` so rows that visually float above the composer still receive hover and click events.
 - Composer autocomplete loading and empty placeholder states should share the same full-width popup container and surface color as populated suggestions; keep focused snapshots for files, skills, empty, and loading variants when changing popup styling.
 - Composer autocomplete popup scrolling should target each suggestion's stable `id`, not list indices or whole-array change observation. File-mention filtering replaces rows aggressively while typing, and index-driven scroll bookkeeping can leave `@` results visually stale or glitchy.
+- Skill autocomplete rows must preserve layout priority: command/name first, scope/trailing text in bounded secondary space, description in the remaining middle width. Do not let long descriptions push the command or scope out of view.
 - Slash-command autocomplete accepts on `Tab`, but `Return` must fall through to send when the highlighted skill already exactly matches the typed `/command`. Without that carve-out, pressing Enter on an exact skill match silently rewrites the token to itself plus a space and makes slash commands feel inert.
 
 ## Worktree Picker And Session Location
