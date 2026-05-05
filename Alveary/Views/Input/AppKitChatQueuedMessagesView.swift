@@ -26,7 +26,7 @@ struct AppKitChatQueuedMessagesConfiguration {
 /// Native queued-message list rendered above the composer editor.
 ///
 /// The production AppKit composer panel owns this section so queued rows cannot
-/// stretch the hosted editor/action-row spacing through SwiftUI layout.
+/// stretch editor/action-row spacing through SwiftUI layout.
 @MainActor
 final class AppKitChatQueuedMessagesView: NSView {
     private var rows: [AppKitChatQueuedMessageRowView] = []
@@ -98,7 +98,8 @@ final class AppKitChatQueuedMessagesView: NSView {
         // Draw only the queue list's outer top border. The editor below owns the
         // shared edge, so a bottom stroke here creates a visible seam.
         appKitComposerSecondaryColor(in: self, opacity: 0.18).setStroke()
-        let borderPath = NSBezierPath.appKitComposerTopRoundedBorder(bounds, radius: 18)
+        let borderRect = bounds.insetBy(dx: configuration.borderWidth / 2, dy: 0)
+        let borderPath = NSBezierPath.appKitComposerTopRoundedBorder(borderRect, radius: 18)
         borderPath.lineWidth = configuration.borderWidth
         borderPath.stroke()
     }

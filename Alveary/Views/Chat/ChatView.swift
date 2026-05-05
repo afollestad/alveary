@@ -19,6 +19,7 @@ struct ChatView: View {
     let transcriptTypography: TranscriptTypography
     @Bindable var appState: AppState
 
+    @Environment(\.colorScheme) private var colorScheme
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
     @State private var isFollowing = true
@@ -288,37 +289,9 @@ private extension ChatView {
     }
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
-        let content = ChatComposerPanelContent(
-            viewModel: viewModel,
-            composerCapabilities: composerCapabilities,
-            workingDirectory: workingDirectory,
-            composerMode: composerMode,
-            defaultEnterBehavior: defaultEnterBehavior,
-            composerIsBusy: composerIsBusy,
-            isProjectTrustBlocked: isProjectTrustBlocked,
-            selectedModel: selectedModelBinding,
-            selectedEffort: selectedEffortBinding,
-            selectedPermissionMode: selectedPermissionModeBinding,
-            selectedUseWorktree: selectedUseWorktreeBinding,
-            showWorktreePicker: showWorktreePicker,
-            sessionLocationLabel: sessionLocationLabel,
-            usageSummary: usageSummary,
-            loadFileCompletions: loadFileCompletions,
-            loadSkillCompletions: loadSkillCompletions,
-            onSubmit: sendDraft,
-            onSteer: steerDraft,
-            onStop: {
-                Task { await viewModel.cancel() }
-            },
-            focusRequestToken: $appState.pendingComposerFocusToken,
-            isStopConfirmationArmed: $isStopConfirmationArmed,
-            rendersTopContent: false,
-            usesNativeActionRow: true,
-            usesNativeQueuedMessages: true
-        )
-
         return AppKitChatComposerPanelConfiguration(
-            content: AnyView(content),
+            content: AnyView(EmptyView()),
+            nativeBodyConfiguration: composerBodyConfiguration,
             topContentConfiguration: composerTopContentConfiguration,
             queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
             actionRowConfiguration: composerActionRowConfiguration,
@@ -330,6 +303,48 @@ private extension ChatView {
                 actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing,
                 bottomPadding: ChatComposerPanelLayout.nativeActionRowBottomPadding
             )
+        )
+    }
+
+    var composerBodyConfiguration: AppKitChatComposerBodyConfiguration {
+        AppKitChatComposerBodyConfiguration(
+            text: viewModel.state.inputDraft,
+            mode: composerMode,
+            defaultEnterBehavior: defaultEnterBehavior,
+            isStopConfirmationArmed: isStopConfirmationArmed,
+            supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
+            isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
+            handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
+            sendCountdown: viewModel.state.handoffCountdownRemaining,
+            hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
+            hasTopContent: !composerTopContentConfiguration.items.isEmpty,
+            workingDirectory: workingDirectory,
+            requestFirstResponder: appState.pendingComposerFocusToken,
+            colorScheme: colorScheme,
+            loadFileCompletions: loadFileCompletions,
+            loadSkillCompletions: loadSkillCompletions,
+            onTextChange: { newValue in
+                viewModel.state.inputDraft = newValue
+                viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)
+                viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
+            },
+            onSubmit: sendDraft,
+            onSteer: steerDraft,
+            onStop: {
+                isStopConfirmationArmed = false
+                Task { await viewModel.cancel() }
+            },
+            onStopConfirmationChange: { isArmed in
+                isStopConfirmationArmed = isArmed
+            },
+            onFocusRequestConsumed: { consumedToken in
+                guard appState.pendingComposerFocusToken == consumedToken else {
+                    return
+                }
+                appState.pendingComposerFocusToken = nil
+            }
         )
     }
 
@@ -477,7 +492,6 @@ private extension ChatView {
             providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
         )
     }
-
     var composerModelOptions: [String] {
         let selectedModel = selectedModelBinding.wrappedValue
         let knownModels = AppSettings.supportedModels

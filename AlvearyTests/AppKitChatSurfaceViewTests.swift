@@ -364,7 +364,7 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
     }
 }
 
-private func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
+func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
         modelOptions: [.init(value: "sonnet", title: "Sonnet")],
         selectedModel: "sonnet",

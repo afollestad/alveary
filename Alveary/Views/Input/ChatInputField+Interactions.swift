@@ -248,9 +248,16 @@ extension ChatInputField {
             case .skill:
                 let skills = await loadSkillCompletions()
                 source = .skill(skills)
+                let hints = Self.argumentHintsByCommandKey(from: skills)
 
+                guard !Task.isCancelled else {
+                    return
+                }
                 await MainActor.run {
-                    skillArgumentHints = Self.argumentHintsByCommandKey(from: skills)
+                    guard activeAutocomplete?.sessionID == autocomplete.sessionID else {
+                        return
+                    }
+                    skillArgumentHints = hints
                     hasLoadedSkillArgumentHints = true
                 }
             }

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AppKitChatComposerPanelConfiguration {
     let content: AnyView
+    let nativeBodyConfiguration: AppKitChatComposerBodyConfiguration?
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration?
@@ -15,6 +16,7 @@ struct AppKitChatComposerPanelConfiguration {
 
     init(
         content: AnyView,
+        nativeBodyConfiguration: AppKitChatComposerBodyConfiguration? = nil,
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
         queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? = nil,
         actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
@@ -23,6 +25,7 @@ struct AppKitChatComposerPanelConfiguration {
         layout: AppKitChatComposerPanelView.Layout
     ) {
         self.content = content
+        self.nativeBodyConfiguration = nativeBodyConfiguration
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessagesConfiguration = queuedMessagesConfiguration
         self.actionRowConfiguration = actionRowConfiguration
@@ -34,10 +37,10 @@ struct AppKitChatComposerPanelConfiguration {
 
 /// AppKit owner for the composer panel shell.
 ///
-/// The inner composer body is still transitional SwiftUI content. This view
-/// owns the shell pieces that have regressed during the migration: transparent
-/// outer background, horizontal padding, top-content vertical offset, top
-/// divider color, native action-row placement, and height measurement.
+/// Production chat surfaces pass a native composer body so the editor,
+/// autocomplete, queued messages, and action row live in one AppKit coordinate
+/// space. Legacy snapshots may still provide hosted SwiftUI `content` while
+/// they are being split into smaller reviewable migrations.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
     struct Layout {
@@ -66,6 +69,7 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     private let contentHost = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
+    private let nativeBodyView = AppKitChatComposerBodyView()
     private let topContentView = AppKitChatComposerTopContentView()
     private let queuedMessagesView = AppKitChatQueuedMessagesView()
     private let actionRow = ChatComposerActionRowView()
@@ -104,7 +108,7 @@ final class AppKitChatComposerPanelView: NSView {
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
         configureQueuedMessages(configuration.queuedMessagesConfiguration)
-        contentHost.rootView = configuration.content
+        configureBody(configuration)
         configureActionRow(configuration.actionRowConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
         invalidateIntrinsicContentSize()
@@ -126,14 +130,15 @@ final class AppKitChatComposerPanelView: NSView {
         var currentY = topPadding(for: configuration)
         currentY = layoutTopContent(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         currentY = layoutQueuedMessages(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
-        let contentHeight = measuredHeight(of: contentHost, width: contentWidth)
-        contentHost.frame = NSRect(
+        let bodyView = activeBodyView(for: configuration)
+        let bodyHeight = measuredHeight(of: bodyView, width: contentWidth)
+        bodyView.frame = NSRect(
             x: configuration.layout.horizontalPadding.left,
             y: currentY,
             width: contentWidth,
-            height: contentHeight
+            height: bodyHeight
         )
-        currentY += contentHeight
+        currentY += bodyHeight
         if configuration.actionRowConfiguration != nil {
             actionRow.frame = NSRect(
                 x: configuration.layout.horizontalPadding.left,
@@ -145,9 +150,23 @@ final class AppKitChatComposerPanelView: NSView {
         dividerView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let nativeHit = nativeBodyViewHitTest(at: point) {
+            return nativeHit
+        }
+        return super.hitTest(point)
+    }
+
     private func setupViews() {
         addSubview(topContentView)
         addSubview(queuedMessagesView)
+        nativeBodyView.isHidden = true
+        nativeBodyView.onPreferredSizeInvalidated = { [weak self] in
+            self?.invalidateIntrinsicContentSize()
+            self?.needsLayout = true
+            self?.superview?.needsLayout = true
+        }
+        addSubview(nativeBodyView)
         contentHost.configureChatSurfaceSizing()
         contentHost.onPreferredSizeInvalidated = { [weak self] in
             self?.invalidateIntrinsicContentSize()
@@ -163,6 +182,31 @@ final class AppKitChatComposerPanelView: NSView {
         dividerView.alphaValue = 0
         addSubview(dividerView)
         updateColors()
+    }
+
+    private func configureBody(_ configuration: AppKitChatComposerPanelConfiguration) {
+        if let nativeBodyConfiguration = configuration.nativeBodyConfiguration {
+            nativeBodyView.isHidden = false
+            nativeBodyView.configure(nativeBodyConfiguration)
+            contentHost.isHidden = true
+            contentHost.rootView = AnyView(EmptyView())
+        } else {
+            nativeBodyView.isHidden = true
+            contentHost.isHidden = false
+            contentHost.rootView = configuration.content
+        }
+    }
+
+    private func activeBodyView(for configuration: AppKitChatComposerPanelConfiguration) -> NSView {
+        configuration.nativeBodyConfiguration == nil ? contentHost : nativeBodyView
+    }
+
+    private func nativeBodyViewHitTest(at point: NSPoint) -> NSView? {
+        guard !nativeBodyView.isHidden else {
+            return nil
+        }
+        let localPoint = nativeBodyView.convert(point, from: self)
+        return nativeBodyView.hitTestAutocomplete(at: localPoint)
     }
 
     private func configureActionRow(_ configuration: ChatComposerActionRowView.Configuration?) {
@@ -286,7 +330,7 @@ final class AppKitChatComposerPanelView: NSView {
             }
             height += queuedMessagesView.measuredHeight(width: contentWidth)
         }
-        height += measuredHeight(of: contentHost, width: contentWidth)
+        height += measuredHeight(of: activeBodyView(for: configuration), width: contentWidth)
         if configuration.actionRowConfiguration != nil {
             height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height + configuration.layout.bottomPadding
         }

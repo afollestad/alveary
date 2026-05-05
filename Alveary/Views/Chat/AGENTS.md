@@ -32,12 +32,13 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
       keep the row inside `ChatInputField`.
     - **Own production queued-message placement.** Active `ChatView` routes
       pending queued messages through `AppKitChatQueuedMessagesView` above the
-      hosted editor body. Legacy SwiftUI composer snapshots may still render
+      native composer body. Legacy SwiftUI composer snapshots may still render
       queued rows inside `ChatInputField`; do not let production queued rows
       re-enter the SwiftUI editor stack.
-    - **Keep body migration explicit.** The inner composer body may still be
-      SwiftUI during transitional slices; do not move shell chrome back into
-      `ChatComposerPanel`.
+    - **Own production composer body.** Active `ChatView` configures
+      `AppKitChatComposerBodyView` for the editor, autocomplete, drop handling,
+      and key handling. Legacy SwiftUI composer snapshots may still host
+      `ChatInputField`, but production fixes should stay on the native body path.
 - `ProjectTrustPromptView` lives in `ProjectTrustPrompt.swift`; `ThreadDetailView+ProjectTrust.swift` owns the trust-state checks and denial deletion.
 - `EmptyThreadState` lives in `ChatView+EmptyThreadState.swift` and checks `isCancellingInitialSetup` before `setupPhase` so cancellation feedback takes precedence even when `setupPhase` is still set mid-rollback. Keep that ordering if you restructure the view; otherwise the empty-thread pane flickers back to "Creating worktree" during the rollback shell commands.
 - Transcript rendering is AppKit-owned. Keep live transcript row work under `Blocks/AppKit/` and route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`; do not reintroduce SwiftUI transcript row views.
@@ -45,7 +46,7 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 - Long static user and assistant bubbles should keep exact AppKit markdown measurement for frame/clipping/fade controls. Keep Show more/less on the AppKit header toggle; do not add bubble-wide gestures or nested vertical scroll views.
 - `attachComposerChips(to:)` skips any attributed-string range that already carries a markdown `.link`, a `.codeBlock` block-level `presentationIntent` (fenced code block), or a `.code` `inlinePresentationIntent` (backtick inline code). The inline-code guard is load-bearing: `composerTextChips` is invoked with the *parsed* flat string (backticks stripped), so the helper's own `codeRanges`-based filter returns nothing to exclude. Without the guard, a user writing `` `@path/to/file.swift` `` would have their inline code clobbered by a composer chip that truncates the path to `@file.swift`. Keep each condition; each covers a distinct case.
 - Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small while still letting composer/autocomplete z-order stay local to the panel.
-- Composer panel top/bottom clearance should have one owner per edge. While `ChatInputField` still hosts the editor, top/editor clearance comes from `ChatComposerPanelLayout.inputOuterPadding`; when AppKit owns the native action row, bottom clearance comes from the panel layout so `inputOuterPadding.bottom` does not stack between the editor and controls.
+- Composer panel top/bottom clearance should have one owner per edge. Production editor-to-action-row spacing comes from `AppKitChatComposerPanelView.Layout.actionRowSpacing`; legacy SwiftUI `ChatInputField` snapshots may still use `ChatComposerPanelLayout.inputOuterPadding`, but production fixes should not stack that padding with native panel spacing.
 - Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`; the SwiftUI `StagedContextBanner` remains only for legacy composer snapshots. Keep staged context above the composer without introducing transcript rows.
 - Do not reintroduce a changed-files strip above the composer. Diff status belongs in the main toolbar button that opens the Diff Viewer, so changed-file loading cannot alter transcript/composer height or leave stale transcript measurements.
 

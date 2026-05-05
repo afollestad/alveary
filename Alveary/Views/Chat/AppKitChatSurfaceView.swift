@@ -3,9 +3,9 @@ import SwiftUI
 
 /// Native owner for the active chat surface layout.
 ///
-/// `ChatView` still builds the current SwiftUI content-mode view and inner
-/// composer content during the migration, but this view owns their vertical
-/// frames and mounts the native composer panel shell directly.
+/// `ChatView` still builds the current SwiftUI content-mode view during the
+/// migration, but this view owns the vertical content/composer split and mounts
+/// the native composer panel directly.
 final class AppKitChatSurfaceView: NSView {
     private weak var contentView: NSView?
     private weak var composerView: NSView?

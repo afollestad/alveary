@@ -2,7 +2,7 @@
 
 These instructions cover composer-specific view code under `Alveary/Views/Input/`.
 
-> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.focusedSceneValue`, `.onKeyPress`, or `.keyboardShortcut` in this folder, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. It owns the composer's `focusedSceneValue(\.chatComposerFocus, ...)` publisher contract and the companion NSTextView resign branch in `AppTextEditor+AppKit.swift`'s `syncFocusIfNeeded()`. `ChatInputField` is the sole publisher of that key — additional input surfaces here must follow the same pattern rather than introducing a second publisher.
+> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.focusedSceneValue`, `.onKeyPress`, or `.keyboardShortcut` in this folder, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. Legacy SwiftUI composer hosts still publish `focusedSceneValue(\.chatComposerFocus, ...)` through `ChatInputField`; the production AppKit body consumes first-responder request tokens directly through `ChatTextEditorView` and should not add a second publisher.
 
 ## AppKit Text Editor
 
@@ -18,7 +18,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 - Composer autocomplete source loading and filtering must not inherit the live-turn `MainActor` workload. Run the expensive work off-main and only hop back to publish `activeAutocomplete` state so `@` mentions and `/` skills stay responsive while a turn is streaming.
 - Composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. Keep the popup as an overlay on the composer editor (`ChatTextEditor` on the native path) so it floats over queued-message rows, while file suggestions show canonical display paths and skill suggestions stay in the single-line icon/name/description/scope layout.
-- Production autocomplete popup rows render through `AppKitComposerAutocompletePopupView` even while `ChatInputField` owns autocomplete state. Keep popup hit testing routable from `AppKitChatSurfaceView` so rows that visually float above the composer still receive hover and click events.
+- Production autocomplete popup rows render through `AppKitComposerAutocompletePopupView` from the native composer body. Legacy SwiftUI hosts may still bridge the same popup view from `ChatInputField`; keep popup hit testing routable from `AppKitChatSurfaceView` so rows that visually float above the composer still receive hover and click events.
 - Composer autocomplete loading and empty placeholder states should share the same full-width popup container and surface color as populated suggestions; keep focused snapshots for files, skills, empty, and loading variants when changing popup styling.
 - Composer autocomplete popup scrolling should target each suggestion's stable `id`, not list indices or whole-array change observation. File-mention filtering replaces rows aggressively while typing, and index-driven scroll bookkeeping can leave `@` results visually stale or glitchy.
 - Skill autocomplete rows must preserve layout priority: command/name first, scope/trailing text in bounded secondary space, description in the remaining middle width. Do not let long descriptions push the command or scope out of view.
@@ -53,15 +53,15 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - **Prefer native AppKit ownership.** Migrated composer controls should use native AppKit views such as `ChatTextEditorView` instead of adding more SwiftUI text-input bridges.
 - **Keep adapters temporary and thin.** `ChatTextEditor` may bridge the native editor into SwiftUI until the composer root migrates, but it should only own SwiftUI chrome, measurement binding, selection conversion, and focus state handoff.
 - **Reuse text primitives.** Native composer views should reuse `AppKitTextView` chip/code/inline-hint behavior so compact basename chips and outbound mention storage stay aligned with current coverage.
-- `ChatComposerActionRow` owns the native bottom settings/action row while `ChatInputField` still hosts the composer shell in SwiftUI.
+- `AppKitChatComposerBodyView` owns the production composer body: native editor shell, autocomplete popup, drop-to-mention handling, key handling, and editor background/border drawing. `ChatInputField` and `ChatTextEditor` remain compatibility wrappers for legacy SwiftUI snapshots and transitional callers.
+- `ChatComposerActionRow` owns the native bottom settings/action row for the production composer panel and legacy SwiftUI snapshots that still host the full composer shell.
     - **Keep shell migration explicit.** Production `ChatView` now lets
-      `AppKitChatComposerPanelView` place the native action row while
-      `ChatInputField` supplies only the transitional editor/autocomplete
-      stack. Legacy SwiftUI snapshots may still set `showsActionRow` to keep
+      `AppKitChatComposerPanelView` instantiate the native body and action row
+      directly. Legacy SwiftUI snapshots may still set `showsActionRow` to keep
       the full shell in one view.
     - **Keep queued-message ownership explicit.** Production `ChatView` now lets
-      `AppKitChatComposerPanelView` place native queued rows above the hosted
-      editor while `ChatInputField` hides its SwiftUI queued section. Legacy
+      `AppKitChatComposerPanelView` place native queued rows above the native
+      composer body. Legacy
       SwiftUI snapshots may still set `showsQueuedMessages` to keep the full
       shell in one view. The editor corner radii still key off the queued data
       so the editor remains top-square under the native queued list. The

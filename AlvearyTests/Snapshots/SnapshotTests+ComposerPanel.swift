@@ -52,8 +52,7 @@ extension SnapshotTests {
                         context: "Restoring context from local history.",
                         onDismiss: {}
                     ))
-                ]),
-                inputOuterPadding: ChatComposerPanelLayout.nativeInputPaddingWithTop
+                ])
             ),
             size: CGSize(width: 1000, height: 190),
             named: "appkit_composer_panel_native_top_content",
@@ -69,8 +68,7 @@ extension SnapshotTests {
                         text: "Follow with the snapshot cleanup once the diff finishes loading.",
                         stagedContext: "Restoring context from local history."
                     )
-                ],
-                inputOuterPadding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+                ]
             ),
             size: CGSize(width: 1000, height: 220),
             named: "appkit_composer_panel_native_queued_messages",
@@ -86,8 +84,7 @@ extension SnapshotTests {
                         text: "Follow with the snapshot cleanup once the diff finishes loading.",
                         stagedContext: "Restoring context from local history."
                     )
-                ],
-                inputOuterPadding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+                ]
             ),
             size: CGSize(width: 1000, height: 220),
             named: "appkit_composer_panel_native_queued_messages_light",
@@ -175,7 +172,6 @@ private struct AppKitAutocompletePopupSnapshot: NSViewRepresentable {
 private struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessages: [QueuedMessage]
-    let inputOuterPadding: EdgeInsets
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
@@ -191,53 +187,56 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
     @State private var selectedUseWorktree = false
     @State private var focusRequestToken: UUID?
     @State private var isStopConfirmationArmed = false
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
-        queuedMessages: [QueuedMessage] = [],
-        inputOuterPadding: EdgeInsets = ChatComposerPanelLayout.nativeInputPadding
+        queuedMessages: [QueuedMessage] = []
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
-        self.inputOuterPadding = inputOuterPadding
     }
 
     var body: some View {
         AppKitComposerPanelSnapshotRepresentable(
-            content: AnyView(content),
+            content: AnyView(EmptyView()),
+            nativeBodyConfiguration: nativeBodyConfiguration,
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration
         )
     }
 
-    private var content: some View {
-        ChatInputField(
-            text: $text,
+    private var nativeBodyConfiguration: AppKitChatComposerBodyConfiguration {
+        AppKitChatComposerBodyConfiguration(
+            text: text,
             mode: .idle,
             defaultEnterBehavior: .queue,
+            isStopConfirmationArmed: isStopConfirmationArmed,
+            supportsMidTurnSteering: true,
+            isProjectTrustBlocked: false,
+            isHandoffSteeringPromptActive: false,
+            isHandoffOutputPromptActive: false,
+            handoffSteeringCountdown: nil,
+            sendCountdown: nil,
+            hasQueuedMessages: !queuedMessages.isEmpty,
+            hasTopContent: !topContentConfiguration.items.isEmpty,
+            workingDirectory: "/tmp/alveary",
+            requestFirstResponder: focusRequestToken,
+            colorScheme: colorScheme,
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] },
+            onTextChange: { text = $0 },
             onSubmit: {},
             onSteer: {},
             onStop: {},
-            isStopConfirmationArmed: $isStopConfirmationArmed,
-            outerPadding: inputOuterPadding,
-            selectedModel: $selectedModel,
-            selectedEffort: $selectedEffort,
-            selectedPermissionMode: $selectedPermissionMode,
-            selectedUseWorktree: $selectedUseWorktree,
-            supportedPermissionModes: Self.permissionModes,
-            supportedEffortLevels: ["low", "medium", "high"],
-            showWorktreePicker: false,
-            sessionLocationLabel: "Local",
-            usageSummary: usageSummary,
-            supportsMidTurnSteering: true,
-            queuedMessages: queuedMessages,
-            workingDirectory: "/tmp/alveary",
-            loadFileCompletions: { [] },
-            loadSkillCompletions: { [] },
-            focusRequestToken: $focusRequestToken,
-            showsActionRow: false,
-            showsQueuedMessages: false
+            onStopConfirmationChange: { isStopConfirmationArmed = $0 },
+            onFocusRequestConsumed: { consumedToken in
+                guard focusRequestToken == consumedToken else {
+                    return
+                }
+                focusRequestToken = nil
+            }
         )
     }
 
@@ -305,6 +304,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
 private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     let content: AnyView
+    let nativeBodyConfiguration: AppKitChatComposerBodyConfiguration?
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration
@@ -322,6 +322,7 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     private var configuration: AppKitChatComposerPanelConfiguration {
         AppKitChatComposerPanelConfiguration(
             content: content,
+            nativeBodyConfiguration: nativeBodyConfiguration,
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration,
