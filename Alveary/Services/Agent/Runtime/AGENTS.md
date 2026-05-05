@@ -2,7 +2,7 @@
 
 These instructions cover provider-neutral runtime management under `Alveary/Services/Agent/Runtime/`.
 
-- `AgentsManager.destroyRuntime()` is the single public owner for destructive runtime teardown. Archive/delete/rollback flows should not reimplement `kill()` + wait loops + direct session-map removal on top of it.
+- `AgentsManager.destroyRuntime()` is the single public owner for waiting on destructive runtime teardown. UI flows may call `kill(conversationId:)` first when they need the visible model row removed immediately, but they must still call `destroyRuntime(conversationId:)` as the wait/cleanup phase instead of reimplementing wait loops or direct session-map removal.
 - Do not switch `DefaultAgentsManager.readAgentOutput` back to `FileHandle.AsyncBytes.lines` for provider stream-json pipes. Keep the `readabilityHandler`-based `PipeLinePump` so final EOF-delimited JSON records without a trailing newline still flush and the UI does not get stuck in a busy/Stop state.
 - `DefaultAgentsManager+Spawn.swift` should stay as orchestration. Put launch preparation and process publishing in `DefaultAgentsManager+ProcessLaunch.swift`, stream event handling in `DefaultAgentsManager+StreamEvents.swift`, and pipe/stdout coordination in `DefaultAgentsManager+OutputStream.swift`.
 - Session handoff uses `startFreshSession(...)` to replace the provider session binding for the same conversation. It must remove old session approvals, drop the old event buffer, and spawn with `forkSession: false`; do not route it through normal settings reconfiguration.

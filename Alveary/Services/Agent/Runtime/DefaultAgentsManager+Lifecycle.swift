@@ -64,7 +64,13 @@ extension DefaultAgentsManager {
     }
 
     private func destroyRuntime(conversationId: String, timeout: Duration) async throws {
-        kill(conversationId: conversationId)
+        // Some UI flows call kill first so the visible conversation row can be
+        // deleted before runtime cleanup finishes. In that case, destroyRuntime
+        // is only the wait phase; re-running kill would repeat its state-clearing
+        // side effects.
+        if !isDestructiveTeardownInProgress(conversationId: conversationId) {
+            kill(conversationId: conversationId)
+        }
 
         let clock = ContinuousClock()
         let deadline = clock.now + timeout
@@ -91,6 +97,12 @@ extension DefaultAgentsManager {
         }
 
         throw AgentError.spawnFailed("Timed out waiting for destructive teardown for \(conversationId)")
+    }
+
+    private func isDestructiveTeardownInProgress(conversationId: String) -> Bool {
+        closingConversationIds.contains(conversationId) ||
+            pendingSessionRemovalIds.contains(conversationId) ||
+            pendingKillIds.contains(conversationId)
     }
 
     func kill(conversationId: String) {

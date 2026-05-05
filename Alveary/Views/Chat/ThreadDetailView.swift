@@ -142,15 +142,9 @@ struct ThreadDetailView: View {
                     presenting: pendingDeleteConversation
                 ) { conversation in
                     Button("Remove", role: .destructive) {
-                        // Snapshot both the `PersistentIdentifier` and the UUID-string
-                        // `id` synchronously here. `removeConversation` hops through
-                        // `await agentsManager.destroyRuntime(...)` and a stale re-fetch
-                        // via `modelContext.model(for:)` can return a zombie
-                        // `Conversation` that traps on any persisted-property read. The
-                        // dialog-message closure above (`conversation.displayName()`)
-                        // already read from this same model reference synchronously to
-                        // render the dialog, so reading `.id` at click time is on the
-                        // same known-live frame.
+                        // Snapshot both identifiers synchronously while the dialog still
+                        // owns a known-live model reference. Runtime teardown can outlive
+                        // tab removal, so the async path must not re-read from this model.
                         let conversationID = conversation.persistentModelID
                         let conversationIDString = conversation.id
                         pendingDeleteConversation = nil
@@ -312,29 +306,24 @@ private extension ThreadDetailView {
             return
         }
 
-        // `conversationIDString` was snapshotted synchronously by the caller (the
-        // confirmation-dialog button) — deliberately do not refetch a `Conversation`
-        // reference here to re-read its `.id`. `modelContext.model(for:)` can return a
-        // zombie `@Model` reference whose backing store has already been invalidated,
-        // and the first persisted-property read on that zombie traps with
-        // `_assertionFailure`. Re-resolution post-await is still safe because by then
-        // the store has settled and the nil-return branch catches a real deletion.
         selectNeighborIfClosingSelected(id: id, in: dbThread)
 
         let threadPersistentID = thread.persistentModelID
 
-        do {
-            try await agentsManager.destroyRuntime(conversationId: conversationIDString)
+        // Signal runtime teardown before deleting the model row so the tab can
+        // disappear immediately; destroyRuntime below still waits for cleanup.
+        await agentsManager.kill(conversationId: conversationIDString)
 
-            // Re-resolve model references after the await for the same reason — the
-            // pre-await `dbThread` / `dbConversation` may have been invalidated.
+        do {
             guard let liveThread = uiModelContext.resolveThread(id: threadPersistentID) else {
                 conversationActionError = nil
+                try await agentsManager.destroyRuntime(conversationId: conversationIDString)
                 return
             }
             guard let liveConversation = uiModelContext.resolveConversation(id: id) else {
                 conversationActionError = nil
                 appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
+                try await agentsManager.destroyRuntime(conversationId: conversationIDString)
                 return
             }
 
@@ -354,13 +343,19 @@ private extension ThreadDetailView {
             if let path = liveThread.worktreePath ?? liveThread.project?.path {
                 let baseRef = liveThread.project?.baseRef ?? "main"
                 let remoteName = liveThread.project?.remoteName
-                let conversationIds = Set(conversations.map(\.id))
+                let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
                 await diffViewModel.switchToDirectory(
                     path,
                     baseRef: baseRef,
                     remoteName: remoteName,
                     conversationIds: conversationIds
                 )
+            }
+
+            do {
+                try await agentsManager.destroyRuntime(conversationId: conversationIDString)
+            } catch {
+                conversationActionError = "Removed conversation, but runtime cleanup failed: \(error.localizedDescription)"
             }
         } catch {
             conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
