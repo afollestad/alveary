@@ -3,10 +3,9 @@ import SwiftUI
 
 /// Native owner for the active chat surface layout.
 ///
-/// `ChatView` still builds the current SwiftUI content-mode view and composer
-/// panel during the migration, but this view owns their vertical frames. That
-/// keeps the transcript, empty/trust states, and composer in one AppKit layout
-/// pass before later phases move more composer chrome out of SwiftUI.
+/// `ChatView` still builds the current SwiftUI content-mode view and inner
+/// composer content during the migration, but this view owns their vertical
+/// frames and mounts the native composer panel shell directly.
 final class AppKitChatSurfaceView: NSView {
     private weak var contentView: NSView?
     private weak var composerView: NSView?
@@ -56,14 +55,15 @@ final class AppKitChatSurfaceView: NSView {
             return max(0, ceil(composerView.fittingSize.height))
         }
 
-        // NSHostingView reports the composer's fitting height for its current
-        // width, so measure after applying the chat surface width. This avoids
-        // the composer inheriting a stale wrapping width from the previous pass.
         if composerView.frame.width != width {
             composerView.frame.size.width = width
             composerView.needsLayout = true
         }
         composerView.layoutSubtreeIfNeeded()
+
+        if let panelView = composerView as? AppKitChatComposerPanelView {
+            return max(0, ceil(panelView.fittingSize.height))
+        }
 
         return max(0, ceil(composerView.fittingSize.height))
     }
@@ -89,26 +89,26 @@ final class AppKitChatSurfaceView: NSView {
 /// views while AppKit owns the active chat surface's parent layout.
 struct AppKitChatSurfaceRepresentable: NSViewRepresentable {
     let content: AnyView
-    let composer: AnyView
+    let composerConfiguration: AppKitChatComposerPanelConfiguration
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(content: content, composer: composer)
+        Coordinator(content: content, composerConfiguration: composerConfiguration)
     }
 
     func makeNSView(context: Context) -> AppKitChatSurfaceView {
         let view = AppKitChatSurfaceView()
         view.configure(
             contentView: context.coordinator.contentHost,
-            composerView: context.coordinator.composerHost
+            composerView: context.coordinator.composerPanelView
         )
         return view
     }
 
     func updateNSView(_ nsView: AppKitChatSurfaceView, context: Context) {
-        context.coordinator.update(content: content, composer: composer)
+        context.coordinator.update(content: content, composerConfiguration: composerConfiguration)
         nsView.configure(
             contentView: context.coordinator.contentHost,
-            composerView: context.coordinator.composerHost
+            composerView: context.coordinator.composerPanelView
         )
     }
 }
@@ -117,16 +117,18 @@ extension AppKitChatSurfaceRepresentable {
     @MainActor
     final class Coordinator {
         let contentHost: AppKitChatSurfaceHostingView
-        let composerHost: AppKitChatSurfaceHostingView
+        let composerPanelView: AppKitChatComposerPanelView
 
-        init(content: AnyView, composer: AnyView) {
+        init(content: AnyView, composerConfiguration: AppKitChatComposerPanelConfiguration) {
             contentHost = AppKitChatSurfaceHostingView(rootView: content)
-            composerHost = AppKitChatSurfaceHostingView(rootView: composer)
+            composerPanelView = AppKitChatComposerPanelView()
+            contentHost.configureChatSurfaceSizing()
+            composerPanelView.configure(composerConfiguration)
         }
 
-        func update(content: AnyView, composer: AnyView) {
+        func update(content: AnyView, composerConfiguration: AppKitChatComposerPanelConfiguration) {
             contentHost.rootView = content
-            composerHost.rootView = composer
+            composerPanelView.configure(composerConfiguration)
         }
     }
 }
@@ -137,6 +139,15 @@ extension AppKitChatSurfaceRepresentable {
 @MainActor
 final class AppKitChatSurfaceHostingView: NSHostingView<AnyView> {
     var onPreferredSizeInvalidated: (() -> Void)?
+
+    func configureChatSurfaceSizing() {
+        // The AppKit surface supplies concrete child frames. Disabling the
+        // hosting view's min/max sizing constraints prevents a SwiftUI ideal
+        // width from pushing the composer outside narrow AppKit bounds.
+        sizingOptions = [.intrinsicContentSize]
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
 
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()

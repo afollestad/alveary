@@ -1,8 +1,14 @@
 import AppKit
 import SwiftUI
 
-private enum ChatComposerPanelLayout {
-    static let horizontalPadding = EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 21)
+enum ChatComposerPanelLayout {
+    static let appKitHorizontalPadding = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21)
+    static let swiftUIHorizontalPadding = EdgeInsets(
+        top: appKitHorizontalPadding.top,
+        leading: appKitHorizontalPadding.left,
+        bottom: appKitHorizontalPadding.bottom,
+        trailing: appKitHorizontalPadding.right
+    )
     static let verticalPadding: CGFloat = 0
     static let topContentSpacing: CGFloat = 8
     // This is the visible top/bottom clearance inside the composer panel.
@@ -34,6 +40,77 @@ struct ChatComposerPanel: View {
     let onStop: () -> Void
     @Binding var focusRequestToken: UUID?
 
+    private var hasTopContent: Bool {
+        viewModel.lastTurnError != nil ||
+            viewModel.sessionContinuityNotice != nil ||
+            viewModel.stagedContext != nil
+    }
+
+    var body: some View {
+        ChatComposerPanelContent(
+            viewModel: viewModel,
+            composerCapabilities: composerCapabilities,
+            workingDirectory: workingDirectory,
+            composerMode: composerMode,
+            defaultEnterBehavior: defaultEnterBehavior,
+            composerIsBusy: composerIsBusy,
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            selectedModel: selectedModel,
+            selectedEffort: selectedEffort,
+            selectedPermissionMode: selectedPermissionMode,
+            selectedUseWorktree: selectedUseWorktree,
+            showWorktreePicker: showWorktreePicker,
+            sessionLocationLabel: sessionLocationLabel,
+            usageSummary: usageSummary,
+            loadFileCompletions: loadFileCompletions,
+            loadSkillCompletions: loadSkillCompletions,
+            onSubmit: onSubmit,
+            onSteer: onSteer,
+            onStop: onStop,
+            focusRequestToken: $focusRequestToken
+        )
+        .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
+        .padding(ChatComposerPanelLayout.swiftUIHorizontalPadding)
+        .padding(.vertical, ChatComposerPanelLayout.verticalPadding)
+        .background {
+            Rectangle()
+                .fill(.bar)
+        }
+        .overlay(alignment: .top) {
+            if showsTopDivider {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(height: 1)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: showsTopDivider)
+    }
+}
+
+struct ChatComposerPanelContent: View {
+    let viewModel: ConversationViewModel
+    let composerCapabilities: ComposerCapabilities
+    let workingDirectory: String?
+    let composerMode: ComposerMode
+    let defaultEnterBehavior: ThreadEnterDefaultBehavior
+    let composerIsBusy: Bool
+    let isProjectTrustBlocked: Bool
+    let selectedModel: Binding<String>
+    let selectedEffort: Binding<String>
+    let selectedPermissionMode: Binding<String>
+    let selectedUseWorktree: Binding<Bool>
+    let showWorktreePicker: Bool
+    let sessionLocationLabel: String?
+    let usageSummary: ConversationUsageSummary?
+    let loadFileCompletions: @Sendable () async -> [String]
+    let loadSkillCompletions: @Sendable () async -> [Skill]
+    let onSubmit: () -> Void
+    let onSteer: () -> Void
+    let onStop: () -> Void
+    @Binding var focusRequestToken: UUID?
+
     // Filter the provider's full effort list to those that the current model
     // supports (e.g. Opus 4.7's `xhigh`). Intersect with the provider list
     // instead of replacing it so a provider that ships a narrower set (future
@@ -45,7 +122,7 @@ struct ChatComposerPanel: View {
         )
     }
 
-    private var hasTopContent: Bool {
+    var hasTopContent: Bool {
         viewModel.lastTurnError != nil ||
             viewModel.sessionContinuityNotice != nil ||
             viewModel.stagedContext != nil
@@ -138,22 +215,5 @@ struct ChatComposerPanel: View {
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
             }
         }
-        .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
-        .padding(ChatComposerPanelLayout.horizontalPadding)
-        .padding(.vertical, ChatComposerPanelLayout.verticalPadding)
-        .background {
-            Rectangle()
-                .fill(.bar)
-        }
-        .overlay(alignment: .top) {
-            if showsTopDivider {
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(height: 1)
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.18), value: showsTopDivider)
     }
 }

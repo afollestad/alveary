@@ -17,6 +17,13 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
   the migration, `ChatView` may still build SwiftUI content-mode and composer
   child views, but the vertical transcript/empty-state/composer frame split
   belongs to the AppKit surface.
+- `AppKitChatComposerPanelView` owns the composer panel shell:
+    - **Keep shell chrome native.** Transparent outer background, horizontal
+      padding, top-content vertical offset, top divider, and panel measurement
+      belong there.
+    - **Keep body migration explicit.** The inner composer body may still be
+      SwiftUI during transitional slices; do not move shell chrome back into
+      `ChatComposerPanel`.
 - `ProjectTrustPromptView` lives in `ProjectTrustPrompt.swift`; `ThreadDetailView+ProjectTrust.swift` owns the trust-state checks and denial deletion.
 - `EmptyThreadState` lives in `ChatView+EmptyThreadState.swift` and checks `isCancellingInitialSetup` before `setupPhase` so cancellation feedback takes precedence even when `setupPhase` is still set mid-rollback. Keep that ordering if you restructure the view; otherwise the empty-thread pane flickers back to "Creating worktree" during the rollback shell commands.
 - Transcript rendering is AppKit-owned. Keep live transcript row work under `Blocks/AppKit/` and route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`; do not reintroduce SwiftUI transcript row views.

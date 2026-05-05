@@ -157,31 +157,7 @@ struct ChatView: View {
                         }
                     }
             ),
-            composer: AnyView(ChatComposerPanel(
-                viewModel: viewModel,
-                composerCapabilities: composerCapabilities,
-                workingDirectory: workingDirectory,
-                showsTopDivider: hasVisibleChatContent && !isFollowing,
-                composerMode: composerMode,
-                defaultEnterBehavior: defaultEnterBehavior,
-                composerIsBusy: composerIsBusy,
-                isProjectTrustBlocked: isProjectTrustBlocked,
-                selectedModel: selectedModelBinding,
-                selectedEffort: selectedEffortBinding,
-                selectedPermissionMode: selectedPermissionModeBinding,
-                selectedUseWorktree: selectedUseWorktreeBinding,
-                showWorktreePicker: showWorktreePicker,
-                sessionLocationLabel: sessionLocationLabel,
-                usageSummary: usageSummary,
-                loadFileCompletions: loadFileCompletions,
-                loadSkillCompletions: loadSkillCompletions,
-                onSubmit: sendDraft,
-                onSteer: steerDraft,
-                onStop: {
-                    Task { await viewModel.cancel() }
-                },
-                focusRequestToken: $appState.pendingComposerFocusToken
-            ))
+            composerConfiguration: composerPanelConfiguration
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: contextWindowCacheLookupID) {
@@ -308,5 +284,42 @@ private extension ChatView {
 
     func outboundMessage(from message: String) -> String {
         ChatInputFieldTextSupport.outboundMessage(from: message, workingDirectory: workingDirectory)
+    }
+
+    var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
+        let content = ChatComposerPanelContent(
+            viewModel: viewModel,
+            composerCapabilities: composerCapabilities,
+            workingDirectory: workingDirectory,
+            composerMode: composerMode,
+            defaultEnterBehavior: defaultEnterBehavior,
+            composerIsBusy: composerIsBusy,
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            selectedModel: selectedModelBinding,
+            selectedEffort: selectedEffortBinding,
+            selectedPermissionMode: selectedPermissionModeBinding,
+            selectedUseWorktree: selectedUseWorktreeBinding,
+            showWorktreePicker: showWorktreePicker,
+            sessionLocationLabel: sessionLocationLabel,
+            usageSummary: usageSummary,
+            loadFileCompletions: loadFileCompletions,
+            loadSkillCompletions: loadSkillCompletions,
+            onSubmit: sendDraft,
+            onSteer: steerDraft,
+            onStop: {
+                Task { await viewModel.cancel() }
+            },
+            focusRequestToken: $appState.pendingComposerFocusToken
+        )
+
+        return AppKitChatComposerPanelConfiguration(
+            content: AnyView(content),
+            showsTopDivider: hasVisibleChatContent && !isFollowing,
+            hasTopContent: content.hasTopContent,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
+                topContentSpacing: ChatComposerPanelLayout.topContentSpacing
+            )
+        )
     }
 }
