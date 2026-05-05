@@ -76,7 +76,8 @@ struct ChatComposerPanel: View {
             focusRequestToken: $focusRequestToken,
             isStopConfirmationArmed: $isStopConfirmationArmed,
             rendersTopContent: true,
-            usesNativeActionRow: false
+            usesNativeActionRow: false,
+            usesNativeQueuedMessages: false
         )
         .padding(.top, hasTopContent ? ChatComposerPanelLayout.topContentSpacing : 0)
         .padding(ChatComposerPanelLayout.swiftUIHorizontalPadding)
@@ -122,6 +123,7 @@ struct ChatComposerPanelContent: View {
     @Binding var isStopConfirmationArmed: Bool
     let rendersTopContent: Bool
     let usesNativeActionRow: Bool
+    let usesNativeQueuedMessages: Bool
 
     // Filter the provider's full effort list to those that the current model
     // supports (e.g. Opus 4.7's `xhigh`). Intersect with the provider list
@@ -142,6 +144,9 @@ struct ChatComposerPanelContent: View {
 
     private var inputOuterPadding: EdgeInsets {
         if usesNativeActionRow {
+            if usesNativeQueuedMessages, !viewModel.messageQueue.pending.isEmpty {
+                return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            }
             return hasTopContent ?
                 ChatComposerPanelLayout.nativeInputPaddingWithTop :
                 ChatComposerPanelLayout.nativeInputPadding
@@ -229,7 +234,8 @@ struct ChatComposerPanelContent: View {
                 loadFileCompletions: loadFileCompletions,
                 loadSkillCompletions: loadSkillCompletions,
                 focusRequestToken: $focusRequestToken,
-                showsActionRow: !usesNativeActionRow
+                showsActionRow: !usesNativeActionRow,
+                showsQueuedMessages: !usesNativeQueuedMessages
             )
             .onChange(of: viewModel.state.inputDraft) { _, newValue in
                 viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)

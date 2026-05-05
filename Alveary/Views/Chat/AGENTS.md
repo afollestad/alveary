@@ -30,6 +30,11 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
       `ChatComposerActionRowView` through the AppKit panel so editor/action-row
       spacing is measured natively. Legacy SwiftUI composer snapshots may still
       keep the row inside `ChatInputField`.
+    - **Own production queued-message placement.** Active `ChatView` routes
+      pending queued messages through `AppKitChatQueuedMessagesView` above the
+      hosted editor body. Legacy SwiftUI composer snapshots may still render
+      queued rows inside `ChatInputField`; do not let production queued rows
+      re-enter the SwiftUI editor stack.
     - **Keep body migration explicit.** The inner composer body may still be
       SwiftUI during transitional slices; do not move shell chrome back into
       `ChatComposerPanel`.

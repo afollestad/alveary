@@ -320,12 +320,14 @@ private extension ChatView {
             focusRequestToken: $appState.pendingComposerFocusToken,
             isStopConfirmationArmed: $isStopConfirmationArmed,
             rendersTopContent: false,
-            usesNativeActionRow: true
+            usesNativeActionRow: true,
+            usesNativeQueuedMessages: true
         )
 
         return AppKitChatComposerPanelConfiguration(
             content: AnyView(content),
             topContentConfiguration: composerTopContentConfiguration,
+            queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
             actionRowConfiguration: composerActionRowConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
             hasTopContent: false,
@@ -433,6 +435,28 @@ private extension ChatView {
             },
             onShowKeymap: {
                 isKeymapPresented = true
+            }
+        )
+    }
+
+    var composerQueuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? {
+        guard !viewModel.messageQueue.pending.isEmpty else {
+            return nil
+        }
+        return AppKitChatQueuedMessagesConfiguration(
+            queuedMessages: viewModel.messageQueue.pending,
+            supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+            isTurnActive: viewModel.state.turnState.isActive,
+            inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
+            borderWidth: 1,
+            onSteer: { messageID in
+                Task { try? await viewModel.steerQueuedMessage(id: messageID) }
+            },
+            onEdit: { messageID in
+                viewModel.editQueuedMessage(id: messageID)
+            },
+            onDismiss: { messageID in
+                viewModel.removeQueuedMessage(id: messageID)
             }
         )
     }

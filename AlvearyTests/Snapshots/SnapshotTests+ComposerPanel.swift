@@ -61,6 +61,40 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithNativeQueuedMessages() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "Follow with the snapshot cleanup once the diff finishes loading.",
+                        stagedContext: "Restoring context from local history."
+                    )
+                ],
+                inputOuterPadding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            ),
+            size: CGSize(width: 1000, height: 220),
+            named: "appkit_composer_panel_native_queued_messages",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerPanelWithNativeQueuedMessagesLight() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "Follow with the snapshot cleanup once the diff finishes loading.",
+                        stagedContext: "Restoring context from local history."
+                    )
+                ],
+                inputOuterPadding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            ),
+            size: CGSize(width: 1000, height: 220),
+            named: "appkit_composer_panel_native_queued_messages_light",
+            colorScheme: .light
+        )
+    }
+
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedEffortLevels: ["low", "medium", "high"],
@@ -72,6 +106,7 @@ extension SnapshotTests {
 
 private struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
+    let queuedMessages: [QueuedMessage]
     let inputOuterPadding: EdgeInsets
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
@@ -91,9 +126,11 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
     init(
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
+        queuedMessages: [QueuedMessage] = [],
         inputOuterPadding: EdgeInsets = ChatComposerPanelLayout.nativeInputPadding
     ) {
         self.topContentConfiguration = topContentConfiguration
+        self.queuedMessages = queuedMessages
         self.inputOuterPadding = inputOuterPadding
     }
 
@@ -101,6 +138,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
         AppKitComposerPanelSnapshotRepresentable(
             content: AnyView(content),
             topContentConfiguration: topContentConfiguration,
+            queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration
         )
     }
@@ -125,11 +163,29 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             sessionLocationLabel: "Local",
             usageSummary: usageSummary,
             supportsMidTurnSteering: true,
+            queuedMessages: queuedMessages,
             workingDirectory: "/tmp/alveary",
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             focusRequestToken: $focusRequestToken,
-            showsActionRow: false
+            showsActionRow: false,
+            showsQueuedMessages: false
+        )
+    }
+
+    private var queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? {
+        guard !queuedMessages.isEmpty else {
+            return nil
+        }
+        return AppKitChatQueuedMessagesConfiguration(
+            queuedMessages: queuedMessages,
+            supportsMidTurnSteering: true,
+            isTurnActive: true,
+            inFlightQueuedMessageID: nil,
+            borderWidth: 1,
+            onSteer: { _ in },
+            onEdit: { _ in },
+            onDismiss: { _ in }
         )
     }
 
@@ -182,6 +238,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     let content: AnyView
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
+    let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration
 
     func makeNSView(context: Context) -> AppKitChatComposerPanelView {
@@ -198,6 +255,7 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
         AppKitChatComposerPanelConfiguration(
             content: content,
             topContentConfiguration: topContentConfiguration,
+            queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration,
             showsTopDivider: true,
             hasTopContent: false,

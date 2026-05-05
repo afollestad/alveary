@@ -4,6 +4,7 @@ import SwiftUI
 struct AppKitChatComposerPanelConfiguration {
     let content: AnyView
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
+    let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration?
     let showsTopDivider: Bool
     /// True only for legacy hosted SwiftUI content that still renders its own
@@ -15,6 +16,7 @@ struct AppKitChatComposerPanelConfiguration {
     init(
         content: AnyView,
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
+        queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? = nil,
         actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
         showsTopDivider: Bool,
         hasTopContent: Bool,
@@ -22,6 +24,7 @@ struct AppKitChatComposerPanelConfiguration {
     ) {
         self.content = content
         self.topContentConfiguration = topContentConfiguration
+        self.queuedMessagesConfiguration = queuedMessagesConfiguration
         self.actionRowConfiguration = actionRowConfiguration
         self.showsTopDivider = showsTopDivider
         self.hasTopContent = hasTopContent
@@ -41,6 +44,7 @@ final class AppKitChatComposerPanelView: NSView {
         let horizontalPadding: NSEdgeInsets
         let topContentSpacing: CGFloat
         let actionRowSpacing: CGFloat
+        let queuedMessagesTopPadding: CGFloat
         /// Clearance below the native action row. Keep this out of the hosted
         /// editor padding so the editor-to-controls gap stays at
         /// `actionRowSpacing`.
@@ -50,17 +54,20 @@ final class AppKitChatComposerPanelView: NSView {
             horizontalPadding: NSEdgeInsets,
             topContentSpacing: CGFloat,
             actionRowSpacing: CGFloat,
+            queuedMessagesTopPadding: CGFloat = 16,
             bottomPadding: CGFloat = 0
         ) {
             self.horizontalPadding = horizontalPadding
             self.topContentSpacing = topContentSpacing
             self.actionRowSpacing = actionRowSpacing
+            self.queuedMessagesTopPadding = queuedMessagesTopPadding
             self.bottomPadding = bottomPadding
         }
     }
 
     private let contentHost = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
     private let topContentView = AppKitChatComposerTopContentView()
+    private let queuedMessagesView = AppKitChatQueuedMessagesView()
     private let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
 
@@ -96,6 +103,7 @@ final class AppKitChatComposerPanelView: NSView {
     func configure(_ configuration: AppKitChatComposerPanelConfiguration) {
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
+        configureQueuedMessages(configuration.queuedMessagesConfiguration)
         contentHost.rootView = configuration.content
         configureActionRow(configuration.actionRowConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
@@ -116,18 +124,8 @@ final class AppKitChatComposerPanelView: NSView {
 
         let contentWidth = contentWidth(for: bounds.width, layout: configuration.layout)
         var currentY = topPadding(for: configuration)
-        if topContentView.hasContent {
-            let topContentHeight = measuredHeight(of: topContentView, width: contentWidth)
-            topContentView.frame = NSRect(
-                x: configuration.layout.horizontalPadding.left,
-                y: currentY,
-                width: contentWidth,
-                height: topContentHeight
-            )
-            currentY += topContentHeight + configuration.layout.topContentSpacing
-        } else {
-            topContentView.frame = .zero
-        }
+        currentY = layoutTopContent(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
+        currentY = layoutQueuedMessages(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         let contentHeight = measuredHeight(of: contentHost, width: contentWidth)
         contentHost.frame = NSRect(
             x: configuration.layout.horizontalPadding.left,
@@ -149,6 +147,7 @@ final class AppKitChatComposerPanelView: NSView {
 
     private func setupViews() {
         addSubview(topContentView)
+        addSubview(queuedMessagesView)
         contentHost.configureChatSurfaceSizing()
         contentHost.onPreferredSizeInvalidated = { [weak self] in
             self?.invalidateIntrinsicContentSize()
@@ -173,6 +172,61 @@ final class AppKitChatComposerPanelView: NSView {
         }
         actionRow.isHidden = false
         actionRow.configure(configuration)
+    }
+
+    private func layoutTopContent(
+        configuration: AppKitChatComposerPanelConfiguration,
+        contentWidth: CGFloat,
+        currentY: CGFloat
+    ) -> CGFloat {
+        guard topContentView.hasContent else {
+            topContentView.frame = .zero
+            return currentY
+        }
+        let topContentHeight = measuredHeight(of: topContentView, width: contentWidth)
+        topContentView.frame = NSRect(
+            x: configuration.layout.horizontalPadding.left,
+            y: currentY,
+            width: contentWidth,
+            height: topContentHeight
+        )
+        return currentY + topContentHeight + configuration.layout.topContentSpacing
+    }
+
+    private func layoutQueuedMessages(
+        configuration: AppKitChatComposerPanelConfiguration,
+        contentWidth: CGFloat,
+        currentY: CGFloat
+    ) -> CGFloat {
+        guard let queuedMessagesConfiguration = configuration.queuedMessagesConfiguration,
+              !queuedMessagesConfiguration.queuedMessages.isEmpty else {
+            queuedMessagesView.frame = .zero
+            return currentY
+        }
+        let queuedY = queuedY(configuration: configuration, currentY: currentY)
+        let queuedHeight = queuedMessagesView.measuredHeight(width: contentWidth)
+        queuedMessagesView.frame = NSRect(
+            x: configuration.layout.horizontalPadding.left,
+            y: queuedY,
+            width: contentWidth,
+            height: queuedHeight
+        )
+        return queuedY + queuedHeight
+    }
+
+    private func queuedY(configuration: AppKitChatComposerPanelConfiguration, currentY: CGFloat) -> CGFloat {
+        guard !topContentView.hasContent, !configuration.hasTopContent else {
+            return currentY
+        }
+        return currentY + configuration.layout.queuedMessagesTopPadding
+    }
+
+    private func configureQueuedMessages(_ configuration: AppKitChatQueuedMessagesConfiguration?) {
+        guard let configuration else {
+            queuedMessagesView.configure(.empty)
+            return
+        }
+        queuedMessagesView.configure(configuration)
     }
 
     private func configureDividerVisibility(_ isVisible: Bool) {
@@ -224,6 +278,13 @@ final class AppKitChatComposerPanelView: NSView {
         var height = topPadding(for: configuration)
         if topContentView.hasContent {
             height += measuredHeight(of: topContentView, width: contentWidth) + configuration.layout.topContentSpacing
+        }
+        if let queuedMessagesConfiguration = configuration.queuedMessagesConfiguration,
+           !queuedMessagesConfiguration.queuedMessages.isEmpty {
+            if !topContentView.hasContent, !configuration.hasTopContent {
+                height += configuration.layout.queuedMessagesTopPadding
+            }
+            height += queuedMessagesView.measuredHeight(width: contentWidth)
         }
         height += measuredHeight(of: contentHost, width: contentWidth)
         if configuration.actionRowConfiguration != nil {

@@ -54,9 +54,18 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - `ChatComposerActionRow` owns the native bottom settings/action row while `ChatInputField` still hosts the composer shell in SwiftUI.
     - **Keep shell migration explicit.** Production `ChatView` now lets
       `AppKitChatComposerPanelView` place the native action row while
-      `ChatInputField` supplies only the transitional editor/queued/autocomplete
+      `ChatInputField` supplies only the transitional editor/autocomplete
       stack. Legacy SwiftUI snapshots may still set `showsActionRow` to keep
       the full shell in one view.
+    - **Keep queued-message ownership explicit.** Production `ChatView` now lets
+      `AppKitChatComposerPanelView` place native queued rows above the hosted
+      editor while `ChatInputField` hides its SwiftUI queued section. Legacy
+      SwiftUI snapshots may still set `showsQueuedMessages` to keep the full
+      shell in one view. The editor corner radii still key off the queued data
+      so the editor remains top-square under the native queued list. The
+      transitional SwiftUI shell background must key off the same data because
+      it can otherwise show rounded top `.bar` corners behind the squared
+      editor.
     - **Keep presentation shared.** The native row must consume `ComposerPresentation`-derived labels, disabled states, and progress reasons instead of duplicating composer-mode branching.
     - **Preserve control parity.** Native menu buttons, icon buttons, primary/stop buttons, disabled footprints, and progress slots must match the SwiftUI row's sizing, spacing, colors, hover, pressed, and disabled states; verify focused snapshots before recording any native baseline changes.
     - **Reset interaction state.** AppKit controls in the rebuilt native row must clear hover/pressed state when hidden, detached, removed from a window, disabled, or receiving mouse exit so stale hover backgrounds cannot survive row rebuilds.

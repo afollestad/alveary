@@ -190,6 +190,69 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertEqual(panel.fittingSize.height, 102)
     }
 
+    func testComposerPanelLaysOutNativeQueuedMessagesAboveHostedContent() throws {
+        let queuedMessages = [
+            QueuedMessage(text: "Queued follow-up", stagedContext: "Context block")
+        ]
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 180))
+        panel.configure(
+            AppKitChatComposerPanelConfiguration(
+                content: AnyView(Color.clear.frame(height: 44)),
+                queuedMessagesConfiguration: makeQueuedMessagesConfiguration(queuedMessages),
+                actionRowConfiguration: makeActionRowConfiguration(),
+                showsTopDivider: false,
+                hasTopContent: false,
+                layout: AppKitChatComposerPanelView.Layout(
+                    horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
+                    topContentSpacing: 8,
+                    actionRowSpacing: 14,
+                    bottomPadding: 16
+                )
+            )
+        )
+
+        panel.layoutSubtreeIfNeeded()
+
+        let queuedMessagesView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatQueuedMessagesView })
+        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
+        XCTAssertFalse(queuedMessagesView.isHidden)
+        XCTAssertEqual(queuedMessagesView.frame.origin.x, 20)
+        XCTAssertEqual(queuedMessagesView.frame.origin.y, 16)
+        XCTAssertEqual(queuedMessagesView.frame.width, 259)
+        XCTAssertEqual(contentHost.frame.origin.y, queuedMessagesView.frame.maxY)
+        XCTAssertEqual(actionRow.frame.origin.y, contentHost.frame.maxY + 14)
+        XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY + 16)
+    }
+
+    func testNativeQueuedMessagesRouteActions() throws {
+        let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+        let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
+        var steeredID: UUID?
+        var editedID: UUID?
+        var dismissedID: UUID?
+        view.configure(
+            AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [message],
+                supportsMidTurnSteering: true,
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                onSteer: { steeredID = $0 },
+                onEdit: { editedID = $0 },
+                onDismiss: { dismissedID = $0 }
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(try XCTUnwrap(accessibilityElement(in: view, label: "Steer queued message")).accessibilityPerformPress())
+        XCTAssertTrue(try XCTUnwrap(accessibilityElement(in: view, label: "Edit queued message")).accessibilityPerformPress())
+        XCTAssertTrue(try XCTUnwrap(accessibilityElement(in: view, label: "Discard queued message")).accessibilityPerformPress())
+        XCTAssertEqual(steeredID, message.id)
+        XCTAssertEqual(editedID, message.id)
+        XCTAssertEqual(dismissedID, message.id)
+    }
+
     func testComposerPanelNativeStagedContextPreservesSwiftUIOpacityAlpha() throws {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 140))
         panel.configure(
@@ -330,6 +393,33 @@ private func makeActionRowConfiguration() -> ChatComposerActionRowView.Configura
         onStop: {},
         onShowKeymap: {}
     )
+}
+
+@MainActor
+private func makeQueuedMessagesConfiguration(_ messages: [QueuedMessage]) -> AppKitChatQueuedMessagesConfiguration {
+    AppKitChatQueuedMessagesConfiguration(
+        queuedMessages: messages,
+        supportsMidTurnSteering: true,
+        isTurnActive: true,
+        inFlightQueuedMessageID: nil,
+        borderWidth: 1,
+        onSteer: { _ in },
+        onEdit: { _ in },
+        onDismiss: { _ in }
+    )
+}
+
+@MainActor
+private func accessibilityElement(in view: NSView, label: String) -> NSView? {
+    if view.accessibilityLabel() == label {
+        return view
+    }
+    for subview in view.subviews {
+        if let element = accessibilityElement(in: subview, label: label) {
+            return element
+        }
+    }
+    return nil
 }
 
 private final class FixedHeightView: NSView {

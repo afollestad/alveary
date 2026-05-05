@@ -47,6 +47,7 @@ struct ChatInputField: View {
     let contextIndicatorKeyboardSpacing: CGFloat = ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing
     let queuedMessagesAnimation = Animation.easeInOut(duration: 0.18)
     let showsActionRow: Bool
+    let showsQueuedMessages: Bool
 
     @FocusState var isInputFocused: Bool
     // Mirrors the NSTextView's first-responder state, synced via
@@ -104,7 +105,8 @@ struct ChatInputField: View {
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         focusRequestToken: Binding<UUID?> = .constant(nil),
-        showsActionRow: Bool = true
+        showsActionRow: Bool = true,
+        showsQueuedMessages: Bool = true
     ) {
         _text = text
         self.mode = mode
@@ -140,12 +142,14 @@ struct ChatInputField: View {
         self.loadSkillCompletions = loadSkillCompletions
         _focusRequestToken = focusRequestToken
         self.showsActionRow = showsActionRow
+        self.showsQueuedMessages = showsQueuedMessages
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(spacing: 0) {
-                if !queuedMessages.isEmpty,
+                if showsQueuedMessages,
+                   !queuedMessages.isEmpty,
                    let onSteerQueuedMessage,
                    let onEditQueuedMessage,
                    let onDismissQueuedMessage {
@@ -243,8 +247,7 @@ struct ChatInputField: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .zIndex(activeAutocomplete == nil ? 0 : 1)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.bar)
+            composerShellBackground
         )
         // Legacy snapshots still mount this SwiftUI shell. Keep it content-height
         // so those callers cannot stretch the native action row away from the editor.
@@ -257,5 +260,32 @@ struct ChatInputField: View {
             )
         }
         .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
+    }
+
+    @ViewBuilder
+    private var composerShellBackground: some View {
+        if let cornerRadii = composerShellCornerRadii {
+            UnevenRoundedRectangle(cornerRadii: cornerRadii, style: .continuous)
+                .fill(.bar)
+        } else {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.bar)
+        }
+    }
+
+    private var composerShellCornerRadii: RectangleCornerRadii? {
+        guard !queuedMessages.isEmpty else {
+            return nil
+        }
+
+        // Queued rows may be AppKit-owned while this transitional shell still
+        // draws behind the hosted editor. Keep the shell top square too, or its
+        // rounded `.bar` fill peeks through above the editor.
+        return RectangleCornerRadii(
+            topLeading: 0,
+            bottomLeading: 22,
+            bottomTrailing: 22,
+            topTrailing: 0
+        )
     }
 }
