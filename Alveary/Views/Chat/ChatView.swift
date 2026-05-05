@@ -26,7 +26,6 @@ struct ChatView: View {
     @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
     @State private var isStopConfirmationArmed = false
-    @State private var isKeymapPresented = false
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -174,12 +173,6 @@ struct ChatView: View {
         }
         .focusedSceneValue(\.triggerSessionHandoffAction) {
             viewModel.triggerSessionHandoffFromCommand()
-        }
-        .sheet(isPresented: $isKeymapPresented) {
-            ChatInputKeymapSheet(
-                supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-                defaultEnterBehavior: defaultEnterBehavior
-            )
         }
     }
 }
@@ -434,7 +427,10 @@ private extension ChatView {
                 Task { await viewModel.cancel() }
             },
             onShowKeymap: {
-                isKeymapPresented = true
+                AppKitChatInputKeymapPresenter.present(
+                    supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+                    defaultEnterBehavior: defaultEnterBehavior
+                )
             }
         )
     }
