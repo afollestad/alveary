@@ -267,6 +267,7 @@ final class AppKitTranscriptRowFactory {
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptTextBubbleRowView.self)
+        view.hydratesMarkdownImmediately = false
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onExpansionChanged = { expanded in

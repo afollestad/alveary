@@ -11,6 +11,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - **Respect floating composer autocomplete.** The transcript `NSScrollView` must ask `AppKitChatSurfaceView` to consume wheel events before scrolling; this is the final guard when a popup visually overlaps transcript space.
 - **Start eager.** Prefer deterministic vertical layout with stable row frames before adding recycling or virtualization.
 - **Cache measurements, not rows.** Keep every row mounted; optimize long transcripts with dirty height measurement keyed by row id and width, not viewport recycling.
+- **Hydrate by viewport margin.** Markdown text rows hydrate after layout and scroll when their fixed shells intersect the visible rect plus the prefetch margin; hydration must not change document height.
 - **Name dirty rows.** Row height invalidation should pass the stable row id when available. Use all-row invalidation only for width or unknown-row changes.
 - **Batch configure invalidations.** If row views invalidate while a bridge is rebuilding rows, collect those row ids and apply them with `configure(rows:dirtyRowIDs:preserveBottomIfFollowing:)`.
 - **Skip unchanged dirty-row frames.** Named dirty-row invalidations that remeasure to the same frames should publish metrics without reapplying downstream frames or restoring anchors; unnamed fallback invalidations stay conservative.

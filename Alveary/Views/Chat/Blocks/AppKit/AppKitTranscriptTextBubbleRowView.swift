@@ -62,6 +62,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             markdownView?.onOpenLink = onOpenMarkdownLink
         }
     }
+    var hydratesMarkdownImmediately = true
 
     private(set) var bubbleView = AppKitFlippedDynamicColorView()
     private(set) var markdownClipView = AppKitFlippedDynamicColorView()
@@ -69,11 +70,14 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     private(set) var expansionButton = AppKitTranscriptHeaderToggleButton()
     private let retryStatusField = NSTextField(labelWithString: "Not sent")
     private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
-    private(set) var markdownView: AppKitMarkdownView?
+    var markdownView: AppKitMarkdownView?
     private(set) var configuration: Configuration?
     private var isExpanded = false
     private var shouldAnimateExpansionLayout = false
     private var lastMeasuredHeight: CGFloat = -1
+    var lastLayoutMetrics: TextBubbleLayoutMetrics?
+    var isHydratingMarkdownForViewport = false
+    var hasMarkdownHeightHandler = false
     // Set only after a prepared layout mismatch; the row then measures the
     // hydrated AppKit view until a new configuration gives the cache another chance.
     var forceHydratedMarkdownMeasurement = false
@@ -110,11 +114,14 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         } else if previousInitiallyExpanded != configuration.initiallyExpanded {
             isExpanded = configuration.initiallyExpanded
         }
-        rebuildMarkdownView()
+        resetMarkdownView()
         updateBubbleAppearance()
         retryStatusField.font = retryStatusFont(for: configuration.typography)
         updateExpansionButton()
         updateRetryVisibility()
+        if hydratesMarkdownImmediately {
+            hydrateMarkdownIfNeeded()
+        }
         needsLayout = true
         invalidateTranscriptHeight(force: true)
     }
@@ -122,6 +129,9 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     override func layout() {
         layoutBubble()
         super.layout()
+        if !isHydratingMarkdownForViewport {
+            installMarkdownHeightInvalidationHandlerIfNeeded()
+        }
         invalidateTranscriptHeight(force: false)
     }
 
@@ -168,51 +178,6 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         addSubview(retryButton)
     }
 
-    private func rebuildMarkdownView() {
-        markdownView?.removeFromSuperview()
-        guard let configuration else {
-            markdownView = nil
-            return
-        }
-
-        let markdownView = AppKitMarkdownView(
-            document: document(for: configuration),
-            inlineCodeStyle: inlineCodeStyle(for: configuration.role),
-            typography: configuration.typography,
-            onOpenLink: onOpenMarkdownLink
-        )
-        markdownView.translatesAutoresizingMaskIntoConstraints = true
-        markdownView.onHeightInvalidated = { [weak self] in
-            self?.invalidateTranscriptHeight(force: true)
-        }
-        markdownClipView.addSubview(markdownView)
-        self.markdownView = markdownView
-    }
-
-    private func document(for configuration: Configuration) -> AppMarkdownDocument {
-        let composerChipProvider: ((String) -> [AppTextEditorChip])?
-        if configuration.role == .user {
-            composerChipProvider = ChatInputFieldTextSupport.composerTextChips(in:)
-        } else {
-            composerChipProvider = nil
-        }
-
-        return AppMarkdownDocumentCache.document(
-            markdown: configuration.markdown,
-            context: AppMarkdownDocumentCacheContext(
-                baseURL: nil,
-                inlineCodeStyle: inlineCodeStyle(for: configuration.role),
-                composerChipMode: configuration.role == .user ? .composer : .none,
-                taskStateScope: configuration.id
-            )
-        ) {
-            AppMarkdownParser(
-                composerChipProvider: composerChipProvider
-            )
-            .documentPreservingSource(for: configuration.markdown)
-        }
-    }
-
     private func layoutBubble() {
         guard let configuration, bounds.width > 0 else {
             return
@@ -221,6 +186,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let metrics = layoutMetrics(for: configuration)
         let shouldAnimateLayout = shouldAnimateExpansionLayout && window != nil
         shouldAnimateExpansionLayout = false
+        lastLayoutMetrics = metrics
         expansionButton.isHidden = !metrics.overflows
         updateExpansionButton()
         applyBubbleLayout(metrics, animated: shouldAnimateLayout)
@@ -283,6 +249,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     }
 
     private func measuredMarkdownHeight(for markdownWidth: CGFloat) -> CGFloat {
+        hydrateMarkdownIfNeeded()
         // Measure against the current content height rather than an arbitrary
         // giant probe frame. Some AppKit markdown children pin to their container
         // for width/layout, and a huge temporary height can leak into the rendered
@@ -333,6 +300,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     }
 
     private func naturalMarkdownWidth(constrainedTo maxContentWidth: CGFloat) -> CGFloat {
+        hydrateMarkdownIfNeeded()
         guard let markdownView else {
             return 0
         }
@@ -485,5 +453,4 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         invalidateTranscriptHeight(force: true)
         onExpansionChanged?(isExpanded)
     }
-
 }

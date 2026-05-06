@@ -18,6 +18,10 @@ extension AppKitTranscriptTextBubbleRowView {
         markdownView?.frame
     }
 
+    var isMarkdownHydratedForTesting: Bool {
+        isTranscriptViewportHydrated
+    }
+
     var markdownIntrinsicHeightForTesting: CGFloat? {
         markdownView?.intrinsicContentSize.height
     }

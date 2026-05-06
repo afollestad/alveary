@@ -1,22 +1,6 @@
 import AppKit
 import QuartzCore
 
-// AppKit owns transcript scrolling because SwiftUI lazy-list recycling and
-// measurement were not adequate for Alveary's variable-height rows at the time
-// of writing; explicit frames let us preserve anchors through growth and prepends.
-@MainActor
-struct AppKitTranscriptLayoutRow {
-    let id: String
-    let view: NSView
-}
-
-@MainActor
-struct AppKitTranscriptVisibleAnchor: Equatable {
-    let rowID: String
-    let offsetWithinRow: CGFloat
-    let generation: Int
-}
-
 @MainActor
 final class AppKitTranscriptScrollContainerView: NSView {
     private let scrollView = AppKitTranscriptScrollView()
@@ -34,14 +18,13 @@ final class AppKitTranscriptScrollContainerView: NSView {
         setUpScrollView()
     }
 
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
+    deinit { NotificationCenter.default.removeObserver(self) }
 
     override func layout() {
         super.layout()
         scrollView.frame = bounds
         transcriptDocumentView.layoutRows(width: bounds.width)
+        hydrateViewportRows()
         publishScrollMetrics()
     }
 
@@ -56,6 +39,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         needsLayout = true
         layoutSubtreeIfNeeded()
         restoreScrollPosition(shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
+        hydrateViewportRows()
         publishScrollMetrics()
     }
 
@@ -98,10 +82,12 @@ final class AppKitTranscriptScrollContainerView: NSView {
         // A named dirty row can remeasure to the same frame; in that hot path
         // downstream frames and visible anchors are already stable.
         guard rowID == nil || transcriptDocumentView.lastLayoutChangedFrames else {
+            hydrateViewportRows()
             publishScrollMetrics()
             return
         }
         restoreScrollPosition(shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
+        hydrateViewportRows()
         publishScrollMetrics()
     }
 
@@ -134,31 +120,27 @@ final class AppKitTranscriptScrollContainerView: NSView {
     }
 
     func scrollToBottom() {
-        scroll(toY: max(0, transcriptDocumentView.frame.height - scrollView.contentView.bounds.height))
+        scroll(toY: .greatestFiniteMagnitude)
     }
 
-    var scrollOffsetY: CGFloat {
-        scrollView.contentView.bounds.minY
-    }
+    var scrollOffsetY: CGFloat { scrollView.contentView.bounds.minY }
 
-    var scrollOffsetX: CGFloat {
-        scrollView.contentView.bounds.minX
-    }
+    var scrollOffsetX: CGFloat { scrollView.contentView.bounds.minX }
 
     var visibleBottomY: CGFloat {
-        scrollView.contentView.bounds.maxY
+        let rawBottomY = scrollView.contentView.bounds.maxY
+        let scrollableBottomY = transcriptDocumentView.scrollableContentBottomY
+        return rawBottomY >= scrollableBottomY - 0.5 ? documentHeight : rawBottomY
     }
 
-    var documentHeight: CGFloat {
-        transcriptDocumentView.frame.height
-    }
+    var documentHeight: CGFloat { transcriptDocumentView.frame.height }
 
     func rowFrame(for id: String) -> CGRect? {
         transcriptDocumentView.rowFrame(for: id)
     }
 
     private var isAtBottom: Bool {
-        let distanceFromBottom = transcriptDocumentView.frame.height - scrollView.contentView.bounds.maxY
+        let distanceFromBottom = documentHeight - visibleBottomY
         return distanceFromBottom <= 1
     }
 
@@ -180,11 +162,20 @@ final class AppKitTranscriptScrollContainerView: NSView {
     }
 
     private func scroll(toY proposedY: CGFloat) {
+        scrollContentView(toY: proposedY)
+        let hydratedCount = hydrateViewportRows()
+        if hydratedCount > 0 {
+            scrollContentView(toY: proposedY)
+        }
+        publishScrollMetrics()
+    }
+
+    private func scrollContentView(toY proposedY: CGFloat) {
         let maxY = max(0, transcriptDocumentView.frame.height - scrollView.contentView.bounds.height)
         let clampedY = min(max(0, proposedY), maxY)
-        scrollView.contentView.scroll(to: CGPoint(x: 0, y: clampedY))
+        scrollView.contentView.setBoundsOrigin(CGPoint(x: 0, y: clampedY))
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        publishScrollMetrics()
+        scrollView.contentView.setBoundsOrigin(CGPoint(x: 0, y: clampedY))
     }
 
     private func restoreScrollPosition(
@@ -214,7 +205,19 @@ final class AppKitTranscriptScrollContainerView: NSView {
             scrollView.contentView.scroll(to: CGPoint(x: 0, y: scrollOffsetY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
+        hydrateViewportRows()
         publishScrollMetrics()
+    }
+
+    @discardableResult
+    private func hydrateViewportRows() -> Int {
+        let visibleRect = scrollView.contentView.bounds
+        let prefetchMargin = visibleRect.height * 1.5
+        let hydrationRect = visibleRect.insetBy(dx: 0, dy: -prefetchMargin)
+        let documentHeightBeforeHydration = documentHeight
+        let hydratedCount = transcriptDocumentView.hydrateRows(intersecting: hydrationRect)
+        assert(abs(documentHeight - documentHeightBeforeHydration) <= 0.5, "Viewport hydration changed transcript document height")
+        return hydratedCount
     }
 
     private func publishScrollMetrics() {
@@ -225,31 +228,6 @@ final class AppKitTranscriptScrollContainerView: NSView {
                 containerHeight: scrollView.contentView.bounds.height
             )
         )
-    }
-}
-
-@MainActor
-private final class AppKitTranscriptScrollView: NSScrollView {
-    override func scrollWheel(with event: NSEvent) {
-        // The autocomplete popup can visually overlap the transcript even
-        // though it is owned by the composer surface. Ask the surface to consume
-        // those wheel events before the transcript scroll view moves.
-        if let chatSurfaceAncestor,
-           chatSurfaceAncestor.consumeScrollWheelEventIfInsideComposerAutocomplete(event) == nil {
-            return
-        }
-        super.scrollWheel(with: event)
-    }
-
-    private var chatSurfaceAncestor: AppKitChatSurfaceView? {
-        var view = superview
-        while let current = view {
-            if let surface = current as? AppKitChatSurfaceView {
-                return surface
-            }
-            view = current.superview
-        }
-        return nil
     }
 }
 
@@ -275,6 +253,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     private let topInset: CGFloat = 20
     private let bottomInset: CGFloat = 14
     private let rowSpacing: CGFloat = 12
+    private let bottomSpacerView = NSView()
     private var rows: [AppKitTranscriptLayoutRow] = []
     private var rowFramesByID: [String: CGRect] = [:]
     private var measuredHeightsByRowID: [String: RowHeightMeasurement] = [:]
@@ -287,11 +266,23 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
 
     override var isFlipped: Bool { true }
 
+    var scrollableContentBottomY: CGFloat { rowFramesByID.values.map(\.maxY).max() ?? 0 }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(bottomSpacerView)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        addSubview(bottomSpacerView)
+    }
+
     func configure(rows: [AppKitTranscriptLayoutRow], dirtyRowIDs externallyDirtyRowIDs: Set<String> = []) {
         let incomingKeys = rows.map(rowCacheKey(for:))
         let incomingKeySet = Set(incomingKeys)
         let incomingViews = Set(rows.map { ObjectIdentifier($0.view) })
-        for existingView in subviews where !incomingViews.contains(ObjectIdentifier(existingView)) {
+        for existingView in subviews where existingView !== bottomSpacerView && !incomingViews.contains(ObjectIdentifier(existingView)) {
             existingView.removeFromSuperview()
         }
 
@@ -339,6 +330,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
             documentHeight: newDocumentHeight
         )
         frame.size = CGSize(width: width, height: newDocumentHeight)
+        bottomSpacerView.frame = CGRect(x: 0, y: max(newDocumentHeight - 1, 0), width: width, height: 1)
         guard lastLayoutChangedFrames else {
             return
         }
@@ -359,6 +351,23 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
 
     func rowFrame(for id: String) -> CGRect? {
         rowFramesByID[id]
+    }
+
+    @discardableResult
+    func hydrateRows(intersecting hydrationRect: CGRect) -> Int {
+        var hydratedCount = 0
+        for row in rows {
+            guard let rowFrame = rowFramesByID[row.id],
+                  rowFrame.intersects(hydrationRect),
+                  let hydratableRow = row.view as? AppKitTranscriptViewportHydratable,
+                  !hydratableRow.isTranscriptViewportHydrated
+            else {
+                continue
+            }
+            hydratableRow.hydrateForTranscriptViewport()
+            hydratedCount += 1
+        }
+        return hydratedCount
     }
 
     func firstRow(atOrBelow offsetY: CGFloat) -> (id: String, frame: CGRect)? {
@@ -482,14 +491,5 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         }
         let documentSizeChanged = abs(frame.height - documentHeight) > 0.5 || abs(frame.width - documentWidth) > 0.5
         return frameChanged || documentSizeChanged
-    }
-}
-
-private extension CGRect {
-    func isApproximatelyEqual(to other: CGRect) -> Bool {
-        abs(minX - other.minX) <= 0.5 &&
-            abs(minY - other.minY) <= 0.5 &&
-            abs(width - other.width) <= 0.5 &&
-            abs(height - other.height) <= 0.5
     }
 }
