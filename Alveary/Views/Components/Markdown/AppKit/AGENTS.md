@@ -16,5 +16,6 @@ AppKit markdown rendering for transcript migration lives here.
 - **Constrain table width.** Tables should hug natural width until they exceed the bubble cap; wide tables should scroll internally.
 - **Reserve table scroller lanes.** Wide tables should reserve vertical space so the overlay bar stays below the last row.
 - **Hug table chrome.** Draw rounded fill and border on a content-height inner chrome view, not the stretched outer measurement view.
+- **Keep measurer parity.** `AppKitMarkdownLayoutMeasurer` must mirror renderer spacing, marker widths, table/code sizing, typography, and overflow reserves; update parity tests with renderer layout changes.
 - **Stay infrastructure until wired.** Do not route non-transcript markdown surfaces through AppKit unless explicitly requested.
 - **Prefer parity tests.** New AppKit markdown behavior should be tested against the same parser/model fixtures used by SwiftUI.

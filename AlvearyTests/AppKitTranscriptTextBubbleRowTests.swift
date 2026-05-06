@@ -94,6 +94,44 @@ final class AppKitTranscriptTextBubbleRowTests: XCTestCase {
         XCTAssertEqual(row.bubbleFrameForTesting.width, 700, accuracy: 1)
     }
 
+    func testWideCodeBubbleUsesConfiguredMaxWidth() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        row.configure(
+            .init(
+                role: .assistant,
+                markdown: """
+                ```swift
+                let value = "\(String(repeating: "wide ", count: 80))"
+                ```
+                """,
+                bubbleMaxWidth: 420
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(row.bubbleFrameForTesting.width, 420, accuracy: 1)
+    }
+
+    func testShortCodeBubbleHugsNaturalWidth() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 900, height: 500)
+        row.configure(
+            .init(
+                role: .assistant,
+                markdown: """
+                ```swift
+                let followsBottom = true
+                ```
+                """,
+                bubbleMaxWidth: 700
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertLessThan(row.bubbleFrameForTesting.width, 700)
+    }
+
     func testNarrowTableBubbleHugsTableWidth() {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 900, height: 500)

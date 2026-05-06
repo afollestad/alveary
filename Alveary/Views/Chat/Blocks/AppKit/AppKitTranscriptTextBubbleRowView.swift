@@ -63,10 +63,10 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         }
     }
 
-    private let bubbleView = AppKitFlippedDynamicColorView()
-    private let markdownClipView = AppKitFlippedDynamicColorView()
-    private let collapsedFadeMask = CAGradientLayer()
-    private let expansionButton = AppKitTranscriptHeaderToggleButton()
+    private(set) var bubbleView = AppKitFlippedDynamicColorView()
+    private(set) var markdownClipView = AppKitFlippedDynamicColorView()
+    private(set) var collapsedFadeMask = CAGradientLayer()
+    private(set) var expansionButton = AppKitTranscriptHeaderToggleButton()
     private let retryStatusField = NSTextField(labelWithString: "Not sent")
     private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
     private var markdownView: AppKitMarkdownView?
@@ -226,7 +226,8 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     private func layoutMetrics(for configuration: Configuration) -> TextBubbleLayoutMetrics {
         let width = bubbleWidth(for: configuration)
         let markdownWidth = max(width - (chatBubbleHorizontalPadding * 2), 0)
-        let fullMarkdownHeight = measuredMarkdownHeight(for: markdownWidth)
+        let fullMarkdownHeight = preparedMarkdownMeasurement(for: markdownWidth)?.contentHeight
+            ?? measuredMarkdownHeight(for: markdownWidth)
         let overflows = isOverflowing(markdownHeight: fullMarkdownHeight)
         let visibleMarkdownHeight = overflows && !isExpanded ? min(fullMarkdownHeight, collapsedMaxHeight) : fullMarkdownHeight
         let toggleHeight = overflows ? max(toggleMinHeight, ceil(expansionButton.fittingSize.height)) : 0
@@ -289,20 +290,42 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     private func bubbleWidth(for configuration: Configuration) -> CGFloat {
         let availableWidth = max(bounds.width, 0)
-        let maxWidth: CGFloat
-        switch configuration.role {
-        case .user:
-            maxWidth = min(userBubbleMaxWidth, max(availableWidth - userBubbleLeadingClearance, 0))
-        case .assistant:
-            let cap = configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth
-            maxWidth = min(max(cap, 0), availableWidth)
-        }
+        let maxWidth = maxBubbleWidth(for: configuration, availableWidth: availableWidth)
 
         // SwiftUI used `.frame(maxWidth:)`, so short bubbles hugged their
         // rendered markdown and only grew to the cap when text needed to wrap.
-        let naturalContentWidth = naturalMarkdownWidth(constrainedTo: max(maxWidth - (chatBubbleHorizontalPadding * 2), 0))
+        let maxContentWidth = max(maxWidth - (chatBubbleHorizontalPadding * 2), 0)
+        let naturalContentWidth = preparedMarkdownMeasurement(for: maxContentWidth)?.naturalContentWidth
+            ?? naturalMarkdownWidth(constrainedTo: maxContentWidth)
         let naturalBubbleWidth = naturalContentWidth + (chatBubbleHorizontalPadding * 2)
         return min(max(naturalBubbleWidth, 0), maxWidth)
+    }
+
+    private func maxBubbleWidth(for configuration: Configuration, availableWidth: CGFloat) -> CGFloat {
+        switch configuration.role {
+        case .user:
+            return min(userBubbleMaxWidth, max(availableWidth - userBubbleLeadingClearance, 0))
+        case .assistant:
+            let cap = configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth
+            return min(max(cap, 0), availableWidth)
+        }
+    }
+
+    private func preparedMarkdownMeasurement(for markdownWidth: CGFloat) -> AppKitMarkdownLayoutMeasurement? {
+        guard let configuration else {
+            return nil
+        }
+        let inlineCodeStyle = inlineCodeStyle(for: configuration.role)
+        return TextBubblePreparedMeasurement.measurement(
+            .init(
+                configuration: configuration,
+                isExpanded: isExpanded,
+                markdownWidth: markdownWidth,
+                inlineCodeStyle: inlineCodeStyle,
+                document: document(for: configuration),
+                appearance: effectiveAppearance
+            )
+        )
     }
 
     private func naturalMarkdownWidth(constrainedTo maxContentWidth: CGFloat) -> CGFloat {
@@ -459,40 +482,4 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         onExpansionChanged?(isExpanded)
     }
 
-    private func inlineCodeStyle(for role: Role) -> AppMarkdownInlineCodeStyle {
-        switch role {
-        case .user:
-            return .userBubble
-        case .assistant:
-            return .standard
-        }
-    }
 }
-
-#if DEBUG
-extension AppKitTranscriptTextBubbleRowView {
-    var bubbleFrameForTesting: CGRect {
-        bubbleView.frame
-    }
-
-    var expansionButtonFrameForTesting: CGRect {
-        expansionButton.frame
-    }
-
-    var isExpansionButtonHiddenForTesting: Bool {
-        expansionButton.isHidden
-    }
-
-    var hasCollapsedFadeMaskForTesting: Bool {
-        markdownClipView.layer?.mask === collapsedFadeMask
-    }
-
-    var collapsedFadeMaskDirectionForTesting: (start: CGPoint, end: CGPoint) {
-        (collapsedFadeMask.startPoint, collapsedFadeMask.endPoint)
-    }
-
-    var bubbleBackgroundColorForTesting: CGColor? {
-        bubbleView.layer?.backgroundColor
-    }
-}
-#endif

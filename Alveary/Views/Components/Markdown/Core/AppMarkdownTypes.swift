@@ -10,7 +10,7 @@ func appMarkdownCodeDisplayContent(_ content: String) -> String {
     content.trimmingTrailingBlankLines()
 }
 
-enum AppMarkdownInlineCodeStyle: Sendable {
+enum AppMarkdownInlineCodeStyle: Hashable, Sendable {
     case standard
     case userBubble
     /// Accent-derived palette used by composer surfaces. The live input field draws
