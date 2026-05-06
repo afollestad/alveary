@@ -9,7 +9,7 @@ install_brew_formula() {
 }
 
 install_brew_formula xcodegen
-install_brew_formula xcbeautify
+install_brew_formula xcsift
 install_brew_formula swiftlint
 install_brew_formula mint
 

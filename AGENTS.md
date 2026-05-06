@@ -81,6 +81,18 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-run, build-then-test, record-then-verify.
 - Add temporary logs early when useful; observe them yourself with `/usr/bin/log`, then remove them after confirming the fix.
 
+### `xcsift` Output
+
+- Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
+- `summary:` contains indented count fields such as `errors`, `warnings`, `failed_tests`, and `linker_errors`; it can also include `passed_tests`, `build_time`, `test_time`, and `coverage_percent`.
+- Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present.
+- In `errors[n]{file,line,message}` rows, values are ordered as file path, line number, and quoted message.
+- In `warnings[n]{file,line,message,type}` rows, values are ordered as file path, line number, quoted message, and warning type such as `compile` or `swiftui`.
+- `linker_errors` entries include `symbol`, `architecture`, `referenced_from`, `message`, and `conflicting_files`; duplicate symbol failures list object paths in `conflicting_files`.
+- `failed_tests` entries include `test`, `message`, `file`, `line`, and `duration`; `slow_tests` entries include `test` and `duration`; `flaky_tests` is a list of test names.
+- `build_info` can include `targets[n]{name,duration,phases,depends_on}` rows with per-target timing, phases, and dependencies.
+- `executables[n]{path,name,target}` lists built artifacts with their path, name, and target.
+
 ## Lint
 
 - Use SwiftLint from the repo root without `--config` so nested configs apply.

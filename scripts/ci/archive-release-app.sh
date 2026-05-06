@@ -12,4 +12,4 @@ xcodebuild archive \
   CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="Developer ID Application" \
   OTHER_CODE_SIGN_FLAGS="--timestamp" \
-  | xcbeautify --disable-logging
+  2>&1 | xcsift -f toon -w
