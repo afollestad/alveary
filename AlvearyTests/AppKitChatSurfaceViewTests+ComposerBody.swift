@@ -106,6 +106,26 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertEqual(body.editorView.textViewForTesting.selectedRange(), NSRange(location: 23, length: 0))
     }
 
+    func testComposerBodyDoesNotHitTestSurfaceHoistedAutocompletePopupAboveBounds() {
+        let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
+        body.configure(makeComposerBodyConfiguration(text: "Review @"))
+        body.activeAutocomplete = ComposerAutocompleteState(
+            sessionID: UUID(),
+            kind: .file,
+            replacementOffsets: 7..<8,
+            query: "",
+            suggestions: [
+                makeComposerBodySuggestion(id: "first", title: "First.swift", replacementText: "@First.swift")
+            ],
+            isLoading: false
+        )
+        body.configureAutocompletePopup()
+
+        let popupPointAboveBody = NSPoint(x: 48, y: body.autocompletePopupFrame.minY + 24)
+
+        XCTAssertNil(body.hitTest(popupPointAboveBody))
+    }
+
     func testComposerBodyAutocompleteArrowKeysMoveHighlightedSuggestion() throws {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         body.configure(makeComposerBodyConfiguration(text: "Review @"))
@@ -200,9 +220,27 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertTrue(body.editorView.configuration.showsDisabledCursor)
     }
 
-    func testComposerBodyRoutesHitTestingToAutocompleteAboveEditorBounds() throws {
-        let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
-        body.configure(makeComposerBodyConfiguration(text: "Review @"))
+    func testSurfaceHoistsNativeAutocompletePopupAboveComposerPanel() throws {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 260))
+        let content = AutocompleteFixedHeightView(height: 100)
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 320, height: 120))
+        panel.configure(
+            AppKitChatComposerPanelConfiguration(
+                content: AnyView(Color.clear.frame(height: 44)),
+                nativeBodyConfiguration: makeComposerBodyConfiguration(text: "Review @"),
+                showsTopDivider: true,
+                hasTopContent: false,
+                layout: AppKitChatComposerPanelView.Layout(
+                    horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
+                    topContentSpacing: 8,
+                    actionRowSpacing: 14
+                )
+            )
+        )
+        surface.configure(contentView: content, composerView: panel)
+        surface.layoutSubtreeIfNeeded()
+
+        let body = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerBodyView } as? AppKitChatComposerBodyView)
         body.activeAutocomplete = ComposerAutocompleteState(
             sessionID: UUID(),
             kind: .file,
@@ -214,12 +252,13 @@ extension AppKitChatSurfaceViewTests {
             isLoading: false
         )
         body.configureAutocompletePopup()
-        body.layoutSubtreeIfNeeded()
+        surface.layoutSubtreeIfNeeded()
 
-        let rowPoint = NSPoint(x: 48, y: body.autocompletePopupView.frame.minY + 24)
-        let hitView = try XCTUnwrap(body.hitTest(rowPoint))
-
-        XCTAssertTrue(hitView is AppKitComposerAutocompleteRowView)
+        let popup = body.autocompletePopupView
+        XCTAssertTrue(popup.superview === surface)
+        XCTAssertEqual(popup.frame, try XCTUnwrap(body.autocompletePopupFrame(in: surface)))
+        XCTAssertTrue(surface.subviews.contains(popup))
+        XCTAssertFalse(surface.subviews.last === panel)
     }
 
     func testComposerBodyForwardsFocusRequestTokenToEditor() async {
@@ -331,6 +370,35 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertNil(body.skillHintLoadTask)
         XCTAssertNil(body.stopConfirmationResetTask)
     }
+
+    func testSurfaceDismissesNativeAutocompletePopupOnOutsideMouseDown() {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 260))
+        let content = AutocompleteFixedHeightView(height: 120)
+        let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
+        body.configure(makeComposerBodyConfiguration(text: "Review @"))
+        body.activeAutocomplete = ComposerAutocompleteState(
+            sessionID: UUID(),
+            kind: .file,
+            replacementOffsets: 7..<8,
+            query: "",
+            suggestions: [
+                makeComposerBodySuggestion(id: "first", title: "First.swift", replacementText: "@First.swift")
+            ],
+            highlightedIndex: 0,
+            isLoading: false
+        )
+        body.configureAutocompletePopup()
+        surface.configure(contentView: content, composerView: body)
+        surface.layoutSubtreeIfNeeded()
+
+        XCTAssertNotNil(body.activeAutocomplete)
+
+        let outsidePoint = NSPoint(x: 12, y: 12)
+        surface.mouseDown(with: Self.mouseEvent(type: .leftMouseDown, location: outsidePoint))
+
+        XCTAssertNil(body.activeAutocomplete)
+    }
+
 }
 
 @MainActor

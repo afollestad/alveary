@@ -176,6 +176,7 @@ extension AppKitChatComposerBodyView {
             }
         )
         needsLayout = true
+        onPreferredSizeInvalidated?()
     }
 
     func handleAutocompleteKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {

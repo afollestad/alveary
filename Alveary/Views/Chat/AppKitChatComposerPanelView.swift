@@ -37,10 +37,10 @@ struct AppKitChatComposerPanelConfiguration {
 
 /// AppKit owner for the composer panel shell.
 ///
-/// Production chat surfaces pass a native composer body so the editor,
-/// autocomplete, queued messages, and action row live in one AppKit coordinate
-/// space. Legacy snapshots may still provide hosted SwiftUI `content` while
-/// they are being split into smaller reviewable migrations.
+/// Production chat surfaces pass a native composer body so the editor, queued
+/// messages, and action row live in one AppKit layout path. The active surface
+/// hoists the body's autocomplete popup into a top-level overlay while legacy
+/// snapshots may still provide hosted SwiftUI `content`.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
     struct Layout {
@@ -150,13 +150,6 @@ final class AppKitChatComposerPanelView: NSView {
         dividerView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        if let nativeHit = nativeBodyViewHitTest(at: point) {
-            return nativeHit
-        }
-        return super.hitTest(point)
-    }
-
     private func setupViews() {
         addSubview(topContentView)
         addSubview(queuedMessagesView)
@@ -199,14 +192,6 @@ final class AppKitChatComposerPanelView: NSView {
 
     private func activeBodyView(for configuration: AppKitChatComposerPanelConfiguration) -> NSView {
         configuration.nativeBodyConfiguration == nil ? contentHost : nativeBodyView
-    }
-
-    private func nativeBodyViewHitTest(at point: NSPoint) -> NSView? {
-        guard !nativeBodyView.isHidden else {
-            return nil
-        }
-        let localPoint = nativeBodyView.convert(point, from: self)
-        return nativeBodyView.hitTestAutocomplete(at: localPoint)
     }
 
     private func configureActionRow(_ configuration: ChatComposerActionRowView.Configuration?) {

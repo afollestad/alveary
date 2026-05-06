@@ -336,6 +336,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertFalse(surface.subviews.contains(firstComposer))
         XCTAssertTrue(surface.subviews.contains(secondContent))
         XCTAssertTrue(surface.subviews.contains(secondComposer))
+        XCTAssertEqual(surface.subviews.filter { $0 === secondContent }.count, 1)
+        XCTAssertEqual(surface.subviews.filter { $0 === secondComposer }.count, 1)
         XCTAssertEqual(surface.subviews.count, 2)
     }
 

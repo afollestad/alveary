@@ -32,13 +32,12 @@ struct AppKitChatComposerBodyConfiguration {
     let onFocusRequestConsumed: (UUID?) -> Void
 }
 
-/// Native production composer body: editor, autocomplete popup, drop handling,
+/// Native production composer body: editor, autocomplete state, drop handling,
 /// and keyboard behavior.
 ///
 /// `ChatInputField` remains for legacy SwiftUI snapshots, but active chat
 /// surfaces should configure this view through `AppKitChatComposerPanelView` so
-/// editor measurement, autocomplete z-order, and hit testing stay inside one
-/// AppKit coordinate space.
+/// editor measurement and autocomplete state stay on the native path.
 @MainActor
 final class AppKitChatComposerBodyView: NSView {
     let editorView = ChatTextEditorView()
@@ -167,35 +166,13 @@ final class AppKitChatComposerBodyView: NSView {
             width: bounds.width,
             height: editorHeight
         )
-
-        let popupHeight = AppKitComposerAutocompletePopupView.measuredHeight(for: activeAutocomplete)
-        autocompletePopupView.frame = NSRect(
-            x: 0,
-            y: topPadding - popupHeight - Self.autocompleteVerticalOffset,
-            width: bounds.width,
-            height: popupHeight
-        )
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        if let popupHit = hitTestAutocomplete(at: point) {
-            return popupHit
-        }
         guard bounds.contains(point) else {
             return nil
         }
         return super.hitTest(point)
-    }
-
-    func hitTestAutocomplete(at point: NSPoint) -> NSView? {
-        guard activeAutocomplete != nil, !autocompletePopupView.isHidden else {
-            return nil
-        }
-        let popupPoint = autocompletePopupView.convert(point, from: self)
-        guard autocompletePopupView.bounds.contains(popupPoint) else {
-            return nil
-        }
-        return autocompletePopupView.hitTest(popupPoint) ?? autocompletePopupView
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -253,7 +230,6 @@ final class AppKitChatComposerBodyView: NSView {
         wantsLayer = true
         registerForDraggedTypes([.fileURL])
         addSubview(editorView)
-        addSubview(autocompletePopupView)
         autocompletePopupView.configure(autocomplete: nil, onSelect: { _ in }, onHighlight: { _ in })
     }
 }
@@ -283,6 +259,27 @@ extension AppKitChatComposerBodyView {
 
     func measuredHeight(width: CGFloat) -> CGFloat {
         topPadding + resolvedEditorHeight
+    }
+
+    var autocompletePopupFrame: NSRect {
+        let popupHeight = AppKitComposerAutocompletePopupView.measuredHeight(for: activeAutocomplete)
+        return NSRect(
+            x: 0,
+            y: topPadding - popupHeight - Self.autocompleteVerticalOffset,
+            width: bounds.width,
+            height: popupHeight
+        )
+    }
+
+    var hasVisibleAutocompletePopup: Bool {
+        activeAutocomplete != nil && !autocompletePopupView.isHidden && !autocompletePopupFrame.isEmpty
+    }
+
+    func autocompletePopupFrame(in view: NSView) -> NSRect? {
+        guard hasVisibleAutocompletePopup else {
+            return nil
+        }
+        return view.convert(autocompletePopupFrame, from: self)
     }
 
     func presentation(for configuration: AppKitChatComposerBodyConfiguration) -> ComposerPresentation {

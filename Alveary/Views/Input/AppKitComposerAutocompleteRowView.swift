@@ -144,7 +144,7 @@ final class AppKitComposerAutocompleteRowView: NSView {
         }
         let area = NSTrackingArea(
             rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         trackingArea = area
@@ -158,14 +158,35 @@ final class AppKitComposerAutocompleteRowView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        onHighlight(index)
+        highlightPointerRow()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        highlightPointerRow()
     }
 
     override func mouseDown(with event: NSEvent) {
+        highlightPointerRow()
         onSelect()
     }
 
+    override func scrollWheel(with event: NSEvent) {
+        guard let popup = enclosingAutocompletePopup else {
+            super.scrollWheel(with: event)
+            return
+        }
+        let eventPoint = popup.convert(event.locationInWindow, from: nil)
+        let popupPoint = popup.bounds.contains(eventPoint) ?
+            eventPoint :
+            popup.convert(NSPoint(x: bounds.midX, y: bounds.midY), from: self)
+        if popup.routeScrollWheel(at: popupPoint, event: event) {
+            return
+        }
+        super.scrollWheel(with: event)
+    }
+
     override func accessibilityPerformPress() -> Bool {
+        highlightPointerRow()
         onSelect()
         return true
     }
@@ -196,6 +217,26 @@ final class AppKitComposerAutocompleteRowView: NSView {
         trailingField.font = Self.detailFont
         trailingField.textColor = .secondaryLabelColor
         trailingField.lineBreakMode = .byTruncatingTail
+    }
+
+    private func highlightPointerRow() {
+        guard !isHighlighted else {
+            return
+        }
+        isHighlighted = true
+        onHighlight(index)
+        needsDisplay = true
+    }
+
+    private var enclosingAutocompletePopup: AppKitComposerAutocompletePopupView? {
+        var candidate = superview
+        while let view = candidate {
+            if let popup = view as? AppKitComposerAutocompletePopupView {
+                return popup
+            }
+            candidate = view.superview
+        }
+        return nil
     }
 
     private func layoutSkillRow(

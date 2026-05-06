@@ -16,11 +16,14 @@ struct AutocompletePlaceholderMetrics {
     let emptyTextMidY: CGFloat
 }
 
-/// Native autocomplete popup shared by the transitional SwiftUI composer host.
+/// Native autocomplete popup configured by the AppKit composer body and legacy
+/// SwiftUI composer host.
 ///
 /// Rendering the popup as AppKit lets the chat surface route hit testing into
 /// rows that visually float above the composer panel instead of relying on
-/// SwiftUI overlay bounds.
+/// SwiftUI overlay bounds. The popup exposes pointer and wheel routing for its
+/// bounds so the chat surface can keep non-row chrome from forwarding events
+/// back into the transcript responder chain.
 @MainActor
 final class AppKitComposerAutocompletePopupView: NSView {
     private var autocomplete: ComposerAutocompleteState?
@@ -28,6 +31,9 @@ final class AppKitComposerAutocompletePopupView: NSView {
     private let loadingIndicator = NSProgressIndicator()
     private let loadingField = NSTextField(labelWithString: "Loading suggestions...")
     private let emptyField = NSTextField(labelWithString: "No matches yet")
+    private let chromeEventCaptureView = AutocompletePopupChromeEventCaptureView()
+    private let scrollbarView = NSView()
+    private var scrollbarHideTask: Task<Void, Never>?
     private var visibleStartIndex = 0
     private var visibleWindowSessionID: UUID?
     private var visibleWindowSuggestionIDs: [String] = []
@@ -44,6 +50,30 @@ final class AppKitComposerAutocompletePopupView: NSView {
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if routeMouseMoved(at: point, event: event) {
+            return
+        }
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if routeMouseDown(at: point, event: event) {
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if routeScrollWheel(at: point, event: event) {
+            return
+        }
+        super.scrollWheel(with: event)
     }
 
     var visibleSuggestionTitlesForTesting: [String] {
@@ -77,6 +107,14 @@ final class AppKitComposerAutocompletePopupView: NSView {
         )
     }
 
+    var isScrollbarVisibleForTesting: Bool {
+        !scrollbarView.isHidden && scrollbarView.alphaValue > 0
+    }
+
+    var scrollbarFrameForTesting: NSRect {
+        scrollbarView.frame
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
@@ -101,12 +139,14 @@ final class AppKitComposerAutocompletePopupView: NSView {
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         rowViews.forEach { $0.updateImages() }
+        updateScrollbarColor()
         needsDisplay = true
     }
 
     override func layout() {
         super.layout()
         let contentWidth = max(0, bounds.width - 16)
+        chromeEventCaptureView.frame = bounds
         let indicatorSize = NSSize(width: 16, height: 16)
         loadingIndicator.frame = centeredFrame(
             leadingX: 20,
@@ -126,6 +166,7 @@ final class AppKitComposerAutocompletePopupView: NSView {
             row.frame = NSRect(x: 8, y: nextY, width: contentWidth, height: 40)
             nextY += 40 + autocompleteListSpacing
         }
+        updateScrollbarFrame()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -138,7 +179,40 @@ final class AppKitComposerAutocompletePopupView: NSView {
                 return row
             }
         }
-        return self
+        return chromeEventCaptureView
+    }
+
+    @discardableResult
+    func routeMouseMoved(at point: NSPoint, event: NSEvent) -> Bool {
+        guard !isHidden, bounds.contains(point) else {
+            return false
+        }
+        if let row = row(at: point) {
+            row.mouseMoved(with: event)
+            return true
+        }
+        return true
+    }
+
+    @discardableResult
+    func routeMouseDown(at point: NSPoint, event: NSEvent) -> Bool {
+        guard !isHidden, bounds.contains(point) else {
+            return false
+        }
+        guard let row = row(at: point) else {
+            return true
+        }
+        row.mouseDown(with: event)
+        return true
+    }
+
+    @discardableResult
+    func routeScrollWheel(at point: NSPoint, event: NSEvent) -> Bool {
+        guard !isHidden, bounds.contains(point) else {
+            return false
+        }
+        scrollVisibleSuggestions(deltaY: event.scrollingDeltaY)
+        return true
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -159,6 +233,13 @@ final class AppKitComposerAutocompletePopupView: NSView {
         )
         stroke.lineWidth = 1
         stroke.stroke()
+    }
+
+    private func row(at point: NSPoint) -> AppKitComposerAutocompleteRowView? {
+        rowViews.reversed().first { row in
+            let rowPoint = row.convert(point, from: self)
+            return row.bounds.contains(rowPoint)
+        }
     }
 
     static func measuredHeight(for autocomplete: ComposerAutocompleteState?) -> CGFloat {
@@ -188,8 +269,23 @@ final class AppKitComposerAutocompletePopupView: NSView {
             $0.textColor = .secondaryLabelColor
         }
 
-        [loadingIndicator, loadingField, emptyField].forEach(addSubview)
+        scrollbarView.wantsLayer = true
+        scrollbarView.layer?.cornerRadius = 1.5
+        scrollbarView.alphaValue = 0
+        scrollbarView.isHidden = true
+        updateScrollbarColor()
+
+        chromeEventCaptureView.configure(popup: self)
+
+        [chromeEventCaptureView, loadingIndicator, loadingField, emptyField, scrollbarView].forEach(addSubview)
         loadingIndicator.startAnimation(nil)
+    }
+
+    private func updateScrollbarColor() {
+        scrollbarView.layer?.backgroundColor = NSColor.secondaryLabelColor
+            .withAlphaComponent(0.42)
+            .appKitResolvedColor(in: self)
+            .cgColor
     }
 
     private func centeredFrame(leadingX: CGFloat, size: NSSize) -> NSRect {
@@ -209,6 +305,7 @@ final class AppKitComposerAutocompletePopupView: NSView {
             loadingIndicator.isHidden = true
             loadingField.isHidden = true
             emptyField.isHidden = true
+            hideScrollbarImmediately()
             isHidden = true
             visibleStartIndex = 0
             visibleWindowSessionID = nil
@@ -222,21 +319,8 @@ final class AppKitComposerAutocompletePopupView: NSView {
         emptyField.isHidden = autocomplete.isLoading || !autocomplete.suggestions.isEmpty
 
         if !autocomplete.isLoading {
-            rowViews = visibleSuggestionRows(for: autocomplete).map { index, suggestion in
-                let row = AppKitComposerAutocompleteRowView()
-                row.configure(
-                    AutocompleteRowConfiguration(
-                        kind: autocomplete.kind,
-                        suggestion: suggestion,
-                        index: index,
-                        query: autocomplete.query,
-                        isHighlighted: index == autocomplete.highlightedIndex
-                    ),
-                    onSelect: { [weak self] in self?.onSelect(suggestion) },
-                    onHighlight: { [weak self] index in self?.onHighlight(index) }
-                )
-                addSubview(row)
-                return row
+            rowViews = visibleSuggestionRows(for: autocomplete, anchorHighlightedSuggestion: true).map { index, suggestion in
+                makeRow(autocomplete: autocomplete, index: index, suggestion: suggestion)
             }
         }
 
@@ -245,7 +329,103 @@ final class AppKitComposerAutocompletePopupView: NSView {
         needsDisplay = true
     }
 
-    private func visibleSuggestionRows(for autocomplete: ComposerAutocompleteState) -> ArraySlice<(Int, ComposerAutocompleteSuggestion)> {
+    private func scrollVisibleSuggestions(deltaY: CGFloat) {
+        guard let autocomplete,
+              autocomplete.suggestions.count > autocompleteMaxVisibleRows,
+              deltaY != 0 else {
+            return
+        }
+
+        let maximumStartIndex = max(0, autocomplete.suggestions.count - autocompleteMaxVisibleRows)
+        let direction = deltaY < 0 ? 1 : -1
+        let nextStartIndex = min(max(0, visibleStartIndex + direction), maximumStartIndex)
+        showScrollbarIfNeeded()
+        guard nextStartIndex != visibleStartIndex else {
+            return
+        }
+
+        visibleStartIndex = nextStartIndex
+        rowViews.forEach { $0.removeFromSuperview() }
+        rowViews = visibleSuggestionRows(for: autocomplete, anchorHighlightedSuggestion: false).map { index, suggestion in
+            makeRow(autocomplete: autocomplete, index: index, suggestion: suggestion)
+        }
+        updateScrollbarFrame()
+        needsLayout = true
+        needsDisplay = true
+    }
+
+    private func showScrollbarIfNeeded() {
+        guard let autocomplete,
+              autocomplete.suggestions.count > autocompleteMaxVisibleRows else {
+            hideScrollbarImmediately()
+            return
+        }
+        updateScrollbarFrame()
+        scrollbarView.isHidden = false
+        scrollbarView.alphaValue = 1
+        scrollbarHideTask?.cancel()
+        scrollbarHideTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                self?.scrollbarView.alphaValue = 0
+            }
+        }
+    }
+
+    private func hideScrollbarImmediately() {
+        scrollbarHideTask?.cancel()
+        scrollbarHideTask = nil
+        scrollbarView.alphaValue = 0
+        scrollbarView.isHidden = true
+    }
+
+    private func updateScrollbarFrame() {
+        guard let autocomplete,
+              autocomplete.suggestions.count > autocompleteMaxVisibleRows,
+              bounds.height > 0 else {
+            scrollbarView.frame = .zero
+            return
+        }
+
+        let totalRows = CGFloat(autocomplete.suggestions.count)
+        let visibleRows = CGFloat(autocompleteMaxVisibleRows)
+        let trackInset: CGFloat = 8
+        let trackHeight = max(0, bounds.height - trackInset * 2)
+        let thumbHeight = max(28, floor(trackHeight * min(1, visibleRows / totalRows)))
+        let maximumStartIndex = max(1, autocomplete.suggestions.count - autocompleteMaxVisibleRows)
+        let progress = CGFloat(visibleStartIndex) / CGFloat(maximumStartIndex)
+        let thumbY = trackInset + floor((trackHeight - thumbHeight) * progress)
+        scrollbarView.frame = NSRect(x: bounds.width - 7, y: thumbY, width: 3, height: thumbHeight)
+    }
+
+    private func makeRow(
+        autocomplete: ComposerAutocompleteState,
+        index: Int,
+        suggestion: ComposerAutocompleteSuggestion
+    ) -> AppKitComposerAutocompleteRowView {
+        let row = AppKitComposerAutocompleteRowView()
+        row.configure(
+            AutocompleteRowConfiguration(
+                kind: autocomplete.kind,
+                suggestion: suggestion,
+                index: index,
+                query: autocomplete.query,
+                isHighlighted: index == autocomplete.highlightedIndex
+            ),
+            onSelect: { [weak self] in self?.onSelect(suggestion) },
+            onHighlight: { [weak self] index in self?.onHighlight(index) }
+        )
+        addSubview(row, positioned: .below, relativeTo: scrollbarView)
+        return row
+    }
+
+    private func visibleSuggestionRows(
+        for autocomplete: ComposerAutocompleteState,
+        anchorHighlightedSuggestion: Bool
+    ) -> ArraySlice<(Int, ComposerAutocompleteSuggestion)> {
         let indexedSuggestions = autocomplete.suggestions.enumerated().map { ($0.offset, $0.element) }
         let suggestionIDs = autocomplete.suggestions.map(\.id)
         if visibleWindowSessionID != autocomplete.sessionID || visibleWindowSuggestionIDs != suggestionIDs {
@@ -260,10 +440,12 @@ final class AppKitComposerAutocompletePopupView: NSView {
         }
 
         let maximumStartIndex = max(0, indexedSuggestions.count - autocompleteMaxVisibleRows)
-        if autocomplete.highlightedIndex < visibleStartIndex {
-            visibleStartIndex = autocomplete.highlightedIndex
-        } else if autocomplete.highlightedIndex >= visibleStartIndex + autocompleteMaxVisibleRows {
-            visibleStartIndex = autocomplete.highlightedIndex - autocompleteMaxVisibleRows + 1
+        if anchorHighlightedSuggestion {
+            if autocomplete.highlightedIndex < visibleStartIndex {
+                visibleStartIndex = autocomplete.highlightedIndex
+            } else if autocomplete.highlightedIndex >= visibleStartIndex + autocompleteMaxVisibleRows {
+                visibleStartIndex = autocomplete.highlightedIndex - autocompleteMaxVisibleRows + 1
+            }
         }
         visibleStartIndex = min(max(0, visibleStartIndex), maximumStartIndex)
         return indexedSuggestions[visibleStartIndex..<(visibleStartIndex + autocompleteMaxVisibleRows)]

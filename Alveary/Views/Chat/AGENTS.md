@@ -17,6 +17,14 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
   the migration, `ChatView` may still build SwiftUI content-mode and composer
   child views, but the vertical transcript/empty-state/composer frame split
   belongs to the AppKit surface.
+- `AppKitChatSurfaceView` must route hit tests, mouse moves, mouse downs, and
+  wheel events into the native composer autocomplete popup before transcript
+  content sees them; the popup visually floats upward over transcript space.
+  Keep the surface-level autocomplete popup overlay and transcript scroll-view
+  guard so the full floating popup rect captures events while transcript
+  scrolling still works outside that rect. The surface may monitor mouse-downs
+  to dismiss the popup, but do not use a local wheel-event monitor because it
+  can starve transcript scrolling outside the popup.
 - `AppKitChatComposerPanelView` owns the composer panel shell:
     - **Keep shell chrome native.** Transparent outer background, horizontal
       padding, top-content vertical offset, top divider, and panel measurement
