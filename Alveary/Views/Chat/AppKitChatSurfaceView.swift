@@ -186,7 +186,7 @@ final class AppKitChatSurfaceView: NSView {
         return nil
     }
 
-    private func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
+    func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
         if let eventWindow = event.window, eventWindow === window {
             return eventWindow.mouseLocationOutsideOfEventStream
         }
@@ -206,7 +206,7 @@ final class AppKitChatSurfaceView: NSView {
         let surfacePoint = convert(scrollEventWindowPoint(event), from: nil)
         if let contentView,
            convert(contentView.bounds, from: contentView).contains(surfacePoint),
-           let scrollView = scrollViewForWheelForwarding(target: contentView, surfacePoint: surfacePoint) {
+           let scrollView = scrollViewForWheelForwarding(target: contentView, surfacePoint: surfacePoint, event: event) {
             scrollView.scrollWheel(with: event)
             return
         }
@@ -216,27 +216,11 @@ final class AppKitChatSurfaceView: NSView {
             super.scrollWheel(with: event)
             return
         }
-        if let scrollView = scrollViewForWheelForwarding(target: target, surfacePoint: surfacePoint) {
+        if let scrollView = scrollViewForWheelForwarding(target: target, surfacePoint: surfacePoint, event: event) {
             scrollView.scrollWheel(with: event)
             return
         }
         super.scrollWheel(with: event)
-    }
-
-    private func scrollViewForWheelForwarding(target: NSView, surfacePoint: NSPoint) -> NSScrollView? {
-        if let scrollView = target as? NSScrollView ?? target.enclosingScrollView {
-            return scrollView
-        }
-        for subview in target.subviews.reversed() {
-            let subviewFrame = convert(subview.bounds, from: subview)
-            guard subviewFrame.contains(surfacePoint) else {
-                continue
-            }
-            if let scrollView = scrollViewForWheelForwarding(target: subview, surfacePoint: surfacePoint) {
-                return scrollView
-            }
-        }
-        return nil
     }
 
     private func visibleComposerAutocompletePopup() -> AppKitComposerAutocompletePopupView? {
@@ -312,7 +296,6 @@ final class AppKitChatSurfaceView: NSView {
         if let panelView = composerView as? AppKitChatComposerPanelView {
             return max(0, ceil(panelView.fittingSize.height))
         }
-
         return max(0, ceil(composerView.fittingSize.height))
     }
 

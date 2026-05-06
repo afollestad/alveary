@@ -96,15 +96,15 @@ struct ChatTranscriptView: View {
             await loadAppKitApprovalSelectionsIfNeeded()
         }
         .overlay(alignment: .bottom) {
-            if !isFollowing {
-                ScrollToLatestButton {
-                    scrollToBottom(forceFollow: true)
-                }
-                .transition(.opacity)
-                .padding(.bottom, 12)
+            ScrollToLatestButton {
+                scrollToBottom(forceFollow: true)
             }
+            .opacity(isFollowing ? 0 : 1)
+            .allowsHitTesting(!isFollowing)
+            .accessibilityHidden(isFollowing)
+            .padding(.bottom, 12)
+            .animation(.easeInOut(duration: 0.18), value: isFollowing)
         }
-        .animation(.easeInOut(duration: 0.18), value: isFollowing)
     }
 
 }

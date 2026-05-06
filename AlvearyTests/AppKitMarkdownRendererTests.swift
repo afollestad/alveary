@@ -400,6 +400,7 @@ final class AppKitMarkdownRendererTests: XCTestCase {
         view.layoutSubtreeIfNeeded()
         return try XCTUnwrap(view.descendants(of: AppKitMarkdownTableView.self).first)
     }
+
 }
 
 @MainActor

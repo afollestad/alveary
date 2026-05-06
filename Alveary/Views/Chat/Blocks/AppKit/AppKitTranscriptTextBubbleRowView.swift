@@ -4,9 +4,9 @@ import QuartzCore
 
 private let collapsedMaxHeight: CGFloat = 260
 private let collapseFadeHeight: CGFloat = 56
-private let controlClearance: CGFloat = 8
-private let controlSpacing: CGFloat = 4
-private let toggleMinHeight: CGFloat = 24
+let textBubbleControlClearance: CGFloat = 8
+let textBubbleControlSpacing: CGFloat = 4
+let textBubbleToggleMinHeight: CGFloat = 24
 
 struct TextBubbleLayoutMetrics {
     let bubbleFrame: NSRect
@@ -73,9 +73,9 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     var markdownView: AppKitMarkdownView?
     private(set) var configuration: Configuration?
     private(set) var isExpanded = false
-    private var shouldAnimateExpansionLayout = false
     private var lastMeasuredHeight: CGFloat = -1
     var lastLayoutMetrics: TextBubbleLayoutMetrics?
+    var synchronizedFrameAnimations: [TextBubbleSynchronizedFrameAnimation] = []
     var isHydratingMarkdownForViewport = false
     var hasMarkdownHeightHandler = false
     var asyncPreparedMarkdown: AsyncPreparedMarkdown?
@@ -112,17 +112,29 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
-        let previousID = self.configuration?.id
-        let previousInitiallyExpanded = self.configuration?.initiallyExpanded
-        let shouldResetExpansion = previousID != configuration.id
-        guard self.configuration != configuration else {
+        let previousConfiguration = self.configuration
+        let shouldResetExpansion = previousConfiguration?.id != configuration.id
+        guard previousConfiguration != configuration else {
+            return
+        }
+        if let previousConfiguration, previousConfiguration.hasSameRenderedContent(as: configuration) {
+            self.configuration = configuration
+            guard isExpanded != configuration.initiallyExpanded else {
+                updateRetryVisibility()
+                return
+            }
+            isExpanded = configuration.initiallyExpanded
+            updateExpansionButton()
+            refreshLayoutMetricsForCurrentState()
+            updateRetryVisibility()
+            needsLayout = true
+            invalidateTranscriptHeight(force: false)
             return
         }
         self.configuration = configuration
+        lastLayoutMetrics = nil
         forceHydratedMarkdownMeasurement = false
         if shouldResetExpansion {
-            isExpanded = configuration.initiallyExpanded
-        } else if previousInitiallyExpanded != configuration.initiallyExpanded {
             isExpanded = configuration.initiallyExpanded
         }
         resetMarkdownView()
@@ -194,14 +206,12 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             return
         }
 
+        updateExpansionButton()
         let metrics = layoutMetrics(for: configuration)
-        let shouldAnimateLayout = shouldAnimateExpansionLayout && window != nil
-        shouldAnimateExpansionLayout = false
         lastLayoutMetrics = metrics
         expansionButton.isHidden = !metrics.overflows
-        updateExpansionButton()
-        applyBubbleLayout(metrics, animated: shouldAnimateLayout)
-        layoutRetryFooter(bubbleFrame: bubbleView.frame, configuration: configuration)
+        applyBubbleLayout(metrics)
+        layoutRetryFooter(bubbleFrame: metrics.bubbleFrame, configuration: configuration)
     }
 
     private func layoutMetrics(for configuration: Configuration) -> TextBubbleLayoutMetrics {
@@ -211,8 +221,9 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             ?? measuredMarkdownHeight(for: markdownWidth)
         let overflows = isOverflowing(markdownHeight: fullMarkdownHeight)
         let visibleMarkdownHeight = overflows && !isExpanded ? min(fullMarkdownHeight, collapsedMaxHeight) : fullMarkdownHeight
-        let toggleHeight = overflows ? max(toggleMinHeight, ceil(expansionButton.fittingSize.height)) : 0
-        let height = visibleMarkdownHeight + (chatVerticalPadding * 2) + (overflows ? controlClearance + controlSpacing + toggleHeight : 0)
+        let toggleHeight = overflows ? max(textBubbleToggleMinHeight, ceil(expansionButton.fittingSize.height)) : 0
+        let height = visibleMarkdownHeight + (chatVerticalPadding * 2) +
+            (overflows ? textBubbleControlClearance + textBubbleControlSpacing + toggleHeight : 0)
         let originX = configuration.role == .user ? max(bounds.width - width, 0) : 0
         return TextBubbleLayoutMetrics(
             bubbleFrame: NSRect(x: originX, y: 0, width: width, height: height),
@@ -228,34 +239,26 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         )
     }
 
-    private func applyBubbleLayout(_ metrics: TextBubbleLayoutMetrics, animated: Bool) {
-        setFrame(
-            metrics.bubbleFrame,
-            for: bubbleView,
-            animated: animated
-        )
-        setFrame(metrics.markdownClipFrame, for: markdownClipView, animated: animated)
+    private func applyBubbleLayout(_ metrics: TextBubbleLayoutMetrics) {
+        if !metrics.overflows {
+            expansionButton.frame = .zero
+        }
+        applyFrameUpdates(frameUpdates(for: metrics), animated: false)
         if let markdownView {
-            setFrame(metrics.markdownFrame, for: markdownView, animated: animated)
             validateHydratedMarkdownHeight(markdownView, metrics: metrics)
         }
         updateCollapsedFadeMask(isCollapsed: metrics.isCollapsed)
-        if metrics.overflows {
-            setFrame(expansionButtonFrame(markdownClipFrame: metrics.markdownClipFrame), for: expansionButton, animated: animated)
-        } else {
-            expansionButton.frame = .zero
-        }
     }
 
-    private func expansionButtonFrame(markdownClipFrame: NSRect) -> NSRect {
+    func expansionButtonFrame(markdownClipFrame: NSRect) -> NSRect {
         let buttonSize = expansionButton.fittingSize
         return NSRect(
             x: chatBubbleHorizontalPadding,
             // SwiftUI stacked the 8pt content clearance and 4pt VStack spacing
             // above Show more/less, leaving only the normal bubble padding below it.
-            y: markdownClipFrame.maxY + controlClearance + controlSpacing,
+            y: markdownClipFrame.maxY + textBubbleControlClearance + textBubbleControlSpacing,
             width: ceil(buttonSize.width),
-            height: max(toggleMinHeight, ceil(buttonSize.height))
+            height: max(textBubbleToggleMinHeight, ceil(buttonSize.height))
         )
     }
 
@@ -381,7 +384,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         )
     }
 
-    private func updateCollapsedFadeMask(isCollapsed: Bool) {
+    func updateCollapsedFadeMask(isCollapsed: Bool) {
         guard isCollapsed else {
             markdownClipView.layer?.mask = nil
             return
@@ -419,25 +422,15 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     private func measuredHeight() -> CGFloat {
         let bubbleHeight: CGFloat
-        if bubbleView.frame.height > 0 {
+        if let lastLayoutMetrics {
+            bubbleHeight = lastLayoutMetrics.bubbleFrame.height
+        } else if bubbleView.frame.height > 0 {
             bubbleHeight = bubbleView.frame.height
         } else {
             bubbleHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatVerticalPadding * 2)
         }
         let retryHeight = retryButton.isHidden ? 0 : 6 + max(retryStatusField.frame.height, retryButton.frame.height)
         return ceil(bubbleHeight + retryHeight)
-    }
-
-    private func setFrame(_ frame: NSRect, for view: NSView, animated: Bool) {
-        guard animated, view.frame != .zero, view.frame != frame else {
-            view.frame = frame
-            return
-        }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = appExpansionAnimationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            view.animator().frame = frame
-        }
     }
 
     private func expansionToggleFont() -> NSFont {
@@ -457,10 +450,27 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     @objc
     private func toggleExpansion() {
         isExpanded.toggle()
-        shouldAnimateExpansionLayout = true
+        updateExpansionButton()
+        refreshLayoutMetricsForCurrentState()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
         onExpansionChanged?(isExpanded)
+    }
+
+    private func refreshLayoutMetricsForCurrentState() {
+        guard let configuration, bounds.width > 0 else {
+            return
+        }
+        lastLayoutMetrics = layoutMetrics(for: configuration)
+    }
+
+}
+
+private extension AppKitTranscriptTextBubbleRowView.Configuration {
+    func hasSameRenderedContent(as other: Self) -> Bool {
+        let sameMaxWidth = bubbleMaxWidth == other.bubbleMaxWidth || abs(bubbleMaxWidth - other.bubbleMaxWidth) <= 0.5
+        return id == other.id && role == other.role && markdown == other.markdown &&
+            sameMaxWidth && typography == other.typography && showsRetry == other.showsRetry
     }
 }
 

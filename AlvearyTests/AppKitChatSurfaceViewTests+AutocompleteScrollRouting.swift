@@ -182,6 +182,46 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertEqual(popup.visibleSuggestionTitlesForTesting, ["File 0", "File 1", "File 2", "File 3", "File 4", "File 5"])
     }
 
+    func testSurfaceRoutesMostlyVerticalWheelOverNestedHorizontalScrollViewToVerticalOwner() {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 420))
+        let window = AutocompleteMouseLocationWindow(contentRect: surface.frame, styleMask: [], backing: .buffered, defer: false)
+        window.contentView = surface
+        let content = AutocompleteNestedScrollHostView(height: 300)
+        let composer = AutocompleteFixedHeightView(height: 60)
+        surface.configure(contentView: content, composerView: composer)
+        surface.layoutSubtreeIfNeeded()
+        content.layoutSubtreeIfNeeded()
+
+        let windowPoint = surface.convert(NSPoint(x: 40, y: 40), to: nil)
+        window.testMouseLocationOutsideOfEventStream = windowPoint
+        let event = AutocompleteScrollWheelEvent(window: window, location: windowPoint, deltaY: -12, deltaX: -12)
+
+        surface.forwardScrollWheelOutsideComposerAutocomplete(event)
+
+        XCTAssertTrue(content.verticalScrollView.didReceiveScrollWheel)
+    }
+
+    func testSurfaceSelectsNestedHorizontalScrollViewForHorizontalWheelTarget() {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 420))
+        let window = AutocompleteMouseLocationWindow(contentRect: surface.frame, styleMask: [], backing: .buffered, defer: false)
+        window.contentView = surface
+        let content = AutocompleteNestedScrollHostView(height: 300)
+        let composer = AutocompleteFixedHeightView(height: 60)
+        surface.configure(contentView: content, composerView: composer)
+        surface.layoutSubtreeIfNeeded()
+        content.layoutSubtreeIfNeeded()
+
+        let surfacePoint = content.horizontalScrollView.convert(NSPoint(x: 40, y: 40), to: surface)
+        let event = Self.scrollEvent(deltaY: -4, deltaX: -12)
+        let scrollView = surface.scrollViewForWheelForwarding(
+            target: content.horizontalScrollView,
+            surfacePoint: surfacePoint,
+            event: event
+        )
+
+        XCTAssertTrue(scrollView === content.horizontalScrollView)
+    }
+
     func testSurfaceOutsideClickMonitorUsesLiveMouseLocationForPopupRowClickAfterScroll() throws {
         let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 320, height: 420))
         let window = AutocompleteMouseLocationWindow(contentRect: surface.frame, styleMask: [], backing: .buffered, defer: false)
@@ -239,14 +279,16 @@ private final class AutocompleteMouseLocationWindow: NSWindow {
 }
 
 private final class AutocompleteScrollWheelEvent: NSEvent {
-    private weak var eventWindow: NSWindow?
+    private let eventWindow: NSWindow?
     private let eventLocation: NSPoint
     private let eventDeltaY: CGFloat
+    private let eventDeltaX: CGFloat
 
-    init(window: NSWindow, location: NSPoint, deltaY: CGFloat) {
+    init(window: NSWindow, location: NSPoint, deltaY: CGFloat, deltaX: CGFloat = 0) {
         eventWindow = window
         eventLocation = location
         eventDeltaY = deltaY
+        eventDeltaX = deltaX
         super.init()
     }
 
@@ -268,6 +310,10 @@ private final class AutocompleteScrollWheelEvent: NSEvent {
 
     override var scrollingDeltaY: CGFloat {
         eventDeltaY
+    }
+
+    override var scrollingDeltaX: CGFloat {
+        eventDeltaX
     }
 }
 
@@ -333,6 +379,44 @@ private final class AutocompleteRecordingScrollView: NSScrollView {
 
     override func scrollWheel(with event: NSEvent) {
         didReceiveScrollWheel = true
+    }
+}
+
+private final class AutocompleteNestedScrollHostView: NSView {
+    let verticalScrollView = AutocompleteRecordingScrollView()
+    let horizontalScrollView = AppKitHorizontalOverflowScrollView()
+    private let fixedHeight: CGFloat
+
+    init(height: CGFloat) {
+        fixedHeight = height
+        super.init(frame: .zero)
+        let document = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 900))
+        let horizontalDocument = NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 80))
+        verticalScrollView.hasVerticalScroller = true
+        verticalScrollView.documentView = document
+        horizontalScrollView.hasHorizontalScroller = true
+        horizontalScrollView.hasVerticalScroller = false
+        horizontalScrollView.documentView = horizontalDocument
+        document.addSubview(horizontalScrollView)
+        addSubview(verticalScrollView)
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight)
+    }
+
+    override var fittingSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight)
+    }
+
+    override func layout() {
+        super.layout()
+        verticalScrollView.frame = bounds
+        horizontalScrollView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 80)
     }
 }
 

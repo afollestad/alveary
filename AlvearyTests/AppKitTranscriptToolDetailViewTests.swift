@@ -159,6 +159,7 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         )
 
         let parentScrollView = RecordingScrollView()
+        parentScrollView.hasVerticalScroller = true
         let document = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 500))
         parentScrollView.documentView = document
         document.addSubview(block)
@@ -167,7 +168,7 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         let childScrollView = try XCTUnwrap(block.descendants(of: NSScrollView.self).first)
         let cgEvent = try XCTUnwrap(CGEvent(
             scrollWheelEvent2Source: nil,
-            units: .pixel,
+            units: .line,
             wheelCount: 2,
             wheel1: -12,
             wheel2: 0,
@@ -177,6 +178,19 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         childScrollView.scrollWheel(with: event)
 
         XCTAssertTrue(parentScrollView.didReceiveVerticalScroll)
+    }
+
+    func testHighlightedCodeBlockDisablesVerticalElasticity() throws {
+        let block = AppKitTranscriptHighlightedCodeBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 180, height: 400)
+        block.configure(
+            .init(content: "let value = \"\(String(repeating: "wide", count: 80))\"", language: "swift")
+        )
+        block.layoutSubtreeIfNeeded()
+
+        let childScrollView = try XCTUnwrap(block.descendants(of: AppKitHorizontalOverflowScrollView.self).first)
+
+        XCTAssertEqual(childScrollView.verticalScrollElasticity, .none)
     }
 
     func testToolOutputStartsWithBashTailAndShowsMoreFromTop() {

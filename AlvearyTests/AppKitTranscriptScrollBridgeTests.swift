@@ -25,10 +25,39 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         XCTAssertNotNil(container.rowFrame(for: "note"))
     }
 
-    func testCoordinatorDefersColdMarkdownRowsUntilDocumentsArePrepared() async {
+    func testCoordinatorKeepsInitialColdMarkdownRowsVisibleWhileDocumentsPrepare() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let rowID = "cold-\(UUID().uuidString)"
+
+        coordinator.update(
+            container: container,
+            items: [
+                .assistantMessage(id: rowID, text: "Cold markdown \(UUID().uuidString) with `code`.")
+            ],
+            rowConfiguration: .init(),
+            isFollowing: false,
+            scrollToBottomRequest: 0
+        )
+
+        XCTAssertNotNil(container.rowFrame(for: rowID))
+    }
+
+    func testCoordinatorDefersSubsequentColdMarkdownRowsUntilDocumentsArePrepared() async {
+        let container = makeContainer()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let rowID = "cold-\(UUID().uuidString)"
+
+        coordinator.update(
+            container: container,
+            items: [
+                .centeredNote(id: "note", kind: .enteredPlanMode)
+            ],
+            rowConfiguration: .init(),
+            isFollowing: false,
+            scrollToBottomRequest: 0
+        )
+        await container.waitForRow(id: "note")
 
         coordinator.update(
             container: container,
@@ -75,6 +104,80 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         await container.waitUntilAtBottom()
 
         XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
+    }
+
+    func testFollowingOnlyUpdateDoesNotReconfigureContainer() async {
+        let container = makeContainer()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let items: [ChatItem] = [
+            .centeredNote(id: "note", kind: .enteredPlanMode)
+        ]
+        var metricsCount = 0
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(),
+            isFollowing: true,
+            scrollToBottomRequest: 0,
+            onScrollMetricsChanged: { _ in
+                metricsCount += 1
+            }
+        )
+        await container.waitForRow(id: "note")
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        metricsCount = 0
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(),
+            isFollowing: false,
+            scrollToBottomRequest: 0,
+            onScrollMetricsChanged: { _ in
+                metricsCount += 1
+            }
+        )
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertEqual(metricsCount, 0)
+    }
+
+    func testActionContextChangeReconfiguresContainer() async {
+        let container = makeContainer()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let items: [ChatItem] = [
+            .centeredNote(id: "note", kind: .enteredPlanMode)
+        ]
+        var metricsCount = 0
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(actionContextID: "first"),
+            isFollowing: false,
+            scrollToBottomRequest: 0,
+            onScrollMetricsChanged: { _ in
+                metricsCount += 1
+            }
+        )
+        await container.waitForRow(id: "note")
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        metricsCount = 0
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(actionContextID: "second"),
+            isFollowing: false,
+            scrollToBottomRequest: 0,
+            onScrollMetricsChanged: { _ in
+                metricsCount += 1
+            }
+        )
+        try? await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertGreaterThan(metricsCount, 0)
     }
 
     func testInitialNonzeroScrollRequestPinsContainerToBottom() async {

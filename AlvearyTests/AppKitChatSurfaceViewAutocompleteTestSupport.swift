@@ -29,9 +29,9 @@ extension AppKitChatSurfaceViewTests {
         )!
     }
 
-    static func scrollEvent(deltaY: Int32) -> NSEvent {
+    static func scrollEvent(deltaY: Int32, deltaX: Int32 = 0) -> NSEvent {
         NSEvent(cgEvent: CGEvent(
-            scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: deltaY, wheel2: 0, wheel3: 0
+            scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: deltaY, wheel2: deltaX, wheel3: 0
         )!)!
     }
 }

@@ -7,6 +7,7 @@ AppKit markdown rendering for transcript migration lives here.
 - **Accept typography.** AppKit transcript callers should pass `AppKitMarkdownTypography`; do not read transcript settings inside markdown views.
 - **Surface links.** AppKit markdown should emit link clicks through `onOpenLink`; transcript-specific URL resolution belongs to transcript callers.
 - **Own link hover.** Selectable `NSTextView` content defaults to an I-beam cursor; keep link cursor rects and mouse-move hit testing in the markdown text view so rendered links show the pointing hand.
+- **Forward vertical wheel events.** Selectable text views and horizontal overflow wrappers should pass mostly-vertical scroll-wheel events to the transcript scroll owner so trackpad/mouse momentum is not trapped inside markdown content.
 - **Mirror list semantics.** Parent list kind decides markers; unordered lists use bullets even when item runs carry ordinals.
 - **Align list markers.** Ordered numbers and unordered bullets share secondary color and mirror SwiftUI marker widths.
 - **Keep bullet insets stable.** Draw the AppKit bullet inside the marker column; do not pin it to the trailing edge.

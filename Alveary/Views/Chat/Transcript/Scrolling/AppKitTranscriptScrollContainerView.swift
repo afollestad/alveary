@@ -3,8 +3,9 @@ import QuartzCore
 
 @MainActor
 final class AppKitTranscriptScrollContainerView: NSView {
-    private let scrollView = AppKitTranscriptScrollView()
-    private let transcriptDocumentView = AppKitTranscriptDocumentLayoutView()
+    let scrollView = AppKitTranscriptScrollView()
+    let transcriptDocumentView = AppKitTranscriptDocumentLayoutView()
+    var activeScrollAnimationToken: UUID?
     private(set) var paginationGeneration = 0
     var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)?
 
@@ -34,7 +35,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         preserveBottomIfFollowing: Bool
     ) {
         let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
-        let visibleAnchor = shouldRestoreBottom ? nil : captureVisibleAnchor()
+        let visibleAnchor = captureVisibleAnchor()
         transcriptDocumentView.configure(rows: rows, dirtyRowIDs: dirtyRowIDs)
         needsLayout = true
         layoutSubtreeIfNeeded()
@@ -49,7 +50,8 @@ final class AppKitTranscriptScrollContainerView: NSView {
         animatesLayoutChanges: Bool = true
     ) {
         let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
-        let visibleAnchor = shouldRestoreBottom ? nil : captureVisibleAnchor()
+        let visibleAnchor = captureVisibleAnchor()
+        let documentHeightBeforeLayout = documentHeight
         // Named invalidation is the hot path for streaming, expansion, and task
         // changes. The nil fallback stays available for callers that cannot safely
         // identify the changed row and therefore must force a conservative pass.
@@ -61,6 +63,16 @@ final class AppKitTranscriptScrollContainerView: NSView {
         }
         if transcriptDocumentView.isApplyingFrameUpdates {
             DispatchQueue.main.async { [weak self] in
+                self?.rowHeightInvalidated(
+                    rowID: rowID,
+                    preserveBottomIfFollowing: preserveBottomIfFollowing,
+                    animatesLayoutChanges: animatesLayoutChanges
+                )
+            }
+            return
+        }
+        if transcriptDocumentView.hasActiveFrameAnimation {
+            transcriptDocumentView.runAfterActiveFrameAnimation { [weak self] in
                 self?.rowHeightInvalidated(
                     rowID: rowID,
                     preserveBottomIfFollowing: preserveBottomIfFollowing,
@@ -86,9 +98,16 @@ final class AppKitTranscriptScrollContainerView: NSView {
             publishScrollMetrics()
             return
         }
-        restoreScrollPosition(shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
-        hydrateViewportRows()
-        publishScrollMetrics()
+        if finishAnimatedHeightInvalidationIfNeeded(
+            animatesLayoutChanges: animatesLayoutChanges,
+            documentHeightBeforeLayout: documentHeightBeforeLayout,
+            shouldRestoreBottom: shouldRestoreBottom,
+            visibleAnchor: visibleAnchor
+        ) {
+            return
+        }
+
+        finishHeightInvalidationScrollUpdate(restoresPosition: true, shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
     }
 
     func captureVisibleAnchor() -> AppKitTranscriptVisibleAnchor? {
@@ -170,7 +189,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         publishScrollMetrics()
     }
 
-    private func scrollContentView(toY proposedY: CGFloat) {
+    func scrollContentView(toY proposedY: CGFloat) {
         let maxY = max(0, transcriptDocumentView.frame.height - scrollView.contentView.bounds.height)
         let clampedY = min(max(0, proposedY), maxY)
         scrollView.contentView.setBoundsOrigin(CGPoint(x: 0, y: clampedY))
@@ -178,7 +197,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         scrollView.contentView.setBoundsOrigin(CGPoint(x: 0, y: clampedY))
     }
 
-    private func restoreScrollPosition(
+    func restoreScrollPosition(
         shouldRestoreBottom: Bool,
         visibleAnchor: AppKitTranscriptVisibleAnchor?
     ) {
@@ -210,7 +229,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
     }
 
     @discardableResult
-    private func hydrateViewportRows() -> Int {
+    func hydrateViewportRows() -> Int {
         let visibleRect = scrollView.contentView.bounds
         let prefetchMargin = visibleRect.height * 1.5
         let hydrationRect = visibleRect.insetBy(dx: 0, dy: -prefetchMargin)
@@ -220,7 +239,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         return hydratedCount
     }
 
-    private func publishScrollMetrics() {
+    func publishScrollMetrics() {
         onScrollMetricsChanged?(
             ChatTranscriptScrollMetrics(
                 offsetY: scrollOffsetY,
@@ -233,7 +252,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
 
 @MainActor
 final class AppKitTranscriptDocumentLayoutView: NSView {
-    private struct RowFrameUpdate {
+    struct RowFrameUpdate {
         let view: NSView
         let frame: CGRect
         let previousFrame: CGRect?
@@ -253,15 +272,18 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     private let topInset: CGFloat = 20
     private let bottomInset: CGFloat = 14
     private let rowSpacing: CGFloat = 12
-    private let bottomSpacerView = NSView()
+    let bottomSpacerView = NSView()
     private var rows: [AppKitTranscriptLayoutRow] = []
     private var rowFramesByID: [String: CGRect] = [:]
     private var measuredHeightsByRowID: [String: RowHeightMeasurement] = [:]
     private var dirtyRowIDs: Set<String> = []
     private var lastContentWidth: CGFloat?
     private var shouldAnimateNextLayoutChange = false
+    var activeFrameAnimationCompletions: [() -> Void] = []
+    var activeFrameAnimationTargetDocumentSize: CGSize?
     private(set) var isMeasuringRows = false
-    private(set) var isApplyingFrameUpdates = false
+    var isApplyingFrameUpdates = false
+    var hasActiveFrameAnimation = false
     private(set) var lastLayoutChangedFrames = false
 
     override var isFlipped: Bool { true }
@@ -306,7 +328,10 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     }
 
     func layoutRows(width: CGFloat) {
-        guard !isMeasuringRows, !isApplyingFrameUpdates else {
+        // The target layout is already measured when the frame animation starts.
+        // Reentrant AppKit layout during that animation must not commit the final
+        // document height early, or bottom-pinned collapse visibly jumps.
+        guard !isMeasuringRows, !isApplyingFrameUpdates, !hasActiveFrameAnimation else {
             return
         }
 
@@ -329,12 +354,14 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
             documentWidth: width,
             documentHeight: newDocumentHeight
         )
-        frame.size = CGSize(width: width, height: newDocumentHeight)
-        bottomSpacerView.frame = CGRect(x: 0, y: max(newDocumentHeight - 1, 0), width: width, height: 1)
+        let targetDocumentSize = CGSize(width: width, height: newDocumentHeight)
+        let shouldHoldShrinkingDocumentHeight = shouldAnimate && newDocumentHeight < frame.height - 0.5
+        let appliedDocumentHeight = shouldHoldShrinkingDocumentHeight ? frame.height : newDocumentHeight
+        setDocumentSize(CGSize(width: width, height: appliedDocumentHeight))
         guard lastLayoutChangedFrames else {
             return
         }
-        applyFrameUpdates(measuredLayout.frameUpdates, animated: shouldAnimate)
+        applyFrameUpdates(measuredLayout.frameUpdates, animated: shouldAnimate, targetDocumentSize: targetDocumentSize)
     }
 
     func markRowHeightDirty(_ rowID: String) {
@@ -347,6 +374,14 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
 
     func animateNextLayoutChange() {
         shouldAnimateNextLayoutChange = true
+    }
+
+    func runAfterActiveFrameAnimation(_ completion: @escaping () -> Void) {
+        guard hasActiveFrameAnimation else {
+            completion()
+            return
+        }
+        activeFrameAnimationCompletions.append(completion)
     }
 
     func rowFrame(for id: String) -> CGRect? {
@@ -434,49 +469,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         return (frameUpdates, currentY + bottomInset)
     }
 
-    private func applyFrameUpdates(_ updates: [RowFrameUpdate], animated: Bool) {
-        isApplyingFrameUpdates = true
-        defer { isApplyingFrameUpdates = false }
-
-        guard animated else {
-            updates.forEach { $0.view.frame = $0.frame }
-            return
-        }
-
-        let animatedUpdates = updates.filter { update in
-            guard let previousFrame = update.previousFrame else {
-                return false
-            }
-            return previousFrame.width > 0 &&
-                previousFrame.height > 0 &&
-                previousFrame != update.frame
-        }
-        let animatedViewIDs = Set(animatedUpdates.map { ObjectIdentifier($0.view) })
-        let immediateUpdates = updates.filter { update in
-            !animatedViewIDs.contains(ObjectIdentifier(update.view))
-        }
-        immediateUpdates.forEach { $0.view.frame = $0.frame }
-        guard !animatedUpdates.isEmpty else {
-            return
-        }
-
-        // Row height changes affect every subsequent row. A single transaction
-        // keeps the resized row and all displaced rows moving on the same curve.
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = appExpansionAnimationDuration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            for update in animatedUpdates {
-                if let previousFrame = update.previousFrame {
-                    update.view.frame = previousFrame
-                }
-                update.view.animator().frame = update.frame
-            }
-        }
-    }
-
-    private func rowCacheKey(for row: AppKitTranscriptLayoutRow) -> RowCacheKey {
-        RowCacheKey(id: row.id, viewID: ObjectIdentifier(row.view))
-    }
+    private func rowCacheKey(for row: AppKitTranscriptLayoutRow) -> RowCacheKey { RowCacheKey(id: row.id, viewID: ObjectIdentifier(row.view)) }
 
     private func hasLayoutChanges(
         frameUpdates: [RowFrameUpdate],

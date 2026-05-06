@@ -8,6 +8,8 @@ final class AppKitMarkdownTextView: NSTextView, NSTextViewDelegate {
     private var lastMeasuredHeight: CGFloat = 0
     private let wrapsToContainerWidth: Bool
     private var linkTrackingArea: NSTrackingArea?
+    private var isForwardingVerticalScrollSequence = false
+    private var verticalScrollSequenceToken = UUID()
 
     init(
         content: NSAttributedString,
@@ -103,12 +105,70 @@ final class AppKitMarkdownTextView: NSTextView, NSTextViewDelegate {
         }
     }
 
+    override func scrollWheel(with event: NSEvent) {
+        if shouldForwardVerticalScroll(event),
+           let ancestorScrollView = verticalAncestorScrollView {
+            isForwardingVerticalScrollSequence = true
+            schedulePhaseLessVerticalScrollSequenceResetIfNeeded(for: event)
+            ancestorScrollView.scrollWheel(with: event)
+            updateVerticalScrollSequenceState(after: event)
+            return
+        }
+        if isForwardingVerticalScrollSequence,
+           let ancestorScrollView = verticalAncestorScrollView {
+            ancestorScrollView.scrollWheel(with: event)
+            schedulePhaseLessVerticalScrollSequenceResetIfNeeded(for: event)
+            updateVerticalScrollSequenceState(after: event)
+            return
+        }
+        updateVerticalScrollSequenceState(after: event)
+        super.scrollWheel(with: event)
+    }
+
     private func measuredHeight() -> CGFloat {
         guard let layoutManager, let textContainer else {
             return 0
         }
         layoutManager.ensureLayout(for: textContainer)
         return ceil(layoutManager.usedRect(for: textContainer).height)
+    }
+
+    private func shouldForwardVerticalScroll(_ event: NSEvent) -> Bool {
+        let deltaY = abs(event.scrollingDeltaY)
+        return deltaY > 0 && deltaY >= abs(event.scrollingDeltaX)
+    }
+
+    private func updateVerticalScrollSequenceState(after event: NSEvent) {
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) ||
+            event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+            isForwardingVerticalScrollSequence = false
+            verticalScrollSequenceToken = UUID()
+        }
+    }
+
+    private func schedulePhaseLessVerticalScrollSequenceResetIfNeeded(for event: NSEvent) {
+        guard event.phase == [], event.momentumPhase == [] else {
+            return
+        }
+        let token = UUID()
+        verticalScrollSequenceToken = token
+        DispatchQueue.main.async { [weak self] in
+            guard self?.verticalScrollSequenceToken == token else {
+                return
+            }
+            self?.isForwardingVerticalScrollSequence = false
+        }
+    }
+
+    private var verticalAncestorScrollView: NSScrollView? {
+        var candidate = superview
+        while let view = candidate {
+            if let scrollView = view as? NSScrollView, scrollView.hasVerticalScroller {
+                return scrollView
+            }
+            candidate = view.superview
+        }
+        return nil
     }
 
     func cursorURLForTesting(at point: NSPoint) -> URL? {

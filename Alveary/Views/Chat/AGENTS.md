@@ -25,6 +25,10 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
   scrolling still works outside that rect. The surface may monitor mouse-downs
   to dismiss the popup, but do not use a local wheel-event monitor because it
   can starve transcript scrolling outside the popup.
+- Mostly-vertical wheel events over nested horizontal scroll views, such as
+  markdown tables and code blocks, should route directly to the vertical
+  transcript scroll owner from the chat surface. Do not send those events to the
+  horizontal child first; replaying them upward loses AppKit scroll momentum.
 - `AppKitChatComposerPanelView` owns the composer panel shell:
     - **Keep shell chrome native.** Transparent outer background, horizontal
       padding, top-content vertical offset, top divider, and panel measurement

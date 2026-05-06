@@ -41,6 +41,7 @@ extension ChatTranscriptView {
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
+        configuration.actionContextID = workingDirectory ?? ""
         configuration.isPromptBusy = { !viewModel.canSubmitPromptAnswer(promptId: $0.id) }
         configuration.onOpenMarkdownLink = openAppKitMarkdownLink(_:)
         configuration.onRetryFailedUserMessage = { id in
