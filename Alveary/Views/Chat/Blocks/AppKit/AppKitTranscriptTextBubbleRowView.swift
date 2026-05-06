@@ -8,7 +8,7 @@ private let controlClearance: CGFloat = 8
 private let controlSpacing: CGFloat = 4
 private let toggleMinHeight: CGFloat = 24
 
-private struct TextBubbleLayoutMetrics {
+struct TextBubbleLayoutMetrics {
     let bubbleFrame: NSRect
     let markdownClipFrame: NSRect
     let markdownFrame: NSRect
@@ -69,11 +69,14 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     private(set) var expansionButton = AppKitTranscriptHeaderToggleButton()
     private let retryStatusField = NSTextField(labelWithString: "Not sent")
     private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
-    private var markdownView: AppKitMarkdownView?
-    private var configuration: Configuration?
+    private(set) var markdownView: AppKitMarkdownView?
+    private(set) var configuration: Configuration?
     private var isExpanded = false
     private var shouldAnimateExpansionLayout = false
     private var lastMeasuredHeight: CGFloat = -1
+    // Set only after a prepared layout mismatch; the row then measures the
+    // hydrated AppKit view until a new configuration gives the cache another chance.
+    var forceHydratedMarkdownMeasurement = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -101,6 +104,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             return
         }
         self.configuration = configuration
+        forceHydratedMarkdownMeasurement = false
         if shouldResetExpansion {
             isExpanded = configuration.initiallyExpanded
         } else if previousInitiallyExpanded != configuration.initiallyExpanded {
@@ -256,6 +260,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         setFrame(metrics.markdownClipFrame, for: markdownClipView, animated: animated)
         if let markdownView {
             setFrame(metrics.markdownFrame, for: markdownView, animated: animated)
+            validateHydratedMarkdownHeight(markdownView, metrics: metrics)
         }
         updateCollapsedFadeMask(isCollapsed: metrics.isCollapsed)
         if metrics.overflows {
@@ -306,13 +311,12 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         case .user:
             return min(userBubbleMaxWidth, max(availableWidth - userBubbleLeadingClearance, 0))
         case .assistant:
-            let cap = configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth
-            return min(max(cap, 0), availableWidth)
+            return min(max(configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth, 0), availableWidth)
         }
     }
 
     private func preparedMarkdownMeasurement(for markdownWidth: CGFloat) -> AppKitMarkdownLayoutMeasurement? {
-        guard let configuration else {
+        guard let configuration, !forceHydratedMarkdownMeasurement else {
             return nil
         }
         let inlineCodeStyle = inlineCodeStyle(for: configuration.role)
@@ -426,7 +430,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     // AppKit rows report their own height changes so the scroll container can
     // preserve anchors without relying on SwiftUI geometry preferences.
-    private func invalidateTranscriptHeight(force: Bool) {
+    func invalidateTranscriptHeight(force: Bool) {
         let newHeight = measuredHeight()
         guard force || abs(newHeight - lastMeasuredHeight) > 0.5 else {
             return

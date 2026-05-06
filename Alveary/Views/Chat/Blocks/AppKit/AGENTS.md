@@ -27,4 +27,5 @@ AppKit-native transcript row primitives live here.
 - **Align transient indicators.** Standalone working/thinking indicators align their dots with row-leading content, not text-bubble interior padding.
 - **Keep streaming monotonic.** Live streaming bubble text should only advance within a mounted stream; ignore stale shorter partials, and place the cursor at the final line's insertion advance rather than the full line width or the last glyph's ink bounds.
 - **Trust rendered overflow.** AppKit text bubbles have exact markdown height measurements; do not reuse raw markdown line-count or character-count heuristics to decide whether Show more/less is needed.
+- **Preserve shell invariants.** Text-bubble shells reserve their measured markdown slot before hydration; hydrated markdown must not change row height, and any mismatch should fall back through synchronous hydrated measurement.
 - **Mirror user retries.** AppKit user bubbles must preserve the `Not sent` footer and retry callback when a persisted send is retryable.

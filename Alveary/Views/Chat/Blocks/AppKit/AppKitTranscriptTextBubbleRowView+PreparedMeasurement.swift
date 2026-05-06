@@ -50,7 +50,7 @@ enum TextBubblePreparedMeasurement {
         return measurement.fallbackRequired ? nil : measurement
     }
 
-    private static func cacheRole(for role: AppKitTranscriptTextBubbleRowView.Role) -> String {
+    static func cacheRole(for role: AppKitTranscriptTextBubbleRowView.Role) -> String {
         switch role {
         case .user:
             return "user"

@@ -10,6 +10,18 @@ extension AppKitTranscriptTextBubbleRowView {
         expansionButton.frame
     }
 
+    var markdownClipFrameForTesting: CGRect {
+        markdownClipView.frame
+    }
+
+    var markdownFrameForTesting: CGRect? {
+        markdownView?.frame
+    }
+
+    var markdownIntrinsicHeightForTesting: CGFloat? {
+        markdownView?.intrinsicContentSize.height
+    }
+
     var isExpansionButtonHiddenForTesting: Bool {
         expansionButton.isHidden
     }

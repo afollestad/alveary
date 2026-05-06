@@ -82,6 +82,9 @@ final class AppKitTranscriptToolApprovalBlockView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        guard self.configuration != configuration else {
+            return
+        }
         self.configuration = configuration
         let newActionAnimationID = configuration.status?.rawValue ?? "pending"
         let previousActionAnimationID = lastActionAnimationID

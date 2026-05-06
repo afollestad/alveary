@@ -24,6 +24,26 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve exactly", "Approve group"])
     }
 
+    func testIdenticalApprovalConfigurationDoesNotInvalidateHeight() {
+        let block = AppKitTranscriptToolApprovalBlockView()
+        let configuration = AppKitTranscriptToolApprovalBlockView.Configuration(
+            approval: approval(toolName: "Bash", input: #"{"command":"git status --short"}"#),
+            status: .pending
+        )
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(configuration)
+        block.layoutSubtreeIfNeeded()
+
+        var invalidationCount = 0
+        block.onHeightInvalidated = {
+            invalidationCount += 1
+        }
+        block.configure(configuration)
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(invalidationCount, 0)
+    }
+
     func testPendingApprovalBubbleHugsShortContentBeforeMaxWidth() throws {
         let block = AppKitTranscriptToolApprovalBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 900, height: 1_000)
