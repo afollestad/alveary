@@ -14,6 +14,7 @@ extension AppKitTranscriptTextBubbleRowView {
         markdownView = nil
         hasMarkdownHeightHandler = false
         lastLayoutMetrics = nil
+        resetAsyncMarkdownPreparation()
     }
 
     func hydrateMarkdownIfNeeded() {

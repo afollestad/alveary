@@ -353,7 +353,7 @@ final class AppKitTranscriptRowFactory {
         return pendingToolApproval.status
     }
 
-    private func actionableApproval(
+    func actionableApproval(
         in approvals: [ToolApprovalRequest],
         pendingToolApproval: PendingToolApproval?
     ) -> ToolApprovalRequest? {
@@ -366,7 +366,7 @@ final class AppKitTranscriptRowFactory {
         }
     }
 
-    private func approvalPlanMarkdown(
+    func approvalPlanMarkdown(
         for approvals: [ToolApprovalRequest],
         actionableApproval: ToolApprovalRequest
     ) -> String? {

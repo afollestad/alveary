@@ -29,4 +29,5 @@ AppKit-native transcript row primitives live here.
 - **Trust rendered overflow.** AppKit text bubbles have exact markdown height measurements; do not reuse raw markdown line-count or character-count heuristics to decide whether Show more/less is needed.
 - **Preserve shell invariants.** Text-bubble shells reserve their measured markdown slot before hydration; hydrated markdown must not change row height, and any mismatch should fall back through synchronous hydrated measurement.
 - **Hydrate into measured slots.** Viewport hydration should attach markdown views into the existing measured slot instead of forcing a full row layout that can perturb document height or scroll anchors.
+- **Token async prep.** Off-main markdown document preparation must be accepted only when the row id, content, width, typography, appearance, expansion, and retry inputs still match; stale results may not hydrate or invalidate removed rows.
 - **Mirror user retries.** AppKit user bubbles must preserve the `Not sent` footer and retry callback when a persisted send is retryable.

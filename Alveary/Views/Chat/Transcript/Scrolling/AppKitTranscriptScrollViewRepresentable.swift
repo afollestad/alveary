@@ -47,6 +47,12 @@ struct AppKitTranscriptTransientRows: Equatable {
 final class AppKitTranscriptScrollBridgeCoordinator {
     private let rowFactory = AppKitTranscriptRowFactory()
     private var lastScrollToBottomRequest: Int?
+    private var markdownPreparationGeneration = 0
+    private var markdownPreparationTask: Task<Void, Never>?
+
+    deinit {
+        markdownPreparationTask?.cancel()
+    }
 
     func update(
         container: AppKitTranscriptScrollContainerView,
@@ -62,7 +68,48 @@ final class AppKitTranscriptScrollBridgeCoordinator {
                 onScrollMetricsChanged(metrics)
             }
         }
-        var rowConfiguration = rowConfiguration
+        let update = AppKitTranscriptPreparedUpdate(
+            items: items,
+            transientRows: transientRows,
+            rowConfiguration: rowConfiguration,
+            isFollowing: isFollowing,
+            scrollToBottomRequest: scrollToBottomRequest
+        )
+
+        markdownPreparationGeneration += 1
+        let generation = markdownPreparationGeneration
+        markdownPreparationTask?.cancel()
+        let preparationRequests = rowFactory.markdownPreparationRequests(for: update.items, configuration: update.rowConfiguration)
+        let missingPreparationRequests = AppKitTranscriptMarkdownPreparation.missingRequests(preparationRequests)
+        guard missingPreparationRequests.isEmpty else {
+            // Defer cold markdown rows until the shared document cache is warm; otherwise
+            // AppKit's first exact height measurement would parse markdown on the main actor.
+            markdownPreparationTask = Task { @MainActor [weak self, weak container] in
+                await AppKitTranscriptMarkdownPreparation.prepare(missingPreparationRequests)
+                guard !Task.isCancelled,
+                      self?.markdownPreparationGeneration == generation,
+                      let container else {
+                    return
+                }
+                self?.applyPreparedUpdate(
+                    container: container,
+                    update: update
+                )
+            }
+            return
+        }
+
+        applyPreparedUpdate(
+            container: container,
+            update: update
+        )
+    }
+
+    private func applyPreparedUpdate(
+        container: AppKitTranscriptScrollContainerView,
+        update: AppKitTranscriptPreparedUpdate
+    ) {
+        var rowConfiguration = update.rowConfiguration
         var pendingDirtyRowIDs: Set<String> = []
         var isBuildingRows = true
         rowConfiguration.onRowHeightInvalidated = { [weak container] rowID, animatesLayoutChanges in
@@ -82,19 +129,27 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             )
         }
 
-        let rows = rowFactory.makeRows(for: items, transientRows: transientRows, configuration: rowConfiguration)
+        let rows = rowFactory.makeRows(for: update.items, transientRows: update.transientRows, configuration: rowConfiguration)
         isBuildingRows = false
-        container.configure(rows: rows, dirtyRowIDs: pendingDirtyRowIDs, preserveBottomIfFollowing: isFollowing)
+        container.configure(rows: rows, dirtyRowIDs: pendingDirtyRowIDs, preserveBottomIfFollowing: update.isFollowing)
 
         let shouldHonorScrollRequest = if let lastScrollToBottomRequest {
-            lastScrollToBottomRequest != scrollToBottomRequest
+            lastScrollToBottomRequest != update.scrollToBottomRequest
         } else {
-            scrollToBottomRequest != 0
+            update.scrollToBottomRequest != 0
         }
 
         if shouldHonorScrollRequest {
             container.scrollToBottom()
         }
-        lastScrollToBottomRequest = scrollToBottomRequest
+        lastScrollToBottomRequest = update.scrollToBottomRequest
     }
+}
+
+private struct AppKitTranscriptPreparedUpdate {
+    let items: [ChatItem]
+    let transientRows: AppKitTranscriptTransientRows
+    let rowConfiguration: AppKitTranscriptRowFactory.Configuration
+    let isFollowing: Bool
+    let scrollToBottomRequest: Int
 }

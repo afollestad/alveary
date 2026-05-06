@@ -33,6 +33,21 @@ enum AppMarkdownDocumentCache {
         )
     }
 
+    static func cachedDocument(
+        markdown: String,
+        context: AppMarkdownDocumentCacheContext
+    ) -> AppMarkdownDocument? {
+        let key = cacheKey(markdown: markdown, context: context)
+        guard let cached = cache.object(forKey: key) else {
+            return nil
+        }
+        return document(
+            content: cached.document.content,
+            cacheKey: key,
+            taskStateScope: context.taskStateScope
+        )
+    }
+
     static func document(
         markdown: String,
         context: AppMarkdownDocumentCacheContext

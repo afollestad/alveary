@@ -13,30 +13,51 @@ enum TextBubblePreparedMeasurement {
         let isExpanded: Bool
         let markdownWidth: CGFloat
         let inlineCodeStyle: AppMarkdownInlineCodeStyle
-        let document: AppMarkdownDocument
         let appearance: NSAppearance
+
+        var key: AppKitMarkdownPreparedLayoutKey {
+            AppKitMarkdownPreparedLayoutKey(
+                rowID: configuration.id,
+                markdown: configuration.markdown,
+                role: TextBubblePreparedMeasurement.cacheRole(for: configuration.role),
+                availableWidth: markdownWidth,
+                bubbleMaxWidth: configuration.bubbleMaxWidth,
+                typography: configuration.typography,
+                inlineCodeStyle: inlineCodeStyle,
+                appearanceName: TextBubblePreparedMeasurement.markdownAppearanceName(for: appearance),
+                isExpanded: isExpanded,
+                showsRetry: configuration.showsRetry
+            )
+        }
+
+        var documentCacheContext: AppMarkdownDocumentCacheContext {
+            AppMarkdownDocumentCacheContext(
+                baseURL: nil,
+                inlineCodeStyle: inlineCodeStyle,
+                composerChipMode: configuration.role == .user ? .composer : .none,
+                taskStateScope: configuration.id
+            )
+        }
     }
 
-    static func measurement(_ context: Context) -> AppKitMarkdownLayoutMeasurement? {
-        let configuration = context.configuration
-        let key = AppKitMarkdownPreparedLayoutKey(
-            rowID: configuration.id,
-            markdown: configuration.markdown,
-            role: cacheRole(for: configuration.role),
-            availableWidth: context.markdownWidth,
-            bubbleMaxWidth: configuration.bubbleMaxWidth,
-            typography: configuration.typography,
-            inlineCodeStyle: context.inlineCodeStyle,
-            appearanceName: markdownAppearanceName(for: context.appearance),
-            isExpanded: context.isExpanded,
-            showsRetry: configuration.showsRetry
-        )
+    static func cachedMeasurement(for key: AppKitMarkdownPreparedLayoutKey) -> AppKitMarkdownLayoutMeasurement? {
         if let cached = textBubblePreparedLayoutCache.measurement(for: key) {
             return cached.fallbackRequired ? nil : cached
         }
+        return nil
+    }
 
+    static func measurement(
+        _ context: Context,
+        document: AppMarkdownDocument
+    ) -> AppKitMarkdownLayoutMeasurement? {
+        let key = context.key
+        if let cached = cachedMeasurement(for: key) {
+            return cached
+        }
+        let configuration = context.configuration
         let measurement = AppKitMarkdownLayoutMeasurer(
-            document: context.document,
+            document: document,
             inlineCodeStyle: context.inlineCodeStyle,
             typography: configuration.typography,
             colorScheme: markdownColorScheme(for: context.appearance)
@@ -50,7 +71,7 @@ enum TextBubblePreparedMeasurement {
         return measurement.fallbackRequired ? nil : measurement
     }
 
-    static func cacheRole(for role: AppKitTranscriptTextBubbleRowView.Role) -> String {
+    nonisolated static func cacheRole(for role: AppKitTranscriptTextBubbleRowView.Role) -> String {
         switch role {
         case .user:
             return "user"
@@ -59,11 +80,11 @@ enum TextBubblePreparedMeasurement {
         }
     }
 
-    private static func markdownColorScheme(for appearance: NSAppearance) -> ColorScheme {
+    private nonisolated static func markdownColorScheme(for appearance: NSAppearance) -> ColorScheme {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .dark : .light
     }
 
-    private static func markdownAppearanceName(for appearance: NSAppearance) -> String {
+    private nonisolated static func markdownAppearanceName(for appearance: NSAppearance) -> String {
         appearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? appearance.name.rawValue
     }
 }

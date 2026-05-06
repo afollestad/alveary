@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class AppKitTranscriptScrollBridgeTests: XCTestCase {
-    func testCoordinatorBuildsChatItemsIntoContainerRows() {
+    func testCoordinatorBuildsChatItemsIntoContainerRows() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
 
@@ -19,12 +19,35 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 0
         )
+        await container.waitForRow(id: "assistant")
 
         XCTAssertNotNil(container.rowFrame(for: "assistant"))
         XCTAssertNotNil(container.rowFrame(for: "note"))
     }
 
-    func testScrollRequestPinsContainerToBottom() {
+    func testCoordinatorDefersColdMarkdownRowsUntilDocumentsArePrepared() async {
+        let container = makeContainer()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let rowID = "cold-\(UUID().uuidString)"
+
+        coordinator.update(
+            container: container,
+            items: [
+                .assistantMessage(id: rowID, text: "Cold markdown \(UUID().uuidString) with `code`.")
+            ],
+            rowConfiguration: .init(),
+            isFollowing: false,
+            scrollToBottomRequest: 0
+        )
+
+        XCTAssertNil(container.rowFrame(for: rowID))
+
+        await container.waitForRow(id: rowID)
+
+        XCTAssertNotNil(container.rowFrame(for: rowID))
+    }
+
+    func testScrollRequestPinsContainerToBottom() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let items = (0..<8).map { index in
@@ -38,6 +61,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 0
         )
+        await container.waitForRow(id: "assistant-7")
         XCTAssertLessThan(container.visibleBottomY, container.documentHeight)
 
         coordinator.update(
@@ -47,11 +71,13 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 1
         )
+        await container.waitForRow(id: "assistant-7")
+        await container.waitUntilAtBottom()
 
         XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
     }
 
-    func testInitialNonzeroScrollRequestPinsContainerToBottom() {
+    func testInitialNonzeroScrollRequestPinsContainerToBottom() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let items = (0..<8).map { index in
@@ -65,11 +91,13 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 1
         )
+        await container.waitForRow(id: "assistant-7")
+        await container.waitUntilAtBottom()
 
         XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
     }
 
-    func testRowHeightInvalidationRelayoutsContainer() {
+    func testRowHeightInvalidationRelayoutsContainer() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
 
@@ -80,6 +108,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: true,
             scrollToBottomRequest: 0
         )
+        await container.waitForRow(id: "assistant")
 
         let initialHeight = container.documentHeight
         coordinator.update(
@@ -89,11 +118,12 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: true,
             scrollToBottomRequest: 0
         )
+        await container.waitForDocumentHeight { $0 > initialHeight }
 
         XCTAssertGreaterThan(container.documentHeight, initialHeight)
     }
 
-    func testTypographyChangeRemeasuresCachedRows() {
+    func testTypographyChangeRemeasuresCachedRows() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let items: [ChatItem] = [
@@ -116,6 +146,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 0
         )
+        await container.waitForRow(id: "assistant")
         let smallHeight = container.documentHeight
 
         coordinator.update(
@@ -128,11 +159,12 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: false,
             scrollToBottomRequest: 0
         )
+        await container.waitForDocumentHeight { abs($0 - smallHeight) > 0.5 }
 
         XCTAssertNotEqual(container.documentHeight, smallHeight, accuracy: 0.5)
     }
 
-    func testCoordinatorBuildsTransientRowsIntoContainer() {
+    func testCoordinatorBuildsTransientRowsIntoContainer() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
 
@@ -144,6 +176,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             isFollowing: true,
             scrollToBottomRequest: 0
         )
+        await container.waitForRow(id: AppKitTranscriptTransientRows.streamingRowID)
 
         XCTAssertNotNil(container.rowFrame(for: "assistant"))
         XCTAssertNotNil(container.rowFrame(for: AppKitTranscriptTransientRows.streamingRowID))
@@ -185,5 +218,25 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         let container = AppKitTranscriptScrollContainerView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
         container.layoutSubtreeIfNeeded()
         return container
+    }
+}
+
+private extension AppKitTranscriptScrollContainerView {
+    func waitForRow(id: String) async {
+        for _ in 0..<100 where rowFrame(for: id) == nil {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
+    func waitUntilAtBottom() async {
+        await waitForDocumentHeight { _ in
+            abs(visibleBottomY - documentHeight) <= 0.5
+        }
+    }
+
+    func waitForDocumentHeight(_ predicate: (CGFloat) -> Bool) async {
+        for _ in 0..<100 where !predicate(documentHeight) {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 }

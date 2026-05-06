@@ -72,15 +72,26 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
     var markdownView: AppKitMarkdownView?
     private(set) var configuration: Configuration?
-    private var isExpanded = false
+    private(set) var isExpanded = false
     private var shouldAnimateExpansionLayout = false
     private var lastMeasuredHeight: CGFloat = -1
     var lastLayoutMetrics: TextBubbleLayoutMetrics?
     var isHydratingMarkdownForViewport = false
     var hasMarkdownHeightHandler = false
+    var asyncPreparedMarkdown: AsyncPreparedMarkdown?
+    var pendingAsyncPreparationKey: AppKitMarkdownPreparedLayoutKey?
+    var asyncPreparationGeneration = 0
+    var asyncPreparationTask: Task<Void, Never>?
+#if DEBUG
+    var asyncDocumentLoaderForTesting: ((String, AppMarkdownDocumentCacheContext) async -> AppMarkdownDocument)?
+#endif
     // Set only after a prepared layout mismatch; the row then measures the
     // hydrated AppKit view until a new configuration gives the cache another chance.
     var forceHydratedMarkdownMeasurement = false
+
+    deinit {
+        asyncPreparationTask?.cancel()
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -286,17 +297,15 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         guard let configuration, !forceHydratedMarkdownMeasurement else {
             return nil
         }
-        let inlineCodeStyle = inlineCodeStyle(for: configuration.role)
-        return TextBubblePreparedMeasurement.measurement(
-            .init(
-                configuration: configuration,
-                isExpanded: isExpanded,
-                markdownWidth: markdownWidth,
-                inlineCodeStyle: inlineCodeStyle,
-                document: document(for: configuration),
-                appearance: effectiveAppearance
-            )
-        )
+        let context = preparedMeasurementContext(for: markdownWidth, configuration: configuration)
+        if let cached = TextBubblePreparedMeasurement.cachedMeasurement(for: context.key) {
+            return cached
+        }
+        scheduleAsyncMarkdownPreparation(for: context)
+        if asyncPreparedMarkdown?.key == context.key, let document = asyncPreparedMarkdown?.document {
+            return TextBubblePreparedMeasurement.measurement(context, document: document)
+        }
+        return TextBubblePreparedMeasurement.measurement(context, document: document(for: configuration))
     }
 
     private func naturalMarkdownWidth(constrainedTo maxContentWidth: CGFloat) -> CGFloat {
@@ -453,4 +462,9 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         invalidateTranscriptHeight(force: true)
         onExpansionChanged?(isExpanded)
     }
+}
+
+struct AsyncPreparedMarkdown {
+    let key: AppKitMarkdownPreparedLayoutKey
+    let document: AppMarkdownDocument
 }
