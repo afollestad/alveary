@@ -41,6 +41,10 @@ extension ToolEntry {
     /// User-facing summary text for transcript rows, normalized to present tense
     /// while running and past tense after completion.
     var transcriptDisplaySummary: String {
+        if isDeniedWithoutOutput {
+            return deniedDisplaySummary
+        }
+
         switch name {
         case "Bash":
             return "\(isComplete ? "Ran" : "Running") \(bashSummaryBody)"
@@ -65,8 +69,22 @@ extension ToolEntry {
         }
     }
 
+    private var isDeniedWithoutOutput: Bool {
+        isComplete && isError && output == nil && stderr == nil && summary.hasPrefix("Denied ")
+    }
+
+    private var deniedDisplaySummary: String {
+        switch name {
+        case "Bash":
+            return "Denied \(bashSummaryBody)"
+        default:
+            return summary
+        }
+    }
+
     private var bashSummaryBody: String {
         summary
+            .replacingPrefix("Denied ", with: "")
             .replacingPrefix("Executing ", with: "")
             .replacingPrefix("Running ", with: "")
             .replacingPrefix("Ran ", with: "")

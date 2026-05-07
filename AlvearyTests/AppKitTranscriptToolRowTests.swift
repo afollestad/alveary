@@ -125,6 +125,29 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertTrue(row.renderedText.contains("line 20"))
     }
 
+    func testDeniedBashWithoutOutputExpandsToNoOutputPlaceholder() {
+        let row = AppKitTranscriptInlineToolRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        row.configure(
+            .init(
+                tool: tool(
+                    name: "Bash",
+                    summary: "Denied Executing `sleep 5`",
+                    input: #"{"command":"sleep 5"}"#,
+                    output: nil,
+                    isComplete: true,
+                    isError: true
+                ),
+                initiallyExpanded: true
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.renderedText.contains("Denied"))
+        XCTAssertTrue(row.renderedText.contains("sleep 5"))
+        XCTAssertTrue(row.renderedText.contains("No output"))
+    }
+
     func testInlineToolIgnoresPersistedExpansionEchoAfterLocalToggle() {
         let row = AppKitTranscriptInlineToolRowView()
         var invalidationCount = 0

@@ -216,6 +216,9 @@ private extension ChatItemGrouper {
         let toolUseId = event.toolId ?? event.id
         if let status = event.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:)) {
             toolApprovalStatusesByToolId[toolUseId] = status
+            if status == .denied {
+                markToolDenied(toolUseId: toolUseId)
+            }
         }
 
         if event.toolName != "AskUserQuestion" {
@@ -335,6 +338,20 @@ private extension ChatItemGrouper {
         }
     }
 
+    func markToolDenied(toolUseId: String) {
+        if let pendingIndex = pendingGroupTools.firstIndex(where: { $0.id == toolUseId }),
+           !pendingGroupTools[pendingIndex].isComplete {
+            pendingGroupTools[pendingIndex] = deniedToolEntry(from: pendingGroupTools[pendingIndex])
+        }
+
+        patchRenderedToolResult(
+            id: toolUseId,
+            entry: renderedToolEntry(for: toolUseId).flatMap { tool in
+                tool.isComplete ? nil : deniedToolEntry(from: tool)
+            }
+        )
+    }
+
     func markEarlierPendingGroupToolsComplete(excluding excludedToolId: String) {
         let upperBound = pendingGroupTools.firstIndex(where: { $0.id == excludedToolId }) ?? pendingGroupTools.endIndex
         for index in pendingGroupTools[..<upperBound].indices {
@@ -372,6 +389,22 @@ private extension ChatItemGrouper {
             isImage: tool.isImage,
             noOutputExpected: tool.noOutputExpected,
             isError: tool.isError
+        )
+    }
+
+    func deniedToolEntry(from tool: ToolEntry) -> ToolEntry {
+        ToolEntry(
+            id: tool.id,
+            name: tool.name,
+            summary: tool.summary.hasPrefix("Denied ") ? tool.summary : "Denied \(tool.summary)",
+            input: tool.input,
+            output: nil,
+            stderr: nil,
+            isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: true
         )
     }
 }
