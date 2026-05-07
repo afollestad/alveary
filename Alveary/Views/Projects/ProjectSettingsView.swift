@@ -229,6 +229,8 @@ func deleteProjectSettingsArchivedThread(
 
     do {
         try await sidebarViewModel.deleteThread(thread)
+    } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+        throw error
     } catch {
         appState.selectedSidebarItem = previousSelectedItem
         appState.previousSelection = previousBookmark

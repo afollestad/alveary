@@ -124,7 +124,7 @@ final class ProjectSettingsViewTests: XCTestCase {
         XCTAssertEqual(appState.previousSelection, .projectPath(project.path))
     }
 
-    func testDeleteProjectSettingsArchivedThreadRollsBackAppStateWhenCleanupFails() async throws {
+    func testDeleteProjectSettingsArchivedThreadKeepsDeletedStateWhenCleanupFails() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -150,13 +150,18 @@ final class ProjectSettingsViewTests: XCTestCase {
                 sidebarViewModel: fixture.viewModel
             )
             XCTFail("Expected delete to throw")
-        } catch let error as SidebarMockWorktreeManager.MockError {
-            XCTAssertEqual(error, .removeFailed)
+        } catch let error as SidebarViewModelError {
+            guard case .threadDeleteCleanupFailed(let underlying) = error,
+                  let mockError = underlying as? SidebarMockWorktreeManager.MockError else {
+                XCTFail("Expected thread delete cleanup failure")
+                return
+            }
+            XCTAssertEqual(mockError, .removeFailed)
         }
 
-        XCTAssertTrue(try fixture.threadExists(thread))
-        XCTAssertEqual(appState.selectedSidebarItem, .thread(thread))
-        XCTAssertEqual(appState.previousSelection, .threadId(thread.persistentModelID))
-        XCTAssertEqual(appState.selectedConversationIDs[thread.persistentModelID], selectedConversationID)
+        XCTAssertFalse(try fixture.threadExists(thread))
+        XCTAssertNil(appState.selectedConversationIDs[thread.persistentModelID])
+        XCTAssertNotEqual(appState.selectedSidebarItem, .thread(thread))
+        XCTAssertNotEqual(appState.previousSelection, .threadId(thread.persistentModelID))
     }
 }

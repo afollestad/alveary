@@ -137,13 +137,15 @@ final class SidebarViewModel {
 
     func archiveThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadArchiveSnapshot(thread)
-        try await quiesceConversationIDs(snapshot.conversationIDs)
+        await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
+            do { try await awaitConversationTeardowns(snapshot.conversationIDs) } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
             return
         }
         dbThread.archivedAt = Date()
         try modelContext.save()
+        do { try await awaitConversationTeardowns(snapshot.conversationIDs) } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
     }
 
     func restoreThread(_ thread: AgentThread) throws {
@@ -155,44 +157,63 @@ final class SidebarViewModel {
 
     func deleteThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadCleanupSnapshot(thread)
-        try await cleanupThreadResources(snapshot)
+        await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
+            do { try await cleanupThread(snapshot) } catch { throw SidebarViewModelError.threadDeleteCleanupFailed(error) }
             return
         }
         modelContext.delete(dbThread)
         try modelContext.save()
+
+        do { try await cleanupThread(snapshot) } catch { throw SidebarViewModelError.threadDeleteCleanupFailed(error) }
     }
 
     func deleteProject(_ project: Project) async throws {
         let snapshot = try makeProjectDeletionSnapshot(project)
         let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
 
-        for thread in snapshot.threadSnapshots {
-            try await cleanupThreadResources(
-                thread,
-                skipGitCleanupWhenProjectMissing: !projectDirectoryExists
-            )
-        }
-
-        try await worktreeManager.removeAll(projectPath: snapshot.projectPath)
-
+        await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
         guard let dbProject = modelContext.resolveProject(id: snapshot.projectID) else {
+            do {
+                try await cleanupProjectResources(snapshot, projectDirectoryExists: projectDirectoryExists)
+            } catch {
+                throw SidebarViewModelError.projectDeleteCleanupFailed(error)
+            }
             return
         }
         modelContext.delete(dbProject)
         try modelContext.save()
+
+        do {
+            try await cleanupProjectResources(snapshot, projectDirectoryExists: projectDirectoryExists)
+        } catch {
+            throw SidebarViewModelError.projectDeleteCleanupFailed(error)
+        }
     }
 
-    private func cleanupThreadResources(
-        _ snapshot: ThreadCleanupSnapshot,
-        skipGitCleanupWhenProjectMissing: Bool = false
-    ) async throws {
-        try await quiesceConversationIDs(snapshot.conversationIDs)
+    private func cleanupProjectResources(_ snapshot: ProjectDeletionSnapshot, projectDirectoryExists: Bool) async throws {
+        try await awaitConversationTeardowns(snapshot.conversationIDs)
 
-        if skipGitCleanupWhenProjectMissing, !directoryExists(at: snapshot.projectPath) {
+        for thread in snapshot.threadSnapshots {
+            try await cleanupThread(
+                thread,
+                skipGitWhenProjectMissing: !projectDirectoryExists,
+                waitForRuntime: false
+            )
+        }
+
+        try await worktreeManager.removeAll(projectPath: snapshot.projectPath)
+    }
+
+    private func cleanupThread(_ snapshot: ThreadCleanupSnapshot, skipGitWhenProjectMissing: Bool = false, waitForRuntime: Bool = true) async throws {
+        if waitForRuntime {
+            try await awaitConversationTeardowns(snapshot.conversationIDs)
+        }
+
+        if skipGitWhenProjectMissing, !directoryExists(at: snapshot.projectPath) {
             return
         }
 
@@ -264,26 +285,40 @@ extension SidebarViewModel {
         return dbThread
     }
 
-    func quiesceConversation(_ conversationId: String) async throws {
-        try await agentsManager.destroyRuntime(conversationId: conversationId)
+    private func beginConversationTeardowns(_ conversationIDs: [String]) async {
+        for conversationId in uniqueConversationIDs(conversationIDs) {
+            await agentsManager.kill(conversationId: conversationId)
+        }
     }
 
-    private func quiesceConversationIDs(_ conversationIDs: [String]) async throws {
-        var firstError: Error?
+    private func awaitConversationTeardowns(_ conversationIDs: [String]) async throws {
+        let conversationIDs = uniqueConversationIDs(conversationIDs)
+        let agentsManager = agentsManager
+        var errors = [Error?](repeating: nil, count: conversationIDs.count)
 
-        for conversationId in conversationIDs {
-            do {
-                try await quiesceConversation(conversationId)
-            } catch {
-                if firstError == nil {
-                    firstError = error
+        await withTaskGroup(of: (Int, Error?).self) { group in
+            for (index, conversationId) in conversationIDs.enumerated() {
+                group.addTask {
+                    do {
+                        try await agentsManager.destroyRuntime(conversationId: conversationId)
+                        return (index, nil)
+                    } catch { return (index, error) }
                 }
+            }
+
+            for await (index, error) in group {
+                errors[index] = error
             }
         }
 
-        if let firstError {
+        if let firstError = errors.compactMap({ $0 }).first {
             throw firstError
         }
+    }
+
+    private func uniqueConversationIDs(_ conversationIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        return conversationIDs.filter { seen.insert($0).inserted }
     }
 
     func resolvePreferredRemoteName(in directory: String, currentBranch: String) async throws -> String? {

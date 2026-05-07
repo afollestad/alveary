@@ -19,7 +19,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.notificationManager.markReadCalls.sorted(), ["main", "side"])
     }
 
-    func testArchiveThreadDoesNotMarkReadWhenQuiesceFails() async throws {
+    func testArchiveThreadMarksReadBeforeRuntimeCleanupFailure() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "P",
@@ -35,10 +35,10 @@ extension SidebarViewModelTests {
             // expected
         }
 
-        XCTAssertTrue(fixture.notificationManager.markReadCalls.isEmpty)
+        XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
     }
 
-    func testArchiveThreadTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+    func testArchiveThreadTreatsConcurrentDeletionDuringRuntimeTeardownAsSatisfied() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "P",

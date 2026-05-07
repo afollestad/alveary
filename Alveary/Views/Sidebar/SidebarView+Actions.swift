@@ -41,6 +41,8 @@ extension SidebarView {
 
         do {
             try await viewModel.archiveThread(thread)
+        } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+            viewModel.presentSidebarError(error)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
@@ -92,6 +94,9 @@ extension SidebarView {
         do {
             try await viewModel.deleteThread(thread)
             appState.selectedConversationIDs.removeValue(forKey: threadID)
+        } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+            appState.selectedConversationIDs.removeValue(forKey: threadID)
+            viewModel.presentSidebarError(error)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
@@ -141,6 +146,9 @@ extension SidebarView {
         do {
             try await viewModel.deleteProject(project)
             expandedProjects.remove(projectPath)
+        } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+            expandedProjects.remove(projectPath)
+            viewModel.presentSidebarError(error)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark

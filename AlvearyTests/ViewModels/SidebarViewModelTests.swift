@@ -126,7 +126,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(activeThreads.map(\.persistentModelID), [alpha.persistentModelID, zulu.persistentModelID])
     }
 
-    func testArchiveThreadAttemptsAllConversationTeardownsBeforeFailing() async throws {
+    func testArchiveThreadArchivesBeforeReportingRuntimeCleanupFailure() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -139,13 +139,18 @@ final class SidebarViewModelTests: XCTestCase {
         do {
             try await fixture.viewModel.archiveThread(thread)
             XCTFail("Expected archive to throw")
-        } catch let error as SidebarMockAgentsManager.MockError {
-            XCTAssertEqual(error, .destroyFailed("main"))
+        } catch let error as SidebarViewModelError {
+            guard case .archiveCleanupFailed(let underlying) = error,
+                  let mockError = underlying as? SidebarMockAgentsManager.MockError else {
+                XCTFail("Expected archive cleanup failure")
+                return
+            }
+            XCTAssertEqual(mockError, .destroyFailed("main"))
         }
 
         let destroyCalls = await fixture.agentsManager.destroyCalls()
         XCTAssertEqual(destroyCalls.sorted(), ["main", "side"])
-        XCTAssertNil(try fixture.requireThread(thread).archivedAt)
+        XCTAssertNotNil(try fixture.requireThread(thread).archivedAt)
     }
 
     func testRestoreThreadClearsArchiveFlag() throws {
@@ -189,7 +194,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(pendingRestoreContext?.contains("I found a stale observer during restore."), true)
     }
 
-    func testDeleteThreadRemovesPendingBranchesAndWorktreeBeforeDeletingModel() async throws {
+    func testDeleteThreadDeletesModelAndCleansPendingBranchesAndWorktree() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -218,30 +223,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertFalse(try fixture.threadExists(thread))
     }
 
-    func testDeleteThreadPreservesRecordWhenWorktreeCleanupFails() async throws {
-        let fixture = try SidebarTestFixture()
-        let thread = try fixture.insertThread(
-            projectName: "Alveary",
-            projectPath: "/tmp/alveary-project",
-            conversationIDs: ["main"],
-            branch: "alveary/live",
-            worktreePath: "/tmp/alveary-worktree",
-            hasCompletedInitialSetup: true,
-            useWorktree: true
-        )
-        await fixture.worktreeManager.setRemoveError(.removeFailed)
-
-        do {
-            try await fixture.viewModel.deleteThread(thread)
-            XCTFail("Expected delete to throw")
-        } catch let error as SidebarMockWorktreeManager.MockError {
-            XCTAssertEqual(error, .removeFailed)
-        }
-
-        XCTAssertTrue(try fixture.threadExists(thread))
-    }
-
-    func testDeleteThreadTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+    func testDeleteThreadTreatsConcurrentDeletionDuringRuntimeTeardownAsSatisfied() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -265,7 +247,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
     }
 
-    func testDeleteProjectDeletesChildThreadsAndRemainingWorktreesBeforeDeletingModel() async throws {
+    func testDeleteProjectDeletesModelsAndCleansChildThreadsAndRemainingWorktrees() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let primaryThread = AgentThread(
@@ -311,32 +293,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 0)
     }
 
-    func testDeleteProjectPreservesModelWhenFinalWorktreeSweepFails() async throws {
-        let fixture = try SidebarTestFixture()
-        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
-        let thread = AgentThread(name: "Primary", project: project)
-        thread.conversations = [
-            Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
-        ]
-
-        project.threads = [thread]
-        fixture.context.insert(project)
-        try fixture.context.save()
-        await fixture.worktreeManager.setRemoveAllError(.removeAllFailed)
-
-        do {
-            try await fixture.viewModel.deleteProject(project)
-            XCTFail("Expected delete to throw")
-        } catch let error as SidebarMockWorktreeManager.MockError {
-            XCTAssertEqual(error, .removeAllFailed)
-        }
-
-        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 1)
-        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
-        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 1)
-    }
-
-    func testDeleteProjectTreatsConcurrentDeletionDuringQuiesceAsSatisfied() async throws {
+    func testDeleteProjectTreatsConcurrentDeletionDuringRuntimeTeardownAsSatisfied() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Primary", project: project)
