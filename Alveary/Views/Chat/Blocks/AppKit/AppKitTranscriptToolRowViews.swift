@@ -31,12 +31,17 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     private let detailsView = AppKitTranscriptToolDetailsView()
     private var configuration: Configuration?
     private var isExpanded = false
+    private var detailsPrewarmTask: Task<Void, Never>?
+    private var prewarmedDetailsConfiguration: AppKitTranscriptToolDetailsView.Configuration?
+    private var isPrewarmingDetails = false
     private var lastMeasuredHeight: CGFloat = -1
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
     }
+
+    deinit { detailsPrewarmTask?.cancel() }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
@@ -82,6 +87,10 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             return
         }
         isExpanded = expanded
+        if expanded {
+            detailsPrewarmTask?.cancel()
+            detailsPrewarmTask = nil
+        }
         rebuild()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
@@ -99,7 +108,10 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         headerView.translatesAutoresizingMaskIntoConstraints = true
         detailsView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
-        detailsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        detailsView.onHeightInvalidated = { [weak self] in
+            guard let self, self.isExpanded, !self.isPrewarmingDetails else { return }
+            self.childHeightInvalidated()
+        }
         detailsView.onOpenMarkdownLink = onOpenMarkdownLink
         addSubview(headerView)
     }
@@ -124,14 +136,14 @@ final class AppKitTranscriptInlineToolRowView: NSView {
                 bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
             )
         )
-
         if isExpanded {
             if detailsView.superview == nil {
                 addSubview(detailsView)
             }
-            detailsView.configure(.init(tool: configuration.tool, typography: configuration.typography))
+            configureDetailsView(.init(tool: configuration.tool, typography: configuration.typography))
         } else {
             detailsView.removeFromSuperview()
+            scheduleDetailsPrewarm(for: configuration)
         }
     }
 
@@ -140,11 +152,9 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
-
         guard isExpanded else {
             return
         }
-
         let detailsWidth = max(width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
         detailsView.frame = NSRect(
             x: transcriptToolDetailLeadingInset,
@@ -178,6 +188,53 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     private func childHeightInvalidated() {
         needsLayout = true
         invalidateTranscriptHeight(force: true)
+    }
+
+    private func configureDetailsView(_ detailsConfiguration: AppKitTranscriptToolDetailsView.Configuration) {
+        detailsView.configure(detailsConfiguration)
+        prewarmedDetailsConfiguration = detailsConfiguration
+    }
+
+    private func scheduleDetailsPrewarm(for configuration: Configuration) {
+        guard configuration.tool.name != "Skill" else {
+            return
+        }
+        let detailsConfiguration = AppKitTranscriptToolDetailsView.Configuration(
+            tool: configuration.tool,
+            typography: configuration.typography
+        )
+        guard prewarmedDetailsConfiguration != detailsConfiguration else {
+            return
+        }
+        detailsPrewarmTask?.cancel()
+        detailsPrewarmTask = Task { @MainActor [weak self, configuration, detailsConfiguration] in
+            await Task.yield()
+            guard let self,
+                  !Task.isCancelled,
+                  self.configuration == configuration,
+                  !self.isExpanded else {
+                return
+            }
+            self.isPrewarmingDetails = true
+            defer { self.isPrewarmingDetails = false }
+            self.configureDetailsView(detailsConfiguration)
+            self.prewarmDetailsLayoutIfPossible()
+        }
+    }
+
+    private func prewarmDetailsLayoutIfPossible() {
+        let detailsWidth = max(bounds.width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
+        guard detailsWidth > 0 else {
+            return
+        }
+        detailsView.frame = NSRect(
+            x: transcriptToolDetailLeadingInset,
+            y: headerView.frame.maxY + transcriptToolExpandedContentTopSpacing,
+            width: detailsWidth,
+            height: CGFloat.greatestFiniteMagnitude / 2
+        )
+        detailsView.layoutSubtreeIfNeeded()
+        detailsView.frame.size.height = detailsView.intrinsicContentSize.height
     }
 
     private func leadingIconKind(for tool: ToolEntry, isExpanded: Bool) -> TranscriptToolLeadingIconKind {
