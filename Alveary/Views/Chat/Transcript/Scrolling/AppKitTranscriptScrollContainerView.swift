@@ -8,6 +8,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
     var activeScrollAnimationToken: UUID?
     private(set) var paginationGeneration = 0
     var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)?
+    var shouldForceBottomAfterCurrentMeasurement = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -25,6 +26,9 @@ final class AppKitTranscriptScrollContainerView: NSView {
         super.layout()
         scrollView.frame = bounds
         transcriptDocumentView.layoutRows(width: bounds.width)
+        if restoreForcedBottomAfterMeasurementIfNeeded() {
+            return
+        }
         hydrateViewportRows()
         publishScrollMetrics()
     }
@@ -47,9 +51,10 @@ final class AppKitTranscriptScrollContainerView: NSView {
     func rowHeightInvalidated(
         rowID: String? = nil,
         preserveBottomIfFollowing: Bool,
+        forceBottomIfPreserving: Bool = false,
         animatesLayoutChanges: Bool = true
     ) {
-        let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
+        let shouldRestoreBottom = preserveBottomIfFollowing && (isAtBottom || forceBottomIfPreserving)
         let visibleAnchor = captureVisibleAnchor()
         let documentHeightBeforeLayout = documentHeight
         // Named invalidation is the hot path for streaming, expansion, and task
@@ -58,27 +63,13 @@ final class AppKitTranscriptScrollContainerView: NSView {
         // Rows can report a fresh height while the document is measuring them;
         // that feedback is satisfied by the active pass, and reentering here
         // creates staggered row animations.
-        guard !transcriptDocumentView.isMeasuringRows else {
-            return
-        }
-        if transcriptDocumentView.isApplyingFrameUpdates {
-            DispatchQueue.main.async { [weak self] in
-                self?.rowHeightInvalidated(
-                    rowID: rowID,
-                    preserveBottomIfFollowing: preserveBottomIfFollowing,
-                    animatesLayoutChanges: animatesLayoutChanges
-                )
-            }
-            return
-        }
-        if transcriptDocumentView.hasActiveFrameAnimation {
-            transcriptDocumentView.runAfterActiveFrameAnimation { [weak self] in
-                self?.rowHeightInvalidated(
-                    rowID: rowID,
-                    preserveBottomIfFollowing: preserveBottomIfFollowing,
-                    animatesLayoutChanges: animatesLayoutChanges
-                )
-            }
+        if deferHeightInvalidationUntilStable(
+            rowID: rowID,
+            preserveBottomIfFollowing: preserveBottomIfFollowing,
+            forceBottomIfPreserving: forceBottomIfPreserving,
+            animatesLayoutChanges: animatesLayoutChanges,
+            shouldRestoreBottom: shouldRestoreBottom
+        ) {
             return
         }
         if let rowID {
@@ -91,6 +82,9 @@ final class AppKitTranscriptScrollContainerView: NSView {
         }
         needsLayout = true
         layoutSubtreeIfNeeded()
+        if restoreForcedBottomAfterMeasurementIfNeeded() {
+            return
+        }
         // A named dirty row can remeasure to the same frame; in that hot path
         // downstream frames and visible anchors are already stable.
         guard rowID == nil || transcriptDocumentView.lastLayoutChangedFrames else {

@@ -285,6 +285,82 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         XCTAssertNotNil(container.rowFrame(for: AppKitTranscriptTransientRows.streamingRowID))
     }
 
+    func testCoordinatorReleasesAfterInstallingStreamingRowCallbacks() async {
+        weak var releasedCoordinator: AppKitTranscriptScrollBridgeCoordinator?
+
+        do {
+            let container = makeContainer()
+            let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+            releasedCoordinator = coordinator
+
+            coordinator.update(
+                container: container,
+                items: [.centeredNote(id: "note", kind: .enteredPlanMode)],
+                transientRows: .init(streamingText: "Streaming"),
+                rowConfiguration: .init(),
+                isFollowing: true,
+                scrollToBottomRequest: 0
+            )
+            await container.waitForRow(id: AppKitTranscriptTransientRows.streamingRowID)
+        }
+
+        for _ in 0..<10 where releasedCoordinator != nil {
+            await Task.yield()
+        }
+        XCTAssertNil(releasedCoordinator)
+    }
+
+    func testStreamingHeightInvalidationUsesLatestFollowingState() async throws {
+        let container = makeContainer()
+        let window = NSWindow(contentRect: container.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView?.addSubview(container)
+        container.layoutSubtreeIfNeeded()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let items = (0..<8).map { index in
+            ChatItem.assistantMessage(id: "assistant-\(index)", text: String(repeating: "Line \(index) ", count: 40))
+        }
+        let longStreamingText = "Short " + String(repeating: "Streaming content wraps ", count: 18)
+
+        coordinator.update(
+            container: container,
+            items: items,
+            transientRows: .init(streamingText: "Short"),
+            rowConfiguration: .init(bubbleMaxWidth: 220),
+            isFollowing: true,
+            scrollToBottomRequest: 0
+        )
+        await container.waitForRow(id: AppKitTranscriptTransientRows.streamingRowID)
+        container.scrollToBottom()
+        XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
+
+        coordinator.update(
+            container: container,
+            items: items,
+            transientRows: .init(streamingText: longStreamingText),
+            rowConfiguration: .init(bubbleMaxWidth: 220),
+            isFollowing: true,
+            scrollToBottomRequest: 0
+        )
+        let streamingRow = try XCTUnwrap(container.rowView(id: AppKitTranscriptTransientRows.streamingRowID) as? AppKitTranscriptStreamingBubbleView)
+        container.scrollContentView(toY: max(container.scrollOffsetY - 120, 0))
+        XCTAssertLessThan(container.visibleBottomY, container.documentHeight - 1)
+        coordinator.update(
+            container: container,
+            items: items,
+            transientRows: .init(streamingText: longStreamingText),
+            rowConfiguration: .init(bubbleMaxWidth: 220),
+            isFollowing: false,
+            scrollToBottomRequest: 0
+        )
+
+        for _ in 0..<80 where streamingRow.displayedTextForTesting != longStreamingText {
+            streamingRow.advanceStreamingRevealForTesting()
+            container.layoutSubtreeIfNeeded()
+        }
+
+        XCTAssertLessThan(container.visibleBottomY, container.documentHeight - 1)
+    }
+
     func testCoordinatorForwardsScrollMetrics() async throws {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
@@ -340,6 +416,12 @@ private extension AppKitTranscriptScrollContainerView {
     func waitForDocumentHeight(_ predicate: (CGFloat) -> Bool) async {
         for _ in 0..<100 where !predicate(documentHeight) {
             try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
+    func rowView(id: String) -> NSView? {
+        transcriptDocumentView.subviews.first {
+            $0.identifier?.rawValue == id
         }
     }
 }

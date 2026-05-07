@@ -30,6 +30,42 @@ extension AppKitTranscriptScrollContainerTests {
         XCTAssertLessThan(container.visibleBottomY, container.documentHeight - 1)
     }
 
+    func testStreamingRowRevealKeepsBottomAnchored() {
+        let container = bottomPreservationContainer(height: 120)
+        let window = NSWindow(contentRect: container.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView?.addSubview(container)
+        container.layoutSubtreeIfNeeded()
+        let streamingRow = AppKitTranscriptStreamingBubbleView()
+        streamingRow.onHeightInvalidated = {
+            container.rowHeightInvalidated(
+                rowID: AppKitTranscriptTransientRows.streamingRowID,
+                preserveBottomIfFollowing: true,
+                forceBottomIfPreserving: true,
+                animatesLayoutChanges: false
+            )
+        }
+        streamingRow.configure(.init(text: "Short", bubbleMaxWidth: 220))
+        container.configure(
+            rows: [
+                bottomPreservationRow("first", height: 80),
+                bottomPreservationRow("second", height: 80),
+                AppKitTranscriptLayoutRow(id: AppKitTranscriptTransientRows.streamingRowID, view: streamingRow)
+            ],
+            preserveBottomIfFollowing: false
+        )
+        container.scrollToBottom()
+
+        let longText = "Short " + String(repeating: "Streaming content wraps ", count: 18)
+        streamingRow.configure(.init(text: longText, bubbleMaxWidth: 220))
+        for _ in 0..<80 where streamingRow.displayedTextForTesting != longText {
+            streamingRow.advanceStreamingRevealForTesting()
+            container.layoutSubtreeIfNeeded()
+            XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
+        }
+
+        XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
+    }
+
     private func bottomPreservationContainer(height: CGFloat) -> AppKitTranscriptScrollContainerView {
         let container = AppKitTranscriptScrollContainerView(frame: NSRect(x: 0, y: 0, width: 300, height: height))
         container.layoutSubtreeIfNeeded()

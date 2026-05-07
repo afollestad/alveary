@@ -50,6 +50,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
     private var lastAppliedContentSignature: AppKitTranscriptPreparedUpdate.ContentSignature?
     private var markdownPreparationGeneration = 0
     private var markdownPreparationTask: Task<Void, Never>?
+    private var currentIsFollowing = true
 
     deinit {
         markdownPreparationTask?.cancel()
@@ -64,6 +65,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         scrollToBottomRequest: Int,
         onScrollMetricsChanged: @escaping (ChatTranscriptScrollMetrics) -> Void = { _ in }
     ) {
+        currentIsFollowing = isFollowing
         container.onScrollMetricsChanged = { metrics in
             DispatchQueue.main.async {
                 onScrollMetricsChanged(metrics)
@@ -121,7 +123,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         var rowConfiguration = update.rowConfiguration
         var pendingDirtyRowIDs: Set<String> = []
         var isBuildingRows = true
-        rowConfiguration.onRowHeightInvalidated = { [weak container] rowID, animatesLayoutChanges in
+        rowConfiguration.onRowHeightInvalidated = { [weak self, weak container] rowID, animatesLayoutChanges in
             // Row configure can invalidate height before the new row list is installed;
             // batch those ids so the container never lays out the previous document.
             if isBuildingRows {
@@ -131,9 +133,11 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             container?.rowHeightInvalidated(
                 rowID: rowID,
                 // Row height callbacks can arrive after SwiftUI's `isFollowing`
-                // snapshot was captured. Let the AppKit container gate bottom
-                // preservation against its current scroll position instead.
+                // snapshot was captured. Read the coordinator's latest follow
+                // state for streaming rows because follow-state-only updates do
+                // not reconfigure cached row callbacks.
                 preserveBottomIfFollowing: true,
+                forceBottomIfPreserving: rowID == AppKitTranscriptTransientRows.streamingRowID && self?.currentIsFollowing == true,
                 animatesLayoutChanges: animatesLayoutChanges
             )
         }
