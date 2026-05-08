@@ -258,15 +258,12 @@ extension AppKitChatSurfaceViewTests {
         )
         window.testMouseLocationOutsideOfEventStream = surface.convert(livePopupSurfacePoint, to: nil)
 
-        _ = surface.dismissComposerAutocompleteIfClickOutside(event)
+        let monitorResult = surface.dismissComposerAutocompleteIfClickOutside(event)
 
-        XCTAssertNotNil(body.activeAutocomplete)
-
-        let captureView = try XCTUnwrap(surface.hitTest(livePopupSurfacePoint) as? AutocompleteSurfaceEventCaptureView)
-        captureView.mouseDown(with: event)
-
+        XCTAssertNil(monitorResult)
         XCTAssertEqual(body.editorView.textViewForTesting.string, "Review @file-1 ")
         XCTAssertNil(body.activeAutocomplete)
+        XCTAssertTrue(window.firstResponder === body.editorView.textViewForTesting)
     }
 }
 

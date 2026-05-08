@@ -353,7 +353,7 @@ extension ChatInputField {
             return false
         }
 
-        applyAutocompleteSuggestion(suggestion)
+        applyAutocompleteSuggestion(suggestion, using: autocomplete)
         return true
     }
 
@@ -368,8 +368,8 @@ extension ChatInputField {
         activeAutocomplete = autocomplete
     }
 
-    func applyAutocompleteSuggestion(_ suggestion: ComposerAutocompleteSuggestion) {
-        guard let autocomplete = activeAutocomplete else {
+    func applyAutocompleteSuggestion(_ suggestion: ComposerAutocompleteSuggestion, using snapshot: ComposerAutocompleteState? = nil) {
+        guard let autocomplete = snapshot ?? activeAutocomplete else {
             return
         }
 

@@ -68,7 +68,9 @@ extension ChatInputField {
             let popupHeight = AppKitComposerAutocompletePopupView.measuredHeight(for: autocomplete)
             AppKitAutocompletePopupRepresentable(
                 autocomplete: autocomplete,
-                onSelect: applyAutocompleteSuggestion,
+                onSelect: { suggestion in
+                    applyAutocompleteSuggestion(suggestion, using: autocomplete)
+                },
                 onHighlight: highlightAutocompleteSuggestion
             )
             .frame(maxWidth: .infinity, alignment: .leading)

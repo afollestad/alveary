@@ -166,10 +166,11 @@ extension AppKitChatComposerBodyView {
     }
 
     func configureAutocompletePopup() {
+        let visibleAutocomplete = activeAutocomplete
         autocompletePopupView.configure(
-            autocomplete: activeAutocomplete,
+            autocomplete: visibleAutocomplete,
             onSelect: { [weak self] suggestion in
-                self?.applyAutocompleteSuggestion(suggestion)
+                self?.applyAutocompleteSuggestion(suggestion, autocomplete: visibleAutocomplete)
             },
             onHighlight: { [weak self] index in
                 self?.highlightAutocompleteSuggestion(at: index)
@@ -177,6 +178,7 @@ extension AppKitChatComposerBodyView {
         )
         needsLayout = true
         onPreferredSizeInvalidated?()
+        enclosingChatSurfaceView()?.refreshSurfaceAutocompletePopup()
     }
 
     func handleAutocompleteKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {
@@ -222,7 +224,7 @@ extension AppKitChatComposerBodyView {
               let suggestion = autocomplete.suggestions[safe: autocomplete.highlightedIndex] else {
             return false
         }
-        applyAutocompleteSuggestion(suggestion)
+        applyAutocompleteSuggestion(suggestion, autocomplete: autocomplete)
         return true
     }
 
@@ -237,9 +239,12 @@ extension AppKitChatComposerBodyView {
         configureAutocompletePopup()
     }
 
-    func applyAutocompleteSuggestion(_ suggestion: ComposerAutocompleteSuggestion) {
+    func applyAutocompleteSuggestion(
+        _ suggestion: ComposerAutocompleteSuggestion,
+        autocomplete visibleAutocomplete: ComposerAutocompleteState? = nil
+    ) {
         guard let configuration,
-              let autocomplete = activeAutocomplete else {
+              let autocomplete = visibleAutocomplete ?? activeAutocomplete else {
             return
         }
         dismissAutocomplete()
@@ -254,6 +259,7 @@ extension AppKitChatComposerBodyView {
         currentText = newText
         configuration.onTextChange(newText)
         refreshEditorConfiguration()
+        restoreEditorFocusAfterAutocompleteInsertion()
     }
 
     func inlineSlashCommandHint(for configuration: AppKitChatComposerBodyConfiguration) -> AppTextEditorInlineHint? {
@@ -305,6 +311,30 @@ extension AppKitChatComposerBodyView {
             if hints[skill.id] == nil {
                 hints[skill.id] = argumentHint
             }
+        }
+    }
+
+    private func enclosingChatSurfaceView() -> AppKitChatSurfaceView? {
+        var candidate = superview
+        while let view = candidate {
+            if let surface = view as? AppKitChatSurfaceView {
+                return surface
+            }
+            candidate = view.superview
+        }
+        return nil
+    }
+
+    private func restoreEditorFocusAfterAutocompleteInsertion() {
+        editorView.claimTextFocus()
+        DispatchQueue.main.async { [weak editorView] in
+            guard let editorView else {
+                return
+            }
+            guard !editorView.hasTextFocus else {
+                return
+            }
+            editorView.claimTextFocus()
         }
     }
 

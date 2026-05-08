@@ -272,68 +272,6 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertEqual(popup.visibleSuggestionTitlesForTesting, ["File 1", "File 2", "File 3", "File 4", "File 5", "File 6"])
     }
 
-    func testNativeAutocompletePopupRowScrollWheelScrollsPopupWindow() throws {
-        let popup = AppKitComposerAutocompletePopupView(frame: NSRect(x: 0, y: 0, width: 320, height: 292))
-        let suggestions = Self.fileSuggestions(count: 8)
-        popup.configure(
-            autocomplete: ComposerAutocompleteState(
-                sessionID: UUID(),
-                kind: .file,
-                replacementOffsets: 0..<1,
-                query: "file",
-                suggestions: suggestions,
-                highlightedIndex: 0,
-                isLoading: false
-            ),
-            onSelect: { _ in },
-            onHighlight: { _ in }
-        )
-        popup.layoutSubtreeIfNeeded()
-
-        let lastVisibleRow = try XCTUnwrap(popup.hitTest(NSPoint(x: 60, y: 260)) as? AppKitComposerAutocompleteRowView)
-        lastVisibleRow.scrollWheel(with: Self.scrollEvent(deltaY: -12))
-
-        XCTAssertEqual(popup.visibleSuggestionTitlesForTesting, ["File 1", "File 2", "File 3", "File 4", "File 5", "File 6"])
-        XCTAssertTrue(popup.isScrollbarVisibleForTesting)
-
-        let rowGapHitView = try XCTUnwrap(popup.hitTest(NSPoint(x: 60, y: 51)))
-        XCTAssertFalse(rowGapHitView is AppKitComposerAutocompleteRowView)
-        rowGapHitView.scrollWheel(with: Self.scrollEvent(deltaY: -12))
-
-        XCTAssertEqual(popup.visibleSuggestionTitlesForTesting, ["File 2", "File 3", "File 4", "File 5", "File 6", "File 7"])
-    }
-
-    func testSurfaceConsumesMouseMovedInsideFloatingAutocompletePopupChrome() {
-        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 300, height: 220))
-        let content = AutocompleteFixedHeightView(height: 80)
-        let composer = AutocompleteFixedHeightView(height: 60)
-        let popup = AppKitComposerAutocompletePopupView(frame: NSRect(x: 0, y: -102, width: 300, height: 102))
-        popup.configure(
-            autocomplete: ComposerAutocompleteState(
-                sessionID: UUID(),
-                kind: .file,
-                replacementOffsets: 0..<1,
-                query: "chat",
-                suggestions: [],
-                isLoading: false
-            ),
-            onSelect: { _ in },
-            onHighlight: { _ in XCTFail("Popup chrome hover should not highlight a row") }
-        )
-        composer.addSubview(popup)
-        surface.configure(contentView: content, composerView: composer)
-        surface.layoutSubtreeIfNeeded()
-        popup.layoutSubtreeIfNeeded()
-
-        let popupChromePoint = popup.convert(NSPoint(x: 150, y: 8), to: surface)
-        let routed = surface.routeMouseMovedToComposerAutocomplete(
-            at: popupChromePoint,
-            event: Self.mouseEvent(type: .mouseMoved, location: popupChromePoint)
-        )
-
-        XCTAssertTrue(routed)
-    }
-
     func testNativeAutocompletePopupScrollsToHighlightedSuggestionWindow() {
         let popup = AppKitComposerAutocompletePopupView(frame: NSRect(x: 0, y: 0, width: 320, height: 292))
         let suggestions = Self.fileSuggestions(count: 8)

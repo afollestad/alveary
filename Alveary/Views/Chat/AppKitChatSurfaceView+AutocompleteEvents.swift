@@ -37,8 +37,12 @@ final class AutocompleteSurfaceEventCaptureView: NSView {
         guard let popup else {
             return
         }
-        let windowPoint = surfaceMouseEventWindowPoint(event)
-        _ = popup.routeMouseDown(at: popup.convert(windowPoint, from: nil), event: event)
+        if let surface = superview as? AppKitChatSurfaceView {
+            let surfacePoints = surface.mouseEventWindowPoints(event).map { surface.convert($0, from: nil) }
+            _ = surface.routeMouseDownToComposerAutocomplete(atAny: surfacePoints, event: event)
+            return
+        }
+        _ = popup.routeMouseDown(at: popup.convert(event.locationInWindow, from: nil), event: event)
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -80,5 +84,24 @@ final class ChatSurfaceLocalEventMonitor: @unchecked Sendable {
         if let monitor {
             NSEvent.removeMonitor(monitor)
         }
+    }
+}
+
+extension AppKitChatSurfaceView {
+    func mouseEventWindowPoint(_ event: NSEvent) -> NSPoint {
+        // Continued scroll gestures can leave the next click carrying a stale event location; use AppKit's
+        // live mouse point so the outside-click monitor does not dismiss before row selection.
+        event.window === window ? window?.mouseLocationOutsideOfEventStream ?? event.locationInWindow : event.locationInWindow
+    }
+
+    func mouseEventWindowPoints(_ event: NSEvent) -> [NSPoint] {
+        guard event.window === window,
+              let livePoint = window?.mouseLocationOutsideOfEventStream else {
+            return [event.locationInWindow]
+        }
+        guard livePoint != event.locationInWindow else {
+            return [event.locationInWindow]
+        }
+        return [event.locationInWindow, livePoint]
     }
 }
