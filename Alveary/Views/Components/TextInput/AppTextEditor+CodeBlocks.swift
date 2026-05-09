@@ -11,6 +11,11 @@ import SwiftUI
 let appTextEditorChipTrailingKern: CGFloat = 3
 
 enum AppTextEditorCodeBlockStyling {
+    static let codeBlockHorizontalPadding: CGFloat = 12
+    static let codeBlockVerticalPadding: CGFloat = 10
+    static let codeBlockOuterGap: CGFloat = 4
+    static let codeBlockComposerBreathingRoom: CGFloat = codeBlockOuterGap
+
     struct StyleContext {
         let fullRange: NSRange
         let highlightRanges: [NSRange]
@@ -41,29 +46,87 @@ enum AppTextEditorCodeBlockStyling {
             range: context.fullRange
         )
 
-        for range in context.blockRanges {
+        applyBlockStyling(to: textStorage, context: context)
+        applyInlineStyling(to: textStorage, context: context)
+        applyHighlightStyling(to: textStorage, context: context)
+    }
+
+    private static func applyBlockStyling(to textStorage: NSTextStorage, context: StyleContext) {
+        let blockCodeRanges = AppMarkdownCodeBlockParser.blockCodeRanges(
+            in: textStorage.string,
+            matching: context.blockRanges
+        )
+
+        for range in blockCodeRanges.map(\.contentRange) {
             let clampedRange = NSIntersectionRange(range, context.fullRange)
             guard clampedRange.length > 0 else {
                 continue
             }
-
             textStorage.addAttributes(
                 codeBlockAttributes(font: context.baseFont, colorScheme: context.colorScheme),
                 range: clampedRange
             )
         }
 
+        for blockRange in blockCodeRanges {
+            for delimiterRange in blockRange.delimiterRanges {
+                let clampedRange = NSIntersectionRange(delimiterRange, context.fullRange)
+                guard clampedRange.length > 0 else {
+                    continue
+                }
+
+                textStorage.addAttributes(
+                    codeBlockDelimiterAttributes(
+                        font: context.baseFont,
+                        isLeadingOpeningDelimiter: delimiterRange == blockRange.delimiterRanges.first &&
+                            delimiterRange.location == 0
+                    ),
+                    range: clampedRange
+                )
+            }
+        }
+    }
+
+    static func codeBlockDelimiterAttributes(
+        font: NSFont,
+        isLeadingOpeningDelimiter: Bool = false
+    ) -> [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.firstLineHeadIndent = 0
+        paragraphStyle.headIndent = 0
+        paragraphStyle.tailIndent = 0
+        // Leading code blocks do not have visible content above them, so the
+        // opening delimiter should reserve only the block's top padding. Keeping
+        // the normal outer gap there makes the visual block drop when the first
+        // code glyph is inserted.
+        let lineHeight: CGFloat
+        if isLeadingOpeningDelimiter {
+            lineHeight = codeBlockVerticalPadding
+        } else {
+            // Non-leading opening fences and closing fences are hidden, but
+            // still reserve the block edge padding plus the outside gap. If the
+            // closing fence collapses completely, text typed below can overlap
+            // and clamp the visible code-block chrome.
+            lineHeight = codeBlockVerticalPadding + codeBlockOuterGap
+        }
+        paragraphStyle.minimumLineHeight = lineHeight
+        paragraphStyle.maximumLineHeight = lineHeight
+
+        return [
+            .font: NSFont.monospacedSystemFont(ofSize: 0.1, weight: .regular),
+            .foregroundColor: NSColor.clear,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+
+    private static func applyInlineStyling(to textStorage: NSTextStorage, context: StyleContext) {
         for range in context.inlineRanges {
             let clampedRange = NSIntersectionRange(range, context.fullRange)
             guard clampedRange.length > 0,
                   !context.blockRanges.contains(where: { NSIntersectionRange($0, clampedRange).length > 0 }) else {
                 continue
             }
-
-            textStorage.addAttributes(
-                inlineCodeAttributes(font: context.baseFont),
-                range: clampedRange
-            )
+            textStorage.addAttributes(inlineCodeAttributes(font: context.baseFont), range: clampedRange)
         }
 
         for range in context.inlineDelimiterRanges {
@@ -72,13 +135,11 @@ enum AppTextEditorCodeBlockStyling {
                   !context.blockRanges.contains(where: { NSIntersectionRange($0, clampedRange).length > 0 }) else {
                 continue
             }
-
-            textStorage.addAttributes(
-                inlineCodeDelimiterAttributes(font: context.baseFont),
-                range: clampedRange
-            )
+            textStorage.addAttributes(inlineCodeDelimiterAttributes(font: context.baseFont), range: clampedRange)
         }
+    }
 
+    private static func applyHighlightStyling(to textStorage: NSTextStorage, context: StyleContext) {
         let highlightColor = NSColor.controlAccentColor
         for range in context.highlightRanges {
             let clampedRange = NSIntersectionRange(range, context.fullRange)
@@ -87,7 +148,6 @@ enum AppTextEditorCodeBlockStyling {
                   !context.inlineRanges.contains(where: { NSIntersectionRange($0, clampedRange).length > 0 }) else {
                 continue
             }
-
             textStorage.addAttribute(.foregroundColor, value: highlightColor, range: clampedRange)
         }
     }
@@ -109,16 +169,15 @@ enum AppTextEditorCodeBlockStyling {
         colorScheme: ColorScheme
     ) -> [NSAttributedString.Key: Any] {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.firstLineHeadIndent = 6
-        paragraphStyle.headIndent = 6
-        paragraphStyle.tailIndent = -6
-        paragraphStyle.paragraphSpacingBefore = 2
-        paragraphStyle.paragraphSpacing = 2
+        paragraphStyle.firstLineHeadIndent = codeBlockHorizontalPadding
+        paragraphStyle.headIndent = codeBlockHorizontalPadding
+        paragraphStyle.tailIndent = -codeBlockHorizontalPadding
+        paragraphStyle.paragraphSpacingBefore = 0
+        paragraphStyle.paragraphSpacing = 0
 
         return [
             .font: NSFont.monospacedSystemFont(ofSize: font.pointSize * 0.94, weight: .regular),
-            .paragraphStyle: paragraphStyle,
-            .backgroundColor: AppMarkdownCodeBlockPalette.fillNSColor(isDark: colorScheme == .dark)
+            .paragraphStyle: paragraphStyle
         ]
     }
 
@@ -139,6 +198,9 @@ enum AppTextEditorCodeBlockStyling {
     static func typingAttributes(for context: TypingContext) -> [NSAttributedString.Key: Any] {
         let selectedLocation = min(context.selectionRange.location, max(context.textUTF16Count - 1, 0))
         let insertionRange = NSRange(location: selectedLocation, length: max(context.selectionRange.length, 1))
+        // Callers pass editable code-content ranges here, not full fenced ranges.
+        // Otherwise EOF after a hidden closing fence inherits delimiter styling
+        // and moves the outside blank-line caret to the code-block inset.
         if context.blockRanges.contains(where: { NSIntersectionRange($0, insertionRange).length > 0 }) {
             var attributes = codeBlockAttributes(font: context.baseFont, colorScheme: context.colorScheme)
             attributes[.foregroundColor] = context.baseColor

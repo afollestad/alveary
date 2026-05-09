@@ -86,6 +86,17 @@ final class ChatTextEditorViewTests: XCTestCase {
         XCTAssertEqual(textView.textChipDisplayMode(for: chip), .fullText)
     }
 
+    func testConfigureWithTextPrimesLayoutForImmediateDrawAfterLayout() {
+        let editor = makeEditor()
+
+        editor.configure(ChatTextEditorConfiguration(
+            text: "Investigate the flaky login flow and summarize what changed."
+        ))
+        editor.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(editor.textViewForTesting.isTextLayoutReadyForDrawingForTesting)
+    }
+
     func testRepeatedConfigureDoesNotReapplyTypingAttributesWhenInputsAreUnchanged() {
         let editor = makeEditor()
         let configuration = ChatTextEditorConfiguration(
@@ -344,34 +355,6 @@ final class ChatTextEditorViewTests: XCTestCase {
         XCTAssertFalse(measuredHeights.isEmpty)
     }
 
-    func testProgrammaticHeightPrimingShrinksAfterShorterDraftRestore() {
-        let tallHeight = ChatTextEditor.primedMeasuredHeight(
-            for: "One\nTwo\nThree\nFour\nFive",
-            minHeight: 68,
-            verticalPadding: 10
-        )
-        let shortHeight = ChatTextEditor.primedMeasuredHeight(
-            for: "f\nf",
-            minHeight: 68,
-            verticalPadding: 10
-        )
-
-        XCTAssertEqual(shortHeight, 68)
-        XCTAssertLessThan(shortHeight, tallHeight)
-    }
-
-    func testProgrammaticHeightPrimingUsesNativeLineHeight() {
-        let height = ChatTextEditor.primedMeasuredHeight(
-            for: "d\nd\nd\nd\nd",
-            minHeight: 68,
-            verticalPadding: 10
-        )
-        let expectedHeight = (ChatTextEditor.primedLineHeight * 5) + 20
-
-        XCTAssertEqual(height, expectedHeight, accuracy: 0.5)
-        XCTAssertLessThan(height, 120)
-    }
-
     func testDisabledCursorStateThreadsThroughNativeViews() {
         let editor = makeEditor()
         editor.configure(ChatTextEditorConfiguration(
@@ -441,13 +424,13 @@ final class ChatTextEditorViewTests: XCTestCase {
         XCTAssertEqual(reportedFocusValues, [true, false])
     }
 
-    private func makeEditor() -> ChatTextEditorView {
+    func makeEditor() -> ChatTextEditorView {
         let editor = ChatTextEditorView(frame: NSRect(x: 0, y: 0, width: 420, height: 96))
         editor.layoutSubtreeIfNeeded()
         return editor
     }
 
-    private func flushMainQueue() {
+    func flushMainQueue() {
         let expectation = XCTestExpectation(description: "main queue flushed")
         DispatchQueue.main.async {
             expectation.fulfill()

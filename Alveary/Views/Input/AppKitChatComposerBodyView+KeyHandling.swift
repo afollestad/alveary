@@ -8,6 +8,12 @@ extension AppKitChatComposerBodyView {
         if handleStopShortcutKeyPress(keyPress) {
             return .handled
         }
+        if handleCodeBlockNavigationKeyPress(keyPress) {
+            return .handled
+        }
+        if handleCodeBlockLineBreakKeyPress(keyPress) {
+            return .handled
+        }
         guard let configuration,
               keyPress.key == .return else {
             return .ignored

@@ -227,7 +227,7 @@ private extension ChatView {
             return
         }
 
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !ChatInputFieldTextSupport.isEffectivelyEmpty(message) else {
             return
         }
 
@@ -259,7 +259,7 @@ private extension ChatView {
 
     func steerDraft() {
         let message = viewModel.state.inputDraft
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !ChatInputFieldTextSupport.isEffectivelyEmpty(message) else {
             return
         }
 

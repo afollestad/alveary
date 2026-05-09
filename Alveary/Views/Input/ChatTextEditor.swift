@@ -180,12 +180,79 @@ extension ChatTextEditor {
         // native NSTextView. Hard-coded line heights leave visible empty space
         // inside the composer until AppKit's measured height catches up.
         let lineCount = text.split(separator: "\n", omittingEmptySubsequences: false).count
-        return max(minHeight, CGFloat(max(lineCount, 1)) * primedLineHeight + (verticalPadding * 2))
+        let lineHeight = primedLineHeight
+        let plainTextHeight = CGFloat(max(lineCount, 1)) * lineHeight + (verticalPadding * 2)
+        let codeBlockHeight = primedCodeBlockMeasuredHeight(
+            for: text,
+            lineHeight: lineHeight,
+            verticalPadding: verticalPadding
+        )
+        guard codeBlockHeight <= 0 else {
+            return max(minHeight, codeBlockHeight)
+        }
+        return max(minHeight, plainTextHeight)
     }
 
     static var primedLineHeight: CGFloat {
         let font = NSFont.preferredFont(forTextStyle: .body)
         return ceil(NSLayoutManager().defaultLineHeight(for: font))
+    }
+
+    private static func primedCodeBlockMeasuredHeight(
+        for text: String,
+        lineHeight: CGFloat,
+        verticalPadding: CGFloat
+    ) -> CGFloat {
+        let blocks = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)
+        guard !blocks.isEmpty else {
+            return 0
+        }
+
+        let source = text as NSString
+        var visibleLineCount = 0
+        var totalBlockHeight: CGFloat = 0
+        var currentLocation = 0
+
+        // `primedMeasuredHeight` runs before AppKit has reliable width/layout
+        // data. Estimate visible lines only: hidden fence delimiters should not
+        // inflate the composer, but code-block chrome and outer gaps should.
+        for block in blocks {
+            if block.fullRange.location > currentLocation {
+                visibleLineCount += primedLineCount(
+                    in: source.substring(with: NSRange(location: currentLocation, length: block.fullRange.location - currentLocation))
+                )
+            }
+
+            let codeLineCount = max(primedLineCount(in: source.substring(with: block.contentRange)), 1)
+            totalBlockHeight += CGFloat(codeLineCount) * lineHeight
+            totalBlockHeight += AppTextEditorCodeBlockStyling.codeBlockVerticalPadding * 2
+            totalBlockHeight += AppTextEditorCodeBlockStyling.codeBlockOuterGap * 2
+            currentLocation = NSMaxRange(block.fullRange)
+        }
+
+        if currentLocation < source.length {
+            visibleLineCount += primedLineCount(
+                in: source.substring(with: NSRange(location: currentLocation, length: source.length - currentLocation))
+            )
+        } else if let lastBlock = blocks.last,
+                  lastBlock.delimiterRanges.count > 1,
+                  source.length > 0,
+                  source.character(at: source.length - 1) == 0x0A {
+            visibleLineCount += 1
+        }
+
+        return (CGFloat(visibleLineCount) * lineHeight) +
+            totalBlockHeight +
+            (verticalPadding * 2)
+    }
+
+    private static func primedLineCount(in text: String) -> Int {
+        let visibleText = text.trimmingCharacters(in: .newlines)
+        guard !visibleText.isEmpty else {
+            return 0
+        }
+
+        return visibleText.split(separator: "\n", omittingEmptySubsequences: false).count
     }
 }
 

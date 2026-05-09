@@ -402,12 +402,13 @@ extension AppKitChatSurfaceViewTests {
 }
 
 @MainActor
-private func makeComposerBodyConfiguration(
+func makeComposerBodyConfiguration(
     text: String,
     workingDirectory: String = "/tmp/alveary",
     isProjectTrustBlocked: Bool = false,
     requestFirstResponder: UUID? = nil,
     loadSkillCompletions: @escaping @Sendable () async -> [Skill] = { [] },
+    onTextChange: @escaping (String) -> Void = { _ in },
     onSubmit: @escaping () -> Void = {},
     onFocusRequestConsumed: @escaping (UUID?) -> Void = { _ in }
 ) -> AppKitChatComposerBodyConfiguration {
@@ -429,7 +430,7 @@ private func makeComposerBodyConfiguration(
         colorScheme: .dark,
         loadFileCompletions: { [] },
         loadSkillCompletions: loadSkillCompletions,
-        onTextChange: { _ in },
+        onTextChange: onTextChange,
         onSubmit: onSubmit,
         onSteer: {},
         onStop: {},

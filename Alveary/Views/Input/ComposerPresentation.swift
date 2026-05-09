@@ -25,6 +25,10 @@ struct ComposerPresentation: Equatable, Sendable {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    var isTextEffectivelyEmpty: Bool {
+        ChatInputFieldTextSupport.isEffectivelyEmpty(text)
+    }
+
     var primaryActionTitle: String {
         if isHandoffSteeringPromptActive {
             guard let handoffSteeringCountdown else {
@@ -52,7 +56,7 @@ struct ComposerPresentation: Equatable, Sendable {
         if isProjectTrustBlocked {
             return true
         }
-        return !isHandoffSteeringPromptActive && trimmedText.isEmpty
+        return !isHandoffSteeringPromptActive && isTextEffectivelyEmpty
     }
 
     var isTextEditorDisabled: Bool {
@@ -113,11 +117,11 @@ struct ComposerPresentation: Equatable, Sendable {
     }
 
     var canSubmit: Bool {
-        !isProjectTrustBlocked && (isHandoffSteeringPromptActive || !trimmedText.isEmpty)
+        !isProjectTrustBlocked && (isHandoffSteeringPromptActive || !isTextEffectivelyEmpty)
     }
 
     var canSteer: Bool {
-        !isProjectTrustBlocked && !trimmedText.isEmpty
+        !isProjectTrustBlocked && !isTextEffectivelyEmpty
     }
 
     func busyReturnAction(usesAlternateBehavior: Bool) -> ComposerPrimaryAction {

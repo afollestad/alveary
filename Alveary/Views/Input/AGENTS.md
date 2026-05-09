@@ -9,6 +9,17 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - `TextSelection` values flowing through the AppKit editor can briefly refer to an older string right after send/reset updates. Any code that maps those indices into the current string, including `NSTextView` sync and autocomplete helpers, must treat stale indices as invalid and normalize or bail out instead of assuming the indices still belong to the new text.
 - Keep selection and replacement offsets in UTF-16 units to match AppKit `NSRange` behavior; mixing them with `String.count` breaks emoji and other composed-character handling.
 - Apply composer token styling as attributed ranges while keeping the editor's base `textColor` and typing color pinned to the normal label color. Deriving the base color from already-styled text can cause accent-colored mentions or slash commands to bleed into later plain text or persist after clearing the input.
+- `ChatTextEditor.primedMeasuredHeight(for:minHeight:verticalPadding:)` must stay aware of fenced code-block chrome. Parent AppKit composer views use this before deferred text layout catches up, so raw line counts alone can make the parent too short while the drawn code block already has extra padding.
+    - When code blocks are present, prime from visible text/content lines plus chrome, not the raw backing-string line count. Hidden fence rows must not overgrow the composer.
+- Composer text-emptiness checks must use `ChatInputFieldTextSupport.isEffectivelyEmpty(_:)`, not plain trimming, so an otherwise empty fenced code block keeps Send disabled.
+
+## Composer Code Block Navigation
+
+- Code-block Up/Down exits belong in `AppKitChatComposerBodyView+CodeBlocks.swift`. Treat `.numericPad` and `.capsLock` as inert modifiers for real AppKit arrow events, but do not treat shift/command/option/control as exits.
+- Up exits only from the first visible code-content line, and Down exits only from the last visible code-content line. Interior code lines should fall through to AppKit's normal vertical caret movement.
+- Arrow navigation must ignore hidden fence delimiter rows in both directions. From a visible line adjacent to a fence, move into the editable code content instead of letting AppKit land the caret before hidden backticks.
+- Re-entering from below a closed code block must target the visible editable content end. `NSMaxRange(contentRange)` can be the start of the hidden closing fence when the content ends with a newline.
+- Exiting down from a closed code block should move to `NSMaxRange(closingDelimiter)` when text already follows the closing fence. The delimiter range already includes the fence line's newline, so checking for another newline inserts an unwanted blank line.
 
 ## Slash-Command Argument Hints
 

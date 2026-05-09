@@ -32,6 +32,42 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.placeholder, ComposerPresentation.handoffSteeringPlaceholder)
     }
 
+    func testEmptyCodeBlockCountsAsEmptyComposerText() {
+        let presentation = makePresentation(text: "```\n")
+
+        XCTAssertTrue(presentation.isTextEffectivelyEmpty)
+        XCTAssertFalse(presentation.canSubmit)
+        XCTAssertFalse(presentation.canSteer)
+        XCTAssertTrue(presentation.isPrimaryActionDisabled)
+    }
+
+    func testWhitespaceOnlyCodeBlockCountsAsEmptyComposerText() {
+        let presentation = makePresentation(text: " \n```swift\n  \n```\n ")
+
+        XCTAssertTrue(presentation.isTextEffectivelyEmpty)
+        XCTAssertFalse(presentation.canSubmit)
+        XCTAssertFalse(presentation.canSteer)
+        XCTAssertTrue(presentation.isPrimaryActionDisabled)
+    }
+
+    func testCodeBlockWithContentCanSubmit() {
+        let presentation = makePresentation(text: "```\nlet value = 1\n```")
+
+        XCTAssertFalse(presentation.isTextEffectivelyEmpty)
+        XCTAssertTrue(presentation.canSubmit)
+        XCTAssertTrue(presentation.canSteer)
+        XCTAssertFalse(presentation.isPrimaryActionDisabled)
+    }
+
+    func testTextAroundEmptyCodeBlockCanSubmit() {
+        let presentation = makePresentation(text: "Review this\n```\n```")
+
+        XCTAssertFalse(presentation.isTextEffectivelyEmpty)
+        XCTAssertTrue(presentation.canSubmit)
+        XCTAssertTrue(presentation.canSteer)
+        XCTAssertFalse(presentation.isPrimaryActionDisabled)
+    }
+
     func testBusyReturnActionFollowsDefaultAndAlternateBehavior() {
         let queueDefault = makePresentation(
             text: "Steer or queue",

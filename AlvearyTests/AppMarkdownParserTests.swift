@@ -4,6 +4,26 @@ import XCTest
 @testable import Alveary
 
 final class AppMarkdownParserTests: XCTestCase {
+    func testCodeBlockRangeParserSeparatesContentAndDelimiters() throws {
+        let markdown = "Intro\n```swift\nlet value = 1\n```\nAfter"
+        let blockRange = try XCTUnwrap(AppMarkdownCodeBlockParser.blockCodeRanges(in: markdown).first)
+        let source = markdown as NSString
+
+        XCTAssertEqual(source.substring(with: blockRange.contentRange), "let value = 1\n")
+        XCTAssertEqual(blockRange.delimiterRanges.map { source.substring(with: $0) }, ["```swift\n", "```\n"])
+        XCTAssertEqual(source.substring(with: blockRange.fullRange), "```swift\nlet value = 1\n```\n")
+    }
+
+    func testCodeBlockRangeParserKeepsOpenFenceContentEditable() throws {
+        let markdown = "```\nlet value = 1"
+        let blockRange = try XCTUnwrap(AppMarkdownCodeBlockParser.blockCodeRanges(in: markdown).first)
+        let source = markdown as NSString
+
+        XCTAssertEqual(source.substring(with: blockRange.contentRange), "let value = 1")
+        XCTAssertEqual(blockRange.delimiterRanges.map { source.substring(with: $0) }, ["```\n"])
+        XCTAssertEqual(source.substring(with: blockRange.fullRange), markdown)
+    }
+
     func testParsesMultiLineFencedCodeBlockWithLanguageHint() throws {
         let parser = AppMarkdownParser()
         let attributed = try parser.attributedString(

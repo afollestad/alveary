@@ -5,6 +5,7 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 ## AppKit Bridge
 
 - Draw the placeholder inside `AppKitTextView`, not as a SwiftUI overlay, so insets and caret placement match the real text view.
+- Keep the empty editor's caret and placeholder text on the same x-origin. Do not add a focused-only placeholder offset; it makes the caret appear left of the placeholder instead of lined up with the first typed character.
 - Keep `AppKitTextView.allowsVibrancy = false`.
     - Vibrancy can shift AppKit-drawn chip fills away from the literal `NSColor` used by matching SwiftUI accent surfaces.
     - Disabling vibrancy keeps editor chips stable across composer panels, sheets, popovers, and future host surfaces.
@@ -44,6 +45,35 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
     - Use computed negative `.kern` so the enclosing rect shrinks to the decoded label width.
     - Draw `CanonicalPath.decodeStoredMentionPath(chip.displayText)` after `super.draw(_:)`.
     - Only draw compact labels for single-line chip rects.
+
+## Fenced Code Blocks
+
+### Storage And Geometry
+
+- Composer code blocks keep raw triple-backtick fences in the backing string while hiding the delimiters visually.
+- Fenced-code-block chrome and editing behavior are opt-in through `codeBlockRanges`. Plain `AppTextEditor` uses, such as settings or skills fields, must keep triple backticks visible and literal.
+- Keep hidden delimiter lines out of visible text and selection geometry. Leading code blocks should start at the normal text inset, not below an invisible fence row.
+- Leading opening delimiters reserve only code-block top padding, not the normal outer gap, so inserting the first code glyph does not shift the visual block downward.
+- Hidden closing delimiters must still reserve code-block bottom padding plus the outside gap; collapsing them makes text typed below overlap and clip the block chrome.
+- A closed code block at EOF with a trailing newline also needs outside-line height below the chrome, not just the outer gap, so the caret and first typed line below it do not clip.
+- Typing an opening fence before an existing line should insert the newline after the fence and move that line into the code block, not leave the line outside the block.
+- Open code blocks whose editable content ends in a newline need a trailing editable-line rect; otherwise the caret can move to a new visual line while the rounded code-block chrome stays one line tall.
+- Treat code-block spacing as additive:
+    - The block owns equal outer gaps above and below its chrome.
+    - The composer/text view still owns its own top and bottom insets outside those gaps.
+
+### Caret And Selection
+
+- Cmd+A may select hidden delimiters in the backing string; clip AppKit text/selection drawing around hidden delimiter rows so invisible fences cannot paint full-width selection bars.
+- Empty code-block caret drawing must use the block's visual content inset, not AppKit's default extra-line-fragment y-position.
+- Empty code-block caret blinking must erase the same adjusted caret rect during the off phase; delegating that phase to AppKit can leave a tiny accent-colored remnant from the original extra-line-fragment rect.
+- EOF after a closed code block must draw and erase the caret on the outside text line, not on the hidden closing-fence row.
+- Backspace on the outside blank line after a hidden closing fence must delete the fence line's trailing newline as one edit; never let AppKit remove individual hidden backticks.
+- When emptying a code block, reset typing attributes back to base text styling so stale code-block paragraph indents cannot move the empty caret or placeholder.
+
+### Tests
+
+- Code-block caret erase helpers should no-op without `NSGraphicsContext.current`; unit tests that exercise the draw path need an explicit bitmap graphics context, not `NSImage.lockFocus()`.
 
 ## Drops And Paste
 

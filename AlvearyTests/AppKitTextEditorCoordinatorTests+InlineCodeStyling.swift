@@ -20,6 +20,8 @@ extension AppKitTextEditorCoordinatorTests {
         let ranges = AppMarkdownCodeBlockParser.codeRanges(in: markdown)
 
         XCTAssertEqual(ranges.blockRanges, [NSRange(location: 0, length: (markdown as NSString).length)])
+        XCTAssertEqual(ranges.blockContentRanges, [NSRange(location: 9, length: 19)])
+        XCTAssertEqual(ranges.blockDelimiterRanges, [NSRange(location: 0, length: 9), NSRange(location: 28, length: 3)])
         XCTAssertTrue(ranges.inlineFullRanges.isEmpty)
         XCTAssertTrue(ranges.inlineContentRanges.isEmpty)
         XCTAssertTrue(ranges.inlineDelimiterRanges.isEmpty)
@@ -222,6 +224,64 @@ extension AppKitTextEditorCoordinatorTests {
 
         XCTAssertGreaterThan(fullRect.width - contentRect.width, 4)
         XCTAssertLessThan(fullRect.width - contentRect.width, 8)
+    }
+
+    func testFencedCodeBlockUsesContinuousCustomBackgroundInsteadOfTextBackgroundAttribute() throws {
+        let markdown = "Please check:\n```swift\nlet values = [1, 2, 3]\nprint(values)\n```"
+        let textView = AppKitTextView(frame: NSRect(x: 0, y: 0, width: 420, height: 180))
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.baseTextFont = .preferredFont(forTextStyle: .body)
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 400, height: CGFloat.greatestFiniteMagnitude)
+        textView.string = markdown
+        textView.updateTextContainerForCurrentBounds()
+
+        guard let textStorage = textView.textStorage,
+              let layoutManager = textView.layoutManager,
+              let textContainer = textView.textContainer else {
+            return XCTFail("Expected TextKit stack")
+        }
+
+        let ranges = AppMarkdownCodeBlockParser.codeRanges(in: markdown)
+        let codeBlockRange = try XCTUnwrap(ranges.blockRanges.first)
+
+        textStorage.beginEditing()
+        AppTextEditorCodeBlockStyling.apply(
+            to: textStorage,
+            context: .init(
+                fullRange: NSRange(location: 0, length: textStorage.length),
+                highlightRanges: [],
+                blockRanges: ranges.blockRanges,
+                inlineRanges: ranges.inlineContentRanges,
+                inlineDelimiterRanges: ranges.inlineDelimiterRanges,
+                baseFont: textView.baseTextFont,
+                baseColor: .labelColor,
+                colorScheme: .dark
+            )
+        )
+        textStorage.endEditing()
+        textView.codeBlockBackgroundRanges = ranges.blockContentRanges
+        textView.primeTextLayoutForDrawing()
+
+        XCTAssertNil(textStorage.attribute(.backgroundColor, at: codeBlockRange.location, effectiveRange: nil))
+        XCTAssertEqual(textStorage.attribute(.foregroundColor, at: codeBlockRange.location, effectiveRange: nil) as? NSColor, .clear)
+
+        let contentRange = try XCTUnwrap(ranges.blockContentRanges.first)
+        let backgroundRects = textView.codeBlockBackgroundRects(for: contentRange)
+        XCTAssertEqual(backgroundRects.count, 1)
+
+        let codeGlyphRange = layoutManager.glyphRange(
+            forCharacterRange: (markdown as NSString).range(of: "let values"),
+            actualCharacterRange: nil
+        )
+        let codeLineRect = layoutManager.boundingRect(forGlyphRange: codeGlyphRange, in: textContainer)
+        let backgroundRect = try XCTUnwrap(backgroundRects.first)
+
+        XCTAssertGreaterThan(backgroundRect.width, codeLineRect.width + 12)
+        XCTAssertLessThan(backgroundRect.width, textView.bounds.width - (textView.textContainerInset.width * 2) - 80)
+        XCTAssertGreaterThan(backgroundRect.height, codeLineRect.height * 1.8)
     }
 
     // `disablesAppKitDragDestination` is the opt-in toggle that keeps NSTextView out of

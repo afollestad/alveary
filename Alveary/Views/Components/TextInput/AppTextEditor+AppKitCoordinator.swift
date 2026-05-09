@@ -44,6 +44,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         textView.textColor = .labelColor
         textView.placeholder = parent.placeholder ?? ""
         textView.inlineHint = parent.inlineHint
+        textView.enablesCodeBlockEditing = parent.codeBlockRanges != nil
         textView.disablesAppKitDragDestination = parent.disablesAppKitDragDestination
         textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
         textView.updateTextContainerForCurrentBounds()
@@ -286,7 +287,8 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
         let lineHeight = layoutManager.defaultLineHeight(for: textView.baseTextFont)
         let usedHeight = layoutManager.usedRect(for: textContainer).height
-        let contentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
+        let textContentHeight = ceil(max(usedHeight, lineHeight) + (textView.textContainerInset.height * 2))
+        let contentHeight = max(textContentHeight, textView.codeBlockPreferredContentHeight() ?? 0)
 
         if abs(textView.frame.height - max(contentHeight, scrollView.contentSize.height)) > 0.5 {
             textView.frame.size.height = max(contentHeight, scrollView.contentSize.height)

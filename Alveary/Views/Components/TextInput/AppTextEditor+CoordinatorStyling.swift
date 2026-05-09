@@ -33,11 +33,14 @@ extension AppKitTextEditorCoordinator {
         let baseFont = textView.baseTextFont
         let baseColor = NSColor.labelColor
         let blockRanges = parent.codeBlockRanges?(textView.string) ?? []
+        let blockContentRanges = AppMarkdownCodeBlockParser
+            .blockCodeRanges(in: textView.string, matching: blockRanges)
+            .map(\.contentRange)
         let inlineRanges = parent.inlineCodeRanges?(textView.string) ?? []
 
         updateTypingAttributes(
             for: textView,
-            blockRanges: blockRanges,
+            blockRanges: blockContentRanges,
             inlineRanges: inlineRanges,
             baseFont: baseFont,
             baseColor: baseColor
@@ -54,8 +57,12 @@ extension AppKitTextEditorCoordinator {
         let baseFont = textView.baseTextFont
         let baseColor = NSColor.labelColor
         let blockRanges = parent.codeBlockRanges?(textView.string) ?? []
+        let blockContentRanges = AppMarkdownCodeBlockParser
+            .blockCodeRanges(in: textView.string, matching: blockRanges)
+            .map(\.contentRange)
         let inlineRanges = parent.inlineCodeRanges?(textView.string) ?? []
         let inlineDelimiterRanges = parent.inlineCodeDelimiterRanges?(textView.string) ?? []
+        textView.codeBlockBackgroundRanges = blockContentRanges
         guard fullRange.length > 0 else {
             textView.typingAttributes = AppTextEditorCodeBlockStyling.baseTypingAttributes(
                 font: baseFont,
@@ -87,7 +94,7 @@ extension AppKitTextEditorCoordinator {
         textView.primeTextLayoutForDrawing()
         updateTypingAttributes(
             for: textView,
-            blockRanges: blockRanges,
+            blockRanges: blockContentRanges,
             inlineRanges: inlineRanges,
             baseFont: baseFont,
             baseColor: baseColor

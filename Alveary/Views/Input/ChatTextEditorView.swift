@@ -45,12 +45,15 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         syncSelectionIfNeeded()
         syncFocusIfNeeded()
         syncFocusRequestIfNeeded()
+        primeTextLayoutForDisplayIfPossible()
         scheduleHeightRecalculation()
     }
 
     override func layout() {
         super.layout()
         textView.updateTextContainerForCurrentBounds()
+        refreshWidthDependentTextPresentationIfNeeded()
+        primeTextLayoutForDisplayIfPossible()
         handleLayoutChange()
     }
 
@@ -183,6 +186,7 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         if textView.inlineHint != configuration.inlineHint {
             textView.inlineHint = configuration.inlineHint
         }
+        textView.enablesCodeBlockEditing = true
         if textView.disablesAppKitDragDestination != configuration.disablesAppKitDragDestination {
             textView.disablesAppKitDragDestination = configuration.disablesAppKitDragDestination
         }
@@ -228,6 +232,32 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         suppressCallbacks = true
         textView.setSelectedRange(selectedRange)
         suppressCallbacks = false
+    }
+
+    private func refreshWidthDependentTextPresentationIfNeeded() {
+        let availableWidth = availableTextWidth
+        guard availableWidth > 0,
+              abs(availableWidth - lastLaidOutTextWidth) > 0.5 else {
+            return
+        }
+
+        lastLaidOutTextWidth = availableWidth
+        refreshTextPresentationIfNeeded(force: true)
+        textView.needsDisplay = true
+    }
+
+    /// Primes non-empty text for immediate drawing once AppKit has given the editor a usable width.
+    ///
+    /// SwiftUI snapshots can capture this view before the deferred height pass runs. `NSTextView.draw(_:)`
+    /// intentionally refuses to fill layout holes, so the chat composer must do the layout-manager work
+    /// from configuration/layout instead of waiting for the next async measurement turn.
+    private func primeTextLayoutForDisplayIfPossible() {
+        guard !textView.string.isEmpty,
+              textView.updateTextContainerForCurrentBounds() else {
+            return
+        }
+
+        textView.primeTextLayoutForDrawing()
     }
 
     private func syncFocusRequestIfNeeded() {

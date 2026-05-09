@@ -381,6 +381,54 @@ extension SnapshotTests {
         )
     }
 
+    func testAppTextEditorCodeBlock() {
+        assertMacSnapshot(
+            AppTextEditor(
+                text: .constant("Test\n```\nlet value = 1\nprint(value)"),
+                minHeight: 120,
+                idealHeight: 120,
+                maxHeight: 160,
+                placeholder: "Ask anything, @ to add files, / for skills",
+                cornerRadius: 18,
+                horizontalPadding: 10,
+                verticalPadding: 10,
+                sizesToContent: true,
+                textChips: ChatInputFieldTextSupport.composerTextChips(in:),
+                codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
+                inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges }
+            ),
+            size: CGSize(width: 360, height: 170),
+            named: "app_text_editor_code_block",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppTextEditorLeadingCodeBlock() {
+        assertMacSnapshot(
+            AppTextEditor(
+                text: .constant("```\nTest"),
+                minHeight: 96,
+                idealHeight: 96,
+                maxHeight: 144,
+                placeholder: "Ask anything, @ to add files, / for skills",
+                cornerRadius: 18,
+                horizontalPadding: 10,
+                verticalPadding: 10,
+                sizesToContent: true,
+                textChips: ChatInputFieldTextSupport.composerTextChips(in:),
+                codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
+                inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
+                inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges }
+            ),
+            size: CGSize(width: 360, height: 140),
+            named: "app_text_editor_leading_code_block",
+            colorScheme: .dark
+        )
+    }
+
     func testChatInputFieldInlineCode() {
         assertMacSnapshot(
             ChatInputField(

@@ -1,54 +1,10 @@
 @preconcurrency import AppKit
-import SwiftUI
 
-struct AppTextEditorInlineHint: Equatable {
-    let text: String
-}
-enum AppTextEditorChipDisplayMode: Equatable {
-    case fullText
-    case compactLabel(String)
-}
-final class AppTextEditorInlineHintView: NSView {
-    var text = "" {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    var font: NSFont = .preferredFont(forTextStyle: .body) {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    var textColor: NSColor = .placeholderTextColor {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard !text.isEmpty else {
-            return
-        }
-
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: textColor
-        ]
-
-        (text as NSString).draw(
-            with: bounds.intersection(dirtyRect),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
-    }
-}
-
+/// `NSTextView` subclass that owns AppKit-specific text-input rendering.
+///
+/// SwiftUI hosts pass text and styling ranges into this view, but chips, inline
+/// hints, fenced code-block chrome, placeholder drawing, and first-responder
+/// behavior need AppKit geometry to stay aligned with the insertion point.
 final class AppKitTextView: NSTextView {
     var textLayoutReadyForDrawing = false
     var textLayoutPrimedWidth: CGFloat = 0
@@ -104,6 +60,14 @@ final class AppKitTextView: NSTextView {
         }
     }
 
+    var codeBlockBackgroundRanges: [NSRange] = [] {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var enablesCodeBlockEditing = false
+
     var inlineCodeBackgroundColor: NSColor = .clear {
         didSet {
             needsDisplay = true
@@ -145,19 +109,47 @@ final class AppKitTextView: NSTextView {
         if string.isEmpty, !placeholder.isEmpty {
             drawPlaceholder(in: dirtyRect)
         } else {
+            drawCodeBlockBackgrounds(in: dirtyRect)
             drawInlineCodeBackgrounds(in: dirtyRect)
             drawTextChipBackgrounds(in: dirtyRect)
         }
-        super.draw(dirtyRect)
+        drawTextExcludingHiddenCodeBlockDelimiters(in: dirtyRect)
         if !string.isEmpty {
             drawCompactChipLabels(in: dirtyRect)
         }
+    }
+
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        // Empty visual code blocks draw their own chrome while AppKit still
+        // positions the caret from an invisible extra line fragment. Align the
+        // insertion point to the block's content inset so it lands where the
+        // first typed code line will appear.
+        if enablesCodeBlockEditing,
+           !flag,
+           eraseEmptyCodeBlockInsertionPoint(from: rect) {
+            return
+        }
+        // The on phase must use the same adjusted rect as the off phase above;
+        // otherwise blinking leaves a small remnant at AppKit's original rect.
+        super.drawInsertionPoint(
+            in: codeBlockInsertionPointRect(from: rect) ?? rect,
+            color: color,
+            turnedOn: flag
+        )
     }
 
     override func mouseDown(with event: NSEvent) {
         primeTextLayoutForInteraction()
         if isEditable || isSelectable {
             window?.makeFirstResponder(self)
+        }
+        let point = convert(event.locationInWindow, from: nil)
+        if enablesCodeBlockEditing,
+           let insertionRange = emptyCodeBlockInsertionRange(at: point) {
+            setSelectedRange(insertionRange)
+            ensureCodeBlockTypingAttributesIfNeeded(at: insertionRange.location)
+            notifyDelegateSelectionChanged()
+            return
         }
         super.mouseDown(with: event)
     }
@@ -167,12 +159,17 @@ final class AppKitTextView: NSTextView {
     override func didChangeText() {
         markTextLayoutNeedsPriming()
         super.didChangeText()
+        resetEmptyTextTypingAttributesIfNeeded()
+        if enablesCodeBlockEditing {
+            normalizeCodeBlockSelectionAfterTextMutation()
+        }
         needsDisplay = true
         updateInlineHintView()
     }
 
     override func becomeFirstResponder() -> Bool {
         primeTextLayoutForInteraction()
+        resetEmptyTextTypingAttributesIfNeeded()
         let didBecomeFirstResponder = super.becomeFirstResponder()
         if didBecomeFirstResponder {
             onFocusChange?(true)
@@ -200,9 +197,89 @@ final class AppKitTextView: NSTextView {
         return super.performKeyEquivalent(with: event)
     }
 
+    override func setSelectedRange(_ charRange: NSRange) {
+        guard enablesCodeBlockEditing else {
+            super.setSelectedRange(charRange)
+            return
+        }
+
+        setSelectedRangeWithoutCodeBlockNormalization(normalizedCodeBlockInsertionRange(charRange))
+    }
+
+    override func setSelectedRanges(
+        _ ranges: [NSValue],
+        affinity: NSSelectionAffinity,
+        stillSelecting stillSelectingFlag: Bool
+    ) {
+        guard enablesCodeBlockEditing else {
+            super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelectingFlag)
+            return
+        }
+
+        let normalizedRanges = ranges.map { NSValue(range: normalizedCodeBlockInsertionRange($0.rangeValue)) }
+        super.setSelectedRanges(normalizedRanges, affinity: affinity, stillSelecting: stillSelectingFlag)
+    }
+
+    override func insertText(_ insertString: Any, replacementRange: NSRange) {
+        guard enablesCodeBlockEditing else {
+            super.insertText(insertString, replacementRange: replacementRange)
+            return
+        }
+
+        if replacementRange.location == NSNotFound {
+            let normalizedSelection = normalizedCodeBlockInsertionRange(selectedRange())
+            if normalizedSelection != selectedRange() {
+                setSelectedRangeWithoutCodeBlockNormalization(normalizedSelection)
+            }
+            ensureCodeBlockTypingAttributesIfNeeded(at: normalizedSelection.location)
+            let normalizedInsert = openingFenceNormalizedInsertText(insertString, at: normalizedSelection.location)
+            super.insertText(normalizedInsert.value, replacementRange: replacementRange)
+            applyCodeBlockPostInsertionSelection(normalizedInsert.selectionLocation)
+            return
+        }
+
+        let normalizedReplacementRange = normalizedCodeBlockInsertionRange(replacementRange)
+        ensureCodeBlockTypingAttributesIfNeeded(at: normalizedReplacementRange.location)
+        let normalizedInsert = openingFenceNormalizedInsertText(insertString, at: normalizedReplacementRange.location)
+        super.insertText(
+            normalizedInsert.value,
+            replacementRange: normalizedReplacementRange
+        )
+        applyCodeBlockPostInsertionSelection(normalizedInsert.selectionLocation)
+    }
+
+    override func deleteBackward(_ sender: Any?) {
+        if enablesCodeBlockEditing,
+           deleteTrailingOutsideLineAfterHiddenClosingFenceIfNeeded() || unwrapCodeBlockAtContentStartIfNeeded() {
+            return
+        }
+
+        super.deleteBackward(sender)
+    }
+
+    @available(macOS, deprecated: 10.11)
+    override func insertText(_ insertString: Any) {
+        guard enablesCodeBlockEditing else {
+            super.insertText(insertString)
+            return
+        }
+
+        let normalizedSelection = normalizedCodeBlockInsertionRange(selectedRange())
+        if normalizedSelection != selectedRange() {
+            setSelectedRangeWithoutCodeBlockNormalization(normalizedSelection)
+        }
+        ensureCodeBlockTypingAttributesIfNeeded(at: normalizedSelection.location)
+        let normalizedInsert = openingFenceNormalizedInsertText(insertString, at: normalizedSelection.location)
+        super.insertText(normalizedInsert.value)
+        applyCodeBlockPostInsertionSelection(normalizedInsert.selectionLocation)
+    }
+
     override func layout() {
         updateTextContainerForCurrentBounds()
         super.layout()
+        if !string.isEmpty {
+            primeTextLayoutForDrawing()
+        }
         updateInlineHintView()
         needsDisplay = true
     }
@@ -234,175 +311,35 @@ final class AppKitTextView: NSTextView {
             height: max(bounds.height - (textContainerInset.height * 2), 0)
         )
 
-        let paragraphStyle = (typingAttributes[.paragraphStyle] as? NSParagraphStyle) ?? NSParagraphStyle.default
         let attributes: [NSAttributedString.Key: Any] = [
             .font: baseTextFont,
             .foregroundColor: NSColor.placeholderTextColor,
-            .paragraphStyle: paragraphStyle
+            .paragraphStyle: NSParagraphStyle.default
         ]
 
+        guard placeholderRect.intersects(dirtyRect) else {
+            return
+        }
+
         (placeholder as NSString).draw(
-            with: placeholderRect.intersection(dirtyRect),
+            with: placeholderRect,
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
     }
 
-    private func drawInlineCodeBackgrounds(in dirtyRect: NSRect) {
-        guard let layoutManager,
-              let textContainer,
-              prepareForSafeTextLayout(),
-              !inlineCodeBackgroundRanges.isEmpty else {
+    private func resetEmptyTextTypingAttributesIfNeeded() {
+        guard string.isEmpty else {
             return
         }
 
-        layoutManager.ensureLayout(for: textContainer)
-        let drawingOffset = textContainerOrigin
-        let cornerRadius: CGFloat = 4
-        let horizontalInset: CGFloat = 3
-        let verticalInset: CGFloat = 1
-
-        for characterRange in inlineCodeBackgroundRanges {
-            let clampedRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: (string as NSString).length))
-            guard clampedRange.length > 0 else {
-                continue
-            }
-
-            let glyphRange = layoutManager.glyphRange(forCharacterRange: clampedRange, actualCharacterRange: nil)
-            guard glyphRange.length > 0 else {
-                continue
-            }
-
-            layoutManager.enumerateEnclosingRects(
-                forGlyphRange: glyphRange,
-                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                in: textContainer
-            ) { enclosingRect, _ in
-                let backgroundRect = NSRect(
-                    x: enclosingRect.minX + drawingOffset.x - horizontalInset,
-                    y: enclosingRect.minY + drawingOffset.y - verticalInset,
-                    width: enclosingRect.width + (horizontalInset * 2),
-                    height: enclosingRect.height + (verticalInset * 2)
-                ).integral
-
-                guard backgroundRect.intersects(dirtyRect) else {
-                    return
-                }
-
-                self.inlineCodeBackgroundColor.setFill()
-                NSBezierPath(
-                    roundedRect: backgroundRect,
-                    xRadius: cornerRadius,
-                    yRadius: cornerRadius
-                ).fill()
-            }
-        }
-    }
-
-    func textChipDisplayMode(for chip: AppTextEditorChip) -> AppTextEditorChipDisplayMode {
-        let textLength = (string as NSString).length
-        let clampedRange = NSIntersectionRange(chip.range, NSRange(location: 0, length: textLength))
-        guard clampedRange.length > 0 else {
-            return .fullText
-        }
-
-        let fullText = (string as NSString).substring(with: clampedRange)
-        guard fullText != chip.displayText,
-              !selectionIntersectsChip(clampedRange),
-              textChipRects(for: clampedRange).count == 1 else {
-            return .fullText
-        }
-
-        return .compactLabel(chip.displayText)
-    }
-
-    private func drawTextChipBackgrounds(in dirtyRect: NSRect) {
-        let cornerRadius: CGFloat = 4
-        AppMarkdownCodeBlockPalette.composerChipFillNSColor.setFill()
-
-        for resolvedChip in resolvedTextChips() {
-            for rect in resolvedChip.rects where rect.intersects(dirtyRect) {
-                NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
-            }
-        }
-    }
-
-    private func resolvedTextChips() -> [ResolvedTextChip] {
-        textChips.compactMap { chip in
-            let rects = textChipRects(for: chip.range)
-            guard !rects.isEmpty else {
-                return nil
-            }
-
-            return ResolvedTextChip(chip: chip, rects: rects)
-        }
-    }
-
-    func textChipRects(for characterRange: NSRange) -> [NSRect] {
-        guard let layoutManager,
-              let textContainer,
-              prepareForSafeTextLayout() else {
-            return []
-        }
-
-        let textLength = (string as NSString).length
-        let clampedRange = NSIntersectionRange(characterRange, NSRange(location: 0, length: textLength))
-        guard clampedRange.length > 0 else {
-            return []
-        }
-
-        layoutManager.ensureLayout(for: textContainer)
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: clampedRange, actualCharacterRange: nil)
-        guard glyphRange.length > 0 else {
-            return []
-        }
-
-        let drawingOffset = textContainerOrigin
-        let desiredInset: CGFloat = 3
-        // Match `drawInlineCodeBackgrounds`'s `verticalInset` so `/command` and
-        // `@mention` chips render at the same apparent height as inline-code chips
-        // — a previous `2` was 2pt taller overall and read as a visual mismatch.
-        let verticalInset: CGFloat = 1
-        let leftInset = chipLeadingInset(
-            for: clampedRange,
-            layoutManager: layoutManager,
-            textContainer: textContainer,
-            desiredInset: desiredInset
+        // Clearing a code block can leave AppKit's insertion attributes carrying
+        // the code-block paragraph indent. Reset them so the empty caret and
+        // placeholder return to the normal text origin.
+        typingAttributes = AppTextEditorCodeBlockStyling.baseTypingAttributes(
+            font: baseTextFont,
+            foregroundColor: .labelColor
         )
-        let rightInset = chipTrailingInset(
-            for: clampedRange,
-            layoutManager: layoutManager,
-            textContainer: textContainer,
-            desiredInset: desiredInset
-        )
-        var rects: [NSRect] = []
-
-        layoutManager.enumerateEnclosingRects(
-            forGlyphRange: glyphRange,
-            withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-            in: textContainer
-        ) { enclosingRect, _ in
-            rects.append(
-                NSRect(
-                    x: enclosingRect.minX + drawingOffset.x - leftInset,
-                    y: enclosingRect.minY + drawingOffset.y - verticalInset,
-                    width: enclosingRect.width + leftInset + rightInset,
-                    height: enclosingRect.height + (verticalInset * 2)
-                ).integral
-            )
-        }
-
-        return rects
-    }
-
-    private func selectionIntersectsChip(_ chipRange: NSRange) -> Bool {
-        let selectionRange = selectedRange()
-
-        if selectionRange.length == 0 {
-            return selectionRange.location >= chipRange.location && selectionRange.location < NSMaxRange(chipRange)
-        }
-
-        return NSIntersectionRange(selectionRange, chipRange).length > 0
     }
 
     func refreshInlineHintView() {
@@ -486,9 +423,5 @@ final class AppKitTextView: NSTextView {
 
         return layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil, withoutAdditionalLayout: true)
     }
-}
 
-private struct ResolvedTextChip {
-    let chip: AppTextEditorChip
-    let rects: [NSRect]
 }
