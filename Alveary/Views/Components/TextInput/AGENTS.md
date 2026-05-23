@@ -50,11 +50,11 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 
 ### Storage And Geometry
 
-- Composer code blocks keep raw triple-backtick fences in the backing string while hiding the delimiters visually.
-- Fenced-code-block chrome and editing behavior are opt-in through `codeBlockRanges`. Plain `AppTextEditor` uses, such as settings or skills fields, must keep triple backticks visible and literal.
-- Keep hidden delimiter lines out of visible text and selection geometry. Leading code blocks should start at the normal text inset, not below an invisible fence row.
+- Production composer code blocks are projected by `ComposerDocument`: the text view receives only visible editable code content, and markdown fences are serialized outside `AppKitTextView`.
+- Fenced-code-block chrome remains opt-in through `codeBlockRanges`. Plain `AppTextEditor` uses, such as settings or skills fields, can still show literal triple backticks when they are not backed by a composer document projection.
+- Keep delimiter structure out of visible text and selection geometry. Leading code blocks should start at the normal text inset, not below an invisible fence row.
 - Leading opening delimiters reserve only code-block top padding, not the normal outer gap, so inserting the first code glyph does not shift the visual block downward.
-- Hidden closing delimiters must still reserve code-block bottom padding plus the outside gap; collapsing them makes text typed below overlap and clip the block chrome.
+- Code-block projection still needs code-block bottom padding plus the outside gap; collapsing that space makes text typed below overlap and clip the block chrome.
 - A closed code block at EOF with a trailing newline also needs outside-line height below the chrome, not just the outer gap, so the caret and first typed line below it do not clip.
 - Typing an opening fence before an existing line should insert the newline after the fence and move that line into the code block, not leave the line outside the block.
 - Open code blocks whose editable content ends in a newline need a trailing editable-line rect; otherwise the caret can move to a new visual line while the rounded code-block chrome stays one line tall.
@@ -64,11 +64,12 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 
 ### Caret And Selection
 
-- Cmd+A may select hidden delimiters in the backing string; clip AppKit text/selection drawing around hidden delimiter rows so invisible fences cannot paint full-width selection bars.
+- Legacy raw-fence paths may still select hidden delimiters in the backing string; clip AppKit text/selection drawing around hidden delimiter rows so invisible fences cannot paint full-width selection bars there.
+- Production composer selection should be projection-based. New composer-specific caret fixes should prefer `ComposerProjection` ranges over hidden-delimiter rects.
 - Empty code-block caret drawing must use the block's visual content inset, not AppKit's default extra-line-fragment y-position.
 - Empty code-block caret blinking must erase the same adjusted caret rect during the off phase; delegating that phase to AppKit can leave a tiny accent-colored remnant from the original extra-line-fragment rect.
 - EOF after a closed code block must draw and erase the caret on the outside text line, not on the hidden closing-fence row.
-- Backspace on the outside blank line after a hidden closing fence must delete the fence line's trailing newline as one edit; never let AppKit remove individual hidden backticks.
+- Backspace on the outside blank line after a document-owned code block should move the caret into the block through `ComposerTransaction`; never let AppKit remove individual serialized backticks.
 - When emptying a code block, reset typing attributes back to base text styling so stale code-block paragraph indents cannot move the empty caret or placeholder.
 
 ### Tests

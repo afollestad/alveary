@@ -88,7 +88,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
         row.configure(
             .init(
-                tool: tool(name: "Skill", summary: "Invoking skill `self-review-alveary`", output: "details"),
+                tool: tool(name: "Skill", summary: "Invoking skill `self-review`", output: "details"),
                 initiallyExpanded: true
             )
         )

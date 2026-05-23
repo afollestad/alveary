@@ -59,7 +59,8 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `AlvearyTests/AGENTS.md`: tests and snapshots.
 - `AlvearyTests/ViewModels/DiffViewer/AGENTS.md`: diff viewer view-model tests.
 - `scripts/ci/AGENTS.md`: release CI helper scripts.
-- `.agents/AGENTS.md`: repo-local agent skills.
+- `.agents/AGENTS.md`: repo-local agent workflows.
+- `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
 
 ## Xcode Project
 

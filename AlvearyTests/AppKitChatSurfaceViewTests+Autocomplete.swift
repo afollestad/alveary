@@ -393,11 +393,11 @@ extension AppKitChatSurfaceViewTests {
                 query: "self",
                 suggestions: [
                     ComposerAutocompleteSuggestion(
-                        id: "self-review-alveary",
-                        title: "self-review-alveary",
+                        id: "self-review",
+                        title: "self-review",
                         subtitle: "Perform a detailed Alveary self review before committing changes",
                         trailingText: "afollestad/alveary",
-                        replacementText: "/self-review-alveary",
+                        replacementText: "/self-review",
                         symbolName: "shippingbox"
                     )
                 ],

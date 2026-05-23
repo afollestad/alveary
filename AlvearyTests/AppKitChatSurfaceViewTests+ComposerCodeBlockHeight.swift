@@ -23,12 +23,13 @@ extension AppKitChatSurfaceViewTests {
         }))
         body.layoutSubtreeIfNeeded()
         let initialMeasuredHeight = body.measuredEditorHeight
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        let visibleText = ComposerDocument(markdown: text).projection.visibleString
+        body.selectedRange = NSRange(location: (visibleText as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .return, modifiers: .shift)), .handled)
 
         XCTAssertEqual(changedText, "```\n\n")
-        XCTAssertGreaterThan(body.measuredEditorHeight, initialMeasuredHeight)
+        XCTAssertEqual(body.measuredEditorHeight, initialMeasuredHeight)
         XCTAssertEqual(body.resolvedEditorHeight, body.measuredEditorHeight, accuracy: 0.5)
     }
 }

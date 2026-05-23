@@ -145,6 +145,9 @@ final class ChatTextEditorView: NSView, NSTextViewDelegate {
         textView.onKeyEquivalent = { [weak self] event in
             self?.handleKeyEquivalent(event) ?? false
         }
+        textView.onShouldChangeText = { [weak self] range, replacement in
+            self?.configuration.onShouldChangeText?(range, replacement) ?? true
+        }
 
         scrollView.documentView = textView
         addSubview(scrollView)

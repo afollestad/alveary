@@ -92,6 +92,7 @@ final class AppKitTextView: NSTextView {
         }
     }
     var onKeyEquivalent: ((NSEvent) -> Bool)?
+    var onShouldChangeText: ((NSRange, String?) -> Bool)?
 
     // `NSTextView` opts into vibrancy by default, which can make custom-drawn
     // inline-code, slash-command, and mention chip fills composite differently
@@ -106,7 +107,7 @@ final class AppKitTextView: NSTextView {
             }
             return
         }
-        if string.isEmpty, !placeholder.isEmpty {
+        if string.isEmpty, !placeholder.isEmpty, codeBlockBackgroundRanges.isEmpty {
             drawPlaceholder(in: dirtyRect)
         } else {
             drawCodeBlockBackgrounds(in: dirtyRect)
@@ -195,6 +196,14 @@ final class AppKitTextView: NSTextView {
         }
 
         return super.performKeyEquivalent(with: event)
+    }
+
+    override func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool {
+        if let onShouldChangeText,
+           !onShouldChangeText(affectedCharRange, replacementString) {
+            return false
+        }
+        return super.shouldChangeText(in: affectedCharRange, replacementString: replacementString)
     }
 
     override func setSelectedRange(_ charRange: NSRange) {

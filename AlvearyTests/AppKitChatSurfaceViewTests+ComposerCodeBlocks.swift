@@ -12,12 +12,12 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onSubmit: {
             submitCount += 1
         }))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .return, modifiers: [])), .handled)
 
         XCTAssertEqual(submitCount, 1)
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
     }
 
     func testComposerBodyShiftReturnInsertsLineBreakInsideOpenCodeBlock() {
@@ -30,14 +30,14 @@ extension AppKitChatSurfaceViewTests {
         }, onSubmit: {
             submitCount += 1
         }))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .return, modifiers: .shift)), .handled)
 
         XCTAssertEqual(submitCount, 0)
         XCTAssertEqual(changedText, "Test\n```\nlet value = 1\n")
-        XCTAssertEqual(body.editorView.textViewForTesting.string, "Test\n```\nlet value = 1\n")
-        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\n```\nlet value = 1\n" as NSString).length, length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, "Test\nlet value = 1\n")
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\nlet value = 1\n" as NSString).length, length: 0))
     }
 
     func testComposerBodyShiftReturnAcceptsInertNumericPadModifierInsideOpenCodeBlock() {
@@ -47,12 +47,12 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .return, modifiers: [.shift, .numericPad])), .handled)
 
         XCTAssertEqual(changedText, "Test\n```\nlet value = 1\n")
-        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\n```\nlet value = 1\n" as NSString).length, length: 0))
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\nlet value = 1\n" as NSString).length, length: 0))
     }
 
     func testComposerBodyShiftReturnInsertsLineBreakInsideClosedCodeBlock() {
@@ -65,7 +65,7 @@ extension AppKitChatSurfaceViewTests {
         }, onSubmit: {
             submitCount += 1
         }))
-        let insertionLocation = ("Test\n```\nlet value = 1" as NSString).length
+        let insertionLocation = ("Test\nlet value = 1" as NSString).length
         body.selectedRange = NSRange(location: insertionLocation, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .return, modifiers: .shift)), .handled)
@@ -84,26 +84,32 @@ extension AppKitChatSurfaceViewTests {
         body.layoutSubtreeIfNeeded()
 
         let textView = body.editorView.textViewForTesting
-        textView.perform(NSSelectorFromString("insertText:"), with: "Test\n```")
-        body.editorView.textDidChange(Notification(name: NSText.didChangeNotification, object: textView))
+        XCTAssertFalse(body.handleProjectedTextChange(range: NSRange(location: 0, length: 0), replacement: "Test\n"))
         body.configure(makeComposerCodeBlockBodyConfiguration(text: modelText, onTextChange: {
             modelText = $0
         }))
         body.layoutSubtreeIfNeeded()
 
-        textView.perform(NSSelectorFromString("insertText:"), with: "let value = 1")
-        body.editorView.textDidChange(Notification(name: NSText.didChangeNotification, object: textView))
+        let fenceLocation = (body.currentProjection.visibleString as NSString).length
+        XCTAssertFalse(body.handleProjectedTextChange(range: NSRange(location: fenceLocation, length: 0), replacement: "```"))
+        body.configure(makeComposerCodeBlockBodyConfiguration(text: modelText, onTextChange: {
+            modelText = $0
+        }))
+        body.layoutSubtreeIfNeeded()
+
+        let codeLocation = body.selectedRange?.location ?? (body.currentProjection.visibleString as NSString).length
+        XCTAssertFalse(body.handleProjectedTextChange(range: NSRange(location: codeLocation, length: 0), replacement: "let value = 1"))
         body.configure(makeComposerCodeBlockBodyConfiguration(text: modelText, onTextChange: {
             modelText = $0
         }))
 
-        let insertedLocation = ("Test\n```\n" as NSString).length
+        let insertedLocation = ("Test\n" as NSString).length
         XCTAssertEqual(modelText, "Test\n```\nlet value = 1")
         XCTAssertNotEqual(
             textView.textStorage?.attribute(.foregroundColor, at: insertedLocation, effectiveRange: nil) as? NSColor,
             .clear
         )
-        XCTAssertEqual(body.selectedRange, NSRange(location: (modelText as NSString).length, length: 0))
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\nlet value = 1" as NSString).length, length: 0))
     }
 
     func testComposerBodyDownArrowExitsOpenCodeBlock() {
@@ -113,14 +119,14 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
         let expectedText = "Test\n```\nlet value = 1\n```\n"
         XCTAssertEqual(changedText, expectedText)
-        XCTAssertEqual(body.editorView.textViewForTesting.string, expectedText)
-        XCTAssertEqual(body.selectedRange, NSRange(location: (expectedText as NSString).length, length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(expectedText))
+        XCTAssertEqual(body.selectedRange, NSRange(location: (visibleComposerText(expectedText) as NSString).length, length: 0))
         XCTAssertFalse(expectedText.hasSuffix("\n\n"))
         let paragraphStyle = body.editorView.textViewForTesting.typingAttributes[.paragraphStyle] as? NSParagraphStyle
         XCTAssertEqual(paragraphStyle?.firstLineHeadIndent, 0)
@@ -134,7 +140,7 @@ extension AppKitChatSurfaceViewTests {
             modelText = $0
         }))
         body.layoutSubtreeIfNeeded()
-        body.selectedRange = NSRange(location: (modelText as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(modelText) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
         body.configure(makeComposerCodeBlockBodyConfiguration(text: modelText, onTextChange: {
@@ -151,12 +157,13 @@ extension AppKitChatSurfaceViewTests {
         body.layoutSubtreeIfNeeded()
 
         XCTAssertEqual(modelText, "Test\n```\nlet value = 1\n```\nHi")
-        let blockRange = try XCTUnwrap(AppMarkdownCodeBlockParser.blockCodeRanges(in: modelText).first)
-        let backgroundRect = try XCTUnwrap(textView.codeBlockBackgroundRects(for: blockRange.contentRange).first)
+        let projection = ComposerDocument(markdown: modelText).projection
+        let blockRange = try XCTUnwrap(projection.codeBlockRanges.first)
+        let backgroundRect = try XCTUnwrap(textView.codeBlockBackgroundRects(for: blockRange).first)
         let layoutManager = try XCTUnwrap(textView.layoutManager)
         let textContainer = try XCTUnwrap(textView.textContainer)
         layoutManager.ensureLayout(for: textContainer)
-        let outsideGlyphIndex = layoutManager.glyphIndexForCharacter(at: (modelText as NSString).range(of: "Hi").location)
+        let outsideGlyphIndex = layoutManager.glyphIndexForCharacter(at: (projection.visibleString as NSString).range(of: "Hi").location)
         let outsideLineRect = layoutManager.lineFragmentRect(forGlyphAt: outsideGlyphIndex, effectiveRange: nil)
         let outsideLineMinY = outsideLineRect.minY + textView.textContainerOrigin.y
 
@@ -170,28 +177,28 @@ extension AppKitChatSurfaceViewTests {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Test\n```\nlet value = 1"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
         let textAfterExit = body.editorView.textViewForTesting.string
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: textAfterExit)[0]
+        let blockRange = ComposerDocument(markdown: body.currentDocument.serializedMarkdown).projection.codeBlockRanges[0]
         XCTAssertEqual(body.editorView.textViewForTesting.string, textAfterExit)
-        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange.contentRange) - 1, length: 0))
+        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange), length: 0))
     }
 
     func testComposerBodyUpArrowFromEndOfTrailingBlankLineReentersCodeBlockBeforeClosingFence() {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Test\n```\nlet value = 1\n```\n"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange.contentRange) - 1, length: 0))
+        let blockRange = composerCodeBlockRange(in: text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange), length: 0))
     }
 
     func testComposerBodyDownArrowAcceptsInertNumericPadModifierInsideCodeBlock() {
@@ -201,13 +208,13 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        body.selectedRange = NSRange(location: (visibleComposerText(text) as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: .numericPad)), .handled)
 
         let expectedText = "Test\n```\nlet value = 1\n```\n"
         XCTAssertEqual(changedText, expectedText)
-        XCTAssertEqual(body.selectedRange, NSRange(location: (expectedText as NSString).length, length: 0))
+        XCTAssertEqual(body.selectedRange, NSRange(location: (visibleComposerText(expectedText) as NSString).length, length: 0))
     }
 
     func testComposerBodyDownArrowDoesNotExitOpenCodeBlockBeforeLastLine() {
@@ -217,13 +224,13 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: ("Test\n```\nlet value".count), length: 0)
+        body.selectedRange = NSRange(location: ("Test\nlet value" as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .ignored)
 
         XCTAssertNil(changedText)
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\n```\nlet value".count), length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Test\nlet value" as NSString).length, length: 0))
     }
 
     func testComposerBodyDownArrowExitsOpenCodeBlockFromLastLine() {
@@ -233,28 +240,26 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: ("Test\n```\nlet value = 1\nprint".count), length: 0)
+        body.selectedRange = NSRange(location: ("Test\nlet value = 1\nprint" as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
         let expectedText = "Test\n```\nlet value = 1\nprint(value)\n```\n"
         XCTAssertEqual(changedText, expectedText)
-        XCTAssertEqual(body.editorView.textViewForTesting.string, expectedText)
-        XCTAssertEqual(body.selectedRange, NSRange(location: (expectedText as NSString).length, length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(expectedText))
+        XCTAssertEqual(body.selectedRange, NSRange(location: (visibleComposerText(expectedText) as NSString).length, length: 0))
     }
 
     func testComposerBodyDownArrowFromClosedMultilineCodeBlockUsesExistingLineBelow() {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1\nprint(value)\n```\nAfter"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        body.selectedRange = NSRange(location: ("Intro\n```\nlet value = 1\nprint".count), length: 0)
+        body.selectedRange = NSRange(location: ("Intro\nlet value = 1\nprint" as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
-        let closingDelimiter = blockRange.delimiterRanges[1]
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(closingDelimiter), length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Intro\nlet value = 1\nprint(value)\n" as NSString).length, length: 0))
     }
 
     func testComposerBodyDownArrowFromInsertedLineAboveTopCodeBlockSkipsOpeningFence() {
@@ -265,9 +270,9 @@ extension AppKitChatSurfaceViewTests {
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.contentRange.location, length: 0))
+        let blockRange = composerCodeBlockRange(in: text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.location, length: 0))
     }
 
     func testComposerBodyDownArrowFromLineAboveCodeBlockSkipsOpeningFence() {
@@ -278,9 +283,9 @@ extension AppKitChatSurfaceViewTests {
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.contentRange.location, length: 0))
+        let blockRange = composerCodeBlockRange(in: text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.location, length: 0))
     }
 
     func testComposerBodyDownArrowFromStartOfLineAboveCodeBlockSkipsOpeningFence() {
@@ -291,33 +296,33 @@ extension AppKitChatSurfaceViewTests {
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .downArrow, modifiers: [])), .handled)
 
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.contentRange.location, length: 0))
+        let blockRange = composerCodeBlockRange(in: text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: blockRange.location, length: 0))
     }
 
     func testComposerBodyUpArrowFromLineBelowCodeBlockSkipsClosingFence() {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "```\nlet value = 1\n```\nAfter"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: text)[0]
-        body.selectedRange = NSRange(location: NSMaxRange(blockRange.delimiterRanges[1]), length: 0)
+        let blockRange = composerCodeBlockRange(in: text)
+        body.selectedRange = NSRange(location: NSMaxRange(blockRange) + 1, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange.contentRange) - 1, length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: NSMaxRange(blockRange), length: 0))
     }
 
     func testComposerBodyUpArrowExitsCodeBlockAboveExistingPrefix() {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: 10, length: 0)
+        body.selectedRange = NSRange(location: composerCodeBlockRange(in: text).location, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
         XCTAssertEqual(body.selectedRange, NSRange(location: 5, length: 0))
     }
 
@@ -325,11 +330,11 @@ extension AppKitChatSurfaceViewTests {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: 10, length: 0)
+        body.selectedRange = NSRange(location: composerCodeBlockRange(in: text).location, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: .numericPad)), .handled)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
         XCTAssertEqual(body.selectedRange, NSRange(location: 5, length: 0))
     }
 
@@ -337,23 +342,24 @@ extension AppKitChatSurfaceViewTests {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: 10, length: 0)
+        let initialSelection = NSRange(location: composerCodeBlockRange(in: text).location, length: 0)
+        body.selectedRange = initialSelection
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: .shift)), .ignored)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: 10, length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, initialSelection)
     }
 
     func testComposerBodyUpArrowExitsCodeBlockFromFirstLine() {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1\nprint(value)"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: ("Intro\n```\nlet value".count), length: 0)
+        body.selectedRange = NSRange(location: ("Intro\nlet value" as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
         XCTAssertEqual(body.selectedRange, NSRange(location: 5, length: 0))
     }
 
@@ -361,12 +367,12 @@ extension AppKitChatSurfaceViewTests {
         let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 320, height: 84))
         let text = "Intro\n```\nlet value = 1\nprint(value)\nreturn value"
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text))
-        body.selectedRange = NSRange(location: ("Intro\n```\nlet value = 1\nprint".count), length: 0)
+        body.selectedRange = NSRange(location: ("Intro\nlet value = 1\nprint" as NSString).length, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .ignored)
 
-        XCTAssertEqual(body.editorView.textViewForTesting.string, text)
-        XCTAssertEqual(body.selectedRange, NSRange(location: ("Intro\n```\nlet value = 1\nprint".count), length: 0))
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(text))
+        XCTAssertEqual(body.selectedRange, NSRange(location: ("Intro\nlet value = 1\nprint" as NSString).length, length: 0))
     }
 
     func testComposerBodyUpArrowExitsTopCodeBlockByInsertingBlankLine() {
@@ -376,13 +382,13 @@ extension AppKitChatSurfaceViewTests {
         body.configure(makeComposerCodeBlockBodyConfiguration(text: text, onTextChange: {
             changedText = $0
         }))
-        body.selectedRange = NSRange(location: 4, length: 0)
+        body.selectedRange = NSRange(location: 0, length: 0)
 
         XCTAssertEqual(body.handleKeyPress(AppTextEditorKeyPress(key: .upArrow, modifiers: [])), .handled)
 
         let expectedText = "\n```\nlet value = 1"
         XCTAssertEqual(changedText, expectedText)
-        XCTAssertEqual(body.editorView.textViewForTesting.string, expectedText)
+        XCTAssertEqual(body.editorView.textViewForTesting.string, visibleComposerText(expectedText))
         XCTAssertEqual(body.selectedRange, NSRange(location: 0, length: 0))
     }
 }
@@ -417,4 +423,12 @@ private func makeComposerCodeBlockBodyConfiguration(
         onStopConfirmationChange: { _ in },
         onFocusRequestConsumed: { _ in }
     )
+}
+
+private func visibleComposerText(_ markdown: String) -> String {
+    ComposerDocument(markdown: markdown).projection.visibleString
+}
+
+private func composerCodeBlockRange(in markdown: String) -> NSRange {
+    ComposerDocument(markdown: markdown).projection.codeBlockRanges[0]
 }

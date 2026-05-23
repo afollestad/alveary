@@ -60,6 +60,8 @@ final class AppKitChatComposerBodyView: NSView {
     // back into `configure(_:)`, so editor/autocomplete paths read this mirror
     // instead of the last configuration value.
     var currentText = ""
+    var currentDocument = ComposerDocument()
+    var currentProjection = ComposerProjection(document: ComposerDocument())
     var onPreferredSizeInvalidated: (() -> Void)?
 
     override var isFlipped: Bool {
@@ -100,7 +102,10 @@ final class AppKitChatComposerBodyView: NSView {
         let previousWorkingDirectory = lastWorkingDirectory
         self.configuration = configuration
         lastWorkingDirectory = configuration.workingDirectory
-        currentText = configuration.text
+        currentDocument = ComposerDocument(markdown: configuration.text)
+        currentProjection = currentDocument.projection
+        currentText = currentProjection.visibleString
+        assertNoDocumentOwnedBlockFences()
 
         if previousWorkingDirectory != configuration.workingDirectory {
             skillArgumentHints = [:]
@@ -108,7 +113,7 @@ final class AppKitChatComposerBodyView: NSView {
             skillHintLoadTask?.cancel()
             skillHintLoadTask = nil
         }
-        normalizeSelection(for: configuration.text)
+        normalizeSelection(for: currentText)
         if previousText != configuration.text {
             primeMeasuredHeight(for: configuration.text)
         }
@@ -310,7 +315,7 @@ extension AppKitChatComposerBodyView {
             colorScheme: configuration.colorScheme,
             textHighlightRanges: ChatInputFieldTextSupport.highlightedTokenRanges(in:),
             textChips: ChatInputFieldTextSupport.composerTextChips(in:),
-            codeBlockRanges: AppMarkdownCodeBlockParser.blockRanges,
+            codeBlockRanges: { [weak self] _ in self?.currentProjection.codeBlockRanges ?? [] },
             inlineCodeBackgroundRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
             inlineCodeRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineContentRanges },
             inlineCodeDelimiterRanges: { AppMarkdownCodeBlockParser.codeRanges(in: $0).inlineDelimiterRanges },
@@ -332,6 +337,9 @@ extension AppKitChatComposerBodyView {
             },
             onKeyPress: { [weak self] keyPress in
                 self?.handleKeyPress(keyPress) ?? .ignored
+            },
+            onShouldChangeText: { [weak self] range, replacement in
+                self?.handleProjectedTextChange(range: range, replacement: replacement) ?? true
             },
             onFocusRequestConsumed: { [weak self] in
                 self?.consumeFocusRequest(activeFocusRequestToken)
@@ -361,12 +369,57 @@ extension AppKitChatComposerBodyView {
         guard let configuration else {
             return
         }
+        guard newText != currentText else {
+            refreshAutocomplete(text: currentText)
+            return
+        }
         currentText = newText
+        currentDocument = ComposerDocument(markdown: newText)
+        currentProjection = currentDocument.projection
         configuration.onTextChange(newText)
         if newText.hasPrefix("/") {
             loadSkillArgumentHintsIfNeeded()
         }
         refreshAutocomplete(text: newText)
+    }
+
+    func handleProjectedTextChange(range: NSRange, replacement: String?) -> Bool {
+        guard let configuration,
+              let result = ComposerTransaction.replacingVisibleText(
+                  in: currentDocument,
+                  projection: currentProjection,
+                  range: range,
+                  replacement: replacement ?? ""
+              ) else {
+            return true
+        }
+
+        applyDocumentResult(result, configuration: configuration)
+        // The NSTextView is a projection. After the document transaction applies,
+        // we re-render the projection ourselves instead of letting AppKit mutate
+        // text storage into a state that no longer matches `ComposerDocument`.
+        return false
+    }
+
+    func assertNoDocumentOwnedBlockFences() {
+        #if DEBUG
+        guard !currentProjection.codeBlockRanges.isEmpty else {
+            return
+        }
+        let nsText = currentText as NSString
+        var location = 0
+        while location < nsText.length {
+            let lineRange = nsText.lineRange(for: NSRange(location: location, length: 0))
+            let line = nsText.substring(with: lineRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            let isInsideCodeBlock = currentProjection.codeBlockRanges.contains { range in
+                NSIntersectionRange(range, lineRange).length > 0
+            }
+            if line.hasPrefix("```"), !isInsideCodeBlock {
+                assertionFailure("Composer projection leaked a block-code fence into NSTextView text storage.")
+            }
+            location = NSMaxRange(lineRange)
+        }
+        #endif
     }
 
     func handleSelectionChange(_ range: NSRange) {
@@ -375,10 +428,11 @@ extension AppKitChatComposerBodyView {
     }
 
     func handleMeasuredHeightChange(_ height: CGFloat) {
-        guard abs(measuredEditorHeight - height) > 0.5 else {
+        let clampedHeight = max(height, Self.editorBaseHeight)
+        guard abs(measuredEditorHeight - clampedHeight) > 0.5 else {
             return
         }
-        measuredEditorHeight = height
+        measuredEditorHeight = clampedHeight
         invalidatePreferredSize()
     }
 

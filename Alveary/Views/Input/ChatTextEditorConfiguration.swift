@@ -31,6 +31,7 @@ struct ChatTextEditorConfiguration {
     var onMeasuredHeightChange: (CGFloat) -> Void
     var onFocusChange: (Bool) -> Void
     var onKeyPress: (AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result
+    var onShouldChangeText: ((NSRange, String?) -> Bool)?
     var onFocusRequestConsumed: () -> Void
 
     init(
@@ -58,6 +59,7 @@ struct ChatTextEditorConfiguration {
         onMeasuredHeightChange: @escaping (CGFloat) -> Void = { _ in },
         onFocusChange: @escaping (Bool) -> Void = { _ in },
         onKeyPress: @escaping (AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result = { _ in .ignored },
+        onShouldChangeText: ((NSRange, String?) -> Bool)? = nil,
         onFocusRequestConsumed: @escaping () -> Void = {}
     ) {
         self.text = text
@@ -84,6 +86,7 @@ struct ChatTextEditorConfiguration {
         self.onMeasuredHeightChange = onMeasuredHeightChange
         self.onFocusChange = onFocusChange
         self.onKeyPress = onKeyPress
+        self.onShouldChangeText = onShouldChangeText
         self.onFocusRequestConsumed = onFocusRequestConsumed
     }
 }

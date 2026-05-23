@@ -77,9 +77,9 @@ Verify or record a focused snapshot test:
 
 When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
 
-## Repo-Local Agent Skills
+## Repo-Local Agent Workflows
 
-Project-local skills live under `.agents/skills`. Agent-specific skill folders such as `.claude/skills` and `.codex/skills` are symlinks to that canonical directory.
+Project-local agent workflows live under `.agents`: capability skills in `.agents/skills`, and review, audit, and check workflows in `.agents/checks`. Agent-specific folders such as `.claude/skills`, `.codex/skills`, `.claude/checks`, and `.codex/checks` are symlinks to those canonical directories.
 
 ## Releases
 

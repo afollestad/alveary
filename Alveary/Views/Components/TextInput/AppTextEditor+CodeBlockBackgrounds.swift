@@ -117,6 +117,12 @@ extension AppKitTextView {
     }
 
     func emptyCodeBlockInsertionRange(at point: NSPoint) -> NSRange? {
+        for range in codeBlockBackgroundRanges where range.length == 0 {
+            if codeBlockBackgroundRects(for: range).contains(where: { $0.contains(point) }) {
+                return NSRange(location: range.location, length: 0)
+            }
+        }
+
         for blockRange in AppMarkdownCodeBlockParser.blockCodeRanges(in: string)
             where blockRange.contentRange.length == 0 &&
             codeBlockBackgroundRanges.contains(blockRange.contentRange) {
@@ -378,7 +384,7 @@ extension AppKitTextView {
         // next visual line, but no used glyph rect. Add that synthetic line so
         // the code-block chrome grows with the caret during keyboard insertion.
         guard let blockRange = codeBlockRange(matching: characterRange),
-              blockRange.delimiterRanges.count == 1,
+              blockRange.delimiterRanges.count == 1 || blockRange.delimiterRanges.isEmpty,
               characterRange.length > 0 else {
             return nil
         }
@@ -413,13 +419,12 @@ extension AppKitTextView {
         layoutManager: NSLayoutManager,
         drawingOffset: NSPoint
     ) -> CGFloat? {
-        guard let blockRange = codeBlockRange(matching: characterRange),
-              let openingDelimiterRange = blockRange.delimiterRanges.first,
-              openingDelimiterRange.location > 0,
-              let lineRect = lineFragmentRect(
-                containingCharacterAt: openingDelimiterRange.location - 1,
-                layoutManager: layoutManager
-              ) else {
+        guard let blockRange = codeBlockRange(matching: characterRange) else {
+            return nil
+        }
+        let previousLocation = blockRange.delimiterRanges.first?.location ?? characterRange.location
+        guard previousLocation > 0,
+              let lineRect = lineFragmentRect(containingCharacterAt: previousLocation - 1, layoutManager: layoutManager) else {
             return nil
         }
 
@@ -431,13 +436,18 @@ extension AppKitTextView {
         layoutManager: NSLayoutManager,
         drawingOffset: NSPoint
     ) -> CGFloat? {
-        let textLength = (string as NSString).length
-        guard let blockRange = codeBlockRange(matching: characterRange),
-              let closingDelimiterRange = blockRange.delimiterRanges.dropFirst().first else {
+        let nsText = string as NSString
+        let textLength = nsText.length
+        guard let blockRange = codeBlockRange(matching: characterRange) else {
             return nil
         }
 
-        let nextLocation = NSMaxRange(closingDelimiterRange)
+        var nextLocation = blockRange.delimiterRanges.dropFirst().first.map(NSMaxRange) ?? NSMaxRange(characterRange)
+        if nextLocation < textLength,
+           nsText.character(at: nextLocation) == 0x0A,
+           nextLocation + 1 < textLength {
+            nextLocation += 1
+        }
         guard nextLocation < textLength,
               let lineRect = lineFragmentRect(containingCharacterAt: nextLocation, layoutManager: layoutManager) else {
             return nil
@@ -450,6 +460,10 @@ extension AppKitTextView {
         AppMarkdownCodeBlockParser.blockCodeRanges(in: string).first { blockRange in
             blockRange.contentRange.location == characterRange.location &&
                 blockRange.contentRange.length == characterRange.length
+        } ?? codeBlockBackgroundRanges.first {
+            $0.location == characterRange.location && $0.length == characterRange.length
+        }.map { range in
+            AppMarkdownBlockCodeRange(contentRange: range, delimiterRanges: [])
         }
     }
 

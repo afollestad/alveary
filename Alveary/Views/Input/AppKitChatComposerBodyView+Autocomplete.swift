@@ -249,16 +249,19 @@ extension AppKitChatComposerBodyView {
         }
         dismissAutocomplete()
 
-        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
-            in: currentText,
-            offsets: autocomplete.replacementOffsets,
-            with: suggestion.replacementText,
-            appendTrailingSpace: true
-        )
-        selectedRange = NSRange(location: insertionOffset, length: 0)
-        currentText = newText
-        configuration.onTextChange(newText)
-        refreshEditorConfiguration()
+        let replacement = suggestion.replacementText + " "
+        guard let result = ComposerTransaction.replacingVisibleText(
+            in: currentDocument,
+            projection: currentProjection,
+            range: NSRange(
+                location: autocomplete.replacementOffsets.lowerBound,
+                length: autocomplete.replacementOffsets.upperBound - autocomplete.replacementOffsets.lowerBound
+            ),
+            replacement: replacement
+        ) else {
+            return
+        }
+        applyDocumentResult(result, configuration: configuration)
         restoreEditorFocusAfterAutocompleteInsertion()
     }
 

@@ -32,19 +32,34 @@ extension AppKitChatComposerBodyView {
             insertionOffsets = end..<end
         }
 
-        let (newText, insertionOffset) = ChatInputFieldTextSupport.replacingText(
-            in: text,
-            offsets: insertionOffsets,
-            with: droppedMentions.joined(separator: " "),
-            appendTrailingSpace: true,
-            ensureLeadingSpace: insertionOffsets.lowerBound > 0
-        )
-        selectedRange = NSRange(location: insertionOffset, length: 0)
-        currentText = newText
-        configuration.onTextChange(newText)
-        refreshEditorConfiguration()
+        var replacement = droppedMentions.joined(separator: " ")
+        if insertionOffsets.lowerBound > 0,
+           let previous = text.utf16OffsetScalar(before: insertionOffsets.lowerBound),
+           !CharacterSet.whitespacesAndNewlines.contains(previous) {
+            replacement = " " + replacement
+        }
+        replacement += " "
+        guard let result = ComposerTransaction.replacingVisibleText(
+            in: currentDocument,
+            projection: currentProjection,
+            range: NSRange(location: insertionOffsets.lowerBound, length: insertionOffsets.count),
+            replacement: replacement
+        ) else {
+            return false
+        }
+        applyDocumentResult(result, configuration: configuration)
         window?.makeFirstResponder(editorView.textViewForTesting)
         return true
+    }
+}
+
+private extension String {
+    func utf16OffsetScalar(before offset: Int) -> Unicode.Scalar? {
+        let source = self as NSString
+        guard offset > 0, offset <= source.length else {
+            return nil
+        }
+        return Unicode.Scalar(Int(source.character(at: offset - 1)))
     }
 }
 

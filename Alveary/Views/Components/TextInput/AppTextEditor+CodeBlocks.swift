@@ -56,6 +56,19 @@ enum AppTextEditorCodeBlockStyling {
             in: textStorage.string,
             matching: context.blockRanges
         )
+        if blockCodeRanges.isEmpty {
+            for range in context.blockRanges {
+                let clampedRange = NSIntersectionRange(range, context.fullRange)
+                guard clampedRange.length > 0 else {
+                    continue
+                }
+                textStorage.addAttributes(
+                    codeBlockAttributes(font: context.baseFont, colorScheme: context.colorScheme),
+                    range: clampedRange
+                )
+            }
+            return
+        }
 
         for range in blockCodeRanges.map(\.contentRange) {
             let clampedRange = NSIntersectionRange(range, context.fullRange)

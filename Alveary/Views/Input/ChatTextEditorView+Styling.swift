@@ -51,9 +51,10 @@ extension ChatTextEditorView {
         let baseFont = textView.baseTextFont
         let baseColor = NSColor.labelColor
         let blockRanges = configuration.codeBlockRanges(textView.string)
-        let blockContentRanges = AppMarkdownCodeBlockParser
+        let parsedBlockContentRanges = AppMarkdownCodeBlockParser
             .blockCodeRanges(in: textView.string, matching: blockRanges)
             .map(\.contentRange)
+        let blockContentRanges = parsedBlockContentRanges.isEmpty ? blockRanges : parsedBlockContentRanges
         let inlineRanges = configuration.inlineCodeRanges(textView.string)
         let inlineDelimiterRanges = configuration.inlineCodeDelimiterRanges(textView.string)
         let compactDisplayChips = compactDisplayChips()
@@ -117,9 +118,10 @@ extension ChatTextEditorView {
 
     func refreshTypingAttributes() {
         let blockRanges = configuration.codeBlockRanges(textView.string)
-        let blockContentRanges = AppMarkdownCodeBlockParser
+        let parsedBlockContentRanges = AppMarkdownCodeBlockParser
             .blockCodeRanges(in: textView.string, matching: blockRanges)
             .map(\.contentRange)
+        let blockContentRanges = parsedBlockContentRanges.isEmpty ? blockRanges : parsedBlockContentRanges
         updateTypingAttributes(
             blockRanges: blockContentRanges,
             inlineRanges: configuration.inlineCodeRanges(textView.string),

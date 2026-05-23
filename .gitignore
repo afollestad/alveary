@@ -4,5 +4,6 @@
 .claude/*
 !.claude/settings.json
 !.claude/skills
+!.claude/checks
 *.profraw
 .DS_Store

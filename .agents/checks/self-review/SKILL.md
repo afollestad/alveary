@@ -1,9 +1,9 @@
 ---
-name: self-review-alveary
+name: self-review
 description: Perform an Alveary self review or audit of current changes. Use when the user asks for a self review, audit, review of uncommitted changes, or a final quality pass before commit/PR in the Alveary repo.
 ---
 
-# Self Review Alveary
+# Self Review
 
 ## Overview
 
@@ -18,17 +18,17 @@ Perform a repo-aware quality audit of the current Alveary changes before they ar
    - Bugs.
    - Edge cases.
    - Regressions (do a broad search for unintended consequences).
-   - Performance issues. 
+   - Performance issues.
    - Dead or stale code.
    - Any external code that is now unused due to these changes.
    - File-size pressure.
    - Missing unit or snapshot test coverage.
-   - Missing class docs, or code comments. 
+   - Missing class docs, or code comments.
    - Missing or stale `AGENTS.md` guidance.
    - Lint risks and Swift style issues.
    - Accessibility issues in UI changes.
 5. Confirm snapshot recording or verification when UI snapshots are affected.
-6. Fix low-risk issues directly. If a specific commit SHA was given to the skill, amend directly into the commit.
+6. Fix low-risk issues directly. If a specific commit SHA was given to the check, amend directly into the commit.
 7. Ask before risky or broad changes.
 8. Report findings first, ordered by severity and grounded in file/line references.
 

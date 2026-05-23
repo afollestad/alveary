@@ -223,7 +223,10 @@ extension ChatTextEditor {
                 )
             }
 
-            let codeLineCount = max(primedLineCount(in: source.substring(with: block.contentRange)), 1)
+            let codeLineCount = primedCodeLineCount(
+                in: source.substring(with: block.contentRange),
+                isClosed: block.delimiterRanges.count > 1
+            )
             totalBlockHeight += CGFloat(codeLineCount) * lineHeight
             totalBlockHeight += AppTextEditorCodeBlockStyling.codeBlockVerticalPadding * 2
             totalBlockHeight += AppTextEditorCodeBlockStyling.codeBlockOuterGap * 2
@@ -253,6 +256,14 @@ extension ChatTextEditor {
         }
 
         return visibleText.split(separator: "\n", omittingEmptySubsequences: false).count
+    }
+
+    private static func primedCodeLineCount(in text: String, isClosed: Bool) -> Int {
+        var visibleText = text
+        if isClosed, visibleText.hasSuffix("\n") {
+            visibleText.removeLast()
+        }
+        return max(visibleText.split(separator: "\n", omittingEmptySubsequences: false).count, 1)
     }
 }
 

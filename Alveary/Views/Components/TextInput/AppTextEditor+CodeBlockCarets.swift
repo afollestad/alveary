@@ -13,7 +13,9 @@ extension AppKitTextView {
               let blockRange = AppMarkdownCodeBlockParser.blockCodeRanges(in: string).first(where: { blockRange in
                   blockRange.contentRange.length == 0 &&
                       selection.location == blockRange.contentRange.location
-              }),
+              }) ?? codeBlockBackgroundRanges.first(where: { range in
+                  range.length == 0 && selection.location == range.location
+              }).map({ AppMarkdownBlockCodeRange(contentRange: $0, delimiterRanges: []) }),
               let backgroundRect = codeBlockBackgroundRects(for: blockRange.contentRange).first else {
             return nil
         }
