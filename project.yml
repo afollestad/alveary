@@ -26,6 +26,8 @@ targets:
     dependencies:
       - package: knit
         product: Knit
+      - package: BlockInputKit
+        product: BlockInputKit
       - sdk: IOKit.framework
     settings:
       base:
@@ -74,6 +76,8 @@ targets:
           - "**/CLAUDE.md"
     dependencies:
       - target: Alveary
+      - package: BlockInputKit
+        product: BlockInputKit
       - package: swift-snapshot-testing
         product: SnapshotTesting
     settings:
@@ -81,6 +85,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary.tests
         GENERATE_INFOPLIST_FILE: YES
 packages:
+  BlockInputKit:
+    url: https://github.com/afollestad/BlockInputKit.git
+    revision: "afa9845efdddf0dfcaae3794687ccb656ca4176d"
   knit:
     url: https://github.com/cashapp/knit
     revision: "3d4afea562b95a95725f689be819b10ff93351fc"

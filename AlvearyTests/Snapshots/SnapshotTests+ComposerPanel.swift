@@ -44,6 +44,15 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithNativeActionRowLight() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(),
+            size: CGSize(width: 1000, height: 150),
+            named: "appkit_composer_panel_native_action_row_light",
+            colorScheme: .light
+        )
+    }
+
     func testAppKitComposerPanelWithNativeTopContent() {
         assertMacSnapshot(
             AppKitComposerPanelNativeRowSnapshot(
