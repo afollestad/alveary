@@ -290,6 +290,7 @@ extension AppKitChatComposerBodyView {
     func presentation(for configuration: AppKitChatComposerBodyConfiguration) -> ComposerPresentation {
         ComposerPresentation(
             text: currentText,
+            isTextEffectivelyEmpty: currentDocument.isEffectivelyEmpty,
             mode: configuration.mode,
             defaultEnterBehavior: configuration.defaultEnterBehavior,
             supportsMidTurnSteering: configuration.supportsMidTurnSteering,

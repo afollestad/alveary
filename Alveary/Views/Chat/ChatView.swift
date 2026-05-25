@@ -222,20 +222,22 @@ private extension ChatView {
     }
 
     func sendDraft() {
-        let message = viewModel.state.inputDraft
-        if viewModel.submitSessionHandoffSteeringPrompt(message) {
+        let draft = viewModel.flushDraftFromEditor()
+        let message = draft.text
+        let steeringMessage = draft.isEffectivelyEmpty ? "" : message
+        if viewModel.submitSessionHandoffSteeringPrompt(steeringMessage) {
             return
         }
 
-        guard !ChatInputFieldTextSupport.isEffectivelyEmpty(message) else {
+        guard !draft.isEffectivelyEmpty else {
             return
         }
 
         let isSessionHandoffDraft = viewModel.prepareManualSessionHandoffSendIfNeeded()
-        let outboundMessage = outboundMessage(from: message)
+        let outboundMessage = draft.outboundMessage(workingDirectory: workingDirectory)
 
         requestScrollToBottom()
-        viewModel.state.inputDraft = ""
+        viewModel.clearInputDraft(source: draft.source)
         let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
@@ -248,7 +250,7 @@ private extension ChatView {
                 // User-initiated cancellation — rollback already restored the draft.
             } catch {
                 if viewModel.state.retryableFailedMessageIDs.count == retryableMessageCount {
-                    viewModel.state.inputDraft = message
+                    viewModel.replaceInputDraft(message, source: draft.source)
                 }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
@@ -258,20 +260,21 @@ private extension ChatView {
     }
 
     func steerDraft() {
-        let message = viewModel.state.inputDraft
-        guard !ChatInputFieldTextSupport.isEffectivelyEmpty(message) else {
+        let draft = viewModel.flushDraftFromEditor()
+        let message = draft.text
+        guard !draft.isEffectivelyEmpty else {
             return
         }
 
-        let outboundMessage = outboundMessage(from: message)
+        let outboundMessage = draft.outboundMessage(workingDirectory: workingDirectory)
 
         requestScrollToBottom()
-        viewModel.state.inputDraft = ""
+        viewModel.clearInputDraft(source: draft.source)
         Task {
             do {
                 try await viewModel.steer(outboundMessage)
             } catch {
-                viewModel.state.inputDraft = message
+                viewModel.replaceInputDraft(message, source: draft.source)
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = "Steer failed: \(error.localizedDescription)"
                 }
@@ -282,10 +285,6 @@ private extension ChatView {
     func requestScrollToBottom() {
         isFollowing = true
         scrollToBottomRequest += 1
-    }
-
-    func outboundMessage(from message: String) -> String {
-        ChatInputFieldTextSupport.outboundMessage(from: message, workingDirectory: workingDirectory)
     }
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
@@ -326,7 +325,7 @@ private extension ChatView {
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,
             onTextChange: { newValue in
-                viewModel.state.inputDraft = newValue
+                viewModel.publishComposerDraft(newValue, source: .legacyText)
                 viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
             },
@@ -475,6 +474,7 @@ private extension ChatView {
     var composerPresentation: ComposerPresentation {
         ComposerPresentation(
             text: viewModel.state.inputDraft,
+            isTextEffectivelyEmpty: viewModel.state.inputDraftIsEffectivelyEmpty,
             mode: composerMode,
             defaultEnterBehavior: defaultEnterBehavior,
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,

@@ -3,6 +3,7 @@ import SwiftData
 
 private struct ConversationInitialSetupSnapshot {
     let draft: String
+    let draftSource: ComposerDraftSource
     let stagedContext: String?
 }
 
@@ -282,6 +283,7 @@ extension ConversationViewModel {
 
         let snapshot = ConversationInitialSetupSnapshot(
             draft: message,
+            draftSource: state.inputDraftSource,
             stagedContext: snapshotStagedContext ?? state.stagedContext
         )
 
@@ -419,7 +421,7 @@ private extension ConversationViewModel {
     ) {
         if restoresDraft {
             replaceState(with: runtimeStore.conversationState(for: conversation.id))
-            state.inputDraft = snapshot.draft
+            replaceInputDraft(snapshot.draft, source: snapshot.draftSource)
             state.stagedContext = snapshot.stagedContext
         }
         thread.hasCompletedInitialSetup = false

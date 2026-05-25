@@ -59,6 +59,18 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.isPrimaryActionDisabled)
     }
 
+    func testCachedEffectiveEmptyStateDrivesSubmitAvailability() {
+        let presentation = makePresentation(
+            text: "Pending BlockInput markdown publish",
+            isTextEffectivelyEmpty: true
+        )
+
+        XCTAssertTrue(presentation.isTextEffectivelyEmpty)
+        XCTAssertFalse(presentation.canSubmit)
+        XCTAssertFalse(presentation.canSteer)
+        XCTAssertTrue(presentation.isPrimaryActionDisabled)
+    }
+
     func testTextAroundEmptyCodeBlockCanSubmit() {
         let presentation = makePresentation(text: "Review this\n```\n```")
 
@@ -122,6 +134,7 @@ final class ComposerPresentationTests: XCTestCase {
 
     private func makePresentation(
         text: String,
+        isTextEffectivelyEmpty: Bool? = nil,
         mode: ComposerMode = .idle,
         defaultEnterBehavior: ThreadEnterDefaultBehavior = .queue,
         supportsMidTurnSteering: Bool = true,
@@ -133,6 +146,7 @@ final class ComposerPresentationTests: XCTestCase {
     ) -> ComposerPresentation {
         ComposerPresentation(
             text: text,
+            isTextEffectivelyEmpty: isTextEffectivelyEmpty,
             mode: mode,
             defaultEnterBehavior: defaultEnterBehavior,
             supportsMidTurnSteering: supportsMidTurnSteering,

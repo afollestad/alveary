@@ -4,6 +4,8 @@ import BlockInputKit
 @MainActor
 struct BlockInputComposerBridgeConfiguration {
     var markdown: String
+    /// App-owned draft replacement revision; mirrored user edits do not advance this value.
+    var markdownRevision: Int
     var placeholder: String?
     var isEditable: Bool
     var disabledCursor: NSCursor?
@@ -17,6 +19,7 @@ struct BlockInputComposerBridgeConfiguration {
 
     init(
         markdown: String,
+        markdownRevision: Int = 0,
         placeholder: String? = nil,
         isEditable: Bool = true,
         disabledCursor: NSCursor? = nil,
@@ -29,6 +32,7 @@ struct BlockInputComposerBridgeConfiguration {
         onFocusChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.markdown = markdown
+        self.markdownRevision = markdownRevision
         self.placeholder = placeholder
         self.isEditable = isEditable
         self.disabledCursor = disabledCursor
@@ -53,29 +57,28 @@ final class BlockInputComposerBridgeController {
     private(set) var commandDispatcher = BlockInputEditorCommandDispatcher()
     private(set) var completionProvider: BlockInputComposerCompletionProvider
     private(set) var lastMarkdown: String
+    private var lastConfiguredMarkdownRevision: Int
 
     init(configuration: BlockInputComposerBridgeConfiguration) {
         let document = BlockInputDocument(markdown: configuration.markdown)
         documentStore = BlockInputMemoryDocumentStore(document: document)
         completionProvider = Self.makeCompletionProvider(configuration)
         lastMarkdown = configuration.markdown
+        lastConfiguredMarkdownRevision = configuration.markdownRevision
         view.configure(blockInputConfiguration(for: configuration))
     }
 
     func configure(_ configuration: BlockInputComposerBridgeConfiguration) {
-        if configuration.markdown != lastMarkdown {
-            documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
-            undoController = BlockInputUndoController()
-            lastMarkdown = configuration.markdown
+        if configuration.markdownRevision != lastConfiguredMarkdownRevision {
+            lastConfiguredMarkdownRevision = configuration.markdownRevision
+            if configuration.markdown != lastMarkdown {
+                documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
+                undoController = BlockInputUndoController()
+                lastMarkdown = configuration.markdown
+            }
         }
         completionProvider = Self.makeCompletionProvider(configuration)
         view.configure(blockInputConfiguration(for: configuration))
-    }
-
-    func replaceMarkdown(_ markdown: String) {
-        documentStore.replaceDocument(BlockInputDocument(markdown: markdown))
-        undoController = BlockInputUndoController()
-        lastMarkdown = markdown
     }
 
     func currentMarkdown() -> String {

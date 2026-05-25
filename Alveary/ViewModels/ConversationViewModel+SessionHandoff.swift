@@ -127,6 +127,14 @@ extension ConversationViewModel {
         cancelSessionHandoffCountdown(clearPendingOutput: false)
     }
 
+    func cancelSessionHandoffCountdownForEditorMutation() {
+        guard state.handoffCountdownRemaining != nil else {
+            return
+        }
+
+        cancelSessionHandoffCountdown(clearPendingOutput: false)
+    }
+
     @discardableResult
     func prepareManualSessionHandoffSendIfNeeded() -> Bool {
         guard state.handoffCountdownRemaining != nil || state.pendingHandoffOutput != nil else {
@@ -151,22 +159,23 @@ extension ConversationViewModel {
     }
 
     func autoSendSessionHandoffOutputIfUnedited() async {
+        let draft = flushDraftFromEditor()
         guard state.handoffCountdownRemaining == 0,
               let baseline = state.handoffDraftBaseline,
-              state.inputDraft == baseline else {
+              draft.text == baseline else {
             return
         }
 
-        let output = state.inputDraft
+        let output = draft.text
         cancelSessionHandoffCountdown(clearPendingOutput: true)
         state.failedSessionHandoffMessage = nil
-        state.inputDraft = ""
+        clearInputDraft(source: draft.source)
         let retryableMessageCount = state.retryableFailedMessageIDs.count
         do {
             try await sendSessionHandoffOutput(output)
         } catch {
             if state.retryableFailedMessageIDs.count == retryableMessageCount {
-                state.inputDraft = output
+                replaceInputDraft(output, source: draft.source)
             }
             state.lastTurnError = "Session handoff send failed: \(error.localizedDescription)"
         }
@@ -305,7 +314,7 @@ private extension ConversationViewModel {
         state.failedSessionHandoffMessage = nil
         state.lastTurnError = nil
         state.handoffDraftBaseline = output
-        state.inputDraft = output
+        replaceInputDraft(output)
         sessionHandoffLogger.debug("Hidden handoff output staged for customization length=\(output.count)")
         startSessionHandoffCountdown()
     }
@@ -323,7 +332,7 @@ private extension ConversationViewModel {
             try await sendSessionHandoffOutput(output)
         } catch {
             if state.retryableFailedMessageIDs.count == retryableMessageCount {
-                state.inputDraft = output
+                replaceInputDraft(output)
             }
             state.lastTurnError = "Session handoff send failed: \(error.localizedDescription)"
         }
@@ -388,8 +397,9 @@ private extension ConversationViewModel {
         state.clearStreamingText()
         state.turnState.endTurn()
         state.lastTurnError = message
-        if let restorableDraft, state.inputDraft.isEmpty {
-            state.inputDraft = restorableDraft
+        let draft = flushDraftFromEditor()
+        if let restorableDraft, draft.text.isEmpty {
+            replaceInputDraft(restorableDraft, source: state.sessionHandoffRestorableDraftSource)
         }
     }
 
@@ -399,9 +409,10 @@ private extension ConversationViewModel {
     }
 
     func clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: Bool) {
+        let draft = flushDraftFromEditor()
         guard retryingFailedHandoff,
               state.sessionHandoffRestorableDraft != nil,
-              state.inputDraft.isEmpty else {
+              draft.text.isEmpty else {
             return
         }
 
@@ -412,34 +423,39 @@ private extension ConversationViewModel {
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) {
+        let draft = flushDraftFromEditor()
         guard trigger == .automatic,
               !retryingFailedHandoff,
-              !state.inputDraft.isEmpty else {
+              !draft.text.isEmpty else {
             return
         }
 
-        state.sessionHandoffRestorableDraft = state.inputDraft
+        state.sessionHandoffRestorableDraft = draft.text
+        state.sessionHandoffRestorableDraftSource = draft.source
     }
 
     func stashVisibleDraftForHandoffIfNeeded() {
         let hasSubmittedSteeringOrRestorableDraft = state.submittedHandoffSteeringPrompt != nil ||
             state.sessionHandoffRestorableDraft != nil
+        let draft = flushDraftFromEditor()
         guard hasSubmittedSteeringOrRestorableDraft,
-              !state.inputDraft.isEmpty else {
+              !draft.text.isEmpty else {
             return
         }
 
-        state.sessionHandoffRestorableDraft = state.inputDraft
-        state.inputDraft = ""
+        state.sessionHandoffRestorableDraft = draft.text
+        state.sessionHandoffRestorableDraftSource = draft.source
+        clearInputDraft(source: draft.source)
     }
 
     func restoreSessionHandoffDraftIfNeeded() {
+        let draft = flushDraftFromEditor()
         guard let restorableDraft = state.sessionHandoffRestorableDraft,
-              state.inputDraft.isEmpty else {
+              draft.text.isEmpty else {
             return
         }
 
-        state.inputDraft = restorableDraft
+        replaceInputDraft(restorableDraft, source: state.sessionHandoffRestorableDraftSource)
     }
 
     func appendSessionHandoffNote() {

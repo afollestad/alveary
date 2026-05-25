@@ -161,7 +161,7 @@ struct ConversationView: View {
             }
 
             Task {
-                let priorDraft = viewModel.state.inputDraft
+                let priorDraft = viewModel.flushDraftFromEditor()
                 defer {
                     if appState.pendingDiffAction?.id == request.id {
                         appState.pendingDiffAction = nil
@@ -182,7 +182,10 @@ struct ConversationView: View {
                 do {
                     try await viewModel.queueOrSend(request.message)
                 } catch {
-                    viewModel.state.inputDraft = priorDraft.isEmpty ? request.message : priorDraft
+                    viewModel.replaceInputDraft(
+                        priorDraft.isEffectivelyEmpty ? request.message : priorDraft.text,
+                        source: priorDraft.source
+                    )
                     if viewModel.lastTurnError == nil {
                         viewModel.lastTurnError = error.localizedDescription
                     }

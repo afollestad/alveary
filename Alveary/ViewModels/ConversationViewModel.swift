@@ -323,11 +323,7 @@ final class ConversationViewModel {
             state.stagedContext = restoredContext
         }
 
-        if state.inputDraft.isEmpty {
-            state.inputDraft = removed.text
-        } else {
-            state.inputDraft += "\n\n" + removed.text
-        }
+        appendToInputDraft(removed.text)
     }
 
     func retryFailedUserMessage(id: String) async throws {
@@ -400,10 +396,18 @@ final class ConversationViewModel {
     }
 
     func replaceState(with state: ConversationState) {
+        self.state.inputDraftPublishTask?.cancel()
+        self.state.inputDraftPublishTask = nil
+        if self.state !== state {
+            state.inputDraftPublishTask?.cancel()
+            state.inputDraftPublishTask = nil
+        }
         self.state = state
     }
 
     isolated deinit {
+        state.inputDraftPublishTask?.cancel()
+        state.inputDraftPublishTask = nil
         if let activeKeepAwakeSource {
             keepAwakeService.setActive(false, for: activeKeepAwakeSource)
         }

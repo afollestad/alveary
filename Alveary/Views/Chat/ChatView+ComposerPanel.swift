@@ -154,6 +154,13 @@ struct ChatComposerPanelContent: View {
         return hasTopContent ? ChatComposerPanelLayout.inputOuterPaddingWithTopContent : ChatComposerPanelLayout.inputOuterPadding
     }
 
+    private var inputDraftBinding: Binding<String> {
+        Binding(
+            get: { viewModel.state.inputDraft },
+            set: { viewModel.publishComposerDraft($0, source: .legacyText) }
+        )
+    }
+
     var body: some View {
         VStack(spacing: ChatComposerPanelLayout.topContentSpacing) {
             if rendersTopContent {
@@ -195,7 +202,7 @@ struct ChatComposerPanelContent: View {
             }
 
             ChatInputField(
-                text: Bindable(viewModel.state).inputDraft,
+                text: inputDraftBinding,
                 mode: composerMode,
                 defaultEnterBehavior: defaultEnterBehavior,
                 onSubmit: onSubmit,

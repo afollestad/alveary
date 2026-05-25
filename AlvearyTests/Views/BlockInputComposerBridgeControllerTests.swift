@@ -35,7 +35,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
         let initialUndoController = controller.undoController
 
-        controller.configure(makeConfiguration(markdown: "After"))
+        controller.configure(makeConfiguration(markdown: "After", markdownRevision: 1))
 
         XCTAssertEqual(controller.currentMarkdown(), "After")
         XCTAssertFalse(controller.undoController === initialUndoController)
@@ -53,6 +53,49 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.currentMarkdown(), "User edit")
         XCTAssertTrue(controller.undoController === initialUndoController)
+    }
+
+    func testCoalescedPublishDoesNotResetUndoForMirroredDocument() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
+        let initialUndoController = controller.undoController
+        let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Before"))
+        let document = BlockInputDocument(markdown: "User edit")
+
+        controller.documentStore.replaceDocument(document)
+        blockInputConfiguration.onDocumentChange?(document)
+        controller.configure(makeConfiguration(markdown: "User edit"))
+
+        XCTAssertEqual(controller.currentMarkdown(), "User edit")
+        XCTAssertTrue(controller.undoController === initialUndoController)
+    }
+
+    func testStaleExternalMarkdownDoesNotReplaceUserEditBeforeCoalescedPublish() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
+        let initialUndoController = controller.undoController
+        let staleConfiguration = makeConfiguration(markdown: "Before")
+        let blockInputConfiguration = controller.blockInputConfiguration(for: staleConfiguration)
+        let document = BlockInputDocument(markdown: "User edit")
+
+        controller.documentStore.replaceDocument(document)
+        blockInputConfiguration.onDocumentChange?(document)
+        controller.configure(staleConfiguration)
+
+        XCTAssertEqual(controller.currentMarkdown(), "User edit")
+        XCTAssertTrue(controller.undoController === initialUndoController)
+    }
+
+    func testExternalRevisionCanReplaceUserEditWithLastConfiguredMarkdown() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: ""))
+        let initialUndoController = controller.undoController
+        let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: ""))
+        let document = BlockInputDocument(markdown: "User edit")
+
+        controller.documentStore.replaceDocument(document)
+        blockInputConfiguration.onDocumentChange?(document)
+        controller.configure(makeConfiguration(markdown: "", markdownRevision: 1))
+
+        XCTAssertEqual(controller.currentMarkdown(), "")
+        XCTAssertFalse(controller.undoController === initialUndoController)
     }
 
     func testFileCompletionHonorsParentDirectoryReference() async {
@@ -181,9 +224,13 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(suggestions.first?.insertionText, "/build ")
     }
 
-    private func makeConfiguration(markdown: String) -> BlockInputComposerBridgeConfiguration {
+    private func makeConfiguration(
+        markdown: String,
+        markdownRevision: Int = 0
+    ) -> BlockInputComposerBridgeConfiguration {
         BlockInputComposerBridgeConfiguration(
             markdown: markdown,
+            markdownRevision: markdownRevision,
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }

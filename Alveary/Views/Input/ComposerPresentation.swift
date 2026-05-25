@@ -12,6 +12,7 @@ struct ComposerPresentation: Equatable, Sendable {
     static let handoffSteeringPlaceholder = "Add steering for the session handoff, or submit empty to continue..."
 
     let text: String
+    private let textIsEffectivelyEmpty: Bool
     let mode: ComposerMode
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let supportsMidTurnSteering: Bool
@@ -21,12 +22,36 @@ struct ComposerPresentation: Equatable, Sendable {
     let sendCountdown: Int?
     let isProjectTrustBlocked: Bool
 
+    init(
+        text: String,
+        isTextEffectivelyEmpty: Bool? = nil,
+        mode: ComposerMode,
+        defaultEnterBehavior: ThreadEnterDefaultBehavior,
+        supportsMidTurnSteering: Bool,
+        isHandoffSteeringPromptActive: Bool,
+        isHandoffOutputPromptActive: Bool,
+        handoffSteeringCountdown: Int?,
+        sendCountdown: Int?,
+        isProjectTrustBlocked: Bool
+    ) {
+        self.text = text
+        textIsEffectivelyEmpty = isTextEffectivelyEmpty ?? ChatInputFieldTextSupport.isEffectivelyEmpty(text)
+        self.mode = mode
+        self.defaultEnterBehavior = defaultEnterBehavior
+        self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.isHandoffSteeringPromptActive = isHandoffSteeringPromptActive
+        self.isHandoffOutputPromptActive = isHandoffOutputPromptActive
+        self.handoffSteeringCountdown = handoffSteeringCountdown
+        self.sendCountdown = sendCountdown
+        self.isProjectTrustBlocked = isProjectTrustBlocked
+    }
+
     var trimmedText: String {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var isTextEffectivelyEmpty: Bool {
-        ChatInputFieldTextSupport.isEffectivelyEmpty(text)
+        textIsEffectivelyEmpty
     }
 
     var primaryActionTitle: String {

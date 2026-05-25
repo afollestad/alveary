@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+enum ComposerDraftSource: Equatable, Sendable {
+    case legacyText
+    case blockInputMarkdown
+}
+
 @MainActor
 @Observable
 final class ConversationState {
@@ -22,10 +27,16 @@ final class ConversationState {
     var activeBufferGeneration: UUID?
     var activeSubscriptionToken: UUID?
     var inputDraft = ""
+    var inputDraftSource: ComposerDraftSource = .legacyText
+    var inputDraftRevision = 0
+    var inputDraftDirtyRevision = 0
+    var inputDraftIsEffectivelyEmpty = true
+    @ObservationIgnored var inputDraftPublishTask: Task<Void, Never>?
     var isAwaitingHandoffSteering = false
     var handoffSteeringCountdownRemaining: Int?
     var handoffSteeringDraftBaseline: String?
     var sessionHandoffRestorableDraft: String?
+    var sessionHandoffRestorableDraftSource: ComposerDraftSource = .legacyText
     var submittedHandoffSteeringPrompt: String?
     var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
     var isAutomaticSessionHandoffPending = false

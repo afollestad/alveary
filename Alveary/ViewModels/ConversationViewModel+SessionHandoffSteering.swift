@@ -28,7 +28,7 @@ extension ConversationViewModel {
         state.submittedHandoffSteeringPrompt = trimmedPrompt.isEmpty ? nil : prompt
         state.isAwaitingHandoffSteering = false
         state.isHandingOffSession = true
-        state.inputDraft = ""
+        clearInputDraft()
 
         Task { @MainActor [self] in
             await startHiddenSessionHandoff()
@@ -37,10 +37,11 @@ extension ConversationViewModel {
     }
 
     func autoSubmitSessionHandoffSteeringPromptIfUnedited() async {
+        let draft = flushDraftFromEditor()
         guard state.isAwaitingHandoffSteering,
               state.handoffSteeringCountdownRemaining == 0,
               let baseline = state.handoffSteeringDraftBaseline,
-              state.inputDraft == baseline else {
+              draft.text == baseline else {
             return
         }
 
@@ -69,9 +70,11 @@ extension ConversationViewModel {
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
         state.submittedHandoffSteeringPrompt = nil
-        state.sessionHandoffRestorableDraft = state.inputDraft
+        let draft = flushDraftFromEditor()
+        state.sessionHandoffRestorableDraft = draft.text
+        state.sessionHandoffRestorableDraftSource = draft.source
         state.handoffSteeringDraftBaseline = ""
-        state.inputDraft = ""
+        clearInputDraft(source: draft.source)
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
