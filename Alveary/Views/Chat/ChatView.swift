@@ -20,7 +20,6 @@ struct ChatView: View {
     let transcriptTypography: TranscriptTypography
     @Bindable var appState: AppState
 
-    @Environment(\.colorScheme) private var colorScheme
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
     @State private var isFollowing = true
@@ -244,7 +243,7 @@ extension ChatView {
         }
 
         let isSessionHandoffDraft = viewModel.prepareManualSessionHandoffSendIfNeeded()
-        let outboundMessage = draft.outboundMessage(workingDirectory: workingDirectory)
+        let outboundMessage = draft.messageText
 
         requestScrollToBottom()
         viewModel.clearInputDraft(source: draft.source)
@@ -276,7 +275,7 @@ extension ChatView {
             return
         }
 
-        let outboundMessage = draft.outboundMessage(workingDirectory: workingDirectory)
+        let outboundMessage = draft.messageText
 
         requestScrollToBottom()
         viewModel.clearInputDraft(source: draft.source)
@@ -299,13 +298,11 @@ extension ChatView {
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
         return AppKitChatComposerPanelConfiguration(
-            content: AnyView(EmptyView()),
-            nativeBodyConfiguration: composerBodyConfiguration,
+            bodyConfiguration: composerBodyConfiguration,
             topContentConfiguration: composerTopContentConfiguration,
             queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
             actionRowConfiguration: composerActionRowConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
-            hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
                 topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
@@ -334,14 +331,8 @@ extension ChatView {
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
             requestFirstResponder: appState.pendingComposerFocusToken,
-            colorScheme: colorScheme,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,
-            onTextChange: { newValue in
-                viewModel.publishComposerDraft(newValue, source: .legacyText)
-                viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)
-                viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
-            },
             onBlockInputMutation: { isEffectivelyEmpty in
                 viewModel.recordBlockInputDraftMutation(isEffectivelyEmpty: isEffectivelyEmpty)
             },
@@ -424,15 +415,15 @@ extension ChatView {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
             modelOptions: composerModelOptions.map {
-                .init(value: $0, title: ChatInputFieldTextSupport.modelLabel(for: $0))
+                .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0))
             },
             selectedModel: selectedModelBinding.wrappedValue,
             supportedEffortLevels: visibleEffortLevels.map {
-                .init(value: $0, title: ChatInputFieldTextSupport.effortLabel(for: $0))
+                .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
             },
             selectedEffort: selectedEffortBinding.wrappedValue,
             supportedPermissionModes: composerCapabilities.supportedPermissionModes.map {
-                .init(value: $0.value, title: ChatInputFieldTextSupport.permissionModeLabel(for: $0))
+                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
             selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
             showWorktreePicker: showWorktreePicker,
@@ -463,7 +454,7 @@ extension ChatView {
                 Task { await viewModel.cancel() }
             },
             onShowKeymap: {
-                AppKitChatInputKeymapPresenter.present(
+                AppKitChatComposerKeymapPresenter.present(
                     supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
                     defaultEnterBehavior: defaultEnterBehavior
                 )

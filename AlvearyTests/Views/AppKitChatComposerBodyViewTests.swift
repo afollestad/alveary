@@ -1,6 +1,6 @@
 import AppKit
 import BlockInputKit
-import SwiftUI
+import QuartzCore
 import XCTest
 
 @testable import Alveary
@@ -43,6 +43,21 @@ final class AppKitChatComposerBodyViewTests: XCTestCase {
         body.configure(makeConfiguration(text: "Second", draftIdentity: "two"))
 
         XCTAssertEqual(body.bridgeController?.currentMarkdown(), "Second")
+    }
+
+    func testBlockInputViewIsClippedToRoundedEditorShape() throws {
+        let body = AppKitChatComposerBodyView(frame: NSRect(x: 0, y: 0, width: 400, height: 180))
+
+        body.configure(makeConfiguration(text: "First"))
+        body.layoutSubtreeIfNeeded()
+
+        let bridgeView = try XCTUnwrap(body.bridgeController?.view)
+        XCTAssertTrue(body.subviews.contains(body.editorClipView))
+        XCTAssertTrue(body.editorClipView.subviews.contains { $0 === bridgeView })
+        XCTAssertEqual(body.editorClipView.frame.minX, 0)
+        XCTAssertEqual(bridgeView.frame.minX, 0)
+        XCTAssertEqual(bridgeView.frame.width, body.editorClipView.frame.width)
+        XCTAssertNotNil((body.editorClipView.layer?.mask as? CAShapeLayer)?.path)
     }
 
     func testCompletionPopupOverlayUsesChatSurfaceParentAndOldComposerFrame() throws {
@@ -105,10 +120,8 @@ final class AppKitChatComposerBodyViewTests: XCTestCase {
             hasTopContent: false,
             workingDirectory: "/tmp/alveary",
             requestFirstResponder: nil,
-            colorScheme: .dark,
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
-            onTextChange: { _ in },
             onDraftSnapshotProviderChange: onDraftSnapshotProviderChange,
             onSubmit: {},
             onSteer: {},

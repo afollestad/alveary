@@ -19,7 +19,6 @@ struct BlockInputComposerBridgeConfiguration {
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightChange: @MainActor @Sendable (CGFloat) -> Void
-    var onFocusChange: (Bool) -> Void
 
     init(
         markdown: String,
@@ -36,8 +35,7 @@ struct BlockInputComposerBridgeConfiguration {
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
-        onPreferredHeightChange: @escaping @MainActor @Sendable (CGFloat) -> Void = { _ in },
-        onFocusChange: @escaping (Bool) -> Void = { _ in }
+        onPreferredHeightChange: @escaping @MainActor @Sendable (CGFloat) -> Void = { _ in }
     ) {
         self.markdown = markdown
         self.markdownRevision = markdownRevision
@@ -54,7 +52,6 @@ struct BlockInputComposerBridgeConfiguration {
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightChange = onPreferredHeightChange
-        self.onFocusChange = onFocusChange
     }
 }
 
@@ -68,14 +65,12 @@ final class BlockInputComposerBridgeController {
     private(set) var undoController = BlockInputUndoController()
     private(set) var commandDispatcher = BlockInputEditorCommandDispatcher()
     private(set) var completionProvider: BlockInputComposerCompletionProvider
-    private(set) var lastMarkdown: String
     private var lastConfiguredMarkdownRevision: Int
 
     init(configuration: BlockInputComposerBridgeConfiguration) {
         let document = BlockInputDocument(markdown: configuration.markdown)
         documentStore = BlockInputMemoryDocumentStore(document: document)
         completionProvider = Self.makeCompletionProvider(configuration)
-        lastMarkdown = configuration.markdown
         lastConfiguredMarkdownRevision = configuration.markdownRevision
         view.configure(blockInputConfiguration(for: configuration))
     }
@@ -87,7 +82,6 @@ final class BlockInputComposerBridgeController {
                 documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
                 undoController = BlockInputUndoController()
             }
-            lastMarkdown = configuration.markdown
         }
         completionProvider = Self.makeCompletionProvider(configuration)
         view.configure(blockInputConfiguration(for: configuration))
@@ -131,11 +125,9 @@ final class BlockInputComposerBridgeController {
             onDocumentMutation: { [weak self] change in
                 configuration.onDocumentMutation(change, self?.documentStore.document.isEffectivelyEmpty ?? true)
             },
-            onDocumentChange: { [weak self] document in
-                self?.lastMarkdown = document.markdown
+            onDocumentChange: { document in
                 configuration.onDocumentChange(document)
-            },
-            onFocusChange: configuration.onFocusChange
+            }
         )
     }
 

@@ -4,15 +4,15 @@ import XCTest
 
 @MainActor
 final class ChatComposerDraftTests: XCTestCase {
-    func testLegacyDraftKeepsOutboundMentionRewrite() {
+    func testLegacyDraftSendsStoredTextDirectly() {
         let draft = ComposerDraft(
             text: "Please read @/tmp/alveary/project/My%20Notes.md",
             source: .legacyText
         )
 
         XCTAssertEqual(
-            draft.outboundMessage(workingDirectory: "/tmp/alveary/project"),
-            "Please read @My%20Notes.md"
+            draft.messageText,
+            "Please read @/tmp/alveary/project/My%20Notes.md"
         )
     }
 
@@ -20,7 +20,7 @@ final class ChatComposerDraftTests: XCTestCase {
         let markdown = "Please read [My Notes](/tmp/alveary/project/My%20Notes.md)"
         let draft = ComposerDraft(text: markdown, source: .blockInputMarkdown)
 
-        XCTAssertEqual(draft.outboundMessage(workingDirectory: "/tmp/alveary/project"), markdown)
+        XCTAssertEqual(draft.messageText, markdown)
     }
 
     func testBlockInputMarkdownDraftUsesBlockInputEmptiness() {

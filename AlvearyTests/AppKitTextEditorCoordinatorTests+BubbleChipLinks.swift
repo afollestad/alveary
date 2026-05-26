@@ -9,7 +9,7 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserTagsAbsoluteFileMentionChipWithFileURL() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
             for: "Check @/tmp/alveary/My%20File.txt please"
@@ -32,7 +32,7 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserExpandsTildePrefixedFileMentionChip() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
             for: "Grab @~/Desktop/shot.png for me"
@@ -55,7 +55,7 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserLeavesRelativeFileMentionChipSchemeless() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
             for: "Open @Alveary/Views/Chat/ChatView.swift please"
@@ -77,7 +77,7 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserDoesNotLinkSlashCommandChips() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(for: "/review-github-pr now")
 

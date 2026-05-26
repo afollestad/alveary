@@ -122,7 +122,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
            let project = thread.project,
            project.isGitRepository,
            thread.hasCompletedInitialSetup {
-            sessionLocationLabel = ChatInputFieldTextSupport.sessionLocationLabel(
+            sessionLocationLabel = ChatComposerTextSupport.sessionLocationLabel(
                 useWorktree: thread.useWorktree,
                 worktreePath: thread.worktreePath
             )

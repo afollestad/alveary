@@ -146,7 +146,7 @@ private extension AppMarkdownComposerChipMode {
         case .none:
             return nil
         case .composer:
-            return ChatInputFieldTextSupport.composerTextChips(in:)
+            return ChatComposerTextSupport.composerTextChips(in:)
         }
     }
 }

@@ -96,7 +96,8 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.stagedContext = nil
         try await fixture.viewModel.queueOrSend("Third queued")
 
-        let secondQueuedID = try XCTUnwrap(fixture.viewModel.messageQueue.pending[safe: 1]?.id)
+        XCTAssertGreaterThan(fixture.viewModel.messageQueue.pending.count, 1)
+        let secondQueuedID = fixture.viewModel.messageQueue.pending[1].id
 
         try await fixture.viewModel.steerQueuedMessage(id: secondQueuedID)
 

@@ -9,7 +9,7 @@ extension AppKitTextEditorCoordinatorTests {
     func testSelectionChangeRestylesChipAsynchronously() {
         let chip = AppTextEditorChip(
             range: NSRange(location: 8, length: 41),
-            displayText: "@ChatInputField.swift",
+            displayText: "@ChatView.swift",
             style: .fileMention
         )
         let harness = makeSelectionRestyleHarness(chip: chip)
@@ -45,7 +45,7 @@ extension AppKitTextEditorCoordinatorTests {
         coordinator: AppKitTextEditorCoordinator,
         textView: AppKitTextView
     ) {
-        var text = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
+        var text = "Inspect @Alveary/Views/Chat/ChatView.swift next"
         var measuredHeight: CGFloat = 0
         let parent = AppKitTextEditorView(
             text: Binding(get: { text }, set: { text = $0 }),

@@ -25,19 +25,14 @@ struct ComposerDraft: Equatable, Sendable {
 
         switch source {
         case .legacyText:
-            return ChatInputFieldTextSupport.isEffectivelyEmpty(text)
+            return ChatComposerTextSupport.isEffectivelyEmpty(text)
         case .blockInputMarkdown:
             return BlockInputDocument(markdown: text).isEffectivelyEmpty
         }
     }
 
-    func outboundMessage(workingDirectory: String?) -> String {
-        switch source {
-        case .legacyText:
-            ChatInputFieldTextSupport.outboundMessage(from: text, workingDirectory: workingDirectory)
-        case .blockInputMarkdown:
-            text
-        }
+    var messageText: String {
+        text
     }
 }
 

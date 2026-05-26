@@ -35,7 +35,7 @@ struct ComposerPresentation: Equatable, Sendable {
         isProjectTrustBlocked: Bool
     ) {
         self.text = text
-        textIsEffectivelyEmpty = isTextEffectivelyEmpty ?? ChatInputFieldTextSupport.isEffectivelyEmpty(text)
+        textIsEffectivelyEmpty = isTextEffectivelyEmpty ?? ChatComposerTextSupport.isEffectivelyEmpty(text)
         self.mode = mode
         self.defaultEnterBehavior = defaultEnterBehavior
         self.supportsMidTurnSteering = supportsMidTurnSteering
@@ -137,7 +137,7 @@ struct ComposerPresentation: Equatable, Sendable {
             }
             return "Type a message to queue for the next turn..."
         case .progressOnly(let reason):
-            return ChatInputFieldTextSupport.placeholder(for: reason)
+            return ChatComposerTextSupport.placeholder(for: reason)
         }
     }
 

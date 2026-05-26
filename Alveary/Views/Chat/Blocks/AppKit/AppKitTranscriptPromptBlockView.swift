@@ -97,9 +97,11 @@ final class AppKitTranscriptPromptBlockView: NSView {
     }
 
     func toggleOption(at index: Int, option: PromptEntry.PromptOption) {
-        guard let question = configuration?.prompt.questions[safe: index] else {
+        guard let questions = configuration?.prompt.questions,
+              questions.indices.contains(index) else {
             return
         }
+        let question = questions[index]
         var current = selections[index] ?? []
         if question.multiSelect {
             if current.contains(option.id) {

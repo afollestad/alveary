@@ -8,7 +8,6 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 
 - **Keep the transcript scroll owner in AppKit.** SwiftUI lazy-list recycling and measurement were not adequate for Alveary's variable-height transcript UX at the time of writing; scroll position and performance must be controlled by explicit AppKit row frames.
 - **Own scrolling in AppKit.** New transcript-container work should route through `NSScrollView` plus an AppKit document/layout view; keep SwiftUI bridges as data and action adapters.
-- **Respect floating composer autocomplete.** The transcript `NSScrollView` must ask `AppKitChatSurfaceView` to consume wheel events before scrolling; this is the final guard when a popup visually overlaps transcript space.
 - **Start eager.** Prefer deterministic vertical layout with stable row frames before adding recycling or virtualization.
 - **Cache measurements, not rows.** Keep every row mounted; optimize long transcripts with dirty height measurement keyed by row id and width, not viewport recycling.
 - **Hydrate by viewport margin.** Markdown text rows hydrate after layout and scroll when their fixed shells intersect the visible rect plus the prefetch margin; hydration must not change document height.

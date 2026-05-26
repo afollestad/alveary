@@ -24,7 +24,7 @@ Narrower scopes:
 - `SwiftUI/Rendering/` owns the SwiftUI block renderer internals.
 - Use `AppMarkdownInlineLabel`, not raw `Text`, for single-line user strings that may contain inline code or `@file` mentions.
 - Keep chip backgrounds clamped to the surrounding text line height so row/tab height stays uniform.
-- Mention detection reuses `ChatInputFieldTextSupport.fileMentionMatches(in:)` plus `CanonicalPath.decodeStoredMentionPath(_:)`.
+- Mention detection reuses `ChatComposerTextSupport.fileMentionMatches(in:)` plus `CanonicalPath.decodeStoredMentionPath(_:)`.
 - Keep mentions inside fenced or inline-code ranges as code; do not re-chip them.
 - Drive text and chip sizes from the single `textStyle` parameter.
 - For explicit accessibility labels, use `AppMarkdownInlineLabel.plainText(from:)`. It strips backticks and decodes mentions without regex edge cases.

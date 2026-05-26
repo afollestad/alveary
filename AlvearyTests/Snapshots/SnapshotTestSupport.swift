@@ -95,8 +95,8 @@ extension SnapshotTests {
             "diff --git a/\(path) b/\(path)",
             "--- a/\(path)",
             "+++ b/\(path)",
-            "@@ -10,34 +10,36 @@ struct ChatInputField: View {",
-            " struct ChatInputField: View {"
+            "@@ -10,34 +10,36 @@ struct ChatView: View {",
+            " struct ChatView: View {"
         ]
         lines.append(contentsOf: leadingContext.map { " \($0)" })
         lines.append(contentsOf: [

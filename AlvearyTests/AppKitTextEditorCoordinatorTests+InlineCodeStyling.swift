@@ -82,15 +82,15 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserSkipsComposerChipsInsideFencedBlocks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
-            for: "```\n@Alveary/Views/Input/ChatInputField.swift\n```"
+            for: "```\n@Alveary/Views/Chat/ChatView.swift\n```"
         )
 
         let flatString = String(attributedString.characters)
-        XCTAssertTrue(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
-        XCTAssertFalse(flatString.contains("@ChatInputField.swift\n"))
+        XCTAssertTrue(flatString.contains("@Alveary/Views/Chat/ChatView.swift"))
+        XCTAssertFalse(flatString.contains("@ChatView.swift\n"))
     }
 
     // A file mention used as a markdown link's visible text must stay linked rather than
@@ -98,21 +98,21 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserSkipsComposerChipsInsideMarkdownLinks() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
-            for: "See [@Alveary/Views/Input/ChatInputField.swift](https://example.com) please."
+            for: "See [@Alveary/Views/Chat/ChatView.swift](https://example.com) please."
         )
 
         let linkedRuns = attributedString.runs.compactMap { run -> String? in
             guard run.link != nil else { return nil }
             return String(attributedString[run.range].characters)
         }
-        XCTAssertEqual(linkedRuns, ["@Alveary/Views/Input/ChatInputField.swift"])
+        XCTAssertEqual(linkedRuns, ["@Alveary/Views/Chat/ChatView.swift"])
 
         let flatString = String(attributedString.characters)
-        XCTAssertTrue(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
-        XCTAssertFalse(flatString.contains("@ChatInputField.swift "))
+        XCTAssertTrue(flatString.contains("@Alveary/Views/Chat/ChatView.swift"))
+        XCTAssertFalse(flatString.contains("@ChatView.swift "))
     }
 
     // Plain-prose composer chips (leading `/command`, `@file`) are rewritten to their
@@ -121,10 +121,10 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserRewritesComposerChipsAsInlineCode() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
-            for: "/review-github-pr look at @Alveary/Views/Input/ChatInputField.swift next"
+            for: "/review-github-pr look at @Alveary/Views/Chat/ChatView.swift next"
         )
 
         let chipTexts = attributedString.runs.compactMap { run -> String? in
@@ -133,11 +133,11 @@ extension AppKitTextEditorCoordinatorTests {
             }
             return String(attributedString[run.range].characters)
         }
-        XCTAssertEqual(chipTexts, ["/review-github-pr", "@ChatInputField.swift"])
+        XCTAssertEqual(chipTexts, ["/review-github-pr", "@ChatView.swift"])
 
         let flatString = String(attributedString.characters)
-        XCTAssertTrue(flatString.contains("@ChatInputField.swift"))
-        XCTAssertFalse(flatString.contains("@Alveary/Views/Input/ChatInputField.swift"))
+        XCTAssertTrue(flatString.contains("@ChatView.swift"))
+        XCTAssertFalse(flatString.contains("@Alveary/Views/Chat/ChatView.swift"))
 
         XCTAssertTrue(chipTexts.allSatisfy { !$0.isEmpty })
     }
@@ -149,10 +149,10 @@ extension AppKitTextEditorCoordinatorTests {
     func testAppMarkdownParserPreservesInlineCodeAgainstComposerChip() throws {
         let parser = AppMarkdownParser(
             baseURL: nil,
-            composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
         )
         let attributedString = try parser.attributedString(
-            for: "Inline code wins: `@Alveary/Views/Input/ChatInputField.swift` stays intact."
+            for: "Inline code wins: `@Alveary/Views/Chat/ChatView.swift` stays intact."
         )
 
         let codeRuns = attributedString.runs.compactMap { run -> String? in
@@ -161,10 +161,10 @@ extension AppKitTextEditorCoordinatorTests {
             }
             return String(attributedString[run.range].characters)
         }
-        XCTAssertEqual(codeRuns, ["@Alveary/Views/Input/ChatInputField.swift"])
+        XCTAssertEqual(codeRuns, ["@Alveary/Views/Chat/ChatView.swift"])
 
         let flatString = String(attributedString.characters)
-        XCTAssertFalse(flatString.contains("@ChatInputField.swift "))
+        XCTAssertFalse(flatString.contains("@ChatView.swift "))
     }
 
     func testInlineCodeDelimiterStylingCollapsesDelimiterLayoutWidth() {
@@ -313,11 +313,11 @@ extension AppKitTextEditorCoordinatorTests {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(width: 760, height: CGFloat.greatestFiniteMagnitude)
-        textView.string = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
+        textView.string = "Inspect @Alveary/Views/Chat/ChatView.swift next"
 
         let chip = AppTextEditorChip(
             range: NSRange(location: 8, length: 41),
-            displayText: "@ChatInputField.swift",
+            displayText: "@ChatView.swift",
             style: .fileMention
         )
 

@@ -33,7 +33,7 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertEqual(composer.frame, NSRect(x: 0, y: 150, width: 300, height: 70))
     }
 
-    func testHostedComposerSizeInvalidationRequestsSurfaceLayout() {
+    func testHostedSurfaceChildSizeInvalidationRequestsSurfaceLayout() {
         let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 300, height: 220))
         let content = FixedHeightView(height: 80)
         let composer = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
@@ -46,7 +46,7 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertTrue(surface.needsLayout)
     }
 
-    func testReplacingHostedComposerClearsOldSizeInvalidationCallback() {
+    func testReplacingHostedSurfaceChildClearsOldSizeInvalidationCallback() {
         let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 300, height: 220))
         let content = FixedHeightView(height: 80)
         let firstComposer = AppKitChatSurfaceHostingView(rootView: AnyView(EmptyView()))
@@ -65,9 +65,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 80))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(),
                 showsTopDivider: true,
-                hasTopContent: true,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -78,10 +77,10 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
-        XCTAssertEqual(contentHost.frame.origin.x, 20)
-        XCTAssertEqual(contentHost.frame.origin.y, 8)
-        XCTAssertEqual(contentHost.frame.width, 259)
+        let bodyView = try composerBodyView(in: panel)
+        XCTAssertEqual(bodyView.frame.origin.x, 20)
+        XCTAssertEqual(bodyView.frame.origin.y, 0)
+        XCTAssertEqual(bodyView.frame.width, 259)
         XCTAssertFalse(panel.isOpaque)
     }
 
@@ -89,9 +88,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 80))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(),
                 showsTopDivider: true,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -108,14 +106,13 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         XCTAssertEqual(divider.alphaValue, 1)
     }
 
-    func testComposerPanelLaysOutNativeActionRowBelowHostedContent() throws {
+    func testComposerPanelLaysOutNativeActionRowBelowNativeBody() throws {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 120))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(),
                 actionRowConfiguration: makeActionRowConfiguration(),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -126,22 +123,24 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let bodyView = try composerBodyView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
-        XCTAssertEqual(contentHost.frame, NSRect(x: 20, y: 0, width: 259, height: 44))
-        XCTAssertEqual(actionRow.frame, NSRect(x: 20, y: 58, width: 259, height: ChatComposerActionRowView.defaultHeight))
+        XCTAssertEqual(bodyView.frame.origin.x, 20)
+        XCTAssertEqual(bodyView.frame.origin.y, 0)
+        XCTAssertEqual(bodyView.frame.width, 259)
+        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
+        XCTAssertEqual(actionRow.frame.width, 259)
         XCTAssertFalse(actionRow.isHidden)
-        XCTAssertEqual(panel.fittingSize.height, 88)
+        XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY)
     }
 
     func testComposerPanelKeepsBottomPaddingBelowNativeActionRow() throws {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 120))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(),
                 actionRowConfiguration: makeActionRowConfiguration(),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -153,23 +152,22 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let bodyView = try composerBodyView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
-        XCTAssertEqual(contentHost.frame, NSRect(x: 20, y: 0, width: 259, height: 44))
-        XCTAssertEqual(actionRow.frame, NSRect(x: 20, y: 58, width: 259, height: ChatComposerActionRowView.defaultHeight))
-        XCTAssertEqual(panel.fittingSize.height, 104)
+        XCTAssertEqual(bodyView.frame.origin.y, 0)
+        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
+        XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY + 16)
     }
 
-    func testComposerPanelLaysOutNativeTopContentAboveHostedContent() throws {
+    func testComposerPanelLaysOutNativeTopContentAboveNativeBody() throws {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 140))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(hasTopContent: true),
                 topContentConfiguration: .init(items: [
                     .stagedContext(.init(context: "Restoring context from local history.") {})
                 ]),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -181,27 +179,28 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         panel.layoutSubtreeIfNeeded()
 
         let topContentView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerTopContentView })
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let bodyView = try composerBodyView(in: panel)
         XCTAssertEqual(topContentView.frame.origin.x, 20)
         XCTAssertEqual(topContentView.frame.origin.y, 8)
         XCTAssertEqual(topContentView.frame.width, 259)
         XCTAssertEqual(topContentView.frame.height, 42)
-        XCTAssertEqual(contentHost.frame, NSRect(x: 20, y: 58, width: 259, height: 44))
-        XCTAssertEqual(panel.fittingSize.height, 102)
+        XCTAssertEqual(bodyView.frame.origin.x, 20)
+        XCTAssertEqual(bodyView.frame.origin.y, topContentView.frame.maxY + 8)
+        XCTAssertEqual(bodyView.frame.width, 259)
+        XCTAssertEqual(panel.fittingSize.height, bodyView.frame.maxY)
     }
 
-    func testComposerPanelLaysOutNativeQueuedMessagesAboveHostedContent() throws {
+    func testComposerPanelLaysOutNativeQueuedMessagesAboveNativeBody() throws {
         let queuedMessages = [
             QueuedMessage(text: "Queued follow-up", stagedContext: "Context block")
         ]
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 180))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(hasQueuedMessages: true),
                 queuedMessagesConfiguration: makeQueuedMessagesConfiguration(queuedMessages),
                 actionRowConfiguration: makeActionRowConfiguration(),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -214,14 +213,14 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         panel.layoutSubtreeIfNeeded()
 
         let queuedMessagesView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatQueuedMessagesView })
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let bodyView = try composerBodyView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
         XCTAssertFalse(queuedMessagesView.isHidden)
         XCTAssertEqual(queuedMessagesView.frame.origin.x, 20)
         XCTAssertEqual(queuedMessagesView.frame.origin.y, 16)
         XCTAssertEqual(queuedMessagesView.frame.width, 259)
-        XCTAssertEqual(contentHost.frame.origin.y, queuedMessagesView.frame.maxY)
-        XCTAssertEqual(actionRow.frame.origin.y, contentHost.frame.maxY + 14)
+        XCTAssertEqual(bodyView.frame.origin.y, queuedMessagesView.frame.maxY)
+        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
         XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY + 16)
     }
 
@@ -257,12 +256,11 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 140))
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(hasTopContent: true),
                 topContentConfiguration: .init(items: [
                     .stagedContext(.init(context: "Restoring context from local history.") {})
                 ]),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: AppKitChatComposerPanelView.Layout(
                     horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                     topContentSpacing: 8,
@@ -292,12 +290,11 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         )
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(hasTopContent: true),
                 topContentConfiguration: .init(items: [
                     .stagedContext(.init(context: "Restoring context from local history.") {})
                 ]),
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: layout
             )
         )
@@ -305,21 +302,22 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.configure(
             AppKitChatComposerPanelConfiguration(
-                content: AnyView(Color.clear.frame(height: 44)),
+                bodyConfiguration: makeComposerBodyConfiguration(),
                 topContentConfiguration: .empty,
                 showsTopDivider: false,
-                hasTopContent: false,
                 layout: layout
             )
         )
         panel.layoutSubtreeIfNeeded()
 
         let topContentView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerTopContentView })
-        let contentHost = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatSurfaceHostingView })
+        let bodyView = try composerBodyView(in: panel)
         XCTAssertTrue(topContentView.isHidden)
         XCTAssertEqual(topContentView.frame, .zero)
-        XCTAssertEqual(contentHost.frame, NSRect(x: 20, y: 0, width: 259, height: 44))
-        XCTAssertEqual(panel.fittingSize.height, 44)
+        XCTAssertEqual(bodyView.frame.origin.x, 20)
+        XCTAssertEqual(bodyView.frame.origin.y, 0)
+        XCTAssertEqual(bodyView.frame.width, 259)
+        XCTAssertEqual(panel.fittingSize.height, bodyView.frame.height)
     }
 
     func testConfigureReplacesHostedViewsWithoutLeavingOldSubviews() {
@@ -343,9 +341,8 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
     func testRepresentableCoordinatorConfiguresNativeComposerPanel() {
         let configuration = AppKitChatComposerPanelConfiguration(
-            content: AnyView(Color.clear.frame(height: 44)),
+            bodyConfiguration: makeComposerBodyConfiguration(),
             showsTopDivider: false,
-            hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 21),
                 topContentSpacing: 8,
@@ -362,8 +359,43 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         coordinator.composerPanelView.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(coordinator.composerPanelView.fittingSize.height, 0)
-        XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is AppKitChatSurfaceHostingView })
+        XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is AppKitChatComposerBodyView })
     }
+}
+
+@MainActor
+private func composerBodyView(in panel: AppKitChatComposerPanelView) throws -> AppKitChatComposerBodyView {
+    try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerBodyView } as? AppKitChatComposerBodyView)
+}
+
+@MainActor
+private func makeComposerBodyConfiguration(
+    hasQueuedMessages: Bool = false,
+    hasTopContent: Bool = false
+) -> AppKitChatComposerBodyConfiguration {
+    AppKitChatComposerBodyConfiguration(
+        text: "Panel body",
+        mode: .idle,
+        defaultEnterBehavior: .queue,
+        isStopConfirmationArmed: false,
+        supportsMidTurnSteering: true,
+        isProjectTrustBlocked: false,
+        isHandoffSteeringPromptActive: false,
+        isHandoffOutputPromptActive: false,
+        handoffSteeringCountdown: nil,
+        sendCountdown: nil,
+        hasQueuedMessages: hasQueuedMessages,
+        hasTopContent: hasTopContent,
+        workingDirectory: "/tmp/alveary",
+        requestFirstResponder: nil,
+        loadFileCompletions: { [] },
+        loadSkillCompletions: { [] },
+        onSubmit: {},
+        onSteer: {},
+        onStop: {},
+        onStopConfirmationChange: { _ in },
+        onFocusRequestConsumed: { _ in }
+    )
 }
 
 func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
@@ -431,7 +463,6 @@ private final class FixedHeightView: NSView {
         fixedHeight = height
         super.init(frame: .zero)
     }
-
     required init?(coder: NSCoder) {
         nil
     }
@@ -456,7 +487,6 @@ private final class MutableHeightView: NSView {
         self.height = height
         super.init(frame: .zero)
     }
-
     required init?(coder: NSCoder) {
         nil
     }
@@ -464,7 +494,6 @@ private final class MutableHeightView: NSView {
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: height)
     }
-
     override var fittingSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: height)
     }

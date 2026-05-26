@@ -1,19 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// Native owner for the active chat surface layout and autocomplete overlay.
+/// Native owner for the active chat surface layout.
 final class AppKitChatSurfaceView: NSView {
     private weak var contentView: NSView?
     private weak var composerView: NSView?
-    private weak var surfaceAutocompletePopupView: AppKitComposerAutocompletePopupView?
-    private let autocompleteEventCaptureView = AutocompleteSurfaceEventCaptureView()
-    private var trackingArea: NSTrackingArea?
-    private var mouseDownMonitor: ChatSurfaceLocalEventMonitor?
-
-    private struct AutocompletePopupSource {
-        let popup: AppKitComposerAutocompletePopupView
-        let frame: NSRect
-    }
 
     override var isFlipped: Bool {
         true
@@ -41,7 +32,6 @@ final class AppKitChatSurfaceView: NSView {
         if composerView !== newComposerView {
             clearHostedInvalidation(composerView)
             composerView?.removeFromSuperview()
-            removeSurfaceAutocompletePopup()
             composerView = newComposerView
             configureHostedInvalidation(newComposerView)
             addSubview(newComposerView)
@@ -50,56 +40,8 @@ final class AppKitChatSurfaceView: NSView {
         needsLayout = true
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        updateSurfaceAutocompletePopup()
-        if let popupHit = hitTestSurfaceAutocomplete(at: point) {
-            return popupHit
-        }
-        return super.hitTest(point)
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
-            owner: self
-        )
-        trackingArea = area
-        addTrackingArea(area)
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        updateMouseDownMonitor()
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        let localPoint = convert(mouseEventWindowPoint(event), from: nil)
-        if routeMouseMovedToComposerAutocomplete(at: localPoint, event: event) {
-            return
-        }
-        super.mouseMoved(with: event)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let localPoints = mouseEventWindowPoints(event).map { convert($0, from: nil) }
-        if routeMouseDownToComposerAutocomplete(atAny: localPoints, event: event) {
-            return
-        }
-        dismissComposerAutocompleteIfNeeded(atAny: localPoints)
-        super.mouseDown(with: event)
-    }
-
     override func scrollWheel(with event: NSEvent) {
-        let localPoint = convert(scrollEventWindowPoint(event), from: nil)
-        if routeScrollWheelToComposerAutocomplete(at: localPoint, event: event) {
-            return
-        }
-        forwardScrollWheelOutsideComposerAutocomplete(event)
+        forwardScrollWheelOutsideComposer(event)
     }
 
     override func layout() {
@@ -117,82 +59,6 @@ final class AppKitChatSurfaceView: NSView {
         contentView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
         composerView.frame = NSRect(x: 0, y: contentHeight, width: width, height: composerHeight)
         composerView.layoutSubtreeIfNeeded()
-        updateSurfaceAutocompletePopup()
-    }
-
-    func refreshSurfaceAutocompletePopup() {
-        updateSurfaceAutocompletePopup()
-    }
-
-    @discardableResult
-    func routeMouseMovedToComposerAutocomplete(at point: NSPoint, event: NSEvent) -> Bool {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup() else {
-            return false
-        }
-        return popup.routeMouseMoved(at: popup.convert(point, from: self), event: event)
-    }
-
-    @discardableResult
-    func routeMouseDownToComposerAutocomplete(at point: NSPoint, event: NSEvent) -> Bool {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup() else {
-            return false
-        }
-        return popup.routeMouseDown(at: popup.convert(point, from: self), event: event)
-    }
-
-    @discardableResult
-    func routeMouseDownToComposerAutocomplete(atAny points: [NSPoint], event: NSEvent) -> Bool {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup(),
-              let point = points.first(where: { popup.frame.contains($0) }) else {
-            return false
-        }
-        return popup.routeMouseDown(at: popup.convert(point, from: self), event: event)
-    }
-
-    @discardableResult
-    func routeScrollWheelToComposerAutocomplete(at point: NSPoint, event: NSEvent) -> Bool {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup() else {
-            return false
-        }
-        return popup.routeScrollWheel(at: popup.convert(point, from: self), event: event)
-    }
-
-    func consumeScrollWheelEventIfInsideComposerAutocomplete(_ event: NSEvent) -> NSEvent? {
-        consumeScrollWheelEventIfInsideComposerAutocomplete(event, windowPoints: [scrollEventWindowPoint(event)])
-    }
-
-    func consumeScrollWheelEventIfInsideComposerAutocomplete(_ event: NSEvent, windowPoint: NSPoint) -> NSEvent? {
-        consumeScrollWheelEventIfInsideComposerAutocomplete(event, windowPoints: [windowPoint])
-    }
-
-    private func consumeScrollWheelEventIfInsideComposerAutocomplete(
-        _ event: NSEvent,
-        windowPoints: [NSPoint]
-    ) -> NSEvent? {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup() else {
-            return event
-        }
-        let surfacePoints = windowPoints.map { convert($0, from: nil) }
-        guard let popupPoint = popupPointForScrollEvent(surfacePoints: surfacePoints, in: popup) else {
-            return event
-        }
-        _ = popup.routeScrollWheel(at: popupPoint, event: event)
-        return nil
-    }
-
-    private func popupPointForScrollEvent(surfacePoints: [NSPoint], in popup: AppKitComposerAutocompletePopupView) -> NSPoint? {
-        for surfacePoint in surfacePoints {
-            guard popup.frame.contains(surfacePoint) else {
-                continue
-            }
-            return popup.convert(surfacePoint, from: self)
-        }
-        return nil
     }
 
     func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
@@ -205,7 +71,7 @@ final class AppKitChatSurfaceView: NSView {
         return event.locationInWindow
     }
 
-    func forwardScrollWheelOutsideComposerAutocomplete(_ event: NSEvent) {
+    func forwardScrollWheelOutsideComposer(_ event: NSEvent) {
         let surfacePoint = convert(scrollEventWindowPoint(event), from: nil)
         if let contentView,
            convert(contentView.bounds, from: contentView).contains(surfacePoint),
@@ -214,8 +80,7 @@ final class AppKitChatSurfaceView: NSView {
             return
         }
         guard let target = hitTest(surfacePoint),
-              target !== self,
-              target !== autocompleteEventCaptureView else {
+              target !== self else {
             super.scrollWheel(with: event)
             return
         }
@@ -224,73 +89,6 @@ final class AppKitChatSurfaceView: NSView {
             return
         }
         super.scrollWheel(with: event)
-    }
-
-    private func visibleComposerAutocompletePopup() -> AppKitComposerAutocompletePopupView? {
-        guard let popup = surfaceAutocompletePopupView,
-              popup.superview === self,
-              !popup.isHidden else {
-            return nil
-        }
-        return popup
-    }
-
-    private func hitTestSurfaceAutocomplete(at point: NSPoint) -> NSView? {
-        guard let popup = visibleComposerAutocompletePopup() else {
-            return nil
-        }
-        guard popup.frame.contains(point) else {
-            return nil
-        }
-        return autocompleteEventCaptureView
-    }
-
-    @discardableResult
-    func dismissComposerAutocompleteIfClickOutside(_ event: NSEvent) -> NSEvent? {
-        guard event.window === window else {
-            return event
-        }
-        let localPoints = mouseEventWindowPoints(event).map { convert($0, from: nil) }
-        if routeMouseDownToComposerAutocomplete(atAny: localPoints, event: event) {
-            return nil
-        }
-        dismissComposerAutocompleteIfNeeded(atAny: localPoints)
-        return event
-    }
-
-    private func dismissComposerAutocompleteIfNeeded(atAny points: [NSPoint]) {
-        updateSurfaceAutocompletePopup()
-        guard let popup = visibleComposerAutocompletePopup(),
-              let composerView,
-              let bodyView = visibleComposerBody(in: composerView) else {
-            return
-        }
-        guard !points.contains(where: { popup.frame.contains($0) }) else {
-            return
-        }
-        bodyView.dismissAutocomplete()
-        updateSurfaceAutocompletePopup()
-    }
-
-    private func updateMouseDownMonitor() {
-        guard window != nil else {
-            removeMouseDownMonitor()
-            return
-        }
-        guard mouseDownMonitor == nil else {
-            return
-        }
-        let monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event -> NSEvent? in
-            guard let self else {
-                return event
-            }
-            return self.dismissComposerAutocompleteIfClickOutside(event)
-        }
-        mouseDownMonitor = ChatSurfaceLocalEventMonitor(monitor)
-    }
-
-    private func removeMouseDownMonitor() {
-        mouseDownMonitor = nil
     }
 
     private func measuredComposerHeight(for composerView: NSView, width: CGFloat) -> CGFloat {
@@ -308,100 +106,6 @@ final class AppKitChatSurfaceView: NSView {
             return max(0, ceil(panelView.fittingSize.height))
         }
         return max(0, ceil(composerView.fittingSize.height))
-    }
-
-    private func updateSurfaceAutocompletePopup() {
-        guard let source = composerAutocompletePopupSource() else {
-            removeSurfaceAutocompletePopup()
-            return
-        }
-
-        let popup = source.popup
-        let frame = autocompleteSurfaceFrame(for: source)
-        if popup.superview !== self {
-            popup.removeFromSuperview()
-            addSubview(popup, positioned: .above, relativeTo: nil)
-        }
-        popup.frame = frame
-        popup.needsLayout = true
-        popup.layoutSubtreeIfNeeded()
-        surfaceAutocompletePopupView = popup
-        updateMouseDownMonitor()
-
-        autocompleteEventCaptureView.configure(popup: popup)
-        autocompleteEventCaptureView.frame = frame
-        if autocompleteEventCaptureView.superview !== self || subviews.last !== autocompleteEventCaptureView {
-            autocompleteEventCaptureView.removeFromSuperview()
-            addSubview(autocompleteEventCaptureView, positioned: .above, relativeTo: nil)
-        }
-    }
-
-    private func autocompleteSurfaceFrame(for source: AutocompletePopupSource) -> NSRect {
-        let intrinsicHeight = source.popup.intrinsicContentSize.height
-        guard intrinsicHeight.isFinite, intrinsicHeight > source.frame.height else {
-            return source.frame
-        }
-        return NSRect(x: source.frame.minX, y: source.frame.minY, width: source.frame.width, height: intrinsicHeight)
-    }
-
-    private func composerAutocompletePopupSource() -> AutocompletePopupSource? {
-        guard let composerView else {
-            return nil
-        }
-        if let bodyView = visibleComposerBody(in: composerView),
-           let frame = bodyView.autocompletePopupFrame(in: self),
-           !frame.isEmpty {
-            return AutocompletePopupSource(popup: bodyView.autocompletePopupView, frame: frame)
-        }
-        if let popup = visibleAutocompletePopup(in: composerView),
-           !popup.bounds.isEmpty {
-            return AutocompletePopupSource(popup: popup, frame: convert(popup.bounds, from: popup))
-        }
-        if let popup = surfaceAutocompletePopupView,
-           popup.superview === self,
-           !popup.isHidden,
-           !popup.bounds.isEmpty {
-            return AutocompletePopupSource(popup: popup, frame: popup.frame)
-        }
-        return nil
-    }
-
-    private func removeSurfaceAutocompletePopup() {
-        guard let popup = surfaceAutocompletePopupView else {
-            return
-        }
-        if popup.superview === self {
-            popup.removeFromSuperview()
-        }
-        autocompleteEventCaptureView.removeFromSuperview()
-        surfaceAutocompletePopupView = nil
-        removeMouseDownMonitor()
-    }
-
-    private func visibleComposerBody(in view: NSView) -> AppKitChatComposerBodyView? {
-        if let bodyView = view as? AppKitChatComposerBodyView,
-           !bodyView.isHidden {
-            return bodyView
-        }
-        for subview in view.subviews where !subview.isHidden {
-            if let match = visibleComposerBody(in: subview) {
-                return match
-            }
-        }
-        return nil
-    }
-
-    private func visibleAutocompletePopup(in view: NSView) -> AppKitComposerAutocompletePopupView? {
-        if let popup = view as? AppKitComposerAutocompletePopupView,
-           !popup.isHidden {
-            return popup
-        }
-        for subview in view.subviews {
-            if let match = visibleAutocompletePopup(in: subview) {
-                return match
-            }
-        }
-        return nil
     }
 
     private func configureHostedInvalidation(_ view: NSView) {

@@ -1,5 +1,5 @@
 import BlockInputKit
-import SwiftUI
+import Foundation
 
 /// Composer state and callbacks consumed by the native AppKit body.
 ///
@@ -24,10 +24,8 @@ struct AppKitChatComposerBodyConfiguration {
     let hasTopContent: Bool
     let workingDirectory: String?
     let requestFirstResponder: UUID?
-    let colorScheme: ColorScheme
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
-    let onTextChange: (String) -> Void
     let onBlockInputMutation: (Bool) -> Void
     let onBlockInputDocumentChange: (BlockInputDocument) -> Void
     let onDraftSnapshotProviderChange: (ComposerDraftSnapshotProvider?) -> Void
@@ -55,10 +53,8 @@ struct AppKitChatComposerBodyConfiguration {
         hasTopContent: Bool,
         workingDirectory: String?,
         requestFirstResponder: UUID?,
-        colorScheme: ColorScheme,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
-        onTextChange: @escaping (String) -> Void,
         onBlockInputMutation: @escaping (Bool) -> Void = { _ in },
         onBlockInputDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
@@ -85,10 +81,8 @@ struct AppKitChatComposerBodyConfiguration {
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory
         self.requestFirstResponder = requestFirstResponder
-        self.colorScheme = colorScheme
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
-        self.onTextChange = onTextChange
         self.onBlockInputMutation = onBlockInputMutation
         self.onBlockInputDocumentChange = onBlockInputDocumentChange
         self.onDraftSnapshotProviderChange = onDraftSnapshotProviderChange

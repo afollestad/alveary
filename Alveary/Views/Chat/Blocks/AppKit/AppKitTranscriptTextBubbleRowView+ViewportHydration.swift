@@ -53,7 +53,7 @@ extension AppKitTranscriptTextBubbleRowView {
     func document(for configuration: Configuration) -> AppMarkdownDocument {
         let composerChipProvider: ((String) -> [AppTextEditorChip])?
         if configuration.role == .user {
-            composerChipProvider = ChatInputFieldTextSupport.composerTextChips(in:)
+            composerChipProvider = ChatComposerTextSupport.composerTextChips(in:)
         } else {
             composerChipProvider = nil
         }

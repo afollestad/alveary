@@ -13,9 +13,9 @@ final class AppState {
     var pendingDiffAction: DiffActionRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
     var previousSelection: SidebarBookmark?
-    // Set by commands that want the composer to grab focus once a thread view mounts
-    // (e.g. ⌘N). The sidebar's `selectedSidebarItem` `.onChange` hook skips its usual
-    // focus claim while this is non-nil, and `ChatInputField` consumes and clears it.
+    // Set by commands that want the BlockInput composer to grab focus once a
+    // thread view mounts (e.g. ⌘N). The sidebar's `selectedSidebarItem`
+    // `.onChange` hook skips its usual focus claim while this is non-nil.
     var pendingComposerFocusToken: UUID?
 
     func openSettings() {

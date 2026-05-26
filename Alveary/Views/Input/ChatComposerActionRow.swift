@@ -1,14 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// SwiftUI bridge for the native composer action row while the surrounding
-/// composer shell remains SwiftUI-owned.
+/// SwiftUI bridge for the native composer action row.
 ///
 /// AppKit owns migrated composer controls because Alveary's variable-height
 /// transcript/composer stack needs deterministic measurement and responder
 /// behavior. SwiftUI's lazy/recycling and measurement behavior caused scroll
 /// position and performance issues in this UX, so new composer internals should
-/// prefer native views while `ChatInputField` remains a SwiftUI host.
+/// prefer native views.
 struct ChatComposerActionRow: NSViewRepresentable {
     let modelOptions: [String]
     @Binding var selectedModel: String
@@ -45,12 +44,12 @@ struct ChatComposerActionRow: NSViewRepresentable {
 
     private var configuration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
-            modelOptions: modelOptions.map { .init(value: $0, title: ChatInputFieldTextSupport.modelLabel(for: $0)) },
+            modelOptions: modelOptions.map { .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0)) },
             selectedModel: selectedModel,
-            supportedEffortLevels: supportedEffortLevels.map { .init(value: $0, title: ChatInputFieldTextSupport.effortLabel(for: $0)) },
+            supportedEffortLevels: supportedEffortLevels.map { .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0)) },
             selectedEffort: selectedEffort,
             supportedPermissionModes: supportedPermissionModes.map {
-                .init(value: $0.value, title: ChatInputFieldTextSupport.permissionModeLabel(for: $0))
+                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: showWorktreePicker,
@@ -305,10 +304,10 @@ final class ChatComposerActionRowView: NSView {
             onSelect: configuration.onPermissionModeChange
         )
         worktreeMenu.configure(
-            title: ChatInputFieldTextSupport.worktreeLocationLabel(for: configuration.selectedUseWorktree),
+            title: ChatComposerTextSupport.worktreeLocationLabel(for: configuration.selectedUseWorktree),
             options: [
-                .init(value: "false", title: ChatInputFieldTextSupport.worktreeLocationLabel(for: false)),
-                .init(value: "true", title: ChatInputFieldTextSupport.worktreeLocationLabel(for: true))
+                .init(value: "false", title: ChatComposerTextSupport.worktreeLocationLabel(for: false)),
+                .init(value: "true", title: ChatComposerTextSupport.worktreeLocationLabel(for: true))
             ],
             selectedValue: String(configuration.selectedUseWorktree),
             isEnabled: !configuration.areControlsDisabled,
@@ -421,7 +420,7 @@ final class ChatComposerActionRowView: NSView {
               !reason.canStop else {
             return ""
         }
-        return ChatInputFieldTextSupport.progressLabel(for: reason)
+        return ChatComposerTextSupport.progressLabel(for: reason)
     }
 }
 

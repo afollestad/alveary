@@ -135,7 +135,7 @@ private enum InlineSegment {
         // code literal, not a file reference — skip them so they render as regular
         // code instead of getting double-stylized as a separate mention chip.
         let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
-        let mentions = ChatInputFieldTextSupport.fileMentionMatches(in: markdown)
+        let mentions = ChatComposerTextSupport.fileMentionMatches(in: markdown)
             .filter { match in
                 !excludedRanges.contains { NSIntersectionRange($0, match.highlightRange).length > 0 }
             }
@@ -148,7 +148,7 @@ private enum InlineSegment {
             ChipEvent.mention(
                 range: match.highlightRange,
                 displayText: CanonicalPath.decodeStoredMentionPath(
-                    ChatInputFieldTextSupport.mentionChipDisplayText(for: match.path)
+                    ChatComposerTextSupport.mentionChipDisplayText(for: match.path)
                 )
             )
         })

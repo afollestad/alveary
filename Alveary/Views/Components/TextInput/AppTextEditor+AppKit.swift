@@ -54,9 +54,9 @@ struct AppKitTextEditorView: NSViewRepresentable {
     // `Binding<Bool>` propagate through SwiftUI's normal state-tracking path, whereas
     // writes to `focus: FocusState<Bool>.Binding?` — which also happen in
     // `handleFocusChange` — don't reliably invalidate view descendants here because
-    // `ChatInputField` has no `.focused($state)` anchor in its view hierarchy. Features
-    // that need to read "is the composer actively focused?" during body evaluation (e.g.
-    // the inline slash-command hint) should drive off this plain binding.
+    // Some NSViewRepresentable hosts have no `.focused($state)` anchor in their
+    // view hierarchy. Features that need body-time first-responder state should
+    // drive off this plain binding.
     let isAppKitFirstResponder: Binding<Bool>?
     let disablesAppKitDragDestination: Bool
 

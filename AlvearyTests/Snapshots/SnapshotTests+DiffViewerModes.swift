@@ -100,7 +100,7 @@ extension SnapshotTests {
 
     func testDiffViewerPaneCurrentChangesMode() async {
         let selectedFile = FileStatus(
-            path: "Alveary/Views/Input/ChatInputField.swift",
+            path: "Alveary/Views/Chat/ChatView.swift",
             originalPath: nil,
             status: .modified,
             isStaged: false

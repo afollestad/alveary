@@ -167,7 +167,7 @@ struct SidebarView: View {
         .onChange(of: appState.selectedSidebarItem) { _, item in
             syncExpansionWithSelection(item)
             // Skip the focus claim when a command has requested the composer grab focus
-            // (e.g. ⌘N). `ChatInputField` consumes and clears the token once it focuses.
+            // (e.g. ⌘N). The BlockInput composer consumes and clears the token.
             if appState.pendingComposerFocusToken == nil {
                 claimSidebarFocus()
             }

@@ -34,7 +34,7 @@ struct ThreadsSettingsTabView: View {
                             "Model",
                             selection: $defaultModel,
                             options: viewModel.supportedModels,
-                            label: ChatInputFieldTextSupport.modelLabel(for:)
+                            label: ChatComposerTextSupport.modelLabel(for:)
                         )
                     }
                 }
@@ -45,7 +45,7 @@ struct ThreadsSettingsTabView: View {
                             "Effort",
                             selection: $effort,
                             options: viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel),
-                            label: ChatInputFieldTextSupport.effortLabel(for:)
+                            label: ChatComposerTextSupport.effortLabel(for:)
                         )
                     }
                 }
@@ -56,7 +56,7 @@ struct ThreadsSettingsTabView: View {
                             "Permission mode",
                             selection: $permissionMode,
                             options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
-                            label: { ChatInputFieldTextSupport.permissionModeLabel(for: $0) }
+                            label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
                         )
                     }
                 }

@@ -57,10 +57,10 @@ enum TranscriptToolSummaryFormatter {
         let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
         let source = text as NSString
 
-        var chips = ChatInputFieldTextSupport.fileMentionMatches(in: text).map { match in
+        var chips = ChatComposerTextSupport.fileMentionMatches(in: text).map { match in
             AppTextEditorChip(
                 range: match.highlightRange,
-                displayText: ChatInputFieldTextSupport.mentionChipDisplayText(for: match.path),
+                displayText: ChatComposerTextSupport.mentionChipDisplayText(for: match.path),
                 style: .fileMention
             )
         }

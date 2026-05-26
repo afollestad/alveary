@@ -11,7 +11,7 @@ extension AppKitChatComposerBodyView {
         } else {
             let controller = BlockInputComposerBridgeController(configuration: bridgeConfiguration)
             bridgeController = controller
-            addSubview(controller.view)
+            editorClipView.addSubview(controller.view)
             measuredEditorHeight = max(0, ceil(controller.view.fittingSize.height))
         }
     }
@@ -41,9 +41,6 @@ extension AppKitChatComposerBodyView {
             onDocumentChange: configuration.onBlockInputDocumentChange,
             onPreferredHeightChange: { [weak self] height in
                 self?.handlePreferredHeightChange(height)
-            },
-            onFocusChange: { [weak self] isFocused in
-                self?.handleFocusChange(isFocused)
             }
         )
     }

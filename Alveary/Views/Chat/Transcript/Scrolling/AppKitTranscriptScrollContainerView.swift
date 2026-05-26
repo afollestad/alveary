@@ -3,7 +3,7 @@ import QuartzCore
 
 @MainActor
 final class AppKitTranscriptScrollContainerView: NSView {
-    let scrollView = AppKitTranscriptScrollView()
+    let scrollView = NSScrollView()
     let transcriptDocumentView = AppKitTranscriptDocumentLayoutView()
     var activeScrollAnimationToken: UUID?
     private(set) var paginationGeneration = 0

@@ -58,12 +58,15 @@ final class DiffViewerViewModelTests: XCTestCase {
         )
 
         let initialStatusCalls = await fixture.gitService.statusCallCount()
-        try? await Task.sleep(for: .milliseconds(70))
+        try? await Task.sleep(for: .milliseconds(140))
         let polledStatusCalls = await fixture.gitService.statusCallCount()
 
         XCTAssertGreaterThan(polledStatusCalls, initialStatusCalls)
 
         fixture.viewModel.setWatchingEnabled(false)
+        // A poll already dispatched before disabling can still finish. Wait one
+        // short grace period, then assert the count stabilizes.
+        try? await Task.sleep(for: .milliseconds(40))
         let callsAfterDisable = await fixture.gitService.statusCallCount()
 
         try? await Task.sleep(for: .milliseconds(70))

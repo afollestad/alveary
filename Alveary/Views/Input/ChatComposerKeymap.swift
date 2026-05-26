@@ -3,10 +3,10 @@ import SwiftUI
 
 /// SwiftUI compatibility wrapper for the native composer keymap view.
 ///
-/// The production composer presents `AppKitChatInputKeymapView` through
-/// `AppKitChatInputKeymapPresenter`; this wrapper exists for legacy SwiftUI
-/// composer hosts and snapshots while the migration is split into commits.
-struct ChatInputKeymapSheet: NSViewRepresentable {
+/// The production composer presents `AppKitChatComposerKeymapView` through
+/// `AppKitChatComposerKeymapPresenter`; this wrapper exists only for SwiftUI
+/// snapshot coverage of the same native view.
+struct ChatComposerKeymapSheet: NSViewRepresentable {
     let supportsMidTurnSteering: Bool
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
 
@@ -20,8 +20,8 @@ struct ChatInputKeymapSheet: NSViewRepresentable {
         self.defaultEnterBehavior = defaultEnterBehavior
     }
 
-    func makeNSView(context: Context) -> AppKitChatInputKeymapView {
-        let view = AppKitChatInputKeymapView()
+    func makeNSView(context: Context) -> AppKitChatComposerKeymapView {
+        let view = AppKitChatComposerKeymapView()
         view.configure(
             .init(
                 supportsMidTurnSteering: supportsMidTurnSteering,
@@ -32,7 +32,7 @@ struct ChatInputKeymapSheet: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: AppKitChatInputKeymapView, context: Context) {
+    func updateNSView(_ view: AppKitChatComposerKeymapView, context: Context) {
         view.configure(
             .init(
                 supportsMidTurnSteering: supportsMidTurnSteering,
@@ -46,7 +46,7 @@ struct ChatInputKeymapSheet: NSViewRepresentable {
 /// Presents the native composer keymap view without adding a SwiftUI sheet to
 /// the active chat surface.
 @MainActor
-enum AppKitChatInputKeymapPresenter {
+enum AppKitChatComposerKeymapPresenter {
     // Sheets need a strong owner outside the window hierarchy until AppKit
     // delivers the sheet-completion callback.
     private static var currentPanel: NSPanel?
@@ -61,7 +61,7 @@ enum AppKitChatInputKeymapPresenter {
             return
         }
 
-        let contentView = AppKitChatInputKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
+        let contentView = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
         let panel = makePanel(contentView: contentView)
         currentPanel = panel
 
@@ -129,7 +129,7 @@ enum AppKitChatInputKeymapPresenter {
 /// Keeping this view in AppKit prevents the production composer action row from
 /// needing a SwiftUI sheet boundary just to display static keyboard help.
 @MainActor
-final class AppKitChatInputKeymapView: NSView {
+final class AppKitChatComposerKeymapView: NSView {
     struct Configuration: Equatable {
         let supportsMidTurnSteering: Bool
         let defaultEnterBehavior: ThreadEnterDefaultBehavior
@@ -138,7 +138,7 @@ final class AppKitChatInputKeymapView: NSView {
     private let titleField = NSTextField(labelWithString: "Keyboard shortcuts")
     private let descriptionField = NSTextField(labelWithString: "Use these shortcuts while typing in the chat composer.")
     private let closeButton = ComposerIconButton(symbolName: "xmark")
-    private var rows: [AppKitChatInputKeymapRowView] = []
+    private var rows: [AppKitChatComposerKeymapRowView] = []
     private var configuration: Configuration?
     private var onClose: () -> Void = {}
 
@@ -232,7 +232,7 @@ final class AppKitChatInputKeymapView: NSView {
     private func rebuildRows() {
         rows.forEach { $0.removeFromSuperview() }
         rows = keymapRows.map { row in
-            let rowView = AppKitChatInputKeymapRowView()
+            let rowView = AppKitChatComposerKeymapRowView()
             rowView.configure(keys: row.keys, description: row.description)
             addSubview(rowView)
             return rowView
@@ -280,7 +280,7 @@ final class AppKitChatInputKeymapView: NSView {
     }
 }
 
-private final class AppKitChatInputKeymapRowView: NSView {
+private final class AppKitChatComposerKeymapRowView: NSView {
     private let keysField = NSTextField(labelWithString: "")
     private let descriptionField = NSTextField(labelWithString: "")
 

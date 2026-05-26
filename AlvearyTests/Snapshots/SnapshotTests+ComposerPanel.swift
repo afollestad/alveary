@@ -101,80 +101,12 @@ extension SnapshotTests {
         )
     }
 
-    func testAppKitComposerAutocompletePopupFiles() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleFileAutocomplete),
-            size: CGSize(width: 540, height: 148),
-            named: "appkit_composer_autocomplete_files",
-            colorScheme: .dark
-        )
-    }
-
-    func testAppKitComposerAutocompletePopupFilesLight() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleFileAutocomplete),
-            size: CGSize(width: 540, height: 148),
-            named: "appkit_composer_autocomplete_files_light",
-            colorScheme: .light
-        )
-    }
-
-    func testAppKitComposerAutocompletePopupScrolledHighlight() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleScrolledFileAutocomplete),
-            size: CGSize(width: 540, height: 286),
-            named: "appkit_composer_autocomplete_files_scrolled_highlight",
-            colorScheme: .dark
-        )
-    }
-
-    func testAppKitComposerAutocompletePopupSkills() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleSkillAutocomplete),
-            size: CGSize(width: 540, height: 148),
-            named: "appkit_composer_autocomplete_skills",
-            colorScheme: .dark
-        )
-    }
-
-    func testAppKitComposerAutocompletePopupEmptyState() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleEmptyAutocomplete),
-            size: CGSize(width: 540, height: 48),
-            named: "appkit_composer_autocomplete_empty",
-            colorScheme: .dark
-        )
-    }
-
-    func testAppKitComposerAutocompletePopupLoadingState() {
-        assertMacSnapshot(
-            AppKitAutocompletePopupSnapshot(autocomplete: sampleLoadingAutocomplete),
-            size: CGSize(width: 540, height: 48),
-            named: "appkit_composer_autocomplete_loading",
-            colorScheme: .dark
-        )
-    }
-
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedEffortLevels: ["low", "medium", "high"],
             supportedPermissionModes: samplePermissionModes,
             supportsMidTurnSteering: true
         )
-    }
-}
-
-private struct AppKitAutocompletePopupSnapshot: NSViewRepresentable {
-    let autocomplete: ComposerAutocompleteState
-
-    func makeNSView(context: Context) -> AppKitComposerAutocompletePopupView {
-        let view = AppKitComposerAutocompletePopupView()
-        view.configure(autocomplete: autocomplete, onSelect: { _ in }, onHighlight: { _ in })
-        return view
-    }
-
-    func updateNSView(_ view: AppKitComposerAutocompletePopupView, context: Context) {
-        view.configure(autocomplete: autocomplete, onSelect: { _ in }, onHighlight: { _ in })
     }
 }
 
@@ -208,15 +140,14 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
     var body: some View {
         AppKitComposerPanelSnapshotRepresentable(
-            content: AnyView(EmptyView()),
-            nativeBodyConfiguration: nativeBodyConfiguration,
+            bodyConfiguration: bodyConfiguration,
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration
         )
     }
 
-    private var nativeBodyConfiguration: AppKitChatComposerBodyConfiguration {
+    private var bodyConfiguration: AppKitChatComposerBodyConfiguration {
         AppKitChatComposerBodyConfiguration(
             text: text,
             mode: .idle,
@@ -232,10 +163,8 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             hasTopContent: !topContentConfiguration.items.isEmpty,
             workingDirectory: "/tmp/alveary",
             requestFirstResponder: focusRequestToken,
-            colorScheme: colorScheme,
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
-            onTextChange: { text = $0 },
             onSubmit: {},
             onSteer: {},
             onStop: {},
@@ -268,15 +197,15 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
     private var actionRowConfiguration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
             modelOptions: AppSettings.supportedModels.map {
-                .init(value: $0, title: ChatInputFieldTextSupport.modelLabel(for: $0))
+                .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0))
             },
             selectedModel: selectedModel,
             supportedEffortLevels: ["low", "medium", "high"].map {
-                .init(value: $0, title: ChatInputFieldTextSupport.effortLabel(for: $0))
+                .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
             },
             selectedEffort: selectedEffort,
             supportedPermissionModes: Self.permissionModes.map {
-                .init(value: $0.value, title: ChatInputFieldTextSupport.permissionModeLabel(for: $0))
+                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: false,
@@ -312,8 +241,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 }
 
 private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
-    let content: AnyView
-    let nativeBodyConfiguration: AppKitChatComposerBodyConfiguration?
+    let bodyConfiguration: AppKitChatComposerBodyConfiguration
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration
@@ -330,13 +258,11 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
 
     private var configuration: AppKitChatComposerPanelConfiguration {
         AppKitChatComposerPanelConfiguration(
-            content: content,
-            nativeBodyConfiguration: nativeBodyConfiguration,
+            bodyConfiguration: bodyConfiguration,
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration,
             showsTopDivider: true,
-            hasTopContent: false,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
                 topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
@@ -351,35 +277,24 @@ private struct ChatComposerPanelSnapshotView: View {
     let viewModel: ConversationViewModel
     let composerCapabilities: ComposerCapabilities
 
-    @State private var selectedModel = "sonnet"
-    @State private var selectedEffort = "medium"
-    @State private var selectedPermissionMode = "default"
-    @State private var selectedUseWorktree = false
-    @State private var focusRequestToken: UUID?
-
     var body: some View {
-        ChatComposerPanel(
-            viewModel: viewModel,
-            composerCapabilities: composerCapabilities,
-            workingDirectory: "/tmp/alveary",
-            showsTopDivider: true,
-            composerMode: .idle,
-            defaultEnterBehavior: .queue,
-            composerIsBusy: false,
-            isProjectTrustBlocked: false,
-            selectedModel: $selectedModel,
-            selectedEffort: $selectedEffort,
-            selectedPermissionMode: $selectedPermissionMode,
-            selectedUseWorktree: $selectedUseWorktree,
-            showWorktreePicker: false,
-            sessionLocationLabel: nil,
-            usageSummary: nil,
-            loadFileCompletions: { [] },
-            loadSkillCompletions: { [] },
-            onSubmit: {},
-            onSteer: {},
-            onStop: {},
-            focusRequestToken: $focusRequestToken
+        AppKitComposerPanelNativeRowSnapshot(
+            topContentConfiguration: .init(items: topContentItems)
         )
+    }
+
+    private var topContentItems: [AppKitChatComposerTopContentView.Item] {
+        if let lastTurnError = viewModel.lastTurnError {
+            return [
+                .inlineBanner(.init(
+                    message: lastTurnError,
+                    severity: .error,
+                    actionTitle: viewModel.canRetryFailedSessionHandoff ? "Retry" : nil,
+                    onAction: viewModel.canRetryFailedSessionHandoff ? {} : nil,
+                    onDismiss: viewModel.canRetryFailedSessionHandoff ? nil : {}
+                ))
+            ]
+        }
+        return []
     }
 }

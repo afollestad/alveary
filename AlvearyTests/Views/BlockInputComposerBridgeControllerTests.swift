@@ -120,7 +120,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertFalse(controller.undoController === initialUndoController)
     }
 
-    func testDocumentChangeUpdatesBridgeMarkdownMirror() {
+    func testDocumentChangeKeepsUserEditWithoutResettingUndo() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
         let initialUndoController = controller.undoController
         let document = BlockInputDocument(markdown: "User edit")
@@ -134,7 +134,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertTrue(controller.undoController === initialUndoController)
     }
 
-    func testCoalescedPublishDoesNotResetUndoForMirroredDocument() {
+    func testCoalescedPublishDoesNotResetUndoForLiveDocument() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
         let initialUndoController = controller.undoController
         let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Before"))
@@ -177,7 +177,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertFalse(controller.undoController === initialUndoController)
     }
 
-    func testExternalRevisionUsesLiveDocumentWhenMirrorHasNotPublished() {
+    func testExternalRevisionCanClearLiveDocumentBeforeCoalescedPublish() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: ""))
         let initialUndoController = controller.undoController
 

@@ -52,7 +52,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Views/Chat/Transcript/Links/AGENTS.md`: markdown link resolution.
 - `Alveary/Views/Chat/Transcript/Scrolling/AGENTS.md`: follow-mode and scroll mechanics.
 - `Alveary/Views/DiffViewer/AGENTS.md`: diff viewer pane UI and loading overlays.
-- `Alveary/Views/Input/AGENTS.md`: composer, autocomplete, worktree picker.
+- `Alveary/Views/Input/AGENTS.md`: composer, BlockInputKit bridge, worktree picker.
 - `Alveary/Views/Projects/AGENTS.md`: project settings editor.
 - `Alveary/Views/Sidebar/AGENTS.md`: sidebar interactions.
 - `Alveary/Views/Terminal/AGENTS.md`: terminal pane.

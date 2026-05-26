@@ -13,17 +13,9 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 
 ## Transcript And Composer Rendering
 
-- `AppKitChatSurfaceView` owns the active chat surface's parent layout. During
-  the migration, `ChatView` may still build SwiftUI content-mode and composer
-  child views, but the vertical transcript/empty-state/composer frame split
-  belongs to the AppKit surface.
-- Production composer completion is BlockInputKit-owned and uses caret
-  placement inside the editor. Legacy composer autocomplete still routes hit
-  tests, mouse moves, mouse downs, and wheel events through
-  `AppKitChatSurfaceView` so the old floating popup captures events before the
-  transcript. The surface may monitor mouse-downs to dismiss that legacy popup,
-  but do not use a local wheel-event monitor because it can starve transcript
-  scrolling outside the popup.
+- `AppKitChatSurfaceView` owns the active chat surface's parent layout.
+  `ChatView` may still build SwiftUI content-mode child views, but the vertical
+  transcript/empty-state/composer frame split belongs to the AppKit surface.
 - Mostly-vertical wheel events over nested horizontal scroll views, such as
   markdown tables and code blocks, should route directly to the vertical
   transcript scroll owner from the chat surface. Do not send those events to the
@@ -35,31 +27,27 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
     - **Own production top content.** Last-turn errors, session-continuity
       notices, and staged-context banners render through native AppKit top
       content in the production panel so their height and hit testing share the
-      editor/action-row coordinate space. Legacy SwiftUI composer snapshots may
-      still render those rows inside `ChatComposerPanelContent`.
+      editor/action-row coordinate space.
     - **Own production action-row placement.** Active `ChatView` routes
       `ChatComposerActionRowView` through the AppKit panel so editor/action-row
-      spacing is measured natively. Legacy SwiftUI composer snapshots may still
-      keep the row inside `ChatInputField`.
+      spacing is measured natively.
     - **Own production queued-message placement.** Active `ChatView` routes
       pending queued messages through `AppKitChatQueuedMessagesView` above the
-      native composer body. Legacy SwiftUI composer snapshots may still render
-      queued rows inside `ChatInputField`; do not let production queued rows
-      re-enter the SwiftUI editor stack.
+      native composer body. Do not let production queued rows re-enter a
+      SwiftUI editor stack.
     - **Own production composer body.** Active `ChatView` configures
       `AppKitChatComposerBodyView` for the BlockInputKit editor bridge,
-      preferred-height invalidation, and shortcut configuration. Legacy SwiftUI
-      composer snapshots may still host `ChatInputField`, but production fixes
-      should stay on the native body path.
+      preferred-height invalidation, and shortcut configuration. Production
+      fixes should stay on the native body path.
 - `ProjectTrustPromptView` lives in `ProjectTrustPrompt.swift`; `ThreadDetailView+ProjectTrust.swift` owns the trust-state checks and denial deletion.
 - `EmptyThreadState` lives in `ChatView+EmptyThreadState.swift` and checks `isCancellingInitialSetup` before `setupPhase` so cancellation feedback takes precedence even when `setupPhase` is still set mid-rollback. Keep that ordering if you restructure the view; otherwise the empty-thread pane flickers back to "Creating worktree" during the rollback shell commands.
 - Transcript rendering is AppKit-owned. Keep live transcript row work under `Blocks/AppKit/` and route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`; do not reintroduce SwiftUI transcript row views.
-- User transcript bubbles still render as markdown, including slash-command and `@`-mention chips. AppKit rows reuse `AppMarkdownParser.attachComposerChips(to:)` and `ChatInputFieldTextSupport.composerTextChips(in:)`; chip labels are always `lastPathComponent`, so bubble rendering does not need a working directory.
+- User transcript bubbles still render as markdown, including slash-command and `@`-mention chips. AppKit rows reuse `AppMarkdownParser.attachComposerChips(to:)` and `ChatComposerTextSupport.composerTextChips(in:)`; chip labels are always `lastPathComponent`, so bubble rendering does not need a working directory.
 - Long static user and assistant bubbles should keep exact AppKit markdown measurement for frame/clipping/fade controls. Keep Show more/less on the AppKit header toggle; do not add bubble-wide gestures or nested vertical scroll views.
 - `attachComposerChips(to:)` skips any attributed-string range that already carries a markdown `.link`, a `.codeBlock` block-level `presentationIntent` (fenced code block), or a `.code` `inlinePresentationIntent` (backtick inline code). The inline-code guard is load-bearing: `composerTextChips` is invoked with the *parsed* flat string (backticks stripped), so the helper's own `codeRanges`-based filter returns nothing to exclude. Without the guard, a user writing `` `@path/to/file.swift` `` would have their inline code clobbered by a composer chip that truncates the path to `@file.swift`. Keep each condition; each covers a distinct case.
-- Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small while still letting composer/autocomplete z-order stay local to the panel.
-- Composer panel top/bottom clearance should have one owner per edge. Production editor-to-action-row spacing comes from `AppKitChatComposerPanelView.Layout.actionRowSpacing`; legacy SwiftUI `ChatInputField` snapshots may still use `ChatComposerPanelLayout.inputOuterPadding`, but production fixes should not stack that padding with native panel spacing.
-- Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`; the SwiftUI `StagedContextBanner` remains only for legacy composer snapshots. Keep staged context above the composer without introducing transcript rows.
+- Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small.
+- Composer panel top/bottom clearance should have one owner per edge. Production editor-to-action-row spacing comes from `AppKitChatComposerPanelView.Layout.actionRowSpacing`; do not stack that padding with native panel spacing.
+- Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`. Keep staged context above the composer without introducing transcript rows.
 - Do not reintroduce a changed-files strip above the composer. Diff status belongs in the main toolbar button that opens the Diff Viewer, so changed-file loading cannot alter transcript/composer height or leave stale transcript measurements.
 
 ## Interaction Contracts

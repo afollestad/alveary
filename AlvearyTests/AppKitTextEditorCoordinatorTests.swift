@@ -8,7 +8,7 @@ import XCTest
 final class AppKitTextEditorCoordinatorTests: XCTestCase {
 
     func testHandleLayoutChangeReappliesChipVisibilityWhenMentionWraps() {
-        let text = "Inspect @Alveary/Views/Input/ChatInputField.swift next"
+        let text = "Inspect @Alveary/Views/Chat/ChatView.swift next"
         var measuredHeight: CGFloat = 0
 
         let parent = AppKitTextEditorView(
@@ -19,7 +19,7 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
             verticalPadding: 10,
             isDisabled: false,
             focus: nil,
-            textChips: ChatInputFieldTextSupport.composerTextChips(in:),
+            textChips: ChatComposerTextSupport.composerTextChips(in:),
             keyPressKeys: [],
             onKeyPress: nil
         )
@@ -41,17 +41,12 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
 
         coordinator.applyConfiguration(from: parent)
 
-        guard let mentionRange = text.range(of: "@Alveary/Views/Input/ChatInputField.swift") else {
-            return XCTFail("Expected mention range")
-        }
-
-        let chipInteriorIndex = text.index(mentionRange.lowerBound, offsetBy: 1)
-        guard let mentionOffset = ChatInputFieldTextSupport.offset(of: chipInteriorIndex, in: text),
-              let initialColor = textView.textStorage?.attribute(.foregroundColor, at: mentionOffset, effectiveRange: nil) as? NSColor else {
+        let mentionOffset = (text as NSString).range(of: "@Alveary/Views/Chat/ChatView.swift").location + 1
+        guard let initialColor = textView.textStorage?.attribute(.foregroundColor, at: mentionOffset, effectiveRange: nil) as? NSColor else {
             return XCTFail("Expected mention styling")
         }
 
-        XCTAssertEqual(initialColor, .clear)
+        XCTAssertEqual(initialColor, NSColor.clear)
 
         scrollView.frame.size.width = 180
         textView.textContainer?.containerSize = NSSize(width: 180, height: CGFloat.greatestFiniteMagnitude)
@@ -143,10 +138,6 @@ final class AppKitTextEditorCoordinatorTests: XCTestCase {
 
         coordinator.syncSelectionIfNeeded()
 
-        XCTAssertEqual(
-            ChatInputFieldTextSupport.insertionPointOffset(text: text, textSelection: selection),
-            0
-        )
         XCTAssertEqual(textView.selectedRange(), NSRange(location: 0, length: 0))
     }
 

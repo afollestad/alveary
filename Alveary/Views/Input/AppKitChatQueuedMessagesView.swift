@@ -140,7 +140,6 @@ private final class AppKitChatQueuedMessageRowView: NSView {
     }
 
     private let iconView = NSImageView()
-    private let messageField = NSTextField(labelWithString: "")
     private let markdownView = AppKitMarkdownView(
         document: AppMarkdownDocument(content: AttributedString("")),
         inlineCodeStyle: .composer
@@ -151,7 +150,6 @@ private final class AppKitChatQueuedMessageRowView: NSView {
     private let editButton = AppKitChatQueuedMessageIconButton(symbolName: "pencil", isDestructive: false)
     private let dismissButton = AppKitChatQueuedMessageIconButton(symbolName: "trash", isDestructive: true)
     private var showsDivider = false
-    private var containsMarkdownCode = false
 
     private(set) var messageID = UUID()
 
@@ -177,16 +175,12 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let message = configuration.message
         messageID = message.id
         showsDivider = configuration.showsDivider
-        containsMarkdownCode = AppMarkdownCodeBlockParser.containsCode(in: message.text)
-        messageField.stringValue = message.text
         markdownView.configure(
             document: AppMarkdownParser(
-                composerChipProvider: ChatInputFieldTextSupport.composerTextChips(in:)
+                composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
             ).documentPreservingSource(for: message.text),
             inlineCodeStyle: .composer
         )
-        messageField.isHidden = containsMarkdownCode
-        markdownView.isHidden = !containsMarkdownCode
         contextIconView.isHidden = message.stagedContext == nil
         contextField.isHidden = message.stagedContext == nil
         steerButton.configure(isEnabled: !configuration.isSteerDisabled)
@@ -231,8 +225,7 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let textX = leadingPadding + iconSize + spacing
         let textWidth = max(0, actionsX - textX - 16)
         let textHeight = measuredTextHeight(width: textWidth)
-        messageField.frame = NSRect(x: textX, y: verticalPadding, width: textWidth, height: textHeight)
-        markdownView.frame = messageField.frame
+        markdownView.frame = NSRect(x: textX, y: verticalPadding, width: textWidth, height: textHeight)
 
         if !contextField.isHidden {
             let contextTextHeight = ceil(contextField.intrinsicContentSize.height)
@@ -279,12 +272,8 @@ private final class AppKitChatQueuedMessageRowView: NSView {
     }
 
     private func setup() {
-        [iconView, messageField, markdownView, contextIconView, contextField, steerButton, editButton, dismissButton].forEach(addSubview)
+        [iconView, markdownView, contextIconView, contextField, steerButton, editButton, dismissButton].forEach(addSubview)
         updateImages()
-        messageField.font = .preferredFont(forTextStyle: .body)
-        messageField.textColor = .labelColor
-        messageField.lineBreakMode = .byTruncatingTail
-        messageField.maximumNumberOfLines = 2
         contextField.font = .preferredFont(forTextStyle: .caption1)
         contextField.textColor = .secondaryLabelColor
         editButton.setAccessibilityLabel("Edit queued message")
@@ -295,12 +284,9 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         guard width > 0 else {
             return 20
         }
-        if containsMarkdownCode {
-            markdownView.frame.size.width = width
-            markdownView.layoutSubtreeIfNeeded()
-            return ceil(markdownView.fittingSize.height)
-        }
-        return ceil(messageField.sizeThatFits(NSSize(width: width, height: .greatestFiniteMagnitude)).height)
+        markdownView.frame.size.width = width
+        markdownView.layoutSubtreeIfNeeded()
+        return ceil(markdownView.fittingSize.height)
     }
 
     private static func symbolImage(named name: String) -> NSImage? {

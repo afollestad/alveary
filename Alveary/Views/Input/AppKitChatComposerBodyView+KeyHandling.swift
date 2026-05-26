@@ -1,43 +1,6 @@
 import Foundation
 
 extension AppKitChatComposerBodyView {
-    func handleKeyPress(_ keyPress: AppTextEditorKeyPress) -> AppTextEditorKeyPress.Result {
-        if handleAutocompleteKeyPress(keyPress) {
-            return .handled
-        }
-        if handleStopShortcutKeyPress(keyPress) {
-            return .handled
-        }
-        if handleCodeBlockNavigationKeyPress(keyPress) {
-            return .handled
-        }
-        if handleCodeBlockLineBreakKeyPress(keyPress) {
-            return .handled
-        }
-        guard let configuration,
-              keyPress.key == .return else {
-            return .ignored
-        }
-        if keyPress.modifiers.contains(.shift) {
-            return .ignored
-        }
-
-        switch configuration.mode {
-        case .progressOnly:
-            return .handled
-        case .busy(let canStop):
-            performBusyReturnAction(
-                canStop: canStop,
-                usesAlternateBehavior: keyPress.modifiers.contains(.option),
-                configuration: configuration
-            )
-            return .handled
-        case .idle:
-            performSubmit(configuration: configuration)
-            return .handled
-        }
-    }
-
     func performBusyReturnAction(
         canStop: Bool,
         usesAlternateBehavior: Bool,
@@ -74,25 +37,6 @@ extension AppKitChatComposerBodyView {
         configuration.onStop()
     }
 
-    func handleStopShortcutKeyPress(_ keyPress: AppTextEditorKeyPress) -> Bool {
-        guard let configuration else {
-            return false
-        }
-        switch ChatInputStopConfirmationDecision.resolve(
-            keyPress: keyPress,
-            canUseEscapeToStop: presentation(for: configuration).canUseEscapeToStop,
-            isConfirmationArmed: configuration.isStopConfirmationArmed
-        ) {
-        case .ignored:
-            return false
-        case .confirmStop:
-            performStop(configuration: configuration)
-        case .armConfirmation:
-            armStopConfirmation(configuration: configuration)
-        }
-        return true
-    }
-
     func armStopConfirmation(configuration: AppKitChatComposerBodyConfiguration) {
         stopConfirmationResetTask?.cancel()
         configuration.onStopConfirmationChange(true)
@@ -104,7 +48,7 @@ extension AppKitChatComposerBodyView {
             await MainActor.run {
                 guard let self,
                       let configuration = self.configuration,
-                      ChatInputStopConfirmationDecision.shouldClearAfterConfirmationTimeout(configuration.isStopConfirmationArmed) else {
+                      configuration.isStopConfirmationArmed else {
                     return
                 }
                 self.clearStopConfirmation(configuration: configuration)

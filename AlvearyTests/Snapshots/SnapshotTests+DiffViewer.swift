@@ -204,16 +204,16 @@ extension SnapshotTests {
         let fixture = SnapshotDiffViewerFixture(
             gitService: SnapshotMockGitService(
                 statusResults: [[
-                    FileStatus(path: "Alveary/Views/Input/ChatInputField.swift", originalPath: nil, status: .modified, isStaged: false),
+                    FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .added, isStaged: true)
                 ]],
-                diffResults: [Self.modifiedDiff(path: "Alveary/Views/Input/ChatInputField.swift")]
+                diffResults: [Self.modifiedDiff(path: "Alveary/Views/Chat/ChatView.swift")]
             )
         )
         defer { fixture.viewModel.tearDown() }
 
         let selectedFile = FileStatus(
-            path: "Alveary/Views/Input/ChatInputField.swift",
+            path: "Alveary/Views/Chat/ChatView.swift",
             originalPath: nil,
             status: .modified,
             isStaged: false
@@ -243,16 +243,16 @@ extension SnapshotTests {
         let fixture = SnapshotDiffViewerFixture(
             gitService: SnapshotMockGitService(
                 statusResults: [[
-                    FileStatus(path: "Alveary/Views/Input/ChatInputField.swift", originalPath: nil, status: .modified, isStaged: false),
+                    FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .added, isStaged: true)
                 ]],
-                diffResults: [Self.modifiedDiff(path: "Alveary/Views/Input/ChatInputField.swift")]
+                diffResults: [Self.modifiedDiff(path: "Alveary/Views/Chat/ChatView.swift")]
             )
         )
         defer { fixture.viewModel.tearDown() }
 
         let selectedFile = FileStatus(
-            path: "Alveary/Views/Input/ChatInputField.swift",
+            path: "Alveary/Views/Chat/ChatView.swift",
             originalPath: nil,
             status: .modified,
             isStaged: false
@@ -311,7 +311,7 @@ extension SnapshotTests {
     }
 
     func testDiffViewerPaneMultiSelectionPreviewState() async {
-        let firstFile = FileStatus(path: "Alveary/Views/Input/ChatInputField.swift", originalPath: nil, status: .modified, isStaged: false)
+        let firstFile = FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .modified, isStaged: false)
         let secondFile = FileStatus(path: "Alveary/Views/Chat/ChatView.swift", originalPath: nil, status: .added, isStaged: true)
         let fixture = SnapshotDiffViewerFixture(
             gitService: SnapshotMockGitService(
@@ -434,7 +434,7 @@ extension SnapshotTests {
     }
 
     func testDiffViewerPaneRenamedMetadata() async {
-        let oldPath = "Alveary/Views/Input/ChatInputField.swift"
+        let oldPath = "Alveary/Views/Chat/ChatView.swift"
         let newPath = "Alveary/Views/Input/ComposerInputField.swift"
         let fixture = SnapshotDiffViewerFixture(
             gitService: SnapshotMockGitService(

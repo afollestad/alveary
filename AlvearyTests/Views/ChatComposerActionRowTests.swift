@@ -304,7 +304,7 @@ final class ChatComposerActionRowTests: XCTestCase {
     }
 
     func testNativeKeymapViewUsesDefaultEnterBehaviorCopy() {
-        let view = AppKitChatInputKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
+        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
 
         view.configure(.init(supportsMidTurnSteering: true, defaultEnterBehavior: .steer))
         view.layoutSubtreeIfNeeded()
@@ -315,7 +315,7 @@ final class ChatComposerActionRowTests: XCTestCase {
     }
 
     func testNativeKeymapViewHidesOptionEnterWhenSteeringUnsupported() {
-        let view = AppKitChatInputKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
+        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
 
         view.configure(.init(supportsMidTurnSteering: false, defaultEnterBehavior: .queue))
         view.layoutSubtreeIfNeeded()
@@ -326,7 +326,7 @@ final class ChatComposerActionRowTests: XCTestCase {
     }
 
     func testNativeKeymapViewExposesAccessibleCloseAndRows() throws {
-        let view = AppKitChatInputKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
+        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
         var closeCount = 0
 
         view.configure(
