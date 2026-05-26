@@ -170,7 +170,7 @@ struct DiffViewerFileListSection: View {
 
     private func claimKeyboardFocus() {
         latestKeyboardNavigationScrollID = UUID()
-        chatComposerFocus?.wrappedValue = false
+        chatComposerFocus?.release()
         isKeyboardFocused = true
     }
 

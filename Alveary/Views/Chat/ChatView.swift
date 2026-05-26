@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftData
 import SwiftUI
@@ -40,7 +41,7 @@ struct ChatView: View {
         viewModel.turnState.isActive || viewModel.state.isSendingMessage
     }
 
-    private var composerMode: ComposerMode {
+    var composerMode: ComposerMode {
         ChatPresentation.composerMode(for: ChatComposerModeState(
             isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
             hasSetupPhase: viewModel.setupPhase != nil,
@@ -68,7 +69,7 @@ struct ChatView: View {
         )
     }
 
-    private var selectedModelBinding: Binding<String> {
+    var selectedModelBinding: Binding<String> {
         Binding(
             get: { threadPresentation.selectedModel },
             set: { viewModel.applyModelChange($0) }
@@ -175,10 +176,19 @@ struct ChatView: View {
         .focusedSceneValue(\.triggerSessionHandoffAction) {
             viewModel.triggerSessionHandoffFromCommand()
         }
+        .focusedSceneValue(\.chatComposerFocus, ChatComposerFocusHandle(
+            claim: {
+                appState.requestComposerFocus()
+            },
+            release: {
+                appState.pendingComposerFocusToken = nil
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        ))
     }
 }
 
-private extension ChatView {
+extension ChatView {
     var targetContentMode: ChatContentMode {
         ChatContentMode.resolve(
             projectTrustPrompt: projectTrustPrompt,
@@ -308,6 +318,9 @@ private extension ChatView {
     var composerBodyConfiguration: AppKitChatComposerBodyConfiguration {
         AppKitChatComposerBodyConfiguration(
             text: viewModel.state.inputDraft,
+            draftIdentity: conversation.id,
+            inputDraftRevision: viewModel.state.inputDraftRevision,
+            isTextEffectivelyEmpty: viewModel.state.inputDraftIsEffectivelyEmpty,
             mode: composerMode,
             defaultEnterBehavior: defaultEnterBehavior,
             isStopConfirmationArmed: isStopConfirmationArmed,
@@ -328,6 +341,15 @@ private extension ChatView {
                 viewModel.publishComposerDraft(newValue, source: .legacyText)
                 viewModel.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: newValue)
                 viewModel.cancelSessionHandoffCountdownIfDraftChanged(to: newValue)
+            },
+            onBlockInputMutation: { isEffectivelyEmpty in
+                viewModel.recordBlockInputDraftMutation(isEffectivelyEmpty: isEffectivelyEmpty)
+            },
+            onBlockInputDocumentChange: { document in
+                viewModel.scheduleBlockInputDraftPublish(document)
+            },
+            onDraftSnapshotProviderChange: { provider in
+                viewModel.composerDraftSnapshotProvider = provider
             },
             onSubmit: sendDraft,
             onSteer: steerDraft,
@@ -471,30 +493,4 @@ private extension ChatView {
         )
     }
 
-    var composerPresentation: ComposerPresentation {
-        ComposerPresentation(
-            text: viewModel.state.inputDraft,
-            isTextEffectivelyEmpty: viewModel.state.inputDraftIsEffectivelyEmpty,
-            mode: composerMode,
-            defaultEnterBehavior: defaultEnterBehavior,
-            supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-            isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
-            isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
-            handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
-            sendCountdown: viewModel.state.handoffCountdownRemaining,
-            isProjectTrustBlocked: isProjectTrustBlocked
-        )
-    }
-
-    var visibleEffortLevels: [String] {
-        ComposerSettingsPresentation.visibleEffortLevels(
-            selectedModel: selectedModelBinding.wrappedValue,
-            providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
-        )
-    }
-    var composerModelOptions: [String] {
-        let selectedModel = selectedModelBinding.wrappedValue
-        let knownModels = AppSettings.supportedModels
-        return knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
-    }
 }

@@ -107,6 +107,46 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.state.inputDraftIsEffectivelyEmpty)
     }
 
+    func testExternalDraftReplacementIgnoresLateBlockInputDocumentChange() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.recordBlockInputDraftMutation(isEffectivelyEmpty: false)
+        fixture.viewModel.clearInputDraft(source: .blockInputMarkdown)
+        fixture.viewModel.scheduleBlockInputDraftPublish(
+            BlockInputDocument(markdown: "Late stale edit"),
+            delay: .milliseconds(1)
+        )
+
+        try await Task.sleep(for: .milliseconds(40))
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNil(fixture.viewModel.state.inputDraftPublishTask)
+    }
+
+    func testFlushDraftFromEditorIgnoresLateBlockInputDocumentChange() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.composerDraftSnapshotProvider = {
+            ComposerDraft(
+                text: "Flushed edit",
+                source: .blockInputMarkdown,
+                isEffectivelyEmpty: false
+            )
+        }
+
+        fixture.viewModel.recordBlockInputDraftMutation(isEffectivelyEmpty: false)
+        let draft = fixture.viewModel.flushDraftFromEditor()
+        fixture.viewModel.scheduleBlockInputDraftPublish(
+            BlockInputDocument(markdown: "Late stale edit"),
+            delay: .milliseconds(1)
+        )
+
+        try await Task.sleep(for: .milliseconds(40))
+
+        XCTAssertEqual(draft.text, "Flushed edit")
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Flushed edit")
+        XCTAssertNil(fixture.viewModel.state.inputDraftPublishTask)
+    }
+
     func testAppendInputDraftPreservesCurrentDraftSource() throws {
         let fixture = try ConversationViewModelTestFixture()
 

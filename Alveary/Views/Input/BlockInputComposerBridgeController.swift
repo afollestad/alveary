@@ -9,10 +9,14 @@ struct BlockInputComposerBridgeConfiguration {
     var placeholder: String?
     var isEditable: Bool
     var disabledCursor: NSCursor?
+    var editorHorizontalInset: CGFloat
+    var editorVerticalInset: CGFloat
     var location: BlockInputComposerLocation
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
-    var onDocumentMutation: (BlockInputDocumentChange) -> Void
+    var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
+    var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
+    var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightChange: @MainActor @Sendable (CGFloat) -> Void
     var onFocusChange: (Bool) -> Void
@@ -23,10 +27,14 @@ struct BlockInputComposerBridgeConfiguration {
         placeholder: String? = nil,
         isEditable: Bool = true,
         disabledCursor: NSCursor? = nil,
+        editorHorizontalInset: CGFloat = BlockInputConfiguration.defaultEditorHorizontalInset,
+        editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
         location: BlockInputComposerLocation,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
-        onDocumentMutation: @escaping (BlockInputDocumentChange) -> Void = { _ in },
+        keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
+        completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
+        onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onPreferredHeightChange: @escaping @MainActor @Sendable (CGFloat) -> Void = { _ in },
         onFocusChange: @escaping (Bool) -> Void = { _ in }
@@ -36,9 +44,13 @@ struct BlockInputComposerBridgeConfiguration {
         self.placeholder = placeholder
         self.isEditable = isEditable
         self.disabledCursor = disabledCursor
+        self.editorHorizontalInset = editorHorizontalInset
+        self.editorVerticalInset = editorVerticalInset
         self.location = location
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
+        self.keyboardShortcuts = keyboardShortcuts
+        self.completionPopupOverlayProvider = completionPopupOverlayProvider
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightChange = onPreferredHeightChange
@@ -71,11 +83,11 @@ final class BlockInputComposerBridgeController {
     func configure(_ configuration: BlockInputComposerBridgeConfiguration) {
         if configuration.markdownRevision != lastConfiguredMarkdownRevision {
             lastConfiguredMarkdownRevision = configuration.markdownRevision
-            if configuration.markdown != lastMarkdown {
+            if configuration.markdown != documentStore.document.markdown {
                 documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
                 undoController = BlockInputUndoController()
-                lastMarkdown = configuration.markdown
             }
+            lastMarkdown = configuration.markdown
         }
         completionProvider = Self.makeCompletionProvider(configuration)
         view.configure(blockInputConfiguration(for: configuration))
@@ -108,11 +120,17 @@ final class BlockInputComposerBridgeController {
             fileBaseURL: configuration.location.fileBaseURL,
             undoController: undoController,
             commandDispatcher: commandDispatcher,
+            keyboardShortcuts: configuration.keyboardShortcuts,
             completionProvider: completionProvider,
             completionReturnBehavior: .passthroughExactMatch,
             slashCommandAvailability: .documentStart,
-            completionPopupConfiguration: BlockInputCompletionPopupConfiguration(placement: .caret),
-            onDocumentMutation: configuration.onDocumentMutation,
+            completionPopupConfiguration: BlockInputCompletionPopupConfiguration(
+                placement: .overlay,
+                overlayProvider: configuration.completionPopupOverlayProvider
+            ),
+            onDocumentMutation: { [weak self] change in
+                configuration.onDocumentMutation(change, self?.documentStore.document.isEffectivelyEmpty ?? true)
+            },
             onDocumentChange: { [weak self] document in
                 self?.lastMarkdown = document.markdown
                 configuration.onDocumentChange(document)

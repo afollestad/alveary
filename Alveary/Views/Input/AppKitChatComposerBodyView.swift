@@ -1,47 +1,18 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import SwiftUI
 
-/// Composer state and callbacks consumed by the native AppKit body.
-///
-/// Keep this as a value boundary between `ChatView` state and AppKit rendering:
-/// the view may measure, focus, and draw locally, but source-of-truth composer
-/// state should still flow through these fields and closures.
-struct AppKitChatComposerBodyConfiguration {
-    let text: String
-    let mode: ComposerMode
-    let defaultEnterBehavior: ThreadEnterDefaultBehavior
-    let isStopConfirmationArmed: Bool
-    let supportsMidTurnSteering: Bool
-    let isProjectTrustBlocked: Bool
-    let isHandoffSteeringPromptActive: Bool
-    let isHandoffOutputPromptActive: Bool
-    let handoffSteeringCountdown: Int?
-    let sendCountdown: Int?
-    let hasQueuedMessages: Bool
-    let hasTopContent: Bool
-    let workingDirectory: String?
-    let requestFirstResponder: UUID?
-    let colorScheme: ColorScheme
-    let loadFileCompletions: @Sendable () async -> [String]
-    let loadSkillCompletions: @Sendable () async -> [Skill]
-    let onTextChange: (String) -> Void
-    let onSubmit: () -> Void
-    let onSteer: () -> Void
-    let onStop: () -> Void
-    let onStopConfirmationChange: (Bool) -> Void
-    let onFocusRequestConsumed: (UUID?) -> Void
-}
-
-/// Native production composer body: editor, autocomplete state, drop handling,
-/// and keyboard behavior.
+/// Native production composer body that mounts the BlockInputKit editor inside
+/// Alveary's composer shell.
 ///
 /// `ChatInputField` remains for legacy SwiftUI snapshots, but active chat
 /// surfaces should configure this view through `AppKitChatComposerPanelView` so
-/// editor measurement and autocomplete state stay on the native path.
+/// editor measurement stays on the native AppKit path.
 @MainActor
 final class AppKitChatComposerBodyView: NSView {
     let editorView = ChatTextEditorView()
     let autocompletePopupView = AppKitComposerAutocompletePopupView()
+    var bridgeController: BlockInputComposerBridgeController?
 
     var configuration: AppKitChatComposerBodyConfiguration?
     var selectedRange: NSRange?
@@ -56,13 +27,13 @@ final class AppKitChatComposerBodyView: NSView {
     var isComposerFirstResponder = false
     var isDropTargeted = false
     var lastWorkingDirectory: String?
-    // NSTextView edits can trigger AppKit-side refreshes before SwiftUI calls
-    // back into `configure(_:)`, so editor/autocomplete paths read this mirror
-    // instead of the last configuration value.
+    // Legacy text-editor helpers still read this mirror until Phase 5 removes
+    // the old composer path.
     var currentText = ""
     var currentDocument = ComposerDocument()
     var currentProjection = ComposerProjection(document: ComposerDocument())
     var onPreferredSizeInvalidated: (() -> Void)?
+    private var lastConsumedFocusRequestToken: UUID?
 
     override var isFlipped: Bool {
         true
@@ -98,14 +69,18 @@ final class AppKitChatComposerBodyView: NSView {
     }
 
     func configure(_ configuration: AppKitChatComposerBodyConfiguration) {
-        let previousText = self.configuration?.text
         let previousWorkingDirectory = lastWorkingDirectory
+        let previousConfiguration = self.configuration
+        previousConfiguration?.onDraftSnapshotProviderChange(nil)
+        if let previousConfiguration,
+           previousConfiguration.draftIdentity != configuration.draftIdentity {
+            bridgeController?.view.removeFromSuperview()
+            bridgeController = nil
+            lastConsumedFocusRequestToken = nil
+        }
         self.configuration = configuration
         lastWorkingDirectory = configuration.workingDirectory
-        currentDocument = ComposerDocument(markdown: configuration.text)
-        currentProjection = currentDocument.projection
-        currentText = currentProjection.visibleString
-        assertNoDocumentOwnedBlockFences()
+        currentText = configuration.text
 
         if previousWorkingDirectory != configuration.workingDirectory {
             skillArgumentHints = [:]
@@ -113,25 +88,9 @@ final class AppKitChatComposerBodyView: NSView {
             skillHintLoadTask?.cancel()
             skillHintLoadTask = nil
         }
-        normalizeSelection(for: currentText)
-        if previousText != configuration.text {
-            primeMeasuredHeight(for: configuration.text)
-        }
-
-        editorView.configure(editorConfiguration(for: configuration))
-
-        if configuration.text.hasPrefix("/") {
-            loadSkillArgumentHintsIfNeeded()
-        }
-        if previousText != configuration.text {
-            refreshAutocomplete()
-        } else if previousWorkingDirectory != configuration.workingDirectory, isComposerFirstResponder {
-            refreshAutocomplete(forceReload: true)
-        }
-        if presentation(for: configuration).isTextEditorDisabled {
-            dismissAutocomplete()
-        }
-        configureAutocompletePopup()
+        configureBlockInput(configuration)
+        installDraftSnapshotProvider(configuration)
+        consumeFocusRequestIfNeeded(configuration.requestFirstResponder)
         needsLayout = true
         needsDisplay = true
         invalidatePreferredSize()
@@ -142,6 +101,7 @@ final class AppKitChatComposerBodyView: NSView {
         guard newWindow == nil else {
             return
         }
+        configuration?.onDraftSnapshotProviderChange(nil)
         cancelAsyncTasks()
     }
 
@@ -165,10 +125,11 @@ final class AppKitChatComposerBodyView: NSView {
     override func layout() {
         super.layout()
         let editorHeight = resolvedEditorHeight
-        editorView.frame = NSRect(
-            x: 0,
+        let horizontalCompensation = Self.blockInputGutterOffset
+        bridgeController?.view.frame = NSRect(
+            x: -horizontalCompensation,
             y: topPadding,
-            width: bounds.width,
+            width: bounds.width + horizontalCompensation,
             height: editorHeight
         )
     }
@@ -197,44 +158,8 @@ final class AppKitChatComposerBodyView: NSView {
         path.stroke()
     }
 
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard hasFileURLs(in: sender.draggingPasteboard) else {
-            return []
-        }
-        isDropTargeted = true
-        needsDisplay = true
-        return .copy
-    }
-
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        isDropTargeted = false
-        needsDisplay = true
-    }
-
-    override func draggingEnded(_ sender: NSDraggingInfo) {
-        isDropTargeted = false
-        needsDisplay = true
-    }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        defer {
-            isDropTargeted = false
-            needsDisplay = true
-        }
-        guard let configuration,
-              let urls = sender.draggingPasteboard.readObjects(
-                  forClasses: [NSURL.self],
-                  options: [.urlReadingFileURLsOnly: true]
-              ) as? [URL] else {
-            return false
-        }
-        return handleDroppedFiles(urls, configuration: configuration)
-    }
-
     private func setup() {
         wantsLayer = true
-        registerForDraggedTypes([.fileURL])
-        addSubview(editorView)
         autocompletePopupView.configure(autocomplete: nil, onSelect: { _ in }, onHighlight: { _ in })
     }
 }
@@ -243,9 +168,11 @@ extension AppKitChatComposerBodyView {
     nonisolated static let editorHorizontalPadding: CGFloat = 10
     nonisolated static let editorVerticalPadding: CGFloat = 10
     nonisolated static let editorBaseHeight: CGFloat = 68
-    nonisolated static let editorMaxHeight: CGFloat = 144
     nonisolated static let editorCornerRadius: CGFloat = 18
     nonisolated static let borderWidth: CGFloat = 1
+    // BlockInputKit's reorder handle gutter is editor-owned, but Alveary's
+    // composer placeholder still aligns to the action-row control column.
+    nonisolated static let blockInputGutterOffset: CGFloat = 9
     nonisolated static let autocompleteVerticalOffset: CGFloat = 8
     nonisolated static let autocompleteDebounceNanoseconds: UInt64 = 75_000_000
     nonisolated static let maxAutocompleteResults = 50
@@ -259,7 +186,7 @@ extension AppKitChatComposerBodyView {
     }
 
     var resolvedEditorHeight: CGFloat {
-        min(max(measuredEditorHeight, Self.editorBaseHeight), Self.editorMaxHeight)
+        max(0, measuredEditorHeight)
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
@@ -290,7 +217,7 @@ extension AppKitChatComposerBodyView {
     func presentation(for configuration: AppKitChatComposerBodyConfiguration) -> ComposerPresentation {
         ComposerPresentation(
             text: currentText,
-            isTextEffectivelyEmpty: currentDocument.isEffectivelyEmpty,
+            isTextEffectivelyEmpty: configuration.isTextEffectivelyEmpty,
             mode: configuration.mode,
             defaultEnterBehavior: configuration.defaultEnterBehavior,
             supportsMidTurnSteering: configuration.supportsMidTurnSteering,
@@ -437,17 +364,49 @@ extension AppKitChatComposerBodyView {
         invalidatePreferredSize()
     }
 
+    func handlePreferredHeightChange(_ height: CGFloat) {
+        let nextHeight = max(0, ceil(height))
+        guard abs(measuredEditorHeight - nextHeight) > 0.5 else {
+            return
+        }
+        measuredEditorHeight = nextHeight
+        invalidatePreferredSize()
+    }
+
     func handleFocusChange(_ isFocused: Bool) {
         isComposerFirstResponder = isFocused
-        if isFocused {
-            refreshAutocomplete()
-        } else {
-            dismissAutocomplete()
-        }
     }
 
     func consumeFocusRequest(_ token: UUID?) {
         configuration?.onFocusRequestConsumed(token)
+    }
+
+    func consumeFocusRequestIfNeeded(_ token: UUID?) {
+        guard let token,
+              token != lastConsumedFocusRequestToken else {
+            return
+        }
+        lastConsumedFocusRequestToken = token
+        focusBlockInputWhenReady(token: token, attempt: 0)
+    }
+
+    private func focusBlockInputWhenReady(token: UUID, attempt: Int) {
+        guard configuration?.requestFirstResponder == token,
+              bridgeController != nil else {
+            return
+        }
+        guard window != nil else {
+            guard attempt < 4 else {
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+                self?.focusBlockInputWhenReady(token: token, attempt: attempt + 1)
+            }
+            return
+        }
+
+        bridgeController?.view.focusEditor()
+        consumeFocusRequest(token)
     }
 
     func refreshEditorConfiguration() {

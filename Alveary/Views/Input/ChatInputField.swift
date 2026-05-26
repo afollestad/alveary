@@ -255,7 +255,10 @@ struct ChatInputField: View {
                 defaultEnterBehavior: defaultEnterBehavior
             )
         }
-        .focusedSceneValue(\.chatComposerFocus, $isInputFocused)
+        .focusedSceneValue(\.chatComposerFocus, ChatComposerFocusHandle(
+            claim: { isInputFocused = true },
+            release: { isInputFocused = false }
+        ))
     }
 
     @ViewBuilder

@@ -2,21 +2,22 @@
 
 These instructions cover composer-specific view code under `Alveary/Views/Input/`.
 
-> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.focusedSceneValue`, `.onKeyPress`, or `.keyboardShortcut` in this folder, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. Legacy SwiftUI composer hosts still publish `focusedSceneValue(\.chatComposerFocus, ...)` through `ChatInputField`; the production AppKit body consumes first-responder request tokens directly through `ChatTextEditorView` and should not add a second publisher.
+> **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.focusedSceneValue`, `.onKeyPress`, or `.keyboardShortcut` in this folder, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`. Legacy SwiftUI composer hosts still publish `focusedSceneValue(\.chatComposerFocus, ...)` through `ChatInputField`; the production AppKit body consumes first-responder request tokens through `BlockInputView.focusEditor()` and should not add another focus path.
 
-## AppKit Text Editor
+## Legacy AppKit Text Editor
 
-- Production composer edits are document-first. `AppKitChatComposerBodyView` imports markdown into `ComposerDocument`, renders `ComposerProjection.visibleString` into `NSTextView`, and serializes markdown only for callbacks/submission/persistence.
+- Production composer edits are BlockInputKit-owned. `AppKitChatComposerBodyView` mounts `BlockInputView`; Alveary mirrors BlockInput Markdown through the draft bridge and should not reimplement editor projection, completion, drops, undo, selection, or sizing behavior on the production path.
+- The old `ChatTextEditorView`/`ComposerDocument` path is legacy-only until deleted. If a remaining legacy test or snapshot needs it, keep the old projection rules below scoped to that fallback instead of reintroducing them to production.
     - Route semantic typing, autocomplete, drops, Shift-Return, Backspace, and code-block arrow exits through `ComposerTransaction`; do not publish `NSTextView.string` as composer source of truth.
-    - `NSTextView.string` must not contain block-code fences owned by `ComposerDocument`. If fences appear in production composer text storage, the projection boundary has regressed.
+    - `NSTextView.string` must not contain block-code fences owned by `ComposerDocument`. If fences appear in legacy composer text storage, the projection boundary has regressed.
 - `TextSelection` values flowing through the AppKit editor can briefly refer to an older string right after send/reset updates. Any code that maps those indices into the current string, including `NSTextView` sync and autocomplete helpers, must treat stale indices as invalid and normalize or bail out instead of assuming the indices still belong to the new text.
 - Keep selection and replacement offsets in UTF-16 units to match AppKit `NSRange` behavior; mixing them with `String.count` breaks emoji and other composed-character handling.
 - Apply composer token styling as attributed ranges while keeping the editor's base `textColor` and typing color pinned to the normal label color. Deriving the base color from already-styled text can cause accent-colored mentions or slash commands to bleed into later plain text or persist after clearing the input.
-- `ChatTextEditor.primedMeasuredHeight(for:minHeight:verticalPadding:)` must stay aware of fenced code-block chrome. Parent AppKit composer views use this before deferred text layout catches up, so raw line counts alone can make the parent too short while the drawn code block already has extra padding.
+- Legacy `ChatTextEditor.primedMeasuredHeight(for:minHeight:verticalPadding:)` must stay aware of fenced code-block chrome. Legacy parent views use this before deferred text layout catches up, so raw line counts alone can make the parent too short while the drawn code block already has extra padding.
     - When code blocks are present, prime from visible text/content lines plus chrome, not the raw backing-string line count. Hidden fence rows must not overgrow the composer.
-- Composer text-emptiness checks in the production body must come from `ComposerDocument.isEffectivelyEmpty`. Legacy string paths should still use `ChatInputFieldTextSupport.isEffectivelyEmpty(_:)` until they migrate.
+- Production composer emptiness comes from BlockInputKit's document state and flows through the draft bridge without serializing Markdown on the mutation hot path. Legacy string paths should still use `ChatInputFieldTextSupport.isEffectivelyEmpty(_:)` until they migrate.
 
-## Composer Code Block Navigation
+## Legacy Composer Code Block Navigation
 
 - Code-block Up/Down exits belong in `AppKitChatComposerBodyView+CodeBlocks.swift`. Treat `.numericPad` and `.capsLock` as inert modifiers for real AppKit arrow events, but do not treat shift/command/option/control as exits.
 - Up exits only from the first visible code-content line, and Down exits only from the last visible code-content line. Interior code lines should fall through to AppKit's normal vertical caret movement.
@@ -24,17 +25,17 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Re-entering from below a code block must target the visible editable content end and must not expose or edit serialized fences.
 - Exiting down from a code block should reuse an existing outside paragraph when present; only insert one empty paragraph when there is no outside line.
 
-## Slash-Command Argument Hints
+## Legacy Slash-Command Argument Hints
 
 - Slash-command argument hints are visual-only `AppKitTextView` inline hints driven by skill frontmatter (`argument-hint`). Keep them out of the underlying composer `text` and hide them once the user starts typing real arguments or moves the caret away from the end of the command.
 
-## Autocomplete
+## Legacy Autocomplete
 
 - Composer autocomplete source loading and filtering must not inherit the live-turn `MainActor` workload. Run the expensive work off-main and only hop back to publish `activeAutocomplete` state so `@` mentions and `/` skills stay responsive while a turn is streaming.
-- Composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. The native body computes that editor-relative frame, and `AppKitChatSurfaceView` hoists the visible popup into a surface-level overlay so it can draw and hit-test over transcript space while still floating over queued-message rows.
-- Production autocomplete popup rows render through `AppKitComposerAutocompletePopupView` from the native composer body. Legacy SwiftUI hosts may still bridge the same popup view from `ChatInputField`; keep popup hit testing routable from `AppKitChatSurfaceView` so rows that visually float above the composer still receive hover and click events.
-- Do not hit-test the surface-hoisted autocomplete popup from `AppKitChatComposerBodyView` or `AppKitChatComposerPanelView`; AppKit cursor tracking can reenter those hit-test paths and recurse. Production popup event routing belongs on `AppKitChatSurfaceView`.
-- The native autocomplete popup owns wheel events for its full bounds, including spacing between rows. Keep row-gap chrome capture here and the surface-level autocomplete popup overlay plus transcript scroll-view guard so row gaps and the full popup rect scroll suggestions instead of falling through to the transcript scroll view.
+- Legacy composer autocomplete is anchored to the top edge of the editor itself, not above the entire composer stack. The legacy native body computes that editor-relative frame, and `AppKitChatSurfaceView` hoists the visible popup into a surface-level overlay so it can draw and hit-test over transcript space while still floating over queued-message rows.
+- Production autocomplete rows are BlockInputKit-owned and use caret placement inside the editor. Legacy SwiftUI hosts may still bridge `AppKitComposerAutocompletePopupView` from `ChatInputField`; keep popup hit testing routable from `AppKitChatSurfaceView` for that fallback until the old path is deleted.
+- Do not hit-test the legacy surface-hoisted autocomplete popup from `AppKitChatComposerBodyView` or `AppKitChatComposerPanelView`; AppKit cursor tracking can reenter those hit-test paths and recurse. Legacy popup event routing belongs on `AppKitChatSurfaceView`.
+- The legacy native autocomplete popup owns wheel events for its full bounds, including spacing between rows. Keep row-gap chrome capture here and the surface-level autocomplete popup overlay plus transcript scroll-view guard so row gaps and the full popup rect scroll suggestions instead of falling through to the transcript scroll view.
 - Composer autocomplete loading and empty placeholder states should share the same full-width popup container and surface color as populated suggestions; keep focused snapshots for files, skills, empty, and loading variants when changing popup styling.
 - Composer autocomplete popup scrolling should target each suggestion's stable `id`, not list indices or whole-array change observation. File-mention filtering replaces rows aggressively while typing, and index-driven scroll bookkeeping can leave `@` results visually stale or glitchy.
 - Composer autocomplete pointer hover must promote the hovered row into the same highlighted state used by Up/Down keys, and row clicks should commit that highlighted row rather than maintaining a separate pointer-only selection path.
@@ -51,7 +52,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 ## File Mention Encoding
 
-- File-mention storage in the composer is percent-encoded via `CanonicalPath.encodeStoredMentionPath(_:)` so the mention regex (`[^\s\)\]\}>"']+`) can hold a complete path that contains spaces, narrow no-break spaces (U+202F — macOS screenshot filenames use this), brackets, or other terminators as a single chip/token.
+- Legacy file-mention storage is percent-encoded via `CanonicalPath.encodeStoredMentionPath(_:)` so the mention regex (`[^\s\)\]\}>"']+`) can hold a complete path that contains spaces, narrow no-break spaces (U+202F — macOS screenshot filenames use this), brackets, or other terminators as a single chip/token. Production BlockInput drafts use Markdown links/images and send that Markdown directly.
     - **Encode at every insertion site.** Drag-drop in `ChatInputField+Interactions.handleDroppedFiles` and autocomplete in `ChatInputAutocomplete.fileMatches` must both encode the path before prefixing `@`. A raw path like `/foo/My File.png` would break the regex at the first space, chip only the prefix, and leave the rest as plain text.
     - **Decode only at render read sites.** `AppKitTextView.drawCompactChipLabels` decodes when painting the composer's compact chip label, and `AppMarkdownParser.applyComposerChip` (invoked from `attachComposerChips(to:)`) decodes when substituting the chip range in chat bubbles.
     - **Outbound messages keep the encoded form.** `ChatInputFieldTextSupport.outboundMessage(from:workingDirectory:)` (called by `ComposerDraft.outboundMessage(workingDirectory:)` for legacy composer text only) normalizes each `@` mention through `CanonicalPath.normalizeMentionPath` (tilde expand + relative-to-CWD), then re-encodes via `CanonicalPath.encodeStoredMentionPath` and re-prefixes `@` before it hits the transport. The `@` re-prefix is load-bearing: `FileMentionMatch.highlightRange` starts *at* the `@`, so a naive `prefix + normalizedPath` replacement silently drops the `@` from the outbound text and the persisted user bubble. Persisted user messages therefore share the composer's stored shape, which lets `AppMarkdownParser.attachComposerChips` re-detect mentions in AppKit user bubbles and render chips (the mention regex terminates on whitespace, so a raw-spaced path would chip only its leading run). Do not reintroduce a "send the decoded path" branch for legacy composer text; BlockInput Markdown drafts are sent directly. Regression coverage lives in `AppKitTextEditorCoordinatorTests+OutboundMessage.testOutboundMessage*` and `ChatComposerDraftTests`.
@@ -67,10 +68,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 ### Controls
 
-- **Prefer native AppKit ownership.** Migrated composer controls should use native AppKit views such as `ChatTextEditorView` instead of adding more SwiftUI text-input bridges.
+- **Prefer BlockInputKit ownership.** Production composer editor behavior belongs in `BlockInputView` and its public configuration APIs instead of Alveary-side editor bridges.
 - **Keep adapters temporary and thin.** `ChatTextEditor` may bridge the native editor into SwiftUI until the composer root migrates, but it should only own SwiftUI chrome, measurement binding, selection conversion, and focus state handoff.
 - **Reuse text primitives.** Native composer views should reuse `AppKitTextView` chip/code/inline-hint behavior so compact basename chips and outbound mention storage stay aligned with current coverage.
-- `AppKitChatComposerBodyView` owns the production composer body: native editor shell, autocomplete state and popup view configuration, drop-to-mention handling, key handling, and editor background/border drawing. `ChatInputField` and `ChatTextEditor` remain compatibility wrappers for legacy SwiftUI snapshots and transitional callers.
+- `AppKitChatComposerBodyView` owns the production composer body shell: it mounts `BlockInputView`, passes BlockInputKit shortcut/style/height configuration, and draws Alveary's editor background/border chrome. `ChatInputField` and `ChatTextEditor` remain compatibility wrappers for legacy SwiftUI snapshots and transitional callers.
 - `ChatComposerActionRow` owns the native bottom settings/action row for the production composer panel and legacy SwiftUI snapshots that still host the full composer shell.
     - **Keep shell migration explicit.** Production `ChatView` now lets
       `AppKitChatComposerPanelView` instantiate the native body and action row

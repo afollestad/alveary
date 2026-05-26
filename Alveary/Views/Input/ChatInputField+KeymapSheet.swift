@@ -250,7 +250,7 @@ final class AppKitChatInputKeymapView: NSView {
         ]
 
         if configuration.supportsMidTurnSteering {
-            rows.append(("Command + Enter", commandEnterDescription(for: configuration)))
+            rows.append(("Option + Enter", optionEnterDescription(for: configuration)))
         }
 
         rows.append(("Esc, then Esc", "During an active turn, double-tap escape to interrupt (stop) the turn."))
@@ -270,7 +270,7 @@ final class AppKitChatInputKeymapView: NSView {
         }
     }
 
-    private func commandEnterDescription(for configuration: Configuration) -> String {
+    private func optionEnterDescription(for configuration: Configuration) -> String {
         switch configuration.defaultEnterBehavior {
         case .queue:
             return "Steer the current turn immediately while the agent is working."

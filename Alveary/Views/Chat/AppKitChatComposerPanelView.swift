@@ -37,10 +37,9 @@ struct AppKitChatComposerPanelConfiguration {
 
 /// AppKit owner for the composer panel shell.
 ///
-/// Production chat surfaces pass a native composer body so the editor, queued
-/// messages, and action row live in one AppKit layout path. The active surface
-/// hoists the body's autocomplete popup into a top-level overlay while legacy
-/// snapshots may still provide hosted SwiftUI `content`.
+/// Production chat surfaces pass a native composer body so the BlockInputKit
+/// editor, queued messages, and action row live in one AppKit layout path.
+/// Legacy snapshots may still provide hosted SwiftUI `content`.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
     struct Layout {

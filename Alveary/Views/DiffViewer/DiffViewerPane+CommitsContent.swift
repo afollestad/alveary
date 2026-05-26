@@ -205,7 +205,7 @@ struct DiffViewerCommitsContent: View {
     private func claimCommitListKeyboardFocus() {
         latestKeyboardNavigationScrollID = UUID()
         latestKeyboardNavigationLoadID = UUID()
-        chatComposerFocus?.wrappedValue = false
+        chatComposerFocus?.release()
         isCommitListKeyboardFocused = true
     }
 

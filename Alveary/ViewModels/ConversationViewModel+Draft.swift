@@ -1,6 +1,8 @@
 import BlockInputKit
 import Foundation
 
+typealias ComposerDraftSnapshotProvider = @MainActor @Sendable () -> ComposerDraft
+
 struct ComposerDraft: Equatable, Sendable {
     let text: String
     let source: ComposerDraftSource
@@ -42,7 +44,20 @@ struct ComposerDraft: Equatable, Sendable {
 @MainActor
 extension ConversationViewModel {
     func flushDraftFromEditor() -> ComposerDraft {
-        ComposerDraft(
+        if let draft = composerDraftSnapshotProvider?() {
+            state.inputDraftPublishTask?.cancel()
+            state.inputDraftPublishTask = nil
+            state.hasPendingBlockInputDocumentChange = false
+            setInputDraft(
+                draft.text,
+                source: draft.source,
+                isEffectivelyEmpty: draft.isEffectivelyEmpty,
+                advancesRevision: false
+            )
+            return draft
+        }
+
+        return ComposerDraft(
             text: state.inputDraft,
             source: state.inputDraftSource,
             isEffectivelyEmpty: state.inputDraftIsEffectivelyEmpty
@@ -56,6 +71,7 @@ extension ConversationViewModel {
     func recordBlockInputDraftMutation(isEffectivelyEmpty: Bool) {
         state.inputDraftPublishTask?.cancel()
         state.inputDraftPublishTask = nil
+        state.hasPendingBlockInputDocumentChange = true
         state.inputDraftSource = .blockInputMarkdown
         state.inputDraftDirtyRevision += 1
         state.inputDraftIsEffectivelyEmpty = isEffectivelyEmpty
@@ -67,6 +83,9 @@ extension ConversationViewModel {
         _ document: BlockInputDocument,
         delay: Duration = .milliseconds(25)
     ) {
+        guard state.hasPendingBlockInputDocumentChange else {
+            return
+        }
         let dirtyRevision = state.inputDraftDirtyRevision
         state.inputDraftPublishTask?.cancel()
         state.inputDraftPublishTask = Task { @MainActor [weak self] in
@@ -87,6 +106,7 @@ extension ConversationViewModel {
             )
             self.cancelSessionHandoffSteeringCountdownIfDraftChanged(to: markdown)
             self.cancelSessionHandoffCountdownIfDraftChanged(to: markdown)
+            self.state.hasPendingBlockInputDocumentChange = false
             self.state.inputDraftPublishTask = nil
         }
     }
@@ -124,6 +144,7 @@ extension ConversationViewModel {
         if cancelsPendingBlockInputPublish {
             state.inputDraftPublishTask?.cancel()
             state.inputDraftPublishTask = nil
+            state.hasPendingBlockInputDocumentChange = false
         }
 
         let nextIsEffectivelyEmpty = isEffectivelyEmpty ?? ComposerDraft(

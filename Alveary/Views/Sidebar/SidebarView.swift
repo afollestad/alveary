@@ -282,7 +282,7 @@ struct SidebarView: View {
     // consumes the stale token.
     func claimSidebarFocus() {
         appState.pendingComposerFocusToken = nil
-        chatComposerFocus?.wrappedValue = false
+        chatComposerFocus?.release()
         isKeyboardFocused = true
     }
 }

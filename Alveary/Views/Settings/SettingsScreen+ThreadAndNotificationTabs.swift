@@ -139,7 +139,7 @@ private enum ThreadSettingsHelp {
     static let autoTrustProjects =
         "Skips the trust prompt for projects newly added to Alveary."
     static let defaultEnterBehavior =
-        "Queue waits for the current turn to finish. Steer sends immediately and may affect the current turn. Cmd+Enter uses the inverse action."
+        "Queue waits for the current turn to finish. Steer sends immediately and may affect the current turn. Option+Enter uses the inverse action."
 }
 
 struct NotificationsSettingsTabView: View {

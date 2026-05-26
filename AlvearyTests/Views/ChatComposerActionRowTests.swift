@@ -314,7 +314,7 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertTrue(labels.contains("Queue for the next turn while the agent is working."))
     }
 
-    func testNativeKeymapViewHidesCommandEnterWhenSteeringUnsupported() {
+    func testNativeKeymapViewHidesOptionEnterWhenSteeringUnsupported() {
         let view = AppKitChatInputKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
 
         view.configure(.init(supportsMidTurnSteering: false, defaultEnterBehavior: .queue))
@@ -322,7 +322,7 @@ final class ChatComposerActionRowTests: XCTestCase {
 
         let labels = view.descendants(of: NSTextField.self).map(\.stringValue)
         XCTAssertTrue(labels.contains("Send the message."))
-        XCTAssertFalse(labels.contains("Command + Enter"))
+        XCTAssertFalse(labels.contains("Option + Enter"))
     }
 
     func testNativeKeymapViewExposesAccessibleCloseAndRows() throws {
@@ -348,7 +348,7 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertEqual(enterRow.accessibilityRole(), .group)
         XCTAssertTrue(rows.contains { $0.accessibilityLabel() == "Shift + Enter, Insert a newline." })
         XCTAssertTrue(
-            rows.contains { $0.accessibilityLabel() == "Command + Enter, Steer the current turn immediately while the agent is working." }
+            rows.contains { $0.accessibilityLabel() == "Option + Enter, Steer the current turn immediately while the agent is working." }
         )
         XCTAssertTrue(
             rows.contains { $0.accessibilityLabel() == "Esc, then Esc, During an active turn, double-tap escape to interrupt (stop) the turn." }

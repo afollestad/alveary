@@ -48,7 +48,7 @@ extension ChatInputField {
         case .busy(let canStop):
             performBusyReturnAction(
                 canStop: canStop,
-                usesAlternateBehavior: keyPress.modifiers.contains(.command)
+                usesAlternateBehavior: keyPress.modifiers.contains(.option)
             )
             return .handled
         case .idle:

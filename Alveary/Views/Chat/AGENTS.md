@@ -17,14 +17,13 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
   the migration, `ChatView` may still build SwiftUI content-mode and composer
   child views, but the vertical transcript/empty-state/composer frame split
   belongs to the AppKit surface.
-- `AppKitChatSurfaceView` must route hit tests, mouse moves, mouse downs, and
-  wheel events into the native composer autocomplete popup before transcript
-  content sees them; the popup visually floats upward over transcript space.
-  Keep the surface-level autocomplete popup overlay and transcript scroll-view
-  guard so the full floating popup rect captures events while transcript
-  scrolling still works outside that rect. The surface may monitor mouse-downs
-  to dismiss the popup, but do not use a local wheel-event monitor because it
-  can starve transcript scrolling outside the popup.
+- Production composer completion is BlockInputKit-owned and uses caret
+  placement inside the editor. Legacy composer autocomplete still routes hit
+  tests, mouse moves, mouse downs, and wheel events through
+  `AppKitChatSurfaceView` so the old floating popup captures events before the
+  transcript. The surface may monitor mouse-downs to dismiss that legacy popup,
+  but do not use a local wheel-event monitor because it can starve transcript
+  scrolling outside the popup.
 - Mostly-vertical wheel events over nested horizontal scroll views, such as
   markdown tables and code blocks, should route directly to the vertical
   transcript scroll owner from the chat surface. Do not send those events to the
@@ -48,9 +47,10 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
       queued rows inside `ChatInputField`; do not let production queued rows
       re-enter the SwiftUI editor stack.
     - **Own production composer body.** Active `ChatView` configures
-      `AppKitChatComposerBodyView` for the editor, autocomplete, drop handling,
-      and key handling. Legacy SwiftUI composer snapshots may still host
-      `ChatInputField`, but production fixes should stay on the native body path.
+      `AppKitChatComposerBodyView` for the BlockInputKit editor bridge,
+      preferred-height invalidation, and shortcut configuration. Legacy SwiftUI
+      composer snapshots may still host `ChatInputField`, but production fixes
+      should stay on the native body path.
 - `ProjectTrustPromptView` lives in `ProjectTrustPrompt.swift`; `ThreadDetailView+ProjectTrust.swift` owns the trust-state checks and denial deletion.
 - `EmptyThreadState` lives in `ChatView+EmptyThreadState.swift` and checks `isCancellingInitialSetup` before `setupPhase` so cancellation feedback takes precedence even when `setupPhase` is still set mid-rollback. Keep that ordering if you restructure the view; otherwise the empty-thread pane flickers back to "Creating worktree" during the rollback shell commands.
 - Transcript rendering is AppKit-owned. Keep live transcript row work under `Blocks/AppKit/` and route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`; do not reintroduce SwiftUI transcript row views.

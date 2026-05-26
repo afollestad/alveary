@@ -26,6 +26,7 @@ final class ConversationViewModel {
     var saveTaskID: UUID?
     var needsFollowUpSave = false
     var initialSetupTask: Task<Void, Error>?
+    @ObservationIgnored var composerDraftSnapshotProvider: ComposerDraftSnapshotProvider?
 
     var turnState: TurnState { state.turnState }
     var messageQueue: MessageQueue { state.messageQueue }
@@ -398,9 +399,11 @@ final class ConversationViewModel {
     func replaceState(with state: ConversationState) {
         self.state.inputDraftPublishTask?.cancel()
         self.state.inputDraftPublishTask = nil
+        self.state.hasPendingBlockInputDocumentChange = false
         if self.state !== state {
             state.inputDraftPublishTask?.cancel()
             state.inputDraftPublishTask = nil
+            state.hasPendingBlockInputDocumentChange = false
         }
         self.state = state
     }
@@ -408,6 +411,7 @@ final class ConversationViewModel {
     isolated deinit {
         state.inputDraftPublishTask?.cancel()
         state.inputDraftPublishTask = nil
+        state.hasPendingBlockInputDocumentChange = false
         if let activeKeepAwakeSource {
             keepAwakeService.setActive(false, for: activeKeepAwakeSource)
         }

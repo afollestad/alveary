@@ -28,7 +28,7 @@ extension AppKitChatComposerBodyView {
         case .busy(let canStop):
             performBusyReturnAction(
                 canStop: canStop,
-                usesAlternateBehavior: keyPress.modifiers.contains(.command),
+                usesAlternateBehavior: keyPress.modifiers.contains(.option),
                 configuration: configuration
             )
             return .handled

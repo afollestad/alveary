@@ -31,6 +31,7 @@ final class ConversationState {
     var inputDraftRevision = 0
     var inputDraftDirtyRevision = 0
     var inputDraftIsEffectivelyEmpty = true
+    @ObservationIgnored var hasPendingBlockInputDocumentChange = false
     @ObservationIgnored var inputDraftPublishTask: Task<Void, Never>?
     var isAwaitingHandoffSteering = false
     var handoffSteeringCountdownRemaining: Int?

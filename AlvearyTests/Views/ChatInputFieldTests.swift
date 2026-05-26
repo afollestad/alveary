@@ -103,7 +103,7 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertFalse(input.areControlsDisabled)
     }
 
-    func testBusyReturnUsesQueueDefaultAndCommandReturnSteers() {
+    func testBusyReturnUsesQueueDefaultAndOptionReturnSteers() {
         var didSubmit = false
         var didSteer = false
         let input = makeInput(
@@ -120,12 +120,12 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertFalse(didSteer)
 
         didSubmit = false
-        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertEqual(input.handleKeyPress(optionReturnKeyPress()), .handled)
         XCTAssertFalse(didSubmit)
         XCTAssertTrue(didSteer)
     }
 
-    func testBusyReturnUsesSteerDefaultAndCommandReturnQueues() {
+    func testBusyReturnUsesSteerDefaultAndOptionReturnQueues() {
         var didSubmit = false
         var didSteer = false
         let input = makeInput(
@@ -142,7 +142,7 @@ final class ChatInputFieldTests: XCTestCase {
         XCTAssertTrue(didSteer)
 
         didSteer = false
-        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertEqual(input.handleKeyPress(optionReturnKeyPress()), .handled)
         XCTAssertTrue(didSubmit)
         XCTAssertFalse(didSteer)
     }
@@ -160,12 +160,12 @@ final class ChatInputFieldTests: XCTestCase {
             onSteer: { didSteer = true }
         )
 
-        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertEqual(input.handleKeyPress(optionReturnKeyPress()), .handled)
         XCTAssertTrue(didSubmit)
         XCTAssertFalse(didSteer)
     }
 
-    func testIdleCommandReturnSubmits() {
+    func testIdleOptionReturnSubmits() {
         var didSubmit = false
         let input = makeInput(
             text: "Start a turn.",
@@ -176,7 +176,7 @@ final class ChatInputFieldTests: XCTestCase {
             onSteer: {}
         )
 
-        XCTAssertEqual(input.handleKeyPress(commandReturnKeyPress()), .handled)
+        XCTAssertEqual(input.handleKeyPress(optionReturnKeyPress()), .handled)
         XCTAssertTrue(didSubmit)
     }
 
@@ -198,8 +198,8 @@ final class ChatInputFieldTests: XCTestCase {
             onSteer: {}
         )
 
-        XCTAssertEqual(queueInput.placeholder, "Enter to queue for the next turn, or Cmd+Enter to steer...")
-        XCTAssertEqual(steerInput.placeholder, "Enter to steer the current turn, or Cmd+Enter to queue...")
+        XCTAssertEqual(queueInput.placeholder, "Enter to queue for the next turn, or Option+Enter to steer...")
+        XCTAssertEqual(steerInput.placeholder, "Enter to steer the current turn, or Option+Enter to queue...")
     }
 
     func testStopConfirmationDecisionArmsOnFirstEscape() {
@@ -315,7 +315,7 @@ final class ChatInputFieldTests: XCTestCase {
         AppTextEditorKeyPress(key: .return, modifiers: [])
     }
 
-    private func commandReturnKeyPress() -> AppTextEditorKeyPress {
-        AppTextEditorKeyPress(key: .return, modifiers: .command)
+    private func optionReturnKeyPress() -> AppTextEditorKeyPress {
+        AppTextEditorKeyPress(key: .return, modifiers: .option)
     }
 }
