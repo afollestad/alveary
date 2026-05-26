@@ -26,6 +26,12 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(blockInputConfiguration.completionReturnBehavior, .passthroughExactMatch)
         XCTAssertEqual(blockInputConfiguration.slashCommandAvailability, .documentStart)
         XCTAssertEqual(blockInputConfiguration.completionPopupConfiguration.placement, .overlay)
+        let popupStyle = blockInputConfiguration.completionPopupConfiguration.style
+        XCTAssertEqual(popupStyle.backgroundColor, BlockInputComposerStyle.completionPopupBackgroundColor)
+        XCTAssertEqual(popupStyle.borderColor, BlockInputComposerStyle.completionPopupBorderColor)
+        XCTAssertEqual(popupStyle.highlightedRowBackgroundColor, BlockInputComposerStyle.completionPopupHighlightColor)
+        XCTAssertEqual(popupStyle.cornerRadius, BlockInputComposerStyle.completionPopupCornerRadius)
+        XCTAssertEqual(popupStyle.borderWidth, BlockInputComposerStyle.completionPopupBorderWidth)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.defaultVisibleLineCount, 3)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.maximumVisibleLineCount, 9)
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, BlockInputConfiguration.defaultEditorHorizontalInset)
@@ -212,7 +218,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         ))
 
         XCTAssertEqual(suggestions.map(\.title), ["../Shared/Config.swift"])
-        XCTAssertEqual(suggestions.first?.insertionText, "[../Shared/Config.swift](/tmp/project/Shared/Config.swift)")
+        XCTAssertEqual(suggestions.first?.insertionText, "[../Shared/Config.swift](/tmp/project/Shared/Config.swift) ")
     }
 
     func testFileCompletionUsesRelativeMarkdownLinksInsideEffectiveDirectory() async {
@@ -230,7 +236,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         ))
 
         XCTAssertEqual(suggestions.first?.title, "Sources/App.swift")
-        XCTAssertEqual(suggestions.first?.insertionText, "[Sources/App.swift](Sources/App.swift)")
+        XCTAssertEqual(suggestions.first?.insertionText, "[Sources/App.swift](Sources/App.swift) ")
     }
 
     func testFileCompletionPreservesSubsequenceMatching() async {

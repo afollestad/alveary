@@ -77,7 +77,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
                     id: candidate.url.path,
                     title: label,
                     subtitle: candidate.url.deletingLastPathComponent().path,
-                    insertionText: markdownLink(label: label, destination: candidate.insertionDestination),
+                    insertionText: fileCompletionInsertionText(label: label, destination: candidate.insertionDestination),
                     trigger: .mention,
                     iconSystemName: "doc.text"
                 )
@@ -199,6 +199,10 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
     private func markdownLink(label: String, destination: String) -> String {
         "[\(escapedMarkdownLinkLabel(label))](\(escapedMarkdownLinkDestination(destination)))"
+    }
+
+    private func fileCompletionInsertionText(label: String, destination: String) -> String {
+        "\(markdownLink(label: label, destination: destination)) "
     }
 
     private func escapedMarkdownLinkLabel(_ label: String) -> String {

@@ -120,6 +120,7 @@ final class BlockInputComposerBridgeController {
             slashCommandAvailability: .documentStart,
             completionPopupConfiguration: BlockInputCompletionPopupConfiguration(
                 placement: .overlay,
+                style: BlockInputComposerStyle.completionPopupStyle(),
                 overlayProvider: configuration.completionPopupOverlayProvider
             ),
             onDocumentMutation: { [weak self] change in

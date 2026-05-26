@@ -1,3 +1,4 @@
+import AppKit
 import BlockInputKit
 import XCTest
 
@@ -5,12 +6,12 @@ import XCTest
 
 @MainActor
 final class BlockInputComposerStyleTests: XCTestCase {
-    func testComposerStyleUsesAlvearyEditorSurfaceFill() throws {
+    func testComposerStyleLeavesEditorSurfaceTransparent() {
         let style = BlockInputComposerStyle.make()
 
-        try assertComposerSurfaceColor(style.editorSurface.editorBackgroundColor)
-        try assertComposerSurfaceColor(style.editorSurface.scrollBackgroundColor)
-        try assertComposerSurfaceColor(style.editorSurface.collectionBackgroundColor)
+        XCTAssertNil(style.editorSurface.editorBackgroundColor)
+        XCTAssertNil(style.editorSurface.scrollBackgroundColor)
+        XCTAssertNil(style.editorSurface.collectionBackgroundColor)
     }
 
     func testComposerStyleUsesAlvearyChipTokens() {
@@ -21,6 +22,47 @@ final class BlockInputComposerStyleTests: XCTestCase {
         assertComposerChipStyle(style.rawSlashCommandChip)
         XCTAssertEqual(style.inlineCode.backgroundColor, AppMarkdownCodeBlockPalette.composerChipFillNSColor)
         XCTAssertEqual(style.inlineCode.foregroundColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)
+    }
+
+    func testCompletionPopupStyleUsesAlvearyTokens() throws {
+        let style = BlockInputComposerStyle.completionPopupStyle()
+
+        XCTAssertEqual(style.backgroundColor, BlockInputComposerStyle.completionPopupBackgroundColor)
+        XCTAssertEqual(style.borderColor, BlockInputComposerStyle.completionPopupBorderColor)
+        XCTAssertEqual(
+            style.highlightedRowBackgroundColor,
+            BlockInputComposerStyle.completionPopupHighlightColor
+        )
+        XCTAssertEqual(style.cornerRadius, BlockInputComposerStyle.completionPopupCornerRadius)
+        XCTAssertEqual(style.borderWidth, BlockInputComposerStyle.completionPopupBorderWidth)
+        try assertColor(
+            style.backgroundColor,
+            appearanceName: .aqua,
+            matches: NSColor(calibratedRed: 0.93, green: 0.93, blue: 0.94, alpha: 1)
+        )
+        try assertColor(
+            style.backgroundColor,
+            appearanceName: .darkAqua,
+            matches: NSColor(calibratedRed: 0.16, green: 0.16, blue: 0.17, alpha: 1)
+        )
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            try assertDynamicColor(
+                style.borderColor,
+                matches: DynamicLabelExpectation(
+                    appearanceName: appearanceName,
+                    baseColor: .secondaryLabelColor,
+                    opacity: 0.18
+                )
+            )
+            try assertDynamicColor(
+                style.highlightedRowBackgroundColor,
+                matches: DynamicLabelExpectation(
+                    appearanceName: appearanceName,
+                    baseColor: .labelColor,
+                    opacity: 0.1
+                )
+            )
+        }
     }
 
     private func assertComposerChipStyle(
@@ -34,32 +76,40 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(style.cornerRadius, BlockInputComposerStyle.chipCornerRadius, file: file, line: line)
     }
 
-    private func assertComposerSurfaceColor(
+    private func assertColor(
+        _ color: NSColor,
+        appearanceName: NSAppearance.Name,
+        matches expected: NSColor,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let appearance = try XCTUnwrap(NSAppearance(named: appearanceName), file: file, line: line)
+        let resolved = color.resolved(for: appearance)
+
+        XCTAssertEqual(resolved.redComponent, expected.redComponent, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(resolved.greenComponent, expected.greenComponent, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(resolved.blueComponent, expected.blueComponent, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(resolved.alphaComponent, expected.alphaComponent, accuracy: 0.001, file: file, line: line)
+    }
+
+    private func assertDynamicColor(
         _ color: NSColor?,
+        matches expectation: DynamicLabelExpectation,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
         let actual = try XCTUnwrap(color, file: file, line: line)
-        let lightAppearance = try XCTUnwrap(NSAppearance(named: .aqua), file: file, line: line)
-        let darkAppearance = try XCTUnwrap(NSAppearance(named: .darkAqua), file: file, line: line)
-        assertComposerSurfaceColor(actual, appearance: lightAppearance, file: file, line: line)
-        assertComposerSurfaceColor(actual, appearance: darkAppearance, file: file, line: line)
+        let appearance = try XCTUnwrap(NSAppearance(named: expectation.appearanceName), file: file, line: line)
+        let resolvedBase = expectation.baseColor.resolved(for: appearance)
+        let expected = resolvedBase.withAlphaComponent(resolvedBase.alphaComponent * expectation.opacity)
+
+        try assertColor(actual, appearanceName: expectation.appearanceName, matches: expected, file: file, line: line)
     }
 
-    private func assertComposerSurfaceColor(
-        _ actual: NSColor,
-        appearance: NSAppearance,
-        file: StaticString,
-        line: UInt
-    ) {
-        let resolvedActual = actual.resolved(for: appearance)
-        let resolvedBase = NSColor.secondaryLabelColor.resolved(for: appearance)
-        let resolvedExpected = resolvedBase.withAlphaComponent(
-            resolvedBase.alphaComponent * BlockInputComposerStyle.editorSurfaceOpacity
-        )
-        XCTAssertEqual(resolvedActual.redComponent, resolvedExpected.redComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(resolvedActual.greenComponent, resolvedExpected.greenComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(resolvedActual.blueComponent, resolvedExpected.blueComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(resolvedActual.alphaComponent, resolvedExpected.alphaComponent, accuracy: 0.001, file: file, line: line)
-    }
+}
+
+private struct DynamicLabelExpectation {
+    let appearanceName: NSAppearance.Name
+    let baseColor: NSColor
+    let opacity: CGFloat
 }
