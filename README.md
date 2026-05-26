@@ -10,7 +10,7 @@ See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
 
 ## Setup
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, and `knit-cli`.
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, and Needle.
 
 Run the bootstrap script once per clone:
 
@@ -18,7 +18,7 @@ Run the bootstrap script once per clone:
 ./scripts/setup.sh
 ```
 
-It installs the required CLI tools via Homebrew and Mint (including `xcsift` for agent-friendly TOON `xcodebuild` output), generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
+It installs the required CLI tools via Homebrew (including `xcsift` for agent-friendly TOON `xcodebuild` output), generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
 
 ## Build, Test, and Run
 

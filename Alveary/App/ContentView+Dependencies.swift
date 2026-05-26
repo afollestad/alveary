@@ -1,4 +1,3 @@
-import Knit
 import SwiftData
 
 struct ContentViewDependencies {
@@ -25,29 +24,29 @@ struct ContentViewDependencies {
     let modelContainer: ModelContainer
 
     @MainActor
-    static func resolve(_ resolver: Resolver) -> ContentViewDependencies {
+    static func resolve(_ component: AppComponent) -> ContentViewDependencies {
         ContentViewDependencies(
-            settingsService: resolver.settingsService(),
-            shellRunner: resolver.shellRunner(),
-            gitHubCLI: resolver.gitHubCLIService(),
-            providerDetection: resolver.providerDetectionService(),
-            agentRegistry: resolver.agentRegistry(),
-            providerRegistry: resolver.providerRegistry(),
-            skillsService: resolver.skillsService(),
-            mcpService: resolver.mcpService(),
-            agentsManager: resolver.agentsManager(),
-            runtimeStore: resolver.conversationRuntimeStore(),
-            keepAwakeService: resolver.keepAwakeService(),
-            worktreeManager: resolver.worktreeManager(),
-            providerSetup: resolver.providerSetupService(),
-            contextWindowCache: resolver.contextWindowCache(),
-            fileListManager: resolver.fileListManager(),
-            notificationManager: resolver.notificationManager(),
-            notificationRouter: resolver.notificationRouter(),
-            gitService: resolver.gitService(),
-            gitHubService: resolver.gitHubService(),
-            diffWorkspaceStore: resolver.diffWorkspaceStore(),
-            modelContainer: resolver.modelContainer()
+            settingsService: component.settingsService,
+            shellRunner: component.shellRunner,
+            gitHubCLI: component.gitHubCLIService,
+            providerDetection: component.providerDetectionService,
+            agentRegistry: component.agentRegistry,
+            providerRegistry: component.providerRegistry,
+            skillsService: component.skillsService,
+            mcpService: component.mcpService,
+            agentsManager: component.agentsManager,
+            runtimeStore: component.conversationRuntimeStore,
+            keepAwakeService: component.keepAwakeService,
+            worktreeManager: component.worktreeManager,
+            providerSetup: component.providerSetupService,
+            contextWindowCache: component.contextWindowCache,
+            fileListManager: component.fileListManager,
+            notificationManager: component.notificationManager,
+            notificationRouter: component.notificationRouter,
+            gitService: component.gitService,
+            gitHubService: component.gitHubService,
+            diffWorkspaceStore: component.diffWorkspaceStore,
+            modelContainer: component.modelContainer
         )
     }
 }

@@ -1,4 +1,3 @@
-import Knit
 import SwiftData
 import XCTest
 
@@ -7,24 +6,10 @@ import XCTest
 @MainActor
 final class ContentViewProjectActionsTests: XCTestCase {
     func testContentViewUsesModelContainerMainContextForViewModels() {
-        let assembler = ScopedModuleAssembler<Resolver>([
-            AppAssembly(),
-            DataAssembly(isStoredInMemoryOnly: true),
-            SettingsAssembly(),
-            ShellAssembly(),
-            NotificationAssembly(),
-            DetectionAssembly(),
-            AgentAssembly(),
-            SessionAssembly(),
-            GitAssembly(),
-            GitHubAssembly(),
-            SkillsAssembly(),
-            MCPAssembly()
-        ])
-        let resolver = assembler.resolver
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 
-        let dependencies = ContentViewDependencies.resolve(resolver)
-        XCTAssertTrue(dependencies.modelContainer.mainContext === resolver.modelContainer().mainContext)
+        let dependencies = ContentViewDependencies.resolve(component)
+        XCTAssertTrue(dependencies.modelContainer.mainContext === component.modelContainer.mainContext)
     }
 
     func testDiffToolbarStateUsesWorkingTreeStatsWhenPaneModeIsCommits() {

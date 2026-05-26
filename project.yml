@@ -24,8 +24,8 @@ targets:
           - "**/CLAUDE.md"
       - path: AppIcon.icon
     dependencies:
-      - package: knit
-        product: Knit
+      - package: needle
+        product: NeedleFoundation
       - package: BlockInputKit
         product: BlockInputKit
       - sdk: IOKit.framework
@@ -38,26 +38,33 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     preBuildScripts:
-      - name: Knit Code Generation
+      - name: Needle Code Generation
         basedOnDependencyAnalysis: false
         script: |
-          KNIT_CLI=""
-          if command -v knit-cli &> /dev/null; then
-            KNIT_CLI="knit-cli"
-          elif [ -f "$HOME/.mint/bin/knit-cli" ]; then
-            KNIT_CLI="$HOME/.mint/bin/knit-cli"
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+          NEEDLE_CLI=""
+          if command -v needle &> /dev/null; then
+            NEEDLE_CLI="needle"
           fi
-          if [ -z "$KNIT_CLI" ]; then
-            echo "error: knit-cli is required for code generation. Install via 'mint install cashapp/knit knit-cli'."
+          if [ -z "$NEEDLE_CLI" ]; then
+            echo "error: needle is required for code generation. Install via 'brew install needle'."
             exit 1
           fi
+
+          NEEDLE_VERSION="$("$NEEDLE_CLI" version 2>/dev/null || true)"
+          if [ "$NEEDLE_VERSION" != "0.25.1" ]; then
+            echo "error: needle 0.25.1 is required to match the pinned NeedleFoundation package. Found: ${NEEDLE_VERSION:-unknown}."
+            exit 1
+          fi
+
           mkdir -p "${SRCROOT}/Alveary/DI/Generated"
-          "$KNIT_CLI" gen \
-            --assembly-input-path "${SRCROOT}/Alveary/DI" \
-            --type-safety-extensions-output-path "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
-          chmod u+w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
-          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Alveary/DI/Generated/KnitExtensions.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
-          chmod a-w "${SRCROOT}/Alveary/DI/Generated/KnitExtensions.swift"
+          export SOURCEKIT_LOGGING=0
+          "$NEEDLE_CLI" generate \
+            "${SRCROOT}/Alveary/DI/Generated/NeedleGenerated.swift" \
+            "${SRCROOT}/Alveary/DI" \
+            --exclude-paths "/DI/Generated"
+          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Alveary/DI/Generated/NeedleGenerated.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
     postBuildScripts:
       - name: SwiftLint
         basedOnDependencyAnalysis: false
@@ -88,9 +95,9 @@ packages:
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
     revision: "afa9845efdddf0dfcaae3794687ccb656ca4176d"
-  knit:
-    url: https://github.com/cashapp/knit
-    revision: "3d4afea562b95a95725f689be819b10ff93351fc"
+  needle:
+    url: https://github.com/uber/needle.git
+    revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"
   swift-snapshot-testing:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: "1.17.0"

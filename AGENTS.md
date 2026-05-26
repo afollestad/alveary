@@ -15,7 +15,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `AGENTS.md`: repo-wide workflow.
 - `Alveary/App/AGENTS.md`: lifecycle, commands, root layout.
 - `Alveary/Data/AGENTS.md`: SwiftData model invariants.
-- `Alveary/DI/AGENTS.md`: Knit and generated DI.
+- `Alveary/DI/AGENTS.md`: Needle and generated DI.
 - `Alveary/Services/Agent/AGENTS.md`: provider-neutral agent services.
 - `Alveary/Services/Agent/Runtime/AGENTS.md`: runtime, event buffers, deferred tools.
 - `Alveary/Services/Agent/Claude/AGENTS.md`: Claude adapter and stream decoding.
@@ -72,7 +72,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 ## Build And Test
 
 - First-time setup: `./scripts/setup.sh`.
-- The app pre-build needs `knit-cli`; setup installs it, or use `mint install cashapp/knit knit-cli`.
+- The app pre-build needs `needle`; setup installs it, or use `brew install needle`.
 - Build: `./scripts/build.sh`.
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.

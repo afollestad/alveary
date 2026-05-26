@@ -1,5 +1,4 @@
 import AppKit
-import Knit
 import SwiftData
 import SwiftUI
 
@@ -46,8 +45,8 @@ struct ContentView: View {
     @State private var terminalToolbarResetTask: Task<Void, Never>?
     @State var didAttemptLaunchSelectionRestore = false
 
-    init(resolver: Resolver, appState: AppState) {
-        self.init(dependencies: ContentViewDependencies.resolve(resolver), appState: appState)
+    init(component: AppComponent, appState: AppState) {
+        self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
     }
 
     init(dependencies: ContentViewDependencies, appState: AppState) {

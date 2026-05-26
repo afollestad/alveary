@@ -20,15 +20,7 @@ install_brew_formula() {
 install_brew_formula xcodegen
 install_brew_formula xcsift
 install_brew_formula swiftlint
-install_brew_formula mint
-
-if command -v knit-cli >/dev/null 2>&1; then
-  echo "knit-cli already installed"
-elif [ -x "$HOME/.mint/bin/knit-cli" ]; then
-  echo "knit-cli already installed at $HOME/.mint/bin/knit-cli"
-else
-  mint install cashapp/knit knit-cli
-fi
+install_brew_formula needle
 
 echo "Generating Xcode project..."
 xcodegen generate

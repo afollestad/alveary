@@ -458,7 +458,6 @@ private func accessibilityElement(in view: NSView, label: String) -> NSView? {
 
 private final class FixedHeightView: NSView {
     private let fixedHeight: CGFloat
-
     init(height: CGFloat) {
         fixedHeight = height
         super.init(frame: .zero)

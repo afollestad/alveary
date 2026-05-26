@@ -11,8 +11,4 @@ install_brew_formula() {
 install_brew_formula xcodegen
 install_brew_formula xcsift
 install_brew_formula swiftlint
-install_brew_formula mint
-
-if ! command -v knit-cli >/dev/null 2>&1; then
-  mint install cashapp/knit knit-cli
-fi
+install_brew_formula needle

@@ -1,21 +1,20 @@
-import Knit
-
 @MainActor
 enum AppDI {
-    static let assembler = ScopedModuleAssembler<Resolver>([
-        AppAssembly(),
-        DataAssembly(),
-        SettingsAssembly(),
-        ShellAssembly(),
-        NotificationAssembly(),
-        DetectionAssembly(),
-        AgentAssembly(),
-        SessionAssembly(),
-        GitAssembly(),
-        GitHubAssembly(),
-        SkillsAssembly(),
-        MCPAssembly()
-    ])
+    static let component: AppComponent = {
+        registerNeedleProviders()
+        return AppComponent()
+    }()
 
-    static let resolver = assembler.resolver
+    static func makeTestComponent(isStoredInMemoryOnly: Bool) -> AppComponent {
+        registerNeedleProviders()
+        return AppComponent(isStoredInMemoryOnly: isStoredInMemoryOnly)
+    }
+
+    private static func registerNeedleProviders() {
+        _ = providerRegistration
+    }
+
+    private static let providerRegistration: Void = {
+        registerProviderFactories()
+    }()
 }

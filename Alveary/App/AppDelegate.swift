@@ -25,14 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         @MainActor
         static func live() -> Dependencies {
-            let resolver = AppDI.resolver
+            let component = AppDI.component
             return Dependencies(
-                agentsManager: resolver.agentsManager(),
-                providerDetection: resolver.providerDetectionService(),
-                sessionManager: resolver.sessionManager(),
-                shellRunner: resolver.shellRunner(),
-                modelContainer: resolver.modelContainer(),
-                notificationRouter: resolver.notificationRouter(),
+                agentsManager: component.agentsManager,
+                providerDetection: component.providerDetectionService,
+                sessionManager: component.sessionManager,
+                shellRunner: component.shellRunner,
+                modelContainer: component.modelContainer,
+                notificationRouter: component.notificationRouter,
                 workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
                 notificationCenter: .default,
                 disableSuddenTermination: { ProcessInfo.processInfo.disableSuddenTermination() },

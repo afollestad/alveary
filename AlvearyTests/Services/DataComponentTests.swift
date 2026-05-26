@@ -1,22 +1,21 @@
-import Knit
 import SwiftData
 import XCTest
 
 @testable import Alveary
 
 @MainActor
-final class DataAssemblyTests: XCTestCase {
+final class DataComponentTests: XCTestCase {
     func testPersistentStoreURLUsesAlvearyScopedLocation() {
         let applicationSupportDirectory = URL(fileURLWithPath: "/tmp/Application Support", isDirectory: true)
 
-        let storeURL = DataAssembly.persistentStoreURL(in: applicationSupportDirectory)
+        let storeURL = DataComponent.persistentStoreURL(in: applicationSupportDirectory)
 
         XCTAssertEqual(storeURL.path, "/tmp/Application Support/Alveary/Alveary.store")
     }
 
     func testResolvesContainerAndPersistsEveryModelType() throws {
-        let assembler = makeAssembler()
-        let context = assembler.resolver.modelContext()
+        let component = makeComponent()
+        let context = component.modelContext
 
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Phase 1")
@@ -42,8 +41,8 @@ final class DataAssemblyTests: XCTestCase {
     }
 
     func testProjectPathIsUnique() throws {
-        let assembler = makeAssembler()
-        let context = assembler.resolver.modelContext()
+        let component = makeComponent()
+        let context = component.modelContext
 
         context.insert(Project(path: "/tmp/alveary-project", name: "One"))
         try context.save()
@@ -55,8 +54,8 @@ final class DataAssemblyTests: XCTestCase {
     }
 
     func testDeletingProjectCascadesThroughThreadConversationAndEvents() throws {
-        let assembler = makeAssembler()
-        let context = assembler.resolver.modelContext()
+        let component = makeComponent()
+        let context = component.modelContext
 
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Phase 1")
@@ -83,17 +82,14 @@ final class DataAssemblyTests: XCTestCase {
     }
 
     func testModelContextIsContainerScoped() {
-        let assembler = makeAssembler()
-        let firstContext = assembler.resolver.modelContext()
-        let secondContext = assembler.resolver.modelContext()
+        let component = makeComponent()
+        let firstContext = component.modelContext
+        let secondContext = component.modelContext
 
         XCTAssertTrue(firstContext === secondContext)
     }
 
-    private func makeAssembler() -> ScopedModuleAssembler<Resolver> {
-        ScopedModuleAssembler<Resolver>([
-            AppAssembly(),
-            DataAssembly(isStoredInMemoryOnly: true)
-        ])
+    private func makeComponent() -> AppComponent {
+        AppDI.makeTestComponent(isStoredInMemoryOnly: true)
     }
 }

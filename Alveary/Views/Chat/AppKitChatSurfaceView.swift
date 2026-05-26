@@ -62,26 +62,27 @@ final class AppKitChatSurfaceView: NSView {
     }
 
     func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
-        if let eventWindow = event.window, eventWindow === window {
-            return eventWindow.mouseLocationOutsideOfEventStream
-        }
-        if let window {
-            return window.mouseLocationOutsideOfEventStream
-        }
         return event.locationInWindow
     }
 
     func forwardScrollWheelOutsideComposer(_ event: NSEvent) {
         let surfacePoint = convert(scrollEventWindowPoint(event), from: nil)
+        let target = hitTest(surfacePoint)
         if let contentView,
            convert(contentView.bounds, from: contentView).contains(surfacePoint),
+           let target,
+           target.isDescendant(of: contentView),
            let scrollView = scrollViewForWheelForwarding(target: contentView, surfacePoint: surfacePoint, event: event) {
             scrollView.scrollWheel(with: event)
             return
         }
-        guard let target = hitTest(surfacePoint),
+        guard let target,
               target !== self else {
             super.scrollWheel(with: event)
+            return
+        }
+        if isSurfaceOverlayTarget(target) {
+            target.scrollWheel(with: event)
             return
         }
         if let scrollView = scrollViewForWheelForwarding(target: target, surfacePoint: surfacePoint, event: event) {
@@ -89,6 +90,18 @@ final class AppKitChatSurfaceView: NSView {
             return
         }
         super.scrollWheel(with: event)
+    }
+
+    private func isSurfaceOverlayTarget(_ target: NSView) -> Bool {
+        if let contentView,
+           target.isDescendant(of: contentView) {
+            return false
+        }
+        if let composerView,
+           target.isDescendant(of: composerView) {
+            return false
+        }
+        return true
     }
 
     private func measuredComposerHeight(for composerView: NSView, width: CGFloat) -> CGFloat {

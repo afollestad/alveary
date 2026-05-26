@@ -6,12 +6,12 @@ struct AlvearyApp: App {
     @State private var appState = AppState()
 
     init() {
-        _ = AppDI.resolver
+        _ = AppDI.component
     }
 
     var body: some Scene {
         Window("Alveary", id: "main") {
-            ContentView(resolver: AppDI.resolver, appState: appState)
+            ContentView(component: AppDI.component, appState: appState)
         }
         .defaultSize(width: 1440, height: 920)
         .commands {
@@ -53,7 +53,7 @@ struct AlvearyApp: App {
             }
             #endif
         }
-        .modelContainer(AppDI.resolver.modelContainer())
+        .modelContainer(AppDI.component.modelContainer)
     }
 }
 
