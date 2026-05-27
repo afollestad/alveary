@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import SwiftUI
 import XCTest
 
@@ -77,10 +78,10 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let bodyView = try composerBodyView(in: panel)
-        XCTAssertEqual(bodyView.frame.origin.x, 20)
-        XCTAssertEqual(bodyView.frame.origin.y, 0)
-        XCTAssertEqual(bodyView.frame.width, 259)
+        let editorView = try composerEditorView(in: panel)
+        XCTAssertEqual(editorView.frame.origin.x, 20)
+        XCTAssertEqual(editorView.frame.origin.y, ChatComposerPanelLayout.nativeInputTopPadding)
+        XCTAssertEqual(editorView.frame.width, 259)
         XCTAssertFalse(panel.isOpaque)
     }
 
@@ -99,7 +100,9 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         )
         panel.layoutSubtreeIfNeeded()
 
-        let divider = try XCTUnwrap(panel.subviews.first { $0.layer?.backgroundColor != nil })
+        let divider = try XCTUnwrap(panel.subviews.first {
+            $0.frame.height == 1 && $0.layer?.backgroundColor != nil
+        })
         let expected = NSColor.separatorColor.resolved(for: panel.appKitRenderingAppearance).cgColor
         XCTAssertEqual(divider.layer?.backgroundColor, expected)
         XCTAssertFalse(divider.isHidden)
@@ -123,12 +126,12 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let bodyView = try composerBodyView(in: panel)
+        let editorView = try composerEditorView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
-        XCTAssertEqual(bodyView.frame.origin.x, 20)
-        XCTAssertEqual(bodyView.frame.origin.y, 0)
-        XCTAssertEqual(bodyView.frame.width, 259)
-        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
+        XCTAssertEqual(editorView.frame.origin.x, 20)
+        XCTAssertEqual(editorView.frame.origin.y, ChatComposerPanelLayout.nativeInputTopPadding)
+        XCTAssertEqual(editorView.frame.width, 259)
+        XCTAssertEqual(actionRow.frame.origin.y, editorView.frame.maxY + 14)
         XCTAssertEqual(actionRow.frame.width, 259)
         XCTAssertFalse(actionRow.isHidden)
         XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY)
@@ -152,10 +155,10 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
 
         panel.layoutSubtreeIfNeeded()
 
-        let bodyView = try composerBodyView(in: panel)
+        let editorView = try composerEditorView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
-        XCTAssertEqual(bodyView.frame.origin.y, 0)
-        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
+        XCTAssertEqual(editorView.frame.origin.y, ChatComposerPanelLayout.nativeInputTopPadding)
+        XCTAssertEqual(actionRow.frame.origin.y, editorView.frame.maxY + 14)
         XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY + 16)
     }
 
@@ -179,15 +182,15 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         panel.layoutSubtreeIfNeeded()
 
         let topContentView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerTopContentView })
-        let bodyView = try composerBodyView(in: panel)
+        let editorView = try composerEditorView(in: panel)
         XCTAssertEqual(topContentView.frame.origin.x, 20)
         XCTAssertEqual(topContentView.frame.origin.y, 8)
         XCTAssertEqual(topContentView.frame.width, 259)
         XCTAssertEqual(topContentView.frame.height, 42)
-        XCTAssertEqual(bodyView.frame.origin.x, 20)
-        XCTAssertEqual(bodyView.frame.origin.y, topContentView.frame.maxY + 8)
-        XCTAssertEqual(bodyView.frame.width, 259)
-        XCTAssertEqual(panel.fittingSize.height, bodyView.frame.maxY)
+        XCTAssertEqual(editorView.frame.origin.x, 20)
+        XCTAssertEqual(editorView.frame.origin.y, topContentView.frame.maxY + 8)
+        XCTAssertEqual(editorView.frame.width, 259)
+        XCTAssertEqual(panel.fittingSize.height, editorView.frame.maxY)
     }
 
     func testComposerPanelLaysOutNativeQueuedMessagesAboveNativeBody() throws {
@@ -213,14 +216,14 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         panel.layoutSubtreeIfNeeded()
 
         let queuedMessagesView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatQueuedMessagesView })
-        let bodyView = try composerBodyView(in: panel)
+        let editorView = try composerEditorView(in: panel)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
         XCTAssertFalse(queuedMessagesView.isHidden)
         XCTAssertEqual(queuedMessagesView.frame.origin.x, 20)
         XCTAssertEqual(queuedMessagesView.frame.origin.y, 16)
         XCTAssertEqual(queuedMessagesView.frame.width, 259)
-        XCTAssertEqual(bodyView.frame.origin.y, queuedMessagesView.frame.maxY)
-        XCTAssertEqual(actionRow.frame.origin.y, bodyView.frame.maxY + 14)
+        XCTAssertEqual(editorView.frame.origin.y, queuedMessagesView.frame.maxY)
+        XCTAssertEqual(actionRow.frame.origin.y, editorView.frame.maxY + 14)
         XCTAssertEqual(panel.fittingSize.height, actionRow.frame.maxY + 16)
     }
 
@@ -311,13 +314,13 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         panel.layoutSubtreeIfNeeded()
 
         let topContentView = try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerTopContentView })
-        let bodyView = try composerBodyView(in: panel)
+        let editorView = try composerEditorView(in: panel)
         XCTAssertTrue(topContentView.isHidden)
         XCTAssertEqual(topContentView.frame, .zero)
-        XCTAssertEqual(bodyView.frame.origin.x, 20)
-        XCTAssertEqual(bodyView.frame.origin.y, 0)
-        XCTAssertEqual(bodyView.frame.width, 259)
-        XCTAssertEqual(panel.fittingSize.height, bodyView.frame.height)
+        XCTAssertEqual(editorView.frame.origin.x, 20)
+        XCTAssertEqual(editorView.frame.origin.y, ChatComposerPanelLayout.nativeInputTopPadding)
+        XCTAssertEqual(editorView.frame.width, 259)
+        XCTAssertEqual(panel.fittingSize.height, editorView.frame.maxY)
     }
 
     func testConfigureReplacesHostedViewsWithoutLeavingOldSubviews() {
@@ -359,13 +362,13 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         coordinator.composerPanelView.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(coordinator.composerPanelView.fittingSize.height, 0)
-        XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is AppKitChatComposerBodyView })
+        XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is BlockInputView })
     }
 }
 
 @MainActor
-private func composerBodyView(in panel: AppKitChatComposerPanelView) throws -> AppKitChatComposerBodyView {
-    try XCTUnwrap(panel.subviews.first { $0 is AppKitChatComposerBodyView } as? AppKitChatComposerBodyView)
+private func composerEditorView(in panel: AppKitChatComposerPanelView) throws -> BlockInputView {
+    try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
 }
 
 @MainActor
@@ -458,14 +461,13 @@ private func accessibilityElement(in view: NSView, label: String) -> NSView? {
 
 private final class FixedHeightView: NSView {
     private let fixedHeight: CGFloat
+
     init(height: CGFloat) {
         fixedHeight = height
         super.init(frame: .zero)
     }
-    required init?(coder: NSCoder) {
-        nil
-    }
 
+    required init?(coder: NSCoder) { nil }
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight)
     }
@@ -486,10 +488,8 @@ private final class MutableHeightView: NSView {
         self.height = height
         super.init(frame: .zero)
     }
-    required init?(coder: NSCoder) {
-        nil
-    }
 
+    required init?(coder: NSCoder) { nil }
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: height)
     }

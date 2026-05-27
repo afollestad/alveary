@@ -27,8 +27,8 @@ struct AppKitChatComposerPanelConfiguration {
 
 /// AppKit owner for the composer panel shell.
 ///
-/// Production chat surfaces pass a native composer body so the BlockInputKit
-/// editor, queued messages, and action row live in one AppKit layout path.
+/// Production chat surfaces host BlockInputKit directly so the editor, queued
+/// messages, and action row live in one AppKit layout path.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
     struct Layout {
@@ -55,7 +55,7 @@ final class AppKitChatComposerPanelView: NSView {
         }
     }
 
-    private let nativeBodyView = AppKitChatComposerBodyView()
+    private let editorController = AppKitChatComposerEditorController()
     private let topContentView = AppKitChatComposerTopContentView()
     private let queuedMessagesView = AppKitChatQueuedMessagesView()
     private let actionRow = ChatComposerActionRowView()
@@ -94,7 +94,7 @@ final class AppKitChatComposerPanelView: NSView {
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
         configureQueuedMessages(configuration.queuedMessagesConfiguration)
-        nativeBodyView.configure(configuration.bodyConfiguration)
+        configureEditor(configuration.bodyConfiguration)
         configureActionRow(configuration.actionRowConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
         invalidateIntrinsicContentSize()
@@ -116,14 +116,7 @@ final class AppKitChatComposerPanelView: NSView {
         var currentY = topPadding(for: configuration)
         currentY = layoutTopContent(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         currentY = layoutQueuedMessages(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
-        let bodyHeight = measuredHeight(of: nativeBodyView, width: contentWidth)
-        nativeBodyView.frame = NSRect(
-            x: configuration.layout.horizontalPadding.left,
-            y: currentY,
-            width: contentWidth,
-            height: bodyHeight
-        )
-        currentY += bodyHeight
+        currentY = layoutEditor(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         if configuration.actionRowConfiguration != nil {
             actionRow.frame = NSRect(
                 x: configuration.layout.horizontalPadding.left,
@@ -138,12 +131,11 @@ final class AppKitChatComposerPanelView: NSView {
     private func setupViews() {
         addSubview(topContentView)
         addSubview(queuedMessagesView)
-        nativeBodyView.onPreferredSizeInvalidated = { [weak self] in
+        editorController.onPreferredSizeInvalidated = { [weak self] in
             self?.invalidateIntrinsicContentSize()
             self?.needsLayout = true
             self?.superview?.needsLayout = true
         }
-        addSubview(nativeBodyView)
         actionRow.isHidden = true
         addSubview(actionRow)
 
@@ -152,6 +144,14 @@ final class AppKitChatComposerPanelView: NSView {
         dividerView.alphaValue = 0
         addSubview(dividerView)
         updateColors()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        guard newWindow == nil else {
+            return
+        }
+        editorController.detach()
     }
 
     private func configureActionRow(_ configuration: ChatComposerActionRowView.Configuration?) {
@@ -203,6 +203,22 @@ final class AppKitChatComposerPanelView: NSView {
         return queuedY + queuedHeight
     }
 
+    private func layoutEditor(
+        configuration: AppKitChatComposerPanelConfiguration,
+        contentWidth: CGFloat,
+        currentY: CGFloat
+    ) -> CGFloat {
+        guard let editorView = editorController.view else {
+            return currentY
+        }
+        let editorFrame = editorController.editorFrame(
+            origin: NSPoint(x: configuration.layout.horizontalPadding.left, y: currentY),
+            width: contentWidth
+        )
+        editorView.frame = editorFrame
+        return currentY + editorController.measuredHeight(width: contentWidth)
+    }
+
     private func queuedY(configuration: AppKitChatComposerPanelConfiguration, currentY: CGFloat) -> CGFloat {
         guard !topContentView.hasContent else {
             return currentY
@@ -216,6 +232,17 @@ final class AppKitChatComposerPanelView: NSView {
             return
         }
         queuedMessagesView.configure(configuration)
+    }
+
+    private func configureEditor(_ configuration: AppKitChatComposerBodyConfiguration) {
+        let previousView = editorController.view
+        editorController.configure(configuration)
+        guard let editorView = editorController.view,
+              editorView !== previousView || editorView.superview == nil else {
+            return
+        }
+        previousView?.removeFromSuperview()
+        addSubview(editorView, positioned: .below, relativeTo: actionRow)
     }
 
     private func configureDividerVisibility(_ isVisible: Bool) {
@@ -275,7 +302,7 @@ final class AppKitChatComposerPanelView: NSView {
             }
             height += queuedMessagesView.measuredHeight(width: contentWidth)
         }
-        height += measuredHeight(of: nativeBodyView, width: contentWidth)
+        height += editorController.measuredHeight(width: contentWidth)
         if configuration.actionRowConfiguration != nil {
             height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height + configuration.layout.bottomPadding
         }
@@ -294,3 +321,11 @@ final class AppKitChatComposerPanelView: NSView {
         return max(0, ceil(view.fittingSize.height))
     }
 }
+
+#if DEBUG
+extension AppKitChatComposerPanelView {
+    var editorControllerForTesting: AppKitChatComposerEditorController {
+        editorController
+    }
+}
+#endif

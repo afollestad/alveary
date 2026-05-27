@@ -11,6 +11,7 @@ struct BlockInputComposerBridgeConfiguration {
     var disabledCursor: NSCursor?
     var editorHorizontalInset: CGFloat
     var editorVerticalInset: CGFloat
+    var editorRoundedCorners: BlockInputEditorChromeCorners
     var location: BlockInputComposerLocation
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
@@ -28,6 +29,7 @@ struct BlockInputComposerBridgeConfiguration {
         disabledCursor: NSCursor? = nil,
         editorHorizontalInset: CGFloat = BlockInputConfiguration.defaultEditorHorizontalInset,
         editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
+        editorRoundedCorners: BlockInputEditorChromeCorners = .all,
         location: BlockInputComposerLocation,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
@@ -44,6 +46,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.disabledCursor = disabledCursor
         self.editorHorizontalInset = editorHorizontalInset
         self.editorVerticalInset = editorVerticalInset
+        self.editorRoundedCorners = editorRoundedCorners
         self.location = location
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
@@ -106,7 +109,7 @@ final class BlockInputComposerBridgeController {
             disabledCursor: configuration.disabledCursor,
             rawSlashCommandChips: true,
             dropIndicatorColor: .controlAccentColor,
-            style: BlockInputComposerStyle.make(),
+            style: BlockInputComposerStyle.make(roundedCorners: configuration.editorRoundedCorners),
             heightSizing: BlockInputEditorHeightSizing(
                 defaultVisibleLineCount: Self.minVisibleLineCount,
                 maximumVisibleLineCount: Self.maxVisibleLineCount,

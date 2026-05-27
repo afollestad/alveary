@@ -6,12 +6,40 @@ import XCTest
 
 @MainActor
 final class BlockInputComposerStyleTests: XCTestCase {
-    func testComposerStyleLeavesEditorSurfaceTransparent() {
+    func testComposerStyleLeavesEditorSurfaceBackgroundsTransparent() {
         let style = BlockInputComposerStyle.make()
 
         XCTAssertNil(style.editorSurface.editorBackgroundColor)
         XCTAssertNil(style.editorSurface.scrollBackgroundColor)
         XCTAssertNil(style.editorSurface.collectionBackgroundColor)
+    }
+
+    func testComposerStyleUsesBlockInputChromeTokens() throws {
+        let style = BlockInputComposerStyle.make(roundedCorners: .bottom)
+        let chrome = try XCTUnwrap(style.editorSurface.chrome)
+
+        XCTAssertEqual(chrome.borderWidth, AppKitChatComposerEditorController.borderWidth)
+        XCTAssertEqual(chrome.cornerRadius, AppKitChatComposerEditorController.editorCornerRadius)
+        XCTAssertEqual(chrome.roundedCorners, .bottom)
+        XCTAssertTrue(chrome.clipsContentToShape)
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            try assertDynamicColor(
+                chrome.fillColor,
+                matches: DynamicLabelExpectation(
+                    appearanceName: appearanceName,
+                    baseColor: .secondaryLabelColor,
+                    opacity: 0.08
+                )
+            )
+            try assertDynamicColor(
+                chrome.strokeColor,
+                matches: DynamicLabelExpectation(
+                    appearanceName: appearanceName,
+                    baseColor: .secondaryLabelColor,
+                    opacity: 0.18
+                )
+            )
+        }
     }
 
     func testComposerStyleUsesAlvearyChipTokens() {

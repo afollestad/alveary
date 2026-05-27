@@ -1,6 +1,6 @@
 import Foundation
 
-extension AppKitChatComposerBodyView {
+extension AppKitChatComposerEditorController {
     func performBusyReturnAction(
         canStop: Bool,
         usesAlternateBehavior: Bool,

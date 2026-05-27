@@ -1,57 +1,19 @@
 @preconcurrency import AppKit
 import BlockInputKit
 import QuartzCore
-import SwiftUI
 
-/// Native production composer body that mounts the BlockInputKit editor inside
-/// Alveary's composer shell.
-///
-/// Active chat surfaces configure this view through
-/// `AppKitChatComposerPanelView` so editor measurement stays on the native
-/// AppKit path.
+/// Non-view owner for Alveary's BlockInputKit composer bridge.
 @MainActor
-final class AppKitChatComposerBodyView: NSView {
-    let editorClipView = AppKitComposerEditorClipView()
+final class AppKitChatComposerEditorController {
     var bridgeController: BlockInputComposerBridgeController?
-
     var configuration: AppKitChatComposerBodyConfiguration?
-    var measuredEditorHeight: CGFloat = AppKitChatComposerBodyView.editorBaseHeight
+    var measuredEditorHeight: CGFloat = AppKitChatComposerEditorController.editorBaseHeight
     var stopConfirmationResetTask: Task<Void, Never>?
     var onPreferredSizeInvalidated: (() -> Void)?
     private var lastConsumedFocusRequestToken: UUID?
     private var hasSeededInitialBlockInputHeight = false
     private var preferredHeightAnimationTimer: Timer?
     private var preferredHeightAnimationState: PreferredHeightAnimationState?
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override var isOpaque: Bool {
-        false
-    }
-
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight(width: bounds.width))
-    }
-
-    override var fittingSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight(width: bounds.width))
-    }
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
-    }
-
-    deinit {
-        stopConfirmationResetTask?.cancel()
-    }
 
     func configure(_ configuration: AppKitChatComposerBodyConfiguration) {
         let previousConfiguration = self.configuration
@@ -69,16 +31,10 @@ final class AppKitChatComposerBodyView: NSView {
         configureBlockInput(configuration)
         installDraftSnapshotProvider(configuration)
         consumeFocusRequestIfNeeded(configuration.requestFirstResponder)
-        needsLayout = true
-        needsDisplay = true
         invalidatePreferredSize()
     }
 
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
-        super.viewWillMove(toWindow: newWindow)
-        guard newWindow == nil else {
-            return
-        }
+    func detach() {
         configuration?.onDraftSnapshotProviderChange(nil)
         cancelAsyncTasks()
     }
@@ -88,122 +44,21 @@ final class AppKitChatComposerBodyView: NSView {
         stopConfirmationResetTask = nil
         cancelPreferredHeightAnimation()
     }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-    }
-
-    override func layout() {
-        super.layout()
-        seedInitialBlockInputHeightIfPossible()
-        let editorHeight = resolvedEditorHeight
-        editorClipView.frame = NSRect(x: 0, y: topPadding, width: bounds.width, height: editorHeight)
-        editorClipView.configure(
-            radius: Self.editorCornerRadius,
-            squaresTopCorners: configuration?.hasQueuedMessages == true
-        )
-        bridgeController?.view.frame = NSRect(
-            x: 0,
-            y: 0,
-            width: bounds.width,
-            height: editorHeight
-        )
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else {
-            return nil
-        }
-        return super.hitTest(point)
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        let editorRect = NSRect(x: 0, y: topPadding, width: bounds.width, height: resolvedEditorHeight)
-        let path = NSBezierPath.appKitComposerEditorPath(
-            in: editorRect.insetBy(dx: Self.borderWidth / 2, dy: Self.borderWidth / 2),
-            radius: Self.editorCornerRadius,
-            squaresTopCorners: configuration?.hasQueuedMessages == true
-        )
-
-        appKitComposerSecondaryColor(in: self, opacity: 0.08).setFill()
-        path.fill()
-
-        appKitComposerSecondaryColor(in: self, opacity: 0.18).setStroke()
-        path.lineWidth = Self.borderWidth
-        path.stroke()
-    }
-
-    private func setup() {
-        wantsLayer = true
-        addSubview(editorClipView)
-    }
-
 }
 
-final class AppKitComposerEditorClipView: NSView {
-    private let maskLayer = CAShapeLayer()
-    private var radius: CGFloat = 0
-    private var squaresTopCorners = false
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
-    }
-
-    func configure(radius: CGFloat, squaresTopCorners: Bool) {
-        guard self.radius != radius || self.squaresTopCorners != squaresTopCorners else {
-            updateMask()
-            return
-        }
-        self.radius = radius
-        self.squaresTopCorners = squaresTopCorners
-        updateMask()
-    }
-
-    override func layout() {
-        super.layout()
-        updateMask()
-    }
-
-    private func setup() {
-        wantsLayer = true
-        layer?.masksToBounds = true
-        layer?.mask = maskLayer
-    }
-
-    private func updateMask() {
-        guard bounds.width > 0, bounds.height > 0 else {
-            maskLayer.path = nil
-            return
-        }
-        maskLayer.frame = bounds
-        maskLayer.path = NSBezierPath.appKitComposerEditorPath(
-            in: bounds,
-            radius: radius,
-            squaresTopCorners: squaresTopCorners
-        ).cgPath
-    }
-}
-
-extension AppKitChatComposerBodyView {
+extension AppKitChatComposerEditorController {
     nonisolated static let editorHorizontalPadding: CGFloat = 10
     nonisolated static let editorVerticalPadding: CGFloat = 10
     nonisolated static let editorBaseHeight: CGFloat = 68
     nonisolated static let editorCornerRadius: CGFloat = 18
     nonisolated static let borderWidth: CGFloat = 1
+    nonisolated static let autocompleteVerticalOffset: CGFloat = 8
     nonisolated static let stopConfirmationTimeoutNanoseconds: UInt64 = 1_000_000_000
     nonisolated static let preferredHeightAnimationFrameInterval: TimeInterval = 1 / 60
+
+    var view: BlockInputView? {
+        bridgeController?.view
+    }
 
     var topPadding: CGFloat {
         guard let configuration else {
@@ -217,7 +72,18 @@ extension AppKitChatComposerBodyView {
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        topPadding + resolvedEditorHeight
+        seedInitialBlockInputHeightIfPossible(width: width)
+        return topPadding + resolvedEditorHeight
+    }
+
+    func editorFrame(origin: NSPoint, width: CGFloat) -> NSRect {
+        seedInitialBlockInputHeightIfPossible(width: width)
+        return NSRect(
+            x: origin.x,
+            y: origin.y + topPadding,
+            width: width,
+            height: resolvedEditorHeight
+        )
     }
 
     func presentation(for configuration: AppKitChatComposerBodyConfiguration) -> ComposerPresentation {
@@ -234,7 +100,9 @@ extension AppKitChatComposerBodyView {
             isProjectTrustBlocked: configuration.isProjectTrustBlocked
         )
     }
+}
 
+extension AppKitChatComposerEditorController {
     func handlePreferredHeightTransition(_ transition: BlockInputEditorHeightTransition) {
         hasSeededInitialBlockInputHeight = true
         let nextHeight = max(0, ceil(transition.targetHeight))
@@ -306,35 +174,42 @@ extension AppKitChatComposerBodyView {
 
     private func applyPreferredEditorHeight(_ nextHeight: CGFloat) {
         measuredEditorHeight = nextHeight
-        needsDisplay = true
+        view?.needsDisplay = true
         invalidatePreferredSize()
         layoutPreferredHeightHostIfNeeded()
     }
 
-    private func seedInitialBlockInputHeightIfPossible() {
+    private func seedInitialBlockInputHeightIfPossible(width: CGFloat) {
         guard !hasSeededInitialBlockInputHeight,
-              bounds.width > 0,
-              let editor = bridgeController?.view else {
+              width > 0,
+              let editor = view else {
             return
         }
         hasSeededInitialBlockInputHeight = true
-        let preferredHeight = max(0, ceil(editor.preferredHeight(forWidth: bounds.width)))
+        let preferredHeight = max(0, ceil(editor.preferredHeight(forWidth: width)))
         guard abs(measuredEditorHeight - preferredHeight) > 0.5 else {
             return
         }
         measuredEditorHeight = preferredHeight
-        needsDisplay = true
+        view?.needsDisplay = true
         invalidatePreferredSize()
     }
 
     private func layoutPreferredHeightHostIfNeeded() {
         if let surface = enclosingChatSurfaceView() {
             surface.layoutPreferredComposerHeightChange()
-        } else if let parent = superview {
+        } else if let parent = view?.superview {
             parent.layoutSubtreeIfNeeded()
         } else {
-            layoutSubtreeIfNeeded()
+            view?.layoutSubtreeIfNeeded()
         }
+    }
+
+    func invalidatePreferredSize() {
+        view?.invalidateIntrinsicContentSize()
+        view?.needsLayout = true
+        view?.superview?.needsLayout = true
+        onPreferredSizeInvalidated?()
     }
 
     func consumeFocusRequest(_ token: UUID?) {
@@ -352,10 +227,10 @@ extension AppKitChatComposerBodyView {
 
     private func focusBlockInputWhenReady(token: UUID, attempt: Int) {
         guard configuration?.requestFirstResponder == token,
-              bridgeController != nil else {
+              view != nil else {
             return
         }
-        guard window != nil else {
+        guard view?.window != nil else {
             guard attempt < 4 else {
                 return
             }
@@ -365,15 +240,8 @@ extension AppKitChatComposerBodyView {
             return
         }
 
-        bridgeController?.view.focusEditor()
+        view?.focusEditor()
         consumeFocusRequest(token)
-    }
-
-    func invalidatePreferredSize() {
-        invalidateIntrinsicContentSize()
-        needsLayout = true
-        superview?.needsLayout = true
-        onPreferredSizeInvalidated?()
     }
 }
 
@@ -399,40 +267,5 @@ private extension BlockInputEditorHeightAnimationCurve {
         case .linear:
             return progress
         }
-    }
-}
-
-private extension NSBezierPath {
-    /// Builds the editor outline used by the native composer body.
-    ///
-    /// Queued messages sit directly above the editor as part of one visual
-    /// control, so the editor's top corners are squared only in that state.
-    static func appKitComposerEditorPath(
-        in rect: NSRect,
-        radius: CGFloat,
-        squaresTopCorners: Bool
-    ) -> NSBezierPath {
-        let radius = min(radius, rect.width / 2, rect.height / 2)
-        guard squaresTopCorners else {
-            return NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-        }
-
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: rect.minX, y: rect.minY))
-        path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
-        path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - radius))
-        path.curve(
-            to: NSPoint(x: rect.maxX - radius, y: rect.maxY),
-            controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - radius * 0.45),
-            controlPoint2: NSPoint(x: rect.maxX - radius * 0.45, y: rect.maxY)
-        )
-        path.line(to: NSPoint(x: rect.minX + radius, y: rect.maxY))
-        path.curve(
-            to: NSPoint(x: rect.minX, y: rect.maxY - radius),
-            controlPoint1: NSPoint(x: rect.minX + radius * 0.45, y: rect.maxY),
-            controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - radius * 0.45)
-        )
-        path.close()
-        return path
     }
 }

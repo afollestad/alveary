@@ -17,8 +17,10 @@ enum BlockInputComposerStyle {
 
     static let completionPopupBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
     static let completionPopupHighlightColor = dynamicLabelColor(.labelColor, opacity: 0.1)
+    static let editorFillColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.08)
+    static let editorBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
 
-    static func make() -> BlockInputStyle {
+    static func make(roundedCorners: BlockInputEditorChromeCorners = .all) -> BlockInputStyle {
         return BlockInputStyle(
             inlineCode: BlockInputInlineCodeStyle(
                 foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor,
@@ -27,7 +29,15 @@ enum BlockInputComposerStyle {
             editorSurface: BlockInputEditorSurfaceStyle(
                 editorBackgroundColor: nil,
                 scrollBackgroundColor: nil,
-                collectionBackgroundColor: nil
+                collectionBackgroundColor: nil,
+                chrome: BlockInputEditorChromeStyle(
+                    fillColor: editorFillColor,
+                    strokeColor: editorBorderColor,
+                    borderWidth: AppKitChatComposerEditorController.borderWidth,
+                    cornerRadius: AppKitChatComposerEditorController.editorCornerRadius,
+                    roundedCorners: roundedCorners,
+                    clipsContentToShape: true
+                )
             ),
             fileChip: chipStyle(),
             slashCommandChip: chipStyle(),

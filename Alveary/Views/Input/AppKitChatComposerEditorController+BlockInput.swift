@@ -1,9 +1,7 @@
 @preconcurrency import AppKit
 import BlockInputKit
 
-extension AppKitChatComposerBodyView {
-    nonisolated static let autocompleteVerticalOffset: CGFloat = 8
-
+extension AppKitChatComposerEditorController {
     func configureBlockInput(_ configuration: AppKitChatComposerBodyConfiguration) {
         let bridgeConfiguration = blockInputBridgeConfiguration(for: configuration)
         if let bridgeController {
@@ -11,7 +9,6 @@ extension AppKitChatComposerBodyView {
         } else {
             let controller = BlockInputComposerBridgeController(configuration: bridgeConfiguration)
             bridgeController = controller
-            editorClipView.addSubview(controller.view)
         }
     }
 
@@ -27,6 +24,7 @@ extension AppKitChatComposerBodyView {
             disabledCursor: configuration.isProjectTrustBlocked ? .operationNotAllowed : nil,
             editorHorizontalInset: Self.editorHorizontalPadding,
             editorVerticalInset: Self.editorVerticalPadding,
+            editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions,
@@ -63,7 +61,7 @@ extension AppKitChatComposerBodyView {
     }
 
     func enclosingChatSurfaceView() -> AppKitChatSurfaceView? {
-        var candidate = superview
+        var candidate = view?.superview
         while let view = candidate {
             if let surface = view as? AppKitChatSurfaceView {
                 return surface
