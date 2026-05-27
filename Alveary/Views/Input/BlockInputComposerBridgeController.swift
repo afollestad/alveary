@@ -87,7 +87,7 @@ final class BlockInputComposerBridgeController {
                 undoController = BlockInputUndoController()
             }
         }
-        completionProvider = Self.makeCompletionProvider(configuration)
+        updateCompletionProvider(configuration)
         view.configure(blockInputConfiguration(for: configuration))
     }
 
@@ -147,5 +147,17 @@ final class BlockInputComposerBridgeController {
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions
         )
+    }
+
+    private func updateCompletionProvider(_ configuration: BlockInputComposerBridgeConfiguration) {
+        if completionProvider.location == configuration.location {
+            completionProvider.update(
+                location: configuration.location,
+                loadFileCompletions: configuration.loadFileCompletions,
+                loadSkillCompletions: configuration.loadSkillCompletions
+            )
+        } else {
+            completionProvider = Self.makeCompletionProvider(configuration)
+        }
     }
 }

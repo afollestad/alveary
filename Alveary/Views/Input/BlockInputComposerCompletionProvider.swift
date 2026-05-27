@@ -2,9 +2,7 @@ import BlockInputKit
 import Foundation
 
 final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, @unchecked Sendable {
-    private let loadFileCompletions: @Sendable () async -> [String]
-    private let loadSkillCompletions: @Sendable () async -> [Skill]
-    private let location: BlockInputComposerLocation
+    private let state: LockedState<CompletionProviderState>
     private let limit: Int
 
     init(
@@ -13,25 +11,51 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill]
     ) {
-        self.location = location
         self.limit = limit
-        self.loadFileCompletions = loadFileCompletions
-        self.loadSkillCompletions = loadSkillCompletions
+        state = LockedState(CompletionProviderState(
+            location: location,
+            loadFileCompletions: loadFileCompletions,
+            loadSkillCompletions: loadSkillCompletions
+        ))
+    }
+
+    var location: BlockInputComposerLocation {
+        stateSnapshot().location
+    }
+
+    func update(
+        location: BlockInputComposerLocation,
+        loadFileCompletions: @escaping @Sendable () async -> [String],
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill]
+    ) {
+        state.withLock { state in
+            state = CompletionProviderState(
+                location: location,
+                loadFileCompletions: loadFileCompletions,
+                loadSkillCompletions: loadSkillCompletions
+            )
+        }
     }
 
     func suggestions(for context: BlockInputCompletionContext) async -> [BlockInputCompletionSuggestion] {
+        let state = stateSnapshot()
         switch context.trigger {
         case .mention:
-            let files = await loadFileCompletions()
-            return fileSuggestions(for: context, files: files)
+            let files = await state.loadFileCompletions()
+            return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
-            let skills = await loadSkillCompletions()
+            let skills = await state.loadSkillCompletions()
             return skillSuggestions(for: context, skills: skills)
         }
     }
 
+    private func stateSnapshot() -> CompletionProviderState {
+        state.withLock { $0 }
+    }
+
     private func fileSuggestions(
         for context: BlockInputCompletionContext,
+        location: BlockInputComposerLocation,
         files: [String]
     ) -> [BlockInputCompletionSuggestion] {
         guard let effectiveDirectory = location.effectiveProjectDirectory else {
@@ -291,6 +315,12 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
         return gapPenalty
     }
+}
+
+private struct CompletionProviderState {
+    var location: BlockInputComposerLocation
+    var loadFileCompletions: @Sendable () async -> [String]
+    var loadSkillCompletions: @Sendable () async -> [Skill]
 }
 
 private struct ComposerFileCompletionScope {

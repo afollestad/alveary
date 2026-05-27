@@ -225,6 +225,51 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertFalse(controller.undoController === initialUndoController)
     }
 
+    func testSameLocationReconfigureKeepsCompletionProviderIdentity() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
+        let initialProvider = controller.completionProvider
+
+        controller.configure(makeConfiguration(markdown: "After"))
+
+        XCTAssertTrue(controller.completionProvider === initialProvider)
+    }
+
+    func testSameLocationReconfigureUsesLatestCompletionLoaders() async {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
+            markdown: "Before",
+            loadFileCompletions: { ["Sources/Before.swift"] }
+        ))
+        let initialProvider = controller.completionProvider
+
+        controller.configure(makeConfiguration(
+            markdown: "After",
+            loadFileCompletions: { ["Sources/After.swift"] }
+        ))
+        let suggestions = await controller.completionProvider.suggestions(for: completionContext(
+            trigger: .mention,
+            query: "After",
+            rawQuery: "After"
+        ))
+
+        XCTAssertTrue(controller.completionProvider === initialProvider)
+        XCTAssertEqual(suggestions.map(\.title), ["Sources/After.swift"])
+    }
+
+    func testLocationChangeReplacesCompletionProvider() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
+            markdown: "Before",
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project")
+        ))
+        let initialProvider = controller.completionProvider
+
+        controller.configure(makeConfiguration(
+            markdown: "After",
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/other-project")
+        ))
+
+        XCTAssertFalse(controller.completionProvider === initialProvider)
+    }
+
     func testFileCompletionHonorsParentDirectoryReference() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project/current"),
@@ -355,14 +400,17 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         markdown: String,
         markdownRevision: Int = 0,
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
-        onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in }
+        onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
+        location: BlockInputComposerLocation = BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
+        loadFileCompletions: @escaping @Sendable () async -> [String] = { [] },
+        loadSkillCompletions: @escaping @Sendable () async -> [Skill] = { [] }
     ) -> BlockInputComposerBridgeConfiguration {
         BlockInputComposerBridgeConfiguration(
             markdown: markdown,
             markdownRevision: markdownRevision,
-            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
-            loadFileCompletions: { [] },
-            loadSkillCompletions: { [] },
+            location: location,
+            loadFileCompletions: loadFileCompletions,
+            loadSkillCompletions: loadSkillCompletions,
             keyboardShortcuts: keyboardShortcuts,
             onDocumentMutation: onDocumentMutation
         )

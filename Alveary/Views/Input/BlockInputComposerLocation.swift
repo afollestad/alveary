@@ -1,6 +1,6 @@
 import Foundation
 
-struct BlockInputComposerLocation: Equatable {
+struct BlockInputComposerLocation: Equatable, Sendable {
     var projectPath: String?
     var worktreePath: String?
 
