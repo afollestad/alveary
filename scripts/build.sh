@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 

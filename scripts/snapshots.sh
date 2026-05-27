@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 usage() {
   cat <<'EOF'
 Usage: ./scripts/snapshots.sh <verify|record> [test_identifier ...]
