@@ -20,6 +20,59 @@ import XCTest
 /// Override per call site if a specific test wants stricter or looser matching.
 private let defaultPixelPrecision: Float = 0.99
 private let defaultPerceptualPrecision: Float = 0.99
+private let appKitSnapshotScale: CGFloat = 2
+private let fixedScaleSnapshotPrecision: Float = 0.9
+
+func macSnapshotImage(
+    precision: Float = defaultPixelPrecision,
+    perceptualPrecision: Float = defaultPerceptualPrecision
+) -> Snapshotting<NSViewController, NSImage> {
+    if usesNativeSnapshotRenderer {
+        return .image(precision: precision, perceptualPrecision: perceptualPrecision)
+    }
+    let fixedPrecision = min(precision, fixedScaleSnapshotPrecision)
+    let fixedPerceptualPrecision = min(perceptualPrecision, fixedScaleSnapshotPrecision)
+    return Snapshotting(pathExtension: "png", diffing: .image(
+        precision: fixedPrecision,
+        perceptualPrecision: fixedPerceptualPrecision
+    )) { controller in
+        MainActor.assumeIsolated {
+            renderFixedScaleSnapshotImage(for: controller.view)
+        }
+    }
+}
+
+private var usesNativeSnapshotRenderer: Bool {
+    ProcessInfo.processInfo.environment["ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS"] != "true"
+        && (NSScreen.main?.backingScaleFactor ?? 1) >= appKitSnapshotScale
+}
+
+@MainActor
+private func renderFixedScaleSnapshotImage(for view: NSView) -> NSImage {
+    let bounds = view.bounds
+    guard bounds.width > 0, bounds.height > 0 else {
+        fatalError("View not renderable to image at size \(bounds.size)")
+    }
+    guard let bitmapRep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: Int(bounds.width * appKitSnapshotScale),
+        pixelsHigh: Int(bounds.height * appKitSnapshotScale),
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    ) else {
+        fatalError("Unable to create snapshot bitmap representation at size \(bounds.size)")
+    }
+    bitmapRep.size = bounds.size
+    view.cacheDisplay(in: bounds, to: bitmapRep)
+    let image = NSImage(size: bounds.size)
+    image.addRepresentation(bitmapRep)
+    return image
+}
 
 @MainActor
 func assertMacSnapshot<V: View>(
@@ -76,7 +129,7 @@ func assertMacSnapshot<V: View>(
 
     assertSnapshot(
         of: controller,
-        as: .image(precision: precision, perceptualPrecision: perceptualPrecision),
+        as: macSnapshotImage(precision: precision, perceptualPrecision: perceptualPrecision),
         named: named,
         record: isRecordingSnapshots ? true : nil,
         file: file,

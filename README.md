@@ -34,6 +34,12 @@ Build the app:
 ./scripts/build.sh
 ```
 
+Lint the app:
+
+```sh
+./scripts/lint.sh
+```
+
 Run the app:
 
 ```sh
@@ -76,6 +82,7 @@ Verify or record a focused snapshot test:
 ```
 
 When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
+Recording snapshots immediately verifies the same test identifiers before reporting success. Snapshot artifacts are written under `.build/snapshot-failures` by default.
 
 ## Repo-Local Agent Workflows
 

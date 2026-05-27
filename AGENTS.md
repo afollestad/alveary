@@ -72,11 +72,12 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 ## Build And Test
 
 - First-time setup: `./scripts/setup.sh`.
-- The app pre-build needs `needle`; setup installs it, or use `brew install needle`.
+- The app pre-build needs `needle 0.25.1`; setup installs `needle` and fails clearly if the installed version does not match.
 - Build: `./scripts/build.sh`.
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.
 - Test: `./scripts/test.sh`, or pass focused identifiers as arguments.
+- Lint: `./scripts/lint.sh`.
 - Release CI uses Developer ID signing and notarization secrets in GitHub Actions; do not commit certificate or API-key material.
 - Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
 - Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-run, build-then-test, record-then-verify.
@@ -96,6 +97,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 
 ## Lint
 
+- Use `./scripts/lint.sh` for full repo linting.
 - Use SwiftLint from the repo root without `--config` so nested configs apply.
 - The repo hook runs SwiftLint for Swift or `.swiftlint.yml` commits.
 - Install repo hooks with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`; this sets repo-local `core.hooksPath=.githooks`.

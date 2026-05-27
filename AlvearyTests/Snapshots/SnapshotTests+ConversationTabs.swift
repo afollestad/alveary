@@ -464,7 +464,7 @@ private final class MountedMacSnapshotHost<Content: View> {
 
         SnapshotTesting.assertSnapshot(
             of: controller,
-            as: .image(precision: 0.99, perceptualPrecision: 0.99),
+            as: macSnapshotImage(),
             named: named,
             record: isRecordingSnapshots ? true : nil,
             file: file,

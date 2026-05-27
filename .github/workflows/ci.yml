@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      SNAPSHOT_ARTIFACTS: .build/snapshot-failures
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Swift packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.swiftpm/cache
+            ~/Library/Caches/org.swift.swiftpm
+            .build/xcode/SourcePackages
+          key: ${{ runner.os }}-xcode-26.5-swiftpm-${{ hashFiles('project.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-26.5-swiftpm-
+            ${{ runner.os }}-swiftpm-
+
+      - name: Setup
+        run: ./scripts/setup.sh
+
+      - name: Lint
+        run: ./scripts/lint.sh
+
+      - name: Build
+        run: ./scripts/build.sh
+
+      - name: Test
+        run: ./scripts/test.sh
+
+      - name: Verify snapshots
+        run: ./scripts/snapshots.sh verify
+
+      - name: Check generated Needle output
+        run: git diff --exit-code -- Alveary/DI/Generated/NeedleGenerated.swift
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcode-test-logs
+          path: |
+            .build/xcode/Logs/Test
+            .build/snapshot-failures
+            **/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

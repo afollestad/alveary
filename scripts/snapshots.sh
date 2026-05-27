@@ -20,6 +20,15 @@ EOF
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+default_snapshot_artifacts="$repo_root/.build/snapshot-failures"
+if [ -z "${SNAPSHOT_ARTIFACTS:-}" ]; then
+  export SNAPSHOT_ARTIFACTS="$default_snapshot_artifacts"
+fi
+if [ "$SNAPSHOT_ARTIFACTS" = "$default_snapshot_artifacts" ] || [ "$SNAPSHOT_ARTIFACTS" = ".build/snapshot-failures" ]; then
+  rm -rf "$SNAPSHOT_ARTIFACTS"
+fi
+mkdir -p "$SNAPSHOT_ARTIFACTS"
+
 run_and_format() {
   if command -v xcsift >/dev/null 2>&1; then
     "$@" 2>&1 | xcsift -f toon -w
@@ -53,17 +62,26 @@ tmp_args=$(mktemp)
 patched_xctestrun=""
 trap 'rm -f "$tmp_args" ${patched_xctestrun:+"$patched_xctestrun"}' EXIT
 
-for test_name in "$@"; do
-  printf '%s\0' "-only-testing:$test_name" >> "$tmp_args"
-done
+write_test_args() {
+  : > "$tmp_args"
+  for test_name in "$@"; do
+    printf '%s\0' "-only-testing:$test_name" >> "$tmp_args"
+  done
+}
 
-if [ "$mode" = "verify" ]; then
+write_test_args "$@"
+
+run_verify() {
   run_and_format xargs -0 xcodebuild \
     -project Alveary.xcodeproj \
     -scheme Alveary \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
     test < "$tmp_args"
+}
+
+if [ "$mode" = "verify" ]; then
+  run_verify
   echo "Snapshot verification passed."
   exit 0
 fi
@@ -106,10 +124,18 @@ with open(path, 'wb') as file:
     plistlib.dump(data, file)
 PY
 
+set +e
 run_and_format xargs -0 xcodebuild \
   -xctestrun "$patched_xctestrun" \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
   test-without-building < "$tmp_args"
+record_status=$?
+set -e
 
-echo "Snapshots recorded."
+if [ "$record_status" -ne 0 ]; then
+  echo "Snapshot record command exited $record_status; verifying recorded references..."
+fi
+
+run_verify
+echo "Snapshots recorded and verified."

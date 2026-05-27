@@ -6,6 +6,9 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+export SNAPSHOT_ARTIFACTS="${SNAPSHOT_ARTIFACTS:-$repo_root/.build/snapshot-failures}"
+mkdir -p "$SNAPSHOT_ARTIFACTS"
+
 run_and_format() {
   if command -v xcsift >/dev/null 2>&1; then
     "$@" 2>&1 | xcsift -f toon -w
