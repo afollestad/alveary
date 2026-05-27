@@ -37,6 +37,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(blockInputConfiguration.heightSizing?.animation, .default)
         XCTAssertNil(blockInputConfiguration.heightSizing?.onPreferredHeightChange)
         XCTAssertNotNil(blockInputConfiguration.heightSizing?.onPreferredHeightTransition)
+        XCTAssertEqual(blockInputConfiguration.selectAllBehavior, .document)
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, BlockInputConfiguration.defaultEditorHorizontalInset)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, BlockInputConfiguration.defaultEditorVerticalInset)
         XCTAssertEqual(BlockInputComposerBridgeController.blockVerticalInsetMultiplier, 0.7)

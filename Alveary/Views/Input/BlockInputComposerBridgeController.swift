@@ -110,6 +110,7 @@ final class BlockInputComposerBridgeController {
             rawSlashCommandChips: true,
             dropIndicatorColor: .controlAccentColor,
             style: BlockInputComposerStyle.make(roundedCorners: configuration.editorRoundedCorners),
+            selectAllBehavior: .document,
             heightSizing: BlockInputEditorHeightSizing(
                 defaultVisibleLineCount: Self.minVisibleLineCount,
                 maximumVisibleLineCount: Self.maxVisibleLineCount,
