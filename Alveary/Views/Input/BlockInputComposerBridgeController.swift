@@ -98,7 +98,8 @@ final class BlockInputComposerBridgeController {
     func blockInputConfiguration(
         for configuration: BlockInputComposerBridgeConfiguration
     ) -> BlockInputConfiguration {
-        BlockInputConfiguration(
+        let completionProvider = completionProvider
+        return BlockInputConfiguration(
             documentStore: documentStore,
             allowsBlockReordering: false,
             editorHorizontalInset: configuration.editorHorizontalInset,
@@ -107,6 +108,9 @@ final class BlockInputComposerBridgeController {
             placeholder: configuration.placeholder,
             isEditable: configuration.isEditable,
             disabledCursor: configuration.disabledCursor,
+            inlineHintProvider: { [completionProvider] context in
+                completionProvider.inlineHint(for: context)
+            },
             rawSlashCommandChips: true,
             dropIndicatorColor: .controlAccentColor,
             style: BlockInputComposerStyle.make(roundedCorners: configuration.editorRoundedCorners),

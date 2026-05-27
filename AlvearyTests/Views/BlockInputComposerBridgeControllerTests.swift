@@ -25,6 +25,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertTrue(blockInputConfiguration.rawSlashCommandChips)
         XCTAssertEqual(blockInputConfiguration.completionReturnBehavior, .passthroughExactMatch)
         XCTAssertEqual(blockInputConfiguration.slashCommandAvailability, .documentStart)
+        XCTAssertNotNil(blockInputConfiguration.inlineHintProvider)
         XCTAssertEqual(blockInputConfiguration.completionPopupConfiguration.placement, .overlay)
         let popupStyle = blockInputConfiguration.completionPopupConfiguration.style
         XCTAssertEqual(popupStyle.backgroundColor, BlockInputComposerStyle.completionPopupBackgroundColor)

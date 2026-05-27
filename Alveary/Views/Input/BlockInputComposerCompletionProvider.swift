@@ -29,11 +29,9 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         loadSkillCompletions: @escaping @Sendable () async -> [Skill]
     ) {
         state.withLock { state in
-            state = CompletionProviderState(
-                location: location,
-                loadFileCompletions: loadFileCompletions,
-                loadSkillCompletions: loadSkillCompletions
-            )
+            state.location = location
+            state.loadFileCompletions = loadFileCompletions
+            state.loadSkillCompletions = loadSkillCompletions
         }
     }
 
@@ -45,12 +43,37 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
             let skills = await state.loadSkillCompletions()
+            updateSkillArgumentHints(from: skills)
             return skillSuggestions(for: context, skills: skills)
         }
     }
 
+    func inlineHint(for context: BlockInputInlineHintContext) -> BlockInputInlineHint? {
+        stateSnapshot().skillArgumentHints.inlineHint(for: context)
+    }
+
     private func stateSnapshot() -> CompletionProviderState {
         state.withLock { $0 }
+    }
+
+    private func updateSkillArgumentHints(from skills: [Skill]) {
+        let skillArgumentHints = Self.skillArgumentHints(from: skills)
+        state.withLock { state in
+            state.skillArgumentHints = skillArgumentHints
+        }
+    }
+
+    private static func skillArgumentHints(from skills: [Skill]) -> BlockInputSlashCommandArgumentHints {
+        BlockInputSlashCommandArgumentHints(commandHints: skills.flatMap { skill in
+            guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !argumentHint.isEmpty else {
+                return [(command: String, hint: String)]()
+            }
+            return [
+                (command: skill.name, hint: argumentHint),
+                (command: skill.id, hint: argumentHint)
+            ]
+        })
     }
 
     private func fileSuggestions(
@@ -321,6 +344,7 @@ private struct CompletionProviderState {
     var location: BlockInputComposerLocation
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
+    var skillArgumentHints = BlockInputSlashCommandArgumentHints(commandHints: [])
 }
 
 private struct ComposerFileCompletionScope {
