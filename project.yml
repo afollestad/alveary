@@ -94,7 +94,7 @@ targets:
 packages:
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
-    revision: "afa9845efdddf0dfcaae3794687ccb656ca4176d"
+    revision: "ad6ddfbd1167af8e4bb38b841103b8609f1e7eff"
   needle:
     url: https://github.com/uber/needle.git
     revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"

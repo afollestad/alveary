@@ -61,6 +61,10 @@ final class AppKitChatSurfaceView: NSView {
         composerView.layoutSubtreeIfNeeded()
     }
 
+    func layoutPreferredComposerHeightChange() {
+        layoutSubtreeIfNeeded()
+    }
+
     func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
         return event.locationInWindow
     }

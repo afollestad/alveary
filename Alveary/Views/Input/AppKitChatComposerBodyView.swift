@@ -19,6 +19,9 @@ final class AppKitChatComposerBodyView: NSView {
     var stopConfirmationResetTask: Task<Void, Never>?
     var onPreferredSizeInvalidated: (() -> Void)?
     private var lastConsumedFocusRequestToken: UUID?
+    private var hasSeededInitialBlockInputHeight = false
+    private var preferredHeightAnimationTimer: Timer?
+    private var preferredHeightAnimationState: PreferredHeightAnimationState?
 
     override var isFlipped: Bool {
         true
@@ -58,6 +61,8 @@ final class AppKitChatComposerBodyView: NSView {
             bridgeController?.view.removeFromSuperview()
             bridgeController = nil
             lastConsumedFocusRequestToken = nil
+            hasSeededInitialBlockInputHeight = false
+            cancelPreferredHeightAnimation()
         }
         self.configuration = configuration
 
@@ -81,6 +86,7 @@ final class AppKitChatComposerBodyView: NSView {
     func cancelAsyncTasks() {
         stopConfirmationResetTask?.cancel()
         stopConfirmationResetTask = nil
+        cancelPreferredHeightAnimation()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -90,6 +96,7 @@ final class AppKitChatComposerBodyView: NSView {
 
     override func layout() {
         super.layout()
+        seedInitialBlockInputHeightIfPossible()
         let editorHeight = resolvedEditorHeight
         editorClipView.frame = NSRect(x: 0, y: topPadding, width: bounds.width, height: editorHeight)
         editorClipView.configure(
@@ -196,6 +203,7 @@ extension AppKitChatComposerBodyView {
     nonisolated static let editorCornerRadius: CGFloat = 18
     nonisolated static let borderWidth: CGFloat = 1
     nonisolated static let stopConfirmationTimeoutNanoseconds: UInt64 = 1_000_000_000
+    nonisolated static let preferredHeightAnimationFrameInterval: TimeInterval = 1 / 60
 
     var topPadding: CGFloat {
         guard let configuration else {
@@ -227,13 +235,106 @@ extension AppKitChatComposerBodyView {
         )
     }
 
-    func handlePreferredHeightChange(_ height: CGFloat) {
-        let nextHeight = max(0, ceil(height))
+    func handlePreferredHeightTransition(_ transition: BlockInputEditorHeightTransition) {
+        hasSeededInitialBlockInputHeight = true
+        let nextHeight = max(0, ceil(transition.targetHeight))
         guard abs(measuredEditorHeight - nextHeight) > 0.5 else {
+            cancelPreferredHeightAnimation()
             return
         }
+        guard let animation = transition.animation,
+              !transition.isInitial else {
+            cancelPreferredHeightAnimation()
+            applyPreferredEditorHeight(nextHeight)
+            return
+        }
+
+        animatePreferredEditorHeight(to: nextHeight, animation: animation)
+    }
+
+    private func animatePreferredEditorHeight(to nextHeight: CGFloat, animation: BlockInputEditorHeightAnimation) {
+        cancelPreferredHeightAnimation()
+        let startHeight = measuredEditorHeight
+        guard animation.duration > 0, abs(startHeight - nextHeight) > 0.5 else {
+            applyPreferredEditorHeight(nextHeight)
+            return
+        }
+
+        preferredHeightAnimationState = PreferredHeightAnimationState(
+            startHeight: startHeight,
+            targetHeight: nextHeight,
+            startTime: CACurrentMediaTime(),
+            duration: animation.duration,
+            curve: animation.curve
+        )
+
+        let timer = Timer(timeInterval: Self.preferredHeightAnimationFrameInterval, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            MainActor.assumeIsolated {
+                self.advancePreferredHeightAnimation()
+            }
+        }
+        preferredHeightAnimationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func advancePreferredHeightAnimation() {
+        guard let state = preferredHeightAnimationState else {
+            preferredHeightAnimationTimer?.invalidate()
+            return
+        }
+
+        let progress = min(1, max(0, (CACurrentMediaTime() - state.startTime) / state.duration))
+        guard progress < 1 else {
+            cancelPreferredHeightAnimation()
+            applyPreferredEditorHeight(state.targetHeight)
+            return
+        }
+        let easedProgress = state.curve.easedProgress(progress)
+        let nextHeight = state.startHeight + (state.targetHeight - state.startHeight) * easedProgress
+        applyPreferredEditorHeight(nextHeight)
+    }
+
+    private func cancelPreferredHeightAnimation() {
+        preferredHeightAnimationTimer?.invalidate()
+        preferredHeightAnimationTimer = nil
+        preferredHeightAnimationState = nil
+    }
+
+    private func applyPreferredEditorHeight(_ nextHeight: CGFloat) {
         measuredEditorHeight = nextHeight
+        needsDisplay = true
         invalidatePreferredSize()
+        layoutPreferredHeightHostIfNeeded()
+    }
+
+    private func seedInitialBlockInputHeightIfPossible() {
+        guard !hasSeededInitialBlockInputHeight,
+              bounds.width > 0,
+              let editor = bridgeController?.view else {
+            return
+        }
+        hasSeededInitialBlockInputHeight = true
+        let preferredHeight = max(0, ceil(editor.preferredHeight(forWidth: bounds.width)))
+        guard abs(measuredEditorHeight - preferredHeight) > 0.5 else {
+            return
+        }
+        measuredEditorHeight = preferredHeight
+        needsDisplay = true
+        invalidatePreferredSize()
+    }
+
+    private func layoutPreferredHeightHostIfNeeded() {
+        if let surface = enclosingChatSurfaceView() {
+            surface.layoutPreferredComposerHeightChange()
+        } else if let parent = superview {
+            parent.layoutSubtreeIfNeeded()
+        } else {
+            layoutSubtreeIfNeeded()
+        }
     }
 
     func consumeFocusRequest(_ token: UUID?) {
@@ -273,6 +374,31 @@ extension AppKitChatComposerBodyView {
         needsLayout = true
         superview?.needsLayout = true
         onPreferredSizeInvalidated?()
+    }
+}
+
+private struct PreferredHeightAnimationState {
+    let startHeight: CGFloat
+    let targetHeight: CGFloat
+    let startTime: CFTimeInterval
+    let duration: TimeInterval
+    let curve: BlockInputEditorHeightAnimationCurve
+}
+
+private extension BlockInputEditorHeightAnimationCurve {
+    func easedProgress(_ progress: TimeInterval) -> CGFloat {
+        let progress = CGFloat(min(1, max(0, progress)))
+        switch self {
+        case .easeInOut:
+            return progress * progress * (3 - 2 * progress)
+        case .easeIn:
+            return progress * progress
+        case .easeOut:
+            let remaining = 1 - progress
+            return 1 - remaining * remaining
+        case .linear:
+            return progress
+        }
     }
 }
 

@@ -18,7 +18,7 @@ struct BlockInputComposerBridgeConfiguration {
     var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
-    var onPreferredHeightChange: @MainActor @Sendable (CGFloat) -> Void
+    var onPreferredHeightTransition: @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void
 
     init(
         markdown: String,
@@ -35,7 +35,7 @@ struct BlockInputComposerBridgeConfiguration {
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
-        onPreferredHeightChange: @escaping @MainActor @Sendable (CGFloat) -> Void = { _ in }
+        onPreferredHeightTransition: @escaping @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void = { _ in }
     ) {
         self.markdown = markdown
         self.markdownRevision = markdownRevision
@@ -51,7 +51,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.completionPopupOverlayProvider = completionPopupOverlayProvider
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
-        self.onPreferredHeightChange = onPreferredHeightChange
+        self.onPreferredHeightTransition = onPreferredHeightTransition
     }
 }
 
@@ -59,6 +59,7 @@ struct BlockInputComposerBridgeConfiguration {
 final class BlockInputComposerBridgeController {
     static let minVisibleLineCount = 3
     static let maxVisibleLineCount = 9
+    static let blockVerticalInsetMultiplier: CGFloat = 0.7
 
     let view = BlockInputView()
     private(set) var documentStore: BlockInputMemoryDocumentStore
@@ -99,6 +100,7 @@ final class BlockInputComposerBridgeController {
             allowsBlockReordering: false,
             editorHorizontalInset: configuration.editorHorizontalInset,
             editorVerticalInset: configuration.editorVerticalInset,
+            blockVerticalInsetMultiplier: Self.blockVerticalInsetMultiplier,
             placeholder: configuration.placeholder,
             isEditable: configuration.isEditable,
             disabledCursor: configuration.disabledCursor,
@@ -108,7 +110,8 @@ final class BlockInputComposerBridgeController {
             heightSizing: BlockInputEditorHeightSizing(
                 defaultVisibleLineCount: Self.minVisibleLineCount,
                 maximumVisibleLineCount: Self.maxVisibleLineCount,
-                onPreferredHeightChange: configuration.onPreferredHeightChange
+                animation: .default,
+                onPreferredHeightTransition: configuration.onPreferredHeightTransition
             ),
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,

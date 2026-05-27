@@ -34,8 +34,13 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(popupStyle.borderWidth, BlockInputComposerStyle.completionPopupBorderWidth)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.defaultVisibleLineCount, 3)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.maximumVisibleLineCount, 9)
+        XCTAssertEqual(blockInputConfiguration.heightSizing?.animation, .default)
+        XCTAssertNil(blockInputConfiguration.heightSizing?.onPreferredHeightChange)
+        XCTAssertNotNil(blockInputConfiguration.heightSizing?.onPreferredHeightTransition)
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, BlockInputConfiguration.defaultEditorHorizontalInset)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, BlockInputConfiguration.defaultEditorVerticalInset)
+        XCTAssertEqual(BlockInputComposerBridgeController.blockVerticalInsetMultiplier, 0.7)
+        XCTAssertEqual(blockInputConfiguration.blockVerticalInsetMultiplier, BlockInputComposerBridgeController.blockVerticalInsetMultiplier)
         XCTAssertEqual(blockInputConfiguration.fileBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-project"))
         XCTAssertEqual(blockInputConfiguration.imageBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-project"))
     }
@@ -55,6 +60,31 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, 10)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, 12)
+        XCTAssertEqual(blockInputConfiguration.blockVerticalInsetMultiplier, BlockInputComposerBridgeController.blockVerticalInsetMultiplier)
+    }
+
+    func testBridgeForwardsPreferredHeightTransitionCallback() {
+        var reportedTransition: BlockInputEditorHeightTransition?
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Hello"))
+        let blockInputConfiguration = controller.blockInputConfiguration(
+            for: BlockInputComposerBridgeConfiguration(
+                markdown: "Hello",
+                location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
+                loadFileCompletions: { [] },
+                loadSkillCompletions: { [] },
+                onPreferredHeightTransition: { reportedTransition = $0 }
+            )
+        )
+        let transition = BlockInputEditorHeightTransition(
+            previousHeight: 20,
+            targetHeight: 40,
+            animation: .default,
+            isInitial: false
+        )
+
+        blockInputConfiguration.heightSizing?.onPreferredHeightTransition?(transition)
+
+        XCTAssertEqual(reportedTransition, transition)
     }
 
     func testBridgeForwardsOverlayCompletionPopupProvider() {

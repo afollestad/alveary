@@ -84,7 +84,8 @@ final class BlockInputComposerStyleTests: XCTestCase {
         line: UInt = #line
     ) throws {
         let appearance = try XCTUnwrap(NSAppearance(named: appearanceName), file: file, line: line)
-        let resolved = color.resolved(for: appearance)
+        let resolved = try XCTUnwrap(color.resolved(for: appearance).usingColorSpace(.genericRGB), file: file, line: line)
+        let expected = try XCTUnwrap(expected.usingColorSpace(.genericRGB), file: file, line: line)
 
         XCTAssertEqual(resolved.redComponent, expected.redComponent, accuracy: 0.001, file: file, line: line)
         XCTAssertEqual(resolved.greenComponent, expected.greenComponent, accuracy: 0.001, file: file, line: line)
