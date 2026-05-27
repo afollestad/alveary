@@ -8,10 +8,5 @@ if ! git diff --cached --name-only --diff-filter=ACMR | rg -q '(^|/).*\.swift$|(
   exit 0
 fi
 
-if ! command -v swiftlint >/dev/null 2>&1; then
-  echo "error: swiftlint is required for commits touching Swift files. Install it with 'brew install swiftlint'." >&2
-  exit 1
-fi
-
 echo "Running swiftlint..."
-swiftlint
+"$repo_root/scripts/lint.sh"
