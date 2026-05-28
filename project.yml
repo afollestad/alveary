@@ -28,6 +28,8 @@ targets:
         product: NeedleFoundation
       - package: BlockInputKit
         product: BlockInputKit
+      - package: AgentCLIKit
+        product: AgentCLIKit
       - sdk: IOKit.framework
     settings:
       base:
@@ -85,6 +87,8 @@ targets:
       - target: Alveary
       - package: BlockInputKit
         product: BlockInputKit
+      - package: AgentCLIKit
+        product: AgentCLIKit
       - package: swift-snapshot-testing
         product: SnapshotTesting
     settings:
@@ -92,6 +96,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary.tests
         GENERATE_INFOPLIST_FILE: YES
 packages:
+  AgentCLIKit:
+    url: https://github.com/afollestad/AgentCLIKit.git
+    revision: "ef0e3dbb8c8dbcf1e88dd05e96c93eaf69b6df3d"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
     revision: "7726331c5e28f0c475382e1c245166ca48b25370"
