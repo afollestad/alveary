@@ -23,15 +23,31 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertTrue(row.renderedTextForPrewarmTesting.contains("Output"))
         XCTAssertTrue(row.renderedTextForPrewarmTesting.contains("line 1"))
     }
+
+    func testExpandedToolDetailsClipToAnimatedRowBounds() throws {
+        let row = AppKitTranscriptInlineToolRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        row.configure(.init(tool: prewarmTool(output: (1...20).map { "line \($0)" }.joined(separator: "\n"))))
+        row.layoutSubtreeIfNeeded()
+        let collapsedHeight = row.intrinsicContentSize.height
+
+        row.setExpanded(true)
+        row.layoutSubtreeIfNeeded()
+        let detailsView = try XCTUnwrap(row.descendants(of: AppKitTranscriptToolDetailsView.self).first)
+        row.frame.size.height = collapsedHeight
+
+        XCTAssertTrue(row.clipsToBounds)
+        XCTAssertGreaterThan(detailsView.frame.maxY, row.bounds.maxY)
+    }
 }
 
-private func prewarmTool() -> ToolEntry {
+private func prewarmTool(output: String = "line 1") -> ToolEntry {
     ToolEntry(
         id: "tool-1",
         name: "CustomTool",
         summary: "Running `swift test`",
         input: #"{"command":"swift test"}"#,
-        output: "line 1",
+        output: output,
         stderr: nil,
         isComplete: true,
         isInterrupted: false,

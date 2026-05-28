@@ -139,6 +139,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
+        clipsToBounds = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         contentView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }

@@ -15,6 +15,7 @@ AppKit-native transcript row primitives live here.
 - **Mirror tool rows.** AppKit tool headers and groups must use the shared summary formatter and keep Skill rows non-expandable.
 - **Prewarm tool details.** Collapsed inline tool rows should prepare their retained details view offscreen after configuration so the first user expansion does not synchronously pay detail construction cost.
 - **Ignore expansion echoes.** Local AppKit expand/collapse updates are echoed back through SwiftUI as persisted row ids; do not rebuild unchanged tool rows for that echo or it can interrupt coordinated frame animations.
+- **Clip expandable rows.** Expandable row containers must clip to bounds because expanded children may be laid out at target height before the row's frame animation reaches that height.
 - **Debounce group status.** Multi-tool AppKit group headers delay terminal icons like SwiftUI so streaming siblings do not flash done.
 - **Mirror sub-agents.** Single AppKit sub-agent blocks expand directly to tool/result content; multi-agent blocks keep nested agents open by default.
 - **Mirror approvals.** AppKit approval blocks read copy, summaries, session scopes, and resolved-state labels from `ToolApprovalRequest`.

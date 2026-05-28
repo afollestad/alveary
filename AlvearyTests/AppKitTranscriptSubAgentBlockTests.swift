@@ -20,6 +20,7 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         block.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(block.intrinsicContentSize.height, collapsedHeight)
+        XCTAssertTrue(block.clipsToBounds)
         XCTAssertTrue(block.renderedText.contains("Reading AGENTS.md"))
     }
 
@@ -84,10 +85,12 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
 
         let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
         let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         block.layoutSubtreeIfNeeded()
 
         XCTAssertTrue(invalidated)
+        XCTAssertTrue(nestedAgentRow.clipsToBounds)
         XCTAssertLessThan(block.intrinsicContentSize.height, expandedHeight)
         XCTAssertFalse(block.renderedText.contains("nested result line 15"))
     }

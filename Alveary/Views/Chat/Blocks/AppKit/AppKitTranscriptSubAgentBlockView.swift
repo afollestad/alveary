@@ -84,6 +84,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
+        clipsToBounds = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         singleAgentContentView.translatesAutoresizingMaskIntoConstraints = true
         nestedAgentsView.translatesAutoresizingMaskIntoConstraints = true

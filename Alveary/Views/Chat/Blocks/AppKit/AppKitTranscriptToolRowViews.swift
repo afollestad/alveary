@@ -105,6 +105,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
+        clipsToBounds = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         detailsView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
@@ -248,7 +249,6 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         }
     }
 }
-
 @MainActor
 final class AppKitTranscriptToolGroupView: NSView {
     struct Configuration: Equatable {
@@ -345,6 +345,7 @@ final class AppKitTranscriptToolGroupView: NSView {
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
+        clipsToBounds = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         singleToolRow.translatesAutoresizingMaskIntoConstraints = true
         nestedRowsView.translatesAutoresizingMaskIntoConstraints = true

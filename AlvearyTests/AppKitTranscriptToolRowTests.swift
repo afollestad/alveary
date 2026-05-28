@@ -192,6 +192,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertGreaterThan(group.intrinsicContentSize.height, collapsedHeight)
         XCTAssertTrue(group.renderedText.contains("Reading AGENTS.md"))
         XCTAssertTrue(group.renderedText.contains("Searching for LazyVStack"))
+        XCTAssertTrue(group.clipsToBounds)
     }
 
     func testToolGroupIgnoresPersistedExpansionEchoAfterLocalToggle() {
@@ -248,9 +249,11 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         group.layoutSubtreeIfNeeded()
+        let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview as? AppKitTranscriptInlineToolRowView)
 
         XCTAssertTrue(invalidated)
         XCTAssertGreaterThan(group.intrinsicContentSize.height, collapsedToolHeight)
+        XCTAssertTrue(nestedToolRow.clipsToBounds)
         XCTAssertTrue(group.renderedText.contains("nested output line 17"))
     }
 
@@ -424,7 +427,6 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertEqual(openedURL?.lastPathComponent, "GUIDE.md")
     }
 }
-
 @MainActor
 private func markdownReadRow(id: String) -> AppKitTranscriptInlineToolRowView {
     let row = AppKitTranscriptInlineToolRowView()
