@@ -63,6 +63,43 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
     }
 
+    func testReconfigureSessionResubscribesWhenRunningUpdateFails() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            reconfigureError: .reconfigureFailed,
+            initialAgentIsRunning: true
+        )
+        await fixture.agentsManager.enableSubscription()
+        fixture.viewModel.activateViewLifecycle()
+        try await waitUntil("expected initial subscription") {
+            await fixture.agentsManager.subscribeCalls() == 1
+        }
+        fixture.viewModel.state.lastObservedEventIndex = 7
+        fixture.viewModel.state.lastPersistedEventIndex = 5
+
+        let config = AgentSpawnConfig(
+            providerId: "claude",
+            workingDirectory: fixture.project.path,
+            permissionMode: "acceptEdits",
+            model: nil,
+            effort: "max",
+            initialPrompt: nil
+        )
+
+        do {
+            try await fixture.viewModel.reconfigureSession(config: config)
+            XCTFail("Expected reconfigure to throw")
+        } catch let error as MockAgentsManager.MockError {
+            XCTAssertEqual(error, .reconfigureFailed)
+        }
+
+        try await waitUntil("expected failed reconfigure to resubscribe") {
+            await fixture.agentsManager.subscribeCalls() == 2
+        }
+        XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 7)
+        XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 5)
+        XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
+    }
+
     func testSendPersistsRetryableAttemptWhenTransportWriteFails() async throws {
         let fixture = try ConversationViewModelTestFixture(sendError: .sendFailed)
 

@@ -10,7 +10,8 @@ struct AgentCLIKitHostServices: Sendable {
     let claudeProviderSetup: AgentCLIKit.ClaudeProviderSetup
     let interactionStore: AgentCLIKit.InMemoryAgentInteractionStore
     let approvalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore
-    let claudeApprovalPolicyStore: AgentCLIKit.ClaudeApprovalPolicyStore
+    let claudeApprovalPolicyStore: any AgentCLIKit.ClaudeApprovalPolicyStoring & AgentCLIKit.ClaudeTransientDecisionStoring
+    let liveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider
     let contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache
     let hostAdapter: AgentCLIKitHostAdapter
 }
@@ -66,14 +67,5 @@ struct AgentCLIKitShellRunnerAdapter: AgentCLIKit.ShellRunning {
             stdout: result.stdout,
             stderr: result.stderr
         )
-    }
-}
-
-struct AgentCLIKitDeferredHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProviding {
-    func decision(
-        for request: AgentCLIKit.ClaudeHookRequest,
-        interactionId: AgentCLIKit.AgentInteractionID
-    ) async -> AgentCLIKit.ClaudeHookDecision {
-        .deferDecision
     }
 }

@@ -167,7 +167,7 @@ extension AgentsManagerTests {
 
     func testAgentCLIKitReconfigureDoesNotReplayRetainedRuntimeEvents() async throws {
         let fixture = makeAgentCLIKitFixture(
-            adapter: ModelEchoingAgentCLIKitAdapter(),
+            adapter: DelayedReconfigureAgentCLIKitAdapter(),
             detectedPath: "/usr/bin/agent",
             basePath: "/usr/bin:/bin"
         )
@@ -176,7 +176,7 @@ extension AgentsManagerTests {
 
         try await manager.spawn(
             id: conversationId,
-            config: spawnConfig(workingDirectory: "/tmp", model: "first")
+            config: spawnConfig(workingDirectory: "/tmp")
         )
         let maybeFirstSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
         let firstSubscription = try XCTUnwrap(maybeFirstSubscription)
@@ -185,7 +185,7 @@ extension AgentsManagerTests {
 
         try await manager.reconfigureSession(
             conversationId: conversationId,
-            config: spawnConfig(workingDirectory: "/tmp", model: "second")
+            config: spawnConfig(workingDirectory: "/tmp")
         )
         let maybeSecondSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
         let secondSubscription = try XCTUnwrap(maybeSecondSubscription)
@@ -306,13 +306,15 @@ extension AgentsManagerTests {
     func makeAgentCLIKitFixture(
         adapter: any AgentCLIKit.AgentProviderAdapter,
         detectedPath: String,
-        basePath: String
+        basePath: String, replayLimit: Int = 500
     ) -> AgentCLIKitManagerFixture {
         let sessionStore = AgentCLIKit.JSONFileAgentSessionStore(fileURL: temporaryFileURL("agentclikit-sessions.json"))
         let configStore = AgentCLIKit.ClaudeConfigStore(fileURL: temporaryFileURL("claude.json"))
         let approvalStore = AgentCLIKit.ClaudeApprovalPolicyStore()
+        let liveHookDecisionProvider = AgentCLIKitLiveHookDecisionProvider()
+        let runtime = AgentCLIKit.DefaultAgentRuntime(adapters: [adapter], sessionStore: sessionStore, replayLimit: replayLimit)
         let services = AgentCLIKitHostServices(
-            runtime: AgentCLIKit.DefaultAgentRuntime(adapters: [adapter], sessionStore: sessionStore),
+            runtime: runtime,
             sessionStore: sessionStore,
             providerDetector: AgentCLIKit.AgentProviderDetector(),
             providerRegistry: AgentCLIKit.AgentProviderRegistry(definitions: [adapter.definition]),
@@ -321,6 +323,7 @@ extension AgentsManagerTests {
             interactionStore: AgentCLIKit.InMemoryAgentInteractionStore(),
             approvalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore(),
             claudeApprovalPolicyStore: approvalStore,
+            liveHookDecisionProvider: liveHookDecisionProvider,
             contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache(fileURL: temporaryFileURL("context.json")),
             hostAdapter: AgentCLIKitHostAdapter()
         )
@@ -334,7 +337,13 @@ extension AgentsManagerTests {
             keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: StubNotificationManager()
         )
-        return AgentCLIKitManagerFixture(manager: manager, approvalStore: approvalStore)
+        return AgentCLIKitManagerFixture(
+            manager: manager,
+            runtime: runtime,
+            sessionStore: sessionStore,
+            approvalStore: approvalStore,
+            liveHookDecisionProvider: liveHookDecisionProvider
+        )
     }
 
     func spawnConfig(workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
@@ -348,7 +357,7 @@ extension AgentsManagerTests {
         )
     }
 
-    private func awaitedSubscription(
+    func awaitedSubscription(
         _ manager: DefaultAgentsManager,
         conversationId: String,
         afterIndex: Int
@@ -371,7 +380,7 @@ extension AgentsManagerTests {
         return url
     }
 
-    private func nextEvent(
+    func nextEvent(
         from stream: AsyncStream<ConversationEvent>,
         description: String
     ) async throws -> ConversationEvent {
@@ -391,11 +400,6 @@ extension AgentsManagerTests {
             throw WaitTimeoutError(description: description)
         }
     }
-}
-
-struct AgentCLIKitManagerFixture {
-    let manager: DefaultAgentsManager
-    let approvalStore: AgentCLIKit.ClaudeApprovalPolicyStore
 }
 
 private struct FixedPathEnvironmentBuilder: AgentEnvironmentBuilder {

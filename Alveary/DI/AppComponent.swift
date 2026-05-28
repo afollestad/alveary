@@ -144,8 +144,12 @@ extension AppComponent {
         return shared { AgentCLIKit.InMemoryAgentApprovalPolicyStore() }
     }
 
-    var agentCLIKitClaudeApprovalPolicyStore: AgentCLIKit.ClaudeApprovalPolicyStore {
-        return shared { AgentCLIKit.ClaudeApprovalPolicyStore() }
+    var agentCLIKitClaudeApprovalPolicyStore: AgentCLIKitClaudeApprovalStoreAdapter {
+        return shared { AgentCLIKitClaudeApprovalStoreAdapter(claudeHookServer: claudeHookServer) }
+    }
+
+    var agentCLIKitLiveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider {
+        return shared { AgentCLIKitLiveHookDecisionProvider() }
     }
 
     var agentCLIKitClaudeConfigStore: AgentCLIKit.ClaudeConfigStore {
@@ -195,7 +199,7 @@ extension AppComponent {
                             "ClaudeHooks",
                             isDirectory: true
                         ),
-                        hookDecisionProvider: AgentCLIKitDeferredHookDecisionProvider()
+                        hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
                     )
                 ],
                 sessionStore: agentCLIKitSessionStore
@@ -223,6 +227,7 @@ extension AppComponent {
                 interactionStore: agentCLIKitInteractionStore,
                 approvalPolicyStore: agentCLIKitApprovalPolicyStore,
                 claudeApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
+                liveHookDecisionProvider: agentCLIKitLiveHookDecisionProvider,
                 contextWindowCache: agentCLIKitContextWindowCache,
                 hostAdapter: agentCLIKitHostAdapter
             )

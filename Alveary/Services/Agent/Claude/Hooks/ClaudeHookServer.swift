@@ -15,6 +15,13 @@ protocol ClaudeHookServer: Actor {
     func discardTransientApprovalDecision(for approval: AgentSessionApprovalGrant) async
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) async -> SessionApprovalRecordResult
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async
+    func allowsSessionApproval(
+        providerId: String,
+        conversationId: String,
+        sessionId: String,
+        toolName: String,
+        toolInput: String
+    ) async -> Bool
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,

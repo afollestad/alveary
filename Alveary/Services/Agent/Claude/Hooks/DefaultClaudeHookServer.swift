@@ -326,6 +326,22 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
         toolName: String,
         toolInput: String
     ) -> Bool {
+        allowsSessionApproval(
+            providerId: "claude",
+            conversationId: conversationId,
+            sessionId: sessionId,
+            toolName: toolName,
+            toolInput: toolInput
+        )
+    }
+
+    func allowsSessionApproval(
+        providerId: String,
+        conversationId: String,
+        sessionId: String,
+        toolName: String,
+        toolInput: String
+    ) -> Bool {
         guard let context = sessionApprovalContext() else {
             return false
         }
@@ -337,9 +353,9 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
             toolInput: toolInput
         )
 
-        let providerId = "claude"
         let requestConversationId = conversationId
         let requestSessionId = sessionId
+        let requestProviderId = providerId
         for scope in request.supportedSessionApprovalScopes {
             guard let match = request.sessionApprovalMatch(for: scope) else {
                 continue
@@ -350,7 +366,7 @@ actor DefaultClaudeHookServer: ClaudeHookServer {
             let matchingRules = (try? context.fetch(
                 FetchDescriptor<AgentSessionApprovalRule>(
                     predicate: #Predicate {
-                        $0.providerId == providerId &&
+                        $0.providerId == requestProviderId &&
                             $0.conversationId == requestConversationId &&
                             $0.sessionId == requestSessionId &&
                             $0.matchKind == matchKind &&

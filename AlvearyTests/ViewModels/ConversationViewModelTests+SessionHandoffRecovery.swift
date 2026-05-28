@@ -140,6 +140,42 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Recovered context.")
     }
 
+    func testSessionHandoffFreshSessionFailureResubscribesWhenRuntimeStillRunning() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            reconfigureError: .reconfigureFailed,
+            initialAgentIsRunning: true
+        )
+        await fixture.agentsManager.enableSubscription()
+        fixture.viewModel.activateViewLifecycle()
+        try await waitUntil("expected initial subscription") {
+            await fixture.agentsManager.subscribeCalls() == 1
+        }
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+        try await waitUntil("handoff prompt sent") {
+            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        }
+        fixture.viewModel.handleEvent(.messageChunk(text: "Collected context.", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 10,
+            output: 5,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0.01,
+            contextWindowSize: 200,
+            permissionDenials: []
+        ))
+
+        try await waitUntil("expected failed fresh session to resubscribe") {
+            await fixture.agentsManager.subscribeCalls() == 2
+        }
+        XCTAssertFalse(fixture.viewModel.state.isHandingOffSession)
+        XCTAssertTrue(fixture.viewModel.state.failedSessionHandoffMessage?.hasPrefix("Session handoff failed:") == true)
+        XCTAssertTrue(fixture.viewModel.state.failedSessionHandoffMessage?.contains("MockAgentsManager.MockError") == true)
+    }
+
     func testHiddenSessionHandoffStripsOuterMarkdownFenceBeforeCustomization() async throws {
         let fixture = try ConversationViewModelTestFixture()
 

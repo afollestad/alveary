@@ -303,6 +303,7 @@ private extension ConversationViewModel {
                 await sendSessionHandoffOutputImmediately(output)
             }
         } catch {
+            await resubscribeIfActiveRuntimeIsRunning()
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
         }
     }

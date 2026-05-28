@@ -7,11 +7,13 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var allowsReplay: Bool
     var acceptsLiveEvents: Bool
     var hasDeferredToolStop: Bool
+    var observedEventCount = 0
     var pendingLiveToolApprovals: Int
     var hasSentPendingUserActionNotification: Bool
     var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?
+    private var agentCLIKitEnvelopeIndexByObservedIndex: [Int: Int] = [:]
     let buffer: EventBuffer
 
     init(
@@ -36,6 +38,22 @@ final class ManagedEventBuffer: @unchecked Sendable {
         self.deferredToolStopSessionId = deferredToolStopSessionId
         self.deferredToolStopToolUseId = deferredToolStopToolUseId
         self.buffer = buffer
+    }
+
+    func recordAgentCLIKitEnvelopeIndex(_ envelopeIndex: Int) {
+        guard observedEventCount > 0 else {
+            return
+        }
+        agentCLIKitEnvelopeIndexByObservedIndex[observedEventCount] = envelopeIndex
+    }
+
+    func agentCLIKitEnvelopeIndex(upToObservedIndex observedIndex: Int) -> Int? {
+        guard let key = agentCLIKitEnvelopeIndexByObservedIndex.keys.filter({ $0 <= observedIndex }).max(),
+              let envelopeIndex = agentCLIKitEnvelopeIndexByObservedIndex[key] else {
+            return nil
+        }
+        agentCLIKitEnvelopeIndexByObservedIndex = agentCLIKitEnvelopeIndexByObservedIndex.filter { $0.key >= key }
+        return envelopeIndex
     }
 }
 

@@ -10,6 +10,7 @@ actor StubClaudeHookServer: ClaudeHookServer {
         case discardTransientApprovalDecision(AgentSessionApprovalGrant)
         case recordSessionApproval(AgentSessionApprovalGrant)
         case discardSessionApproval(AgentSessionApprovalGrant)
+        case allowsSessionApproval(providerId: String, conversationId: String, sessionId: String, toolName: String, toolInput: String)
         case recordToolApprovalSelection(ToolApprovalSelection, providerId: String, conversationId: String, sessionId: String)
         case removeSessionApprovals(conversationId: String, sessionId: String)
         case discardDecision(ClaudeToolApprovalKey)
@@ -107,6 +108,27 @@ actor StubClaudeHookServer: ClaudeHookServer {
 
     func discardedSessionApprovals() -> [AgentSessionApprovalGrant] {
         discardedSessionApprovalStorage
+    }
+
+    func allowsSessionApproval(
+        providerId: String,
+        conversationId: String,
+        sessionId: String,
+        toolName: String,
+        toolInput: String
+    ) async -> Bool {
+        recordedEvents.append(.allowsSessionApproval(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: sessionId,
+            toolName: toolName,
+            toolInput: toolInput
+        ))
+        return recordedSessionApprovals.contains { approval in
+            approval.providerId == providerId &&
+                approval.conversationId == conversationId &&
+                approval.sessionId == sessionId
+        }
     }
 
     func toolApprovalSelection(

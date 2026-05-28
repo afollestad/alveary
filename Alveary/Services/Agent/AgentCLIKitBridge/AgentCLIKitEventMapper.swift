@@ -90,7 +90,7 @@ struct AgentCLIKitEventMapper: Sendable {
             cacheRead: event.cacheReadInputTokens ?? 0,
             cacheCreation: event.cacheCreationInputTokens ?? 0,
             isError: event.isError,
-            stopReason: event.stopReason,
+            stopReason: event.stopReason ?? event.metadata.stringValue("stop_reason"),
             durationMs: event.durationMs ?? 0,
             costUsd: event.costUSD ?? 0,
             providerModelId: event.model,
@@ -172,6 +172,14 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func diagnosticEvents(from event: AgentCLIKit.AgentDiagnosticEvent) -> [ConversationEvent] {
+        if event.code == .hookApprovalFailed {
+            return [.toolApprovalFailed(ToolApprovalFailure(
+                sessionId: event.metadata.stringValue("session_id"),
+                toolUseId: event.metadata.stringValue("tool_use_id"),
+                toolName: event.metadata.stringValue("tool_name"),
+                message: event.message
+            ))]
+        }
         if event.severity == .error {
             return [.error(message: event.message)]
         }

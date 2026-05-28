@@ -6,7 +6,13 @@ extension DefaultAgentsManager {
         guard let managedBuffer = eventBuffers[conversationId] else {
             return
         }
-        guard processes[conversationId]?.processIdentifier != nil else {
+        guard managedBuffer.allowsReplay else {
+            return
+        }
+        guard !closingConversationIds.contains(conversationId) else {
+            return
+        }
+        guard usesAgentCLIKitRuntime || processes[conversationId]?.processIdentifier != nil else {
             return
         }
         let key = ClaudeToolApprovalKey(

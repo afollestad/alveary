@@ -23,6 +23,15 @@ actor DisabledClaudeHookServer: ClaudeHookServer {
         SessionApprovalRecordResult(isEffective: false, wasInserted: false)
     }
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {}
+    func allowsSessionApproval(
+        providerId: String,
+        conversationId: String,
+        sessionId: String,
+        toolName: String,
+        toolInput: String
+    ) async -> Bool {
+        false
+    }
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection? {
         nil
     }

@@ -10,13 +10,15 @@ extension DefaultAgentsManager {
         guard let services = agentCLIKitServices else {
             return
         }
-        try assertAgentCLIKitSpawnAllowed(id: id)
-
+        try assertAgentCLIKitSpawnPreflightAllowed(id: id)
         spawningIds.insert(id)
         defer {
             spawningIds.remove(id)
             handleAgentCLIKitDeferredKillAfterSpawn(for: id)
         }
+
+        try await assertNoActiveAgentCLIKitRuntime(id: id, services: services)
+        await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
 
         let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: forkSession, services: services)
         let runtimeConversationId = services.hostAdapter.conversationId(id)
@@ -33,6 +35,7 @@ extension DefaultAgentsManager {
                 conversationId: runtimeConversationId,
                 config: spawnConfig
             )
+            await refreshAgentCLIKitStatus(conversationId: id, services: services)
         } catch {
             await tearDownAgentCLIKitRuntime(conversationId: id, removeSession: false)
             throw error
@@ -43,10 +46,29 @@ extension DefaultAgentsManager {
         guard let services = agentCLIKitServices else {
             return
         }
-        try await services.runtime.send(
-            .userMessage(AgentCLIKit.AgentMessageInput(text: message)),
-            conversationId: services.hostAdapter.conversationId(conversationId)
-        )
+        guard !shutdownRequested.withLock({ $0 }),
+              !closingConversationIds.contains(conversationId) else {
+            throw AgentError.stdinClosed
+        }
+        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+            throw AgentError.stdinClosed
+        }
+        do {
+            try await services.runtime.send(
+                .userMessage(AgentCLIKit.AgentMessageInput(text: message)),
+                conversationId: runtimeConversationId
+            )
+        } catch {
+            guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+                throw AgentError.stdinClosed
+            }
+            throw error
+        }
+        guard !shutdownRequested.withLock({ $0 }),
+              !closingConversationIds.contains(conversationId) else {
+            return
+        }
         updateStatus(.busy, for: conversationId)
     }
 
@@ -59,50 +81,13 @@ extension DefaultAgentsManager {
         }
     }
 
-    func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
-        guard let services = agentCLIKitServices else {
-            return
-        }
-        guard !reconfiguringIds.contains(conversationId) else {
-            throw AgentError.spawnFailed("Reconfigure already in progress for \(conversationId)")
-        }
-        reconfiguringIds.insert(conversationId)
-        defer {
-            reconfiguringIds.remove(conversationId)
-            handleAgentCLIKitDeferredKillAfterSpawn(for: conversationId)
-        }
-
-        do {
-            let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-            prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
-            let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
-            let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: true, services: services)
-            try await services.runtime.reconfigure(
-                conversationId: runtimeConversationId,
-                config: spawnConfig
-            )
-            let subscription = await services.runtime.subscribe(
-                conversationId: runtimeConversationId,
-                afterIndex: replayCursor
-            )
-            installAgentCLIKitSubscriptionBuffer(
-                conversationId: conversationId,
-                config: config,
-                subscription: subscription
-            )
-        } catch {
-            updateStatus(.error, for: conversationId)
-            await MainActor.run {
-                let state = conversationStatesStore.withLock { $0[conversationId] }
-                state?.lastTurnError = "Reconfigure failed: \(error.localizedDescription)"
-            }
-            throw error
-        }
-    }
-
     func startFreshSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
         guard let services = agentCLIKitServices else {
             return
+        }
+        await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
+        guard !spawningIds.contains(conversationId) else {
+            throw AgentError.spawnFailed("Spawn already in progress for \(conversationId)")
         }
         guard !reconfiguringIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Session refresh already in progress for \(conversationId)")
@@ -113,29 +98,30 @@ extension DefaultAgentsManager {
             handleAgentCLIKitDeferredKillAfterSpawn(for: conversationId)
         }
 
-        let providerId = try services.hostAdapter.providerId(config.providerId).requireProvider(config.providerId)
-        try await services.sessionStore.remove(
-            conversationId: services.hostAdapter.conversationId(conversationId),
-            providerId: providerId
+        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+        let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
+        let previousSessionRecord = try await previousAgentCLIKitSessionRecord(
+            conversationId: runtimeConversationId,
+            providerId: config.providerId,
+            services: services
         )
 
         do {
-            prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
-            let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: false, services: services)
-            try await services.runtime.freshSession(
-                conversationId: services.hostAdapter.conversationId(conversationId),
-                config: spawnConfig
-            )
-            let subscription = await services.runtime.subscribe(
-                conversationId: services.hostAdapter.conversationId(conversationId),
-                afterIndex: nil
-            )
-            installAgentCLIKitSubscriptionBuffer(
+            try await replaceWithFreshAgentCLIKitSession(
                 conversationId: conversationId,
                 config: config,
-                subscription: subscription
+                runtimeConversationId: runtimeConversationId,
+                previousSessionRecord: previousSessionRecord,
+                services: services
             )
         } catch {
+            await restoreAgentCLIKitSubscriptionAfterFailedReplacement(
+                conversationId: conversationId,
+                config: config,
+                runtimeConversationId: runtimeConversationId,
+                replayCursor: replayCursor,
+                services: services
+            )
             updateStatus(.error, for: conversationId)
             await MainActor.run {
                 let state = conversationStatesStore.withLock { $0[conversationId] }
@@ -143,6 +129,35 @@ extension DefaultAgentsManager {
             }
             throw error
         }
+    }
+
+    func replaceWithFreshAgentCLIKitSession(
+        conversationId: String,
+        config: AgentSpawnConfig,
+        runtimeConversationId: AgentCLIKit.AgentConversationID,
+        previousSessionRecord: AgentCLIKit.AgentSessionRecord?,
+        services: AgentCLIKitHostServices
+    ) async throws {
+        prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
+        let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: false, services: services)
+        try await services.runtime.freshSession(
+            conversationId: runtimeConversationId,
+            config: spawnConfig
+        )
+        await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
+        await removePreviousAgentCLIKitSessionState(
+            previousSessionRecord,
+            services: services
+        )
+        let subscription = await services.runtime.subscribe(
+            conversationId: runtimeConversationId,
+            afterIndex: nil
+        )
+        installAgentCLIKitSubscriptionBuffer(
+            conversationId: conversationId,
+            config: config,
+            subscription: subscription
+        )
     }
 
     func killWithAgentCLIKit(conversationId: String) {
@@ -203,7 +218,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func assertAgentCLIKitSpawnAllowed(id: String) throws {
+    private func assertAgentCLIKitSpawnPreflightAllowed(id: String) throws {
         guard !shutdownRequested.withLock({ $0 }) else {
             throw AgentError.spawnFailed("App is shutting down")
         }
@@ -216,12 +231,37 @@ extension DefaultAgentsManager {
         guard !reconfiguringIds.contains(id) else {
             throw AgentError.spawnFailed("Reconfigure already in progress for \(id)")
         }
-        guard agentCLIKitStatuses[id]?.isProcessRunning != true else {
+    }
+
+    private func assertNoActiveAgentCLIKitRuntime(id: String, services: AgentCLIKitHostServices) async throws {
+        let runtimeStatus = await services.runtime.status(conversationId: services.hostAdapter.conversationId(id))
+        if let runtimeStatus {
+            agentCLIKitStatuses[id] = runtimeStatus
+        }
+        guard agentCLIKitStatuses[id]?.isProcessRunning != true,
+              runtimeStatus?.isProcessRunning != true else {
             throw AgentError.spawnFailed("Agent already running for \(id). Use reconfigureSession() or kill() before spawning again")
         }
     }
 
-    private func agentCLIKitSpawnConfig(
+    func refreshAgentCLIKitStatus(conversationId: String, services: AgentCLIKitHostServices) async {
+        guard let status = await services.runtime.status(conversationId: services.hostAdapter.conversationId(conversationId)) else {
+            return
+        }
+        applyAgentCLIKitStatus(status, conversationId: conversationId)
+    }
+
+    func installAgentCLIKitLiveHookHandlerIfNeeded(services: AgentCLIKitHostServices) async {
+        guard !hasInstalledAgentCLIKitLiveHookHandler else {
+            return
+        }
+        hasInstalledAgentCLIKitLiveHookHandler = true
+        await services.liveHookDecisionProvider.setDeferredToolRequestHandler { [weak self] request in
+            await self?.handleDeferredToolRequestFromHookServer(request)
+        }
+    }
+
+    func agentCLIKitSpawnConfig(
         _ config: AgentSpawnConfig,
         forkSession: Bool,
         services: AgentCLIKitHostServices
@@ -286,39 +326,53 @@ extension DefaultAgentsManager {
         return generation
     }
 
-    private func prepareAgentCLIKitBufferReplacement(conversationId: String) {
+    func prepareAgentCLIKitBufferReplacement(conversationId: String) {
         agentCLIKitEventTasks.removeValue(forKey: conversationId)?.cancel()
         eventBuffers[conversationId]?.allowsReplay = false
         eventBuffers[conversationId]?.acceptsLiveEvents = false
         eventBuffers[conversationId]?.buffer.finishAll()
     }
 
-    private func installAgentCLIKitSubscriptionBuffer(
+    func installAgentCLIKitSubscriptionBuffer(
         conversationId: String,
         config: AgentSpawnConfig,
-        subscription: AgentCLIKit.AgentEventSubscription
+        subscription: AgentCLIKit.AgentEventSubscription,
+        dropsPreStartTerminalLifecycle: Bool = false,
+        hasImmediateTurn: Bool? = nil
     ) {
         let bufferGeneration = installAgentCLIKitBuffer(
             conversationId: conversationId,
             agentGeneration: subscription.generation,
-            hasImmediateTurn: !(config.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            hasImmediateTurn: hasImmediateTurn ?? !(config.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         )
         startAgentCLIKitEventTask(
             conversationId: conversationId,
             subscription: subscription,
-            bufferGeneration: bufferGeneration
+            bufferGeneration: bufferGeneration,
+            dropsPreStartTerminalLifecycle: dropsPreStartTerminalLifecycle
         )
     }
 
     private func startAgentCLIKitEventTask(
         conversationId: String,
         subscription: AgentCLIKit.AgentEventSubscription,
-        bufferGeneration: UUID
+        bufferGeneration: UUID,
+        dropsPreStartTerminalLifecycle: Bool = false
     ) {
         agentCLIKitEventTasks[conversationId]?.cancel()
         let mapper = AgentCLIKitEventMapper()
         agentCLIKitEventTasks[conversationId] = Task { [weak self] in
+            var hasSeenRuntimeStart = !dropsPreStartTerminalLifecycle
             for await envelope in subscription.events {
+                // Replacement buffers can replay an old process exit that raced after the cursor; keep real content,
+                // but ignore that stale terminal lifecycle until the new runtime start boundary arrives.
+                if !hasSeenRuntimeStart {
+                    if envelope.isRuntimeStartLifecycle {
+                        hasSeenRuntimeStart = true
+                    } else if envelope.isTerminalLifecycle {
+                        continue
+                    }
+                }
                 let events = mapper.conversationEvents(from: envelope)
                 let generation = envelope.generation == subscription.generation
                     ? bufferGeneration
@@ -337,6 +391,7 @@ extension DefaultAgentsManager {
                         providerId: envelope.providerId.rawValue
                     )
                 }
+                await self?.recordAgentCLIKitEnvelopeIndex(envelope.index, conversationId: conversationId, generation: generation)
             }
             guard !Task.isCancelled else {
                 return
@@ -388,6 +443,10 @@ extension DefaultAgentsManager {
                 // A live AgentCLIKit process may simply be waiting for stdin; Alveary marks busy from turn starts instead.
                 break
             case .exited, .cancelled:
+                if eventBuffers[conversationId]?.hasDeferredToolStop == true,
+                   self.status(for: conversationId) == .waitingForUser {
+                    return
+                }
                 updateStatus(.idle, for: conversationId)
             case .failed:
                 updateStatus(.error, for: conversationId)
@@ -395,7 +454,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func handleAgentCLIKitDeferredKillAfterSpawn(for conversationId: String) {
+    func handleAgentCLIKitDeferredKillAfterSpawn(for conversationId: String) {
         guard pendingKillIds.remove(conversationId) != nil else {
             return
         }
@@ -413,6 +472,7 @@ extension DefaultAgentsManager {
         eventBuffers[conversationId]?.allowsReplay = false
         eventBuffers[conversationId]?.acceptsLiveEvents = false
         eventBuffers[conversationId]?.buffer.finishAll()
+        await services.liveHookDecisionProvider.discardDecisions(conversationId: conversationId)
         await services.runtime.destroy(conversationId: services.hostAdapter.conversationId(conversationId))
         if removeSession {
             do {
@@ -432,14 +492,5 @@ extension DefaultAgentsManager {
         closingConversationIds.remove(conversationId)
         pendingSessionRemovalIds.remove(conversationId)
         clearStatus(for: conversationId)
-    }
-}
-
-private extension Optional where Wrapped == AgentCLIKit.AgentProviderID {
-    func requireProvider(_ rawValue: String) throws -> AgentCLIKit.AgentProviderID {
-        guard let self else {
-            throw AgentCLIKitHostAdapterError.unsupportedProvider(rawValue)
-        }
-        return self
     }
 }

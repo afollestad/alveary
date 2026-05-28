@@ -5,7 +5,7 @@ final class AgentCLIKitDependencyPinTests: XCTestCase {
     func testProjectPinsPushedAgentCLIKitMigrationCommit() throws {
         let projectYAML = try Self.projectYAML()
 
-        XCTAssertTrue(projectYAML.contains(#"revision: "bc9bf6f26f571e054ea72bddecefea9c69558845""#))
+        XCTAssertTrue(projectYAML.contains(#"revision: "7d0e0159724bc55fa5a1692c8f88d593a9ec9338""#))
         XCTAssertEqual(ClaudeProviderAdapter.providerId.rawValue, "claude")
     }
 

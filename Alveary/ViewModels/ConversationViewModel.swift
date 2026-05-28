@@ -283,7 +283,12 @@ final class ConversationViewModel {
 
         await flushPendingSaveIfNeeded()
         await prepareForSpawn(config: config)
-        try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
+        do {
+            try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
+        } catch {
+            await resubscribeIfActiveRuntimeIsRunning()
+            throw error
+        }
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
@@ -293,6 +298,14 @@ final class ConversationViewModel {
 
     func reconfigureSession() async throws {
         try await reconfigureSession(config: makeSpawnConfig())
+    }
+
+    func resubscribeIfActiveRuntimeIsRunning() async {
+        guard hasActivatedViewLifecycle,
+              await agentsManager.isRunning(conversationId: conversation.id) else {
+            return
+        }
+        subscribe()
     }
 
     func rebuildChatItemsIfNeeded(from events: [ConversationEventRecord], forceFullRebuild: Bool = false) {

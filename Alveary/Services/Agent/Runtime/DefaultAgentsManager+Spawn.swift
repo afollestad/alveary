@@ -24,12 +24,15 @@ extension DefaultAgentsManager {
 
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {
         if let services = agentCLIKitServices,
-           let agentGeneration = agentCLIKitGenerationUUIDs[conversationId]?.first(where: { $0.value == generation })?.key {
+           let managedBuffer = eventBuffers[conversationId],
+           managedBuffer.generation == generation,
+           let agentGeneration = agentCLIKitGenerationUUIDs[conversationId]?.first(where: { $0.value == generation })?.key,
+           let agentEnvelopeIndex = managedBuffer.agentCLIKitEnvelopeIndex(upToObservedIndex: index) {
             Task {
                 await services.runtime.markPersisted(
                     conversationId: services.hostAdapter.conversationId(conversationId),
                     generation: agentGeneration,
-                    upTo: index
+                    upTo: agentEnvelopeIndex
                 )
             }
         }

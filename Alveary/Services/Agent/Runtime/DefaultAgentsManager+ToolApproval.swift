@@ -45,6 +45,39 @@ extension DefaultAgentsManager {
 
         do {
             let approvals = [request.approval] + request.additionalApprovals
+            let liveResolutionCount = await resolveAgentCLIKitLiveHookApprovals(
+                approvals,
+                resolution: request.resolution,
+                conversationId: request.conversationId,
+                services: services
+            )
+            if liveResolutionCount > 0 {
+                markLiveToolApprovalsResolved(
+                    conversationId: request.conversationId,
+                    context: context
+                )
+                decrementPendingLiveToolApprovals(
+                    conversationId: request.conversationId,
+                    count: liveResolutionCount
+                )
+                recordDeniedToolUseIdsIfNeeded(request)
+                eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
+                updateStatus(.busy, for: request.conversationId)
+                return context.sessionApprovalRecordResult.isEffective
+            }
+
+            if shouldResumeAgentCLIKitDeferredApproval(conversationId: request.conversationId) {
+                try await resumeAgentCLIKitDeferredApproval(
+                    request,
+                    approvals: approvals,
+                    services: services
+                )
+                recordDeniedToolUseIdsIfNeeded(request)
+                eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
+                updateStatus(.busy, for: request.conversationId)
+                return context.sessionApprovalRecordResult.isEffective
+            }
+
             for approval in approvals {
                 try await services.runtime.resolveInteraction(
                     try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),
@@ -60,6 +93,34 @@ extension DefaultAgentsManager {
         eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
         updateStatus(.busy, for: request.conversationId)
         return context.sessionApprovalRecordResult.isEffective
+    }
+
+    private func resolveAgentCLIKitLiveHookApprovals(
+        _ approvals: [ToolApprovalRequest],
+        resolution: ClaudeToolApprovalResolution,
+        conversationId: String,
+        services: AgentCLIKitHostServices
+    ) async -> Int {
+        var count = 0
+        var unresolvedKeys: [ClaudeToolApprovalKey] = []
+        for approval in approvals {
+            let key = ClaudeToolApprovalKey(sessionId: approval.sessionId, toolUseId: approval.toolUseId)
+            if await services.liveHookDecisionProvider.resolve(resolution, for: key) {
+                count += 1
+            } else {
+                unresolvedKeys.append(key)
+            }
+        }
+        if count > 0 {
+            for key in unresolvedKeys {
+                await services.liveHookDecisionProvider.recordFutureResolution(
+                    resolution,
+                    for: key,
+                    conversationId: conversationId
+                )
+            }
+        }
+        return count
     }
 
     private func agentCLIKitInteractionResolution(
@@ -96,7 +157,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func agentCLIKitJSONValue(from string: String) throws -> AgentCLIKit.JSONValue {
+    func agentCLIKitJSONValue(from string: String) throws -> AgentCLIKit.JSONValue {
         guard let data = string.data(using: .utf8) else {
             throw AgentError.spawnFailed("Updated tool input is not valid UTF-8")
         }
@@ -289,6 +350,12 @@ extension DefaultAgentsManager {
     private func discardToolApprovalResolutionContext(
         _ context: ToolApprovalResolutionContext
     ) async {
+        if let services = agentCLIKitServices {
+            await services.liveHookDecisionProvider.discardDecision(for: context.key)
+            for additionalKey in context.additionalKeys {
+                await services.liveHookDecisionProvider.discardDecision(for: additionalKey)
+            }
+        }
         await claudeHookServer.discardDecision(for: context.key)
         for additionalKey in context.additionalKeys {
             await claudeHookServer.discardDecision(for: additionalKey)

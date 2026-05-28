@@ -34,6 +34,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var agentCLIKitGenerationByConversation: [String: Int] = [:]
     var agentCLIKitGenerationUUIDs: [String: [Int: UUID]] = [:]
     var agentCLIKitStatuses: [String: AgentCLIKit.AgentRuntimeStatus] = [:]
+    var hasInstalledAgentCLIKitLiveHookHandler = false
 
     let shutdownRequested = LockedState(false)
     let processSnapshot = LockedState([Process]())

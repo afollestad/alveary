@@ -60,6 +60,20 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         ])
     }
 
+    func testMapsUsageStopReasonFromMetadataFallback() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.usage(AgentUsageEvent(
+            model: nil,
+            inputTokens: 0,
+            outputTokens: 0,
+            metadata: ["stop_reason": .string("tool_deferred")]
+        ))))
+
+        guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _)? = events.first else {
+            return XCTFail("Expected token event")
+        }
+        XCTAssertEqual(stopReason, "tool_deferred")
+    }
+
     func testMapsPromptInteractionToToolApprovalRequest() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
             .interaction(AgentInteractionEvent(
@@ -93,6 +107,30 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         ))
 
         XCTAssertEqual(events, [.sessionInit(sessionId: "session-1")])
+    }
+
+    func testMapsHookApprovalFailureDiagnostic() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
+            .diagnostic(AgentDiagnosticEvent(
+                code: .hookApprovalFailed,
+                severity: .error,
+                message: "Claude hook failed",
+                metadata: [
+                    "session_id": .string("session-1"),
+                    "tool_use_id": .string("tool-1"),
+                    "tool_name": .string("Edit")
+                ]
+            ))
+        ))
+
+        XCTAssertEqual(events, [
+            .toolApprovalFailed(ToolApprovalFailure(
+                sessionId: "session-1",
+                toolUseId: "tool-1",
+                toolName: "Edit",
+                message: "Claude hook failed"
+            ))
+        ])
     }
 
     private func envelope(

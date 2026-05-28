@@ -14,6 +14,7 @@ extension DefaultAgentsManager {
             return
         }
         managedBuffer.buffer.push(event)
+        managedBuffer.observedEventCount += 1
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
         handleRuntimeStatusEvent(event, conversationId: conversationId, generation: generation)
@@ -93,9 +94,9 @@ extension DefaultAgentsManager {
 
         let isWaitingOnDeferredPrompt = stopReason == "tool_deferred" &&
             !isError &&
-            permissionDenials.isEmpty &&
-            status(for: conversationId) == .waitingForUser
-        guard !isWaitingOnDeferredPrompt else {
+            permissionDenials.isEmpty
+        if isWaitingOnDeferredPrompt {
+            updateStatus(.waitingForUser, for: conversationId)
             return
         }
 
@@ -111,8 +112,24 @@ extension DefaultAgentsManager {
         generation: UUID
     ) {
         guard stopReason == "tool_deferred",
-              let pid = processes[conversationId]?.processIdentifier,
               eventBuffers[conversationId]?.hasDeferredToolStop != true else {
+            return
+        }
+
+        if usesAgentCLIKitRuntime {
+            eventBuffers[conversationId]?.hasDeferredToolStop = true
+            eventBuffers[conversationId]?.acceptsLiveEvents = false
+            eventBuffers[conversationId]?.allowsReplay = true
+            Task { [weak self] in
+                await self?.stopAgentCLIKitDeferredRuntimeIfCurrent(
+                    conversationId: conversationId,
+                    generation: generation
+                )
+            }
+            return
+        }
+
+        guard let pid = processes[conversationId]?.processIdentifier else {
             return
         }
 
