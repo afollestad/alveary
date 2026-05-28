@@ -152,6 +152,22 @@ extension AppComponent {
         return shared { AgentCLIKitLiveHookDecisionProvider() }
     }
 
+    var agentCLIKitProviderAdapterSet: AgentCLIKit.AgentProviderAdapterSet {
+        return shared {
+            AgentCLIKit.AgentProviderAdapterSet.default(
+                claude: AgentCLIKit.ClaudeProviderAdapter.Configuration(
+                    interactionStore: agentCLIKitInteractionStore,
+                    approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
+                    hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
+                        "ClaudeHooks",
+                        isDirectory: true
+                    ),
+                    hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
+                )
+            )
+        }
+    }
+
     var agentCLIKitClaudeConfigStore: AgentCLIKit.ClaudeConfigStore {
         return shared {
             AgentCLIKit.ClaudeConfigStore(
@@ -163,7 +179,7 @@ extension AppComponent {
     var agentCLIKitProviderRegistry: AgentCLIKit.AgentProviderRegistry {
         return shared {
             AgentCLIKit.AgentProviderRegistry(
-                definitions: [AgentCLIKit.ClaudeProviderAdapter(enableHooks: false).definition]
+                definitions: agentCLIKitProviderAdapterSet.definitions
             )
         }
     }
@@ -191,17 +207,7 @@ extension AppComponent {
     var agentCLIKitRuntime: AgentCLIKit.DefaultAgentRuntime {
         return shared {
             AgentCLIKit.DefaultAgentRuntime(
-                adapters: [
-                    AgentCLIKit.ClaudeProviderAdapter(
-                        interactionStore: agentCLIKitInteractionStore,
-                        approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
-                        hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
-                            "ClaudeHooks",
-                            isDirectory: true
-                        ),
-                        hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
-                    )
-                ],
+                adapterSet: agentCLIKitProviderAdapterSet,
                 sessionStore: agentCLIKitSessionStore
             )
         }

@@ -24,6 +24,7 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
         assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
         assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
+        XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude"])
         assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
         assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
@@ -61,6 +62,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitInteractionStore
         _ = component.agentCLIKitApprovalPolicyStore
         _ = component.agentCLIKitClaudeApprovalPolicyStore
+        _ = component.agentCLIKitProviderAdapterSet
         _ = component.agentCLIKitClaudeConfigStore
         _ = component.agentCLIKitProviderRegistry
         _ = component.agentCLIKitProviderDetector
@@ -82,6 +84,15 @@ final class AppComponentTests: XCTestCase {
         _ = component.gitHubService
         _ = component.skillsService
         _ = component.mcpService
+    }
+
+    func testAgentCLIKitProviderRegistryUsesAdapterSetDefinitions() async {
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
+
+        let adapterSetIDs = component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue)
+        let registryIDs = await component.agentCLIKitProviderRegistry.allDefinitions().map(\.id.rawValue)
+
+        XCTAssertEqual(registryIDs, adapterSetIDs)
     }
 
     func testAgentCLIKitHostAdapterMapsSpawnConfig() throws {
