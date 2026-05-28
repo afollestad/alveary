@@ -192,17 +192,46 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertNil(weakController)
     }
 
+    func testKeyboardShortcutsUseLatestConfigurationAfterReconfigure() {
+        let controller = AppKitChatComposerEditorController()
+        var submitCount = 0
+        controller.configure(makeConfiguration(
+            text: "First",
+            mode: .idle,
+            onSubmit: { submitCount += 1 }
+        ))
+        let shortcuts = controller.blockInputKeyboardShortcuts()
+
+        controller.configure(makeConfiguration(
+            text: "First",
+            mode: .progressOnly(.initialSetup),
+            onSubmit: { submitCount += 1 }
+        ))
+        let result = shortcuts[.returnKey]?(BlockInputKeyboardShortcutContext(
+            shortcut: .returnKey,
+            selection: nil,
+            activeBlock: nil,
+            focusSource: .blockText,
+            isRepeat: false
+        ))
+
+        XCTAssertEqual(result, .handled)
+        XCTAssertEqual(submitCount, 0)
+    }
+
     private func makeConfiguration(
         text: String = "First",
         draftIdentity: String = "one",
+        mode: ComposerMode = .idle,
         hasQueuedMessages: Bool = false,
         hasTopContent: Bool = false,
-        onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in }
+        onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
+        onSubmit: @escaping () -> Void = {}
     ) -> AppKitChatComposerBodyConfiguration {
         AppKitChatComposerBodyConfiguration(
             text: text,
             draftIdentity: draftIdentity,
-            mode: .idle,
+            mode: mode,
             defaultEnterBehavior: .queue,
             isStopConfirmationArmed: false,
             supportsMidTurnSteering: true,
@@ -218,7 +247,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             onDraftSnapshotProviderChange: onDraftSnapshotProviderChange,
-            onSubmit: {},
+            onSubmit: onSubmit,
             onSteer: {},
             onStop: {},
             onStopConfirmationChange: { _ in },

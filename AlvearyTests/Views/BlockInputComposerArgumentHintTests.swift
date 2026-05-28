@@ -6,20 +6,6 @@ import XCTest
 
 @MainActor
 final class BlockInputComposerArgumentHintTests: XCTestCase {
-    func testProjectPinsBlockInputKitArgumentHintSupportCommit() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let projectYAML = try String(
-            contentsOf: repositoryRoot.appendingPathComponent("project.yml"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(projectYAML.contains(#"revision: "7726331c5e28f0c475382e1c245166ca48b25370""#))
-    }
-
     func testBridgeInlineHintProviderDisplaysCachedSkillArgumentHint() async {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
             markdown: "",

@@ -69,26 +69,45 @@ final class BlockInputComposerBridgeController {
     private(set) var undoController = BlockInputUndoController()
     private(set) var commandDispatcher = BlockInputEditorCommandDispatcher()
     private(set) var completionProvider: BlockInputComposerCompletionProvider
+    private var currentConfiguration: BlockInputComposerBridgeConfiguration
+    private var appliedViewConfigurationKey: BridgeViewConfigKey
     private var lastConfiguredMarkdownRevision: Int
+    #if DEBUG
+    private(set) var viewConfigureCountForTesting = 0
+    #endif
 
     init(configuration: BlockInputComposerBridgeConfiguration) {
         let document = BlockInputDocument(markdown: configuration.markdown)
         documentStore = BlockInputMemoryDocumentStore(document: document)
         completionProvider = Self.makeCompletionProvider(configuration)
+        currentConfiguration = configuration
+        appliedViewConfigurationKey = Self.viewConfigurationKey(for: configuration)
         lastConfiguredMarkdownRevision = configuration.markdownRevision
-        view.configure(blockInputConfiguration(for: configuration))
+        configureBlockInputView(for: configuration)
     }
 
     func configure(_ configuration: BlockInputComposerBridgeConfiguration) {
+        currentConfiguration = configuration
+        let replacedDocument = replaceExternalMarkdownIfNeeded(configuration)
+        updateCompletionProvider(configuration)
+        let nextViewConfigurationKey = Self.viewConfigurationKey(for: configuration)
+        guard replacedDocument || nextViewConfigurationKey != appliedViewConfigurationKey else {
+            return
+        }
+        appliedViewConfigurationKey = nextViewConfigurationKey
+        configureBlockInputView(for: configuration)
+    }
+
+    private func replaceExternalMarkdownIfNeeded(_ configuration: BlockInputComposerBridgeConfiguration) -> Bool {
         if configuration.markdownRevision != lastConfiguredMarkdownRevision {
             lastConfiguredMarkdownRevision = configuration.markdownRevision
             if configuration.markdown != documentStore.document.markdown {
                 documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
                 undoController = BlockInputUndoController()
+                return true
             }
         }
-        updateCompletionProvider(configuration)
-        view.configure(blockInputConfiguration(for: configuration))
+        return false
     }
 
     func currentMarkdown() -> String {
@@ -119,28 +138,54 @@ final class BlockInputComposerBridgeController {
                 defaultVisibleLineCount: Self.minVisibleLineCount,
                 maximumVisibleLineCount: Self.maxVisibleLineCount,
                 animation: .default,
-                onPreferredHeightTransition: configuration.onPreferredHeightTransition
+                onPreferredHeightTransition: { [weak self] transition in
+                    self?.currentConfiguration.onPreferredHeightTransition(transition)
+                }
             ),
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,
             undoController: undoController,
             commandDispatcher: commandDispatcher,
-            keyboardShortcuts: configuration.keyboardShortcuts,
+            keyboardShortcuts: keyboardShortcuts(for: configuration),
             completionProvider: completionProvider,
             completionReturnBehavior: .passthroughExactMatch,
             slashCommandAvailability: .documentStart,
             completionPopupConfiguration: BlockInputCompletionPopupConfiguration(
                 placement: .overlay,
                 style: BlockInputComposerStyle.completionPopupStyle(),
-                overlayProvider: configuration.completionPopupOverlayProvider
+                overlayProvider: { [weak self] context in
+                    self?.currentConfiguration.completionPopupOverlayProvider?(context)
+                }
             ),
             onDocumentMutation: { [weak self] change in
-                configuration.onDocumentMutation(change, self?.documentStore.document.isEffectivelyEmpty ?? true)
+                guard let self else {
+                    return
+                }
+                currentConfiguration.onDocumentMutation(change, documentStore.document.isEffectivelyEmpty)
             },
-            onDocumentChange: { document in
-                configuration.onDocumentChange(document)
+            onDocumentChange: { [weak self] document in
+                self?.currentConfiguration.onDocumentChange(document)
             }
         )
+    }
+
+    private func keyboardShortcuts(
+        for configuration: BlockInputComposerBridgeConfiguration
+    ) -> [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] {
+        var forwardedShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:]
+        for shortcut in configuration.keyboardShortcuts.keys {
+            forwardedShortcuts[shortcut] = { [weak self] context in
+                self?.currentConfiguration.keyboardShortcuts[shortcut]?(context) ?? .ignored
+            }
+        }
+        return forwardedShortcuts
+    }
+
+    private func configureBlockInputView(for configuration: BlockInputComposerBridgeConfiguration) {
+        view.configure(blockInputConfiguration(for: configuration))
+        #if DEBUG
+        viewConfigureCountForTesting += 1
+        #endif
     }
 
     private static func makeCompletionProvider(
@@ -164,4 +209,30 @@ final class BlockInputComposerBridgeController {
             completionProvider = Self.makeCompletionProvider(configuration)
         }
     }
+
+    private static func viewConfigurationKey(
+        for configuration: BlockInputComposerBridgeConfiguration
+    ) -> BridgeViewConfigKey {
+        BridgeViewConfigKey(
+            placeholder: configuration.placeholder,
+            isEditable: configuration.isEditable,
+            disabledCursor: configuration.disabledCursor.map { ObjectIdentifier($0) },
+            editorHorizontalInset: configuration.editorHorizontalInset,
+            editorVerticalInset: configuration.editorVerticalInset,
+            editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
+            location: configuration.location,
+            keyboardShortcuts: Set(configuration.keyboardShortcuts.keys)
+        )
+    }
+}
+
+private struct BridgeViewConfigKey: Equatable {
+    var placeholder: String?
+    var isEditable: Bool
+    var disabledCursor: ObjectIdentifier?
+    var editorHorizontalInset: CGFloat
+    var editorVerticalInset: CGFloat
+    var editorRoundedCorners: Int
+    var location: BlockInputComposerLocation
+    var keyboardShortcuts: Set<BlockInputKeyboardShortcut>
 }

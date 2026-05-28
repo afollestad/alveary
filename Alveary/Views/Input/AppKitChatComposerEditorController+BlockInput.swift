@@ -28,7 +28,7 @@ extension AppKitChatComposerEditorController {
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions,
-            keyboardShortcuts: blockInputKeyboardShortcuts(for: configuration),
+            keyboardShortcuts: blockInputKeyboardShortcuts(),
             completionPopupOverlayProvider: { [weak self] context in
                 self?.blockInputCompletionPopupOverlay(context: context)
             },
@@ -91,27 +91,27 @@ extension AppKitChatComposerEditorController {
         }
     }
 
-    func blockInputKeyboardShortcuts(
-        for configuration: AppKitChatComposerBodyConfiguration
-    ) -> [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] {
+    func blockInputKeyboardShortcuts() -> [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] {
         [
             .returnKey: { [weak self] _ in
-                self?.handleBlockInputReturn(usesAlternateBehavior: false, configuration: configuration) ?? .handled
+                self?.handleBlockInputReturn(usesAlternateBehavior: false) ?? .handled
             },
             .shiftReturn: { _ in .ignored },
             .optionReturn: { [weak self] _ in
-                self?.handleBlockInputReturn(usesAlternateBehavior: true, configuration: configuration) ?? .handled
+                self?.handleBlockInputReturn(usesAlternateBehavior: true) ?? .handled
             },
             BlockInputKeyboardShortcut(key: .escape): { [weak self] _ in
-                self?.handleBlockInputEscape(configuration: configuration) ?? .ignored
+                self?.handleBlockInputEscape() ?? .ignored
             }
         ]
     }
 
     func handleBlockInputReturn(
-        usesAlternateBehavior: Bool,
-        configuration: AppKitChatComposerBodyConfiguration
+        usesAlternateBehavior: Bool
     ) -> BlockInputKeyboardShortcutResult {
+        guard let configuration else {
+            return .handled
+        }
         switch configuration.mode {
         case .progressOnly:
             return .handled
@@ -128,9 +128,10 @@ extension AppKitChatComposerEditorController {
         }
     }
 
-    func handleBlockInputEscape(
-        configuration: AppKitChatComposerBodyConfiguration
-    ) -> BlockInputKeyboardShortcutResult {
+    func handleBlockInputEscape() -> BlockInputKeyboardShortcutResult {
+        guard let configuration else {
+            return .ignored
+        }
         guard presentation(for: configuration).canUseEscapeToStop else {
             return .ignored
         }

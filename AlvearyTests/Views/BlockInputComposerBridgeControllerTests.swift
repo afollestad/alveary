@@ -67,16 +67,15 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
     func testBridgeForwardsPreferredHeightTransitionCallback() {
         var reportedTransition: BlockInputEditorHeightTransition?
-        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Hello"))
-        let blockInputConfiguration = controller.blockInputConfiguration(
-            for: BlockInputComposerBridgeConfiguration(
-                markdown: "Hello",
-                location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
-                loadFileCompletions: { [] },
-                loadSkillCompletions: { [] },
-                onPreferredHeightTransition: { reportedTransition = $0 }
-            )
+        let configuration = BlockInputComposerBridgeConfiguration(
+            markdown: "Hello",
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] },
+            onPreferredHeightTransition: { reportedTransition = $0 }
         )
+        let controller = BlockInputComposerBridgeController(configuration: configuration)
+        let blockInputConfiguration = controller.blockInputConfiguration(for: configuration)
         let transition = BlockInputEditorHeightTransition(
             previousHeight: 20,
             targetHeight: 40,
@@ -90,21 +89,20 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
     }
 
     func testBridgeForwardsOverlayCompletionPopupProvider() {
-        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Hello"))
-        let blockInputConfiguration = controller.blockInputConfiguration(
-            for: BlockInputComposerBridgeConfiguration(
-                markdown: "Hello",
-                location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
-                loadFileCompletions: { [] },
-                loadSkillCompletions: { [] },
-                completionPopupOverlayProvider: { context in
-                    BlockInputCompletionPopupOverlay(
-                        container: context.editorView,
-                        frame: NSRect(x: 1, y: 2, width: 3, height: 4)
-                    )
-                }
-            )
+        let configuration = BlockInputComposerBridgeConfiguration(
+            markdown: "Hello",
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] },
+            completionPopupOverlayProvider: { context in
+                BlockInputCompletionPopupOverlay(
+                    container: context.editorView,
+                    frame: NSRect(x: 1, y: 2, width: 3, height: 4)
+                )
+            }
         )
+        let controller = BlockInputComposerBridgeController(configuration: configuration)
+        let blockInputConfiguration = controller.blockInputConfiguration(for: configuration)
 
         let overlay = blockInputConfiguration.completionPopupConfiguration.overlayProvider?(
             BlockInputCompletionPopupOverlayContext(
@@ -137,10 +135,9 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
     func testDocumentMutationReportsEffectiveEmptyWithoutMarkdownSerialization() {
         var reportedIsEmpty: Bool?
-        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Hello"))
-        let blockInputConfiguration = controller.blockInputConfiguration(
-            for: makeConfiguration(markdown: "Hello") { reportedIsEmpty = $1 }
-        )
+        let configuration = makeConfiguration(markdown: "Hello") { reportedIsEmpty = $1 }
+        let controller = BlockInputComposerBridgeController(configuration: configuration)
+        let blockInputConfiguration = controller.blockInputConfiguration(for: configuration)
 
         controller.documentStore.replaceDocument(BlockInputDocument(markdown: ""))
         blockInputConfiguration.onDocumentMutation?(.replaceDocument(controller.documentStore.document))
