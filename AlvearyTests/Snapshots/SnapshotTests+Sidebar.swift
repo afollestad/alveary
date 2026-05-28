@@ -223,6 +223,23 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowMarkdownLinkTitle() {
+        let thread = AgentThread(name: "[.alveary.json](.alveary.json)")
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .unread,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 320, height: 52),
+            named: "thread_row_markdown_link"
+        )
+    }
+
     // Dark-mode coverage for the `.standard` chip palette. `AppMarkdownCodeBlockPalette`
     // uses a theme-aware grayscale `inlineFillNSColor` (shared with assistant bubble
     // inline code), so this locks in how the chip reads on a dark sidebar.

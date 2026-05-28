@@ -10,6 +10,27 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
         )
     }
 
+    func testPlainTextStripsMarkdownLinkDelimitersButKeepsLabel() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "Open [.alveary.json](.alveary.json)"),
+            "Open .alveary.json"
+        )
+    }
+
+    func testPlainTextStripsStrongAndEmphasisDelimiters() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "**Bold** and *italic*"),
+            "Bold and italic"
+        )
+    }
+
+    func testPlainTextStripsSupportedHTMLInlineDelimiters() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "<strong>Bold</strong> <em>italic</em> <u>under</u>"),
+            "Bold italic under"
+        )
+    }
+
     func testPlainTextStripsSingleBacktickDelimitersButKeepsCodeContent() {
         XCTAssertEqual(
             AppMarkdownInlineLabel.plainText(from: "Test `code` Rendering"),
@@ -70,6 +91,20 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
         XCTAssertEqual(
             AppMarkdownInlineLabel.plainText(from: "Run `ls` on @/Users/me/My%20Docs/notes.md"),
             "Run ls on @notes.md"
+        )
+    }
+
+    func testPlainTextHandlesMixOfMarkdownLinkInlineCodeAndAtMention() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "Open [docs](https://example.com), run `ls`, inspect @/tmp/My%20File.md"),
+            "Open docs, run ls, inspect @My File.md"
+        )
+    }
+
+    func testPlainTextKeepsAtMentionInsideMarkdownLinkAsLinkLabelText() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "See [@/tmp/My%20File.md](https://example.com)"),
+            "See @/tmp/My%20File.md"
         )
     }
 
