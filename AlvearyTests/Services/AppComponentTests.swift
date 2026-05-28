@@ -19,6 +19,14 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.providerDetectionService, component.providerDetectionService)
         assertSameInstance(component.keepAwakeService, component.keepAwakeService)
         assertSameInstance(component.claudeConfigStore, component.claudeConfigStore)
+        assertSameInstance(component.agentCLIKitRuntime, component.agentCLIKitRuntime)
+        assertSameInstance(component.agentCLIKitSessionStore, component.agentCLIKitSessionStore)
+        assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
+        assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
+        assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
+        assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
+        assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
+        assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
         assertSameInstance(component.claudeHookServer, component.claudeHookServer)
         assertSameInstance(component.gitService, component.gitService)
         assertSameInstance(component.gitHubCLIService, component.gitHubCLIService)
@@ -49,6 +57,19 @@ final class AppComponentTests: XCTestCase {
         _ = component.claudeConfigStore
         _ = component.providerSetupService
         _ = component.contextWindowCache
+        _ = component.agentCLIKitShellRunner
+        _ = component.agentCLIKitInteractionStore
+        _ = component.agentCLIKitApprovalPolicyStore
+        _ = component.agentCLIKitClaudeApprovalPolicyStore
+        _ = component.agentCLIKitClaudeConfigStore
+        _ = component.agentCLIKitProviderRegistry
+        _ = component.agentCLIKitProviderDetector
+        _ = component.agentCLIKitProviderSetup
+        _ = component.agentCLIKitContextWindowCache
+        _ = component.agentCLIKitHostAdapter
+        _ = component.agentCLIKitRuntime
+        _ = component.agentCLIKitSessionStore
+        _ = component.agentCLIKitHostServices
         _ = component.claudeHookServer
         _ = component.defaultAgentsManager
         _ = component.agentsManager
@@ -61,6 +82,40 @@ final class AppComponentTests: XCTestCase {
         _ = component.gitHubService
         _ = component.skillsService
         _ = component.mcpService
+    }
+
+    func testAgentCLIKitHostAdapterMapsSpawnConfig() throws {
+        let adapter = AgentCLIKitHostAdapter()
+        let config = try adapter.spawnConfig(from: AgentSpawnConfig(
+            providerId: "claude",
+            workingDirectory: "/tmp/project",
+            permissionMode: "plan",
+            model: "sonnet",
+            effort: "high",
+            initialPrompt: "Start"
+        ))
+
+        XCTAssertEqual(config.providerId.rawValue, "claude")
+        XCTAssertEqual(config.workingDirectory.path, "/tmp/project")
+        XCTAssertEqual(config.permissionMode, "plan")
+        XCTAssertEqual(config.model, "sonnet")
+        XCTAssertEqual(config.effort, "high")
+        XCTAssertEqual(config.initialPrompt, "Start")
+    }
+
+    func testAgentCLIKitHostAdapterRejectsUnsupportedProvider() {
+        let adapter = AgentCLIKitHostAdapter()
+
+        XCTAssertThrowsError(try adapter.spawnConfig(from: AgentSpawnConfig(
+            providerId: "codex",
+            workingDirectory: "/tmp/project",
+            permissionMode: nil,
+            model: nil,
+            effort: nil,
+            initialPrompt: nil
+        ))) { error in
+            XCTAssertEqual(error as? AgentCLIKitHostAdapterError, .unsupportedProvider("codex"))
+        }
     }
 
     private func assertSameInstance<T>(

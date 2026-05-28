@@ -11,4 +11,8 @@ final class SessionComponent: Component<EmptyDependency> {
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
         return baseURL.appendingPathComponent("com.afollestad.alveary", isDirectory: true)
     }
+
+    static var agentCLIKitSupportDirectory: URL {
+        appSupportDirectory.appendingPathComponent("AgentCLIKit", isDirectory: true)
+    }
 }

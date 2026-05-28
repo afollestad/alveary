@@ -1,3 +1,5 @@
+import AgentCLIKit
+import Foundation
 import NeedleFoundation
 import SwiftData
 
@@ -130,6 +132,103 @@ extension AppComponent {
         return shared { JSONContextWindowCache() }
     }
 
+    var agentCLIKitShellRunner: AgentCLIKitShellRunnerAdapter {
+        return shared { AgentCLIKitShellRunnerAdapter(shellRunner: shellRunner) }
+    }
+
+    var agentCLIKitInteractionStore: AgentCLIKit.InMemoryAgentInteractionStore {
+        return shared { AgentCLIKit.InMemoryAgentInteractionStore() }
+    }
+
+    var agentCLIKitApprovalPolicyStore: AgentCLIKit.InMemoryAgentApprovalPolicyStore {
+        return shared { AgentCLIKit.InMemoryAgentApprovalPolicyStore() }
+    }
+
+    var agentCLIKitClaudeApprovalPolicyStore: AgentCLIKit.ClaudeApprovalPolicyStore {
+        return shared { AgentCLIKit.ClaudeApprovalPolicyStore() }
+    }
+
+    var agentCLIKitClaudeConfigStore: AgentCLIKit.ClaudeConfigStore {
+        return shared {
+            AgentCLIKit.ClaudeConfigStore(
+                fileURL: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
+            )
+        }
+    }
+
+    var agentCLIKitProviderRegistry: AgentCLIKit.AgentProviderRegistry {
+        return shared {
+            AgentCLIKit.AgentProviderRegistry(
+                definitions: [AgentCLIKit.ClaudeProviderAdapter(enableHooks: false).definition]
+            )
+        }
+    }
+
+    var agentCLIKitProviderDetector: AgentCLIKit.AgentProviderDetector {
+        return shared { AgentCLIKit.AgentProviderDetector(shellRunner: agentCLIKitShellRunner) }
+    }
+
+    var agentCLIKitProviderSetup: AgentCLIKit.ClaudeProviderSetup {
+        return shared { AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore) }
+    }
+
+    var agentCLIKitContextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache {
+        return shared {
+            AgentCLIKit.JSONAgentModelContextWindowCache(
+                fileURL: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent("context-windows.json")
+            )
+        }
+    }
+
+    var agentCLIKitHostAdapter: AgentCLIKitHostAdapter {
+        return shared { AgentCLIKitHostAdapter() }
+    }
+
+    var agentCLIKitRuntime: AgentCLIKit.DefaultAgentRuntime {
+        return shared {
+            AgentCLIKit.DefaultAgentRuntime(
+                adapters: [
+                    AgentCLIKit.ClaudeProviderAdapter(
+                        interactionStore: agentCLIKitInteractionStore,
+                        approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
+                        hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
+                            "ClaudeHooks",
+                            isDirectory: true
+                        ),
+                        hookDecisionProvider: AgentCLIKitDeferredHookDecisionProvider()
+                    )
+                ],
+                sessionStore: agentCLIKitSessionStore
+            )
+        }
+    }
+
+    var agentCLIKitSessionStore: AgentCLIKit.JSONFileAgentSessionStore {
+        return shared {
+            AgentCLIKit.JSONFileAgentSessionStore(
+                fileURL: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent("sessions.json")
+            )
+        }
+    }
+
+    var agentCLIKitHostServices: AgentCLIKitHostServices {
+        return shared {
+            AgentCLIKitHostServices(
+                runtime: agentCLIKitRuntime,
+                sessionStore: agentCLIKitSessionStore,
+                providerDetector: agentCLIKitProviderDetector,
+                providerRegistry: agentCLIKitProviderRegistry,
+                claudeConfigStore: agentCLIKitClaudeConfigStore,
+                claudeProviderSetup: agentCLIKitProviderSetup,
+                interactionStore: agentCLIKitInteractionStore,
+                approvalPolicyStore: agentCLIKitApprovalPolicyStore,
+                claudeApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
+                contextWindowCache: agentCLIKitContextWindowCache,
+                hostAdapter: agentCLIKitHostAdapter
+            )
+        }
+    }
+
     var claudeHookServer: ClaudeHookServer {
         return shared { DefaultClaudeHookServer() }
     }
@@ -199,4 +298,5 @@ extension AppComponent {
             )
         }
     }
+
 }
