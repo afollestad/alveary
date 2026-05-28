@@ -24,16 +24,24 @@ struct AgentCLIKitHostAdapter: Sendable {
         AgentCLIKit.AgentProviderID(rawValue: rawValue)
     }
 
-    func spawnConfig(from config: AgentSpawnConfig) throws -> AgentCLIKit.AgentSpawnConfig {
+    func spawnConfig(
+        from config: AgentSpawnConfig,
+        arguments: [String] = [],
+        environment: [String: String] = [:],
+        forkSession: Bool = false
+    ) throws -> AgentCLIKit.AgentSpawnConfig {
         guard let providerId = providerId(config.providerId) else {
             throw AgentCLIKitHostAdapterError.unsupportedProvider(config.providerId)
         }
         return AgentCLIKit.AgentSpawnConfig(
             providerId: providerId,
             workingDirectory: URL(fileURLWithPath: config.workingDirectory, isDirectory: true),
+            arguments: arguments,
+            environment: environment,
             model: config.model,
             effort: config.effort,
             permissionMode: config.permissionMode,
+            forkSession: forkSession,
             initialPrompt: config.initialPrompt
         )
     }

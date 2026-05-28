@@ -1,8 +1,13 @@
+import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         let context = await makeToolApprovalResolutionContext(for: request)
+
+        if usesAgentCLIKitRuntime {
+            return try await resolveToolApprovalWithAgentCLIKit(request, context: context)
+        }
 
         if shouldResolveToolApprovalInLiveHook(conversationId: request.conversationId) {
             markLiveToolApprovalsResolved(
@@ -28,6 +33,78 @@ extension DefaultAgentsManager {
             recordDeniedToolUseIdsIfNeeded(request)
         }
         return context.sessionApprovalRecordResult.isEffective
+    }
+
+    private func resolveToolApprovalWithAgentCLIKit(
+        _ request: AgentToolApprovalResolutionRequest,
+        context: ToolApprovalResolutionContext
+    ) async throws -> Bool {
+        guard let services = agentCLIKitServices else {
+            throw AgentError.spawnFailed("AgentCLIKit runtime services are unavailable")
+        }
+
+        do {
+            let approvals = [request.approval] + request.additionalApprovals
+            for approval in approvals {
+                try await services.runtime.resolveInteraction(
+                    try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),
+                    conversationId: services.hostAdapter.conversationId(request.conversationId)
+                )
+            }
+        } catch {
+            await discardToolApprovalResolutionContext(context)
+            throw error
+        }
+
+        recordDeniedToolUseIdsIfNeeded(request)
+        eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
+        updateStatus(.busy, for: request.conversationId)
+        return context.sessionApprovalRecordResult.isEffective
+    }
+
+    private func agentCLIKitInteractionResolution(
+        for approval: ToolApprovalRequest,
+        resolution: ClaudeToolApprovalResolution
+    ) throws -> AgentCLIKit.AgentInteractionResolution {
+        var metadata: [String: AgentCLIKit.JSONValue] = [
+            "approval_decision": .string(resolution.decision.rawValue)
+        ]
+        if let updatedInput = resolution.updatedInput {
+            metadata["updated_input"] = try agentCLIKitJSONValue(from: updatedInput)
+        }
+
+        return AgentCLIKit.AgentInteractionResolution(
+            id: AgentCLIKit.AgentInteractionID(rawValue: approval.toolUseId),
+            outcome: agentCLIKitOutcome(for: approval, decision: resolution.decision),
+            metadata: metadata
+        )
+    }
+
+    private func agentCLIKitOutcome(
+        for approval: ToolApprovalRequest,
+        decision: ClaudeToolApprovalDecision
+    ) -> AgentCLIKit.AgentInteractionOutcome {
+        switch (approval.toolName, decision) {
+        case ("AskUserQuestion", .allow):
+            return .answered
+        case ("AskUserQuestion", .deny):
+            return .cancelled
+        case (_, .allow):
+            return .approved
+        case (_, .deny):
+            return .denied
+        }
+    }
+
+    private func agentCLIKitJSONValue(from string: String) throws -> AgentCLIKit.JSONValue {
+        guard let data = string.data(using: .utf8) else {
+            throw AgentError.spawnFailed("Updated tool input is not valid UTF-8")
+        }
+        do {
+            return try JSONDecoder().decode(AgentCLIKit.JSONValue.self, from: data)
+        } catch {
+            throw AgentError.spawnFailed("Updated tool input is not valid JSON: \(error.localizedDescription)")
+        }
     }
 
     private func recordDeniedToolUseIdsIfNeeded(_ request: AgentToolApprovalResolutionRequest) {
@@ -110,6 +187,13 @@ extension DefaultAgentsManager {
         guard let sessionApproval else {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
+        if let services = agentCLIKitServices {
+            guard let agentCLIKitApproval = agentCLIKitSessionApproval(sessionApproval) else {
+                return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
+            }
+            let result = await services.claudeApprovalPolicyStore.recordSessionApproval(agentCLIKitApproval)
+            return SessionApprovalRecordResult(isEffective: result.isEffective, wasInserted: result.wasInserted)
+        }
         return await claudeHookServer.recordSessionApproval(sessionApproval)
     }
 
@@ -188,7 +272,7 @@ extension DefaultAgentsManager {
     ) async -> [(approval: AgentSessionApprovalGrant, result: SessionApprovalRecordResult)] {
         var results: [(approval: AgentSessionApprovalGrant, result: SessionApprovalRecordResult)] = []
         for approval in approvals {
-            let result = await claudeHookServer.recordSessionApproval(approval)
+            let result = await recordSessionApprovalIfNeeded(approval)
             results.append((approval, result))
         }
         return results
@@ -198,7 +282,7 @@ extension DefaultAgentsManager {
         _ results: [(approval: AgentSessionApprovalGrant, result: SessionApprovalRecordResult)]
     ) async {
         for result in results where result.result.wasInserted {
-            await claudeHookServer.discardSessionApproval(result.approval)
+            await discardSessionApproval(result.approval)
         }
     }
 
@@ -214,9 +298,36 @@ extension DefaultAgentsManager {
         }
         if context.sessionApprovalRecordResult.wasInserted,
            let sessionApproval = context.sessionApproval {
-            await claudeHookServer.discardSessionApproval(sessionApproval)
+            await discardSessionApproval(sessionApproval)
         }
         await discardInsertedSessionApprovals(context.additionalSessionApprovalResults)
+    }
+
+    private func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {
+        if let services = agentCLIKitServices {
+            guard let agentCLIKitApproval = agentCLIKitSessionApproval(approval) else {
+                return
+            }
+            await services.claudeApprovalPolicyStore.discardSessionApproval(agentCLIKitApproval)
+            return
+        }
+        await claudeHookServer.discardSessionApproval(approval)
+    }
+
+    private func agentCLIKitSessionApproval(
+        _ approval: AgentSessionApprovalGrant
+    ) -> AgentCLIKit.AgentSessionApprovalGrant? {
+        guard let providerId = agentCLIKitServices?.hostAdapter.providerId(approval.providerId),
+              let matchKind = AgentCLIKit.AgentSessionApprovalMatchKind(rawValue: approval.matchKind.rawValue) else {
+            return nil
+        }
+        return AgentCLIKit.AgentSessionApprovalGrant(
+            providerId: providerId,
+            conversationId: AgentCLIKit.AgentConversationID(rawValue: approval.conversationId),
+            sessionId: AgentCLIKit.AgentSessionID(rawValue: approval.sessionId),
+            matchKind: matchKind,
+            matchValue: approval.matchValue
+        )
     }
 
     func toolApprovalSelection(

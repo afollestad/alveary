@@ -236,6 +236,7 @@ extension AppComponent {
     var defaultAgentsManager: DefaultAgentsManager {
         return shared {
             DefaultAgentsManager(
+                agentCLIKitServices: agentCLIKitHostServices,
                 sessionManager: sessionManager,
                 providerDetection: providerDetectionService,
                 environmentBuilder: agentEnvironmentBuilder,

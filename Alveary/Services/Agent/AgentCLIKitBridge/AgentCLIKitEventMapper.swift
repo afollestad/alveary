@@ -1,0 +1,208 @@
+import AgentCLIKit
+import Foundation
+
+struct AgentCLIKitEventMapper: Sendable {
+    // swiftlint:disable:next cyclomatic_complexity
+    func conversationEvents(from envelope: AgentCLIKit.AgentEventEnvelope) -> [ConversationEvent] {
+        switch envelope.event {
+        case .message(let event):
+            return messageEvents(from: event)
+        case .messageDelta(let event):
+            return messageDeltaEvents(from: event)
+        case .reasoning(let event):
+            return reasoningEvents(from: event)
+        case .toolCall(let event):
+            return toolCallEvents(from: event)
+        case .toolResult(let event):
+            return toolResultEvents(from: event)
+        case .usage(let event):
+            return usageEvents(from: event)
+        case .permissionMode(let event):
+            return [.permissionModeChanged(event.mode)]
+        case .task(let event):
+            return taskEvents(from: event)
+        case .sessionContinuity(let event):
+            return [.sessionInit(sessionId: event.providerSessionId?.rawValue)]
+        case .interaction(let event):
+            return interactionEvents(from: event, providerSessionId: envelope.providerSessionId?.rawValue)
+        case .lifecycle(let event):
+            return lifecycleEvents(from: event)
+        case .diagnostic(let event):
+            return diagnosticEvents(from: event)
+        case .rateLimit(let event):
+            return [.notification(type: "rate_limit", message: event.status.rawValue)]
+        case .rawOutput:
+            return []
+        }
+    }
+
+    private func messageEvents(from event: AgentCLIKit.AgentMessageEvent) -> [ConversationEvent] {
+        [.message(
+            role: event.role.rawValue,
+            content: event.text,
+            parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
+        )]
+    }
+
+    private func messageDeltaEvents(from event: AgentCLIKit.AgentMessageDeltaEvent) -> [ConversationEvent] {
+        [.messageChunk(
+            text: event.text,
+            parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
+        )]
+    }
+
+    private func reasoningEvents(from event: AgentCLIKit.AgentReasoningEvent) -> [ConversationEvent] {
+        [.thinking(
+            content: event.text,
+            parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
+        )]
+    }
+
+    private func toolCallEvents(from event: AgentCLIKit.AgentToolCallEvent) -> [ConversationEvent] {
+        [.toolCall(
+            id: event.id,
+            name: event.name,
+            input: Self.serialized(event.input),
+            parentToolUseId: event.metadata.stringValue("parent_tool_use_id"),
+            callerAgent: event.metadata.stringValue("caller_agent")
+        )]
+    }
+
+    private func toolResultEvents(from event: AgentCLIKit.AgentToolResultEvent) -> [ConversationEvent] {
+        [.toolResult(
+            id: event.id,
+            output: event.content,
+            isError: event.isError,
+            parentToolUseId: event.metadata.stringValue("parent_tool_use_id"),
+            metadata: ToolResultMetadata(
+                stderr: event.metadata.stringValue("stderr"),
+                interrupted: event.metadata.boolValue("interrupted") ?? false,
+                isImage: event.metadata.boolValue("is_image") ?? false,
+                noOutputExpected: event.metadata.boolValue("no_output_expected") ?? false
+            )
+        )]
+    }
+
+    private func usageEvents(from event: AgentCLIKit.AgentUsageEvent) -> [ConversationEvent] {
+        [.tokens(
+            input: event.inputTokens ?? 0,
+            output: event.outputTokens ?? 0,
+            cacheRead: event.cacheReadInputTokens ?? 0,
+            cacheCreation: event.cacheCreationInputTokens ?? 0,
+            isError: event.isError,
+            stopReason: event.stopReason,
+            durationMs: event.durationMs ?? 0,
+            costUsd: event.costUSD ?? 0,
+            providerModelId: event.model,
+            contextWindowSize: event.contextWindow,
+            permissionDenials: event.permissionDenials.map {
+                PermissionDenialSummary(toolName: $0.toolName ?? "Unknown tool", toolUseId: $0.toolUseId)
+            }
+        )]
+    }
+
+    private func taskEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {
+        switch event.phase {
+        case .started:
+            return [.subAgentStarted(
+                toolUseId: event.id,
+                description: event.description ?? "",
+                taskType: event.taskType
+            )]
+        case .progress:
+            return [.subAgentProgress(
+                toolUseId: event.id,
+                description: event.description,
+                lastToolName: event.lastToolName,
+                toolUses: event.toolUses ?? 0,
+                totalTokens: event.totalTokens ?? 0,
+                durationMs: event.durationMs ?? 0
+            )]
+        case .notification:
+            return [.notification(type: event.status ?? "task", message: event.description)]
+        case .completed:
+            return [.subAgentCompleted(
+                toolUseId: event.id,
+                status: event.status ?? "completed",
+                toolUses: event.toolUses ?? 0,
+                totalTokens: event.totalTokens ?? 0,
+                durationMs: event.durationMs ?? 0
+            )]
+        }
+    }
+
+    private func interactionEvents(
+        from event: AgentCLIKit.AgentInteractionEvent,
+        providerSessionId: String?
+    ) -> [ConversationEvent] {
+        let toolName = event.metadata.stringValue("tool_name") ?? toolName(for: event.kind)
+        let toolInput = event.metadata["tool_input"].map(Self.serialized) ?? "{}"
+        let request = ToolApprovalRequest(
+            sessionId: event.metadata.stringValue("session_id") ?? providerSessionId ?? "",
+            toolUseId: event.id.rawValue,
+            toolName: toolName,
+            toolInput: toolInput,
+            planMarkdownFallback: event.metadata.stringValue("plan")
+        )
+        return [.toolApprovalRequested(request)]
+    }
+
+    private func toolName(for kind: AgentCLIKit.AgentInteractionKind) -> String {
+        switch kind {
+        case .approval:
+            "Tool"
+        case .prompt:
+            "AskUserQuestion"
+        case .planModeExit:
+            "ExitPlanMode"
+        }
+    }
+
+    private func lifecycleEvents(from event: AgentCLIKit.AgentLifecycleEvent) -> [ConversationEvent] {
+        switch event.state {
+        case .cancelled:
+            return [.stop(message: event.message ?? ConversationInterruption.displayMessage)]
+        case .failed:
+            return [.error(message: event.message ?? "Agent process failed")]
+        case .exited:
+            return [.stop(message: event.message)]
+        case .starting, .running:
+            return []
+        }
+    }
+
+    private func diagnosticEvents(from event: AgentCLIKit.AgentDiagnosticEvent) -> [ConversationEvent] {
+        if event.severity == .error {
+            return [.error(message: event.message)]
+        }
+        guard event.message == "init",
+              let sessionId = event.metadata.stringValue("session_id") else {
+            return []
+        }
+        return [.sessionInit(sessionId: sessionId)]
+    }
+
+    private static func serialized(_ value: AgentCLIKit.JSONValue) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
+    }
+}
+
+private extension [String: AgentCLIKit.JSONValue] {
+    func stringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key] else {
+            return nil
+        }
+        return value
+    }
+
+    func boolValue(_ key: String) -> Bool? {
+        guard case let .bool(value)? = self[key] else {
+            return nil
+        }
+        return value
+    }
+}

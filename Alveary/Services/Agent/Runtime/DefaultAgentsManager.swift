@@ -1,8 +1,10 @@
+import AgentCLIKit
 import Foundation
 
 let claudeHookTokenEnvironmentKey = "ALVEARY_HOOK_TOKEN"
 
 actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
+    let agentCLIKitServices: AgentCLIKitHostServices?
     let sessionManager: SessionManager
     let providerDetection: ProviderDetectionService
     let environmentBuilder: AgentEnvironmentBuilder
@@ -27,6 +29,11 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var reconfiguringIds: Set<String> = []
     var pendingKillIds: Set<String> = []
     var deniedToolUseIdsByConversation: [String: Set<String>] = [:]
+    var agentCLIKitEventTasks: [String: Task<Void, Never>] = [:]
+    var agentCLIKitStatusTasks: [String: Task<Void, Never>] = [:]
+    var agentCLIKitGenerationByConversation: [String: Int] = [:]
+    var agentCLIKitGenerationUUIDs: [String: [Int: UUID]] = [:]
+    var agentCLIKitStatuses: [String: AgentCLIKit.AgentRuntimeStatus] = [:]
 
     let shutdownRequested = LockedState(false)
     let processSnapshot = LockedState([Process]())
@@ -34,6 +41,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let conversationStatesStore = LockedState([String: ConversationState]())
 
     init(
+        agentCLIKitServices: AgentCLIKitHostServices? = nil,
         sessionManager: SessionManager,
         providerDetection: ProviderDetectionService,
         environmentBuilder: AgentEnvironmentBuilder,
@@ -51,6 +59,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
             }
         }
     ) {
+        self.agentCLIKitServices = agentCLIKitServices
         self.sessionManager = sessionManager
         self.providerDetection = providerDetection
         self.environmentBuilder = environmentBuilder
@@ -77,6 +86,14 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
     nonisolated func beginShutdown() {
         shutdownRequested.withLock { $0 = true }
+        if let agentCLIKitServices {
+            let semaphore = DispatchSemaphore(value: 0)
+            Task.detached(priority: .userInitiated) {
+                await agentCLIKitServices.runtime.shutdown()
+                semaphore.signal()
+            }
+            _ = semaphore.wait(timeout: .now() + 5)
+        }
     }
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {
@@ -92,7 +109,10 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     func hasTrackedProcess(conversationId: String) -> Bool {
-        processes[conversationId] != nil
+        if usesAgentCLIKitRuntime {
+            return agentCLIKitStatuses[conversationId]?.processIdentifier != nil
+        }
+        return processes[conversationId] != nil
     }
 
     func hasInflightLifecycle(conversationId: String) -> Bool {
@@ -100,6 +120,11 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     func isRunning(conversationId: String) -> Bool {
+        if usesAgentCLIKitRuntime {
+            return agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
+                spawningIds.contains(conversationId) ||
+                reconfiguringIds.contains(conversationId)
+        }
         if let process = processes[conversationId] {
             return process.isRunning || spawningIds.contains(conversationId) || reconfiguringIds.contains(conversationId)
         }

@@ -1,8 +1,13 @@
+// swiftlint:disable file_length
 import Darwin
 import Foundation
 
 extension DefaultAgentsManager {
     func sendMessage(_ message: String, conversationId: String) async throws {
+        if usesAgentCLIKitRuntime {
+            try await sendMessageWithAgentCLIKit(message, conversationId: conversationId)
+            return
+        }
         guard !shutdownRequested.withLock({ $0 }),
               !closingConversationIds.contains(conversationId),
               let process = processes[conversationId],
@@ -52,6 +57,10 @@ extension DefaultAgentsManager {
     }
 
     func cancelTurn(conversationId: String) {
+        if usesAgentCLIKitRuntime {
+            cancelTurnWithAgentCLIKit(conversationId: conversationId)
+            return
+        }
         guard let process = processes[conversationId], process.isRunning else {
             return
         }
@@ -64,6 +73,10 @@ extension DefaultAgentsManager {
     }
 
     private func destroyRuntime(conversationId: String, timeout: Duration) async throws {
+        if usesAgentCLIKitRuntime {
+            try await destroyRuntimeWithAgentCLIKit(conversationId: conversationId, timeout: timeout)
+            return
+        }
         // Some UI flows call kill first so the visible conversation row can be
         // deleted before runtime cleanup finishes. In that case, destroyRuntime
         // is only the wait phase; re-running kill would repeat its state-clearing
@@ -106,6 +119,10 @@ extension DefaultAgentsManager {
     }
 
     func kill(conversationId: String) {
+        if usesAgentCLIKitRuntime {
+            killWithAgentCLIKit(conversationId: conversationId)
+            return
+        }
         closingConversationIds.insert(conversationId)
         pendingSessionRemovalIds.insert(conversationId)
         deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
@@ -139,6 +156,10 @@ extension DefaultAgentsManager {
     }
 
     func killAll() {
+        if usesAgentCLIKitRuntime {
+            killAllWithAgentCLIKit()
+            return
+        }
         let ids = Set(processes.keys)
             .union(spawningIds)
             .union(reconfiguringIds)
@@ -148,6 +169,10 @@ extension DefaultAgentsManager {
     }
 
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {
+        if usesAgentCLIKitRuntime {
+            try await reconfigureSessionWithAgentCLIKit(conversationId: conversationId, config: config)
+            return
+        }
         guard !reconfiguringIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Reconfigure already in progress for \(conversationId)")
         }
@@ -185,6 +210,10 @@ extension DefaultAgentsManager {
     }
 
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {
+        if usesAgentCLIKitRuntime {
+            try await startFreshSessionWithAgentCLIKit(conversationId: conversationId, config: config)
+            return
+        }
         guard !reconfiguringIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Session refresh already in progress for \(conversationId)")
         }
@@ -403,7 +432,7 @@ extension DefaultAgentsManager {
     }
 
     private func runScheduledBufferCleanup(for id: String, generation expectedGeneration: UUID) {
-        guard processes[id] == nil,
+        guard !hasRuntimePreventingBufferCleanup(conversationId: id),
               let managedBuffer = eventBuffers[id],
               managedBuffer.generation == expectedGeneration,
               !managedBuffer.buffer.hasSubscribers else {

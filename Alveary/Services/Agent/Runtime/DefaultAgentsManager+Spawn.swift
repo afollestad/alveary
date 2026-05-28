@@ -3,6 +3,10 @@ import Foundation
 
 extension DefaultAgentsManager {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
+        if usesAgentCLIKitRuntime {
+            try await spawnWithAgentCLIKit(id: id, config: config, forkSession: forkSession)
+            return
+        }
         try await spawnImpl(id: id, config: config, forkSession: forkSession, allowReconfigureInFlight: false)
     }
 
@@ -19,16 +23,37 @@ extension DefaultAgentsManager {
     }
 
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {
+        if let services = agentCLIKitServices,
+           let agentGeneration = agentCLIKitGenerationUUIDs[conversationId]?.first(where: { $0.value == generation })?.key {
+            Task {
+                await services.runtime.markPersisted(
+                    conversationId: services.hostAdapter.conversationId(conversationId),
+                    generation: agentGeneration,
+                    upTo: index
+                )
+            }
+        }
         guard let managedBuffer = eventBuffers[conversationId], managedBuffer.generation == generation else {
             return
         }
         managedBuffer.buffer.markPersisted(upTo: index)
 
-        if processes[conversationId] == nil,
+        if !hasRuntimePreventingBufferCleanup(conversationId: conversationId),
            !managedBuffer.buffer.hasSubscribers,
            !managedBuffer.buffer.hasUnpersistedEvents {
             scheduleBufferCleanup(for: conversationId, generation: generation, delay: .seconds(30))
         }
+    }
+
+    func hasRuntimePreventingBufferCleanup(conversationId: String) -> Bool {
+        if usesAgentCLIKitRuntime {
+            return agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
+                spawningIds.contains(conversationId) ||
+                reconfiguringIds.contains(conversationId)
+        }
+        return processes[conversationId] != nil ||
+            spawningIds.contains(conversationId) ||
+            reconfiguringIds.contains(conversationId)
     }
 
     func finishUnpublishedSpawnCancellation(

@@ -192,7 +192,8 @@ private extension AppDelegate {
     }
 
     func updateSuddenTerminationState() {
-        let hasLiveProcesses = !dependencies.agentsManager.allProcessesSnapshot.isEmpty
+        let hasLiveProcesses = !dependencies.agentsManager.allProcessesSnapshot.isEmpty ||
+            dependencies.agentsManager.allStatuses.values.contains { $0 == .busy || $0 == .waitingForUser }
         switch (hasLiveProcesses, suddenTerminationDisabled) {
         case (true, false):
             dependencies.disableSuddenTermination()
