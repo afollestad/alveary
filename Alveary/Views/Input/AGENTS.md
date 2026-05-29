@@ -13,6 +13,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Composer visible height must use BlockInputKit visible-line sizing. Keep Alveary-side layout as preferred-height invalidation only; do not reintroduce custom grow/shrink min/max-height logic.
 - File and image drops should stay BlockInputKit-owned. Images can render as images in the editor and are sent as Markdown.
 - Slash-command argument hints are BlockInputKit inline hints backed by `Skill.argumentHint`; never insert them as draft text.
+- Composer selection background must stay visually distinct from composer chip fill; use a neutral non-accent token for selection chrome and keep chip fill/foreground tokens unchanged.
 
 ## Drafts And Sending
 

@@ -19,9 +19,18 @@ enum BlockInputComposerStyle {
     static let completionPopupHighlightColor = dynamicLabelColor(.labelColor, opacity: 0.1)
     static let editorFillColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.08)
     static let editorBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
+    static let selectionBackgroundColor = NSColor(name: nil) { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(calibratedWhite: 0.34, alpha: 1)
+        default:
+            return NSColor(calibratedWhite: 0.68, alpha: 1)
+        }
+    }
 
     static func make(roundedCorners: BlockInputEditorChromeCorners = .all) -> BlockInputStyle {
         return BlockInputStyle(
+            selectionBackgroundColor: selectionBackgroundColor,
             inlineCode: BlockInputInlineCodeStyle(
                 foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor,
                 backgroundColor: AppMarkdownCodeBlockPalette.composerChipFillNSColor

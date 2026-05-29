@@ -52,6 +52,29 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(style.inlineCode.foregroundColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)
     }
 
+    func testComposerStyleUsesNeutralSelectionTokenDistinctFromChipFill() throws {
+        let style = BlockInputComposerStyle.make()
+
+        XCTAssertEqual(style.selectionBackgroundColor, BlockInputComposerStyle.selectionBackgroundColor)
+        try assertColor(
+            style.selectionBackgroundColor,
+            appearanceName: .aqua,
+            matches: NSColor(calibratedWhite: 0.68, alpha: 1)
+        )
+        try assertColor(
+            style.selectionBackgroundColor,
+            appearanceName: .darkAqua,
+            matches: NSColor(calibratedWhite: 0.34, alpha: 1)
+        )
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            try assertColorsAreDistinct(
+                style.selectionBackgroundColor,
+                AppMarkdownCodeBlockPalette.composerChipFillNSColor,
+                appearanceName: appearanceName
+            )
+        }
+    }
+
     func testCompletionPopupStyleUsesAlvearyTokens() throws {
         let style = BlockInputComposerStyle.completionPopupStyle()
 
@@ -119,6 +142,24 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(resolved.greenComponent, expected.greenComponent, accuracy: 0.001, file: file, line: line)
         XCTAssertEqual(resolved.blueComponent, expected.blueComponent, accuracy: 0.001, file: file, line: line)
         XCTAssertEqual(resolved.alphaComponent, expected.alphaComponent, accuracy: 0.001, file: file, line: line)
+    }
+
+    private func assertColorsAreDistinct(
+        _ first: NSColor,
+        _ second: NSColor,
+        appearanceName: NSAppearance.Name,
+        minimumDistance: CGFloat = 0.12,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let appearance = try XCTUnwrap(NSAppearance(named: appearanceName), file: file, line: line)
+        let first = try XCTUnwrap(first.resolved(for: appearance).usingColorSpace(.genericRGB), file: file, line: line)
+        let second = try XCTUnwrap(second.resolved(for: appearance).usingColorSpace(.genericRGB), file: file, line: line)
+        let distance = abs(first.redComponent - second.redComponent)
+            + abs(first.greenComponent - second.greenComponent)
+            + abs(first.blueComponent - second.blueComponent)
+
+        XCTAssertGreaterThan(distance, minimumDistance, file: file, line: line)
     }
 
     private func assertDynamicColor(
