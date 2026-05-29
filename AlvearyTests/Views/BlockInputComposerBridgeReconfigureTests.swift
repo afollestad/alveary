@@ -120,6 +120,45 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
         XCTAssertEqual(overlay?.frame, NSRect(x: 5, y: 6, width: 7, height: 8))
     }
 
+    func testSkippedViewReconfigureUsesLatestModalOverlayProvider() {
+        var usedInitialProvider = false
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(
+            markdown: "Before",
+            modalOverlayProvider: { _ in
+                usedInitialProvider = true
+                return nil
+            }
+        ))
+        let installedConfiguration = controller.blockInputConfiguration(for: makeConfiguration(
+            markdown: "Before",
+            modalOverlayProvider: { _ in nil }
+        ))
+        controller.configure(makeConfiguration(
+            markdown: "Before",
+            modalOverlayProvider: { context in
+                BlockInputModalOverlay(
+                    container: context.defaultContainer,
+                    frame: NSRect(x: 9, y: 10, width: 11, height: 12)
+                )
+            }
+        ))
+
+        let overlay = installedConfiguration.modalOverlayProvider?(
+            BlockInputModalOverlayContext(
+                editorView: controller.view,
+                kind: .link,
+                defaultContainer: controller.view,
+                defaultFrame: .zero,
+                modalSize: NSSize(width: 11, height: 12),
+                anchorWindowRect: .zero
+            )
+        )
+
+        XCTAssertFalse(usedInitialProvider)
+        XCTAssertTrue(overlay?.container === controller.view)
+        XCTAssertEqual(overlay?.frame, NSRect(x: 9, y: 10, width: 11, height: 12))
+    }
+
     func testOverlayProviderPresenceChangeDoesNotReconfigureBlockInputView() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
         let installedConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Before"))
@@ -152,10 +191,45 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
         XCTAssertEqual(overlay?.frame, NSRect(x: 1, y: 2, width: 3, height: 4))
     }
 
+    func testModalOverlayProviderPresenceChangeDoesNotReconfigureBlockInputView() {
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Before"))
+        let installedConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Before"))
+        #if DEBUG
+        let initialConfigureCount = controller.viewConfigureCountForTesting
+        #endif
+
+        controller.configure(makeConfiguration(
+            markdown: "Before",
+            modalOverlayProvider: { context in
+                BlockInputModalOverlay(
+                    container: context.defaultContainer,
+                    frame: NSRect(x: 13, y: 14, width: 15, height: 16)
+                )
+            }
+        ))
+
+        let overlay = installedConfiguration.modalOverlayProvider?(
+            BlockInputModalOverlayContext(
+                editorView: controller.view,
+                kind: .image,
+                defaultContainer: controller.view,
+                defaultFrame: .zero,
+                modalSize: NSSize(width: 15, height: 16),
+                anchorWindowRect: .zero
+            )
+        )
+
+        #if DEBUG
+        XCTAssertEqual(controller.viewConfigureCountForTesting, initialConfigureCount)
+        #endif
+        XCTAssertEqual(overlay?.frame, NSRect(x: 13, y: 14, width: 15, height: 16))
+    }
+
     private func makeConfiguration(
         markdown: String,
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
+        modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in }
     ) -> BlockInputComposerBridgeConfiguration {
         BlockInputComposerBridgeConfiguration(
@@ -165,6 +239,7 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
             loadSkillCompletions: { [] },
             keyboardShortcuts: keyboardShortcuts,
             completionPopupOverlayProvider: completionPopupOverlayProvider,
+            modalOverlayProvider: modalOverlayProvider,
             onDocumentMutation: onDocumentMutation
         )
     }

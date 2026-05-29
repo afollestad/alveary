@@ -53,6 +53,8 @@ extension AppKitChatComposerEditorController {
     nonisolated static let editorCornerRadius: CGFloat = 18
     nonisolated static let borderWidth: CGFloat = 1
     nonisolated static let autocompleteVerticalOffset: CGFloat = 8
+    nonisolated static let modalHorizontalOffset: CGFloat = 8
+    nonisolated static let modalVerticalSpacing: CGFloat = 20
     nonisolated static let stopConfirmationTimeoutNanoseconds: UInt64 = 1_000_000_000
     nonisolated static let preferredHeightAnimationFrameInterval: TimeInterval = 1 / 60
 

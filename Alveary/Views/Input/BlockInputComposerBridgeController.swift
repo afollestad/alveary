@@ -17,6 +17,7 @@ struct BlockInputComposerBridgeConfiguration {
     var loadSkillCompletions: @Sendable () async -> [Skill]
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
     var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
+    var modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)?
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightTransition: @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void
@@ -35,6 +36,7 @@ struct BlockInputComposerBridgeConfiguration {
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
+        modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onPreferredHeightTransition: @escaping @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void = { _ in }
@@ -52,6 +54,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.loadSkillCompletions = loadSkillCompletions
         self.keyboardShortcuts = keyboardShortcuts
         self.completionPopupOverlayProvider = completionPopupOverlayProvider
+        self.modalOverlayProvider = modalOverlayProvider
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightTransition = onPreferredHeightTransition
@@ -150,13 +153,10 @@ final class BlockInputComposerBridgeController {
             completionProvider: completionProvider,
             completionReturnBehavior: .passthroughExactMatch,
             slashCommandAvailability: .documentStart,
-            completionPopupConfiguration: BlockInputCompletionPopupConfiguration(
-                placement: .overlay,
-                style: BlockInputComposerStyle.completionPopupStyle(),
-                overlayProvider: { [weak self] context in
-                    self?.currentConfiguration.completionPopupOverlayProvider?(context)
-                }
-            ),
+            modalOverlayProvider: { [weak self] context in
+                self?.currentConfiguration.modalOverlayProvider?(context)
+            },
+            completionPopupConfiguration: completionPopupConfiguration(),
             onDocumentMutation: { [weak self] change in
                 guard let self else {
                     return
@@ -165,6 +165,16 @@ final class BlockInputComposerBridgeController {
             },
             onDocumentChange: { [weak self] document in
                 self?.currentConfiguration.onDocumentChange(document)
+            }
+        )
+    }
+
+    private func completionPopupConfiguration() -> BlockInputCompletionPopupConfiguration {
+        BlockInputCompletionPopupConfiguration(
+            placement: .overlay,
+            style: BlockInputComposerStyle.completionPopupStyle(),
+            overlayProvider: { [weak self] context in
+                self?.currentConfiguration.completionPopupOverlayProvider?(context)
             }
         )
     }

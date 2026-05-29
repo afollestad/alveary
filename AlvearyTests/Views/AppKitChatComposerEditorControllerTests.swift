@@ -109,6 +109,94 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertEqual(overlay.frame.height, 72)
     }
 
+    func testModalOverlayUsesChatSurfaceParentAndContextFrame() throws {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 320, width: 448, height: 120))
+        surface.addSubview(panel)
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeConfiguration(text: "Link"),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsets(top: 0, left: 24, bottom: 0, right: 24),
+                topContentSpacing: 0,
+                actionRowSpacing: 0
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let anchorWindowRect = surface.convert(NSRect(x: 560, y: 440, width: 72, height: 22), to: nil)
+        let context = BlockInputModalOverlayContext(
+            editorView: editor,
+            kind: .link,
+            defaultContainer: editor,
+            defaultFrame: .zero,
+            modalSize: NSSize(width: 300, height: 148),
+            anchorWindowRect: anchorWindowRect
+        )
+        let overlay = try XCTUnwrap(panel.editorControllerForTesting.blockInputModalOverlay(context: context))
+        let expectedFrame = context.modalFrame(
+            in: surface,
+            horizontalOffset: AppKitChatComposerEditorController.modalHorizontalOffset,
+            verticalSpacing: AppKitChatComposerEditorController.modalVerticalSpacing
+        )
+
+        XCTAssertTrue(overlay.container === surface)
+        XCTAssertEqual(overlay.frame, expectedFrame)
+        XCTAssertGreaterThanOrEqual(overlay.frame.minX, surface.bounds.minX + 12)
+        XCTAssertLessThanOrEqual(overlay.frame.maxX, surface.bounds.maxX - 12)
+        XCTAssertGreaterThanOrEqual(overlay.frame.minY, surface.bounds.minY + 12)
+        XCTAssertLessThanOrEqual(overlay.frame.maxY, surface.bounds.maxY - 12)
+
+        let upperLeftContext = BlockInputModalOverlayContext(
+            editorView: editor,
+            kind: .link,
+            defaultContainer: editor,
+            defaultFrame: .zero,
+            modalSize: NSSize(width: 300, height: 148),
+            anchorWindowRect: surface.convert(NSRect(x: 0, y: 0, width: 72, height: 22), to: nil)
+        )
+        let upperLeftOverlay = try XCTUnwrap(panel.editorControllerForTesting.blockInputModalOverlay(context: upperLeftContext))
+        XCTAssertGreaterThanOrEqual(upperLeftOverlay.frame.minX, surface.bounds.minX + 12)
+        XCTAssertGreaterThanOrEqual(upperLeftOverlay.frame.minY, surface.bounds.minY + 12)
+    }
+
+    func testModalOverlayOffsetsUpAndRightWhenSpaceAllows() throws {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 320, width: 448, height: 120))
+        surface.addSubview(panel)
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeConfiguration(text: "Link"),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsets(top: 0, left: 24, bottom: 0, right: 24),
+                topContentSpacing: 0,
+                actionRowSpacing: 0
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let anchorWindowRect = surface.convert(NSRect(x: 220, y: 440, width: 72, height: 22), to: nil)
+        let context = BlockInputModalOverlayContext(
+            editorView: editor,
+            kind: .link,
+            defaultContainer: editor,
+            defaultFrame: .zero,
+            modalSize: NSSize(width: 300, height: 148),
+            anchorWindowRect: anchorWindowRect
+        )
+        let overlay = try XCTUnwrap(panel.editorControllerForTesting.blockInputModalOverlay(context: context))
+        let defaultFrame = context.modalFrame(in: surface)
+
+        XCTAssertGreaterThan(overlay.frame.minX, defaultFrame.minX)
+        XCTAssertLessThan(overlay.frame.minY, defaultFrame.minY)
+        XCTAssertGreaterThanOrEqual(overlay.frame.minX, surface.bounds.minX + 12)
+        XCTAssertLessThanOrEqual(overlay.frame.maxX, surface.bounds.maxX - 12)
+        XCTAssertGreaterThanOrEqual(overlay.frame.minY, surface.bounds.minY + 12)
+        XCTAssertLessThanOrEqual(overlay.frame.maxY, surface.bounds.maxY - 12)
+    }
+
     func testPreferredHeightTransitionAppliesInitialHeightImmediately() {
         let controller = AppKitChatComposerEditorController()
         var invalidationCount = 0

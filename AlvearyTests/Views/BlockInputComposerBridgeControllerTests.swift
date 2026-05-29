@@ -117,6 +117,37 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(overlay?.frame, NSRect(x: 1, y: 2, width: 3, height: 4))
     }
 
+    func testBridgeForwardsModalOverlayProvider() {
+        let configuration = BlockInputComposerBridgeConfiguration(
+            markdown: "Hello",
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] },
+            modalOverlayProvider: { context in
+                BlockInputModalOverlay(
+                    container: context.editorView,
+                    frame: NSRect(x: 5, y: 6, width: 7, height: 8)
+                )
+            }
+        )
+        let controller = BlockInputComposerBridgeController(configuration: configuration)
+        let blockInputConfiguration = controller.blockInputConfiguration(for: configuration)
+
+        let overlay = blockInputConfiguration.modalOverlayProvider?(
+            BlockInputModalOverlayContext(
+                editorView: controller.view,
+                kind: .image,
+                defaultContainer: controller.view,
+                defaultFrame: .zero,
+                modalSize: NSSize(width: 7, height: 8),
+                anchorWindowRect: .zero
+            )
+        )
+
+        XCTAssertTrue(overlay?.container === controller.view)
+        XCTAssertEqual(overlay?.frame, NSRect(x: 5, y: 6, width: 7, height: 8))
+    }
+
     func testBridgeForwardsHostKeyboardShortcuts() {
         let shortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [
             .returnKey: { _ in .handled },

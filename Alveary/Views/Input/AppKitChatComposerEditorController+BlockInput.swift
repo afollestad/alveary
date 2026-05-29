@@ -32,6 +32,9 @@ extension AppKitChatComposerEditorController {
             completionPopupOverlayProvider: { [weak self] context in
                 self?.blockInputCompletionPopupOverlay(context: context)
             },
+            modalOverlayProvider: { [weak self] context in
+                self?.blockInputModalOverlay(context: context)
+            },
             onDocumentMutation: { _, isEffectivelyEmpty in
                 configuration.onBlockInputMutation(isEffectivelyEmpty)
             },
@@ -39,6 +42,22 @@ extension AppKitChatComposerEditorController {
             onPreferredHeightTransition: { [weak self] transition in
                 self?.handlePreferredHeightTransition(transition)
             }
+        )
+    }
+
+    func blockInputModalOverlay(
+        context: BlockInputModalOverlayContext
+    ) -> BlockInputModalOverlay? {
+        guard let surface = enclosingChatSurfaceView() else {
+            return nil
+        }
+        return BlockInputModalOverlay(
+            container: surface,
+            frame: context.modalFrame(
+                in: surface,
+                horizontalOffset: Self.modalHorizontalOffset,
+                verticalSpacing: Self.modalVerticalSpacing
+            )
         )
     }
 
