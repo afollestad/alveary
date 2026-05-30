@@ -12,6 +12,7 @@ final class AppKitTranscriptRowFactory {
         // Settings-driven font changes are part of row configuration so cached
         // AppKit rows rebuild markdown and report fresh heights without being recreated.
         var typography: TranscriptTypography = TranscriptTypography()
+        var markdownBaseURL: URL?
         var expandedRowIDs: Set<String> = []
         var pendingToolApproval: PendingToolApproval?
         var retryableFailedMessageIDs: Set<String> = []
@@ -285,6 +286,7 @@ final class AppKitTranscriptRowFactory {
                 markdown: markdown,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography.appKitMarkdownTypography,
+                markdownBaseURL: configuration.markdownBaseURL,
                 showsRetry: role == .user && configuration.retryableFailedMessageIDs.contains(id),
                 initiallyExpanded: configuration.expandedRowIDs.contains(id)
             )

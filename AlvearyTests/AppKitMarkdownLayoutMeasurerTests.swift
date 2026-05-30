@@ -58,6 +58,19 @@ final class AppKitMarkdownLayoutMeasurerTests: XCTestCase {
         )
     }
 
+    func testImageHeightMatchesHydratedRendererWithoutLoading() {
+        assertMarkdownMeasurementParity(
+            #"""
+            Intro text
+
+            <img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />
+
+            ![Diagram](images/diagram.png)
+            """#,
+            width: 420
+        )
+    }
+
     func testNaturalWidthMatchesHydratedRendererForShortTextAndTables() {
         assertNaturalWidthParity("Short message", width: 320)
         assertNaturalWidthParity(

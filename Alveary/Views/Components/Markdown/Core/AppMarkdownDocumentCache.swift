@@ -18,7 +18,7 @@ enum AppMarkdownDocumentCache {
         )
         if let cached = cache.object(forKey: key) {
             return document(
-                content: cached.document.content,
+                cached.document,
                 cacheKey: key,
                 taskStateScope: context.taskStateScope
             )
@@ -27,7 +27,7 @@ enum AppMarkdownDocumentCache {
         let parsedDocument = parse()
         cache.setObject(AppMarkdownDocumentBox(parsedDocument), forKey: key, cost: markdown.count)
         return document(
-            content: parsedDocument.content,
+            parsedDocument,
             cacheKey: key,
             taskStateScope: context.taskStateScope
         )
@@ -42,7 +42,7 @@ enum AppMarkdownDocumentCache {
             return nil
         }
         return document(
-            content: cached.document.content,
+            cached.document,
             cacheKey: key,
             taskStateScope: context.taskStateScope
         )
@@ -55,37 +55,37 @@ enum AppMarkdownDocumentCache {
         let key = cacheKey(markdown: markdown, context: context)
         if let cached = cache.object(forKey: key) {
             return document(
-                content: cached.document.content,
+                cached.document,
                 cacheKey: key,
                 taskStateScope: context.taskStateScope
             )
         }
 
-        let parsedContent = await Task.detached(priority: .userInitiated) {
+        let parsedDocument = await Task.detached(priority: .userInitiated) {
             let parser = AppMarkdownParser(
                 baseURL: context.baseURL,
                 composerChipProvider: context.composerChipMode.composerChipProvider
             )
-            return parser.documentPreservingSource(for: markdown).content
+            return parser.documentPreservingSource(for: markdown)
         }.value
 
-        let parsedDocument = AppMarkdownDocument(content: parsedContent)
         cache.setObject(AppMarkdownDocumentBox(parsedDocument), forKey: key, cost: markdown.count)
         return document(
-            content: parsedContent,
+            parsedDocument,
             cacheKey: key,
             taskStateScope: context.taskStateScope
         )
     }
 
     private static func document(
-        content: AttributedString,
+        _ document: AppMarkdownDocument,
         cacheKey: NSString,
         taskStateScope: String?
     ) -> AppMarkdownDocument {
         AppMarkdownDocument(
-            content: content,
-            taskStateNamespace: taskStateNamespace(cacheKey: cacheKey as String, taskStateScope: taskStateScope)
+            content: document.content,
+            taskStateNamespace: taskStateNamespace(cacheKey: cacheKey as String, taskStateScope: taskStateScope),
+            blocks: document.blocks
         )
     }
 

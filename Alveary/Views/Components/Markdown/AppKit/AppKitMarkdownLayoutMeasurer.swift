@@ -2,7 +2,7 @@
 import Foundation
 import SwiftUI
 
-private let rendererVersion = 1
+private let rendererVersion = 2
 private let tableMinimumColumnWidth: CGFloat = 120
 private let tableFallbackViewportWidth: CGFloat = 520
 private let tableCellHorizontalPadding: CGFloat = 10
@@ -36,10 +36,35 @@ struct AppKitMarkdownLayoutMeasurer {
 
     func measure(width: CGFloat) -> AppKitMarkdownLayoutMeasurement {
         measureBlocks(
-            document.content,
-            parent: nil,
+            document.blocks,
             width: max(width, 0),
             path: ""
+        )
+    }
+
+    private func measureBlocks(
+        _ blocks: [AppMarkdownDocumentBlock],
+        width: CGFloat,
+        path: String
+    ) -> AppKitMarkdownLayoutMeasurement {
+        let measurements = blocks.enumerated().map { index, block in
+            switch block {
+            case .markdown(let content):
+                return measureBlocks(
+                    content,
+                    parent: nil,
+                    width: width,
+                    path: path.appMarkdownAppendingPathComponent(index)
+                )
+            case .image(let imageBlock):
+                return measureImage(imageBlock.image, width: width)
+            }
+        }
+        let spacing = AppKitMarkdownMetrics.blockSpacing * CGFloat(max(measurements.count - 1, 0))
+        return AppKitMarkdownLayoutMeasurement(
+            contentHeight: ceil(measurements.map(\.contentHeight).reduce(0, +) + spacing),
+            naturalContentWidth: ceil(measurements.map(\.naturalContentWidth).max() ?? 0),
+            fallbackRequired: measurements.contains(where: \.fallbackRequired)
         )
     }
 

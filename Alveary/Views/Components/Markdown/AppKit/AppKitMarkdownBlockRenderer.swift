@@ -6,8 +6,20 @@ struct AppKitMarkdownBlockRenderer {
     let taskStateNamespace: String
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
     let typography: AppKitMarkdownTypography
+    let imageBaseURL: URL?
     let onOpenLink: ((URL) -> Void)?
     let heightInvalidationHandler: () -> Void
+
+    func views(for blocks: [AppMarkdownDocumentBlock]) -> [NSView] {
+        blocks.flatMap { block -> [NSView] in
+            switch block {
+            case .markdown(let content):
+                return views(for: content)
+            case .image(let imageBlock):
+                return [imageView(for: imageBlock)]
+            }
+        }
+    }
 
     func views<Content: AttributedStringProtocol>(
         for content: Content,
@@ -22,6 +34,15 @@ struct AppKitMarkdownBlockRenderer {
                 path: path.appMarkdownAppendingPathComponent(index)
             )
         }
+    }
+
+    private func imageView(for imageBlock: AppMarkdownImageBlock) -> NSView {
+        AppKitMarkdownImageBlockView(
+            configuration: .init(
+                image: imageBlock.image,
+                baseURL: imageBaseURL
+            )
+        )
     }
 
     private func view(

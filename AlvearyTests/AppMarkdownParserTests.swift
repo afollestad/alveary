@@ -1,3 +1,4 @@
+import BlockInputKit
 import SwiftUI
 import XCTest
 
@@ -115,6 +116,67 @@ final class AppMarkdownParserTests: XCTestCase {
         XCTAssertTrue(attributed.runs.allSatisfy { $0.inlinePresentationIntent?.contains(.code) == true })
     }
 
+    func testDocumentPreservesMarkdownImageBlock() throws {
+        let document = AppMarkdownParser(baseURL: URL(string: "https://example.com/docs/"))
+            .documentPreservingSource(for: "Before ![Architecture diagram](images/diagram.png) after")
+
+        XCTAssertEqual(document.blocks.count, 3)
+        XCTAssertEqual(String(markdownBlockContent(at: 0, in: document).characters), "Before")
+        XCTAssertEqual(
+            imageBlock(at: 1, in: document).image,
+            BlockInputImage(
+                source: "images/diagram.png",
+                altText: "Architecture diagram",
+                sourceStyle: .markdown
+            )
+        )
+        XCTAssertEqual(String(markdownBlockContent(at: 2, in: document).characters), "after")
+    }
+
+    func testDocumentPreservesHTMLImageBlockWithDimensions() throws {
+        let document = AppMarkdownParser().documentPreservingSource(
+            for: #"<img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />"#
+        )
+
+        XCTAssertEqual(document.blocks, [
+            .image(AppMarkdownImageBlock(image: BlockInputImage(
+                source: "file:///tmp/photo.jpg",
+                altText: "Photo",
+                width: 262,
+                height: 174,
+                sourceStyle: .html
+            )))
+        ])
+        XCTAssertEqual(String(document.content.characters), "Photo")
+    }
+
+    func testDocumentPreservesParagraphWrappedHTMLImageBlock() throws {
+        let document = AppMarkdownParser().documentPreservingSource(
+            for: #"<p><img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" /></p>"#
+        )
+
+        XCTAssertEqual(document.blocks, [
+            .image(AppMarkdownImageBlock(image: BlockInputImage(
+                source: "file:///tmp/photo.jpg",
+                altText: "Photo",
+                width: 262,
+                height: 174,
+                sourceStyle: .html
+            )))
+        ])
+        XCTAssertEqual(String(document.content.characters), "Photo")
+    }
+
+    func testHTMLImageInsideInlineCodeIsPreservedAsCodeText() throws {
+        let document = AppMarkdownParser().documentPreservingSource(
+            for: #"`<img src="file:///tmp/photo.jpg" />`"#
+        )
+
+        XCTAssertEqual(document.blocks.count, 1)
+        XCTAssertEqual(String(markdownBlockContent(at: 0, in: document).characters), #"<img src="file:///tmp/photo.jpg" />"#)
+        XCTAssertTrue(document.content.runs.allSatisfy { $0.inlinePresentationIntent?.contains(.code) == true })
+    }
+
     func testHTMLSubsetMapsToAttributedMarkdownStyles() throws {
         let parser = AppMarkdownParser()
         let attributed = try parser.attributedString(
@@ -206,6 +268,28 @@ final class AppMarkdownParserTests: XCTestCase {
         attributed.runs.first { run in
             String(attributed[run.range].characters) == text
         }
+    }
+
+    private func markdownBlockContent(
+        at index: Int,
+        in document: AppMarkdownDocument
+    ) -> AttributedString {
+        guard case .markdown(let content) = document.blocks[index] else {
+            XCTFail("Expected markdown block at \(index)")
+            return AttributedString()
+        }
+        return content
+    }
+
+    private func imageBlock(
+        at index: Int,
+        in document: AppMarkdownDocument
+    ) -> AppMarkdownImageBlock {
+        guard case .image(let image) = document.blocks[index] else {
+            XCTFail("Expected image block at \(index)")
+            return AppMarkdownImageBlock(image: BlockInputImage(source: "missing"))
+        }
+        return image
     }
 
     private func thematicBreakCount(in attributed: AttributedString) -> Int {

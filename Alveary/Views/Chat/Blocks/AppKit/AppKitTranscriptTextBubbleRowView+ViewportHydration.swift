@@ -29,6 +29,7 @@ extension AppKitTranscriptTextBubbleRowView {
             document: document(for: configuration),
             inlineCodeStyle: inlineCodeStyle(for: configuration.role),
             typography: configuration.typography,
+            imageBaseURL: configuration.markdownBaseURL,
             onOpenLink: onOpenMarkdownLink
         )
         markdownView.translatesAutoresizingMaskIntoConstraints = true
@@ -87,6 +88,7 @@ extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptViewportHydratable 
         isHydratingMarkdownForViewport = true
         hydrateMarkdownIfNeeded()
         if let lastLayoutMetrics, let markdownView {
+            markdownView.maximumImageDisplayWidth = lastLayoutMetrics.markdownFrame.width
             markdownView.frame = lastLayoutMetrics.markdownFrame
             markdownView.layoutSubtreeIfNeeded()
         }

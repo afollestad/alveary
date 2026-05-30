@@ -26,14 +26,24 @@ struct AppMarkdownParser {
     }
 
     func document(for input: String) throws -> AppMarkdownDocument {
-        AppMarkdownDocument(content: try attributedString(for: input))
+        let content = try attributedString(for: input)
+        let blockSource = markdownByPreparingSourceForParsing(input, replacingImagesWithFallback: false)
+        return AppMarkdownDocument(
+            content: content,
+            blocks: try appMarkdownDocumentBlocks(for: blockSource, fullContent: content)
+        )
     }
 
     func documentPreservingSource(for input: String) -> AppMarkdownDocument {
         do {
             return try document(for: input)
         } catch {
-            return AppMarkdownDocument(content: AttributedString(markdownByPreparingSourceForParsing(input)))
+            let content = AttributedString(markdownByPreparingSourceForParsing(input))
+            let blockSource = markdownByPreparingSourceForParsing(input, replacingImagesWithFallback: false)
+            return AppMarkdownDocument(
+                content: content,
+                blocks: appMarkdownDocumentBlocksPreservingSource(for: blockSource, fullContent: content)
+            )
         }
     }
 
@@ -57,7 +67,10 @@ struct AppMarkdownParser {
         return attributedString
     }
 
-    private func markdownByPreparingSourceForParsing(_ input: String) -> String {
+    private func markdownByPreparingSourceForParsing(
+        _ input: String,
+        replacingImagesWithFallback: Bool = true
+    ) -> String {
         var output = markdownByNormalizingFrontMatter(in: input)
         output = replacingMatchesOutsideCode(
             pattern: #"<u(?:\s[^>]*)?>([\s\S]*?)</u>"#,
@@ -85,14 +98,8 @@ struct AppMarkdownParser {
         ) { source, match in
             "\n\n\(source.substring(with: match.range(at: 1)))\n\n"
         }
-        output = replacingMatchesOutsideCode(
-            pattern: #"!\[([^\]]*)\]\(([^)]*)\)"#,
-            in: output
-        ) { source, match in
-            let altText = source.substring(with: match.range(at: 1))
-            let destination = source.substring(with: match.range(at: 2))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return altText.isEmpty ? destination : altText
+        if replacingImagesWithFallback {
+            output = appMarkdownByReplacingImageSyntaxWithFallback(in: output)
         }
         return output
     }

@@ -37,6 +37,7 @@ extension ChatTranscriptView {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth)
         configuration.typography = transcriptTypography
+        configuration.markdownBaseURL = workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
         configuration.expandedRowIDs = expandedTranscriptRows
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs

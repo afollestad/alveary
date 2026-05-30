@@ -243,7 +243,7 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
         let document = AppMarkdownDocumentCache.document(
             markdown: markdown,
             context: AppMarkdownDocumentCacheContext(
-                baseURL: baseURL,
+                baseURL: nil,
                 inlineCodeStyle: .standard,
                 composerChipMode: .none,
                 taskStateScope: taskStateScope
@@ -255,6 +255,7 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
             document: document,
             inlineCodeStyle: .standard,
             typography: typography.appKitMarkdownTypography,
+            imageBaseURL: baseURL,
             onOpenLink: onOpenMarkdownLink
         )
         self.onOpenMarkdownLink = onOpenMarkdownLink

@@ -27,6 +27,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let markdown: String
         let bubbleMaxWidth: CGFloat
         let typography: AppKitMarkdownTypography
+        let markdownBaseURL: URL?
         let showsRetry: Bool
         let initiallyExpanded: Bool
 
@@ -36,6 +37,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             markdown: String,
             bubbleMaxWidth: CGFloat = .infinity,
             typography: AppKitMarkdownTypography = .default,
+            markdownBaseURL: URL? = nil,
             showsRetry: Bool = false,
             initiallyExpanded: Bool = false
         ) {
@@ -44,6 +46,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             self.markdown = markdown
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
+            self.markdownBaseURL = markdownBaseURL
             self.showsRetry = showsRetry
             self.initiallyExpanded = initiallyExpanded
         }
@@ -245,6 +248,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         }
         applyFrameUpdates(frameUpdates(for: metrics), animated: false)
         if let markdownView {
+            markdownView.maximumImageDisplayWidth = metrics.markdownFrame.width
             validateHydratedMarkdownHeight(markdownView, metrics: metrics)
         }
         updateCollapsedFadeMask(isCollapsed: metrics.isCollapsed)
@@ -269,6 +273,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         // for width/layout, and a huge temporary height can leak into the rendered
         // bubble before the transcript container caches the row height.
         let measurementHeight = max(markdownView?.intrinsicContentSize.height ?? 0, 120)
+        markdownView?.maximumImageDisplayWidth = markdownWidth
         markdownView?.frame = NSRect(x: 0, y: 0, width: markdownWidth, height: measurementHeight)
         markdownView?.layoutSubtreeIfNeeded()
         return markdownView?.intrinsicContentSize.height ?? 0
@@ -470,7 +475,8 @@ private extension AppKitTranscriptTextBubbleRowView.Configuration {
     func hasSameRenderedContent(as other: Self) -> Bool {
         let sameMaxWidth = bubbleMaxWidth == other.bubbleMaxWidth || abs(bubbleMaxWidth - other.bubbleMaxWidth) <= 0.5
         return id == other.id && role == other.role && markdown == other.markdown &&
-            sameMaxWidth && typography == other.typography && showsRetry == other.showsRetry
+            sameMaxWidth && typography == other.typography && markdownBaseURL == other.markdownBaseURL &&
+            showsRetry == other.showsRetry
     }
 }
 

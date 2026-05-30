@@ -51,7 +51,7 @@ Narrower scopes:
 - SwiftUI markdown rendering uses `AppMarkdownRenderer` under `SwiftUI/Rendering/`.
 - AppKit markdown rendering uses `AppKitMarkdownView` under `AppKit/`.
 - Unknown fenced-code languages must render as plain monospaced code.
-- Image markdown degrades to alt/link text; do not add image loading unless the product scope changes.
+- AppKit transcript markdown renders Markdown/HTML image blocks through BlockInputKit image loading; SwiftUI markdown text still degrades images to alt/source text.
 - The parser supports a small HTML subset: `b`, `strong`, `i`, `em`, `u`, `p`, and `a`.
 - Task-list markers (`[ ]`, `[x]`) render as interactive checkboxes with local cached state.
 

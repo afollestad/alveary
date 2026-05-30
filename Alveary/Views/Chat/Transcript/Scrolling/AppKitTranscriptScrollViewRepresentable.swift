@@ -180,6 +180,7 @@ private struct AppKitTranscriptPreparedUpdate {
             transientRows: transientRows,
             bubbleMaxWidth: rowConfiguration.bubbleMaxWidth,
             typography: rowConfiguration.typography,
+            markdownBaseURL: rowConfiguration.markdownBaseURL,
             expandedRowIDs: rowConfiguration.expandedRowIDs,
             pendingToolApproval: rowConfiguration.pendingToolApproval,
             retryableFailedMessageIDs: rowConfiguration.retryableFailedMessageIDs,
@@ -225,6 +226,7 @@ private struct AppKitTranscriptPreparedUpdate {
         let transientRows: AppKitTranscriptTransientRows
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
+        let markdownBaseURL: URL?
         let expandedRowIDs: Set<String>
         let pendingToolApproval: PendingToolApproval?
         let retryableFailedMessageIDs: Set<String>

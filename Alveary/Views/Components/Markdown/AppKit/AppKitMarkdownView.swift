@@ -5,6 +5,14 @@ import Foundation
 // explicit; SwiftUI lazy-list measurement was not reliable enough for this UX.
 final class AppKitMarkdownView: NSView {
     var onHeightInvalidated: (() -> Void)?
+    var maximumImageDisplayWidth: CGFloat? {
+        didSet {
+            guard oldValue != maximumImageDisplayWidth else {
+                return
+            }
+            updateImageDisplayWidths()
+        }
+    }
     var onOpenLink: ((URL) -> Void)? {
         didSet {
             applyLinkHandler(to: self)
@@ -15,16 +23,19 @@ final class AppKitMarkdownView: NSView {
     private var document: AppMarkdownDocument
     private var inlineCodeStyle: AppMarkdownInlineCodeStyle
     private var typography: AppKitMarkdownTypography
+    private var imageBaseURL: URL?
 
     init(
         document: AppMarkdownDocument,
         inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
         typography: AppKitMarkdownTypography = .default,
+        imageBaseURL: URL? = nil,
         onOpenLink: ((URL) -> Void)? = nil
     ) {
         self.document = document
         self.inlineCodeStyle = inlineCodeStyle
         self.typography = typography
+        self.imageBaseURL = imageBaseURL
         self.onOpenLink = onOpenLink
         super.init(frame: .zero)
         setup()
@@ -45,17 +56,32 @@ final class AppKitMarkdownView: NSView {
         return NSSize(width: NSView.noIntrinsicMetric, height: fittingSize.height)
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        updateImageDisplayWidths()
+    }
+
+    override func layout() {
+        updateImageDisplayWidths()
+        super.layout()
+    }
+
     func configure(
         document: AppMarkdownDocument,
         inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
-        typography: AppKitMarkdownTypography = .default
+        typography: AppKitMarkdownTypography = .default,
+        imageBaseURL: URL? = nil
     ) {
-        guard self.document != document || self.inlineCodeStyle != inlineCodeStyle || self.typography != typography else {
+        guard self.document != document ||
+            self.inlineCodeStyle != inlineCodeStyle ||
+            self.typography != typography ||
+            self.imageBaseURL != imageBaseURL else {
             return
         }
         self.document = document
         self.inlineCodeStyle = inlineCodeStyle
         self.typography = typography
+        self.imageBaseURL = imageBaseURL
         rebuild()
     }
 
@@ -92,12 +118,14 @@ final class AppKitMarkdownView: NSView {
             taskStateNamespace: document.taskStateNamespace,
             inlineCodeStyle: inlineCodeStyle,
             typography: typography,
+            imageBaseURL: imageBaseURL,
             onOpenLink: onOpenLink,
             heightInvalidationHandler: { [weak self] in
                 self?.invalidateMarkdownHeight()
             }
         )
-        renderer.views(for: document.content).forEach(stackView.addArrangedSubview)
+        renderer.views(for: document.blocks).forEach(stackView.addArrangedSubview)
+        updateImageDisplayWidths()
         invalidateMarkdownHeight()
     }
 
@@ -106,6 +134,24 @@ final class AppKitMarkdownView: NSView {
             textView.onOpenLink = onOpenLink
         }
         view.subviews.forEach(applyLinkHandler(to:))
+    }
+
+    private func updateImageDisplayWidths() {
+        let viewWidth = bounds.width > 0 ? bounds.width : AppKitMarkdownImageBlockView.defaultInitialWidth
+        let width = maximumImageDisplayWidth.map { min(viewWidth, max($0, 0)) } ?? viewWidth
+        appKitMarkdownImageViews(in: self).forEach { imageView in
+            imageView.maximumDisplayWidth = width
+        }
+    }
+
+    private func appKitMarkdownImageViews(in view: NSView) -> [AppKitMarkdownImageBlockView] {
+        view.subviews.flatMap { child -> [AppKitMarkdownImageBlockView] in
+            var matches = appKitMarkdownImageViews(in: child)
+            if let imageView = child as? AppKitMarkdownImageBlockView {
+                matches.insert(imageView, at: 0)
+            }
+            return matches
+        }
     }
 }
 

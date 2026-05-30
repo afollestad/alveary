@@ -14,7 +14,9 @@ extension NSView {
     var transcriptNonTextMarkdownViews: [NSView] {
         subviews.flatMap { child -> [NSView] in
             var matches = child.transcriptNonTextMarkdownViews
-            if child is AppKitMarkdownCodeBlockView || child is AppKitMarkdownTableView {
+            if child is AppKitMarkdownCodeBlockView ||
+                child is AppKitMarkdownTableView ||
+                child is AppKitMarkdownImageBlockView {
                 matches.insert(child, at: 0)
             }
             return matches

@@ -1,3 +1,4 @@
+import BlockInputKit
 import Foundation
 
 let markdownInlineCodeFontScale: CGFloat = 0.94
@@ -58,13 +59,29 @@ enum AppMarkdownComposerChipMode: Sendable {
 struct AppMarkdownDocument: Equatable, Sendable {
     let content: AttributedString
     let taskStateNamespace: String
+    let blocks: [AppMarkdownDocumentBlock]
 
     init(
         content: AttributedString,
-        taskStateNamespace: String = ""
+        taskStateNamespace: String = "",
+        blocks: [AppMarkdownDocumentBlock]? = nil
     ) {
         self.content = content
         self.taskStateNamespace = taskStateNamespace
+        self.blocks = blocks ?? [.markdown(content)]
+    }
+}
+
+enum AppMarkdownDocumentBlock: Equatable, Sendable {
+    case markdown(AttributedString)
+    case image(AppMarkdownImageBlock)
+}
+
+struct AppMarkdownImageBlock: Equatable, Sendable {
+    let image: BlockInputImage
+
+    var accessibilityLabel: String {
+        image.altText.isEmpty ? image.source : image.altText
     }
 }
 
