@@ -23,9 +23,11 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertEqual(draft.messageText, markdown)
     }
 
-    func testBlockInputMarkdownDraftUsesBlockInputEmptiness() {
-        let draft = ComposerDraft(text: "```\n", source: .blockInputMarkdown)
+    func testBlockInputMarkdownDraftUsesBlockInputEmptinessForEmptyCodeBlock() {
+        let markdown = "```\n```"
+        let draft = ComposerDraft(text: markdown, source: .blockInputMarkdown)
 
-        XCTAssertTrue(draft.isEffectivelyEmpty)
+        XCTAssertTrue(ChatComposerTextSupport.isEffectivelyEmpty(markdown))
+        XCTAssertFalse(draft.isEffectivelyEmpty)
     }
 }

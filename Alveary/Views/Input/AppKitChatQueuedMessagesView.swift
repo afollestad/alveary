@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 struct AppKitChatQueuedMessagesConfiguration {
@@ -92,12 +93,12 @@ final class AppKitChatQueuedMessagesView: NSView {
         }
 
         let path = NSBezierPath.appKitComposerTopRoundedRect(bounds, radius: 18)
-        appKitComposerSecondaryColor(in: self, opacity: 0.08).setFill()
+        appKitQueuedMessagesFillColor(in: self).setFill()
         path.fill()
 
         // Draw only the queue list's outer top border. The editor below owns the
         // shared edge, so a bottom stroke here creates a visible seam.
-        appKitComposerSecondaryColor(in: self, opacity: 0.18).setStroke()
+        appKitQueuedMessagesBorderColor(in: self).setStroke()
         let borderRect = bounds.insetBy(dx: configuration.borderWidth / 2, dy: 0)
         let borderPath = NSBezierPath.appKitComposerTopRoundedBorder(borderRect, radius: 18)
         borderPath.lineWidth = configuration.borderWidth
@@ -144,6 +145,7 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         document: AppMarkdownDocument(content: AttributedString("")),
         inlineCodeStyle: .composer
     )
+    private var messageDocument = AppMarkdownDocument(content: AttributedString(""))
     private let contextIconView = NSImageView()
     private let contextField = NSTextField(labelWithString: "Context attached")
     private let steerButton = AppKitChatQueuedMessageSteerButton()
@@ -175,10 +177,11 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let message = configuration.message
         messageID = message.id
         showsDivider = configuration.showsDivider
+        messageDocument = AppMarkdownParser(
+            composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
+        ).documentPreservingSource(for: message.text)
         markdownView.configure(
-            document: AppMarkdownParser(
-                composerChipProvider: ChatComposerTextSupport.composerTextChips(in:)
-            ).documentPreservingSource(for: message.text),
+            document: messageDocument,
             inlineCodeStyle: .composer
         )
         contextIconView.isHidden = message.stagedContext == nil
@@ -226,6 +229,8 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let textWidth = max(0, actionsX - textX - 16)
         let textHeight = measuredTextHeight(width: textWidth)
         markdownView.frame = NSRect(x: textX, y: verticalPadding, width: textWidth, height: textHeight)
+        markdownView.needsLayout = true
+        markdownView.layoutSubtreeIfNeeded()
 
         if !contextField.isHidden {
             let contextTextHeight = ceil(contextField.intrinsicContentSize.height)
@@ -267,13 +272,15 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let textX = leadingPadding + 14 + 12
         let textWidth = max(0, width - textX - 16 - 158 - trailingPadding)
         let contextHeight: CGFloat = contextField.isHidden ? 0 : 21
-        let contentHeight = measuredTextHeight(width: textWidth) + contextHeight
+        let contextSpacing: CGFloat = contextField.isHidden ? 0 : 5
+        let contentHeight = measuredTextHeight(width: textWidth) + contextSpacing + contextHeight
         return ceil(max(50, contentHeight + 20))
     }
 
     private func setup() {
         [iconView, markdownView, contextIconView, contextField, steerButton, editButton, dismissButton].forEach(addSubview)
         updateImages()
+        markdownView.translatesAutoresizingMaskIntoConstraints = true
         contextField.font = .preferredFont(forTextStyle: .caption1)
         contextField.textColor = .secondaryLabelColor
         editButton.setAccessibilityLabel("Edit queued message")
@@ -284,9 +291,13 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         guard width > 0 else {
             return 20
         }
-        markdownView.frame.size.width = width
-        markdownView.layoutSubtreeIfNeeded()
-        return ceil(markdownView.fittingSize.height)
+        let colorScheme = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? ColorScheme.dark : .light
+        let measurement = AppKitMarkdownLayoutMeasurer(
+            document: messageDocument,
+            inlineCodeStyle: .composer,
+            colorScheme: colorScheme
+        ).measure(width: width)
+        return ceil(max(20, measurement.contentHeight))
     }
 
     private static func symbolImage(named name: String) -> NSImage? {
@@ -356,4 +367,14 @@ func appKitComposerSecondaryColor(in view: NSView, opacity: CGFloat) -> NSColor 
     // and multiply the resolved alpha instead of replacing it.
     let resolved = NSColor.secondaryLabelColor.resolved(for: view.appKitRenderingAppearance)
     return resolved.withAlphaComponent(resolved.alphaComponent * opacity)
+}
+
+@MainActor
+func appKitQueuedMessagesFillColor(in view: NSView) -> NSColor {
+    BlockInputComposerStyle.editorFillColor.resolved(for: view.appKitRenderingAppearance)
+}
+
+@MainActor
+func appKitQueuedMessagesBorderColor(in view: NSView) -> NSColor {
+    BlockInputComposerStyle.editorBorderColor.resolved(for: view.appKitRenderingAppearance)
 }

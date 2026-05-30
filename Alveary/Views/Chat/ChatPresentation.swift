@@ -70,7 +70,7 @@ enum ChatPresentation {
         if let pendingToolApprovalStatusText = state.pendingToolApprovalStatusText {
             return .progressOnly(.toolApproval(pendingToolApprovalStatusText))
         }
-        if state.isTurnActive {
+        if state.isTurnActive || state.runtimeStatus == .busy {
             return .busy(canStop: true)
         }
         if state.isSendingMessage {
@@ -88,6 +88,7 @@ struct ChatComposerModeState: Equatable, Sendable {
     let isHandingOffSession: Bool
     let pendingToolApprovalStatusText: DeferredToolComposerStatusText?
     let isTurnActive: Bool
+    let runtimeStatus: ActivitySignal
     let isSendingMessage: Bool
 }
 

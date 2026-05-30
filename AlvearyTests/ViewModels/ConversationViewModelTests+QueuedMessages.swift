@@ -17,6 +17,34 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.stagedContext)
     }
 
+    func testQueueOrSendWhileRuntimeBusyQueuesWithoutSendingImmediately() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+        fixture.viewModel.state.stagedContext = "Runtime context"
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+
+        let queued = try XCTUnwrap(fixture.viewModel.messageQueue.peekNext())
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(queued.text, "Follow-up")
+        XCTAssertEqual(queued.stagedContext, "Runtime context")
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertNil(fixture.viewModel.state.stagedContext)
+    }
+
+    func testQueueOrSendWhileRuntimeIdleSendsImmediately() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.setStatus(.idle, for: fixture.conversation.id)
+
+        try await fixture.viewModel.queueOrSend("Send now")
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertNil(fixture.viewModel.messageQueue.peekNext())
+        XCTAssertEqual(sentMessages, ["Send now"])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+    }
+
     func testQueuedMessageFailureMovesRetryToTranscriptMessage() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.stagedContext = "Context block"

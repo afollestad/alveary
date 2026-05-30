@@ -47,6 +47,7 @@ actor MockAgentsManager: AgentsManager {
     private let reconfigureError: MockError?
     private let approvalError: MockError?
     private let sessionApprovalEffective: Bool
+    private let statusStore = MockAgentsManagerStatusStore()
     private var queuedSendResults: [Result<Void, MockError>] = []
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
@@ -161,6 +162,10 @@ actor MockAgentsManager: AgentsManager {
         queuedSendResults.append(result)
     }
 
+    func setStatus(_ status: ActivitySignal, for conversationId: String) {
+        statusStore.set(status, for: conversationId)
+    }
+
     func enableSubscription() {
         subscriptionEnabled = true
     }
@@ -231,11 +236,11 @@ actor MockAgentsManager: AgentsManager {
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {
-        .neutral
+        statusStore.status(for: conversationId)
     }
 
     nonisolated var allStatuses: [String: ActivitySignal] {
-        [:]
+        statusStore.snapshot()
     }
 
     nonisolated func beginShutdown() {}
@@ -271,6 +276,29 @@ actor MockAgentsManager: AgentsManager {
     private func recordSubscriptionTermination() {
         subscriptionContinuation = nil
         subscriptionTerminationCount += 1
+    }
+}
+
+private final class MockAgentsManagerStatusStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var statuses: [String: ActivitySignal] = [:]
+
+    func set(_ status: ActivitySignal, for conversationId: String) {
+        lock.withLock {
+            statuses[conversationId] = status
+        }
+    }
+
+    func status(for conversationId: String) -> ActivitySignal {
+        lock.withLock {
+            statuses[conversationId] ?? .neutral
+        }
+    }
+
+    func snapshot() -> [String: ActivitySignal] {
+        lock.withLock {
+            statuses
+        }
     }
 }
 

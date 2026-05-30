@@ -145,7 +145,8 @@ final class ConversationViewModel {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
 
-        if state.turnState.isActive || state.isSendingMessage || state.messageQueue.peekNext() != nil {
+        let runtimeIsBusy = agentsManager.status(for: conversation.id) == .busy
+        if state.turnState.isActive || runtimeIsBusy || state.isSendingMessage || state.messageQueue.peekNext() != nil {
             state.messageQueue.enqueue(message, stagedContext: state.stagedContext)
             state.stagedContext = nil
             return

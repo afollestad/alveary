@@ -66,6 +66,38 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertEqual(configuration.roundedCorners, .bottom)
     }
 
+    func testQueuedMessagesAttachedEditorRendersSquareTopCorners() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 300, height: 160))
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeConfiguration(text: "First", hasQueuedMessages: true),
+            queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [QueuedMessage(text: "Queued follow-up", stagedContext: nil)],
+                supportsMidTurnSteering: true,
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                onSteer: { _ in },
+                onEdit: { _ in },
+                onDismiss: { _ in }
+            ),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 20),
+                topContentSpacing: 8,
+                actionRowSpacing: 14
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let samples = try renderedEditorCornerSamples(editor)
+
+        assertFilled(samples.topLeft, "top-left")
+        assertFilled(samples.topRight, "top-right")
+        assertClipped(samples.bottomLeft, "bottom-left")
+        assertClipped(samples.bottomRight, "bottom-right")
+    }
+
     func testBlockInputInitialHeightUsesMinimumVisibleLineCountAfterWidthArrives() throws {
         let controller = AppKitChatComposerEditorController()
 
@@ -342,4 +374,86 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             onFocusRequestConsumed: { _ in }
         )
     }
+}
+
+private struct EditorCornerSamples {
+    let topLeft: NSColor
+    let topRight: NSColor
+    let bottomLeft: NSColor
+    let bottomRight: NSColor
+}
+
+@MainActor
+private func renderedEditorCornerSamples(
+    _ editor: BlockInputView,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws -> EditorCornerSamples {
+    editor.displayIfNeeded()
+    editor.layoutSubtreeIfNeeded()
+    editor.updateLayer()
+    editor.layer?.layoutIfNeeded()
+
+    let size = editor.bounds.size
+    let bitmap = try XCTUnwrap(
+        NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width),
+            pixelsHigh: Int(size.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ),
+        file: file,
+        line: line
+    )
+    bitmap.size = size
+    let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap), file: file, line: line)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    editor.layer?.render(in: context.cgContext)
+    NSGraphicsContext.restoreGraphicsState()
+
+    return EditorCornerSamples(
+        topLeft: try XCTUnwrap(bitmap.colorAt(x: 2, y: 2), file: file, line: line),
+        topRight: try XCTUnwrap(bitmap.colorAt(x: Int(size.width) - 3, y: 2), file: file, line: line),
+        bottomLeft: try XCTUnwrap(bitmap.colorAt(x: 2, y: Int(size.height) - 3), file: file, line: line),
+        bottomRight: try XCTUnwrap(bitmap.colorAt(x: Int(size.width) - 3, y: Int(size.height) - 3), file: file, line: line)
+    )
+}
+
+private func assertFilled(
+    _ color: NSColor,
+    _ corner: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let resolved = color.usingColorSpace(.deviceRGB) ?? color
+    XCTAssertGreaterThan(
+        resolved.alphaComponent,
+        0.02,
+        "Expected \(corner) to be filled for attached queued composer, got alpha \(resolved.alphaComponent)",
+        file: file,
+        line: line
+    )
+}
+
+private func assertClipped(
+    _ color: NSColor,
+    _ corner: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let resolved = color.usingColorSpace(.deviceRGB) ?? color
+    XCTAssertLessThan(
+        resolved.alphaComponent,
+        0.01,
+        "Expected \(corner) to be clipped for attached queued composer, got alpha \(resolved.alphaComponent)",
+        file: file,
+        line: line
+    )
 }

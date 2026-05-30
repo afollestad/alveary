@@ -9,6 +9,7 @@ struct ChatView: View {
     let composerCapabilities: ComposerCapabilities
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
+    let runtimeStatus: ActivitySignal
     let contextWindowCache: any ContextWindowCache
     let workingDirectory: String?
     let projectTrustPrompt: ProjectTrustPrompt?
@@ -36,10 +37,6 @@ struct ChatView: View {
         )
     }
 
-    private var composerIsBusy: Bool {
-        viewModel.turnState.isActive || viewModel.state.isSendingMessage
-    }
-
     var composerMode: ComposerMode {
         ChatPresentation.composerMode(for: ChatComposerModeState(
             isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
@@ -49,6 +46,7 @@ struct ChatView: View {
             isHandingOffSession: viewModel.state.isHandingOffSession,
             pendingToolApprovalStatusText: viewModel.state.pendingToolApproval?.request.composerStatusText,
             isTurnActive: viewModel.turnState.isActive,
+            runtimeStatus: runtimeStatus,
             isSendingMessage: viewModel.state.isSendingMessage
         ))
     }
@@ -110,6 +108,7 @@ struct ChatView: View {
         composerCapabilities: ComposerCapabilities,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
+        runtimeStatus: ActivitySignal,
         contextWindowCache: any ContextWindowCache,
         workingDirectory: String?,
         projectTrustPrompt: ProjectTrustPrompt?,
@@ -126,6 +125,7 @@ struct ChatView: View {
         self.composerCapabilities = composerCapabilities
         self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
+        self.runtimeStatus = runtimeStatus
         self.contextWindowCache = contextWindowCache
         self.workingDirectory = workingDirectory
         self.projectTrustPrompt = projectTrustPrompt
@@ -469,7 +469,7 @@ extension ChatView {
         return AppKitChatQueuedMessagesConfiguration(
             queuedMessages: viewModel.messageQueue.pending,
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-            isTurnActive: viewModel.state.turnState.isActive,
+            isTurnActive: viewModel.state.turnState.isActive || runtimeStatus == .busy,
             inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
             borderWidth: 1,
             onSteer: { messageID in

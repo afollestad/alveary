@@ -108,6 +108,7 @@ struct ConversationView: View {
             composerCapabilities: composerCapabilities,
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
+            runtimeStatus: agentsManager.status(for: conversation.id),
             contextWindowCache: contextWindowCache,
             workingDirectory: activeWorkingDirectory,
             projectTrustPrompt: projectTrustPrompt,

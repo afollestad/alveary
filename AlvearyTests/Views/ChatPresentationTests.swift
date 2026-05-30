@@ -44,6 +44,7 @@ final class ChatPresentationTests: XCTestCase {
                 isHandingOffSession: true,
                 pendingToolApprovalStatusText: .genericApproval,
                 isTurnActive: true,
+                runtimeStatus: .busy,
                 isSendingMessage: true
             )),
             .progressOnly(.cancellingInitialSetup)
@@ -57,6 +58,7 @@ final class ChatPresentationTests: XCTestCase {
                 isHandingOffSession: true,
                 pendingToolApprovalStatusText: .genericApproval,
                 isTurnActive: true,
+                runtimeStatus: .busy,
                 isSendingMessage: true
             )),
             .idle
@@ -70,9 +72,55 @@ final class ChatPresentationTests: XCTestCase {
                 isHandingOffSession: false,
                 pendingToolApprovalStatusText: nil,
                 isTurnActive: false,
+                runtimeStatus: .neutral,
                 isSendingMessage: true
             )),
             .busy(canStop: false)
+        )
+    }
+
+    func testComposerModeTreatsRuntimeBusyAsBusy() {
+        XCTAssertEqual(
+            ChatPresentation.composerMode(for: ChatComposerModeState(
+                isCancellingInitialSetup: false,
+                hasSetupPhase: false,
+                isReconfiguringSession: false,
+                isAwaitingHandoffSteering: false,
+                isHandingOffSession: false,
+                pendingToolApprovalStatusText: nil,
+                isTurnActive: false,
+                runtimeStatus: .busy,
+                isSendingMessage: false
+            )),
+            .busy(canStop: true)
+        )
+        XCTAssertEqual(
+            ChatPresentation.composerMode(for: ChatComposerModeState(
+                isCancellingInitialSetup: false,
+                hasSetupPhase: false,
+                isReconfiguringSession: false,
+                isAwaitingHandoffSteering: false,
+                isHandingOffSession: false,
+                pendingToolApprovalStatusText: nil,
+                isTurnActive: false,
+                runtimeStatus: .idle,
+                isSendingMessage: false
+            )),
+            .idle
+        )
+        XCTAssertEqual(
+            ChatPresentation.composerMode(for: ChatComposerModeState(
+                isCancellingInitialSetup: false,
+                hasSetupPhase: false,
+                isReconfiguringSession: false,
+                isAwaitingHandoffSteering: false,
+                isHandingOffSession: false,
+                pendingToolApprovalStatusText: nil,
+                isTurnActive: false,
+                runtimeStatus: .neutral,
+                isSendingMessage: false
+            )),
+            .idle
         )
     }
 
