@@ -18,7 +18,7 @@ struct AppMarkdownInlineLabel: View {
     var textStyle: NSFont.TextStyle = .body
 
     var body: some View {
-        let segments = InlineSegment.segments(for: text)
+        let segments = InlineSegment.displaySegments(for: text)
         // Fast-path: no inline chips, render a plain `Text` so environment
         // modifiers like `.fixedSize` and `.lineLimit` behave exactly as they would on a
         // bare `Text`.
@@ -72,10 +72,10 @@ struct AppMarkdownInlineLabel: View {
 extension AppMarkdownInlineLabel {
     /// Returns `markdown` with inline-code backtick delimiters stripped and `@` mentions
     /// decoded to their human-readable form (`@<basename>`) so the result reads cleanly in
-    /// non-markdown contexts like VoiceOver accessibility labels. Non-chip content is
-    /// preserved verbatim.
+    /// non-markdown contexts like VoiceOver accessibility labels. HTML image tags become
+    /// `(Image)` and other HTML-like tags are stripped for compact display surfaces.
     nonisolated static func plainText(from markdown: String) -> String {
-        let segments = InlineSegment.segments(for: markdown)
+        let segments = InlineSegment.displaySegments(for: markdown)
         if segments.count == 1, case .text(let value) = segments[0] {
             return String(value.characters)
         }
@@ -101,8 +101,8 @@ private enum InlineSegment {
     /// basename is cached on the segment so render and `plainText` don't redo the work.
     case mention(String)
 
-    static func segments(for markdown: String) -> [InlineSegment] {
-        let attributed = parsedInlineMarkdown(markdown)
+    static func displaySegments(for markdown: String) -> [InlineSegment] {
+        let attributed = parsedInlineMarkdown(displayMarkdown(from: markdown))
         var result: [InlineSegment] = []
         for run in attributed.runs {
             let content = AttributedString(attributed[run.range])
@@ -115,6 +115,10 @@ private enum InlineSegment {
             }
         }
         return result
+    }
+
+    private static func displayMarkdown(from markdown: String) -> String {
+        appMarkdownCompactDisplaySource(from: markdown)
     }
 
     private static func parsedInlineMarkdown(_ markdown: String) -> AttributedString {

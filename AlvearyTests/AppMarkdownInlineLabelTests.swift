@@ -31,6 +31,41 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
         )
     }
 
+    func testPlainTextReplacesHTMLImageTagsWithPlaceholder() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: #"Before <img src="file.png" alt="Diagram" width="120" /> after"#),
+            "Before (Image) after"
+        )
+    }
+
+    func testPlainTextStripsUnsupportedHTMLTags() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: #"<div class="note">Title <span>body</span></div>"#),
+            "Title body"
+        )
+    }
+
+    func testPlainTextDoesNotStripAngleBracketAutolinks() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "Open <https://example.com>"),
+            "Open https://example.com"
+        )
+    }
+
+    func testPlainTextPreservesHTMLImageTagInsideInlineCode() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: #"`<img src="file.png" />`"#),
+            #"<img src="file.png" />"#
+        )
+    }
+
+    func testPlainTextPreservesHTMLLikeTagsInsideInlineCode() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "Fix `Array<String>`"),
+            "Fix Array<String>"
+        )
+    }
+
     func testPlainTextStripsSingleBacktickDelimitersButKeepsCodeContent() {
         XCTAssertEqual(
             AppMarkdownInlineLabel.plainText(from: "Test `code` Rendering"),
@@ -87,7 +122,7 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
     func testPlainTextHandlesMixOfInlineCodeAndAtMention() {
         // Both chip types must co-exist in order without either swallowing the other:
         // the mention sits after the code span and gets decoded to its basename; the
-        // code span stays verbatim. Locks in the event-merge + sort in `segments(for:)`.
+        // code span stays verbatim. Locks in the event-merge + sort in `displaySegments(for:)`.
         XCTAssertEqual(
             AppMarkdownInlineLabel.plainText(from: "Run `ls` on @/Users/me/My%20Docs/notes.md"),
             "Run ls on @notes.md"

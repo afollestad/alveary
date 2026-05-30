@@ -116,6 +116,27 @@ final class AppMarkdownParserTests: XCTestCase {
         XCTAssertTrue(attributed.runs.allSatisfy { $0.inlinePresentationIntent?.contains(.code) == true })
     }
 
+    func testCompactDisplaySourceReplacesHTMLImageTagsWithPlaceholder() {
+        XCTAssertEqual(
+            appMarkdownCompactDisplaySource(from: #"Before <img src="file.png" alt="Diagram" width="120" /> after"#),
+            "Before (Image) after"
+        )
+    }
+
+    func testCompactDisplaySourceStripsHTMLTagsOutsideCode() {
+        XCTAssertEqual(
+            appMarkdownCompactDisplaySource(from: #"<div class="note">Title <span>body</span></div>"#),
+            "Title body"
+        )
+    }
+
+    func testCompactDisplaySourcePreservesHTMLLikeTextInsideCode() {
+        XCTAssertEqual(
+            appMarkdownCompactDisplaySource(from: #"Outside <b>tag</b> `Array<String>` and `<img src="file.png" />`"#),
+            #"Outside tag `Array<String>` and `<img src="file.png" />`"#
+        )
+    }
+
     func testDocumentPreservesMarkdownImageBlock() throws {
         let document = AppMarkdownParser(baseURL: URL(string: "https://example.com/docs/"))
             .documentPreservingSource(for: "Before ![Architecture diagram](images/diagram.png) after")

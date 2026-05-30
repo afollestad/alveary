@@ -1,7 +1,15 @@
+import Foundation
+
 extension ConversationViewModel {
     static func threadName(from message: String) -> String? {
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 10 else {
+        let source = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard source.count >= 10 else {
+            return nil
+        }
+
+        let trimmed = appMarkdownCompactDisplaySource(from: source)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 10 || trimmed.contains("(Image)") else {
             return nil
         }
 

@@ -88,6 +88,24 @@ func appMarkdownByReplacingImageSyntaxWithFallback(in input: String) -> String {
     return result as String
 }
 
+/// Prepares single-line labels and auto-generated titles for compact display.
+/// Transcript markdown parsing must keep using `AppMarkdownParser` so image blocks
+/// and supported HTML render normally.
+func appMarkdownCompactDisplaySource(from input: String) -> String {
+    guard input.contains("<") else {
+        return input
+    }
+    return input
+        .appMarkdownReplacingMatchesOutsideCode(
+            pattern: #"<\s*img\b[^>]*>"#,
+            with: "(Image)"
+        )
+        .appMarkdownReplacingMatchesOutsideCode(
+            pattern: #"</?\s*[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*)?\s*/?>"#,
+            with: ""
+        )
+}
+
 func appMarkdownImageDisplaySize(
     for image: BlockInputImage,
     constrainedTo width: CGFloat,
@@ -308,5 +326,35 @@ private extension String {
             return self
         }
         return String(dropLast())
+    }
+
+    func appMarkdownReplacingMatchesOutsideCode(
+        pattern: String,
+        with replacement: String
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return self
+        }
+
+        let source = self as NSString
+        let fullRange = NSRange(location: 0, length: source.length)
+        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: self)
+        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
+        let matches = regex.matches(in: self, range: fullRange)
+            .filter { match in
+                !excludedRanges.contains { excludedRange in
+                    NSIntersectionRange(excludedRange, match.range).length > 0
+                }
+            }
+            .reversed()
+        guard !matches.isEmpty else {
+            return self
+        }
+
+        let result = NSMutableString(string: self)
+        for match in matches {
+            result.replaceCharacters(in: match.range, with: replacement)
+        }
+        return result as String
     }
 }

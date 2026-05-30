@@ -50,6 +50,31 @@ final class AutoNamingTests: XCTestCase {
         )
     }
 
+    func testThreadNameReplacesHTMLImageTagBeforeTruncating() {
+        XCTAssertEqual(
+            ConversationViewModel.threadName(from: #"<img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />"#),
+            "(Image)"
+        )
+    }
+
+    func testThreadNameStripsHTMLTagsBeforeTruncating() {
+        XCTAssertEqual(
+            ConversationViewModel.threadName(from: #"<div class="note">Title <span>body</span></div>"#),
+            "Title body"
+        )
+    }
+
+    func testThreadNameRejectsShortContentAfterStrippingHTMLTags() {
+        XCTAssertNil(ConversationViewModel.threadName(from: "<div>hi</div>"))
+    }
+
+    func testThreadNamePreservesHTMLLikeTextInsideInlineCode() {
+        XCTAssertEqual(
+            ConversationViewModel.threadName(from: "Fix `Array<String>` now"),
+            "Fix `Array<String>` now"
+        )
+    }
+
     func testPromptFormattingHelpersProduceStableStrings() {
         let answers = [
             (question: " Language ", answer: "Swift"),
