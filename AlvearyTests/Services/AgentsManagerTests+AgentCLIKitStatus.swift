@@ -183,6 +183,39 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitCancelRefreshesCachedRunningStatus() async throws {
+        let executable = try makeScript(named: "cancel-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let fixture = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-cancel-refreshes-status"
+        let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        try await waitUntil("expected AgentCLIKit runtime to be running") {
+            await manager.isRunning(conversationId: conversationId)
+        }
+
+        await manager.cancelTurn(conversationId: conversationId)
+
+        try await waitUntil("expected AgentCLIKit cancellation to publish stopped status") {
+            guard let runtimeStatus = await fixture.runtime.status(conversationId: runtimeConversationId) else {
+                return false
+            }
+            let isManagerRunning = await manager.isRunning(conversationId: conversationId)
+            return runtimeStatus.state == .cancelled &&
+                !runtimeStatus.isProcessRunning &&
+                !isManagerRunning &&
+                manager.status(for: conversationId) == .idle
+        }
+
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitSendAfterKillIsRejected() async throws {
         let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
