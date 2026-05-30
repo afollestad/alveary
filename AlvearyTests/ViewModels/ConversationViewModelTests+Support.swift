@@ -54,6 +54,7 @@ actor MockAgentsManager: AgentsManager {
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
+    private var recordedCancelCalls: [String] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
     private var subscriptionEnabled = false
     private let subscriptionGeneration = UUID()
@@ -191,7 +192,9 @@ actor MockAgentsManager: AgentsManager {
         subscriptionTerminationCount
     }
 
-    func cancelTurn(conversationId: String) {}
+    func cancelTurn(conversationId: String) {
+        recordedCancelCalls.append(conversationId)
+    }
 
     func destroyRuntime(conversationId: String) async throws {
         isRunningValue = false
@@ -267,6 +270,10 @@ actor MockAgentsManager: AgentsManager {
 
     func approvalCalls() -> [ApprovalCall] {
         recordedApprovalCalls
+    }
+
+    func cancelCalls() -> [String] {
+        recordedCancelCalls
     }
 
     private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {

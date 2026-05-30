@@ -9,7 +9,7 @@ extension ConversationViewModel {
     // persist to the DB or fork the session mid-turn, mid-approval, or ahead of
     // an unanswered prompt.
     var canApplySettingsChange: Bool {
-        !state.turnState.isActive &&
+        !isAgentActivelyWorking &&
             !state.isSendingMessage &&
             !state.hasActiveSessionHandoff &&
             state.pendingToolApproval == nil &&

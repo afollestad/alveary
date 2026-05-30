@@ -73,7 +73,7 @@ extension ConversationViewModel {
     }
 
     func steerQueuedMessage(id: UUID) async throws {
-        guard state.turnState.isActive else {
+        guard isAgentActivelyWorking else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
         guard state.inFlightQueuedMessageID == nil else {
@@ -113,6 +113,7 @@ extension ConversationViewModel {
                 state.isCancellingTurn = false
                 state.lastTurnError = nil
                 try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
+                state.turnState.beginTurn()
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
                 state.clearRetryableFailedMessage(id: localMessage.id)
                 state.respawnAttempts = 0

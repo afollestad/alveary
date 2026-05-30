@@ -114,6 +114,20 @@ extension ConversationViewModelTests {
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
+    func testApplyEffortChangeIsRejectedWhileRuntimeBusy() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        await fixture.viewModel.applyEffortChange("high").value
+
+        XCTAssertEqual(try fixture.dbThread().effort, "medium")
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
     func testApplyPermissionModeChangeIsRejectedDuringActiveTurn() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,

@@ -33,6 +33,40 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.stagedContext)
     }
 
+    func testSteerWhileRuntimeBusyDoesNotRequireLocalTurnState() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        try await fixture.viewModel.steer("Steer now")
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Steer now"])
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Steer now"])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+    }
+
+    func testSteerWithoutActiveTurnReturnsReadableError() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        do {
+            try await fixture.viewModel.steer("Too soon")
+            XCTFail("Expected steer to fail without an active turn")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Wait for the agent to be actively working before steering")
+        }
+    }
+
+    func testCancelWhileRuntimeBusyDoesNotRequireLocalTurnState() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        await fixture.viewModel.cancel()
+
+        let cancelCalls = await fixture.agentsManager.cancelCalls()
+        XCTAssertEqual(cancelCalls, [fixture.conversation.id])
+        XCTAssertTrue(fixture.viewModel.state.isCancellingTurn)
+    }
+
     func testQueueOrSendWhileRuntimeIdleSendsImmediately() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.setStatus(.idle, for: fixture.conversation.id)
@@ -133,6 +167,25 @@ extension ConversationViewModelTests {
         XCTAssertEqual(sentMessages, ["Second context\n\nSecond queued"])
         XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["First queued", "Third queued"])
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Second queued"])
+        XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
+    }
+
+    func testSteerQueuedMessageWhileRuntimeBusyDoesNotRequireLocalTurnState() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.stagedContext = "Queued context"
+        fixture.viewModel.turnState.beginTurn()
+        try await fixture.viewModel.queueOrSend("Queued steer")
+        fixture.viewModel.turnState.endTurn()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        let queuedID = try XCTUnwrap(fixture.viewModel.messageQueue.peekNext()?.id)
+        try await fixture.viewModel.steerQueuedMessage(id: queuedID)
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Queued context\n\nQueued steer"])
+        XCTAssertTrue(fixture.viewModel.messageQueue.pending.isEmpty)
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Queued steer"])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
         XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
     }
 }

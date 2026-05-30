@@ -32,6 +32,10 @@ final class ConversationViewModel {
     var messageQueue: MessageQueue { state.messageQueue }
     var streamingText: String? { state.streamingText }
 
+    var isAgentActivelyWorking: Bool {
+        state.turnState.isActive || agentsManager.status(for: conversation.id) == .busy
+    }
+
     var lastTurnError: String? {
         get { state.lastTurnError }
         set { state.lastTurnError = newValue }
@@ -145,8 +149,7 @@ final class ConversationViewModel {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
 
-        let runtimeIsBusy = agentsManager.status(for: conversation.id) == .busy
-        if state.turnState.isActive || runtimeIsBusy || state.isSendingMessage || state.messageQueue.peekNext() != nil {
+        if isAgentActivelyWorking || state.isSendingMessage || state.messageQueue.peekNext() != nil {
             state.messageQueue.enqueue(message, stagedContext: state.stagedContext)
             state.stagedContext = nil
             return
@@ -172,7 +175,7 @@ final class ConversationViewModel {
     }
 
     func steer(_ message: String) async throws {
-        guard state.turnState.isActive else {
+        guard isAgentActivelyWorking else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
 
@@ -185,6 +188,7 @@ final class ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             try await agentsManager.sendMessage(message, conversationId: conversation.id)
+            state.turnState.beginTurn()
             insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: false)
         }
     }
@@ -269,7 +273,7 @@ final class ConversationViewModel {
     }
 
     func reconfigureSession(config: AgentSpawnConfig) async throws {
-        guard !state.turnState.isActive, !state.isSendingMessage else {
+        guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before applying session changes")
         }
         guard state.pendingToolApproval == nil else {
@@ -342,7 +346,7 @@ final class ConversationViewModel {
     }
 
     func retryFailedUserMessage(id: String) async throws {
-        guard !state.turnState.isActive, !state.isSendingMessage else {
+        guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the message")
         }
         guard state.retryableFailedMessageIDs.contains(id) else {
@@ -384,7 +388,7 @@ final class ConversationViewModel {
             return
         }
 
-        guard state.turnState.isActive else {
+        guard isAgentActivelyWorking else {
             return
         }
 
