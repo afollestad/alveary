@@ -126,6 +126,30 @@ extension SnapshotTests {
         )
     }
 
+    func testSettingsScreenThreadsTabDark() {
+        var settings = AppSettings()
+        settings.permissionMode = "acceptEdits"
+        settings.effort = "high"
+        settings.autoTrustProjects = false
+        settings.theme = "dark"
+        settings.codeFontFamily = "JetBrains Mono"
+
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                onClose: {},
+                initialTabRawValue: "threads"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_threads_dark",
+            colorScheme: .dark
+        )
+    }
+
     func testSettingsScreenThreadsTabNarrowKeepsTogglesInline() {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"

@@ -65,12 +65,13 @@ struct ThreadsSettingsTabView: View {
                     SettingsResponsiveControlRow(
                         "Default thread cleanup action",
                         helpText: ThreadSettingsHelp.defaultThreadCleanupAction,
-                        horizontalControlSizing: .intrinsic
+                        horizontalControlSizing: .intrinsicInline
                     ) {
-                        SettingsMenuPicker(
+                        SettingsTwoButtonToggle(
                             "Default thread cleanup action",
                             selection: $defaultThreadCleanupAction,
-                            options: ThreadCleanupAction.allCases,
+                            first: .archive,
+                            second: .delete,
                             label: \.label
                         )
                     }
@@ -80,12 +81,13 @@ struct ThreadsSettingsTabView: View {
                     SettingsResponsiveControlRow(
                         "Default Enter button behavior",
                         helpText: ThreadSettingsHelp.defaultEnterBehavior,
-                        horizontalControlSizing: .intrinsic
+                        horizontalControlSizing: .intrinsicInline
                     ) {
-                        SettingsMenuPicker(
+                        SettingsTwoButtonToggle(
                             "Default Enter button behavior",
                             selection: $defaultEnterBehavior,
-                            options: ThreadEnterDefaultBehavior.allCases,
+                            first: .queue,
+                            second: .steer,
                             label: \.label
                         )
                     }
