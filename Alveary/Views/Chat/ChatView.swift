@@ -231,10 +231,15 @@ extension ChatView {
     }
 
     func sendDraft() {
+        guard canUseOutboundComposerActions else {
+            return
+        }
+
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
         let steeringMessage = draft.isEffectivelyEmpty ? "" : message
         if viewModel.submitSessionHandoffSteeringPrompt(steeringMessage) {
+            appState.requestComposerFocus()
             return
         }
 
@@ -246,7 +251,7 @@ extension ChatView {
         let outboundMessage = draft.messageText
 
         requestScrollToBottom()
-        viewModel.clearInputDraft(source: draft.source)
+        clearSubmittedDraftAndRequestFocus(source: draft.source)
         let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
@@ -269,6 +274,10 @@ extension ChatView {
     }
 
     func steerDraft() {
+        guard canUseOutboundComposerActions else {
+            return
+        }
+
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
         guard !draft.isEffectivelyEmpty else {
@@ -278,7 +287,7 @@ extension ChatView {
         let outboundMessage = draft.messageText
 
         requestScrollToBottom()
-        viewModel.clearInputDraft(source: draft.source)
+        clearSubmittedDraftAndRequestFocus(source: draft.source)
         Task {
             do {
                 try await viewModel.steer(outboundMessage)

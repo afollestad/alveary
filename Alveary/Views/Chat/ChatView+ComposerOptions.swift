@@ -14,6 +14,23 @@ extension ChatView {
         )
     }
 
+    var canUseOutboundComposerActions: Bool {
+        if isProjectTrustBlocked {
+            return false
+        }
+        switch composerMode {
+        case .idle, .busy(canStop: true):
+            return true
+        case .busy(canStop: false), .progressOnly:
+            return false
+        }
+    }
+
+    func clearSubmittedDraftAndRequestFocus(source: ComposerDraftSource) {
+        viewModel.clearInputDraft(source: source)
+        appState.requestComposerFocus()
+    }
+
     var visibleEffortLevels: [String] {
         ComposerSettingsPresentation.visibleEffortLevels(
             selectedModel: selectedModelBinding.wrappedValue,

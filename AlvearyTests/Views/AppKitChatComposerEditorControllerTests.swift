@@ -109,6 +109,34 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertGreaterThan(controller.measuredEditorHeight, AppKitChatComposerEditorController.editorBaseHeight)
     }
 
+    func testFocusRequestAfterClearRevisionConsumesToken() throws {
+        let controller = AppKitChatComposerEditorController()
+        var consumedToken: UUID?
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 160),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+
+        controller.configure(makeConfiguration(text: "Before", inputDraftRevision: 0))
+        let editor = try XCTUnwrap(controller.view)
+        editor.frame = NSRect(x: 0, y: 0, width: 480, height: 160)
+        window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 160))
+        window.contentView?.addSubview(editor)
+
+        let token = UUID()
+        controller.configure(makeConfiguration(
+            text: "",
+            inputDraftRevision: 1,
+            requestFirstResponder: token,
+            onFocusRequestConsumed: { consumedToken = $0 }
+        ))
+
+        XCTAssertEqual(controller.bridgeController?.currentMarkdown(), "")
+        XCTAssertEqual(consumedToken, token)
+    }
+
     func testCompletionPopupOverlayUsesChatSurfaceParentAndEditorFrame() throws {
         let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 320, width: 448, height: 120))
@@ -342,15 +370,19 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
     private func makeConfiguration(
         text: String = "First",
         draftIdentity: String = "one",
+        inputDraftRevision: Int = 0,
         mode: ComposerMode = .idle,
         hasQueuedMessages: Bool = false,
         hasTopContent: Bool = false,
+        requestFirstResponder: UUID? = nil,
         onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
-        onSubmit: @escaping () -> Void = {}
+        onSubmit: @escaping () -> Void = {},
+        onFocusRequestConsumed: @escaping (UUID?) -> Void = { _ in }
     ) -> AppKitChatComposerBodyConfiguration {
         AppKitChatComposerBodyConfiguration(
             text: text,
             draftIdentity: draftIdentity,
+            inputDraftRevision: inputDraftRevision,
             mode: mode,
             defaultEnterBehavior: .queue,
             isStopConfirmationArmed: false,
@@ -363,7 +395,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             hasQueuedMessages: hasQueuedMessages,
             hasTopContent: hasTopContent,
             workingDirectory: "/tmp/alveary",
-            requestFirstResponder: nil,
+            requestFirstResponder: requestFirstResponder,
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             onDraftSnapshotProviderChange: onDraftSnapshotProviderChange,
@@ -371,7 +403,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             onSteer: {},
             onStop: {},
             onStopConfirmationChange: { _ in },
-            onFocusRequestConsumed: { _ in }
+            onFocusRequestConsumed: onFocusRequestConsumed
         )
     }
 }
