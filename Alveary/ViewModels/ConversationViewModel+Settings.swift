@@ -41,7 +41,7 @@ extension ConversationViewModel {
 
         dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
 
-        // Model-specific efforts (e.g. `xhigh` for Opus 4.7) must fall back when
+        // Model-specific efforts (e.g. `xhigh` for Opus 4.8) must fall back when
         // switching to a model that does not support them; otherwise the CLI
         // would reject the flag on the next spawn. The fallback uses the new
         // model's preferred default so switching back into Opus lands on

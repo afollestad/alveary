@@ -11,14 +11,14 @@ struct AppSettings: Codable, Sendable, Equatable {
 
     // Per-model effort overrides. Add or update entries here as models gain or
     // drop levels; any model not listed falls back to `defaultModelEffortLevels`.
-    // "opus" currently tracks Opus 4.7, which added `xhigh`.
+    // "opus" currently tracks Opus 4.8, which supports `xhigh`.
     static let defaultModelEffortLevels = ["low", "medium", "high", "max"]
     static let effortLevelsByModel: [String: [String]] = [
         "opus": ["low", "medium", "high", "xhigh", "max"]
     ]
 
     // Per-model preferred default. Fresh threads and coerced fallbacks should
-    // land on the top-tier level the model is designed for (Opus 4.7 leans
+    // land on the top-tier level the model is designed for (Opus 4.8 leans
     // into `xhigh`); models without an entry fall back to `defaultEffortLevel`.
     static let defaultEffortLevelsByModel: [String: String] = [
         "opus": "xhigh"

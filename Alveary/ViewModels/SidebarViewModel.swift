@@ -114,7 +114,7 @@ final class SidebarViewModel {
     }
 
     // Thread seed = user's explicit Settings choice when valid for this model;
-    // otherwise the per-model preferred default (Opus 4.7 → `xhigh`). "Explicit"
+    // otherwise the per-model preferred default (Opus 4.8 -> `xhigh`). "Explicit"
     // means the stored value differs from the universal `defaultEffortLevel`,
     // so a fresh install on Opus lands on `xhigh` rather than dragging
     // `medium` across from the unchanged Settings field.

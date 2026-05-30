@@ -27,18 +27,18 @@ final class ContextWindowCacheTests: XCTestCase {
         await cache.update(
             providerId: "claude",
             selectedModel: "opus",
-            reportedModelId: "claude-opus-4-7",
+            reportedModelId: ClaudeModelIDs.opus,
             contextWindowSize: 200_000
         )
         await cache.update(
             providerId: "claude",
             selectedModel: "opus",
-            reportedModelId: "claude-opus-4-7",
+            reportedModelId: ClaudeModelIDs.opus,
             contextWindowSize: 1_000_000
         )
 
         let aliasSize = await cache.contextWindowSize(providerId: "claude", model: "opus")
-        let reportedSize = await cache.contextWindowSize(providerId: "claude", model: "claude-opus-4-7")
+        let reportedSize = await cache.contextWindowSize(providerId: "claude", model: ClaudeModelIDs.opus)
         XCTAssertEqual(aliasSize, 1_000_000)
         XCTAssertEqual(reportedSize, 1_000_000)
     }

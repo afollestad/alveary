@@ -223,7 +223,7 @@ extension ConversationViewModelTests {
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
-    // Opus 4.7-only efforts (currently `xhigh`) must fall back to the default
+    // Opus 4.8-only efforts (currently `xhigh`) must fall back to the default
     // when the user switches to a model that does not accept them; otherwise
     // the next spawn would pass a flag the CLI rejects.
     func testApplyModelChangeResetsEffortWhenNewModelDoesNotSupportIt() async throws {

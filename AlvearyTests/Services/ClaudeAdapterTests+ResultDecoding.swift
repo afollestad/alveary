@@ -48,7 +48,7 @@ extension ClaudeAdapterTests {
             "duration_ms": "42",
             "total_cost_usd": "0.01",
             "modelUsage": [
-                "claude-opus-4-7": [
+                ClaudeModelIDs.opus: [
                     "inputTokens": 100,
                     "outputTokens": 20,
                     "cacheReadInputTokens": 10,

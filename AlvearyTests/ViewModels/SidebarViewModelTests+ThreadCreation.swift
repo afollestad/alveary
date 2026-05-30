@@ -85,7 +85,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedThread.effort, AppSettings.defaultEffortLevel)
     }
 
-    // Opus 4.7's preferred default is `xhigh`, so a fresh Opus-default install
+    // Opus 4.8's preferred default is `xhigh`, so a fresh Opus-default install
     // must seed new threads to `xhigh` rather than dragging the universal
     // `medium` across from the untouched Settings field.
     func testCreateThreadSeedsPerModelDefaultEffortWhenUserHasNotCustomized() async throws {
