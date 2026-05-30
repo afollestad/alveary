@@ -26,6 +26,35 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertGreaterThan(contextField.frame.minY, textView.frame.maxY)
     }
 
+    func testNativeQueuedMessagesWithoutContextUseCompactCenteredRows() throws {
+        let compactView = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
+        compactView.configure(makeNativeQueuedMessagesConfiguration([
+            QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+        ]))
+        compactView.layoutSubtreeIfNeeded()
+
+        let compactRow = try XCTUnwrap(compactView.subviews.first)
+        compactRow.layoutSubtreeIfNeeded()
+        let markdownView = try XCTUnwrap(firstDescendant(of: compactRow) { $0 is AppKitMarkdownView })
+        let clockView = try XCTUnwrap(firstDescendant(of: compactRow) { view in
+            guard let imageView = view as? NSImageView else {
+                return false
+            }
+            return !imageView.isHidden && imageView.image != nil
+        })
+
+        let contextView = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 100))
+        contextView.configure(makeNativeQueuedMessagesConfiguration([
+            QueuedMessage(text: "Queued follow-up", stagedContext: "Context block")
+        ]))
+        contextView.layoutSubtreeIfNeeded()
+        let contextRow = try XCTUnwrap(contextView.subviews.first)
+
+        XCTAssertEqual(compactRow.frame.height, 44)
+        XCTAssertLessThan(compactRow.frame.height, contextRow.frame.height)
+        XCTAssertEqual(markdownView.frame.midY, clockView.frame.midY + 2, accuracy: 0.5)
+    }
+
     func testComposerPanelQueuedMessagesUseEditorChromeColors() throws {
         let view = NSView()
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {

@@ -440,8 +440,11 @@ extension DefaultAgentsManager {
         case .idle:
             switch status.state {
             case .starting, .running:
-                // A live AgentCLIKit process may simply be waiting for stdin; Alveary marks busy from turn starts instead.
-                break
+                if status.isTurnActive {
+                    updateStatus(.busy, for: conversationId)
+                } else if self.status(for: conversationId) != .error {
+                    updateStatus(.idle, for: conversationId)
+                }
             case .exited, .cancelled:
                 if eventBuffers[conversationId]?.hasDeferredToolStop == true,
                    self.status(for: conversationId) == .waitingForUser {

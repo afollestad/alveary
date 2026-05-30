@@ -101,6 +101,20 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithNativeQueuedMessagesWithoutContext() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                queuedMessages: [
+                    QueuedMessage(text: "Test", stagedContext: nil),
+                    QueuedMessage(text: "Hi", stagedContext: nil)
+                ]
+            ),
+            size: CGSize(width: 1000, height: 200),
+            named: "appkit_composer_panel_native_queued_messages_without_context",
+            colorScheme: .dark
+        )
+    }
+
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedEffortLevels: ["low", "medium", "high"],

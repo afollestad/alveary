@@ -228,7 +228,12 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let textX = leadingPadding + iconSize + spacing
         let textWidth = max(0, actionsX - textX - 16)
         let textHeight = measuredTextHeight(width: textWidth)
-        markdownView.frame = NSRect(x: textX, y: verticalPadding, width: textWidth, height: textHeight)
+        // Single-line Markdown glyphs sit optically high inside their measured bounds; align them with the clock symbol.
+        let compactTextYOffset: CGFloat = 2
+        let textY = contextField.isHidden ?
+            floor((bounds.height - textHeight) / 2 + compactTextYOffset) :
+            verticalPadding
+        markdownView.frame = NSRect(x: textX, y: textY, width: textWidth, height: textHeight)
         markdownView.needsLayout = true
         markdownView.layoutSubtreeIfNeeded()
 
@@ -274,7 +279,9 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let contextHeight: CGFloat = contextField.isHidden ? 0 : 21
         let contextSpacing: CGFloat = contextField.isHidden ? 0 : 5
         let contentHeight = measuredTextHeight(width: textWidth) + contextSpacing + contextHeight
-        return ceil(max(50, contentHeight + 20))
+        let minimumHeight: CGFloat = contextField.isHidden ? 44 : 50
+        let verticalPadding: CGFloat = contextField.isHidden ? 16 : 20
+        return ceil(max(minimumHeight, contentHeight + verticalPadding))
     }
 
     private func setup() {

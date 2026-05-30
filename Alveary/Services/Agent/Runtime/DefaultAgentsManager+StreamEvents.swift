@@ -17,7 +17,7 @@ extension DefaultAgentsManager {
         managedBuffer.observedEventCount += 1
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
-        handleRuntimeStatusEvent(event, conversationId: conversationId, generation: generation)
+        await handleRuntimeStatusEvent(event, conversationId: conversationId, generation: generation)
 
         guard canTriggerNotification(event) else {
             return
@@ -44,10 +44,10 @@ extension DefaultAgentsManager {
         _ event: ConversationEvent,
         conversationId: String,
         generation: UUID
-    ) {
+    ) async {
         switch event {
         case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
-            handleTokenStatus(
+            await handleTokenStatus(
                 isError: isError,
                 stopReason: stopReason,
                 permissionDenials: permissionDenials,
@@ -87,7 +87,7 @@ extension DefaultAgentsManager {
         stopReason: String?,
         permissionDenials: [PermissionDenialSummary],
         conversationId: String
-    ) {
+    ) async {
         guard stopReason != ConversationEvent.interimUsageStopReason else {
             return
         }
@@ -100,10 +100,38 @@ extension DefaultAgentsManager {
             return
         }
 
+        if await isAgentCLIKitTurnStillActive(
+            isError: isError,
+            permissionDenials: permissionDenials,
+            conversationId: conversationId
+        ) {
+            updateStatus(.busy, for: conversationId)
+            return
+        }
+
         updateStatus(
             tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
             for: conversationId
         )
+    }
+
+    private func isAgentCLIKitTurnStillActive(
+        isError: Bool,
+        permissionDenials: [PermissionDenialSummary],
+        conversationId: String
+    ) async -> Bool {
+        guard usesAgentCLIKitRuntime, !isError, permissionDenials.isEmpty else {
+            return false
+        }
+        guard let services = agentCLIKitServices else {
+            return agentCLIKitStatuses[conversationId]?.isTurnActive == true
+        }
+        let status = await services.runtime.status(conversationId: services.hostAdapter.conversationId(conversationId))
+        if let status {
+            agentCLIKitStatuses[conversationId] = status
+            return status.isTurnActive
+        }
+        return agentCLIKitStatuses[conversationId]?.isTurnActive == true
     }
 
     private func handleToolDeferredStopIfNeeded(
