@@ -47,9 +47,8 @@ final class AppKitPromptOptionHitButton: NSButton {
 
     private func updatePressed(_ pressed: Bool) {
         onPressedChanged?(pressed)
-        // Mouse tracking blocks the normal run-loop presentation pass, so flush
-        // the host row's layer change immediately while the pointer is down.
-        window?.displayIfNeeded()
+        // Mouse tracking blocks the normal run-loop presentation pass, so commit
+        // the host row's layer-only pressed state without forcing window layout.
         CATransaction.flush()
     }
 

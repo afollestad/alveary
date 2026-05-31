@@ -90,6 +90,23 @@ final class AppKitTranscriptPromptBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("Option A"))
     }
 
+    func testRadioSelectionUpdatesInPlaceWithoutStableHeightInvalidation() throws {
+        let block = AppKitTranscriptPromptBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(.init(prompt: multiQuestionPrompt(), isBusy: false))
+        block.layoutSubtreeIfNeeded()
+        let firstCard = try XCTUnwrap(block.descendants(of: AppKitTranscriptPromptQuestionCardView.self).first)
+        let firstOptionRow = try XCTUnwrap(firstCard.optionRowsForTesting.first)
+        var invalidationCount = 0
+        block.onHeightInvalidated = { invalidationCount += 1 }
+        block.toggleOption(at: 0, option: promptOption(label: "Option A", description: "Use the smaller row slice."))
+        let updatedFirstCard = try XCTUnwrap(block.descendants(of: AppKitTranscriptPromptQuestionCardView.self).first)
+
+        XCTAssertTrue(updatedFirstCard === firstCard)
+        XCTAssertTrue(updatedFirstCard.optionRowsForTesting.first === firstOptionRow)
+        XCTAssertEqual(invalidationCount, 0)
+    }
+
     func testCustomResponseSerializesTypedTextInsteadOfOtherLabel() async {
         let block = AppKitTranscriptPromptBlockView()
         var submitted: [(question: String, answer: String)] = []

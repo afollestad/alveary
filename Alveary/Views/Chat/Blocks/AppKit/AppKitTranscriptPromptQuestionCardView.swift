@@ -49,6 +49,28 @@ final class AppKitTranscriptPromptQuestionCardView: NSView {
         invalidateTranscriptHeight(force: true)
     }
 
+    func updateSelectionState(selections: Set<String>, customResponse: String) -> Bool {
+        guard let configuration,
+              optionRows.count == configuration.question.renderedOptions.count else {
+            return false
+        }
+        self.configuration = Configuration(
+            index: configuration.index,
+            question: configuration.question,
+            selections: selections,
+            customResponse: customResponse,
+            typography: configuration.typography
+        )
+        for (row, option) in zip(optionRows, configuration.question.renderedOptions) {
+            row.updateSelectionState(
+                isSelected: selections.contains(option.id),
+                customResponse: customResponse
+            )
+        }
+        needsLayout = true
+        return true
+    }
+
     override func layout() {
         layoutContent()
         super.layout()
@@ -245,16 +267,32 @@ final class AppKitPromptOptionRowView: NSView, NSTextFieldDelegate {
         descriptionField.isHidden = replacesTextWithCustomField || configuration.option.description.isEmpty
         customField.stringValue = configuration.customResponse
         customField.isHidden = !replacesTextWithCustomField
-        if replacesTextWithCustomField {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, !self.customField.isHidden else {
-                    return
-                }
-                self.window?.makeFirstResponder(self.customField)
-            }
-        }
+        if replacesTextWithCustomField { focusCustomFieldOnNextPass() }
         needsLayout = true
         invalidateTranscriptHeight(force: true)
+    }
+
+    func updateSelectionState(isSelected: Bool, customResponse: String) {
+        guard let configuration else {
+            return
+        }
+        let wasCustomFieldVisible = !customField.isHidden
+        let updatedConfiguration = Configuration(
+            question: configuration.question,
+            option: configuration.option,
+            isSelected: isSelected,
+            customResponse: customResponse,
+            typography: configuration.typography
+        )
+        self.configuration = updatedConfiguration
+        button.state = isSelected ? .on : .off
+        let showsCustomField = configuration.option.isCustomResponse && isSelected
+        titleField.isHidden = showsCustomField
+        descriptionField.isHidden = showsCustomField || configuration.option.description.isEmpty
+        customField.stringValue = customResponse
+        customField.isHidden = !showsCustomField
+        if showsCustomField, !wasCustomFieldVisible { focusCustomFieldOnNextPass() }
+        needsLayout = true
     }
 
     override func layout() {
@@ -311,6 +349,13 @@ final class AppKitPromptOptionRowView: NSView, NSTextFieldDelegate {
         customField.delegate = self
         addSubview(customField)
         updatePressedAppearance()
+    }
+
+    private func focusCustomFieldOnNextPass() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.customField.isHidden else { return }
+            self.window?.makeFirstResponder(self.customField)
+        }
     }
 
     private func layoutContent() {

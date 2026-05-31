@@ -13,6 +13,8 @@ Rules for AppKit `AskUserQuestion` cards and submitted-response parsing.
 - Focus the inline custom-response field in the same interaction that selects `Other`.
 - Keep the full answer row clickable and give rows a visible pressed state; only the selected `Other` text field should take text-input clicks.
 - Keep native radio/switch controls committing selection for keyboard and accessibility activation; full-row mouse overlays should only handle hit-area and pressed-state preview.
+- Keep option selection incremental; normal radio/switch changes should not rebuild the full prompt row
+  or invalidate transcript height when the footer height is unchanged.
 - Keep a snapshot with `Other` selected so inline-field layout regressions show up.
 - Explain disabled submission caused by unanswered questions so multi-question prompts do not look stuck when required cards are off-screen.
 - Answered prompts render as structured Q/A rows.

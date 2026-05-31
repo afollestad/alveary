@@ -113,16 +113,17 @@ final class AppKitTranscriptPromptBlockView: NSView {
             current = [option.id]
         }
         selections[index] = current
-        rebuild()
-        needsLayout = true
-        layoutSubtreeIfNeeded()
-        invalidateTranscriptHeight(force: false)
+        if !updateQuestionViewSelectionState(at: index) {
+            rebuild()
+        }
+        updateSubmitState()
+        finishLocalPromptStateChange()
     }
 
     func updateCustomResponse(at index: Int, value: String) {
         customResponses[index] = value
         updateSubmitState()
-        invalidateTranscriptHeight(force: false)
+        finishLocalPromptStateChange()
     }
 
     func submit() async {
@@ -320,6 +321,20 @@ final class AppKitTranscriptPromptBlockView: NSView {
         statusField.isHidden = statusField.stringValue.isEmpty
         statusField.font = configuration.typography.nsFont(.caption)
         statusField.textColor = .secondaryLabelColor
+    }
+
+    private func updateQuestionViewSelectionState(at index: Int) -> Bool {
+        guard questionViews.indices.contains(index) else {
+            return false
+        }
+        return questionViews[index].updateSelectionState(
+            selections: selections[index] ?? [],
+            customResponse: customResponses[index] ?? ""
+        )
+    }
+
+    private func finishLocalPromptStateChange() {
+        needsLayout = true
     }
 
     private func isQuestionAnswered(_ question: PromptEntry.PromptQuestion, at index: Int) -> Bool {

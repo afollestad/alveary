@@ -45,6 +45,9 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - Unanswered prompt presentation is a row-top pin, not a bottom scroll.
   Route it through `AppKitTranscriptRowTopScrollRequest`, keep the prompt row stable at the viewport top,
   and let transient thinking rows mount underneath without stealing the pin.
+  Keep the row-top request one-shot; delayed retries can fight mouse-wheel scrolling as the user leaves the pin.
+  Do not special-case scroll metrics during the pin suppression window; mouse-wheel deltas should use normal user-scroll handling.
+  After the pin settles, release follow mode unless the viewport is actually near bottom so mouse-wheel scrolling stays user-owned.
 
 ## Pending Scroll Watchdog
 

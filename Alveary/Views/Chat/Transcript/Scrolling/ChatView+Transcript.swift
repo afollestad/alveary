@@ -30,6 +30,7 @@ struct ChatTranscriptView: View {
     @State var appKitScrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
     @State private var appKitScrollToRowTopRequestID = 0
     @State private var promptTopPinnedRowID: String?
+    @State private var promptTopPinnedPromptID: String?
     @State private var isPromptTopScrollPending = false
     @State private var promptTopScrollTimeoutToken: UUID?
     @State var transcriptContentWidth: CGFloat = 0
@@ -125,10 +126,6 @@ extension ChatTranscriptView {
         newMetrics: ChatTranscriptScrollMetrics
     ) {
         latestMetrics = newMetrics
-        if isPromptTopScrollPending {
-            isFollowing = true
-            return
-        }
         if let pendingProgrammaticScrollMode {
             let action = ChatTranscriptScrollBehavior.pendingScrollAction(
                 pending: pendingProgrammaticScrollMode,
@@ -177,47 +174,41 @@ private extension ChatTranscriptView {
         appKitScrollToRowTopRequest = AppKitTranscriptRowTopScrollRequest(
             id: appKitScrollToRowTopRequestID,
             rowID: rowID,
-            topInset: transcriptTopInset
+            topInset: 0
         )
     }
 
     @discardableResult
     func pinLatestPromptTopIfNeeded() -> Bool {
-        guard let rowID = latestUnansweredPromptRowID else {
+        guard let prompt = latestUnansweredPrompt else {
             promptTopPinnedRowID = nil
+            promptTopPinnedPromptID = nil
             isPromptTopScrollPending = false
             promptTopScrollTimeoutToken = nil
+            appKitScrollToRowTopRequest = nil
             return false
         }
-        guard isFollowing || promptTopPinnedRowID == rowID else {
+        let isCurrentPin = promptTopPinnedRowID == prompt.rowID &&
+            promptTopPinnedPromptID == prompt.promptID
+        if isPromptTopScrollPending && isCurrentPin {
+            return true
+        }
+        guard isFollowing, !isCurrentPin else {
             return false
         }
 
-        if promptTopPinnedRowID != rowID {
-            promptTopPinnedRowID = rowID
-            scrollToRowTop(rowID: rowID)
-        }
+        promptTopPinnedRowID = prompt.rowID
+        promptTopPinnedPromptID = prompt.promptID
+        scrollToRowTop(rowID: prompt.rowID)
         return true
     }
 
     func scrollToRowTop(rowID: String, at time: Date = Date()) {
         pendingProgrammaticScrollMode = nil
         isPromptTopScrollPending = true
-        isFollowing = true
+        isFollowing = false
         lastScrollTime = time
         issueImmediateRowTopScroll(rowID: rowID)
-        DispatchQueue.main.async {
-            guard promptTopPinnedRowID == rowID else {
-                return
-            }
-            issueImmediateRowTopScroll(rowID: rowID)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            guard promptTopPinnedRowID == rowID else {
-                return
-            }
-            issueImmediateRowTopScroll(rowID: rowID)
-        }
         schedulePromptTopScrollTimeout()
     }
 
@@ -228,6 +219,7 @@ private extension ChatTranscriptView {
     ) {
         isPromptTopScrollPending = false
         promptTopScrollTimeoutToken = nil
+        appKitScrollToRowTopRequest = nil
         pendingProgrammaticScrollMode = forceFollow ? .jumpToLatest : .preserveFollow
         if forceFollow {
             isFollowing = true
@@ -262,6 +254,10 @@ private extension ChatTranscriptView {
             }
             promptTopScrollTimeoutToken = nil
             isPromptTopScrollPending = false
+            if promptTopPinnedRowID != nil,
+               latestMetrics?.isNearBottom != true {
+                isFollowing = false
+            }
         }
     }
 
@@ -306,11 +302,14 @@ private extension ChatTranscriptView {
         return lastEvent.type == "message" && lastEvent.role == "user"
     }
 
-    var latestUnansweredPromptRowID: String? {
-        guard case .promptBlock(let rowID, let prompt) = viewModel.state.grouper.items.last,
-              prompt.submittedSummary == nil else {
-            return nil
+    var latestUnansweredPrompt: (rowID: String, promptID: String)? {
+        for item in viewModel.state.grouper.items.reversed() {
+            guard case .promptBlock(let rowID, let prompt) = item,
+                  prompt.submittedSummary == nil else {
+                continue
+            }
+            return (rowID, prompt.id)
         }
-        return rowID
+        return nil
     }
 }

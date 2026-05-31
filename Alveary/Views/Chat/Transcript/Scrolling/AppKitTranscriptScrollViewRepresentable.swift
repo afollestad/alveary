@@ -159,7 +159,12 @@ final class AppKitTranscriptScrollBridgeCoordinator {
 
         let rows = rowFactory.makeRows(for: update.items, transientRows: update.transientRows, configuration: rowConfiguration)
         isBuildingRows = false
-        container.configure(rows: rows, dirtyRowIDs: pendingDirtyRowIDs, preserveBottomIfFollowing: update.isFollowing)
+        let hasPendingRowTopScroll = shouldHonorRowTopRequest(update.scrollToRowTopRequest)
+        container.configure(
+            rows: rows,
+            dirtyRowIDs: pendingDirtyRowIDs,
+            preserveBottomIfFollowing: update.isFollowing && !hasPendingRowTopScroll
+        )
         lastAppliedContentSignature = update.contentSignature
 
         honorScrollRequestsIfNeeded(
@@ -174,6 +179,17 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         scrollToBottomRequest: Int,
         scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
     ) {
+        if shouldHonorRowTopRequest(scrollToRowTopRequest),
+           let scrollToRowTopRequest,
+           container.scrollToRowTop(
+               rowID: scrollToRowTopRequest.rowID,
+               topInset: scrollToRowTopRequest.topInset
+           ) {
+            lastScrollToRowTopRequest = scrollToRowTopRequest
+            lastScrollToBottomRequest = scrollToBottomRequest
+            return
+        }
+
         let shouldHonorScrollRequest = if let lastScrollToBottomRequest {
             lastScrollToBottomRequest != scrollToBottomRequest
         } else {
@@ -184,16 +200,13 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             container.scrollToBottom()
         }
         lastScrollToBottomRequest = scrollToBottomRequest
+    }
 
-        guard let scrollToRowTopRequest,
-              lastScrollToRowTopRequest != scrollToRowTopRequest,
-              container.scrollToRowTop(
-                  rowID: scrollToRowTopRequest.rowID,
-                  topInset: scrollToRowTopRequest.topInset
-              ) else {
-            return
+    private func shouldHonorRowTopRequest(_ request: AppKitTranscriptRowTopScrollRequest?) -> Bool {
+        guard let request else {
+            return false
         }
-        lastScrollToRowTopRequest = scrollToRowTopRequest
+        return lastScrollToRowTopRequest != request
     }
 }
 

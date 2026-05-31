@@ -10,6 +10,7 @@ extension AppKitTranscriptScrollBridgeTests {
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let prompt = promptTopPinPromptItem(rowID: "prompt")
         let items = promptTopPinTallAssistantItems + [prompt]
+        var metrics: [ChatTranscriptScrollMetrics] = []
 
         coordinator.update(
             container: container,
@@ -28,11 +29,16 @@ extension AppKitTranscriptScrollBridgeTests {
             items: items,
             rowConfiguration: .init(bubbleMaxWidth: 220),
             isFollowing: true,
-            scrollToBottomRequest: 1,
-            scrollToRowTopRequest: .init(id: 1, rowID: "prompt", topInset: 0)
+            scrollToBottomRequest: 2,
+            scrollToRowTopRequest: .init(id: 1, rowID: "prompt", topInset: 0),
+            onScrollMetricsChanged: { metrics.append($0) }
         )
+        for _ in 0..<100 where metrics.isEmpty {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
 
         XCTAssertEqual(container.scrollOffsetY, promptFrame.minY, accuracy: 0.5)
+        XCTAssertFalse(metrics.contains { abs($0.offsetY - promptFrame.minY) > 0.5 })
     }
 
     func testTransientThinkingRowDoesNotOverridePromptTopPin() async throws {
