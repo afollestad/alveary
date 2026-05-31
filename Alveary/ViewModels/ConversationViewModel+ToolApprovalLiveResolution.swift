@@ -112,6 +112,46 @@ extension ConversationViewModel {
         }
     }
 
+    func resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: String) {
+        let conversationID = conversation.id
+        let approvalRecords = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.type == "tool_approval" &&
+                        $0.toolId == toolUseId &&
+                        $0.toolApprovalStatus == nil
+                }
+            )
+        )) ?? []
+        guard !approvalRecords.isEmpty else {
+            return
+        }
+
+        let status = completedToolResultApprovalStatus(toolUseId: toolUseId)
+        for approvalRecord in approvalRecords {
+            approvalRecord.toolApprovalStatus = status.rawValue
+        }
+        do {
+            try modelContext.save()
+            if state.pendingToolApproval?.request.toolUseId == toolUseId {
+                state.pendingToolApproval = nil
+            }
+            refreshTranscriptForToolApprovalStatusChanges()
+        } catch {
+            // Best-effort: a completed tool row still prevents restore-time rehydration.
+        }
+    }
+
+    func completedToolResultApprovalStatus(toolUseId: String) -> ToolApprovalStatus {
+        guard let pendingApproval = state.pendingToolApproval,
+              pendingApproval.request.toolUseId == toolUseId,
+              let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
+            return .approved
+        }
+        return resolvedStatus
+    }
+
     func refreshTranscriptForToolApprovalStatusChanges() {
         let conversationID = conversation.id
         let records = (try? modelContext.fetch(
@@ -126,6 +166,20 @@ extension ConversationViewModel {
             )
         )) ?? []
         rebuildChatItemsIfNeeded(from: records, forceFullRebuild: true)
+    }
+
+    func toolApprovalAlreadyHasResult(_ approval: ToolApprovalRequest) -> Bool {
+        let conversationID = conversation.id
+        let toolUseId = approval.toolUseId
+        return (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.type == "tool_result" &&
+                        $0.toolId == toolUseId
+                }
+            )
+        ).isEmpty == false) ?? false
     }
 
     func resolvedStatus(for status: ToolApprovalStatus) -> ToolApprovalStatus? {

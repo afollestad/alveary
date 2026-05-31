@@ -20,10 +20,10 @@ extension ConversationViewModel {
     }
 
     func flushPendingSaveIfNeeded() async {
-        guard let saveTask else {
-            return
+        // A finishing save can schedule a follow-up snapshot; approval resumes need the final cursor.
+        while let saveTask {
+            await saveTask.value
         }
-        await saveTask.value
     }
 }
 

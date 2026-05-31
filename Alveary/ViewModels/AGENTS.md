@@ -16,6 +16,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Handle inbound events.** Put provider event filtering, token stop handling, and synthetic event records in `ConversationViewModel+EventHandling.swift`.
   - **Record local user messages.** Put transcript-local user message insertion and auto-naming side effects in `ConversationViewModel+LocalMessages.swift`.
   - **Persist runtime state.** Put debounced SwiftData saves and runtime-buffer cursor acknowledgement in `ConversationViewModel+Persistence.swift`.
+  - **Drain resume cursors.** Fallback approval resumes must wait for all queued debounced saves, including follow-up saves, before resetting subscription tracking.
 - Keep automatic session handoff terminal-aware:
   - **Mark pending from usage.** Context-window token rows may mark handoff pending before the provider turn is complete.
   - **Trigger on completion.** Start handoff only from a successful terminal token stop, keep queued messages behind pending handoff, and clear pending state on errors, interruptions, explicit stops, or handoff start.
@@ -23,3 +24,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Allow stays active.** Live approval can continue the provider turn, so leave `turnState` active until a terminal event arrives.
   - **Deny ends UI turn.** After a live denial decision is accepted, end the local turn even if Claude's trailing permission-denial token is delayed; later terminal tokens are still safe to process.
   - **Clear plan exits early.** A live `ExitPlanMode` approval should stop blocking the composer once the stream reports a non-plan permission mode or a successful matching tool result; do not wait for the final token while implementation is already streaming.
+  - **Preserve fallback batches.** Fallback `tool_deferred` ends the local turn before delayed sibling approvals can arrive.
+    Same-session same-family pending approvals should stay unresolved for batch resolution instead of being superseded only because `turnState.isActive` is false.
+    Interleaved read-only tool results should not break same-family approval discovery; exclude approval rows only when their own tool result has arrived.
+  - **Do not reopen completed approvals.** A matching tool result terminalizes unresolved approval rows, and late approval events for that tool ID must not recreate pending approval UI.

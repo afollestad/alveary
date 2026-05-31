@@ -89,11 +89,11 @@ extension ChatItemGrouper {
     }
 
     func handleToolResult(_ event: ConversationEventRecord) {
-        currentToolApprovalBatch = nil
-
         guard let toolId = event.toolId else {
             return
         }
+        clearCurrentToolApprovalBatchIfResultCompletes(toolId: toolId)
+
         guard !promptToolIds.contains(toolId) else {
             return
         }

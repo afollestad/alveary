@@ -105,12 +105,27 @@ extension ChatItemGrouper {
             toolInput: tool.input
         )
 
-        let batchIndex = insertStandaloneTool(tool, beforeApprovalAt: index)
+        let approvalItem = items.remove(at: index)
+        appendTranscriptItem(.standaloneTool(id: "tool-\(tool.id)", tool: tool))
         return appendApproval(
             approval,
             status: currentToolApprovalBatch.status,
-            toApprovalItemAt: batchIndex
+            toApprovalItem: approvalItem
         )
+    }
+
+    func clearCurrentToolApprovalBatchIfResultCompletes(toolId: String) {
+        guard let currentToolApprovalBatch else {
+            return
+        }
+        guard let index = items.firstIndex(where: { $0.id == currentToolApprovalBatch.itemId }) else {
+            self.currentToolApprovalBatch = nil
+            return
+        }
+        guard approvalToolIds(in: items[index]).contains(toolId) else {
+            return
+        }
+        self.currentToolApprovalBatch = nil
     }
 
     private func approvalToolNames(in item: ChatItem) -> [String] {
@@ -153,17 +168,22 @@ extension ChatItemGrouper {
         return false
     }
 
-    private func insertStandaloneTool(_ tool: ToolEntry, beforeApprovalAt index: Int) -> Int {
-        items.insert(.standaloneTool(id: "tool-\(tool.id)", tool: tool), at: index)
-        return items.index(after: index)
+    private func approvalToolIds(in item: ChatItem) -> Set<String> {
+        switch item {
+        case .toolApproval(_, let approval, _):
+            return [approval.toolUseId]
+        case .toolApprovalBatch(_, let approvals, _):
+            return Set(approvals.map(\.toolUseId))
+        default:
+            return []
+        }
     }
 
     private func appendApproval(
         _ approval: ToolApprovalRequest,
         status: ToolApprovalStatus?,
-        toApprovalItemAt index: Int
+        toApprovalItem item: ChatItem
     ) -> Bool {
-        let item = items[index]
         let itemId: String
         let approvals: [ToolApprovalRequest]
         switch item {
@@ -179,7 +199,7 @@ extension ChatItemGrouper {
             return false
         }
 
-        items[index] = .toolApprovalBatch(id: itemId, approvals: approvals, status: status)
+        appendTranscriptItem(.toolApprovalBatch(id: itemId, approvals: approvals, status: status))
         self.currentToolApprovalBatch = ToolApprovalBatchState(
             itemId: itemId,
             sessionId: approval.sessionId,

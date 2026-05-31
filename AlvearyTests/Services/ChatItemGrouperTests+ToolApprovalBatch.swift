@@ -84,6 +84,23 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(approvals.map(\.toolUseId), ["tool-pwd", "tool-date"])
     }
 
+    func testParallelToolApprovalsStayBatchedAcrossInterleavedReadOnlyResult() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let sessionId = "session-123"
+
+        grouper.update(events: interleavedReadOnlyApprovalEvents(conversationId: conversationId, sessionId: sessionId))
+
+        XCTAssertEqual(grouper.items.count, 4)
+        let standaloneTools = standaloneTools(in: grouper.items)
+        XCTAssertEqual(standaloneTools.map(\.id), ["tool-git-log", "tool-ls"])
+        XCTAssertTrue(standaloneTools.allSatisfy { !$0.isComplete })
+        XCTAssertEqual(toolGroups(in: grouper.items).map { $0.map(\.id) }, [["tool-grep"]])
+        XCTAssertTrue(toolGroups(in: grouper.items).flatMap { $0 }.allSatisfy(\.isComplete))
+        XCTAssertEqual(toolApprovalBatches(in: grouper.items).map { $0.approvals.map(\.toolUseId) }, [["tool-git-log", "tool-ls"]])
+        XCTAssertNil(toolApprovalBatches(in: grouper.items).first?.status)
+    }
+
     func testPendingApprovalBatchesLaterSameToolCallsBeforeAnyResult() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
@@ -321,6 +338,92 @@ private func bashToolApproval(
         toolInput: "{\"command\":\"\(command)\"}",
         toolApprovalStatus: status?.rawValue
     )
+}
+
+private func interleavedReadOnlyApprovalEvents(conversationId: String, sessionId: String) -> [ConversationEventRecord] {
+    [
+        bashToolCall(
+            id: "first-call",
+            conversationId: conversationId,
+            toolId: "tool-git-log",
+            command: "git log --oneline -5"
+        ),
+        bashToolApproval(
+            id: "first-approval",
+            conversationId: conversationId,
+            sessionId: sessionId,
+            toolId: "tool-git-log",
+            command: "git log --oneline -5"
+        ),
+        grepToolCall(id: "grep-call", conversationId: conversationId, toolId: "tool-grep", pattern: "**/*.html"),
+        toolResult(id: "grep-result", conversationId: conversationId, toolId: "tool-grep", output: "index.html"),
+        bashToolCall(id: "second-call", conversationId: conversationId, toolId: "tool-ls", command: "ls images/"),
+        bashToolApproval(
+            id: "second-approval",
+            conversationId: conversationId,
+            sessionId: sessionId,
+            toolId: "tool-ls",
+            command: "ls images/"
+        )
+    ]
+}
+
+private func grepToolCall(
+    id: String,
+    conversationId: String,
+    toolId: String,
+    pattern: String
+) -> ConversationEventRecord {
+    ConversationEventRecord(
+        id: id,
+        conversationId: conversationId,
+        type: "tool_call",
+        toolId: toolId,
+        toolName: "Grep",
+        toolInput: #"{"pattern":"\#(pattern)"}"#
+    )
+}
+
+private func toolResult(
+    id: String,
+    conversationId: String,
+    toolId: String,
+    output: String
+) -> ConversationEventRecord {
+    ConversationEventRecord(
+        id: id,
+        conversationId: conversationId,
+        type: "tool_result",
+        toolId: toolId,
+        toolOutput: output
+    )
+}
+
+private func standaloneTools(in items: [ChatItem]) -> [ToolEntry] {
+    items.compactMap { item in
+        guard case .standaloneTool(_, let tool) = item else {
+            return nil
+        }
+        return tool
+    }
+}
+
+private func toolGroups(in items: [ChatItem]) -> [[ToolEntry]] {
+    items.compactMap { item in
+        guard case .toolGroup(_, let tools) = item else {
+            return nil
+        }
+        return tools
+    }
+}
+
+private func toolApprovalBatches(in items: [ChatItem]) -> [(approvals: [ToolApprovalRequest], status: ToolApprovalStatus?)] {
+    items.compactMap { item in
+        guard case .toolApprovalBatch(_, let approvals, let status) = item else {
+            return nil
+        }
+        return (approvals, status)
+    }
 }
 
 private func writeToolCall(

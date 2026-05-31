@@ -4,6 +4,7 @@ These instructions apply to files under `AlvearyTests/`.
 
 - Run the smallest relevant test scope you can, typically with `./scripts/test.sh <focused identifier>`.
 - When updating UI, verify whether snapshot tests need to be updated and run the relevant snapshot checks before finishing.
+- Do not assert exact SPM dependency revisions in tests; dependency pins are configuration, and regressions should be covered by behavior-focused tests.
 
 ## Test File Organization
 

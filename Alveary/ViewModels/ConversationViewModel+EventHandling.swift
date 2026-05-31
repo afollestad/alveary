@@ -4,6 +4,7 @@ extension ConversationViewModel {
             return
         }
         persistEventRecord(for: event)
+        handlePostPersistEvent(event)
     }
 }
 
@@ -50,6 +51,14 @@ private extension ConversationViewModel {
         default:
             return true
         }
+    }
+
+    func handlePostPersistEvent(_ event: ConversationEvent) {
+        guard case .toolResult(let id, _, _, _, _) = event else {
+            return
+        }
+        // Tool output proves the approval prompt is terminal even if the provider replays prompts late.
+        resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: id)
     }
 
     func handlePermissionModeChanged(_ permissionMode: String) -> Bool {

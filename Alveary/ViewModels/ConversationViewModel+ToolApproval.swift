@@ -77,6 +77,10 @@ extension ConversationViewModel {
         guard state.pendingToolApproval?.request != approval else {
             return false
         }
+        // A completed tool result is terminal for that approval; do not reopen stale provider prompts.
+        guard !toolApprovalAlreadyHasResult(approval) else {
+            return false
+        }
 
         replacePendingToolApproval(with: approval)
         return true
@@ -325,10 +329,15 @@ private extension ConversationViewModel {
     }
 
     func shouldPreservePendingToolApprovalBatch(replacingWith approval: ToolApprovalRequest) -> Bool {
-        guard state.turnState.isActive,
-              let pendingApproval = state.pendingToolApproval,
+        // Fallback deferral ends the local turn before delayed sibling hooks arrive.
+        // Same-session, same-family approvals still belong to one user decision batch.
+        guard let pendingApproval = state.pendingToolApproval,
               pendingApproval.status == .pending,
-              pendingApproval.request.sessionId == approval.sessionId else {
+              pendingApproval.request.sessionId == approval.sessionId,
+              ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+                  toolName: approval.toolName,
+                  with: [pendingApproval.request.toolName]
+              ) else {
             return false
         }
         return true

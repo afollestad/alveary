@@ -177,6 +177,139 @@ struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
+struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let counter = AgentCLIKitLaunchCounter()
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        let launch = await counter.next()
+        let output = launch == 1 ? "approval:first" : "approval:second\nmessage:resumed"
+        return AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf '%s\\n' \"$1\"", "agent", output],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let marker = line.removingPrefix("approval:") {
+            return [
+                .interaction(AgentCLIKit.AgentInteractionEvent(
+                    id: "tool-1",
+                    kind: .approval,
+                    prompt: "Bash",
+                    metadata: [
+                        "session_id": .string("session-1"),
+                        "tool_name": .string("Bash"),
+                        "tool_input": .object(["command": .string("pwd")]),
+                        "raw_event": .string(marker)
+                    ]
+                )),
+                .usage(AgentCLIKit.AgentUsageEvent(
+                    model: "claude",
+                    inputTokens: marker == "first" ? 10 : 11,
+                    outputTokens: marker == "first" ? 1 : 2,
+                    durationMs: marker == "first" ? 100 : 200,
+                    stopReason: "tool_deferred",
+                    metadata: [
+                        "stop_reason": .string("tool_deferred"),
+                        "raw_event": .string(marker)
+                    ]
+                ))
+            ]
+        }
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+}
+
+struct DeferredDeltaReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let counter = AgentCLIKitLaunchCounter()
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        let launch = await counter.next()
+        let output = launch == 1
+            ? "delta:Running 4 tools in parallel now.\ntool:glob-old\nresult:glob-old\napproval:first"
+            : "message:Running 4 tools in parallel now.\ntool:glob-new\nresult:glob-new\nmessage:resumed"
+        return AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf '%s\\n' \"$1\"", "agent", output],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let text = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: text))]
+        }
+        if let text = line.removingPrefix("delta:") {
+            return [.messageDelta(AgentCLIKit.AgentMessageDeltaEvent(role: .assistant, text: text))]
+        }
+        if let toolId = line.removingPrefix("tool:") {
+            return [.toolCall(AgentCLIKit.AgentToolCallEvent(
+                id: toolId,
+                name: "Glob",
+                input: .object(["pattern": .string("**/*.html")])
+            ))]
+        }
+        if let toolId = line.removingPrefix("result:") {
+            return [.toolResult(AgentCLIKit.AgentToolResultEvent(id: toolId, isError: false, content: "index.html"))]
+        }
+        if let marker = line.removingPrefix("approval:") {
+            return [
+                .interaction(AgentCLIKit.AgentInteractionEvent(
+                    id: "tool-1",
+                    kind: .approval,
+                    prompt: "Bash",
+                    metadata: [
+                        "session_id": .string("session-1"),
+                        "tool_name": .string("Bash"),
+                        "tool_input": .object(["command": .string("git status")]),
+                        "raw_event": .string(marker)
+                    ]
+                )),
+                .usage(AgentCLIKit.AgentUsageEvent(
+                    model: "claude",
+                    inputTokens: 10,
+                    outputTokens: 1,
+                    durationMs: 100,
+                    stopReason: "tool_deferred",
+                    metadata: [
+                        "stop_reason": .string("tool_deferred"),
+                        "raw_event": .string(marker)
+                    ]
+                ))
+            ]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+}
+
 struct DelayedInitialLaunchAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let definition = AgentCLIKit.AgentProviderDefinition(
         id: .claude,

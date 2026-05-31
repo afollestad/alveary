@@ -53,6 +53,139 @@ extension ConversationViewModelTests {
         XCTAssertEqual(oldApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
     }
 
+    func testFallbackParallelApprovalKeepsAndSubmitsOlderSameFamilyApproval() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let conversation = try fixture.dbConversation()
+        let firstApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git status\"}"
+        )
+        let secondApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-2",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git log --oneline -5\"}"
+        )
+        let firstApprovalRecord = toolApprovalRecord(
+            conversation: conversation,
+            request: firstApproval,
+            timestamp: 1
+        )
+        fixture.context.insert(firstApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: firstApproval, status: .pending)
+
+        fixture.viewModel.handleEvent(.toolApprovalRequested(secondApproval))
+        try await fixture.viewModel.approveToolUse(toolUseId: secondApproval.toolUseId)
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.first?.additionalApprovals, [firstApproval])
+        XCTAssertEqual(firstApprovalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: secondApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+    }
+
+    func testParallelApprovalSubmitsOlderSameFamilyApprovalAcrossReadOnlyResult() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let firstApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-git-log",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git log --oneline -5\"}"
+        )
+        let secondApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-ls",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"ls images/\"}"
+        )
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: firstApproval,
+            timestamp: 1
+        ))
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_call",
+            toolId: "tool-grep",
+            toolName: "Grep",
+            toolInput: #"{"pattern":"**/*.html"}"#,
+            timestamp: Date(timeIntervalSince1970: 2),
+            conversation: conversation
+        ))
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_result",
+            toolId: "tool-grep",
+            toolOutput: "index.html",
+            timestamp: Date(timeIntervalSince1970: 3),
+            conversation: conversation
+        ))
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: secondApproval,
+            timestamp: 4
+        ))
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: secondApproval, status: .pending)
+
+        try await fixture.viewModel.approveToolUse(toolUseId: secondApproval.toolUseId)
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.first?.additionalApprovals, [firstApproval])
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: firstApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: secondApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+    }
+
+    func testRelatedBatchApprovalsDoNotIncludeApprovalWhoseOwnToolResultArrived() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let firstApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-git-status",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git status\"}"
+        )
+        let secondApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-git-log",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git log --oneline -5\"}"
+        )
+        let firstApprovalRecord = toolApprovalRecord(
+            conversation: conversation,
+            request: firstApproval,
+            timestamp: 1
+        )
+        fixture.context.insert(firstApprovalRecord)
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_result",
+            toolId: firstApproval.toolUseId,
+            toolOutput: "On branch main",
+            timestamp: Date(timeIntervalSince1970: 2),
+            conversation: conversation
+        ))
+        fixture.context.insert(toolApprovalRecord(
+            conversation: conversation,
+            request: secondApproval,
+            timestamp: 3
+        ))
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: secondApproval, status: .pending)
+
+        try await fixture.viewModel.approveToolUse(toolUseId: secondApproval.toolUseId)
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertTrue(calls.first?.additionalApprovals.isEmpty == true)
+        XCTAssertNil(firstApprovalRecord.toolApprovalStatus)
+        XCTAssertEqual(firstApprovalStatus(in: conversation, toolUseId: secondApproval.toolUseId), ToolApprovalStatus.approved.rawValue)
+    }
+
     func testRelatedBatchApprovalStatusIsNotPersistedWhenApprovalFails() async throws {
         let fixture = try ConversationViewModelTestFixture(
             approvalError: .approvalFailed,

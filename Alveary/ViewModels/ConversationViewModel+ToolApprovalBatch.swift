@@ -73,6 +73,8 @@ private extension ConversationViewModel {
     ) -> Range<Array<ConversationEventRecord>.Index> {
         // A live approval batch is bounded by transcript-break events, not by approval rows:
         // Claude may emit several sibling tool calls first and then invoke their hooks one at a time.
+        // Keep tool results inside the window so unrelated read-only completions do not split
+        // parallel approval hooks; `completedToolIds` below excludes any tool whose own result arrived.
         let lowerBound = orderedEvents[..<approvalIndex].lastIndex(where: isApprovalBatchBoundary)
             .map { orderedEvents.index(after: $0) } ?? orderedEvents.startIndex
         let upperBound = orderedEvents[orderedEvents.index(after: approvalIndex)...].firstIndex {
@@ -83,7 +85,7 @@ private extension ConversationViewModel {
 
     func isApprovalBatchBoundary(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case "tool_result", "message", "error", "stop":
+        case "message", "error", "stop":
             return true
         default:
             return false

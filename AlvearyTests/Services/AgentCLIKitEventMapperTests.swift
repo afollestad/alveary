@@ -74,6 +74,34 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(stopReason, "tool_deferred")
     }
 
+    func testMapsClaudeAssistantUsageAsInterimUsageUpdate() throws {
+        let decodedEvents = try ClaudeStreamDecoder().decodeLine(#"""
+        {
+          "type": "assistant",
+          "model": "sonnet",
+          "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Working"}],
+            "usage": {
+              "input_tokens": 12,
+              "output_tokens": 3
+            }
+          }
+        }
+        """#)
+        let conversationEvents = decodedEvents.flatMap {
+            AgentCLIKitEventMapper().conversationEvents(from: envelope($0))
+        }
+        let tokenEvents = conversationEvents.compactMap { event -> String? in
+            guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _) = event else {
+                return nil
+            }
+            return stopReason
+        }
+
+        XCTAssertEqual(tokenEvents, [ConversationEvent.interimUsageStopReason])
+    }
+
     func testMapsPromptInteractionToToolApprovalRequest() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
             .interaction(AgentInteractionEvent(
