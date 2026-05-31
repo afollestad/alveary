@@ -160,14 +160,15 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Question prompt can no longer be answered")
         }
 
-        state.pendingToolApproval = PendingToolApproval(
+        let resolvingApproval = PendingToolApproval(
             request: pendingApproval.request,
             status: .approving
         )
+        state.pendingToolApproval = resolvingApproval
 
         do {
             try await resumeDeferredToolUse(
-                pendingApproval,
+                resolvingApproval,
                 decision: .allow,
                 sessionApprovalScope: nil,
                 updatedToolInput: updatedToolInput

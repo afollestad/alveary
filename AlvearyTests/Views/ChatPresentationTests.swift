@@ -147,6 +147,36 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.contextWindowCacheLookupID, "claude:opus")
     }
 
+    func testThreadPresentationUsesRuntimePermissionModeForPickerDisplay() {
+        let thread = AgentThread(
+            name: "Plan mode",
+            permissionMode: "default"
+        )
+
+        let presentation = ChatThreadPresentation(
+            thread: thread,
+            providerID: "claude",
+            runtimePermissionMode: "plan"
+        )
+
+        XCTAssertEqual(presentation.selectedPermissionMode, "plan")
+    }
+
+    func testThreadPresentationUsesRuntimePermissionModeAfterPlanExit() {
+        let thread = AgentThread(
+            name: "Plan mode",
+            permissionMode: "plan"
+        )
+
+        let presentation = ChatThreadPresentation(
+            thread: thread,
+            providerID: "claude",
+            runtimePermissionMode: "acceptEdits"
+        )
+
+        XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
+    }
+
     func testThreadPresentationShowsSessionLocationAfterSetup() {
         let project = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
         let thread = AgentThread(

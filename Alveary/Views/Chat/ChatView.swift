@@ -52,7 +52,11 @@ struct ChatView: View {
     }
 
     private var threadPresentation: ChatThreadPresentation {
-        ChatThreadPresentation(thread: conversation.thread, providerID: providerID)
+        ChatThreadPresentation(
+            thread: conversation.thread,
+            providerID: providerID,
+            runtimePermissionMode: viewModel.state.runtimePermissionMode
+        )
     }
 
     private var contextWindowCacheLookupID: String {

@@ -368,7 +368,7 @@ extension ConversationViewModelTests {
         return (promptRecord, approvalRecord)
     }
 
-    private func writeClaudeSessionFile(
+    func writeClaudeSessionFile(
         sessionId: String,
         cwd: String,
         toolUseId: String,

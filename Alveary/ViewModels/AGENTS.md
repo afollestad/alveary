@@ -24,6 +24,8 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Allow stays active.** Live approval can continue the provider turn, so leave `turnState` active until a terminal event arrives.
   - **Deny ends UI turn.** After a live denial decision is accepted, end the local turn even if Claude's trailing permission-denial token is delayed; later terminal tokens are still safe to process.
   - **Clear plan exits early.** A live `ExitPlanMode` approval should stop blocking the composer once the stream reports a non-plan permission mode or a successful matching tool result; do not wait for the final token while implementation is already streaming.
+  - **Mirror live plan mode.** Runtime `permissionModeChanged` state is the source of truth for the composer permission picker while a session is live; fall back to the stored thread mode only when runtime mode is unknown.
+  - **Answer the newest prompt approval.** `AskUserQuestion` answers must resolve the newest unresolved same-prompt approval record before using stale in-memory approval state or falling back to normal Q/A sends.
   - **Preserve fallback batches.** Fallback `tool_deferred` ends the local turn before delayed sibling approvals can arrive.
     Same-session same-family pending approvals should stay unresolved for batch resolution instead of being superseded only because `turnState.isActive` is false.
     Interleaved read-only tool results should not break same-family approval discovery; exclude approval rows only when their own tool result has arrived.

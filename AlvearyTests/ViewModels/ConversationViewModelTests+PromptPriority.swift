@@ -118,7 +118,7 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
-        XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
     func testAnswerPromptCanResolveLiveDeferredAskUserQuestion() async throws {
@@ -171,7 +171,7 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
-        XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
     func testLiveAskUserQuestionPromptSubmitIsAvailableDuringActiveTurn() throws {
@@ -251,6 +251,52 @@ extension ConversationViewModelTests {
         XCTAssertTrue(approvalCalls.first?.additionalApprovals.isEmpty == true)
     }
 
+    func testAnswerPromptResumesNewerFallbackAskUserQuestionWhenEarlierHookFailed() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let promptInput = #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        let promptApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: promptInput
+        )
+        let promptRecord = askUserQuestionToolCallRecord(conversation: conversation, promptInput: promptInput, timestamp: 1)
+        let oldApprovalRecord = toolApprovalRecord(conversation: conversation, approval: promptApproval, timestamp: 2)
+        oldApprovalRecord.toolApprovalStatus = ToolApprovalStatus.superseded.rawValue
+        let fallbackApprovalRecord = toolApprovalRecord(conversation: conversation, approval: promptApproval, timestamp: 3)
+        fixture.context.insert(promptRecord)
+        fixture.context.insert(oldApprovalRecord)
+        fixture.context.insert(fallbackApprovalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.grouper.append(event: promptRecord)
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: promptApproval, status: .pending)
+        let sessionFileURL = try writeClaudeSessionFile(
+            sessionId: promptApproval.sessionId,
+            cwd: fixture.project.path,
+            toolUseId: promptApproval.toolUseId,
+            hookError: true
+        )
+        defer { try? FileManager.default.removeItem(at: sessionFileURL) }
+
+        let summary = try await fixture.viewModel.answerPrompt(
+            promptId: "prompt-1",
+            answers: [(question: "Pick one", answer: "A")]
+        )
+
+        XCTAssertEqual(summary, "Q: Pick one\nA: A")
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(oldApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        XCTAssertEqual(fallbackApprovalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        XCTAssertEqual(promptRecord.content, "Q: Pick one\nA: A")
+        let approvalCalls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(approvalCalls.count, 1)
+        XCTAssertEqual(approvalCalls.first?.decision, .allow)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
     func testAnswerPromptResumesDeferredAskUserQuestionWithCustomResponse() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
         let conversation = try fixture.dbConversation()
@@ -300,7 +346,7 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
-        XCTAssertEqual(approvalRecord.toolApprovalStatus, nil)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
     func testAnswerPromptSupersedesPendingToolApproval() async throws {

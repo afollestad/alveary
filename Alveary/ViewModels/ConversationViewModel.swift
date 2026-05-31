@@ -66,7 +66,9 @@ final class ConversationViewModel {
               !state.isReconfiguringSession else {
             return false
         }
-        return !state.turnState.isActive || canAnswerLiveAskUserQuestion(promptId: promptId)
+        return !state.turnState.isActive ||
+            canAnswerLiveAskUserQuestion(promptId: promptId) ||
+            latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId) != nil
     }
 
     init(
@@ -194,7 +196,9 @@ final class ConversationViewModel {
     }
 
     func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {
-        let canAnswerLivePrompt = canAnswerLiveAskUserQuestion(promptId: promptId)
+        let approvalCandidate = latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId)
+        let promptPendingApproval = pendingApprovalForPromptAnswer(promptId: promptId, approvalCandidate: approvalCandidate)
+        let canAnswerLivePrompt = canAnswerLiveAskUserQuestion(promptId: promptId) || promptPendingApproval != nil
         guard !state.turnState.isActive || canAnswerLivePrompt,
               !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn to finish before answering the prompt")
@@ -213,15 +217,14 @@ final class ConversationViewModel {
         state.isSendingMessage = true
         defer { state.isSendingMessage = false }
 
-        if let pendingApproval,
-           pendingApproval.request.toolName == "AskUserQuestion",
-           pendingApproval.request.toolUseId == promptId {
-            if let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(pendingApproval.request) {
+        if let promptPendingApproval {
+            if approvalCandidate?.shouldCheckSessionResolution != false,
+               let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
                 if resolvedStatus != .approved {
                     try await deliverMessageReserved(message)
                 }
             } else {
-                try await answerDeferredAskUserQuestion(pendingApproval, answers: answers)
+                try await answerDeferredAskUserQuestion(promptPendingApproval, answers: answers)
             }
         } else {
             try await deliverMessageReserved(message)
@@ -270,6 +273,22 @@ final class ConversationViewModel {
             return false
         }
         return true
+    }
+
+    private func pendingApprovalForPromptAnswer(
+        promptId: String,
+        approvalCandidate: AskUserQuestionApprovalCandidate?
+    ) -> PendingToolApproval? {
+        if let approvalCandidate {
+            return PendingToolApproval(request: approvalCandidate.request, status: .pending)
+        }
+        guard let pendingApproval = state.pendingToolApproval,
+              pendingApproval.status == .pending,
+              pendingApproval.request.toolName == "AskUserQuestion",
+              pendingApproval.request.toolUseId == promptId else {
+            return nil
+        }
+        return pendingApproval
     }
 
     func reconfigureSession(config: AgentSpawnConfig) async throws {
