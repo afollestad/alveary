@@ -7,6 +7,7 @@ struct AppKitTranscriptScrollViewRepresentable: NSViewRepresentable {
     var rowConfiguration = AppKitTranscriptRowFactory.Configuration()
     var isFollowing = true
     var scrollToBottomRequest = 0
+    var scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
     var onScrollMetricsChanged: (ChatTranscriptScrollMetrics) -> Void = { _ in }
 
     func makeCoordinator() -> AppKitTranscriptScrollBridgeCoordinator {
@@ -25,9 +26,16 @@ struct AppKitTranscriptScrollViewRepresentable: NSViewRepresentable {
             rowConfiguration: rowConfiguration,
             isFollowing: isFollowing,
             scrollToBottomRequest: scrollToBottomRequest,
+            scrollToRowTopRequest: scrollToRowTopRequest,
             onScrollMetricsChanged: onScrollMetricsChanged
         )
     }
+}
+
+struct AppKitTranscriptRowTopScrollRequest: Equatable {
+    let id: Int
+    let rowID: String
+    let topInset: CGFloat
 }
 
 @MainActor
@@ -47,6 +55,7 @@ struct AppKitTranscriptTransientRows: Equatable {
 final class AppKitTranscriptScrollBridgeCoordinator {
     private let rowFactory = AppKitTranscriptRowFactory()
     private var lastScrollToBottomRequest: Int?
+    private var lastScrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
     private var lastAppliedContentSignature: AppKitTranscriptPreparedUpdate.ContentSignature?
     private var markdownPreparationGeneration = 0
     private var markdownPreparationTask: Task<Void, Never>?
@@ -63,6 +72,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         rowConfiguration: AppKitTranscriptRowFactory.Configuration,
         isFollowing: Bool,
         scrollToBottomRequest: Int,
+        scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest? = nil,
         onScrollMetricsChanged: @escaping (ChatTranscriptScrollMetrics) -> Void = { _ in }
     ) {
         currentIsFollowing = isFollowing
@@ -76,12 +86,17 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             transientRows: transientRows,
             rowConfiguration: rowConfiguration,
             isFollowing: isFollowing,
-            scrollToBottomRequest: scrollToBottomRequest
+            scrollToBottomRequest: scrollToBottomRequest,
+            scrollToRowTopRequest: scrollToRowTopRequest
         )
         // Follow-state flips only drive SwiftUI chrome such as the jump button.
         // Reconfigure AppKit rows only when their content, layout inputs, or callbacks changed.
         if lastAppliedContentSignature == update.contentSignature {
-            honorScrollRequestIfNeeded(container: container, scrollToBottomRequest: update.scrollToBottomRequest)
+            honorScrollRequestsIfNeeded(
+                container: container,
+                scrollToBottomRequest: update.scrollToBottomRequest,
+                scrollToRowTopRequest: update.scrollToRowTopRequest
+            )
             return
         }
 
@@ -147,12 +162,17 @@ final class AppKitTranscriptScrollBridgeCoordinator {
         container.configure(rows: rows, dirtyRowIDs: pendingDirtyRowIDs, preserveBottomIfFollowing: update.isFollowing)
         lastAppliedContentSignature = update.contentSignature
 
-        honorScrollRequestIfNeeded(container: container, scrollToBottomRequest: update.scrollToBottomRequest)
+        honorScrollRequestsIfNeeded(
+            container: container,
+            scrollToBottomRequest: update.scrollToBottomRequest,
+            scrollToRowTopRequest: update.scrollToRowTopRequest
+        )
     }
 
-    private func honorScrollRequestIfNeeded(
+    private func honorScrollRequestsIfNeeded(
         container: AppKitTranscriptScrollContainerView,
-        scrollToBottomRequest: Int
+        scrollToBottomRequest: Int,
+        scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
     ) {
         let shouldHonorScrollRequest = if let lastScrollToBottomRequest {
             lastScrollToBottomRequest != scrollToBottomRequest
@@ -164,6 +184,16 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             container.scrollToBottom()
         }
         lastScrollToBottomRequest = scrollToBottomRequest
+
+        guard let scrollToRowTopRequest,
+              lastScrollToRowTopRequest != scrollToRowTopRequest,
+              container.scrollToRowTop(
+                  rowID: scrollToRowTopRequest.rowID,
+                  topInset: scrollToRowTopRequest.topInset
+              ) else {
+            return
+        }
+        lastScrollToRowTopRequest = scrollToRowTopRequest
     }
 }
 
@@ -173,6 +203,7 @@ private struct AppKitTranscriptPreparedUpdate {
     let rowConfiguration: AppKitTranscriptRowFactory.Configuration
     let isFollowing: Bool
     let scrollToBottomRequest: Int
+    let scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
 
     var contentSignature: ContentSignature {
         ContentSignature(

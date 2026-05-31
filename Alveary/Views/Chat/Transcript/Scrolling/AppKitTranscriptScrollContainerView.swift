@@ -136,6 +136,15 @@ final class AppKitTranscriptScrollContainerView: NSView {
         scroll(toY: .greatestFiniteMagnitude)
     }
 
+    @discardableResult
+    func scrollToRowTop(rowID: String, topInset: CGFloat = 0) -> Bool {
+        guard let rowFrame = rowFrame(for: rowID) else {
+            return false
+        }
+        scroll(toY: rowFrame.minY - topInset)
+        return true
+    }
+
     var scrollOffsetY: CGFloat { scrollView.contentView.bounds.minY }
 
     var scrollOffsetX: CGFloat { scrollView.contentView.bounds.minX }

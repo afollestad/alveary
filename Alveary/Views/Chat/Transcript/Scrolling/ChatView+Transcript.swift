@@ -27,6 +27,11 @@ struct ChatTranscriptView: View {
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
     @State var appKitScrollToBottomRequest = 0
+    @State var appKitScrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
+    @State private var appKitScrollToRowTopRequestID = 0
+    @State private var promptTopPinnedRowID: String?
+    @State private var isPromptTopScrollPending = false
+    @State private var promptTopScrollTimeoutToken: UUID?
     @State var transcriptContentWidth: CGFloat = 0
     @State var expandedTranscriptRows: Set<String> = []
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
@@ -43,6 +48,8 @@ struct ChatTranscriptView: View {
             }
             if shouldForceBottomScroll(for: events) {
                 scrollToBottom(forceFollow: true)
+            } else if pinLatestPromptTopIfNeeded() {
+                return
             } else if isFollowing {
                 scrollToBottom()
             }
@@ -54,13 +61,13 @@ struct ChatTranscriptView: View {
             scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.state.grouper.items.last?.id) {
-            guard isFollowing else {
+            guard !pinLatestPromptTopIfNeeded(), isFollowing else {
                 return
             }
             scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.streamingText) {
-            guard isFollowing else {
+            guard !pinLatestPromptTopIfNeeded(), isFollowing else {
                 return
             }
 
@@ -71,7 +78,9 @@ struct ChatTranscriptView: View {
         }
         .onAppear {
             viewModel.rebuildChatItemsIfNeeded(from: events)
-            scrollToBottom(forceFollow: true)
+            if !pinLatestPromptTopIfNeeded() {
+                scrollToBottom(forceFollow: true)
+            }
         }
         .onChange(of: viewModel.turnState.isActive) { _, isActive in
             if isActive {
@@ -85,7 +94,9 @@ struct ChatTranscriptView: View {
                 // changes, so a fresh jump-to-latest scroll lands against the settled baseline
                 // and keeps reissuing for any remaining content-size shifts.
                 if isFollowing {
-                    scrollToBottom(forceFollow: true)
+                    if !pinLatestPromptTopIfNeeded() {
+                        scrollToBottom(forceFollow: true)
+                    }
                 }
             }
         }
@@ -114,6 +125,10 @@ extension ChatTranscriptView {
         newMetrics: ChatTranscriptScrollMetrics
     ) {
         latestMetrics = newMetrics
+        if isPromptTopScrollPending {
+            isFollowing = true
+            return
+        }
         if let pendingProgrammaticScrollMode {
             let action = ChatTranscriptScrollBehavior.pendingScrollAction(
                 pending: pendingProgrammaticScrollMode,
@@ -157,11 +172,62 @@ private extension ChatTranscriptView {
         appKitScrollToBottomRequest += 1
     }
 
+    func issueImmediateRowTopScroll(rowID: String) {
+        appKitScrollToRowTopRequestID += 1
+        appKitScrollToRowTopRequest = AppKitTranscriptRowTopScrollRequest(
+            id: appKitScrollToRowTopRequestID,
+            rowID: rowID,
+            topInset: transcriptTopInset
+        )
+    }
+
+    @discardableResult
+    func pinLatestPromptTopIfNeeded() -> Bool {
+        guard let rowID = latestUnansweredPromptRowID else {
+            promptTopPinnedRowID = nil
+            isPromptTopScrollPending = false
+            promptTopScrollTimeoutToken = nil
+            return false
+        }
+        guard isFollowing || promptTopPinnedRowID == rowID else {
+            return false
+        }
+
+        if promptTopPinnedRowID != rowID {
+            promptTopPinnedRowID = rowID
+            scrollToRowTop(rowID: rowID)
+        }
+        return true
+    }
+
+    func scrollToRowTop(rowID: String, at time: Date = Date()) {
+        pendingProgrammaticScrollMode = nil
+        isPromptTopScrollPending = true
+        isFollowing = true
+        lastScrollTime = time
+        issueImmediateRowTopScroll(rowID: rowID)
+        DispatchQueue.main.async {
+            guard promptTopPinnedRowID == rowID else {
+                return
+            }
+            issueImmediateRowTopScroll(rowID: rowID)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard promptTopPinnedRowID == rowID else {
+                return
+            }
+            issueImmediateRowTopScroll(rowID: rowID)
+        }
+        schedulePromptTopScrollTimeout()
+    }
+
     func scrollToBottom(
         forceFollow: Bool = false,
         retries: ScrollToBottomRetries = .triple,
         at time: Date = Date()
     ) {
+        isPromptTopScrollPending = false
+        promptTopScrollTimeoutToken = nil
         pendingProgrammaticScrollMode = forceFollow ? .jumpToLatest : .preserveFollow
         if forceFollow {
             isFollowing = true
@@ -185,6 +251,18 @@ private extension ChatTranscriptView {
             }
         }
         schedulePendingProgrammaticScrollTimeout()
+    }
+
+    func schedulePromptTopScrollTimeout() {
+        let token = UUID()
+        promptTopScrollTimeoutToken = token
+        DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgrammaticScrollTimeout) {
+            guard promptTopScrollTimeoutToken == token else {
+                return
+            }
+            promptTopScrollTimeoutToken = nil
+            isPromptTopScrollPending = false
+        }
     }
 
     /// Schedule — or reschedule — the watchdog that clears a pending programmatic
@@ -226,5 +304,13 @@ private extension ChatTranscriptView {
         }
 
         return lastEvent.type == "message" && lastEvent.role == "user"
+    }
+
+    var latestUnansweredPromptRowID: String? {
+        guard case .promptBlock(let rowID, let prompt) = viewModel.state.grouper.items.last,
+              prompt.submittedSummary == nil else {
+            return nil
+        }
+        return rowID
     }
 }

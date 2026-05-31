@@ -9,6 +9,7 @@ extension ChatTranscriptView {
             rowConfiguration: appKitRowConfiguration(),
             isFollowing: isFollowing,
             scrollToBottomRequest: scrollToBottomRequest + appKitScrollToBottomRequest,
+            scrollToRowTopRequest: appKitScrollToRowTopRequest,
             onScrollMetricsChanged: { newMetrics in
                 let oldMetrics = latestMetrics ?? newMetrics
                 handleScrollMetricsChange(oldMetrics: oldMetrics, newMetrics: newMetrics)
