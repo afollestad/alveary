@@ -48,17 +48,31 @@ extension ChatItemGrouper {
     private func approvalWithFallbackPlanIfNeeded(_ approval: ToolApprovalRequest) -> ToolApprovalRequest {
         guard approval.toolName == "ExitPlanMode",
               approval.planMarkdown == nil,
-              let lastItem = items.last,
-              case .assistantMessage = lastItem,
-              let fallbackPlanMarkdown = fallbackPlanMarkdown(from: lastItem) else {
+              let planItemIndex = fallbackPlanItemIndexForExitPlanModeApproval(),
+              let fallbackPlanMarkdown = fallbackPlanMarkdown(from: items[planItemIndex]) else {
             return approval
         }
 
         // Some Claude `ExitPlanMode` hook payloads arrive with `{}` input even though
-        // the assistant just wrote the plan. Treat that immediately preceding message
-        // as approval-local plan display without mutating the tool input sent to Claude.
-        items.removeLast()
+        // the assistant just wrote the plan. Treat that recent message as
+        // approval-local plan display without mutating the tool input sent to Claude.
+        items.remove(at: planItemIndex)
         return approval.withPlanMarkdownFallback(fallbackPlanMarkdown)
+    }
+
+    private func fallbackPlanItemIndexForExitPlanModeApproval() -> Array<ChatItem>.Index? {
+        var index = items.endIndex
+        while index > items.startIndex {
+            index = items.index(before: index)
+            let item = items[index]
+            if case .assistantMessage = item {
+                return index
+            }
+            guard canSkipForExitPlanModeFallbackPlanSearch(item) else {
+                return nil
+            }
+        }
+        return nil
     }
 
     private func fallbackPlanMarkdown(from item: ChatItem) -> String? {
@@ -68,6 +82,29 @@ extension ChatItemGrouper {
         return text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
+    }
+
+    private func canSkipForExitPlanModeFallbackPlanSearch(_ item: ChatItem) -> Bool {
+        guard case .toolGroup(_, let tools) = item else {
+            return false
+        }
+        return !tools.isEmpty && tools.allSatisfy(isExitPlanModeToolSearch)
+    }
+
+    private func isExitPlanModeToolSearch(_ tool: ToolEntry) -> Bool {
+        guard tool.name == "ToolSearch",
+              let data = tool.input.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let query = object["query"] as? String,
+              query.hasPrefix("select:") else {
+            return false
+        }
+
+        return query
+            .dropFirst("select:".count)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .contains("ExitPlanMode")
     }
 
     private func appendSingleToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
@@ -146,14 +183,16 @@ extension ChatItemGrouper {
                 where existingApproval.toolUseId == approval.toolUseId:
                 items[index] = .toolApproval(
                     id: id,
-                    approval: approval,
+                    approval: approvalByPreservingPlanFallbackIfNeeded(approval, from: existingApproval),
                     status: existingStatus ?? status
                 )
                 return true
             case .toolApprovalBatch(let id, let approvals, let existingStatus)
                 where approvals.contains(where: { $0.toolUseId == approval.toolUseId }):
                 let updatedApprovals = approvals.map { existingApproval in
-                    existingApproval.toolUseId == approval.toolUseId ? approval : existingApproval
+                    existingApproval.toolUseId == approval.toolUseId
+                        ? approvalByPreservingPlanFallbackIfNeeded(approval, from: existingApproval)
+                        : existingApproval
                 }
                 items[index] = .toolApprovalBatch(
                     id: id,
@@ -166,6 +205,17 @@ extension ChatItemGrouper {
             }
         }
         return false
+    }
+
+    private func approvalByPreservingPlanFallbackIfNeeded(
+        _ approval: ToolApprovalRequest,
+        from existingApproval: ToolApprovalRequest
+    ) -> ToolApprovalRequest {
+        guard approval.planMarkdown == nil,
+              let existingPlanMarkdown = existingApproval.planMarkdown else {
+            return approval
+        }
+        return approval.withPlanMarkdownFallback(existingPlanMarkdown)
     }
 
     private func approvalToolIds(in item: ChatItem) -> Set<String> {

@@ -282,4 +282,102 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(request.planMarkdown, "# Plan\n\n- Leave plan mode after reviewing answers.")
         XCTAssertEqual(request.toolInput, "{}")
     }
+
+    func testExitPlanModeApprovalUsesPreviousAssistantMessageAcrossToolSearchFallbackPlan() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let assistantPlan = ConversationEventRecord(
+            id: "assistant-plan",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: "# Plan\n\n- Leave plan mode after selecting answers."
+        )
+        let toolSearch = ConversationEventRecord(
+            id: "tool-search",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-search-1",
+            toolName: "ToolSearch",
+            toolInput: #"{"query":"select:ExitPlanMode","max_results":1}"#
+        )
+        let exitPlanModeCall = ConversationEventRecord(
+            id: "exit-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+
+        grouper.update(events: [assistantPlan, toolSearch, exitPlanModeCall, approval])
+
+        XCTAssertEqual(grouper.items.count, 2)
+        guard case .toolGroup(_, let tools) = grouper.items[0] else {
+            return XCTFail("Expected the interleaved tool search to remain visible")
+        }
+        XCTAssertEqual(tools.map(\.name), ["ToolSearch"])
+        guard case .toolApproval(_, let request, _) = grouper.items[1] else {
+            return XCTFail("Expected the assistant plan to attach to the approval block")
+        }
+        XCTAssertEqual(request.planMarkdown, "# Plan\n\n- Leave plan mode after selecting answers.")
+        XCTAssertEqual(request.toolInput, "{}")
+    }
+
+    func testExitPlanModeFallbackPlanSurvivesApprovalStatusReplacement() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let assistantPlan = ConversationEventRecord(
+            id: "assistant-plan",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: "# Plan\n\n- Preserve this plan."
+        )
+        let exitPlanModeCall = ConversationEventRecord(
+            id: "exit-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        let pendingApproval = ConversationEventRecord(
+            id: "approval-pending",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        let approvedReplacement = ConversationEventRecord(
+            id: "approval-approved",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}",
+            toolApprovalStatus: ToolApprovalStatus.approved.rawValue
+        )
+
+        grouper.update(events: [assistantPlan, exitPlanModeCall, pendingApproval, approvedReplacement])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .toolApproval(_, let request, let status) = grouper.items.first else {
+            return XCTFail("Expected the replacement approval to keep the fallback plan")
+        }
+        XCTAssertEqual(request.planMarkdown, "# Plan\n\n- Preserve this plan.")
+        XCTAssertEqual(status, .approved)
+    }
 }
