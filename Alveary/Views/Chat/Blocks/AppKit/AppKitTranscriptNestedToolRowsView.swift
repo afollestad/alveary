@@ -95,7 +95,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             return 0
         }
         let rowHeights = rowViews.reduce(CGFloat.zero) { partialResult, row in
-            partialResult + ceil(row.frame.height > 0 ? row.frame.height : row.intrinsicContentSize.height)
+            partialResult + ceil(row.intrinsicContentSize.height)
         }
         return transcriptToolNestedTopSpacing + rowHeights + CGFloat(rowViews.count - 1) * transcriptToolNestedRowSpacing
     }

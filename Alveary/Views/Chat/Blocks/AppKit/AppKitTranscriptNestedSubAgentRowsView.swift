@@ -95,7 +95,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             return 0
         }
         let rowHeights = rowViews.reduce(CGFloat.zero) { partialResult, row in
-            partialResult + ceil(row.frame.height > 0 ? row.frame.height : row.intrinsicContentSize.height)
+            partialResult + ceil(row.intrinsicContentSize.height)
         }
         return transcriptToolNestedTopSpacing + rowHeights + CGFloat(rowViews.count - 1) * transcriptToolNestedRowSpacing
     }
@@ -133,7 +133,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     private let headerView = AppKitTranscriptToolHeaderRowView()
     private let contentView = AppKitSubAgentExpandedContentView()
     private var configuration: Configuration?
-    private var isExpanded = true
+    private var isExpanded = false
     private var lastMeasuredHeight: CGFloat = -1
 
     override init(frame frameRect: NSRect) {
@@ -170,8 +170,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         let shouldResetExpansion = self.configuration?.agent.id != configuration.agent.id
         self.configuration = configuration
         if shouldResetExpansion {
-            // SwiftUI multi-agent rows open each nested agent by default.
-            isExpanded = true
+            isExpanded = false
         }
         rebuild()
         needsLayout = true
@@ -244,7 +243,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         guard isExpanded else {
             return ceil(headerHeight)
         }
-        let contentHeight = contentView.frame.height > 0 ? contentView.frame.height : contentView.intrinsicContentSize.height
+        let contentHeight = contentView.intrinsicContentSize.height
         return ceil(headerHeight + contentHeight)
     }
 

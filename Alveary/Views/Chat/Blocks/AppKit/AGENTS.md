@@ -17,7 +17,7 @@ AppKit-native transcript row primitives live here.
 - **Ignore expansion echoes.** Local AppKit expand/collapse updates are echoed back through SwiftUI as persisted row ids; do not rebuild unchanged tool rows for that echo or it can interrupt coordinated frame animations.
 - **Clip expandable rows.** Expandable row containers must clip to bounds because expanded children may be laid out at target height before the row's frame animation reaches that height.
 - **Debounce group status.** Multi-tool AppKit group headers delay terminal icons like SwiftUI so streaming siblings do not flash done.
-- **Mirror sub-agents.** Single AppKit sub-agent blocks expand directly to tool/result content; multi-agent blocks keep nested agents open by default.
+- **Mirror sub-agents.** Single AppKit sub-agent blocks expand directly to tool/result content; multi-agent blocks show nested agent summaries collapsed by default.
 - **Mirror approvals.** AppKit approval blocks read copy, summaries, session scopes, and resolved-state labels from `ToolApprovalRequest`.
 - **Hug approval bubbles.** Approval blocks should measure natural header/summary/action width and only cap at transcript max width; custom AppKit action controls must preserve the SwiftUI button sizing, split-button chrome, hover/press feedback, and denial-slot animation.
 - **Defer measured animations.** Measurement can call `layoutSubtreeIfNeeded()` before a row is visibly presented; SwiftUI-parity animations such as approval-slot moves should capture stable start/end state, leave measured frames final during layout, then queue interpolation on the next main-queue pass.

@@ -172,7 +172,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         guard isExpanded else {
             return ceil(headerHeight)
         }
-        let detailsHeight = detailsView.frame.height > 0 ? detailsView.frame.height : detailsView.intrinsicContentSize.height
+        let detailsHeight = detailsView.intrinsicContentSize.height
         return ceil(headerHeight + transcriptToolExpandedContentTopSpacing + detailsHeight + toolExpandedContentBottomSpacing)
     }
 
@@ -441,13 +441,13 @@ final class AppKitTranscriptToolGroupView: NSView {
             return 0
         }
         if configuration.tools.count <= 1 {
-            return ceil(singleToolRow.frame.height > 0 ? singleToolRow.frame.height : singleToolRow.intrinsicContentSize.height)
+            return ceil(singleToolRow.intrinsicContentSize.height)
         }
         let headerHeight = headerView.frame.height > 0 ? headerView.frame.height : headerView.intrinsicContentSize.height
         guard isExpanded else {
             return ceil(headerHeight)
         }
-        let nestedHeight = nestedRowsView.frame.height > 0 ? nestedRowsView.frame.height : nestedRowsView.intrinsicContentSize.height
+        let nestedHeight = nestedRowsView.intrinsicContentSize.height
         return ceil(headerHeight + nestedHeight)
     }
 

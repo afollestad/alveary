@@ -74,6 +74,205 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(stopReason, "tool_deferred")
     }
 
+    func testMapsCompletedTaskNotificationToSubAgentCompletionAndResult() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
+            id: "agent-tool-1",
+            phase: .notification,
+            description: "Agent completed",
+            toolUses: 2,
+            totalTokens: 1234,
+            durationMs: 5678,
+            status: "completed",
+            metadata: [
+                "result": .string("Async result"),
+                "summary": .string("Agent completed")
+            ]
+        ))))
+
+        XCTAssertEqual(events, [
+            .subAgentCompleted(
+                toolUseId: "agent-tool-1",
+                status: "completed",
+                toolUses: 2,
+                totalTokens: 1234,
+                durationMs: 5678
+            ),
+            .toolResult(
+                id: "agent-tool-1",
+                output: "Async result",
+                isError: false,
+                parentToolUseId: nil,
+                metadata: ToolResultMetadata(
+                    stderr: nil,
+                    interrupted: false,
+                    isImage: false,
+                    noOutputExpected: false
+                )
+            )
+        ])
+    }
+
+    func testMapsCompletedTaskWithoutOutputOnlyToSubAgentCompletion() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
+            id: "agent-tool-1",
+            phase: .completed,
+            status: "completed"
+        ))))
+
+        XCTAssertEqual(events, [
+            .subAgentCompleted(
+                toolUseId: "agent-tool-1",
+                status: "completed",
+                toolUses: 0,
+                totalTokens: 0,
+                durationMs: 0
+            )
+        ])
+    }
+
+    func testMapsRawClaudeTaskNotificationToSubAgentResultOutput() throws {
+        let taskNotification = """
+        <task-notification>
+        <task-id>agent-task-1</task-id>
+        <tool-use-id>agent-tool-1</tool-use-id>
+        <output-file>/tmp/agent-task-1.output</output-file>
+        <status>completed</status>
+        <summary>Agent "Audit CSS" completed</summary>
+        <result>## Result
+
+        - Found `--primary-color-lighter`
+        - Replace `&lt;span&gt;` with `&lt;a&gt;`
+        </result>
+        <usage><total_tokens>14816</total_tokens><tool_uses>3</tool_uses><duration_ms>9929</duration_ms></usage>
+        </task-notification>
+        """
+        let lineData = try JSONSerialization.data(withJSONObject: [
+            "type": "user",
+            "origin": ["kind": "task-notification"],
+            "message": [
+                "role": "user",
+                "content": taskNotification
+            ]
+        ] as [String: Any])
+        let line = try XCTUnwrap(String(data: lineData, encoding: .utf8))
+        let decodedEvents = try ClaudeStreamDecoder().decodeLine(line)
+        let events = decodedEvents.flatMap {
+            AgentCLIKitEventMapper().conversationEvents(from: envelope($0))
+        }
+
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(events.first, .subAgentCompleted(
+            toolUseId: "agent-tool-1",
+            status: "completed",
+            toolUses: 3,
+            totalTokens: 14816,
+            durationMs: 9929
+        ))
+        guard case let .toolResult(id, output, isError, parentToolUseId, metadata)? = events.last else {
+            return XCTFail("Expected task notification to map to tool result")
+        }
+        XCTAssertEqual(id, "agent-tool-1")
+        XCTAssertTrue(output.contains("## Result"))
+        XCTAssertTrue(output.contains("Found `--primary-color-lighter`"))
+        XCTAssertTrue(output.contains("Replace `<span>` with `<a>`"))
+        XCTAssertFalse(isError)
+        XCTAssertNil(parentToolUseId)
+        XCTAssertEqual(metadata?.noOutputExpected, false)
+    }
+
+    func testMapsQueuedClaudeTaskNotificationAttachmentToSubAgentResultOutput() throws {
+        let taskNotification = """
+        <task-notification>
+        <task-id>agent-task-1</task-id>
+        <tool-use-id>agent-tool-1</tool-use-id>
+        <output-file>/tmp/agent-task-1.output</output-file>
+        <status>completed</status>
+        <summary>Agent "Count HTML" completed</summary>
+        <result>| Metric | Count |
+        |---|---|
+        | `&lt;script&gt;` tags | 5 |</result>
+        <usage><total_tokens>16429</total_tokens><tool_uses>1</tool_uses><duration_ms>3048</duration_ms></usage>
+        </task-notification>
+        """
+        let lineData = try JSONSerialization.data(withJSONObject: [
+            "type": "attachment",
+            "sessionId": "session-123",
+            "attachment": [
+                "type": "queued_command",
+                "commandMode": "task-notification",
+                "prompt": taskNotification
+            ]
+        ] as [String: Any])
+        let line = try XCTUnwrap(String(data: lineData, encoding: .utf8))
+        let decodedEvents = try ClaudeStreamDecoder().decodeLine(line)
+        let events = decodedEvents.flatMap {
+            AgentCLIKitEventMapper().conversationEvents(from: envelope($0))
+        }
+
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(events.first, .subAgentCompleted(
+            toolUseId: "agent-tool-1",
+            status: "completed",
+            toolUses: 1,
+            totalTokens: 16429,
+            durationMs: 3048
+        ))
+        guard case let .toolResult(id, output, isError, parentToolUseId, metadata)? = events.last else {
+            return XCTFail("Expected queued task notification to map to tool result")
+        }
+        XCTAssertEqual(id, "agent-tool-1")
+        XCTAssertTrue(output.contains("| Metric | Count |"))
+        XCTAssertTrue(output.contains("`<script>` tags"))
+        XCTAssertFalse(isError)
+        XCTAssertNil(parentToolUseId)
+        XCTAssertEqual(metadata?.noOutputExpected, false)
+    }
+
+    func testMapsQueueOperationTaskNotificationToSubAgentResultOutput() throws {
+        let taskNotification = """
+        <task-notification>
+        <task-id>agent-task-1</task-id>
+        <tool-use-id>agent-tool-1</tool-use-id>
+        <output-file>/tmp/agent-task-1.output</output-file>
+        <status>completed</status>
+        <summary>Agent "Find CSS custom properties" completed</summary>
+        <result>CSS custom properties:
+        - `--primary-color`
+        - `--primary-color-lighter` (dark only)</result>
+        <usage><total_tokens>10843</total_tokens><tool_uses>2</tool_uses><duration_ms>3313</duration_ms></usage>
+        </task-notification>
+        """
+        let lineData = try JSONSerialization.data(withJSONObject: [
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "sessionId": "session-123",
+            "content": taskNotification
+        ] as [String: Any])
+        let line = try XCTUnwrap(String(data: lineData, encoding: .utf8))
+        let decodedEvents = try ClaudeStreamDecoder().decodeLine(line)
+        let events = decodedEvents.flatMap {
+            AgentCLIKitEventMapper().conversationEvents(from: envelope($0))
+        }
+
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(events.first, .subAgentCompleted(
+            toolUseId: "agent-tool-1",
+            status: "completed",
+            toolUses: 2,
+            totalTokens: 10843,
+            durationMs: 3313
+        ))
+        guard case let .toolResult(id, output, isError, parentToolUseId, metadata)? = events.last else {
+            return XCTFail("Expected queue-operation task notification to map to tool result")
+        }
+        XCTAssertEqual(id, "agent-tool-1")
+        XCTAssertTrue(output.contains("CSS custom properties:"))
+        XCTAssertTrue(output.contains("`--primary-color-lighter` (dark only)"))
+        XCTAssertFalse(isError)
+        XCTAssertNil(parentToolUseId)
+        XCTAssertEqual(metadata?.noOutputExpected, false)
+    }
+
     func testMapsClaudeAssistantUsageAsInterimUsageUpdate() throws {
         let decodedEvents = try ClaudeStreamDecoder().decodeLine(#"""
         {

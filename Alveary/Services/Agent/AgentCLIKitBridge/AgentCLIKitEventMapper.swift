@@ -118,17 +118,54 @@ struct AgentCLIKitEventMapper: Sendable {
                 totalTokens: event.totalTokens ?? 0,
                 durationMs: event.durationMs ?? 0
             )]
+        case .notification where isCompletedTaskStatus(event.status):
+            return completedSubAgentEvents(from: event)
         case .notification:
             return [.notification(type: event.status ?? "task", message: event.description)]
         case .completed:
-            return [.subAgentCompleted(
+            return completedSubAgentEvents(from: event)
+        }
+    }
+
+    private func completedSubAgentEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {
+        var events: [ConversationEvent] = [
+            .subAgentCompleted(
                 toolUseId: event.id,
                 status: event.status ?? "completed",
                 toolUses: event.toolUses ?? 0,
                 totalTokens: event.totalTokens ?? 0,
                 durationMs: event.durationMs ?? 0
-            )]
+            )
+        ]
+        if let output = taskResultOutput(from: event) {
+            events.append(.toolResult(
+                id: event.id,
+                output: output,
+                isError: false,
+                parentToolUseId: nil,
+                metadata: ToolResultMetadata(
+                    stderr: nil,
+                    interrupted: false,
+                    isImage: false,
+                    noOutputExpected: false
+                )
+            ))
         }
+        return events
+    }
+
+    private func isCompletedTaskStatus(_ status: String?) -> Bool {
+        status?.caseInsensitiveCompare("completed") == .orderedSame
+    }
+
+    private func taskResultOutput(from event: AgentCLIKit.AgentTaskEvent) -> String? {
+        let output = event.metadata.stringValue("result")
+            ?? event.metadata.stringValue("summary")
+            ?? event.description
+        guard let output, !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return output
     }
 
     private func interactionEvents(

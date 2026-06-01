@@ -24,7 +24,7 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("Reading AGENTS.md"))
     }
 
-    func testMultiAgentBlockOpensNestedAgentsByDefaultWhenExpanded() {
+    func testMultiAgentBlockStartsNestedAgentsCollapsedWhenExpanded() {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(
@@ -49,9 +49,38 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
 
         XCTAssertTrue(block.renderedText.contains("Exploring 2 sub-agents"))
         XCTAssertTrue(block.renderedText.contains("Inspect transcript rows"))
-        XCTAssertTrue(block.renderedText.contains("Reading AGENTS.md"))
         XCTAssertTrue(block.renderedText.contains("Search code paths"))
-        XCTAssertTrue(block.renderedText.contains("Searching for AppKit"))
+        XCTAssertFalse(block.renderedText.contains("Reading AGENTS.md"))
+        XCTAssertFalse(block.renderedText.contains("Searching for AppKit"))
+        XCTAssertFalse(block.renderedText.contains("nested result line 15"))
+    }
+
+    func testMultiAgentBlockShowsResultOnlyNestedAgentsWhenExpanded() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                agents: [
+                    agent(id: "agent-one", description: "Inspect structure", result: "Structure result", isComplete: true),
+                    agent(id: "agent-two", description: "Review HTML", result: "HTML result", isComplete: true),
+                    agent(id: "agent-three", description: "Audit CSS", result: "CSS result", isComplete: true)
+                ],
+                initiallyExpanded: true
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
+        let nestedHeaders = nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self)
+        nestedHeaders.forEach { XCTAssertTrue($0.accessibilityPerformPress()) }
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(block.renderedText.contains("Explored 3 sub-agents"))
+        XCTAssertTrue(block.renderedText.contains("Inspect structure"))
+        XCTAssertTrue(block.renderedText.contains("Structure result"))
+        XCTAssertTrue(block.renderedText.contains("Review HTML"))
+        XCTAssertTrue(block.renderedText.contains("HTML result"))
+        XCTAssertTrue(block.renderedText.contains("Audit CSS"))
+        XCTAssertTrue(block.renderedText.contains("CSS result"))
     }
 
     func testNestedAgentCollapseInvalidatesHeight() throws {
@@ -80,22 +109,28 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
             )
         )
         block.layoutSubtreeIfNeeded()
-        let expandedHeight = block.intrinsicContentSize.height
-        invalidated = false
 
         let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
         let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
         let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         block.layoutSubtreeIfNeeded()
+        let expandedHeight = block.intrinsicContentSize.height
+        XCTAssertTrue(block.renderedText.contains("nested result line 15"))
+        invalidated = false
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+        let heightAfterCollapseInvalidation = block.intrinsicContentSize.height
 
         XCTAssertTrue(invalidated)
         XCTAssertTrue(nestedAgentRow.clipsToBounds)
+        XCTAssertLessThan(heightAfterCollapseInvalidation, expandedHeight)
+        block.layoutSubtreeIfNeeded()
         XCTAssertLessThan(block.intrinsicContentSize.height, expandedHeight)
         XCTAssertFalse(block.renderedText.contains("nested result line 15"))
     }
 
-    func testNestedAgentExpansionStateSurvivesParentRefresh() throws {
+    func testNestedAgentExpandedStateSurvivesParentRefresh() throws {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(
@@ -121,7 +156,7 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         block.layoutSubtreeIfNeeded()
-        XCTAssertFalse(block.renderedText.contains("nested result line 11"))
+        XCTAssertTrue(block.renderedText.contains("nested result line 11"))
 
         block.configure(
             .init(
@@ -144,7 +179,7 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         )
         block.layoutSubtreeIfNeeded()
 
-        XCTAssertFalse(block.renderedText.contains("nested result line 11"))
+        XCTAssertTrue(block.renderedText.contains("nested result line 11"))
     }
 
     func testCompletedMultiAgentSummaryUsesPastTense() {

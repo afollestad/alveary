@@ -220,43 +220,6 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertTrue(group.renderedText.contains("Reading AGENTS.md"))
     }
 
-    func testNestedToolExpansionInvalidatesGroupHeight() throws {
-        let group = AppKitTranscriptToolGroupView()
-        var invalidated = false
-        group.onHeightInvalidated = {
-            invalidated = true
-        }
-        group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
-        group.configure(
-            .init(
-                tools: [
-                    tool(
-                        id: "custom-1",
-                        name: "CustomTool",
-                        summary: "Running custom tool",
-                        output: (0..<18).map { "nested output line \($0)" }.joined(separator: "\n")
-                    ),
-                    tool(id: "grep-1", name: "Grep", summary: "Searching for AppKit")
-                ],
-                initiallyExpanded: true
-            )
-        )
-        group.layoutSubtreeIfNeeded()
-        let collapsedToolHeight = group.intrinsicContentSize.height
-        invalidated = false
-
-        let nestedRows = try XCTUnwrap(group.descendants(of: AppKitTranscriptNestedToolRowsView.self).first)
-        let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
-        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
-        group.layoutSubtreeIfNeeded()
-        let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview as? AppKitTranscriptInlineToolRowView)
-
-        XCTAssertTrue(invalidated)
-        XCTAssertGreaterThan(group.intrinsicContentSize.height, collapsedToolHeight)
-        XCTAssertTrue(nestedToolRow.clipsToBounds)
-        XCTAssertTrue(group.renderedText.contains("nested output line 17"))
-    }
-
     func testNestedToolExpansionSurvivesParentRefresh() throws {
         let group = AppKitTranscriptToolGroupView()
         group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)

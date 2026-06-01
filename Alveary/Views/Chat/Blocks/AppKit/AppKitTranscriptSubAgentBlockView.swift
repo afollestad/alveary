@@ -164,7 +164,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             return ceil(headerHeight)
         }
         let expandedView: NSView = configuration.agents.count == 1 ? singleAgentContentView : nestedAgentsView
-        let expandedHeight = expandedView.frame.height > 0 ? expandedView.frame.height : expandedView.intrinsicContentSize.height
+        let expandedHeight = expandedView.intrinsicContentSize.height
         return ceil(headerHeight + expandedHeight)
     }
 
@@ -316,7 +316,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
         }
         var height: CGFloat = 0
         if toolsView.superview != nil {
-            height += toolsView.frame.height > 0 ? toolsView.frame.height : toolsView.intrinsicContentSize.height
+            height += toolsView.intrinsicContentSize.height
         }
         if resultView.superview != nil {
             if height > 0 {
@@ -324,7 +324,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
             } else if configuration.agent.tools.isEmpty {
                 height += transcriptToolExpandedContentTopSpacing
             }
-            height += resultView.frame.height > 0 ? resultView.frame.height : resultView.intrinsicContentSize.height
+            height += resultView.intrinsicContentSize.height
             height += toolExpandedContentBottomSpacing
         }
         return ceil(height)

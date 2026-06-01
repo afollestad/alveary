@@ -29,6 +29,56 @@ extension ChatItemGrouperTests {
         assertSingleCompletedParallelSubAgentBlock(in: grouper)
     }
 
+    func testAsyncSubAgentCompletionResultsPatchExpandedResultContentAfterApprovalInterleaves() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count images"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-2",
+            conversationId: conversationId,
+            toolId: "agent-2",
+            description: "Audit scripts"
+        ))
+        grouper.append(event: secondAgentApproval(conversationId: conversationId))
+        grouper.handleSubAgentControl(.subAgentCompleted(
+            toolUseId: "agent-1",
+            status: "completed",
+            toolUses: 1,
+            totalTokens: 100,
+            durationMs: 200
+        ))
+        grouper.append(event: agentResult(id: "agent-result-1", conversationId: conversationId, toolId: "agent-1", output: "Image result"))
+        grouper.handleSubAgentControl(.subAgentCompleted(
+            toolUseId: "agent-2",
+            status: "completed",
+            toolUses: 2,
+            totalTokens: 300,
+            durationMs: 400
+        ))
+        grouper.append(event: agentResult(id: "agent-result-2", conversationId: conversationId, toolId: "agent-2", output: "Audit result"))
+
+        let subAgentBlocks = grouper.items.compactMap { item -> [SubAgentEntry]? in
+            guard case .subAgentBlock(_, let agents) = item else {
+                return nil
+            }
+            return agents
+        }
+        XCTAssertEqual(subAgentBlocks.count, 1)
+        let agents = subAgentBlocks.first ?? []
+        XCTAssertEqual(agents.map(\.id), ["agent-1", "agent-2"])
+        XCTAssertTrue(agents.allSatisfy(\.isComplete))
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-1" })?.result, "Image result")
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-2" })?.result, "Audit result")
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-1" })?.toolUseCount, 1)
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-2" })?.toolUseCount, 2)
+    }
+
     private func assertSingleCompletedParallelSubAgentBlock(in grouper: ChatItemGrouper) {
         let subAgentBlocks = grouper.items.compactMap { item -> [SubAgentEntry]? in
             guard case .subAgentBlock(_, let agents) = item else {
