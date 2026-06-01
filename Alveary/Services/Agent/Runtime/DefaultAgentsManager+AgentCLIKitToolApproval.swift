@@ -1,16 +1,53 @@
 import AgentCLIKit
 import Foundation
 
+enum AgentCLIKitApprovalResumeStrategy: Equatable {
+    case bufferedDeferredStop
+    case restoredInteraction
+}
+
 extension DefaultAgentsManager {
     func shouldResumeAgentCLIKitDeferredApproval(conversationId: String) -> Bool {
         eventBuffers[conversationId]?.hasDeferredToolStop == true &&
             status(for: conversationId) == .waitingForUser
     }
 
+    func agentCLIKitDeferredApprovalResumeStrategy(
+        conversationId: String,
+        services: AgentCLIKitHostServices
+    ) async -> AgentCLIKitApprovalResumeStrategy? {
+        if shouldResumeAgentCLIKitDeferredApproval(conversationId: conversationId) {
+            return .bufferedDeferredStop
+        }
+        return await restoredAgentCLIKitApprovalResumeStrategy(
+            conversationId: conversationId,
+            services: services
+        )
+    }
+
+    private func restoredAgentCLIKitApprovalResumeStrategy(
+        conversationId: String,
+        services: AgentCLIKitHostServices
+    ) async -> AgentCLIKitApprovalResumeStrategy? {
+        guard !spawningIds.contains(conversationId),
+              !reconfiguringIds.contains(conversationId) else {
+            return nil
+        }
+
+        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+        if let status = await services.runtime.status(conversationId: runtimeConversationId) {
+            agentCLIKitStatuses[conversationId] = status
+            return status.isProcessRunning ? nil : .restoredInteraction
+        }
+
+        return agentCLIKitStatuses[conversationId]?.isProcessRunning == true ? nil : .restoredInteraction
+    }
+
     func resumeAgentCLIKitDeferredApproval(
         _ request: AgentToolApprovalResolutionRequest,
         approvals: [ToolApprovalRequest],
-        services: AgentCLIKitHostServices
+        services: AgentCLIKitHostServices,
+        strategy: AgentCLIKitApprovalResumeStrategy
     ) async throws {
         try await waitForAgentCLIKitDeferredRuntimeStop(
             conversationId: request.conversationId,
@@ -21,6 +58,7 @@ extension DefaultAgentsManager {
             resolution: request.resolution,
             services: services
         )
+        var didSpawn = false
         do {
             await MainActor.run {
                 conversationState(for: request.conversationId).turnState.beginTurn()
@@ -30,12 +68,35 @@ extension DefaultAgentsManager {
                 config: request.config,
                 forkSession: false
             )
+            didSpawn = true
+            if strategy == .restoredInteraction {
+                // After app restore there may be no live hook waiter left, so also feed the
+                // saved interaction resolution to the resumed AgentCLIKit stdin stream.
+                try await resolveRestoredAgentCLIKitInteractions(request, approvals: approvals, services: services)
+            }
         } catch {
+            if didSpawn {
+                await services.runtime.kill(conversationId: services.hostAdapter.conversationId(request.conversationId))
+            }
             await discardAgentCLIKitTransientDecisions(approvals, services: services)
             await MainActor.run {
                 conversationState(for: request.conversationId).turnState.endTurn()
             }
             throw error
+        }
+    }
+
+    private func resolveRestoredAgentCLIKitInteractions(
+        _ request: AgentToolApprovalResolutionRequest,
+        approvals: [ToolApprovalRequest],
+        services: AgentCLIKitHostServices
+    ) async throws {
+        let runtimeConversationId = services.hostAdapter.conversationId(request.conversationId)
+        for approval in approvals {
+            try await services.runtime.resolveInteraction(
+                try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),
+                conversationId: runtimeConversationId
+            )
         }
     }
 

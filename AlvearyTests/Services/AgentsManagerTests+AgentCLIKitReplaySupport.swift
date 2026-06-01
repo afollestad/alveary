@@ -177,6 +177,79 @@ struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
+struct RestoredApprovalCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf 'message:restored-resumed\\n'"],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+}
+
+struct RestoredPromptResolutionCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        let script = """
+        while IFS= read -r line; do
+          case "$line" in
+            *prompt-restored*answered*) printf 'message:restored-resolved\\n'; exit 0 ;;
+          esac
+        done
+        sleep 5
+        """
+        return AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", script],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        switch input {
+        case .interactionResolution(let resolution):
+            Data("resolution:\(resolution.id.rawValue):\(resolution.outcome.rawValue)\n".utf8)
+        case .userMessage, .interrupt:
+            Data()
+        }
+    }
+}
+
 struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let counter = AgentCLIKitLaunchCounter()
     let definition = AgentCLIKit.AgentProviderDefinition(

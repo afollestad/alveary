@@ -174,6 +174,56 @@ extension ConversationViewModelTests {
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
+    func testAnswerPromptTreatsActiveTurnWithoutRunningProcessAsFallbackResume() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        await fixture.agentsManager.enableSubscription()
+        let conversation = try fixture.dbConversation()
+        let promptInput = #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#
+        let promptRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_call",
+            toolId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: promptInput,
+            conversation: conversation
+        )
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "prompt-1",
+            toolName: "AskUserQuestion",
+            toolInput: promptInput
+        )
+        let approvalRecord = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: approval.sessionId,
+            toolId: approval.toolUseId,
+            toolName: approval.toolName,
+            toolInput: approval.toolInput,
+            conversation: conversation
+        )
+        fixture.context.insert(promptRecord)
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.grouper.append(event: promptRecord)
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        let summary = try await fixture.viewModel.answerPrompt(
+            promptId: "prompt-1",
+            answers: [(question: "Pick one", answer: "A")]
+        )
+
+        XCTAssertEqual(summary, "Q: Pick one\nA: A")
+        try await waitUntil("expected fallback prompt resume to resubscribe") {
+            await fixture.agentsManager.subscribeCalls() == 1
+        }
+        let subscribeCalls = await fixture.agentsManager.subscribeCalls()
+        XCTAssertEqual(subscribeCalls, 1)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+    }
+
     func testLiveAskUserQuestionPromptSubmitIsAvailableDuringActiveTurn() throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
         let promptInput = #"{"questions":[{"question":"Pick one","options":[{"label":"A","description":"First"}]}]}"#

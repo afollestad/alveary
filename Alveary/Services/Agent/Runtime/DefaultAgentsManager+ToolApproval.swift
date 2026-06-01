@@ -60,22 +60,20 @@ extension DefaultAgentsManager {
                     conversationId: request.conversationId,
                     count: liveResolutionCount
                 )
-                recordDeniedToolUseIdsIfNeeded(request)
-                eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-                updateStatus(.busy, for: request.conversationId)
-                return context.sessionApprovalRecordResult.isEffective
+                return finishAgentCLIKitToolApprovalResolution(request, context: context)
             }
 
-            if shouldResumeAgentCLIKitDeferredApproval(conversationId: request.conversationId) {
+            if let resumeStrategy = await agentCLIKitDeferredApprovalResumeStrategy(
+                conversationId: request.conversationId,
+                services: services
+            ) {
                 try await resumeAgentCLIKitDeferredApproval(
                     request,
                     approvals: approvals,
-                    services: services
+                    services: services,
+                    strategy: resumeStrategy
                 )
-                recordDeniedToolUseIdsIfNeeded(request)
-                eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-                updateStatus(.busy, for: request.conversationId)
-                return context.sessionApprovalRecordResult.isEffective
+                return finishAgentCLIKitToolApprovalResolution(request, context: context)
             }
 
             for approval in approvals {
@@ -89,6 +87,13 @@ extension DefaultAgentsManager {
             throw error
         }
 
+        return finishAgentCLIKitToolApprovalResolution(request, context: context)
+    }
+
+    private func finishAgentCLIKitToolApprovalResolution(
+        _ request: AgentToolApprovalResolutionRequest,
+        context: ToolApprovalResolutionContext
+    ) -> Bool {
         recordDeniedToolUseIdsIfNeeded(request)
         eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
         updateStatus(.busy, for: request.conversationId)
@@ -123,7 +128,7 @@ extension DefaultAgentsManager {
         return count
     }
 
-    private func agentCLIKitInteractionResolution(
+    func agentCLIKitInteractionResolution(
         for approval: ToolApprovalRequest,
         resolution: ClaudeToolApprovalResolution
     ) throws -> AgentCLIKit.AgentInteractionResolution {
@@ -141,7 +146,7 @@ extension DefaultAgentsManager {
         )
     }
 
-    private func agentCLIKitOutcome(
+    func agentCLIKitOutcome(
         for approval: ToolApprovalRequest,
         decision: ClaudeToolApprovalDecision
     ) -> AgentCLIKit.AgentInteractionOutcome {
