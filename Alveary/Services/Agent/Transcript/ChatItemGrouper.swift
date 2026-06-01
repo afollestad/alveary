@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import Observation
 
@@ -16,6 +17,9 @@ final class ChatItemGrouper {
     var subAgentIdsReadyForEviction: Set<String> = []
     var evictedSubAgentIds: Set<String> = []
     var currentTasks: [TaskEntry] = []
+    var agentTaskListReducer = AgentTaskListReducer()
+    var agentTaskToolIds: Set<String> = []
+    var hiddenAgentTaskToolSearchIds: Set<String> = []
     var promptToolIds: Set<String> = []
     var centeredNoteToolKinds: [String: CenteredTranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
@@ -74,6 +78,9 @@ final class ChatItemGrouper {
         pendingSubAgentIds = []
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
+        agentTaskListReducer = AgentTaskListReducer()
+        agentTaskToolIds = []
+        hiddenAgentTaskToolSearchIds = []
         promptToolIds = []
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]

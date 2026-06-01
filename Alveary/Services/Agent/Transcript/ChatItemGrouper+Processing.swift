@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 extension ChatItemGrouper {
@@ -63,6 +64,9 @@ extension ChatItemGrouper {
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
         currentTasks = []
+        agentTaskListReducer = AgentTaskListReducer()
+        agentTaskToolIds = []
+        hiddenAgentTaskToolSearchIds = []
         promptToolIds = []
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
@@ -99,6 +103,9 @@ extension ChatItemGrouper {
         }
         if let centeredNoteKind = centeredNoteToolKinds.removeValue(forKey: toolId) {
             handleCenteredNoteToolResult(toolId: toolId, kind: centeredNoteKind, event: event)
+            return
+        }
+        if handleAgentTaskToolResultIfNeeded(event) {
             return
         }
         guard !handleSubAgentToolResult(toolId: toolId, event: event) else {
@@ -161,6 +168,9 @@ private extension ChatItemGrouper {
         case "Agent":
             handleAgentToolCall(event)
         default:
+            if handleAgentTaskToolCallIfNeeded(event) {
+                return
+            }
             handleGenericToolCall(event)
         }
     }
