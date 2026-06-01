@@ -160,8 +160,6 @@ struct AgentCLIKitEventMapper: Sendable {
 
     private func taskResultOutput(from event: AgentCLIKit.AgentTaskEvent) -> String? {
         let output = event.metadata.stringValue("result")
-            ?? event.metadata.stringValue("summary")
-            ?? event.description
         guard let output, !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
