@@ -1,6 +1,59 @@
 import AppKit
 import SwiftUI
 
+private struct DiffPreviewMinimumContentWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+private extension EnvironmentValues {
+    var diffPreviewMinimumContentWidth: CGFloat {
+        get { self[DiffPreviewMinimumContentWidthKey.self] }
+        set { self[DiffPreviewMinimumContentWidthKey.self] = newValue }
+    }
+}
+
+private struct DiffPreviewMinimumContentWidthModifier: ViewModifier {
+    @Environment(\.diffPreviewMinimumContentWidth) private var minimumContentWidth
+
+    func body(content: Content) -> some View {
+        content.frame(minWidth: max(minimumContentWidth, 0), alignment: .leading)
+    }
+}
+
+extension View {
+    func diffPreviewMinimumContentWidthFrame() -> some View {
+        modifier(DiffPreviewMinimumContentWidthModifier())
+    }
+
+    func diffPreviewIntrinsicMinimumContentWidthFrame() -> some View {
+        fixedSize(horizontal: true, vertical: false)
+            .diffPreviewMinimumContentWidthFrame()
+    }
+}
+
+enum DiffPreviewWidthEstimator {
+    private static let monospacedCaptionCharacterWidth: CGFloat = 8
+
+    static func monospacedTextWidth<S: StringProtocol>(
+        _ text: S,
+        horizontalPadding: CGFloat = 0
+    ) -> CGFloat {
+        ceil(CGFloat(max(estimatedColumnCount(for: text), 1)) * monospacedCaptionCharacterWidth + horizontalPadding)
+    }
+
+    static func rawPatchWidth(_ rawDiffContent: String) -> CGFloat {
+        rawDiffContent.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { monospacedTextWidth($0) }
+            .max() ?? 0
+    }
+
+    private static func estimatedColumnCount<S: StringProtocol>(for text: S) -> Int {
+        text.reduce(0) { count, character in
+            count + (character == "\t" ? 4 : 1)
+        }
+    }
+}
+
 struct CollapsedContextSummary: Sendable {
     let lineCount: Int
     let oldStart: Int?
@@ -90,6 +143,7 @@ struct DiffCollapsedContextRow: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
         }
+        .diffPreviewIntrinsicMinimumContentWidthFrame()
         .background(Color.primary.opacity(0.03))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -181,6 +235,7 @@ struct DiffLineRow: View {
                 .padding(.vertical, 4)
                 .fixedSize(horizontal: true, vertical: false)
         }
+        .diffPreviewIntrinsicMinimumContentWidthFrame()
         .background(rowBackgroundColor)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
@@ -266,7 +321,7 @@ struct RawDiffFallbackView: View {
     let note: String?
 
     var body: some View {
-        DiffPreviewScrollContainer {
+        DiffPreviewScrollContainer(minimumScrollableContentWidth: DiffPreviewWidthEstimator.rawPatchWidth(rawDiffContent)) {
             VStack(alignment: .leading, spacing: 10) {
                 if let note,
                    !note.isEmpty {
@@ -277,7 +332,8 @@ struct RawDiffFallbackView: View {
                     .font(.system(.caption, design: .monospaced))
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .diffPreviewIntrinsicMinimumContentWidthFrame()
+            .frame(maxHeight: .infinity, alignment: .topLeading)
             .textSelection(.enabled)
         }
     }
@@ -287,21 +343,32 @@ struct DiffPreviewScrollContainer<Content: View>: View {
     private let horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset
     private let topContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewTopInset
     private let bottomContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewBottomInset
+    private let minimumScrollableContentWidth: CGFloat
 
-    @ViewBuilder let content: () -> Content
+    @ViewBuilder private let content: () -> Content
+
+    init(
+        minimumScrollableContentWidth: CGFloat = 0,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.minimumScrollableContentWidth = minimumScrollableContentWidth
+        self.content = content
+    }
 
     var body: some View {
         GeometryReader { proxy in
             let availableWidth = max(proxy.size.width - (horizontalContentPadding * 2), 0)
             let availableHeight = max(proxy.size.height - topContentPadding - bottomContentPadding, 0)
+            let contentWidth = max(availableWidth, minimumScrollableContentWidth)
 
             ScrollView([.horizontal, .vertical]) {
                 content()
                     .frame(
-                        minWidth: availableWidth,
+                        minWidth: contentWidth,
                         minHeight: availableHeight,
                         alignment: .topLeading
                     )
+                    .environment(\.diffPreviewMinimumContentWidth, contentWidth)
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.top, topContentPadding)
                     .padding(.bottom, bottomContentPadding)

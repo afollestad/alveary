@@ -12,7 +12,7 @@ struct FlattenedDiffPreview: View {
     let onToggleFileCollapse: (String) -> Void
     let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
-    @State private var preparedRows: [FlattenedDiffPreviewRow] = []
+    @State private var preparedRows: FlattenedDiffPreviewPreparedRows?
     @State private var preparedRowsID: Int?
 
     init(
@@ -50,7 +50,8 @@ struct FlattenedDiffPreview: View {
                 .task(id: currentRenderID) {
                     clearPreparedRows()
                 }
-        } else if preparedRowsID == currentRenderID {
+        } else if let preparedRows,
+                  preparedRowsID == currentRenderID {
             rowsView(preparedRows)
         } else {
             preparingView
@@ -61,7 +62,7 @@ struct FlattenedDiffPreview: View {
                     let allowsFileCollapse = allowsFileCollapse
                     let collapsedFileIDs = collapsedFileIDs
                     let currentRenderID = currentRenderID
-                    preparedRows = []
+                    preparedRows = nil
                     preparedRowsID = nil
                     let rowTask = Task.detached(priority: .userInitiated) {
                         try FlattenedDiffPreviewRows.makeRowsUnlessCancelled(
@@ -95,14 +96,14 @@ struct FlattenedDiffPreview: View {
     }
 
     private func clearPreparedRows() {
-        preparedRows = []
+        preparedRows = nil
         preparedRowsID = nil
     }
 
-    private func rowsView(_ rows: [FlattenedDiffPreviewRow]) -> some View {
-        DiffPreviewScrollContainer {
+    private func rowsView(_ preparedRows: FlattenedDiffPreviewPreparedRows) -> some View {
+        DiffPreviewScrollContainer(minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth) {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
+                ForEach(preparedRows.rows) { row in
                     FlattenedDiffPreviewRenderRow(
                         row: row,
                         allowsFileCollapse: allowsFileCollapse,
@@ -114,7 +115,8 @@ struct FlattenedDiffPreview: View {
                 }
             }
             .appExpansionAnimationOverride(value: collapsedFileIDs)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .diffPreviewMinimumContentWidthFrame()
+            .frame(maxHeight: .infinity, alignment: .topLeading)
             .textSelection(.enabled)
         }
     }
@@ -205,7 +207,12 @@ private extension DiffLine.LineType {
     }
 }
 
-private enum FlattenedDiffPreviewRows {
+struct FlattenedDiffPreviewPreparedRows: Sendable {
+    let rows: [FlattenedDiffPreviewRow]
+    let minimumScrollableContentWidth: CGFloat
+}
+
+enum FlattenedDiffPreviewRows {
     private static let expandedFileBottomPadding: CGFloat = 12
 
     static func makeRows(
@@ -214,7 +221,7 @@ private enum FlattenedDiffPreviewRows {
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>
-    ) -> [FlattenedDiffPreviewRow] {
+    ) -> FlattenedDiffPreviewPreparedRows {
         (try? makeRows(
             files: files,
             imagePreviews: imagePreviews,
@@ -222,7 +229,7 @@ private enum FlattenedDiffPreviewRows {
             allowsFileCollapse: allowsFileCollapse,
             collapsedFileIDs: collapsedFileIDs,
             checksCancellation: false
-        )) ?? []
+        )) ?? FlattenedDiffPreviewPreparedRows(rows: [], minimumScrollableContentWidth: 0)
     }
 
     static func makeRowsUnlessCancelled(
@@ -231,7 +238,7 @@ private enum FlattenedDiffPreviewRows {
         showsFileHeaders: Bool,
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>
-    ) throws -> [FlattenedDiffPreviewRow] {
+    ) throws -> FlattenedDiffPreviewPreparedRows {
         try makeRows(
             files: files,
             imagePreviews: imagePreviews,
@@ -250,9 +257,10 @@ private enum FlattenedDiffPreviewRows {
         allowsFileCollapse: Bool,
         collapsedFileIDs: Set<String>,
         checksCancellation: Bool
-    ) throws -> [FlattenedDiffPreviewRow] {
+    ) throws -> FlattenedDiffPreviewPreparedRows {
         // Keep diff rows flat so LazyVStack can virtualize individual line rows instead of whole hunks.
         var allRows: [FlattenedDiffPreviewRow] = []
+        var scrollableContentWidth: CGFloat = 0
         for (fileIndex, file) in files.enumerated() {
             try checkCancellationIfNeeded(checksCancellation)
             var rows: [FlattenedDiffPreviewRow] = []
@@ -273,6 +281,7 @@ private enum FlattenedDiffPreviewRows {
                collapsedFileIDs.contains(fileID) {
                 // Collapsed commit files still emit their header row so the preview
                 // remains one flat lazy row stream instead of nesting per-file stacks.
+                scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
                 allRows.append(contentsOf: rows)
                 continue
             }
@@ -296,10 +305,11 @@ private enum FlattenedDiffPreviewRows {
                 rows.append(.fileContentSpacer(id: "file-\(fileIndex)-bottom-spacer", height: Self.expandedFileBottomPadding))
             }
 
+            scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
             allRows.append(contentsOf: rows)
         }
 
-        return allRows
+        return FlattenedDiffPreviewPreparedRows(rows: allRows, minimumScrollableContentWidth: scrollableContentWidth)
     }
 
     static func fileCollapseID(for file: DiffFile, fileIndex: Int) -> String {
@@ -376,7 +386,7 @@ private enum FlattenedDiffPreviewRows {
     }
 }
 
-private enum FlattenedDiffPreviewRow: Identifiable, Sendable {
+enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     case fileHeader(id: String, fileID: String, file: DiffFile, topPadding: CGFloat)
     case renameSummary(id: String, oldPath: String, newPath: String)
     case imagePreview(id: String, preview: DiffImagePreview)

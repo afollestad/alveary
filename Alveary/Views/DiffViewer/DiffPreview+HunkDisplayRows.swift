@@ -73,7 +73,7 @@ struct DiffPreviewHunkHeader: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .diffPreviewIntrinsicMinimumContentWidthFrame()
             .background(Color.primary.opacity(0.05))
             .background(Color(nsColor: .textBackgroundColor))
             .clipShape(

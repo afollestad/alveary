@@ -47,6 +47,7 @@ struct DiffPreviewFileHeader: View {
                     .animation(appExpansionAnimation, value: collapseState.isCollapsed)
             }
         }
+        .diffPreviewMinimumContentWidthFrame()
     }
 
     private var headerTitle: some View {

@@ -2,7 +2,7 @@ import SwiftUI
 
 extension View {
     func diffPreviewFlattenedHunkRow(isLastInHunk: Bool, bottomPadding: CGFloat) -> some View {
-        frame(maxWidth: .infinity, alignment: .leading)
+        diffPreviewMinimumContentWidthFrame()
             .background(Color(nsColor: .textBackgroundColor))
             .clipShape(
                 UnevenRoundedRectangle(
