@@ -57,6 +57,7 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
         if let textView {
             textView.frame = NSRect(x: 0, y: 0, width: max(textSize.width, bounds.width), height: ceil(textSize.height))
         }
+        scrollView.clampHorizontalScrollOffset()
         super.layout()
         invalidateTranscriptHeight(force: false)
     }

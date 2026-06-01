@@ -139,6 +139,7 @@ final class AppKitMarkdownTableView: AppKitDynamicColorView {
         chromeView.frame = NSRect(x: 0, y: 0, width: viewportWidth, height: currentY + horizontalScrollbarReserve(for: bounds.width))
         scrollView.frame = chromeView.bounds
         documentView.frame = NSRect(x: 0, y: 0, width: tableWidth, height: currentY)
+        scrollView.clampHorizontalScrollOffset()
     }
 
     private func tableSize(for width: CGFloat) -> NSSize {

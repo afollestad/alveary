@@ -36,6 +36,20 @@ final class AppKitHorizontalOverflowScrollView: NSScrollView {
         super.scrollWheel(with: event)
     }
 
+    func clampHorizontalScrollOffset() {
+        guard let documentView else {
+            return
+        }
+        let maxX = max(documentView.frame.width - contentView.bounds.width, 0)
+        let currentOrigin = contentView.bounds.origin
+        let clampedX = min(max(currentOrigin.x, 0), maxX)
+        guard abs(clampedX - currentOrigin.x) > 0.5 else {
+            return
+        }
+        contentView.scroll(to: NSPoint(x: clampedX, y: currentOrigin.y))
+        reflectScrolledClipView(contentView)
+    }
+
     private func shouldForwardVerticalScroll(_ event: NSEvent) -> Bool {
         let deltaY = abs(event.scrollingDeltaY)
         return deltaY > 0 && deltaY >= abs(event.scrollingDeltaX)

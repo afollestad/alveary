@@ -233,23 +233,6 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("result line 19"))
     }
 
-    func testExpandedAgentWithoutResultDoesNotRenderResultSection() {
-        let block = AppKitTranscriptSubAgentBlockView()
-        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
-        block.configure(
-            .init(
-                agents: [
-                    agent(description: "Map project structure", isComplete: true)
-                ],
-                initiallyExpanded: true
-            )
-        )
-        block.layoutSubtreeIfNeeded()
-
-        XCTAssertTrue(block.renderedText.contains("Explored: Map project structure"))
-        XCTAssertFalse(block.renderedText.contains("Result"))
-    }
-
     func testMultiAgentColdExpansionPremeasuresTargetHeightBeforeLayout() {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)

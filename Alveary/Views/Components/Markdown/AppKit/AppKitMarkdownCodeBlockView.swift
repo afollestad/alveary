@@ -46,6 +46,7 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         let documentSize = codeDocumentSize()
         textView?.frame = NSRect(origin: .zero, size: documentSize)
         scrollView.documentView?.frame = NSRect(origin: .zero, size: documentSize)
+        scrollView.clampHorizontalScrollOffset()
     }
 
     override func viewDidChangeEffectiveAppearance() {

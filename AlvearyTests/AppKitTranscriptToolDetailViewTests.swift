@@ -114,6 +114,31 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertEqual(block.intrinsicContentSize.height, textView.frame.height, accuracy: 0.5)
     }
 
+    func testHighlightedCodeBlockClampsHorizontalScrollWhenWidened() throws {
+        let block = AppKitTranscriptHighlightedCodeBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 180, height: 1_000)
+        block.configure(
+            .init(content: "let value = \"\(String(repeating: "wide", count: 24))\"", language: "swift")
+        )
+        block.layoutSubtreeIfNeeded()
+
+        let scrollView = try XCTUnwrap(block.descendants(of: AppKitHorizontalOverflowScrollView.self).first)
+        let initialMaxX = max((scrollView.documentView?.frame.width ?? 0) - scrollView.contentView.bounds.width, 0)
+        XCTAssertGreaterThan(initialMaxX, 0)
+        scrollView.contentView.scroll(to: NSPoint(x: initialMaxX, y: 0))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        XCTAssertGreaterThan(scrollView.contentView.bounds.origin.x, 0)
+
+        block.frame = NSRect(x: 0, y: 0, width: 900, height: 1_000)
+        block.layoutSubtreeIfNeeded()
+
+        let maxX = max((scrollView.documentView?.frame.width ?? 0) - scrollView.contentView.bounds.width, 0)
+        XCTAssertLessThanOrEqual(scrollView.contentView.bounds.origin.x, maxX + 0.5)
+        if maxX < 0.5 {
+            XCTAssertEqual(scrollView.contentView.bounds.origin.x, 0, accuracy: 0.5)
+        }
+    }
+
     func testHighlightedCodeBlockDoesNotMeasureTrailingBlankLines() throws {
         let block = AppKitTranscriptHighlightedCodeBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 220, height: 1_000)

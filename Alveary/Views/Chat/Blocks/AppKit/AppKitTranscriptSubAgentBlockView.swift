@@ -256,11 +256,14 @@ final class AppKitSubAgentExpandedContentView: NSView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             toolsView.onOpenMarkdownLink = onOpenMarkdownLink
+            resultMarkdownView.onOpenMarkdownLink = onOpenMarkdownLink
         }
     }
 
     private let toolsView = AppKitTranscriptNestedToolRowsView()
-    private let resultView = AppKitTranscriptDetailCodeBlockView()
+    private let resultCodeView = AppKitTranscriptDetailCodeBlockView()
+    private let resultMarkdownView = AppKitTranscriptDetailMarkdownView()
+    private weak var activeResultView: NSView?
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
 
@@ -301,10 +304,13 @@ final class AppKitSubAgentExpandedContentView: NSView {
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         toolsView.translatesAutoresizingMaskIntoConstraints = true
-        resultView.translatesAutoresizingMaskIntoConstraints = true
+        resultCodeView.translatesAutoresizingMaskIntoConstraints = true
+        resultMarkdownView.translatesAutoresizingMaskIntoConstraints = true
         toolsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
-        resultView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        resultCodeView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        resultMarkdownView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         toolsView.onOpenMarkdownLink = onOpenMarkdownLink
+        resultMarkdownView.onOpenMarkdownLink = onOpenMarkdownLink
     }
 
     private func rebuild() {
@@ -313,7 +319,9 @@ final class AppKitSubAgentExpandedContentView: NSView {
         }
 
         toolsView.removeFromSuperview()
-        resultView.removeFromSuperview()
+        resultCodeView.removeFromSuperview()
+        resultMarkdownView.removeFromSuperview()
+        activeResultView = nil
         if !configuration.agent.tools.isEmpty {
             addSubview(toolsView)
             toolsView.onOpenMarkdownLink = onOpenMarkdownLink
@@ -322,8 +330,20 @@ final class AppKitSubAgentExpandedContentView: NSView {
 
         if let result = configuration.agent.result,
            !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            addSubview(resultView)
-            resultView.configure(.init(title: "Result", content: result, typography: configuration.typography))
+            if TranscriptResultPresentation.prefersMarkdown(result) {
+                addSubview(resultMarkdownView)
+                resultMarkdownView.configure(.init(
+                    title: "Result",
+                    content: result,
+                    taskStateScope: configuration.agent.id,
+                    typography: configuration.typography
+                ))
+                activeResultView = resultMarkdownView
+            } else {
+                addSubview(resultCodeView)
+                resultCodeView.configure(.init(title: "Result", content: result, typography: configuration.typography))
+                activeResultView = resultCodeView
+            }
         }
     }
 
@@ -341,7 +361,8 @@ final class AppKitSubAgentExpandedContentView: NSView {
             currentY = toolsView.frame.maxY + 12
         }
 
-        if resultView.superview != nil {
+        if let resultView = activeResultView,
+           resultView.superview != nil {
             let resultTopSpacing = configuration.agent.tools.isEmpty ? transcriptToolExpandedContentTopSpacing : 0
             resultView.frame = NSRect(
                 x: transcriptToolDetailLeadingInset,
@@ -362,7 +383,8 @@ final class AppKitSubAgentExpandedContentView: NSView {
         if toolsView.superview != nil {
             height += toolsView.intrinsicContentSize.height
         }
-        if resultView.superview != nil {
+        if let resultView = activeResultView,
+           resultView.superview != nil {
             if height > 0 {
                 height += 12
             } else if configuration.agent.tools.isEmpty {
