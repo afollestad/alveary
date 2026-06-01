@@ -14,6 +14,82 @@ protocol AppKitTranscriptFrameAnimatable: AnyObject {
     func finishSynchronizedFrameAnimation()
 }
 
+@MainActor
+final class AppKitTranscriptExpandableClipView: NSView {
+    private var targetFrame: NSRect?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        clipsToBounds = true
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    func updateFrame(width: CGFloat, targetHeight: CGFloat) {
+        let updatedFrame = NSRect(
+            x: 0,
+            y: 0,
+            width: max(width, 0),
+            height: max(targetHeight, 0)
+        )
+        guard targetFrame == nil else {
+            targetFrame = updatedFrame
+            return
+        }
+        frame = updatedFrame
+    }
+
+    func prepareVisibleHeightAnimation(from startHeight: CGFloat, to targetHeight: CGFloat, width: CGFloat) {
+        let targetFrame = NSRect(
+            x: 0,
+            y: 0,
+            width: max(width, 0),
+            height: max(targetHeight, 0)
+        )
+        self.targetFrame = targetFrame
+        frame = NSRect(
+            x: targetFrame.minX,
+            y: targetFrame.minY,
+            width: targetFrame.width,
+            height: max(startHeight, 0)
+        )
+    }
+
+    func animateVisibleHeightChange() {
+        guard let targetFrame else {
+            return
+        }
+        animator().frame = targetFrame
+    }
+
+    func finishVisibleHeightAnimation() {
+        guard let targetFrame else {
+            return
+        }
+        frame = targetFrame
+        self.targetFrame = nil
+    }
+
+    var isAnimatingVisibleHeight: Bool {
+        targetFrame != nil
+    }
+
+#if DEBUG
+    var visibleHeightForTesting: CGFloat {
+        frame.height
+    }
+#endif
+}
+
 extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptFrameAnimatable {
     func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
         guard let targetMetrics = lastLayoutMetrics,

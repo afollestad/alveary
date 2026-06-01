@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import Foundation
+import QuartzCore
 
 @MainActor
 final class AppKitTranscriptNestedSubAgentRowsView: NSView {
@@ -130,23 +131,27 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         }
     }
 
+    private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
     private let contentView = AppKitSubAgentExpandedContentView()
     private var configuration: Configuration?
     private var isExpanded = false
     private var lastMeasuredHeight: CGFloat = -1
+    private var localClipAnimationToken = UUID()
+    private var isBatchingChildHeightInvalidations = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
         clipsToBounds = true
+        clipView.translatesAutoresizingMaskIntoConstraints = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         contentView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         contentView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         contentView.onOpenMarkdownLink = onOpenMarkdownLink
-        addSubview(headerView)
-        addSubview(contentView)
+        addSubview(clipView)
+        clipView.addSubview(headerView)
     }
 
     @available(*, unavailable)
@@ -172,7 +177,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         if shouldResetExpansion {
             isExpanded = false
         }
-        rebuild()
+        rebuildAndPrelayoutExpandedContent()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
     }
@@ -181,13 +186,21 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         guard isExpanded != expanded else {
             return
         }
+        let previousHeight = measuredHeight()
         isExpanded = expanded
-        rebuild()
+        rebuildAndPrelayoutExpandedContent()
+        prepareLocalClipAnimationIfNeeded(from: previousHeight)
         needsLayout = true
         invalidateTranscriptHeight(force: true)
     }
 
     override func layout() {
+        layoutContent()
+        super.layout()
+        invalidateTranscriptHeight(force: false)
+    }
+
+    private func layoutContent() {
         let width = max(bounds.width, 0)
         headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
         headerView.layoutSubtreeIfNeeded()
@@ -203,8 +216,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
             contentView.layoutSubtreeIfNeeded()
             contentView.frame.size.height = contentView.intrinsicContentSize.height
         }
-        super.layout()
-        invalidateTranscriptHeight(force: false)
+        clipView.updateFrame(width: width, targetHeight: measuredHeight())
     }
 
     private func rebuild() {
@@ -229,7 +241,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
 
         if isExpanded {
             if contentView.superview == nil {
-                addSubview(contentView)
+                clipView.addSubview(contentView)
             }
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
             contentView.configure(.init(agent: configuration.agent, typography: configuration.typography))
@@ -259,7 +271,60 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
 
     private func childHeightInvalidated() {
         needsLayout = true
+        guard !isBatchingChildHeightInvalidations else {
+            return
+        }
         invalidateTranscriptHeight(force: true)
+    }
+
+    private func rebuildAndPrelayoutExpandedContent() {
+        isBatchingChildHeightInvalidations = true
+        defer { isBatchingChildHeightInvalidations = false }
+        rebuild()
+        prelayoutExpandedContentIfPossible()
+    }
+
+    private func prelayoutExpandedContentIfPossible() {
+        guard isExpanded, bounds.width > 0 else {
+            return
+        }
+        layoutContent()
+    }
+
+    private func prepareLocalClipAnimationIfNeeded(from previousHeight: CGFloat) {
+        guard window != nil,
+              bounds.width > 0 else {
+            return
+        }
+        let targetHeight = measuredHeight()
+        guard previousHeight > 0,
+              targetHeight > 0,
+              abs(previousHeight - targetHeight) > 0.5 else {
+            return
+        }
+        clipView.prepareVisibleHeightAnimation(from: previousHeight, to: targetHeight, width: bounds.width)
+        localClipAnimationToken = UUID()
+        let token = localClipAnimationToken
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.localClipAnimationToken == token,
+                  self.clipView.isAnimatingVisibleHeight else {
+                return
+            }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = appExpansionAnimationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                self.clipView.animateVisibleHeightChange()
+            } completionHandler: { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self,
+                          self.localClipAnimationToken == token else {
+                        return
+                    }
+                    self.clipView.finishVisibleHeightAnimation()
+                }
+            }
+        }
     }
 }
 

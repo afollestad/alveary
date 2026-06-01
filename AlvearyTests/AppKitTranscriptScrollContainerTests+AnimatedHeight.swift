@@ -106,6 +106,48 @@ extension AppKitTranscriptScrollContainerTests {
         XCTAssertEqual(container.documentHeight, finalDocumentHeight, accuracy: 0.5)
     }
 
+    func testAnimatedSubAgentExpansionKeepsClipAtCollapsedHeightDuringFrameAnimation() throws {
+        let container = makeAnimatedHeightContainer(height: 140)
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.configure(
+            .init(
+                agents: [
+                    animatedHeightAgent(
+                        id: "agent-one",
+                        description: "Explore project structure",
+                        result: (0..<22).map { "result line \($0)" }.joined(separator: "\n")
+                    )
+                ]
+            )
+        )
+        block.onHeightInvalidated = { [weak container] in
+            container?.rowHeightInvalidated(rowID: "agents", preserveBottomIfFollowing: false)
+        }
+        container.configure(
+            rows: [
+                AppKitTranscriptLayoutRow(id: "agents", view: block),
+                animatedHeightRow("below", height: 80)
+            ],
+            preserveBottomIfFollowing: false
+        )
+        let collapsedHeight = try XCTUnwrap(container.rowFrame(for: "agents")?.height)
+        let clipView = try XCTUnwrap(block.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+
+        block.setExpanded(true)
+
+        XCTAssertTrue(container.transcriptDocumentView.hasActiveFrameAnimation)
+        XCTAssertTrue(clipView.isAnimatingVisibleHeight)
+        if let presentationHeight = clipView.layer?.presentation()?.bounds.height {
+            XCTAssertLessThanOrEqual(presentationHeight, collapsedHeight + 0.5)
+        }
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.4))
+
+        XCTAssertFalse(container.transcriptDocumentView.hasActiveFrameAnimation)
+        XCTAssertFalse(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, block.intrinsicContentSize.height, accuracy: 0.5)
+    }
+
     private func makeAnimatedHeightContainer(height: CGFloat) -> AppKitTranscriptScrollContainerView {
         let container = AppKitTranscriptScrollContainerView(frame: NSRect(x: 0, y: 0, width: 300, height: height))
         container.layoutSubtreeIfNeeded()
@@ -156,5 +198,35 @@ private final class AnimatedHeightMutableRowView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: height)
+    }
+}
+
+private func animatedHeightAgent(
+    id: String,
+    description: String,
+    result: String
+) -> SubAgentEntry {
+    SubAgentEntry(
+        id: id,
+        agentType: "explorer",
+        description: description,
+        statusDescription: nil,
+        lastToolName: nil,
+        tools: [],
+        result: result,
+        isComplete: true,
+        toolUseCount: 0
+    )
+}
+
+private extension NSView {
+    func descendants<ViewType: NSView>(of type: ViewType.Type) -> [ViewType] {
+        subviews.flatMap { child -> [ViewType] in
+            var matches = child.descendants(of: type)
+            if let typed = child as? ViewType {
+                matches.insert(typed, at: 0)
+            }
+            return matches
+        }
     }
 }

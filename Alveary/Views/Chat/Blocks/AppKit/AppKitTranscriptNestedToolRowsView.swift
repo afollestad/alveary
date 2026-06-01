@@ -58,6 +58,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
         rowViews = configuration.tools.map { tool in
             let row = rowViewsByToolID[tool.id] ?? AppKitTranscriptInlineToolRowView()
             rowViewsByToolID[tool.id] = row
+            row.usesLocalClipAnimationForExpansion = true
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onOpenMarkdownLink = onOpenMarkdownLink
             row.configure(.init(tool: tool, typography: configuration.typography))

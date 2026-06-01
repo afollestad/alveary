@@ -112,7 +112,7 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
 
         let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
         let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
-        let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview)
+        let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview?.superview)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         block.layoutSubtreeIfNeeded()
         let expandedHeight = block.intrinsicContentSize.height
@@ -231,6 +231,132 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertGreaterThan(block.intrinsicContentSize.height, shortHeight)
         XCTAssertTrue(block.renderedText.contains("Result"))
         XCTAssertTrue(block.renderedText.contains("result line 19"))
+    }
+
+    func testMultiAgentColdExpansionPremeasuresTargetHeightBeforeLayout() {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                agents: [
+                    agent(id: "agent-one", description: "Inspect structure", result: "Structure result", isComplete: true),
+                    agent(id: "agent-two", description: "Review HTML", result: "HTML result", isComplete: true)
+                ]
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+        let collapsedHeight = block.intrinsicContentSize.height
+
+        block.setExpanded(true)
+        let heightAfterInvalidation = block.intrinsicContentSize.height
+
+        XCTAssertGreaterThan(heightAfterInvalidation, collapsedHeight)
+        XCTAssertTrue(block.renderedText.contains("Inspect structure"))
+        XCTAssertTrue(block.renderedText.contains("Review HTML"))
+    }
+
+    func testSubAgentSynchronizedFrameAnimationClipsFromPreviousHeight() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(.init(agents: [agent(description: "Inspect transcript rows", result: "Result")]))
+        block.layoutSubtreeIfNeeded()
+        let collapsedHeight = block.intrinsicContentSize.height
+        block.setExpanded(true)
+        block.layoutSubtreeIfNeeded()
+        let expandedHeight = block.intrinsicContentSize.height
+        let clipView = try XCTUnwrap(block.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+
+        block.prepareSynchronizedFrameAnimation(
+            from: NSRect(x: 0, y: 0, width: 520, height: collapsedHeight),
+            to: NSRect(x: 0, y: 0, width: 520, height: expandedHeight)
+        )
+
+        XCTAssertTrue(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, collapsedHeight, accuracy: 0.5)
+
+        block.finishSynchronizedFrameAnimation()
+
+        XCTAssertFalse(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, expandedHeight, accuracy: 0.5)
+    }
+
+    func testNestedAgentExpansionClipsColdContentDuringFirstAnimation() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        let window = NSWindow(contentRect: block.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = block
+        block.configure(
+            .init(
+                agents: [
+                    agent(
+                        id: "agent-one",
+                        description: "Inspect transcript rows",
+                        tools: [tool(id: "read-1", name: "Read", summary: "Reading AGENTS.md")],
+                        result: (0..<18).map { "nested result line \($0)" }.joined(separator: "\n")
+                    ),
+                    agent(id: "agent-two", description: "Search code paths", result: "Search result")
+                ],
+                initiallyExpanded: true
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
+        let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview?.superview)
+        let clipView = try XCTUnwrap(nestedAgentRow.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+        let collapsedClipHeight = clipView.visibleHeightForTesting
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+
+        XCTAssertEqual(clipView.visibleHeightForTesting, collapsedClipHeight, accuracy: 0.5)
+        XCTAssertGreaterThan(nestedAgentRow.intrinsicContentSize.height, collapsedClipHeight)
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.4))
+
+        XCTAssertFalse(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, nestedAgentRow.intrinsicContentSize.height, accuracy: 0.5)
+        window.contentView = nil
+    }
+
+    func testFirstExpansionAtZeroWidthRemeasuresWhenWidthArrives() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 0, height: 1_000)
+        block.configure(.init(agents: [agent(description: "Inspect transcript rows", result: "Result")]))
+        block.layoutSubtreeIfNeeded()
+
+        block.setExpanded(true)
+        let clipView = try XCTUnwrap(block.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+        let zeroWidthHeight = clipView.visibleHeightForTesting
+
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.needsLayout = true
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(block.intrinsicContentSize.height, zeroWidthHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, block.intrinsicContentSize.height, accuracy: 0.5)
+        XCTAssertTrue(block.renderedText.contains("Result"))
+    }
+
+    func testSubAgentBlockIgnoresPersistedExpansionEchoAfterLocalToggle() {
+        let block = AppKitTranscriptSubAgentBlockView()
+        var invalidationCount = 0
+        block.onHeightInvalidated = {
+            invalidationCount += 1
+        }
+        let agents = [agent(description: "Inspect transcript rows", result: "Result")]
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(.init(agents: agents, initiallyExpanded: false))
+        block.layoutSubtreeIfNeeded()
+
+        block.setExpanded(true)
+        block.layoutSubtreeIfNeeded()
+        invalidationCount = 0
+
+        block.configure(.init(agents: agents, initiallyExpanded: true))
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(invalidationCount, 0)
+        XCTAssertTrue(block.renderedText.contains("Result"))
     }
 }
 

@@ -220,6 +220,38 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertTrue(group.renderedText.contains("Reading AGENTS.md"))
     }
 
+    func testToolGroupSynchronizedFrameAnimationClipsFromPreviousHeight() throws {
+        let group = AppKitTranscriptToolGroupView()
+        group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        group.configure(
+            .init(
+                tools: [
+                    tool(id: "read-1", name: "Read", summary: "Reading AGENTS.md"),
+                    tool(id: "grep-1", name: "Grep", summary: "Searching for LazyVStack")
+                ]
+            )
+        )
+        group.layoutSubtreeIfNeeded()
+        let collapsedHeight = group.intrinsicContentSize.height
+        group.setExpanded(true)
+        group.layoutSubtreeIfNeeded()
+        let expandedHeight = group.intrinsicContentSize.height
+        let clipView = try XCTUnwrap(group.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+
+        group.prepareSynchronizedFrameAnimation(
+            from: NSRect(x: 0, y: 0, width: 460, height: collapsedHeight),
+            to: NSRect(x: 0, y: 0, width: 460, height: expandedHeight)
+        )
+
+        XCTAssertTrue(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, collapsedHeight, accuracy: 0.5)
+
+        group.finishSynchronizedFrameAnimation()
+
+        XCTAssertFalse(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, expandedHeight, accuracy: 0.5)
+    }
+
     func testNestedToolExpansionSurvivesParentRefresh() throws {
         let group = AppKitTranscriptToolGroupView()
         group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)

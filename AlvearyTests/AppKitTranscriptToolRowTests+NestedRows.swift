@@ -32,7 +32,7 @@ extension AppKitTranscriptToolRowTests {
         let firstNestedHeader = try XCTUnwrap(descendants(of: AppKitTranscriptToolHeaderRowView.self, in: nestedRows).first)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         group.layoutSubtreeIfNeeded()
-        let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview as? AppKitTranscriptInlineToolRowView)
+        let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview?.superview as? AppKitTranscriptInlineToolRowView)
         let expandedHeight = group.intrinsicContentSize.height
 
         XCTAssertTrue(invalidated)
@@ -49,6 +49,44 @@ extension AppKitTranscriptToolRowTests {
         group.layoutSubtreeIfNeeded()
         XCTAssertLessThan(group.intrinsicContentSize.height, expandedHeight)
         XCTAssertFalse(renderedText(in: group).contains("nested output line 17"))
+    }
+
+    func testNestedToolExpansionClipsColdContentDuringFirstAnimation() throws {
+        let group = AppKitTranscriptToolGroupView()
+        group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        let window = NSWindow(contentRect: group.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = group
+        group.configure(
+            .init(
+                tools: [
+                    nestedToolRowTool(
+                        id: "custom-1",
+                        name: "CustomTool",
+                        summary: "Running custom tool",
+                        output: (0..<24).map { "nested output line \($0)" }.joined(separator: "\n")
+                    ),
+                    nestedToolRowTool(id: "grep-1", name: "Grep", summary: "Searching for AppKit")
+                ],
+                initiallyExpanded: true
+            )
+        )
+        group.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(descendants(of: AppKitTranscriptNestedToolRowsView.self, in: group).first)
+        let firstNestedHeader = try XCTUnwrap(descendants(of: AppKitTranscriptToolHeaderRowView.self, in: nestedRows).first)
+        let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview?.superview as? AppKitTranscriptInlineToolRowView)
+        let clipView = try XCTUnwrap(descendants(of: AppKitTranscriptExpandableClipView.self, in: nestedToolRow).first)
+        let collapsedClipHeight = clipView.visibleHeightForTesting
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+
+        XCTAssertEqual(clipView.visibleHeightForTesting, collapsedClipHeight, accuracy: 0.5)
+        XCTAssertGreaterThan(nestedToolRow.intrinsicContentSize.height, collapsedClipHeight)
+
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.4))
+
+        XCTAssertFalse(clipView.isAnimatingVisibleHeight)
+        XCTAssertEqual(clipView.visibleHeightForTesting, nestedToolRow.intrinsicContentSize.height, accuracy: 0.5)
+        window.contentView = nil
     }
 }
 

@@ -28,12 +28,14 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         }
     }
 
+    private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
     private let singleAgentContentView = AppKitSubAgentExpandedContentView()
     private let nestedAgentsView = AppKitTranscriptNestedSubAgentRowsView()
     private var configuration: Configuration?
     private var isExpanded = false
     private var lastMeasuredHeight: CGFloat = -1
+    private var isBatchingChildHeightInvalidations = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -54,13 +56,20 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        let previousConfiguration = self.configuration
         let previousAgentIDs = self.configuration?.agents.map(\.id)
         let shouldResetExpansion = previousAgentIDs != configuration.agents.map(\.id)
+        let shouldRebuild = shouldResetExpansion ||
+            previousConfiguration?.agents != configuration.agents ||
+            previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
             isExpanded = configuration.initiallyExpanded
         }
-        rebuild()
+        guard shouldRebuild else {
+            return
+        }
+        rebuildAndPrelayoutExpandedContent()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
     }
@@ -70,7 +79,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             return
         }
         isExpanded = expanded
-        rebuild()
+        rebuildAndPrelayoutExpandedContent()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
         onExpansionChanged?(expanded)
@@ -85,6 +94,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         clipsToBounds = true
+        clipView.translatesAutoresizingMaskIntoConstraints = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
         singleAgentContentView.translatesAutoresizingMaskIntoConstraints = true
         nestedAgentsView.translatesAutoresizingMaskIntoConstraints = true
@@ -93,7 +103,8 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         nestedAgentsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         singleAgentContentView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedAgentsView.onOpenMarkdownLink = onOpenMarkdownLink
-        addSubview(headerView)
+        addSubview(clipView)
+        clipView.addSubview(headerView)
     }
 
     private func rebuild() {
@@ -124,11 +135,11 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         }
 
         if configuration.agents.count == 1, let agent = configuration.agents.first {
-            addSubview(singleAgentContentView)
+            clipView.addSubview(singleAgentContentView)
             singleAgentContentView.onOpenMarkdownLink = onOpenMarkdownLink
             singleAgentContentView.configure(.init(agent: agent, typography: configuration.typography))
         } else {
-            addSubview(nestedAgentsView)
+            clipView.addSubview(nestedAgentsView)
             nestedAgentsView.onOpenMarkdownLink = onOpenMarkdownLink
             nestedAgentsView.configure(.init(agents: configuration.agents, typography: configuration.typography))
         }
@@ -144,6 +155,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         headerView.frame.size.height = headerView.intrinsicContentSize.height
 
         guard isExpanded else {
+            clipView.updateFrame(width: width, targetHeight: headerView.frame.height)
             return
         }
 
@@ -156,6 +168,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         )
         expandedView.layoutSubtreeIfNeeded()
         expandedView.frame.size.height = expandedView.intrinsicContentSize.height
+        clipView.updateFrame(width: width, targetHeight: measuredHeight())
     }
 
     private func measuredHeight() -> CGFloat {
@@ -180,7 +193,24 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
 
     private func childHeightInvalidated() {
         needsLayout = true
+        guard !isBatchingChildHeightInvalidations else {
+            return
+        }
         invalidateTranscriptHeight(force: true)
+    }
+
+    private func rebuildAndPrelayoutExpandedContent() {
+        isBatchingChildHeightInvalidations = true
+        defer { isBatchingChildHeightInvalidations = false }
+        rebuild()
+        prelayoutExpandedContentIfPossible()
+    }
+
+    private func prelayoutExpandedContentIfPossible() {
+        guard isExpanded, bounds.width > 0 else {
+            return
+        }
+        layoutContent()
     }
 
     private func headerSummary(for agents: [SubAgentEntry]) -> String {
@@ -198,6 +228,20 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             isError: agents.contains(where: \.appKitHasFailedTool),
             isComplete: !agents.isEmpty && agents.allSatisfy(\.isComplete)
         )
+    }
+}
+
+extension AppKitTranscriptSubAgentBlockView: AppKitTranscriptFrameAnimatable {
+    func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
+        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetFrame.width)
+    }
+
+    func animateSynchronizedFrameChange() {
+        clipView.animateVisibleHeightChange()
+    }
+
+    func finishSynchronizedFrameAnimation() {
+        clipView.finishVisibleHeightAnimation()
     }
 }
 

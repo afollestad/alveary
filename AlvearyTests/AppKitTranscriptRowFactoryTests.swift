@@ -290,6 +290,38 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertEqual(expansionChanges.map(\.isExpanded), [true])
     }
 
+    func testSubAgentExpansionEchoDoesNotInvalidateCachedRow() throws {
+        let factory = AppKitTranscriptRowFactory()
+        var invalidatedRowIDs: [String] = []
+        let item = ChatItem.subAgentBlock(id: "agents", agents: [agent(id: "agent")])
+        let initialRows = factory.makeRows(
+            for: [item],
+            configuration: .init(onRowHeightInvalidated: { rowID, _ in
+                invalidatedRowIDs.append(rowID)
+            })
+        )
+        let block = try XCTUnwrap(initialRows.first?.view as? AppKitTranscriptSubAgentBlockView)
+        block.frame = NSRect(x: 0, y: 0, width: 460, height: 400)
+        block.layoutSubtreeIfNeeded()
+
+        block.setExpanded(true)
+        block.layoutSubtreeIfNeeded()
+        invalidatedRowIDs = []
+
+        _ = factory.makeRows(
+            for: [item],
+            configuration: .init(
+                expandedRowIDs: ["agents"],
+                onRowHeightInvalidated: { rowID, _ in
+                    invalidatedRowIDs.append(rowID)
+                }
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(invalidatedRowIDs.isEmpty)
+    }
+
     private func tool(id: String) -> ToolEntry {
         ToolEntry(
             id: id,
