@@ -127,24 +127,22 @@ extension ChatItemGrouper {
             )
         }
 
+        applyPendingSubAgentTerminalEvents(id: toolId)
         ensurePendingSubAgent(id: toolId)
     }
 
     func handleSubAgentToolResult(toolId: String, event: ConversationEventRecord) -> Bool {
         if activeSubAgents[toolId] != nil {
-            mutateSubAgent(id: toolId) { subAgent in
-                subAgent.result = event.toolOutput ?? event.content
-                subAgent.isComplete = true
-            }
-            subAgentIdsReadyForEviction.insert(toolId)
+            completeSubAgent(id: toolId, resultEvent: event)
             return true
         }
 
         if evictedSubAgentIds.contains(toolId) {
-            patchRenderedSubAgentResult(id: toolId, result: event.toolOutput ?? event.content)
+            patchRenderedSubAgentResult(id: toolId, result: event.toolOutput ?? event.content, markComplete: true)
             return true
         }
 
+        pendingSubAgentResults[toolId] = event
         return false
     }
 }
@@ -160,6 +158,7 @@ private extension ChatItemGrouper {
             ensurePendingSubAgent(id: id)
         }
 
+        applyPendingSubAgentTerminalEvents(id: id)
         subAgentProgressRefreshTask?.cancel()
         refreshLiveSubAgentBlock()
     }
@@ -187,14 +186,48 @@ private extension ChatItemGrouper {
     }
 
     func handleSubAgentCompleted(id: String, toolUses: Int, totalTokens: Int, durationMs: Int) {
-        mutateSubAgent(id: id) { subAgent in
-            subAgent.isComplete = true
-            subAgent.toolUseCount = toolUses
-            subAgent.totalTokens = totalTokens
-            subAgent.durationMs = durationMs
+        let completion = PendingSubAgentCompletion(
+            toolUses: toolUses,
+            totalTokens: totalTokens,
+            durationMs: durationMs
+        )
+        if activeSubAgents[id] != nil {
+            completeSubAgent(id: id, completion: completion)
+        } else if evictedSubAgentIds.contains(id) {
+            patchRenderedSubAgentCompletion(id: id, completion: completion)
+        } else {
+            pendingSubAgentCompletions[id] = completion
         }
         subAgentProgressRefreshTask?.cancel()
         refreshLiveSubAgentBlock()
+    }
+
+    func applyPendingSubAgentTerminalEvents(id: String) {
+        let completion = pendingSubAgentCompletions.removeValue(forKey: id)
+        let resultEvent = pendingSubAgentResults.removeValue(forKey: id)
+        guard completion != nil || resultEvent != nil else {
+            return
+        }
+        completeSubAgent(id: id, completion: completion, resultEvent: resultEvent)
+    }
+
+    func completeSubAgent(
+        id: String,
+        completion: PendingSubAgentCompletion? = nil,
+        resultEvent: ConversationEventRecord? = nil
+    ) {
+        mutateSubAgent(id: id) { subAgent in
+            if let completion {
+                subAgent.toolUseCount = completion.toolUses
+                subAgent.totalTokens = completion.totalTokens
+                subAgent.durationMs = completion.durationMs
+            }
+            if let resultEvent {
+                subAgent.result = resultEvent.toolOutput ?? resultEvent.content
+            }
+            subAgent.isComplete = true
+        }
+        subAgentIdsReadyForEviction.insert(id)
     }
 
     func ensurePendingSubAgent(id: String) {
@@ -231,9 +264,21 @@ private extension ChatItemGrouper {
         }
     }
 
-    func patchRenderedSubAgentResult(id: String, result: String?) {
+    func patchRenderedSubAgentCompletion(id: String, completion: PendingSubAgentCompletion) {
+        updateRenderedSubAgent(id: id) { agent in
+            agent.isComplete = true
+            agent.toolUseCount = completion.toolUses
+            agent.totalTokens = completion.totalTokens
+            agent.durationMs = completion.durationMs
+        }
+    }
+
+    func patchRenderedSubAgentResult(id: String, result: String?, markComplete: Bool = false) {
         updateRenderedSubAgent(id: id) { agent in
             agent.result = result
+            if markComplete {
+                agent.isComplete = true
+            }
         }
     }
 

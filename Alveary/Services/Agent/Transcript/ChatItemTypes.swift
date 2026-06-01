@@ -170,6 +170,12 @@ struct SubAgentEntry: Identifiable, Equatable {
     var durationMs: Int = 0
 }
 
+struct PendingSubAgentCompletion: Equatable {
+    let toolUses: Int
+    let totalTokens: Int
+    let durationMs: Int
+}
+
 struct TaskEntry: Identifiable, Equatable {
     let id: String
     let content: String

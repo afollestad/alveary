@@ -79,6 +79,178 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(agents.first(where: { $0.id == "agent-2" })?.toolUseCount, 2)
     }
 
+    func testSubAgentResultBeforeAgentCallCompletesLaterAgentRow() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentResult(
+            id: "agent-result-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "Early result"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count HTML"
+        ))
+
+        let agent = onlySubAgent(in: grouper)
+        XCTAssertEqual(agent?.id, "agent-1")
+        XCTAssertTrue(agent?.isComplete == true)
+        XCTAssertEqual(agent?.result, "Early result")
+    }
+
+    func testSubAgentCompletionBeforeAgentCallAppliesMetricsToLaterAgentRow() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.handleSubAgentControl(.subAgentCompleted(
+            toolUseId: "agent-1",
+            status: "completed",
+            toolUses: 3,
+            totalTokens: 400,
+            durationMs: 500
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count HTML"
+        ))
+
+        let agent = onlySubAgent(in: grouper)
+        XCTAssertEqual(agent?.id, "agent-1")
+        XCTAssertTrue(agent?.isComplete == true)
+        XCTAssertEqual(agent?.toolUseCount, 3)
+        XCTAssertEqual(agent?.totalTokens, 400)
+        XCTAssertEqual(agent?.durationMs, 500)
+    }
+
+    func testDuplicateEarlySubAgentResultsDoNotDuplicateRowsOrRegressStatus() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentResult(
+            id: "agent-result-1a",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "First result"
+        ))
+        grouper.append(event: agentResult(
+            id: "agent-result-1b",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "Second result"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count HTML"
+        ))
+        grouper.append(event: agentResult(
+            id: "agent-result-1c",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "Final result"
+        ))
+
+        let agents = subAgents(in: grouper)
+        XCTAssertEqual(agents.count, 1)
+        XCTAssertEqual(agents.first?.id, "agent-1")
+        XCTAssertTrue(agents.first?.isComplete == true)
+        XCTAssertEqual(agents.first?.result, "Final result")
+    }
+
+    func testInterleavedApprovalDoesNotDropEarlyCompletedSubAgent() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentResult(
+            id: "agent-result-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "Early result"
+        ))
+        grouper.append(event: secondAgentApproval(conversationId: conversationId))
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count HTML"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-2",
+            conversationId: conversationId,
+            toolId: "agent-2",
+            description: "Audit CSS"
+        ))
+
+        let agents = subAgents(in: grouper)
+        XCTAssertEqual(agents.map(\.id), ["agent-1", "agent-2"])
+        XCTAssertTrue(agents.first(where: { $0.id == "agent-1" })?.isComplete == true)
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-1" })?.result, "Early result")
+        XCTAssertEqual(toolApprovalItemCount(in: grouper.items), 1)
+    }
+
+    func testPersistedEarlySubAgentResultRebuildsCompletedAgentRow() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let events = [
+            agentResult(
+                id: "agent-result-1",
+                conversationId: conversationId,
+                toolId: "agent-1",
+                output: "Persisted result"
+            ),
+            agentCall(
+                id: "agent-call-1",
+                conversationId: conversationId,
+                toolId: "agent-1",
+                description: "Count HTML"
+            )
+        ]
+
+        grouper.update(events: events, forceFullRebuild: true)
+
+        let agent = onlySubAgent(in: grouper)
+        XCTAssertEqual(agent?.id, "agent-1")
+        XCTAssertTrue(agent?.isComplete == true)
+        XCTAssertEqual(agent?.result, "Persisted result")
+    }
+
+    func testConsumedEarlySubAgentResultDoesNotApplyToUnrelatedAgent() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentResult(
+            id: "agent-result-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            output: "Early result"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Count HTML"
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-2",
+            conversationId: conversationId,
+            toolId: "agent-2",
+            description: "Audit CSS"
+        ))
+
+        let agents = subAgents(in: grouper)
+        XCTAssertTrue(agents.first(where: { $0.id == "agent-1" })?.isComplete == true)
+        XCTAssertEqual(agents.first(where: { $0.id == "agent-1" })?.result, "Early result")
+        XCTAssertFalse(agents.first(where: { $0.id == "agent-2" })?.isComplete == true)
+        XCTAssertNil(agents.first(where: { $0.id == "agent-2" })?.result)
+    }
+
     private func assertSingleCompletedParallelSubAgentBlock(in grouper: ChatItemGrouper) {
         let subAgentBlocks = grouper.items.compactMap { item -> [SubAgentEntry]? in
             guard case .subAgentBlock(_, let agents) = item else {
@@ -100,6 +272,21 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(secondAgent.tools.first?.id, "agent-2-bash")
         XCTAssertTrue(secondAgent.tools.first?.isComplete == true)
         XCTAssertEqual(toolApprovalItemCount(in: grouper.items), 1)
+    }
+
+    private func onlySubAgent(in grouper: ChatItemGrouper) -> SubAgentEntry? {
+        let agents = subAgents(in: grouper)
+        XCTAssertEqual(agents.count, 1)
+        return agents.first
+    }
+
+    private func subAgents(in grouper: ChatItemGrouper) -> [SubAgentEntry] {
+        grouper.items.compactMap { item -> [SubAgentEntry]? in
+            guard case .subAgentBlock(_, let agents) = item else {
+                return nil
+            }
+            return agents
+        }.flatMap { $0 }
     }
 
     private func parallelSubAgentApprovalEvents(conversationId: String) -> [ConversationEventRecord] {

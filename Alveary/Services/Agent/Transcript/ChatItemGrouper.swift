@@ -16,6 +16,8 @@ final class ChatItemGrouper {
     var pendingSubAgentIds: [String] = []
     var subAgentIdsReadyForEviction: Set<String> = []
     var evictedSubAgentIds: Set<String> = []
+    var pendingSubAgentCompletions: [String: PendingSubAgentCompletion] = [:]
+    var pendingSubAgentResults: [String: ConversationEventRecord] = [:]
     var currentTasks: [TaskEntry] = []
     var agentTaskListReducer = AgentTaskListReducer()
     var agentTaskToolIds: Set<String> = []
@@ -78,6 +80,8 @@ final class ChatItemGrouper {
         pendingSubAgentIds = []
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
+        pendingSubAgentCompletions = [:]
+        pendingSubAgentResults = [:]
         agentTaskListReducer = AgentTaskListReducer()
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []

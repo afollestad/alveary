@@ -34,6 +34,7 @@ These instructions cover transcript grouping under `Alveary/Services/Agent/Trans
     - **Merge by agent ID.** `flushSubAgents()` should replace the existing rendered `.subAgentBlock` that shares any child agent ID instead of appending a fresh block.
     - **Preserve completed siblings.** Approval prompts can interleave beneath a live parallel-agent block during full transcript rebuilds; merging keeps completed child agents in the group while later sibling updates arrive.
     - **Avoid trailing-block removal.** Do not treat sub-agent blocks like generic tool groups in `removeTrailingPendingBlocksIfNeeded()`; sub-agent replacement is ID-based because approval rows may no longer make the live block the trailing item.
+    - **Tolerate out-of-order completion.** Agent task completions and `Agent` tool results can arrive before the matching `Agent` tool call is processed; cache them by tool ID and apply them when the sub-agent row is created.
 - **Render `tool_approval` as its own assistant-side block.** Flush any pending tool group/sub-agent block first, keep the block concise, and leave detailed tool input to existing tool rows rather than dumping JSON into the approval surface.
 - **Terminalize denied tool rows.** A resolved `.denied` approval may not be followed by a `tool_result`; use the approval status to complete the matching tool row as failed/no-output so it cannot stay loading forever.
 - **Keep `Skill` invocations standalone.** Do not group them with generic read-only tools; each skill launch should remain its own transcript row.

@@ -63,6 +63,8 @@ extension ChatItemGrouper {
         pendingSubAgentIds = []
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
+        pendingSubAgentCompletions = [:]
+        pendingSubAgentResults = [:]
         currentTasks = []
         agentTaskListReducer = AgentTaskListReducer()
         agentTaskToolIds = []
