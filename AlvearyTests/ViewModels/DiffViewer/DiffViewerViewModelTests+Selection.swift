@@ -107,6 +107,69 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.selectedFile, files[2])
     }
 
+    func testSelectAllFilesSelectsEveryVisibleFileAndInitializesPreviewAnchor() async {
+        let files = [
+            FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "two.swift", originalPath: nil, status: .modified, isStaged: false)
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success(files)],
+                diffResults: [Self.modifiedDiff(path: files[0].path)]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+
+        await fixture.viewModel.selectAllFiles(in: fixture.directory)
+
+        XCTAssertEqual(fixture.viewModel.selectedFiles, files)
+        XCTAssertEqual(fixture.viewModel.selectedFile, files[0])
+        XCTAssertEqual(fixture.viewModel.parsedDiff?.path, files[0].path)
+    }
+
+    func testSelectAllFilesPreservesExistingPreviewAnchor() async {
+        let files = [
+            FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "two.swift", originalPath: nil, status: .modified, isStaged: false),
+            FileStatus(path: "three.swift", originalPath: nil, status: .modified, isStaged: false)
+        ]
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success(files)],
+                diffResults: [Self.modifiedDiff(path: files[1].path)]
+            )
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+        await fixture.viewModel.selectFile(files[1], in: fixture.directory)
+
+        await fixture.viewModel.selectAllFiles(in: fixture.directory)
+
+        XCTAssertEqual(fixture.viewModel.selectedFiles, files)
+        XCTAssertEqual(fixture.viewModel.selectedFile, files[1])
+        XCTAssertEqual(fixture.viewModel.parsedDiff?.path, files[1].path)
+
+        let diffCalls = await fixture.gitService.diffCalls()
+        XCTAssertEqual(diffCalls.map(\.paths), [[files[1].path]])
+    }
+
+    func testSelectAllFilesIsNoOpForEmptyList() async {
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(statusResults: [.success([])])
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+
+        await fixture.viewModel.selectAllFiles(in: fixture.directory)
+
+        XCTAssertTrue(fixture.viewModel.selectedFiles.isEmpty)
+        XCTAssertNil(fixture.viewModel.selectedFile)
+    }
+
     func testKeyboardNavigationMovesSelectedFileAndLoadsDiff() async {
         let files = [
             FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false),

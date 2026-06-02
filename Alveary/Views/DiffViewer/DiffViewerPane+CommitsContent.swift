@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct DiffViewerCommitsContent: View {
@@ -9,6 +10,7 @@ struct DiffViewerCommitsContent: View {
     @State private var latestKeyboardNavigationScrollID = UUID()
     @State private var latestKeyboardNavigationLoadID = UUID()
     @State private var keyboardNavigationCommitID: String?
+    @State private var hasClaimedCommitListKeyboardFocus = false
     @FocusState private var isCommitListKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
 
@@ -57,13 +59,10 @@ struct DiffViewerCommitsContent: View {
                 List(viewModel.aheadCommits) { commit in
                     DiffViewerCommitRow(
                         commit: commit,
-                        isSelected: commitSelectionID == commit.id
+                        isSelected: viewModel.isCommitSelected(commit)
                     ) {
-                        keyboardNavigationCommitID = commit.id
                         claimCommitListKeyboardFocus()
-                        Task {
-                            await viewModel.selectCommit(commit)
-                        }
+                        selectCommit(commit, behavior: currentCommitSelectionBehavior)
                     }
                 }
                 .selectionDisabled()
@@ -74,15 +73,20 @@ struct DiffViewerCommitsContent: View {
                 .focusable()
                 .focused($isCommitListKeyboardFocused)
                 .focusEffectDisabled()
-                .onKeyPress(keys: [.upArrow, .downArrow]) { keyPress in
+                .onKeyPress(keys: [.upArrow, .downArrow, KeyEquivalent("a")]) { keyPress in
                     handleCommitListKeyPress(keyPress, scrollProxy: scrollProxy)
                 }
                 .background {
-                    DiffViewerFileListScrollMonitor(
-                        fileIDs: viewModel.aheadCommits.map(\.id),
-                        verticalOffsetFromTop: .constant(0),
-                        scrollController: scrollController
-                    )
+                    ZStack {
+                        DiffViewerFileListScrollMonitor(
+                            fileIDs: viewModel.aheadCommits.map(\.id),
+                            verticalOffsetFromTop: .constant(0),
+                            scrollController: scrollController
+                        )
+                        DiffViewerTopListKeyboardMonitor(isEnabled: hasClaimedCommitListKeyboardFocus || isCommitListKeyboardFocused) { event in
+                            handleCommitListKeyDown(event, scrollProxy: scrollProxy)
+                        }
+                    }
                 }
                 .onChange(of: viewModel.selectedCommit?.id) { _, commitID in
                     keyboardNavigationCommitID = commitID
@@ -90,10 +94,16 @@ struct DiffViewerCommitsContent: View {
                 .onAppear {
                     keyboardNavigationCommitID = viewModel.selectedCommit?.id
                 }
+                .onChange(of: isCommitListKeyboardFocused) { _, isFocused in
+                    if isFocused {
+                        hasClaimedCommitListKeyboardFocus = true
+                    }
+                }
                 .onDisappear {
                     latestKeyboardNavigationScrollID = UUID()
                     latestKeyboardNavigationLoadID = UUID()
                     keyboardNavigationCommitID = nil
+                    hasClaimedCommitListKeyboardFocus = false
                 }
             }
         }
@@ -175,21 +185,93 @@ struct DiffViewerCommitsContent: View {
     private func handleCommitListKeyPress(_ keyPress: KeyPress, scrollProxy: ScrollViewProxy) -> KeyPress.Result {
         switch keyPress.key {
         case .upArrow:
-            navigateCommitList(forward: false, scrollProxy: scrollProxy)
+            navigateCommitList(
+                forward: false,
+                behavior: keyboardNavigationSelectionBehavior(for: keyPress),
+                scrollProxy: scrollProxy
+            )
             return .handled
         case .downArrow:
-            navigateCommitList(forward: true, scrollProxy: scrollProxy)
+            navigateCommitList(
+                forward: true,
+                behavior: keyboardNavigationSelectionBehavior(for: keyPress),
+                scrollProxy: scrollProxy
+            )
+            return .handled
+        case KeyEquivalent("a") where keyPress.modifiers.contains(.command):
+            selectAllCommits()
             return .handled
         default:
             return .ignored
         }
     }
 
-    private func navigateCommitList(forward: Bool, scrollProxy: ScrollViewProxy) {
+    private func handleCommitListKeyDown(_ event: NSEvent, scrollProxy: ScrollViewProxy) -> Bool {
+        if isSelectAllKey(event) {
+            selectAllCommits()
+            return true
+        }
+
+        switch event.keyCode {
+        case DiffViewerTopListKeyCode.upArrow:
+            navigateCommitList(
+                forward: false,
+                behavior: keyboardNavigationSelectionBehavior(for: event),
+                scrollProxy: scrollProxy
+            )
+            return true
+        case DiffViewerTopListKeyCode.downArrow:
+            navigateCommitList(
+                forward: true,
+                behavior: keyboardNavigationSelectionBehavior(for: event),
+                scrollProxy: scrollProxy
+            )
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func selectCommit(_ commit: CommitInfo, behavior: DiffViewerCommitSelectionBehavior) {
+        latestKeyboardNavigationLoadID = UUID()
+        let preparedSelection = viewModel.selectCommitImmediately(commit, behavior: behavior)
+        keyboardNavigationCommitID = preparedSelection?.commit.id ?? viewModel.selectedCommit?.id
+
+        guard let preparedSelection else {
+            return
+        }
+
+        Task {
+            await viewModel.loadSelectedCommitDiff(preparedSelection)
+        }
+    }
+
+    private func selectAllCommits() {
+        latestKeyboardNavigationLoadID = UUID()
+        let preparedSelection = viewModel.selectAllCommitsImmediately()
+        keyboardNavigationCommitID = preparedSelection?.commit.id ?? viewModel.selectedCommit?.id
+
+        guard let preparedSelection else {
+            return
+        }
+
+        Task {
+            await viewModel.loadSelectedCommitDiff(preparedSelection)
+        }
+    }
+
+    private func navigateCommitList(
+        forward: Bool,
+        behavior: DiffViewerCommitSelectionBehavior,
+        scrollProxy: ScrollViewProxy
+    ) {
         guard let commit = viewModel.adjacentCommit(from: commitSelectionID, forward: forward) else {
             return
         }
-        keyboardNavigationCommitID = commit.id
+        guard let preparedSelection = viewModel.selectCommitImmediately(commit, behavior: behavior) else {
+            return
+        }
+        keyboardNavigationCommitID = preparedSelection.commit.id
         let loadID = UUID()
         latestKeyboardNavigationLoadID = loadID
         // Selection changes synchronously for row color; only the latest repeated key press should start preview work.
@@ -197,7 +279,7 @@ struct DiffViewerCommitsContent: View {
             guard latestKeyboardNavigationLoadID == loadID else {
                 return
             }
-            await viewModel.selectCommit(commit)
+            await viewModel.loadSelectedCommitDiff(preparedSelection)
         }
         scrollSelectionIntoView(scrollProxy: scrollProxy, id: commit.id)
     }
@@ -205,8 +287,62 @@ struct DiffViewerCommitsContent: View {
     private func claimCommitListKeyboardFocus() {
         latestKeyboardNavigationScrollID = UUID()
         latestKeyboardNavigationLoadID = UUID()
+        hasClaimedCommitListKeyboardFocus = true
         chatComposerFocus?.release()
-        isCommitListKeyboardFocused = true
+        isCommitListKeyboardFocused = false
+        Task { @MainActor in
+            isCommitListKeyboardFocused = true
+        }
+    }
+
+    private var currentCommitSelectionBehavior: DiffViewerCommitSelectionBehavior {
+        let flags = NSEvent.modifierFlags
+        let isCommandPressed = flags.contains(.command)
+        let isShiftPressed = flags.contains(.shift)
+
+        switch (isCommandPressed, isShiftPressed) {
+        case (true, true):
+            return .rangeUnion
+        case (true, false):
+            return .toggle
+        case (false, true):
+            return .range
+        case (false, false):
+            return .single
+        }
+    }
+
+    private func keyboardNavigationSelectionBehavior(for keyPress: KeyPress) -> DiffViewerCommitSelectionBehavior {
+        let isCommandPressed = keyPress.modifiers.contains(.command)
+        let isShiftPressed = keyPress.modifiers.contains(.shift)
+
+        return keyboardNavigationSelectionBehavior(isCommandPressed: isCommandPressed, isShiftPressed: isShiftPressed)
+    }
+
+    private func keyboardNavigationSelectionBehavior(for event: NSEvent) -> DiffViewerCommitSelectionBehavior {
+        let isCommandPressed = event.modifierFlags.contains(.command)
+        let isShiftPressed = event.modifierFlags.contains(.shift)
+
+        return keyboardNavigationSelectionBehavior(isCommandPressed: isCommandPressed, isShiftPressed: isShiftPressed)
+    }
+
+    private func keyboardNavigationSelectionBehavior(
+        isCommandPressed: Bool,
+        isShiftPressed: Bool
+    ) -> DiffViewerCommitSelectionBehavior {
+        switch (isCommandPressed, isShiftPressed) {
+        case (true, true):
+            return .rangeUnion
+        case (_, true):
+            return .range
+        default:
+            return .single
+        }
+    }
+
+    private func isSelectAllKey(_ event: NSEvent) -> Bool {
+        event.modifierFlags.contains(.command)
+            && event.charactersIgnoringModifiers?.lowercased() == "a"
     }
 
     private func scrollSelectionIntoView(scrollProxy: ScrollViewProxy, id: String) {

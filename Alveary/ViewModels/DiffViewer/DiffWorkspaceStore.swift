@@ -26,7 +26,7 @@ final class DiffWorkspaceStore {
     private(set) var gitError: String?
     private(set) var isGitRepository = true
 
-    private var targetGeneration: UInt64 = 0
+    private(set) var targetGeneration: UInt64 = 0
     private var fileSelectionGeneration: UInt64 = 0
     var selectionAnchorKey: DiffViewerFileSelectionKey?
     var statsLoadingIndicatorGeneration: UInt64 = 0

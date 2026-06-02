@@ -41,7 +41,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 ## Commits Mode
 
 - **Preserve commit row shape.** Commit rows should stay one ellipsizing line with the bold short hash, 6pt spacing, then the title, with 4pt vertical content padding.
-- **Keep commit selection singular.** File lists support modifier/range multi-selection; commit lists should disable native multi-selection and select only one commit at a time.
+- **Keep commit preview singular.** Commit lists support custom modifier/range multi-selection and Cmd+A select-all, but `selectedCommit` remains the single preview anchor for the lower diff pane.
 - **Preserve visible commits while refreshing.** If a same-target commit reload is loading or fails with existing commits still available, keep those rows visible; only use list-level loading/error states when there are no commits to preserve.
 - **Flatten file diff previews.** Current changes and commits should render through `FlattenedDiffPreview`, which supports one or more `DiffFile` values and keeps file headers, hunk headers, and line rows in one lazy row stream. Large flattened row models should be prepared off the main actor.
 - **Collapse commit file diffs only.** File-diff collapse is a Commits-mode affordance; Current changes should not show a collapse caret. Keep collapse filtering inside the flattened row stream, animate layout reflow with transcript expansion timing, reuse transcript header-toggle activation behavior for the full path header hit target, and keep the caret right-aligned.
@@ -50,10 +50,10 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 ## File List Interaction
 
 - **Keep file-row dots consistent.** File-list rows should render fixed-size colored `Circle` views like thread rows; staged rows are green and unstaged rows are secondary.
-- **Claim keyboard focus on row clicks.** File and commit lists own local `@FocusState` for arrow-key navigation; row clicks must release `chatComposerFocus` before setting list focus so Up/Down stay in the diff pane.
+- **Claim keyboard focus on row clicks.** File and commit lists own local keyboard focus for arrow-key navigation and scoped Cmd+A. Row clicks must release `chatComposerFocus`, reapply list focus, and keep the list-local `DiffViewerTopListKeyboardMonitor` enabled so Up/Down, Shift-Up/Down, and Cmd+A stay in the diff pane.
 - **Expose full file paths.** File-list row help text should be `FileStatus.path` so truncated paths remain discoverable from any hover point on the row.
 - **Keep right-click selection synchronous.** Context-menu selection uses an AppKit local event monitor so the clicked row is visibly selected before SwiftUI opens the menu. Do not route that first visual selection only through an async `Task`.
-- **Anchor keyboard navigation to preview selection.** File-list Up/Down uses `selectedFile` as the anchor and selects the destination with `.single`, clearing multi-selection; commit-list Up/Down uses `selectedCommit`.
+- **Anchor keyboard navigation to preview selection.** File-list Up/Down uses `selectedFile` as the anchor; commit-list Up/Down uses `selectedCommit`. Unmodified arrows select the destination with `.single` and clear multi-selection, while Shift-arrow variants extend the custom range selection.
 - **Drive keyboard scroll from key handling.** Up/Down should compute the destination row and request its scroll from the key handler itself; do not wait for selected-row `.onChange` because SwiftUI can coalesce selection publishes during fast key repeat.
 - **Reveal keyboard targets minimally.** Up/Down navigation should scroll the selected file or commit into view with no explicit center anchor for middle rows; first and last rows should scroll the backing `NSScrollView` directly to its content bounds because row anchors can leave SwiftUI `List` insets unscrolled. Ordinary row clicks should not inherit pending keyboard scrolls.
 - **Drive the top divider from scroll offset.** The header divider should appear from the file list's y scroll offset, not row indices. `DiffViewerFileListScrollMonitor` finds the backing `NSScrollView` because SwiftUI `List` does not guarantee the monitor view is inside it.

@@ -29,6 +29,7 @@ extension DiffViewerViewModelTests {
 
         XCTAssertEqual(fixture.viewModel.aheadCommits, commits)
         XCTAssertEqual(fixture.viewModel.selectedCommit, commits[0])
+        XCTAssertEqual(fixture.viewModel.selectedCommits, [commits[0]])
         XCTAssertEqual(fixture.viewModel.commitDiffFiles.map { $0.path }, ["Sources/App.swift"])
         XCTAssertTrue(fixture.viewModel.rawCommitDiffContent.contains("Sources/App.swift"))
         XCTAssertEqual(fixture.viewModel.commitsLoadState, DiffWorkspaceLoadState.loaded)
@@ -61,6 +62,7 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.loadAheadCommitsForActiveTarget()
 
         XCTAssertEqual(fixture.viewModel.selectedCommit, commit)
+        XCTAssertEqual(fixture.viewModel.selectedCommits, [commit])
         fixture.viewModel.toggleSelectedCommitFileCollapse(fileID: "0:Sources/App.swift")
         XCTAssertFalse(fixture.viewModel.selectedCommitCollapsedFileIDs.isEmpty)
 
@@ -73,6 +75,7 @@ extension DiffViewerViewModelTests {
 
         XCTAssertTrue(fixture.viewModel.aheadCommits.isEmpty)
         XCTAssertNil(fixture.viewModel.selectedCommit)
+        XCTAssertTrue(fixture.viewModel.selectedCommits.isEmpty)
         XCTAssertTrue(fixture.viewModel.commitDiffFiles.isEmpty)
         XCTAssertTrue(fixture.viewModel.rawCommitDiffContent.isEmpty)
         XCTAssertEqual(fixture.viewModel.commitsLoadState, DiffWorkspaceLoadState.idle)
@@ -446,7 +449,7 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.selectedCommitDiffLoadState, DiffWorkspaceLoadState.loaded)
     }
 
-    private static func commit(hash: String, message: String) -> CommitInfo {
+    static func commit(hash: String, message: String) -> CommitInfo {
         CommitInfo(hash: hash, message: message, author: "A. Developer", date: Date(timeIntervalSince1970: 1_800_000_000))
     }
 }

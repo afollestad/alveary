@@ -57,6 +57,34 @@ extension DiffWorkspaceStore {
         return true
     }
 
+    func selectAllFiles(in directory: String) -> DiffViewerPreparedFileSelection? {
+        guard let target = activeTarget, target.directory == directory else {
+            return nil
+        }
+        guard !files.isEmpty else {
+            return nil
+        }
+
+        let allKeys = Set(files.map(DiffViewerFileSelectionKey.init))
+        selectedFileKeys = allKeys
+
+        let previewFile = selectedFile.flatMap(updatedSelection(matching:)) ?? files.first
+        selectionAnchorKey = selectionAnchorKey.flatMap { allKeys.contains($0) ? $0 : nil }
+            ?? previewFile.map(DiffViewerFileSelectionKey.init)
+
+        guard let previewFile,
+              selectedFile != previewFile || parsedDiff == nil && rawDiffContent.isEmpty else {
+            return nil
+        }
+
+        return DiffViewerPreparedFileSelection(
+            file: previewFile,
+            target: target,
+            generation: targetGeneration,
+            directory: directory
+        )
+    }
+
     func adjacentFile(
         forward: Bool,
         in directory: String

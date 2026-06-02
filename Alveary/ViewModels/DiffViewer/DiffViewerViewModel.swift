@@ -29,6 +29,8 @@ final class DiffViewerViewModel {
     var isGitRepository: Bool { diffStore.isGitRepository }
     var aheadCommits: [CommitInfo] = []
     var selectedCommit: CommitInfo?
+    var selectedCommitIDs: Set<String> = []
+    var selectedCommits: [CommitInfo] { aheadCommits.filter { selectedCommitIDs.contains($0.id) } }
     var commitDiffFiles: [DiffFile] = []
     var commitImagePreviews: [String: DiffImagePreview] = [:]
     var rawCommitDiffContent = ""
@@ -41,6 +43,7 @@ final class DiffViewerViewModel {
     var isCommitListRefreshNeeded = false
     var pendingCommitReloadTarget: DiffWorkspaceTarget?
     var collapsedCommitFileIDsByCommitHash: [String: Set<String>] = [:]
+    var commitSelectionAnchorID: String?
 
     var isLoadingCommits: Bool { commitsLoadState == .loading }
     var isLoadingSelectedCommitDiff: Bool { selectedCommitDiffLoadState == .loading }
@@ -320,15 +323,6 @@ final class DiffViewerViewModel {
             }
             pendingCommitReloadTarget = nil
         }
-    }
-
-    func selectCommit(_ commit: CommitInfo) async {
-        guard let target = diffStore.activeTarget else {
-            clearCommitState()
-            return
-        }
-
-        await loadCommitDiff(for: commit, target: target)
     }
 
     func toggleSelectedCommitFileCollapse(fileID: String) {

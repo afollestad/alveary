@@ -26,6 +26,7 @@ struct DiffViewerCurrentChangesContent: View {
                 isSelected: viewModel.isFileSelected,
                 fileDisplayName: fileDisplayName,
                 onSelectFile: selectFile,
+                onSelectAllFiles: selectAllFiles,
                 onNavigateFile: navigateFile,
                 onStageFiles: stageFiles,
                 onUnstageFiles: unstageFiles,
@@ -64,10 +65,25 @@ struct DiffViewerCurrentChangesContent: View {
         }
     }
 
-    private func navigateFile(forward: Bool) -> String? {
+    private func selectAllFiles() {
+        latestKeyboardNavigationLoadID = UUID()
+        guard let directory = viewModel.activeDirectory,
+              let preparedSelection = viewModel.selectAllFilesImmediately(in: directory) else {
+            return
+        }
+
+        Task {
+            await viewModel.loadSelectedFileDiff(preparedSelection)
+        }
+    }
+
+    private func navigateFile(
+        forward: Bool,
+        behavior: DiffViewerFileSelectionBehavior
+    ) -> String? {
         guard let directory = viewModel.activeDirectory,
               let file = viewModel.adjacentFile(forward: forward),
-              let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: .single) else {
+              let preparedSelection = viewModel.selectFileImmediately(file, in: directory, behavior: behavior) else {
             return nil
         }
 

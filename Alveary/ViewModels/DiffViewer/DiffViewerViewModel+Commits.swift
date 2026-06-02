@@ -81,6 +81,10 @@ extension DiffViewerViewModel {
         let generation = commitGeneration
         cancelCommitDiffLoad()
         selectedCommit = commit
+        selectedCommitIDs.insert(commit.id)
+        if commitSelectionAnchorID == nil {
+            commitSelectionAnchorID = commit.id
+        }
         commitDiffFiles = []
         commitImagePreviews = [:]
         rawCommitDiffContent = ""
@@ -105,6 +109,82 @@ extension DiffViewerViewModel {
         }
     }
 
+    func selectCommit(
+        _ commit: CommitInfo,
+        behavior: DiffViewerCommitSelectionBehavior = .single
+    ) async {
+        guard let preparedSelection = selectCommitImmediately(commit, behavior: behavior) else {
+            return
+        }
+
+        await loadSelectedCommitDiff(preparedSelection)
+    }
+
+    func selectCommitImmediately(
+        _ commit: CommitInfo,
+        behavior: DiffViewerCommitSelectionBehavior = .single
+    ) -> DiffViewerPreparedCommitSelection? {
+        guard let target = diffStore.activeTarget else {
+            clearCommitState()
+            return nil
+        }
+
+        guard let previewCommit = applyCommitSelection(commit, behavior: behavior) else {
+            clearSelectedCommitDiffState()
+            return nil
+        }
+
+        guard selectedCommit?.id != previewCommit.id
+                || commitDiffFiles.isEmpty && rawCommitDiffContent.isEmpty && selectedCommitDiffLoadState != .loading else {
+            return nil
+        }
+
+        return DiffViewerPreparedCommitSelection(commit: previewCommit, target: target)
+    }
+
+    func selectAllCommitsImmediately() -> DiffViewerPreparedCommitSelection? {
+        guard let target = diffStore.activeTarget else {
+            clearCommitState()
+            return nil
+        }
+        guard !aheadCommits.isEmpty else {
+            return nil
+        }
+
+        selectedCommitIDs = Set(aheadCommits.map(\.id))
+        let previewCommit = selectedCommit.flatMap(commit(matching:)) ?? aheadCommits.first
+        commitSelectionAnchorID = commitSelectionAnchorID.flatMap { selectedCommitIDs.contains($0) ? $0 : nil }
+            ?? previewCommit?.id
+
+        guard let previewCommit,
+              selectedCommit?.id != previewCommit.id
+                || commitDiffFiles.isEmpty && rawCommitDiffContent.isEmpty && selectedCommitDiffLoadState != .loading else {
+            return nil
+        }
+
+        return DiffViewerPreparedCommitSelection(commit: previewCommit, target: target)
+    }
+
+    func selectAllCommits() async {
+        guard let preparedSelection = selectAllCommitsImmediately() else {
+            return
+        }
+
+        await loadSelectedCommitDiff(preparedSelection)
+    }
+
+    func loadSelectedCommitDiff(_ preparedSelection: DiffViewerPreparedCommitSelection) async {
+        guard diffStore.activeTarget == preparedSelection.target else {
+            return
+        }
+
+        await loadCommitDiff(for: preparedSelection.commit, target: preparedSelection.target)
+    }
+
+    func isCommitSelected(_ commit: CommitInfo) -> Bool {
+        selectedCommitIDs.contains(commit.id)
+    }
+
     func clearCommitState() {
         commitGeneration &+= 1
         cancelCommitLoads()
@@ -113,6 +193,8 @@ extension DiffViewerViewModel {
         isCommitListRefreshNeeded = false
         aheadCommits = []
         selectedCommit = nil
+        selectedCommitIDs = []
+        commitSelectionAnchorID = nil
         commitDiffFiles = []
         commitImagePreviews = [:]
         rawCommitDiffContent = ""
@@ -128,6 +210,8 @@ extension DiffViewerViewModel {
             aheadCommits = []
             selectedCommitDiffLoadState = .idle
             selectedCommit = nil
+            selectedCommitIDs = []
+            commitSelectionAnchorID = nil
             commitDiffFiles = []
             commitImagePreviews = [:]
             rawCommitDiffContent = ""
@@ -143,17 +227,25 @@ extension DiffViewerViewModel {
             return
         }
 
+        let previousSelectedCommitIDs = selectedCommitIDs
         aheadCommits = commits
+        reconcileCommitSelection(previousSelectedCommitIDs: previousSelectedCommitIDs)
         pruneCollapsedCommitFileState(availableCommits: commits)
         commitsLoadState = .loaded
         inFlightCommitListLoad = nil
         let selectedCommitHash = selectedCommit?.hash
+        let remainingSelectedCommit = commits.first { selectedCommitIDs.contains($0.id) }
         let commitToLoad = commits.first(where: { $0.hash == selectedCommitHash })
             ?? commits.first(where: { $0.hash == context.preferredCommitHash })
+            ?? remainingSelectedCommit
             ?? commits.first
         guard let commitToLoad else {
             clearSelectedCommitDiffState()
             return
+        }
+        if selectedCommitIDs.isEmpty {
+            selectedCommitIDs = [commitToLoad.id]
+            commitSelectionAnchorID = commitToLoad.id
         }
 
         if context.preservesSelectedDiff,
@@ -192,6 +284,8 @@ extension DiffViewerViewModel {
 
     func clearSelectedCommitDiffState() {
         selectedCommit = nil
+        selectedCommitIDs = []
+        commitSelectionAnchorID = nil
         commitDiffFiles = []
         commitImagePreviews = [:]
         rawCommitDiffContent = ""
@@ -306,5 +400,98 @@ extension DiffViewerViewModel {
     func pruneCollapsedCommitFileState(availableCommits: [CommitInfo]) {
         let availableHashes = Set(availableCommits.map(\.hash))
         collapsedCommitFileIDsByCommitHash = collapsedCommitFileIDsByCommitHash.filter { availableHashes.contains($0.key) }
+    }
+
+    func applyCommitSelection(
+        _ commit: CommitInfo,
+        behavior: DiffViewerCommitSelectionBehavior
+    ) -> CommitInfo? {
+        let commitID = commit.id
+        let clickedIndex = aheadCommits.firstIndex { $0.id == commitID }
+
+        switch behavior {
+        case .single:
+            selectedCommitIDs = [commitID]
+            commitSelectionAnchorID = commitID
+            return commit
+
+        case .toggle:
+            if selectedCommitIDs.contains(commitID) {
+                selectedCommitIDs.remove(commitID)
+                commitSelectionAnchorID = commitID
+
+                guard selectedCommit?.id == commitID else {
+                    return selectedCommit
+                }
+                return nearestSelectedCommit(to: clickedIndex)
+            } else {
+                selectedCommitIDs.insert(commitID)
+                commitSelectionAnchorID = commitID
+                return commit
+            }
+
+        case .range:
+            selectedCommitIDs = commitSelectionRangeIDs(to: commitID)
+            return commit
+
+        case .rangeUnion:
+            selectedCommitIDs.formUnion(commitSelectionRangeIDs(to: commitID))
+            return commit
+        }
+    }
+
+    func reconcileCommitSelection(previousSelectedCommitIDs: Set<String>) {
+        let availableIDs = Set(aheadCommits.map(\.id))
+        selectedCommitIDs = previousSelectedCommitIDs.intersection(availableIDs)
+
+        if let commitSelectionAnchorID,
+           !availableIDs.contains(commitSelectionAnchorID) {
+            self.commitSelectionAnchorID = aheadCommits.first { selectedCommitIDs.contains($0.id) }?.id
+        }
+    }
+
+    func commit(matching selectedCommit: CommitInfo) -> CommitInfo? {
+        aheadCommits.first { $0.id == selectedCommit.id }
+    }
+
+    func commitSelectionRangeIDs(to commitID: String) -> Set<String> {
+        let anchorID = commitSelectionAnchorID ?? commitID
+        if commitSelectionAnchorID == nil {
+            commitSelectionAnchorID = anchorID
+        }
+
+        guard let anchorIndex = aheadCommits.firstIndex(where: { $0.id == anchorID }),
+              let clickedIndex = aheadCommits.firstIndex(where: { $0.id == commitID }) else {
+            commitSelectionAnchorID = commitID
+            return [commitID]
+        }
+
+        let range = min(anchorIndex, clickedIndex)...max(anchorIndex, clickedIndex)
+        return Set(aheadCommits[range].map(\.id))
+    }
+
+    func nearestSelectedCommit(to index: Int?) -> CommitInfo? {
+        let selectedIDs = selectedCommitIDs
+        guard !selectedIDs.isEmpty else {
+            return nil
+        }
+        guard let index else {
+            return aheadCommits.first { selectedIDs.contains($0.id) }
+        }
+
+        let orderedDistances = aheadCommits.indices
+            .filter { selectedIDs.contains(aheadCommits[$0].id) }
+            .map { (index: $0, distance: abs($0 - index)) }
+            .sorted {
+                if $0.distance == $1.distance {
+                    return $0.index < $1.index
+                }
+                return $0.distance < $1.distance
+            }
+
+        guard let nearestIndex = orderedDistances.first?.index else {
+            return nil
+        }
+        return aheadCommits[nearestIndex]
     }
 }

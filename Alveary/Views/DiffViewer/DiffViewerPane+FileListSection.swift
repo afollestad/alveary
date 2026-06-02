@@ -9,7 +9,8 @@ struct DiffViewerFileListSection: View {
     let isSelected: (FileStatus) -> Bool
     let fileDisplayName: (FileStatus) -> String
     let onSelectFile: (FileStatus, DiffViewerFileSelectionBehavior) -> Void
-    let onNavigateFile: (Bool) -> String?
+    let onSelectAllFiles: @MainActor () -> Void
+    let onNavigateFile: (Bool, DiffViewerFileSelectionBehavior) -> String?
     let onStageFiles: ([FileStatus]) -> Void
     let onUnstageFiles: ([FileStatus]) -> Void
     let onDiscardFiles: ([FileStatus]) -> Void
@@ -19,6 +20,7 @@ struct DiffViewerFileListSection: View {
     @State private var verticalOffsetFromTop: CGFloat = 0
     @State private var scrollController = DiffViewerListScrollController()
     @State private var latestKeyboardNavigationScrollID = UUID()
+    @State private var hasClaimedKeyboardFocus = false
     @FocusState private var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
 
@@ -89,15 +91,20 @@ struct DiffViewerFileListSection: View {
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
-            .onKeyPress(keys: [.upArrow, .downArrow]) { keyPress in
+            .onKeyPress(keys: [.upArrow, .downArrow, KeyEquivalent("a")]) { keyPress in
                 handleKeyPress(keyPress, scrollProxy: scrollProxy)
             }
             .background {
-                DiffViewerFileListScrollMonitor(
-                    fileIDs: fileIDs,
-                    verticalOffsetFromTop: $verticalOffsetFromTop,
-                    scrollController: scrollController
-                )
+                ZStack {
+                    DiffViewerFileListScrollMonitor(
+                        fileIDs: fileIDs,
+                        verticalOffsetFromTop: $verticalOffsetFromTop,
+                        scrollController: scrollController
+                    )
+                    DiffViewerTopListKeyboardMonitor(isEnabled: hasClaimedKeyboardFocus || isKeyboardFocused) { event in
+                        handleKeyDown(event, scrollProxy: scrollProxy)
+                    }
+                }
             }
             .overlay {
                 if isLoading {
@@ -135,7 +142,13 @@ struct DiffViewerFileListSection: View {
             }
             .onDisappear {
                 latestKeyboardNavigationScrollID = UUID()
+                hasClaimedKeyboardFocus = false
                 isTopDividerVisible = false
+            }
+            .onChange(of: isKeyboardFocused) { _, isFocused in
+                if isFocused {
+                    hasClaimedKeyboardFocus = true
+                }
             }
             .onChange(of: fileIDs) { _, newFileIDs in
                 preserveTopPositionIfNeeded(scrollProxy: scrollProxy, fileIDs: newFileIDs)
@@ -158,24 +171,69 @@ struct DiffViewerFileListSection: View {
     private func handleKeyPress(_ keyPress: KeyPress, scrollProxy: ScrollViewProxy) -> KeyPress.Result {
         switch keyPress.key {
         case .upArrow:
-            navigateFile(forward: false, scrollProxy: scrollProxy)
+            navigateFile(
+                forward: false,
+                behavior: keyboardNavigationSelectionBehavior(for: keyPress),
+                scrollProxy: scrollProxy
+            )
             return .handled
         case .downArrow:
-            navigateFile(forward: true, scrollProxy: scrollProxy)
+            navigateFile(
+                forward: true,
+                behavior: keyboardNavigationSelectionBehavior(for: keyPress),
+                scrollProxy: scrollProxy
+            )
+            return .handled
+        case KeyEquivalent("a") where keyPress.modifiers.contains(.command):
+            onSelectAllFiles()
             return .handled
         default:
             return .ignored
         }
     }
 
-    private func claimKeyboardFocus() {
-        latestKeyboardNavigationScrollID = UUID()
-        chatComposerFocus?.release()
-        isKeyboardFocused = true
+    private func handleKeyDown(_ event: NSEvent, scrollProxy: ScrollViewProxy) -> Bool {
+        if isSelectAllKey(event) {
+            onSelectAllFiles()
+            return true
+        }
+
+        switch event.keyCode {
+        case DiffViewerTopListKeyCode.upArrow:
+            navigateFile(
+                forward: false,
+                behavior: keyboardNavigationSelectionBehavior(for: event),
+                scrollProxy: scrollProxy
+            )
+            return true
+        case DiffViewerTopListKeyCode.downArrow:
+            navigateFile(
+                forward: true,
+                behavior: keyboardNavigationSelectionBehavior(for: event),
+                scrollProxy: scrollProxy
+            )
+            return true
+        default:
+            return false
+        }
     }
 
-    private func navigateFile(forward: Bool, scrollProxy: ScrollViewProxy) {
-        guard let fileID = onNavigateFile(forward) else {
+    private func claimKeyboardFocus() {
+        latestKeyboardNavigationScrollID = UUID()
+        hasClaimedKeyboardFocus = true
+        chatComposerFocus?.release()
+        isKeyboardFocused = false
+        Task { @MainActor in
+            isKeyboardFocused = true
+        }
+    }
+
+    private func navigateFile(
+        forward: Bool,
+        behavior: DiffViewerFileSelectionBehavior,
+        scrollProxy: ScrollViewProxy
+    ) {
+        guard let fileID = onNavigateFile(forward, behavior) else {
             return
         }
         scrollSelectionIntoView(scrollProxy: scrollProxy, id: fileID)
@@ -196,6 +254,39 @@ struct DiffViewerFileListSection: View {
         case (false, false):
             return .single
         }
+    }
+
+    private func keyboardNavigationSelectionBehavior(for keyPress: KeyPress) -> DiffViewerFileSelectionBehavior {
+        let isCommandPressed = keyPress.modifiers.contains(.command)
+        let isShiftPressed = keyPress.modifiers.contains(.shift)
+
+        return keyboardNavigationSelectionBehavior(isCommandPressed: isCommandPressed, isShiftPressed: isShiftPressed)
+    }
+
+    private func keyboardNavigationSelectionBehavior(for event: NSEvent) -> DiffViewerFileSelectionBehavior {
+        let isCommandPressed = event.modifierFlags.contains(.command)
+        let isShiftPressed = event.modifierFlags.contains(.shift)
+
+        return keyboardNavigationSelectionBehavior(isCommandPressed: isCommandPressed, isShiftPressed: isShiftPressed)
+    }
+
+    private func keyboardNavigationSelectionBehavior(
+        isCommandPressed: Bool,
+        isShiftPressed: Bool
+    ) -> DiffViewerFileSelectionBehavior {
+        switch (isCommandPressed, isShiftPressed) {
+        case (true, true):
+            return .rangeUnion
+        case (_, true):
+            return .range
+        default:
+            return .single
+        }
+    }
+
+    private func isSelectAllKey(_ event: NSEvent) -> Bool {
+        event.modifierFlags.contains(.command)
+            && event.charactersIgnoringModifiers?.lowercased() == "a"
     }
 
     private func performContextMenuAction(

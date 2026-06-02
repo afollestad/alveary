@@ -45,11 +45,23 @@ enum DiffViewerFileSelectionBehavior {
     case rangeUnion
 }
 
+enum DiffViewerCommitSelectionBehavior {
+    case single
+    case toggle
+    case range
+    case rangeUnion
+}
+
 struct DiffViewerPreparedFileSelection {
     let file: FileStatus
     let target: DiffWorkspaceTarget
     let generation: UInt64
     let directory: String
+}
+
+struct DiffViewerPreparedCommitSelection {
+    let commit: CommitInfo
+    let target: DiffWorkspaceTarget
 }
 
 enum DiffViewerRefreshReason: Equatable {
@@ -256,6 +268,18 @@ enum DiffViewerCommitDiffTaskFactory {
 
 @MainActor
 extension DiffViewerViewModel {
+    func selectAllFilesImmediately(in directory: String) -> DiffViewerPreparedFileSelection? {
+        diffStore.selectAllFiles(in: directory)
+    }
+
+    func selectAllFiles(in directory: String) async {
+        guard let preparedSelection = selectAllFilesImmediately(in: directory) else {
+            return
+        }
+
+        await loadSelectedFileDiff(preparedSelection)
+    }
+
     @discardableResult
     func selectAdjacentFile(forward: Bool) async -> Bool {
         guard let activeDirectory else {
@@ -275,7 +299,7 @@ extension DiffViewerViewModel {
 
     @discardableResult
     func selectAdjacentCommit(forward: Bool) async -> Bool {
-        guard let target = diffStore.activeTarget else {
+        guard diffStore.activeTarget != nil else {
             clearCommitState()
             return false
         }
@@ -287,7 +311,7 @@ extension DiffViewerViewModel {
             return false
         }
 
-        await loadCommitDiff(for: aheadCommits[nextIndex], target: target)
+        await selectCommit(aheadCommits[nextIndex], behavior: .single)
         return true
     }
 
