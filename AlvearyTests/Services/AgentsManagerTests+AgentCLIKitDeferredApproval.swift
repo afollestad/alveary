@@ -35,6 +35,54 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitFallbackParallelApprovalsSendRuntimeResolutionsAfterRespawn() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ParallelApprovalResolutionAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-parallel-fallback-resolutions"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let firstEvent = try await nextEvent(from: subscription.stream, description: "first parallel fallback approval")
+        let secondEvent = try await nextEvent(from: subscription.stream, description: "second parallel fallback approval")
+        guard case let .toolApprovalRequested(firstApproval) = firstEvent,
+              case let .toolApprovalRequested(secondApproval) = secondEvent else {
+            return XCTFail("Expected two approval requests, got \(firstEvent) and \(secondEvent)")
+        }
+        try await waitUntil("expected parallel fallback approvals to wait for user") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        // The resumed adapter stays silent unless both approved sibling rows are sent back through
+        // `AgentCLIKit` stdin after respawn. Without that, the UI can show Approved while the turn spins.
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: firstApproval,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
+            additionalApprovals: [secondApproval],
+            sessionApproval: nil,
+            config: spawnConfig(workingDirectory: "/tmp")
+        ))
+        var resumedSubscription: Alveary.AgentEventSubscription?
+        try await waitUntil("expected parallel fallback approval to install resumed buffer") {
+            let candidate = await self.awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+            resumedSubscription = candidate?.generation == subscription.generation ? nil : candidate
+            return resumedSubscription != nil
+        }
+        let resolvedSubscription = try XCTUnwrap(resumedSubscription)
+        let messageEvent = try await nextEvent(
+            from: resolvedSubscription.stream,
+            description: "parallel fallback approval resumed event"
+        )
+
+        XCTAssertEqual(messageEvent, .message(role: "assistant", content: "resumed-both", parentToolUseId: nil))
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitRestoredDeferredApprovalResumesWithoutTrackedProcess() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: RestoredApprovalCLIKitAdapter(),

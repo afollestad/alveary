@@ -1,53 +1,47 @@
 import AgentCLIKit
 import Foundation
 
-enum AgentCLIKitApprovalResumeStrategy: Equatable {
-    case bufferedDeferredStop
-    case restoredInteraction
-}
-
 extension DefaultAgentsManager {
     func shouldResumeAgentCLIKitDeferredApproval(conversationId: String) -> Bool {
         eventBuffers[conversationId]?.hasDeferredToolStop == true &&
             status(for: conversationId) == .waitingForUser
     }
 
-    func agentCLIKitDeferredApprovalResumeStrategy(
+    func canResumeAgentCLIKitDeferredApproval(
         conversationId: String,
         services: AgentCLIKitHostServices
-    ) async -> AgentCLIKitApprovalResumeStrategy? {
+    ) async -> Bool {
         if shouldResumeAgentCLIKitDeferredApproval(conversationId: conversationId) {
-            return .bufferedDeferredStop
+            return true
         }
-        return await restoredAgentCLIKitApprovalResumeStrategy(
+        return await canResumeRestoredAgentCLIKitApproval(
             conversationId: conversationId,
             services: services
         )
     }
 
-    private func restoredAgentCLIKitApprovalResumeStrategy(
+    private func canResumeRestoredAgentCLIKitApproval(
         conversationId: String,
         services: AgentCLIKitHostServices
-    ) async -> AgentCLIKitApprovalResumeStrategy? {
+    ) async -> Bool {
         guard !spawningIds.contains(conversationId),
               !reconfiguringIds.contains(conversationId) else {
-            return nil
+            return false
         }
 
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
         if let status = await services.runtime.status(conversationId: runtimeConversationId) {
             agentCLIKitStatuses[conversationId] = status
-            return status.isProcessRunning ? nil : .restoredInteraction
+            return !status.isProcessRunning
         }
 
-        return agentCLIKitStatuses[conversationId]?.isProcessRunning == true ? nil : .restoredInteraction
+        return agentCLIKitStatuses[conversationId]?.isProcessRunning != true
     }
 
     func resumeAgentCLIKitDeferredApproval(
         _ request: AgentToolApprovalResolutionRequest,
         approvals: [ToolApprovalRequest],
-        services: AgentCLIKitHostServices,
-        strategy: AgentCLIKitApprovalResumeStrategy
+        services: AgentCLIKitHostServices
     ) async throws {
         try await waitForAgentCLIKitDeferredRuntimeStop(
             conversationId: request.conversationId,
@@ -69,11 +63,14 @@ extension DefaultAgentsManager {
                 forkSession: false
             )
             didSpawn = true
-            if strategy == .restoredInteraction {
-                // After app restore there may be no live hook waiter left, so also feed the
-                // saved interaction resolution to the resumed AgentCLIKit stdin stream.
-                try await resolveRestoredAgentCLIKitInteractions(request, approvals: approvals, services: services)
-            }
+            // Transient hook decisions cover hook callbacks, but a deferred respawn can also leave the new
+            // AgentCLIKit process waiting on stdin interaction resolutions. Send them for every fallback
+            // respawn, not only restore-time resumes, so parallel approvals cannot render approved while stuck.
+            try await resolveRespawnedAgentCLIKitInteractionsIfRunning(
+                request,
+                approvals: approvals,
+                services: services
+            )
         } catch {
             if didSpawn {
                 await services.runtime.kill(conversationId: services.hostAdapter.conversationId(request.conversationId))
@@ -86,12 +83,15 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func resolveRestoredAgentCLIKitInteractions(
+    private func resolveRespawnedAgentCLIKitInteractionsIfRunning(
         _ request: AgentToolApprovalResolutionRequest,
         approvals: [ToolApprovalRequest],
         services: AgentCLIKitHostServices
     ) async throws {
         let runtimeConversationId = services.hostAdapter.conversationId(request.conversationId)
+        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+            return
+        }
         for approval in approvals {
             try await services.runtime.resolveInteraction(
                 try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),

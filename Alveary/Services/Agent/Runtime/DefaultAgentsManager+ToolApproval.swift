@@ -63,15 +63,14 @@ extension DefaultAgentsManager {
                 return finishAgentCLIKitToolApprovalResolution(request, context: context)
             }
 
-            if let resumeStrategy = await agentCLIKitDeferredApprovalResumeStrategy(
+            if await canResumeAgentCLIKitDeferredApproval(
                 conversationId: request.conversationId,
                 services: services
             ) {
                 try await resumeAgentCLIKitDeferredApproval(
                     request,
                     approvals: approvals,
-                    services: services,
-                    strategy: resumeStrategy
+                    services: services
                 )
                 return finishAgentCLIKitToolApprovalResolution(request, context: context)
             }
