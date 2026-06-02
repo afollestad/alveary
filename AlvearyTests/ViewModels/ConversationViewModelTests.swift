@@ -383,6 +383,7 @@ struct ConversationViewModelTestFixture {
     private static func testSettings() -> AppSettings {
         var settings = AppSettings()
         settings.autoTrustProjects = true
+        settings.contextManagementEnabled = true
         return settings
     }
 

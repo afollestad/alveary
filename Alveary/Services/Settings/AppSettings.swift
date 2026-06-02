@@ -59,7 +59,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
-    var contextManagementEnabled = true
+    var contextManagementEnabled = false
     var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
     var handoffSteeringEnabled = true
     var handoffSteeringCountdownSeconds = Self.defaultHandoffSteeringCountdownSeconds

@@ -23,7 +23,7 @@ final class AppSettingsTests: XCTestCase {
     func testDefaultContextManagementSettings() {
         let settings = AppSettings()
 
-        XCTAssertTrue(settings.contextManagementEnabled)
+        XCTAssertFalse(settings.contextManagementEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffSteeringEnabled)
         XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
@@ -106,7 +106,7 @@ final class AppSettingsTests: XCTestCase {
         let json = Data("{}".utf8)
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
-        XCTAssertTrue(settings.contextManagementEnabled)
+        XCTAssertFalse(settings.contextManagementEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffSteeringEnabled)
         XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
