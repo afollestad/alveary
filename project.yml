@@ -98,7 +98,7 @@ targets:
 packages:
   AgentCLIKit:
     url: https://github.com/afollestad/AgentCLIKit.git
-    revision: "02e61165f170d2adf17119acf55c73dc957350ee"
+    revision: "8a81e920226c3e2a07eb941ee701bdd904d90ff7"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
     revision: "88a2861b0493b025d546ad7ce62557220fd13002"
