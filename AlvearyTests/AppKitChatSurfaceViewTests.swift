@@ -403,6 +403,8 @@ private func makeComposerBodyConfiguration(
 
 func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
+        providerOptions: [.init(value: "claude", title: "Claude Code")],
+        selectedProvider: "claude",
         modelOptions: [.init(value: "sonnet", title: "Sonnet")],
         selectedModel: "sonnet",
         supportedEffortLevels: [.init(value: "medium", title: "Medium")],
@@ -422,6 +424,7 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         isStopConfirmationArmed: false,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+        onProviderChange: { _ in },
         onModelChange: { _ in },
         onEffortChange: { _ in },
         onPermissionModeChange: { _ in },
@@ -468,13 +471,9 @@ private final class FixedHeightView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight)
-    }
+    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight) }
 
-    override var fittingSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight)
-    }
+    override var fittingSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: fixedHeight) }
 }
 
 private final class MutableHeightView: NSView {
@@ -490,10 +489,6 @@ private final class MutableHeightView: NSView {
     }
 
     required init?(coder: NSCoder) { nil }
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: height)
-    }
-    override var fittingSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: height)
-    }
+    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: height) }
+    override var fittingSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: height) }
 }

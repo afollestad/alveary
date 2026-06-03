@@ -3,8 +3,16 @@ import SwiftData
 
 struct AppSettings: Codable, Sendable, Equatable {
     static let currentSettingsSchemaVersion = 1
-    static let supportedProviderIDs = ["claude"]
-    static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto"]
+    static let supportedProviderIDs = ["claude", "codex"]
+    static let supportedPermissionModesByProvider = [
+        "claude": ["default", "plan", "acceptEdits", "auto"],
+        "codex": ["untrusted", "on-request", "never"]
+    ]
+    static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "untrusted", "on-request", "never"]
+    static let defaultPermissionModeByProvider = [
+        "claude": "default",
+        "codex": "on-request"
+    ]
     static let defaultEffortLevel = "medium"
     static let supportedEffortLevels = ["low", "medium", "high", "xhigh", "max"]
     static let supportedModels = ["default", "opus", "sonnet", "haiku"]
@@ -42,6 +50,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
     var effort = Self.defaultEffortLevel
+    var disabledProviderIDs: Set<String> = []
     var defaultThreadCleanupAction = ThreadCleanupAction.archive
     var defaultEnterBehavior = Self.defaultEnterBehavior
     var reopenLastThreadAndConversationOnLaunch = true
@@ -130,15 +139,51 @@ struct AppSettings: Codable, Sendable, Equatable {
         return override
     }
 
+    static func supportedPermissionModes(forProvider providerID: String) -> [String] {
+        supportedPermissionModesByProvider[providerID] ?? []
+    }
+
+    static func defaultPermissionMode(forProvider providerID: String) -> String {
+        defaultPermissionModeByProvider[providerID] ?? "default"
+    }
+
+    func isProviderEnabled(_ providerID: String) -> Bool {
+        Self.supportedProviderIDs.contains(providerID) && !disabledProviderIDs.contains(providerID)
+    }
+
+    mutating func setProvider(_ providerID: String, enabled: Bool) {
+        guard Self.supportedProviderIDs.contains(providerID) else {
+            return
+        }
+        if enabled {
+            disabledProviderIDs.remove(providerID)
+        } else {
+            disabledProviderIDs.insert(providerID)
+        }
+    }
+
     private mutating func normalizeProviderDefaults() {
+        disabledProviderIDs = Set(disabledProviderIDs.filter(Self.supportedProviderIDs.contains))
+        if disabledProviderIDs.count >= Self.supportedProviderIDs.count,
+           let fallbackProvider = Self.supportedProviderIDs.first {
+            disabledProviderIDs.remove(fallbackProvider)
+        }
+
         if !Self.supportedProviderIDs.contains(defaultProvider) {
             defaultProvider = Self.supportedProviderIDs[0]
         }
-        if !Self.supportedModels.contains(defaultModel) {
+        if !isProviderEnabled(defaultProvider),
+           let fallbackProvider = Self.supportedProviderIDs.first(where: { isProviderEnabled($0) }) {
+            defaultProvider = fallbackProvider
+        }
+
+        defaultModel = defaultModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if defaultModel.isEmpty {
             defaultModel = Self.defaultModelValue
         }
-        if !Self.supportedPermissionModes.contains(permissionMode) {
-            permissionMode = "default"
+
+        if !Self.supportedPermissionModes(forProvider: defaultProvider).contains(permissionMode) {
+            permissionMode = Self.defaultPermissionMode(forProvider: defaultProvider)
         }
         effort = Self.normalizedEffortLevel(effort)
     }
@@ -235,6 +280,7 @@ extension AppSettings {
         case defaultModel
         case permissionMode
         case effort
+        case disabledProviderIDs
         case defaultThreadCleanupAction
         case defaultEnterBehavior
         case reopenLastThreadAndConversationOnLaunch
@@ -294,6 +340,7 @@ extension AppSettings {
         defaultModel = try container.decodeIfPresent(String.self, forKey: .defaultModel) ?? defaultModel
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? permissionMode
         effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? effort
+        disabledProviderIDs = try container.decodeIfPresent(Set<String>.self, forKey: .disabledProviderIDs) ?? disabledProviderIDs
         defaultThreadCleanupAction = try container.decodeIfPresent(
             ThreadCleanupAction.self,
             forKey: .defaultThreadCleanupAction
@@ -407,80 +454,5 @@ extension AppSettings {
             return defaultEnterBehavior
         }
         return behavior
-    }
-}
-
-struct ProviderCustomConfig: Codable, Sendable, Equatable {
-    var extraArgs: String?
-
-    init(
-        extraArgs: String? = nil
-    ) {
-        self.extraArgs = extraArgs
-    }
-
-    func normalized() -> ProviderCustomConfig? {
-        let normalized = ProviderCustomConfig(
-            extraArgs: extraArgs?.trimmedOrNil
-        )
-        return normalized.isEmpty ? nil : normalized
-    }
-
-    private var isEmpty: Bool {
-        extraArgs == nil
-    }
-}
-
-struct NotificationSettings: Codable, Sendable, Equatable {
-    static let availableSoundNames = ["Glass", "Pop", "Tink", "Purr"]
-    static let defaultSoundName = "Glass"
-
-    var enabled = true
-    var osNotifications = true
-    var sound = true
-    var soundName: String? = NotificationSettings.defaultSoundName
-}
-
-enum ThreadCleanupAction: String, Codable, Sendable, CaseIterable {
-    case archive
-    case delete
-
-    var label: String {
-        switch self {
-        case .archive:
-            return "Archive"
-        case .delete:
-            return "Delete"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .archive:
-            return "archivebox"
-        case .delete:
-            return "trash"
-        }
-    }
-}
-
-enum ThreadEnterDefaultBehavior: String, Codable, Sendable, CaseIterable {
-    case queue
-    case steer
-
-    var label: String {
-        switch self {
-        case .queue:
-            return "Queue"
-        case .steer:
-            return "Steer"
-        }
-    }
-}
-
-private extension String {
-    var trimmedOrNil: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

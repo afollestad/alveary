@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftUI
 
 struct AgentsSettingsTabView: View {
@@ -21,7 +22,15 @@ struct AgentsSettingsTabView: View {
             contextManagementSection
 
             ForEach(providerIDs, id: \.self) { providerID in
-                SettingsFormSection(providerID.capitalized) {
+                SettingsFormSection(viewModel.providerDisplayName(for: providerID)) {
+                    SettingsToggleRow(
+                        "Enabled",
+                        isOn: Binding(
+                            get: { viewModel.isProviderEnabled(providerID) },
+                            set: { viewModel.setProvider(providerID, enabled: $0) }
+                        )
+                    )
+
                     SettingsFormRow {
                         providerStatusSection(for: providerID)
                     }
@@ -155,29 +164,22 @@ private extension AgentsSettingsTabView {
     func providerStatusSection(for providerID: String) -> some View {
         let status = viewModel.providerStatus(for: providerID)
 
-        if status == .unchecked {
+        if isChecking(status) {
             ProgressView("Checking installation status...")
                 .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text("Status")
-                    Spacer(minLength: 16)
-                    AgentStatusBadge(
-                        text: viewModel.shortStatusLabel(for: status),
-                        color: viewModel.statusColor(for: status)
-                    )
-                }
+                providerStatusHeader(for: status)
+
+                providerModelsSection(for: providerID)
 
                 Text(viewModel.statusDescription(for: status))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if status == .missing, let installCommand = viewModel.installCommand(for: providerID) {
-                    Text(installCommand)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                }
+                providerInstallCommandSection(for: providerID, status: status)
+
+                providerDiagnosticsSection(for: status)
 
                 HStack {
                     Button("Refresh Status") {
@@ -192,6 +194,63 @@ private extension AgentsSettingsTabView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
+        }
+    }
+
+    func isChecking(_ status: AgentProviderStatus?) -> Bool {
+        status?.isEnabled == true && status?.installation == .unknown && status?.setup == .unknown
+    }
+
+    func providerStatusHeader(for status: AgentProviderStatus?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("Status")
+            Spacer(minLength: 16)
+            AgentStatusBadge(
+                text: viewModel.shortStatusLabel(for: status),
+                color: viewModel.statusColor(for: status)
+            )
+        }
+    }
+
+    @ViewBuilder
+    func providerModelsSection(for providerID: String) -> some View {
+        let modelLabels = viewModel.modelOptionValues(for: providerID).map {
+            viewModel.modelLabel(for: $0, providerId: providerID)
+        }
+
+        if !modelLabels.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Models")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(modelLabels.joined(separator: ", "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func providerInstallCommandSection(for providerID: String, status: AgentProviderStatus?) -> some View {
+        if status?.installation == .missing, let installCommand = viewModel.installCommand(for: providerID) {
+            Text(installCommand)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    func providerDiagnosticsSection(for status: AgentProviderStatus?) -> some View {
+        if let status, !status.diagnostics.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(status.diagnostics, id: \.self) { diagnostic in
+                    Text(diagnostic)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
         }
     }
 }

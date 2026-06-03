@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftUI
 import XCTest
 
@@ -12,12 +13,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDetection: SnapshotProviderDetectionService(statuses: [
-                "claude": .connected(
-                    path: "/Users/test/.local/bin/claude",
-                    version: "2.1.104"
-                )
-            ])
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
         )
 
         assertMacSnapshot(
@@ -39,12 +35,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDetection: SnapshotProviderDetectionService(statuses: [
-                "claude": .connected(
-                    path: "/Users/test/.local/bin/claude",
-                    version: "2.1.104"
-                )
-            ])
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
         )
 
         assertMacSnapshot(
@@ -68,12 +59,7 @@ extension SnapshotTests {
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
-            providerDetection: SnapshotProviderDetectionService(statuses: [
-                "claude": .connected(
-                    path: "/Users/test/.local/bin/claude",
-                    version: "2.1.104"
-                )
-            ])
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
         )
 
         assertMacSnapshot(
@@ -357,25 +343,55 @@ extension SnapshotTests {
     }
 }
 
-private actor SnapshotProviderDetectionService: ProviderDetectionService {
-    private let statuses: [String: ProviderStatus]
+private actor SnapshotProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
+    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
 
-    init(statuses: [String: ProviderStatus]) {
+    init(statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]) {
         self.statuses = statuses
     }
 
-    func resolvedPath(for providerId: String) -> String? {
-        if case let .connected(path, _)? = statuses[providerId] {
-            return path
-        }
-        return nil
+    static func defaultStatuses() -> SnapshotProviderDiscoveryService {
+        SnapshotProviderDiscoveryService(statuses: [
+            .claude: AgentCLIKit.AgentProviderStatus(
+                providerId: .claude,
+                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+                installation: .installed,
+                availability: AgentCLIKit.AgentProviderAvailability(
+                    providerId: .claude,
+                    executablePath: "/Users/test/.local/bin/claude",
+                    versionDescription: "2.1.104"
+                ),
+                setup: .ready,
+                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.claude] ?? []
+            ),
+            .codex: AgentCLIKit.AgentProviderStatus(
+                providerId: .codex,
+                definition: AgentCLIKit.CodexProviderDefinition.definition,
+                installation: .missing,
+                availability: AgentCLIKit.AgentProviderAvailability(providerId: .codex, executablePath: nil),
+                setup: .needsSetup,
+                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.codex] ?? []
+            )
+        ])
     }
 
-    func status(for providerId: String) -> ProviderStatus {
-        statuses[providerId] ?? .missing
+    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        statuses
     }
 
-    func checkAllProviders() async {}
+    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        statuses.filter { $0.value.isInstalled }
+    }
 
-    func checkProvider(_ providerId: String) async {}
+    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
+    }
+
+    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
+        statuses[providerId]?.modelOptions ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+    }
+
+    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
+        [.claude, .codex]
+    }
 }

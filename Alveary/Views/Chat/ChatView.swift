@@ -7,6 +7,8 @@ struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
+    let providerOptions: [ChatComposerActionRowView.MenuOption]
+    let modelOptions: [ChatComposerActionRowView.MenuOption]
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
     let runtimeStatus: ActivitySignal
@@ -77,6 +79,13 @@ struct ChatView: View {
         )
     }
 
+    private var selectedProviderBinding: Binding<String> {
+        Binding(
+            get: { providerID },
+            set: { viewModel.applyProviderChange($0) }
+        )
+    }
+
     private var selectedEffortBinding: Binding<String> {
         Binding(
             get: { threadPresentation.selectedEffort },
@@ -110,6 +119,8 @@ struct ChatView: View {
         viewModel: ConversationViewModel,
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
+        providerOptions: [ChatComposerActionRowView.MenuOption],
+        modelOptions: [ChatComposerActionRowView.MenuOption],
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
         runtimeStatus: ActivitySignal,
@@ -127,6 +138,8 @@ struct ChatView: View {
         self.viewModel = viewModel
         self.conversation = conversation
         self.composerCapabilities = composerCapabilities
+        self.providerOptions = providerOptions
+        self.modelOptions = modelOptions
         self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
         self.runtimeStatus = runtimeStatus
@@ -427,9 +440,9 @@ extension ChatView {
     var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
-            modelOptions: composerModelOptions.map {
-                .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0))
-            },
+            providerOptions: providerOptions,
+            selectedProvider: selectedProviderBinding.wrappedValue,
+            modelOptions: modelOptions,
             selectedModel: selectedModelBinding.wrappedValue,
             supportedEffortLevels: visibleEffortLevels.map {
                 .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
@@ -452,6 +465,7 @@ extension ChatView {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+            onProviderChange: { selectedProviderBinding.wrappedValue = $0 },
             onModelChange: { selectedModelBinding.wrappedValue = $0 },
             onEffortChange: { selectedEffortBinding.wrappedValue = $0 },
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
@@ -471,28 +485,6 @@ extension ChatView {
                     supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
                     defaultEnterBehavior: defaultEnterBehavior
                 )
-            }
-        )
-    }
-
-    var composerQueuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? {
-        guard !viewModel.messageQueue.pending.isEmpty else {
-            return nil
-        }
-        return AppKitChatQueuedMessagesConfiguration(
-            queuedMessages: viewModel.messageQueue.pending,
-            supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-            isTurnActive: viewModel.state.turnState.isActive || runtimeStatus == .busy,
-            inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
-            borderWidth: 1,
-            onSteer: { messageID in
-                Task { try? await viewModel.steerQueuedMessage(id: messageID) }
-            },
-            onEdit: { messageID in
-                viewModel.editQueuedMessage(id: messageID)
-            },
-            onDismiss: { messageID in
-                viewModel.removeQueuedMessage(id: messageID)
             }
         )
     }

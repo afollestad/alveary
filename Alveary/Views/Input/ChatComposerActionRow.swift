@@ -9,7 +9,9 @@ import SwiftUI
 /// position and performance issues in this UX, so new composer internals should
 /// prefer native views.
 struct ChatComposerActionRow: NSViewRepresentable {
-    let modelOptions: [String]
+    let providerOptions: [ChatComposerActionRowView.MenuOption]
+    @Binding var selectedProvider: String
+    let modelOptions: [ChatComposerActionRowView.MenuOption]
     @Binding var selectedModel: String
     let supportedEffortLevels: [String]
     @Binding var selectedEffort: String
@@ -44,7 +46,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
 
     private var configuration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
-            modelOptions: modelOptions.map { .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0)) },
+            providerOptions: providerOptions,
+            selectedProvider: selectedProvider,
+            modelOptions: modelOptions,
             selectedModel: selectedModel,
             supportedEffortLevels: supportedEffortLevels.map { .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0)) },
             selectedEffort: selectedEffort,
@@ -65,6 +69,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: composerActionRowHeight,
             contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
+            onProviderChange: { selectedProvider = $0 },
             onModelChange: { selectedModel = $0 },
             onEffortChange: { selectedEffort = $0 },
             onPermissionModeChange: { selectedPermissionMode = $0 },
@@ -89,6 +94,8 @@ final class ChatComposerActionRowView: NSView {
     }
 
     struct Configuration {
+        let providerOptions: [MenuOption]
+        let selectedProvider: String
         let modelOptions: [MenuOption]
         let selectedModel: String
         let supportedEffortLevels: [MenuOption]
@@ -108,6 +115,7 @@ final class ChatComposerActionRowView: NSView {
         let isStopConfirmationArmed: Bool
         let composerActionRowHeight: CGFloat
         let contextIndicatorKeyboardSpacing: CGFloat
+        let onProviderChange: (String) -> Void
         let onModelChange: (String) -> Void
         let onEffortChange: (String) -> Void
         let onPermissionModeChange: (String) -> Void
@@ -118,6 +126,7 @@ final class ChatComposerActionRowView: NSView {
 
     }
 
+    private let providerMenu = ComposerMenuButton()
     private let modelMenu = ComposerMenuButton()
     private let effortMenu = ComposerMenuButton()
     private let permissionMenu = ComposerMenuButton()
@@ -190,6 +199,8 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func setupMenuAccessibility() {
+        providerMenu.setAccessibilityLabel("Provider")
+        providerMenu.setMenuHeaderTitle("Provider")
         modelMenu.setAccessibilityLabel("Model")
         modelMenu.setMenuHeaderTitle("Model")
         effortMenu.setAccessibilityLabel("Effort")
@@ -282,6 +293,13 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func applyMenuConfiguration(_ configuration: Configuration) {
+        providerMenu.configure(
+            title: title(for: configuration.selectedProvider, in: configuration.providerOptions),
+            options: configuration.providerOptions,
+            selectedValue: configuration.selectedProvider,
+            isEnabled: !configuration.areControlsDisabled && configuration.providerOptions.count > 1,
+            onSelect: configuration.onProviderChange
+        )
         modelMenu.configure(
             title: title(for: configuration.selectedModel, in: configuration.modelOptions),
             options: configuration.modelOptions,
@@ -358,6 +376,9 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func addSettingsControls(for configuration: Configuration) {
+        if !configuration.providerOptions.isEmpty {
+            addRowSubview(providerMenu)
+        }
         addRowSubview(modelMenu)
         if !configuration.supportedEffortLevels.isEmpty {
             addRowSubview(effortMenu)
@@ -421,63 +442,5 @@ final class ChatComposerActionRowView: NSView {
             return ""
         }
         return ChatComposerTextSupport.progressLabel(for: reason)
-    }
-}
-
-private final class ChatComposerAccessoryGroupView: NSView {
-    private let spacing: CGFloat
-    private var accessories: [NSView] = []
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override var intrinsicContentSize: NSSize {
-        guard !accessories.isEmpty else {
-            return .zero
-        }
-
-        let widths = accessories
-            .map(\.intrinsicContentSize.width)
-            .filter { $0 != NSView.noIntrinsicMetric }
-        let heights = accessories
-            .map(\.intrinsicContentSize.height)
-            .filter { $0 != NSView.noIntrinsicMetric }
-        return NSSize(
-            width: widths.reduce(0, +) + spacing * CGFloat(max(0, accessories.count - 1)),
-            height: heights.max() ?? 0
-        )
-    }
-
-    init(spacing: CGFloat) {
-        self.spacing = spacing
-        super.init(frame: .zero)
-    }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    func addAccessory(_ view: NSView) {
-        accessories.append(view)
-        addSubview(view)
-        invalidateIntrinsicContentSize()
-    }
-
-    override func layout() {
-        super.layout()
-        var nextX: CGFloat = 0
-        for view in accessories {
-            let size = view.intrinsicContentSize
-            let width = size.width == NSView.noIntrinsicMetric ? view.fittingSize.width : size.width
-            let height = size.height == NSView.noIntrinsicMetric ? bounds.height : size.height
-            view.frame = NSRect(
-                x: nextX,
-                y: floor((bounds.height - height) / 2),
-                width: width,
-                height: height
-            )
-            nextX += width + spacing
-        }
     }
 }

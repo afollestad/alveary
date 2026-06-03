@@ -124,6 +124,12 @@ enum ChatComposerTextSupport {
             return "Accept edits"
         case "auto":
             return "Automatic"
+        case "untrusted":
+            return "Untrusted"
+        case "on-request":
+            return "On request"
+        case "never":
+            return "Never ask"
         default:
             return fallbackLabel ?? value
         }

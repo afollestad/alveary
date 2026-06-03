@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftData
 
 struct ContentViewDependencies {
@@ -5,6 +6,7 @@ struct ContentViewDependencies {
     let shellRunner: ShellRunner
     let gitHubCLI: GitHubCLIService
     let providerDetection: any ProviderDetectionService
+    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
     let agentRegistry: AgentRegistry
     let providerRegistry: ProviderRegistry
     let skillsService: SkillsService
@@ -30,6 +32,7 @@ struct ContentViewDependencies {
             shellRunner: component.shellRunner,
             gitHubCLI: component.gitHubCLIService,
             providerDetection: component.providerDetectionService,
+            providerDiscovery: component.agentCLIKitProviderDiscoveryService,
             agentRegistry: component.agentRegistry,
             providerRegistry: component.providerRegistry,
             skillsService: component.skillsService,

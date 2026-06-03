@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftData
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct MiddlePane: View {
     let keepAwakeService: KeepAwakeService
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
+    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -48,6 +50,7 @@ struct MiddlePane: View {
                 keepAwakeService: keepAwakeService,
                 settingsService: settingsService,
                 providerRegistry: providerRegistry,
+                providerDiscovery: providerDiscovery,
                 worktreeManager: worktreeManager,
                 providerSetup: providerSetup,
                 contextWindowCache: contextWindowCache,

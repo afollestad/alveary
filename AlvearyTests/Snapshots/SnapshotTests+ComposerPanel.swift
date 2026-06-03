@@ -210,6 +210,8 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
     private var actionRowConfiguration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
+            providerOptions: [.init(value: "claude", title: "Claude Code")],
+            selectedProvider: "claude",
             modelOptions: AppSettings.supportedModels.map {
                 .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0))
             },
@@ -235,6 +237,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+            onProviderChange: { _ in },
             onModelChange: { selectedModel = $0 },
             onEffortChange: { selectedEffort = $0 },
             onPermissionModeChange: { selectedPermissionMode = $0 },

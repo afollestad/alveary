@@ -305,6 +305,7 @@ private struct ThreadDetailStatusFixture {
     let runtimeStore: MockConversationRuntimeStore
     let settingsService: InMemorySettingsService
     let providerRegistry: DefaultProviderRegistry
+    let providerDiscovery: SnapshotThreadProviderDiscoveryService
     let worktreeManager: MockWorktreeManager
     let providerSetup: MockProviderSetupService
     let contextWindowCache: MockContextWindowCache
@@ -329,6 +330,7 @@ private struct ThreadDetailStatusFixture {
         runtimeStore = MockConversationRuntimeStore()
         settingsService = InMemorySettingsService()
         providerRegistry = DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry())
+        providerDiscovery = SnapshotThreadProviderDiscoveryService()
         worktreeManager = MockWorktreeManager(
             worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")
         )
@@ -356,6 +358,7 @@ private struct ThreadDetailStatusFixture {
             keepAwakeService: RecordingKeepAwakeService(),
             settingsService: settingsService,
             providerRegistry: providerRegistry,
+            providerDiscovery: providerDiscovery,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,

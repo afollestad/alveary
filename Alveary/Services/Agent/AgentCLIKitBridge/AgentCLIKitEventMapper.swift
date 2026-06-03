@@ -31,6 +31,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return diagnosticEvents(from: event)
         case .rateLimit(let event):
             return [.notification(type: "rate_limit", message: event.status.rawValue)]
+        case .activity:
+            return []
         case .rawOutput:
             return []
         }

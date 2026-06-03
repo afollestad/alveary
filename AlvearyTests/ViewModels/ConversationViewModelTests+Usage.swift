@@ -40,6 +40,43 @@ extension ConversationViewModelTests {
         }
     }
 
+    func testCodexTokenEventCachesContextWindowUsingSelectedModelWhenReportedModelIsUnavailable() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.conversation.provider = "codex"
+        fixture.thread.model = "gpt-5.5"
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 100,
+                output: 20,
+                cacheRead: 30,
+                cacheCreation: 40,
+                isError: false,
+                stopReason: ConversationEvent.interimUsageStopReason,
+                durationMs: 0,
+                costUsd: 0,
+                providerModelId: nil,
+                contextWindowSize: 200_000,
+                permissionDenials: []
+            )
+        )
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        let tokensRecord = try XCTUnwrap(persistedEvents.first { $0.type == "tokens" })
+        XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
+        XCTAssertNil(tokensRecord.providerModelId)
+
+        try await waitUntil("codex context window cache update is scheduled") {
+            let updates = await fixture.contextWindowCache.updates
+            return updates.contains {
+                $0.providerId == "codex" &&
+                    $0.selectedModel == "gpt-5.5" &&
+                    $0.reportedModelId == nil &&
+                    $0.contextWindowSize == 200_000
+            }
+        }
+    }
+
     func testInterimUsageTokenPersistsWithoutEndingTurn() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.turnState.beginTurn()

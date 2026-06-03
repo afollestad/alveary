@@ -58,6 +58,9 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         conversationId: AgentCLIKit.AgentConversationID,
         sessionId: AgentCLIKit.AgentSessionID
     ) async {
+        guard providerId == .claude else {
+            return
+        }
         await claudeHookServer.removeSessionApprovals(
             conversationId: conversationId.rawValue,
             sessionId: sessionId.rawValue

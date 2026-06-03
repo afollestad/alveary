@@ -23,7 +23,7 @@ struct ThreadsSettingsTabView: View {
                             "Provider",
                             selection: $defaultProvider,
                             options: viewModel.availableProviderIDs,
-                            label: { $0.capitalized }
+                            label: { viewModel.providerDisplayName(for: $0) }
                         )
                     }
                 }
@@ -33,31 +33,35 @@ struct ThreadsSettingsTabView: View {
                         SettingsMenuPicker(
                             "Model",
                             selection: $defaultModel,
-                            options: viewModel.supportedModels,
-                            label: ChatComposerTextSupport.modelLabel(for:)
+                            options: viewModel.modelOptionValues(for: viewModel.defaultProvider, including: defaultModel),
+                            label: { viewModel.modelLabel(for: $0, providerId: viewModel.defaultProvider) }
                         )
                     }
                 }
 
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Effort",
-                            selection: $effort,
-                            options: viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel),
-                            label: ChatComposerTextSupport.effortLabel(for:)
-                        )
+                if !viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel).isEmpty {
+                    SettingsFormRow {
+                        SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
+                            SettingsMenuPicker(
+                                "Effort",
+                                selection: $effort,
+                                options: viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel),
+                                label: ChatComposerTextSupport.effortLabel(for:)
+                            )
+                        }
                     }
                 }
 
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Permission mode", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Permission mode",
-                            selection: $permissionMode,
-                            options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
-                            label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
-                        )
+                if !viewModel.permissionModeOptions(for: viewModel.defaultProvider).isEmpty {
+                    SettingsFormRow {
+                        SettingsResponsiveControlRow("Permission mode", horizontalControlSizing: .intrinsic) {
+                            SettingsMenuPicker(
+                                "Permission mode",
+                                selection: $permissionMode,
+                                options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
+                                label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
+                            )
+                        }
                     }
                 }
 

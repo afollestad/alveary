@@ -358,6 +358,7 @@ final class ChatComposerActionRowTests: XCTestCase {
 
 private func makeConfiguration(
     mode: ComposerMode,
+    providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     supportedEffortLevels: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
@@ -371,6 +372,8 @@ private func makeConfiguration(
     onShowKeymap: @escaping () -> Void = {}
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
+        providerOptions: providerOptions,
+        selectedProvider: "claude",
         modelOptions: modelOptions,
         selectedModel: "sonnet",
         supportedEffortLevels: supportedEffortLevels,
@@ -390,6 +393,7 @@ private func makeConfiguration(
         isStopConfirmationArmed: isStopConfirmationArmed,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
+        onProviderChange: { _ in },
         onModelChange: { _ in },
         onEffortChange: { _ in },
         onPermissionModeChange: { _ in },

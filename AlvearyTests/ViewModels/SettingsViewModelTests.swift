@@ -1,3 +1,4 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
@@ -5,47 +6,66 @@ import XCTest
 @MainActor
 final class SettingsViewModelTests: XCTestCase {
     func testRefreshProviderStatusesLoadsDetectedStatusAndHelperMetadata() async {
-        let detection = RecordingProviderDetectionService(statuses: [
-            "claude": .connected(path: "/usr/local/bin/claude", version: "2.1.104")
+        let discovery = RecordingProviderDiscoveryService(statuses: [
+            .claude: AgentCLIKit.AgentProviderStatus(
+                providerId: .claude,
+                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+                installation: .installed,
+                availability: AgentCLIKit.AgentProviderAvailability(
+                    providerId: .claude,
+                    executablePath: "/usr/local/bin/claude",
+                    versionDescription: "2.1.104"
+                ),
+                setup: .ready,
+                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.claude] ?? []
+            )
         ])
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDetection: detection
+            providerDiscovery: discovery
         )
 
         await viewModel.refreshProviderStatuses()
-        let checkAllProvidersInvocations = await detection.checkAllProvidersInvocations()
+        let providerStatusesInvocations = await discovery.providerStatusesInvocations()
 
-        XCTAssertEqual(viewModel.providerStatus(for: "claude"), .connected(path: "/usr/local/bin/claude", version: "2.1.104"))
-        XCTAssertEqual(viewModel.shortStatusLabel(for: viewModel.providerStatus(for: "claude")), "Connected")
+        XCTAssertEqual(viewModel.providerStatus(for: "claude")?.installation, .installed)
+        XCTAssertEqual(viewModel.shortStatusLabel(for: viewModel.providerStatus(for: "claude")), "Ready")
         XCTAssertEqual(viewModel.statusDescription(for: viewModel.providerStatus(for: "claude")), "2.1.104 at /usr/local/bin/claude")
         XCTAssertEqual(viewModel.installCommand(for: "claude"), "curl -fsSL https://claude.ai/install.sh | bash")
-        XCTAssertEqual(checkAllProvidersInvocations, 1)
+        XCTAssertEqual(providerStatusesInvocations, 1)
     }
 
     func testRefreshProviderStatusesIfNeededOnlyLoadsOnce() async {
-        let detection = RecordingProviderDetectionService(statuses: [
-            "claude": .missing
+        let discovery = RecordingProviderDiscoveryService(statuses: [
+            .claude: AgentCLIKit.AgentProviderStatus(
+                providerId: .claude,
+                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
+                installation: .missing,
+                availability: AgentCLIKit.AgentProviderAvailability(providerId: .claude, executablePath: nil),
+                setup: .ready,
+                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.claude] ?? []
+            )
         ])
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(),
-            providerDetection: detection
+            providerDiscovery: discovery
         )
 
         await viewModel.refreshProviderStatusesIfNeeded()
         await viewModel.refreshProviderStatusesIfNeeded()
-        let checkAllProvidersInvocations = await detection.checkAllProvidersInvocations()
+        let providerStatusesInvocations = await discovery.providerStatusesInvocations()
 
-        XCTAssertEqual(viewModel.providerStatus(for: "claude"), .missing)
-        XCTAssertEqual(checkAllProvidersInvocations, 1)
+        XCTAssertEqual(viewModel.providerStatus(for: "claude")?.installation, .missing)
+        XCTAssertEqual(providerStatusesInvocations, 1)
     }
 
     func testOptionSourcesAreStableAndPickerSafe() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
-        XCTAssertEqual(viewModel.availableProviderIDs, ["claude"])
-        XCTAssertEqual(viewModel.supportedModels, AppSettings.supportedModels)
-        XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes)
+        XCTAssertEqual(viewModel.availableProviderIDs, ["claude", "codex"])
+        XCTAssertEqual(viewModel.supportedModels, ["default", "sonnet", "opus"])
+        XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes(forProvider: "claude"))
+        XCTAssertEqual(viewModel.permissionModeOptions(for: "codex"), AppSettings.supportedPermissionModes(forProvider: "codex"))
         XCTAssertEqual(
             viewModel.effortOptions(for: "claude", model: "opus"),
             ["low", "medium", "high", "xhigh", "max"]
@@ -63,6 +83,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.codeFontFamilyOptions, [AppSettings.defaultCodeFontFamily])
         XCTAssertTrue(viewModel.permissionModeOptions(for: "unknown").isEmpty)
         XCTAssertTrue(viewModel.effortOptions(for: "unknown", model: "opus").isEmpty)
+        XCTAssertTrue(viewModel.effortOptions(for: "codex", model: "default").isEmpty)
     }
 
     func testCodeFontFamilyOptionsLoadLazilyAndCacheResults() {
@@ -362,32 +383,36 @@ final class SettingsViewModelTests: XCTestCase {
     }
 }
 
-private actor RecordingProviderDetectionService: ProviderDetectionService {
-    private let statuses: [String: ProviderStatus]
-    private var checkAllProvidersCallCount = 0
+private actor RecordingProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
+    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
+    private var providerStatusesCallCount = 0
 
-    init(statuses: [String: ProviderStatus]) {
+    init(statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]) {
         self.statuses = statuses
     }
 
-    func resolvedPath(for providerId: String) -> String? {
-        if case let .connected(path, _)? = statuses[providerId] {
-            return path
-        }
-        return nil
+    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        providerStatusesCallCount += 1
+        return statuses
     }
 
-    func status(for providerId: String) -> ProviderStatus {
-        statuses[providerId] ?? .missing
+    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        statuses.filter { $0.value.isInstalled }
     }
 
-    func checkAllProviders() async {
-        checkAllProvidersCallCount += 1
+    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
+        statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
     }
 
-    func checkProvider(_ providerId: String) async {}
+    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
+        statuses[providerId]?.modelOptions ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+    }
 
-    func checkAllProvidersInvocations() -> Int {
-        checkAllProvidersCallCount
+    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
+        [.claude, .codex]
+    }
+
+    func providerStatusesInvocations() -> Int {
+        providerStatusesCallCount
     }
 }

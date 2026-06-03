@@ -14,17 +14,20 @@ final class DefaultMCPService: MCPService {
     }
 
     private let claudeConfigStore: AgentCLIKit.ClaudeConfigStore
+    private let codexConfigStore: AgentCLIKit.CodexConfigStore
     private let providerDetection: ProviderDetectionService
     private let agentRegistry: AgentRegistry
     private let bundle: Bundle
 
     init(
         claudeConfigStore: AgentCLIKit.ClaudeConfigStore,
+        codexConfigStore: AgentCLIKit.CodexConfigStore,
         providerDetection: ProviderDetectionService,
         agentRegistry: AgentRegistry,
         bundle: Bundle = .main
     ) {
         self.claudeConfigStore = claudeConfigStore
+        self.codexConfigStore = codexConfigStore
         self.providerDetection = providerDetection
         self.agentRegistry = agentRegistry
         self.bundle = bundle
@@ -188,32 +191,14 @@ private extension DefaultMCPService {
     }
 
     func readRawServers(for agent: MCPAgentEntry) async throws -> ServerMap {
-        if agent.agentId == "claude" {
-            return try await claudeConfigStore.readMCPServers().mapValues { server in
-                var raw: RawServerEntry = [:]
-                if let command = server.command {
-                    raw["command"] = command
-                }
-                if let args = server.args {
-                    raw["args"] = args
-                }
-                if let url = server.url {
-                    raw["url"] = url
-                }
-                if let headers = server.headers {
-                    raw["headers"] = headers
-                }
-                if let env = server.env {
-                    raw["env"] = env
-                }
-                if let disabled = server.disabled {
-                    raw["disabled"] = disabled
-                }
-                return raw
-            }
+        switch agent.agentId {
+        case "claude":
+            return try await readClaudeRawServers()
+        case "codex":
+            return try await readCodexRawServers()
+        default:
+            return try MCPConfigIO.readServers(from: agent.config)
         }
-
-        return try MCPConfigIO.readServers(from: agent.config)
     }
 
     func writeRawServers(_ servers: ServerMap, to agent: MCPAgentEntry) async throws {
@@ -229,6 +214,20 @@ private extension DefaultMCPService {
                 )
             }
             try await claudeConfigStore.writeMCPServers(claudeServers)
+            return
+        }
+        if agent.agentId == "codex" {
+            let codexServers = servers.mapValues { server in
+                AgentCLIKit.CodexMCPServerConfig(
+                    command: server["command"] as? String,
+                    args: server["args"] as? [String],
+                    env: server["env"] as? [String: String],
+                    url: server["url"] as? String,
+                    httpHeaders: server["headers"] as? [String: String],
+                    enabled: (server["disabled"] as? Bool).map { !$0 }
+                )
+            }
+            try await codexConfigStore.writeMCPServers(codexServers)
             return
         }
 
@@ -260,6 +259,60 @@ private extension DefaultMCPService {
             raw["env"] = env
         }
 
+        return raw
+    }
+
+    func readClaudeRawServers() async throws -> ServerMap {
+        try await claudeConfigStore.readMCPServers().mapValues { rawServerEntry(from: $0) }
+    }
+
+    func readCodexRawServers() async throws -> ServerMap {
+        try await codexConfigStore.readMCPServers().mapValues { rawServerEntry(from: $0) }
+    }
+
+    func rawServerEntry(from server: AgentCLIKit.ClaudeMCPServerConfig) -> RawServerEntry {
+        var raw: RawServerEntry = [:]
+        if let command = server.command {
+            raw["command"] = command
+        }
+        if let args = server.args {
+            raw["args"] = args
+        }
+        if let url = server.url {
+            raw["url"] = url
+        }
+        if let headers = server.headers {
+            raw["headers"] = headers
+        }
+        if let env = server.env {
+            raw["env"] = env
+        }
+        if let disabled = server.disabled {
+            raw["disabled"] = disabled
+        }
+        return raw
+    }
+
+    func rawServerEntry(from server: AgentCLIKit.CodexMCPServerConfig) -> RawServerEntry {
+        var raw: RawServerEntry = [:]
+        if let command = server.command {
+            raw["command"] = command
+        }
+        if let args = server.args {
+            raw["args"] = args
+        }
+        if let url = server.url {
+            raw["url"] = url
+        }
+        if let headers = server.httpHeaders {
+            raw["headers"] = headers
+        }
+        if let env = server.env {
+            raw["env"] = env
+        }
+        if let enabled = server.enabled {
+            raw["disabled"] = !enabled
+        }
         return raw
     }
 }

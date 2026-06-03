@@ -28,6 +28,50 @@ extension ConversationViewModel {
     // click, then returns a `Task` carrying the async fork (+ rollback).
     // Bindings discard the task; tests `await .value` to observe completion.
 
+    func applyProviderChange(_ newValue: String) {
+        guard canApplySettingsChange,
+              AppSettings.supportedProviderIDs.contains(newValue),
+              let dbConversation = modelContext.resolveConversation(id: conversationModelID),
+              let dbThread = dbConversation.thread,
+              !dbThread.hasCompletedInitialSetup else {
+            return
+        }
+
+        let previousProvider = dbConversation.provider
+        let previousModel = dbThread.model
+        let previousPermissionMode = dbThread.permissionMode
+        let previousEffort = dbThread.effort
+        let previousRuntimePermissionMode = state.runtimePermissionMode
+        let previousLastNonPlanPermissionMode = state.lastNonPlanPermissionMode
+
+        let newPermissionMode = AppSettings.defaultPermissionMode(forProvider: newValue)
+        guard (previousProvider ?? settingsService.current.defaultProvider) != newValue ||
+            previousModel != nil ||
+            previousPermissionMode != newPermissionMode else {
+            return
+        }
+
+        dbConversation.provider = newValue
+        dbThread.model = nil
+        dbThread.permissionMode = newPermissionMode
+        dbThread.effort = AppSettings.defaultEffortLevel
+        state.runtimePermissionMode = newPermissionMode
+        state.lastNonPlanPermissionMode = newPermissionMode == "plan" ? nil : newPermissionMode
+        state.lastTurnError = nil
+
+        do {
+            try modelContext.save()
+        } catch {
+            dbConversation.provider = previousProvider
+            dbThread.model = previousModel
+            dbThread.permissionMode = previousPermissionMode
+            dbThread.effort = previousEffort
+            state.runtimePermissionMode = previousRuntimePermissionMode
+            state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
+            state.lastTurnError = error.localizedDescription
+        }
+    }
+
     @discardableResult
     func applyModelChange(_ newValue: String) -> Task<Void, Never> {
         guard canApplySettingsChange else { return .noop }

@@ -68,7 +68,9 @@ Run a focused test class:
 
 ## Agent Provider Runtime
 
-Alveary uses `AgentCLIKit` for provider runtime integration and provider-owned config access. Project trust state and Claude MCP config reads/writes flow through `AgentCLIKit`; Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
+Alveary uses `AgentCLIKit` for provider runtime integration, provider-owned config access, provider status, and model discovery. Claude and Codex are surfaced through the same provider/model settings and thread composer controls; disabled, missing, setup-blocked, and project-untrusted providers stay visible with actionable status.
+
+Project trust state and provider MCP config reads/writes flow through `AgentCLIKit`. Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
 
 ## Snapshot Tests
 

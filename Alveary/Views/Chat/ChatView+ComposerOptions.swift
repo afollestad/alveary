@@ -37,10 +37,4 @@ extension ChatView {
             providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
         )
     }
-
-    var composerModelOptions: [String] {
-        let selectedModel = selectedModelBinding.wrappedValue
-        let knownModels = AppSettings.supportedModels
-        return knownModels.contains(selectedModel) ? knownModels : knownModels + [selectedModel]
-    }
 }

@@ -124,7 +124,10 @@ extension AppComponent {
         return shared {
             DefaultProviderSetupService(
                 projectTrustService: agentCLIKitProjectTrustService,
-                projectTrustUpdates: claudeProjectTrustUpdates(from: agentCLIKitClaudeConfigStore)
+                projectTrustUpdates: providerProjectTrustUpdates(stores: [
+                    claudeProjectTrustUpdates(from: agentCLIKitClaudeConfigStore),
+                    codexProjectTrustUpdates(from: agentCLIKitCodexConfigStore)
+                ])
             )
         }
     }
@@ -177,6 +180,14 @@ extension AppComponent {
         }
     }
 
+    var agentCLIKitCodexConfigStore: AgentCLIKit.CodexConfigStore {
+        return shared {
+            AgentCLIKit.CodexConfigStore(
+                codexHomeDirectoryURL: AgentCLIKit.CodexConfigStore.defaultCodexHomeDirectoryURL
+            )
+        }
+    }
+
     var agentCLIKitProviderRegistry: AgentCLIKit.AgentProviderRegistry {
         return shared {
             AgentCLIKit.AgentProviderRegistry(
@@ -193,8 +204,33 @@ extension AppComponent {
         return shared { AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore) }
     }
 
+    var agentCLIKitCodexProviderSetup: AgentCLIKit.CodexProviderSetup {
+        return shared { AgentCLIKit.CodexProviderSetup(configStore: agentCLIKitCodexConfigStore) }
+    }
+
     var agentCLIKitProjectTrustService: AgentCLIKit.DefaultAgentProjectTrustService {
-        return shared { AgentCLIKit.DefaultAgentProjectTrustService(setups: [agentCLIKitProviderSetup]) }
+        return shared {
+            AgentCLIKit.DefaultAgentProjectTrustService(setups: [
+                agentCLIKitProviderSetup,
+                agentCLIKitCodexProviderSetup
+            ])
+        }
+    }
+
+    var agentCLIKitProviderDiscoveryService: any AgentCLIKit.AgentProviderDiscoveryService {
+        return shared {
+            AgentCLIKit.DefaultAgentProviderDiscoveryService(
+                providerRegistry: agentCLIKitProviderRegistry,
+                executableDetector: agentCLIKitProviderDetector,
+                projectTrustService: agentCLIKitProjectTrustService,
+                providerSetups: [
+                    agentCLIKitProviderSetup,
+                    agentCLIKitCodexProviderSetup
+                ],
+                enablementSource: SettingsAgentProviderEnablementSource(settingsService: settingsService),
+                modelOptionSource: AgentCLIKit.StaticAgentModelOptionSource()
+            )
+        }
     }
 
     var agentCLIKitContextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache {
@@ -310,6 +346,7 @@ extension AppComponent {
         return shared {
             DefaultMCPService(
                 claudeConfigStore: agentCLIKitClaudeConfigStore,
+                codexConfigStore: agentCLIKitCodexConfigStore,
                 providerDetection: providerDetectionService,
                 agentRegistry: agentRegistry
             )
@@ -332,6 +369,57 @@ private func claudeProjectTrustUpdates(
             }
             continuation.onTermination = { _ in
                 task.cancel()
+            }
+        }
+    }
+}
+
+private func codexProjectTrustUpdates(
+    from configStore: AgentCLIKit.CodexConfigStore
+) -> @Sendable () async -> AsyncStream<Void> {
+    {
+        let snapshots = await configStore.snapshots()
+        return AsyncStream { continuation in
+            let task = Task {
+                for await _ in snapshots {
+                    continuation.yield(())
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+}
+
+private func providerProjectTrustUpdates(
+    stores: [@Sendable () async -> AsyncStream<Void>]
+) -> @Sendable () async -> AsyncStream<Void> {
+    {
+        let streams = await withTaskGroup(of: AsyncStream<Void>.self) { group in
+            for store in stores {
+                group.addTask {
+                    await store()
+                }
+            }
+            var streams: [AsyncStream<Void>] = []
+            for await stream in group {
+                streams.append(stream)
+            }
+            return streams
+        }
+
+        return AsyncStream { continuation in
+            let tasks = streams.map { stream in
+                Task {
+                    for await _ in stream {
+                        continuation.yield(())
+                    }
+                }
+            }
+            continuation.onTermination = { _ in
+                tasks.forEach { $0.cancel() }
             }
         }
     }

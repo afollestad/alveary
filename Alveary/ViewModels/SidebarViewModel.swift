@@ -81,9 +81,8 @@ final class SidebarViewModel {
 
     func createThread(project: Project, provider: String, permissionMode: String) async throws -> AgentThread {
         let dbProject = try requireProject(project)
-        let defaultModel = settingsService.current.defaultModel
-        let threadModel: String? = (defaultModel != AppSettings.defaultModelValue &&
-            AppSettings.supportedModels.contains(defaultModel)) ? defaultModel : nil
+        let defaultModel = settingsService.current.defaultModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let threadModel: String? = defaultModel != AppSettings.defaultModelValue && !defaultModel.isEmpty ? defaultModel : nil
         let thread = AgentThread(
             name: "New thread",
             permissionMode: permissionMode,

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import AppKit
 import Observation
 import SwiftUI
@@ -5,119 +6,28 @@ import SwiftUI
 @MainActor
 @Observable
 final class SettingsViewModel {
-    private let settingsService: any SettingsService
-    private let providerDetection: (any ProviderDetectionService)?
-    private let agentRegistry: AgentRegistry
+    @ObservationIgnored let settingsService: any SettingsService
+    @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
+    @ObservationIgnored let agentRegistry: AgentRegistry
     @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
     @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
 
-    var providerStatuses: [String: ProviderStatus] = [:]
+    var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
+    var providerOrdering: [String] = []
     private var loadedCodeFontFamilyOptions: [String]?
 
     init(
         settingsService: any SettingsService,
-        providerDetection: (any ProviderDetectionService)? = nil,
+        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
         soundPreviewer: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         self.settingsService = settingsService
-        self.providerDetection = providerDetection
+        self.providerDiscovery = providerDiscovery
         self.agentRegistry = agentRegistry
         self.codeFontFamilyLoader = codeFontFamilyLoader
         self.soundPreviewer = soundPreviewer
-    }
-
-    var availableProviderIDs: [String] {
-        AppSettings.supportedProviderIDs
-    }
-
-    var supportedModels: [String] {
-        AppSettings.supportedModels
-    }
-
-    func permissionModeOptions(for providerId: String) -> [String] {
-        providerId == "claude" ? AppSettings.supportedPermissionModes : []
-    }
-
-    func installCommand(for providerId: String) -> String? {
-        agentRegistry.agent(for: providerId)?.installCommand
-    }
-
-    func providerStatus(for providerId: String) -> ProviderStatus {
-        providerStatuses[providerId] ?? .unchecked
-    }
-
-    func refreshProviderStatusesIfNeeded() async {
-        guard providerStatuses.isEmpty else {
-            return
-        }
-        await refreshProviderStatuses()
-    }
-
-    func refreshProviderStatuses() async {
-        guard let providerDetection else {
-            providerStatuses = [:]
-            return
-        }
-
-        providerStatuses = Dictionary(uniqueKeysWithValues: availableProviderIDs.map { ($0, .unchecked) })
-        await providerDetection.checkAllProviders()
-
-        var newStatuses: [String: ProviderStatus] = [:]
-        for providerId in availableProviderIDs {
-            newStatuses[providerId] = await providerDetection.status(for: providerId)
-        }
-        providerStatuses = newStatuses
-    }
-
-    func shortStatusLabel(for status: ProviderStatus) -> String {
-        switch status {
-        case .connected:
-            return "Connected"
-        case .needsKey:
-            return "Needs Key"
-        case .missing:
-            return "Missing"
-        case .error:
-            return "Error"
-        case .unchecked:
-            return "Checking"
-        }
-    }
-
-    func statusDescription(for status: ProviderStatus) -> String {
-        switch status {
-        case .connected(let path, let version):
-            return "\(version) at \(path)"
-        case .needsKey:
-            return "CLI found, but it still needs authentication or an API key."
-        case .missing:
-            return "Not installed on this Mac yet."
-        case .error(let message):
-            return message
-        case .unchecked:
-            return "Checking installation status."
-        }
-    }
-
-    func statusColor(for status: ProviderStatus) -> Color {
-        switch status {
-        case .connected:
-            return .green
-        case .needsKey:
-            return .orange
-        case .missing:
-            return .secondary
-        case .error:
-            return .red
-        case .unchecked:
-            return .blue
-        }
-    }
-
-    func effortOptions(for providerId: String, model: String?) -> [String] {
-        providerId == "claude" ? AppSettings.supportedEffortLevels(forModel: model) : []
     }
 
     var themeOptions: [String] {
@@ -137,35 +47,6 @@ final class SettingsViewModel {
             return
         }
         loadedCodeFontFamilyOptions = Self.normalizedCodeFontFamilies(codeFontFamilyLoader())
-    }
-
-    var defaultProvider: String {
-        get { settingsService.current.defaultProvider }
-        set { settingsService.update { $0.defaultProvider = newValue } }
-    }
-
-    var defaultModel: String {
-        get { settingsService.current.defaultModel }
-        set {
-            settingsService.update { settings in
-                let previousEffort = settings.effort
-                settings.defaultModel = newValue
-                // Mirror the per-thread coercion in `ConversationViewModel.applyModelChange`
-                // so the Settings Effort picker can never leave a value selected that the
-                // new model doesn't support, and so the "didn't customize effort" case
-                // lands on the new model's preferred default (e.g. Opus → `xhigh`).
-                let needsFallback = !AppSettings.effortLevel(previousEffort, isSupportedByModel: newValue)
-                    || previousEffort == AppSettings.defaultEffortLevel
-                if needsFallback {
-                    settings.effort = AppSettings.defaultEffortLevel(forModel: newValue)
-                }
-            }
-        }
-    }
-
-    var permissionMode: String {
-        get { settingsService.current.permissionMode }
-        set { settingsService.update { $0.permissionMode = newValue } }
     }
 
     var effort: String {

@@ -466,34 +466,4 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func tearDownAgentCLIKitRuntime(conversationId: String, removeSession: Bool) async {
-        guard let services = agentCLIKitServices else {
-            return
-        }
-        agentCLIKitEventTasks.removeValue(forKey: conversationId)?.cancel()
-        agentCLIKitStatusTasks.removeValue(forKey: conversationId)?.cancel()
-        eventBuffers[conversationId]?.allowsReplay = false
-        eventBuffers[conversationId]?.acceptsLiveEvents = false
-        eventBuffers[conversationId]?.buffer.finishAll()
-        await services.liveHookDecisionProvider.discardDecisions(conversationId: conversationId)
-        await services.runtime.destroy(conversationId: services.hostAdapter.conversationId(conversationId))
-        if removeSession {
-            do {
-                if let providerId = services.hostAdapter.providerId("claude") {
-                    try await services.sessionStore.remove(
-                        conversationId: services.hostAdapter.conversationId(conversationId),
-                        providerId: providerId
-                    )
-                }
-            } catch {
-                pendingSessionRemovalErrors[conversationId] = error.localizedDescription
-            }
-        }
-        agentCLIKitStatuses.removeValue(forKey: conversationId)
-        agentCLIKitGenerationByConversation.removeValue(forKey: conversationId)
-        agentCLIKitGenerationUUIDs.removeValue(forKey: conversationId)
-        closingConversationIds.remove(conversationId)
-        pendingSessionRemovalIds.remove(conversationId)
-        clearStatus(for: conversationId)
-    }
 }

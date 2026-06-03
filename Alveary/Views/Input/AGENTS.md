@@ -34,6 +34,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep renderer-neutral decisions in `ComposerPresentation` and `ComposerSettingsPresentation`.
 - Keep presentation pure: compute labels, disabled states, placeholders, action copy, busy return behavior, effort options, and trust blocking from caller-owned inputs.
 - Keep effects elsewhere: no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
+- Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
 - Native controls that custom-draw dynamic `NSColor`s must resolve colors through `appKitRenderingAppearance` and invalidate display from `viewDidChangeEffectiveAppearance()`.
 - `ComposerMode.ProgressReason.canStop` is the single source of truth for whether the action slot renders a stop button and whether Escape stop confirmation is armed.

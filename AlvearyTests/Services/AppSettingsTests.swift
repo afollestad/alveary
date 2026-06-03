@@ -198,9 +198,16 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.providerConfigs["other"], ProviderCustomConfig(extraArgs: "--verbose"))
     }
 
-    func testNormalizedClampsUnknownDefaultModelToSentinel() {
+    func testNormalizedPreservesDynamicDefaultModelID() {
         var settings = AppSettings()
         settings.defaultModel = "gpt-9"
+
+        XCTAssertEqual(settings.normalized().defaultModel, "gpt-9")
+    }
+
+    func testNormalizedClampsBlankDefaultModelToSentinel() {
+        var settings = AppSettings()
+        settings.defaultModel = "  \n  "
 
         XCTAssertEqual(settings.normalized().defaultModel, AppSettings.defaultModelValue)
     }
@@ -210,6 +217,43 @@ final class AppSettingsTests: XCTestCase {
         settings.defaultModel = "opus"
 
         XCTAssertEqual(settings.normalized().defaultModel, "opus")
+    }
+
+    func testSetProviderTogglesSupportedProviderEnablement() {
+        var settings = AppSettings()
+
+        settings.setProvider("codex", enabled: false)
+
+        XCTAssertFalse(settings.isProviderEnabled("codex"))
+
+        settings.setProvider("codex", enabled: true)
+        settings.setProvider("unknown", enabled: false)
+
+        XCTAssertTrue(settings.isProviderEnabled("codex"))
+        XCTAssertFalse(settings.disabledProviderIDs.contains("unknown"))
+    }
+
+    func testNormalizedFallsBackWhenDefaultProviderIsDisabled() {
+        var settings = AppSettings()
+        settings.defaultProvider = "codex"
+        settings.disabledProviderIDs = ["codex"]
+
+        let normalized = settings.normalized()
+
+        XCTAssertEqual(normalized.defaultProvider, "claude")
+        XCTAssertTrue(normalized.isProviderEnabled("claude"))
+        XCTAssertFalse(normalized.isProviderEnabled("codex"))
+    }
+
+    func testNormalizedKeepsAtLeastOneProviderEnabled() {
+        var settings = AppSettings()
+        settings.disabledProviderIDs = ["claude", "codex", "unknown"]
+
+        let normalized = settings.normalized()
+
+        XCTAssertTrue(normalized.isProviderEnabled("claude"))
+        XCTAssertFalse(normalized.isProviderEnabled("codex"))
+        XCTAssertFalse(normalized.disabledProviderIDs.contains("unknown"))
     }
 
     func testNormalizedClampsMaxTerminalSessionsToSupportedRange() {

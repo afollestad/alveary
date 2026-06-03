@@ -9,7 +9,7 @@ final class MCPServiceTests: XCTestCase {
     func testAddServerWritesClaudeConfigAndRemovesDeselectedAgents() async throws {
         let fixture = try MCPServiceFixture()
         defer { fixture.cleanup() }
-        try fixture.writeCodexServers([
+        try await fixture.writeCodexServers([
             "context7": ["command": "npx", "args": ["serve"]]
         ])
         try fixture.writeTrustedProjects()
@@ -28,7 +28,7 @@ final class MCPServiceTests: XCTestCase {
         try await fixture.service.addServer(server, for: ["claude"])
 
         let claudeServers = try await fixture.claudeStore.readMCPServers()
-        let codexServers = try MCPConfigIO.readServers(from: fixture.codexIntegration)
+        let codexServers = try await fixture.codexStore.readMCPServers()
         let root = try fixture.readClaudeRoot()
 
         XCTAssertEqual(claudeServers["context7"]?.url, "https://mcp.context7.com/mcp")
@@ -49,7 +49,7 @@ final class MCPServiceTests: XCTestCase {
                 env: nil
             )
         ])
-        try fixture.writeCodexServers([
+        try await fixture.writeCodexServers([
             "filesystem": [
                 "command": "npx",
                 "args": ["-y", "@modelcontextprotocol/server-filesystem"]
@@ -115,6 +115,7 @@ private struct MCPServiceFixture {
     let codexConfigURL: URL
     let codexIntegration: MCPIntegrationDefinition
     let claudeStore: AgentCLIKit.ClaudeConfigStore
+    let codexStore: AgentCLIKit.CodexConfigStore
     let providerDetection: MCPTestProviderDetectionService
     let service: DefaultMCPService
 
@@ -124,14 +125,15 @@ private struct MCPServiceFixture {
     ]) throws {
         rootDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         homeDirectory = rootDirectory.appendingPathComponent("home", isDirectory: true)
-        codexConfigURL = rootDirectory.appendingPathComponent("codex/config.json")
+        codexConfigURL = rootDirectory.appendingPathComponent("codex/config.toml")
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true, attributes: nil)
         claudeStore = AgentCLIKit.ClaudeConfigStore(homeDirectoryURL: homeDirectory)
+        codexStore = AgentCLIKit.CodexConfigStore(fileURL: codexConfigURL)
         providerDetection = MCPTestProviderDetectionService(statuses: statuses)
         codexIntegration = MCPIntegrationDefinition(
             configPath: codexConfigURL.path,
-            serversKeyPath: ["mcpServers"],
-            format: .json,
+            serversKeyPath: ["mcp_servers"],
+            format: .toml,
             adapterId: "passthrough",
             supportsHttp: false
         )
@@ -167,6 +169,7 @@ private struct MCPServiceFixture {
 
         service = DefaultMCPService(
             claudeConfigStore: claudeStore,
+            codexConfigStore: codexStore,
             providerDetection: providerDetection,
             agentRegistry: registry,
             bundle: Bundle(for: MCPServiceTests.self)
@@ -177,8 +180,18 @@ private struct MCPServiceFixture {
         try? FileManager.default.removeItem(at: rootDirectory)
     }
 
-    func writeCodexServers(_ servers: ServerMap) throws {
-        try MCPConfigIO.writeServers(to: codexIntegration, servers: servers)
+    func writeCodexServers(_ servers: ServerMap) async throws {
+        let codexServers = servers.mapValues { server in
+            AgentCLIKit.CodexMCPServerConfig(
+                command: server["command"] as? String,
+                args: server["args"] as? [String],
+                env: server["env"] as? [String: String],
+                url: server["url"] as? String,
+                httpHeaders: server["headers"] as? [String: String],
+                enabled: (server["disabled"] as? Bool).map { !$0 }
+            )
+        }
+        try await codexStore.writeMCPServers(codexServers)
     }
 
     func writeTrustedProjects() throws {

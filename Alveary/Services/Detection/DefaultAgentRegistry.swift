@@ -42,6 +42,44 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 adapterId: "passthrough",
                 supportsHttp: true
             )
+        ),
+        AgentDefinition(
+            id: "codex",
+            name: "Codex",
+            installCommand: nil,
+            docUrl: "https://developers.openai.com/codex/app-server",
+            provider: ProviderDefinition(
+                id: "codex",
+                commands: ["codex"],
+                versionArgs: ["--version"],
+                supportsMidTurnSteering: true,
+                supportedPermissionModes: [
+                    PermissionModeOption(
+                        value: "untrusted",
+                        label: "Untrusted",
+                        description: "Only known-safe read-only commands run without approval; other commands prompt."
+                    ),
+                    PermissionModeOption(
+                        value: "on-request",
+                        label: "On request",
+                        description: "Codex decides when to request approval for higher-risk commands."
+                    ),
+                    PermissionModeOption(
+                        value: "never",
+                        label: "Never ask",
+                        description: "Codex never prompts for command approval and returns failures directly to the model."
+                    )
+                ],
+                supportedEffortLevels: nil
+            ),
+            skillsDirectory: "~/.codex/skills",
+            mcp: MCPIntegrationDefinition(
+                configPath: "~/.codex/config.toml",
+                serversKeyPath: ["mcp_servers"],
+                format: .toml,
+                adapterId: "passthrough",
+                supportsHttp: true
+            )
         )
     ]
 

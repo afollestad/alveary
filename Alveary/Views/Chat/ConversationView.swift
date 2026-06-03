@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftData
 import SwiftUI
 
@@ -15,6 +16,7 @@ struct ConversationView: View {
     let modelContext: ModelContext
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
+    let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -28,22 +30,40 @@ struct ConversationView: View {
     @Bindable var appState: AppState
 
     @State private var viewModel: ConversationViewModel
+    @State private var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] = [:]
+    @State private var composerProviderOrdering: [AgentCLIKit.AgentProviderID] = AgentCLIKit.AgentProviderID.allCases
 
     private var activeWorkingDirectory: String? {
         conversation.thread?.worktreePath ?? conversation.thread?.project?.path
+    }
+
+    private var providerDiscoveryProjectURL: URL? {
+        conversation.thread?.project.map { URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true) }
     }
 
     private var activeProviderID: String {
         conversation.provider ?? settingsService.current.defaultProvider
     }
 
+    private var activeAgentProviderID: AgentCLIKit.AgentProviderID? {
+        AgentCLIKit.AgentProviderID(rawValue: activeProviderID)
+    }
+
+    private var activeProviderStatus: AgentCLIKit.AgentProviderStatus? {
+        activeAgentProviderID.flatMap { composerProviderStatuses[$0] }
+    }
+
     private var composerCapabilities: ComposerCapabilities {
         let provider = providerRegistry.provider(for: activeProviderID)
 
         return ComposerCapabilities(
-            supportedEffortLevels: provider?.supportedEffortLevels ?? [],
-            supportedPermissionModes: provider?.supportedPermissionModes ?? [],
-            supportsMidTurnSteering: provider?.supportsMidTurnSteering ?? false
+            supportedEffortLevels: activeProviderStatus?.definition?.supportedEffortLevels
+                ?? provider?.supportedEffortLevels
+                ?? [],
+            supportedPermissionModes: providerPermissionModes(),
+            supportsMidTurnSteering: activeProviderStatus?.definition?.capabilities.supportsMidTurnSteering
+                ?? provider?.supportsMidTurnSteering
+                ?? false
         )
     }
 
@@ -55,6 +75,7 @@ struct ConversationView: View {
         modelContext: ModelContext,
         settingsService: SettingsService,
         providerRegistry: ProviderRegistry,
+        providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService,
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
@@ -74,6 +95,7 @@ struct ConversationView: View {
         self.modelContext = modelContext
         self.settingsService = settingsService
         self.providerRegistry = providerRegistry
+        self.providerDiscovery = providerDiscovery
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
@@ -106,6 +128,8 @@ struct ConversationView: View {
             viewModel: viewModel,
             conversation: conversation,
             composerCapabilities: composerCapabilities,
+            providerOptions: composerProviderOptions,
+            modelOptions: composerModelOptions,
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
             runtimeStatus: agentsManager.status(for: conversation.id),
@@ -127,6 +151,14 @@ struct ConversationView: View {
             viewModel.activateViewLifecycle()
             if let path = activeWorkingDirectory {
                 await fileListManager.warmCache(for: path)
+            }
+        }
+        .task(id: composerProviderStatusTaskID) {
+            await refreshComposerProviderStatuses()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appSettingsChanged)) { _ in
+            Task {
+                await refreshComposerProviderStatuses()
             }
         }
         .onDisappear {
@@ -202,6 +234,92 @@ struct ConversationView: View {
             }
         )
         return Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
+    }
+}
+
+private extension ConversationView {
+    var composerProviderStatusTaskID: String {
+        [
+            providerDiscoveryProjectURL?.path ?? "",
+            activeProviderID,
+            settingsService.current.defaultProvider,
+            settingsService.current.disabledProviderIDs.sorted().joined(separator: ",")
+        ].joined(separator: "|")
+    }
+
+    var composerProviderOptions: [ChatComposerActionRowView.MenuOption] {
+        let options = composerProviderOrdering.compactMap { providerId -> ChatComposerActionRowView.MenuOption? in
+            let rawValue = providerId.rawValue
+            guard AppSettings.supportedProviderIDs.contains(rawValue) else {
+                return nil
+            }
+            let status = composerProviderStatuses[providerId]
+            let isActiveProvider = rawValue == activeProviderID
+            let isSelectable = status.map(isSelectableComposerProvider(_:))
+                ?? settingsService.current.isProviderEnabled(rawValue)
+            guard isActiveProvider || isSelectable else {
+                return nil
+            }
+            return .init(value: rawValue, title: providerDisplayName(for: providerId))
+        }
+
+        if !options.isEmpty {
+            return options
+        }
+        return [.init(value: activeProviderID, title: activeProviderID.capitalized)]
+    }
+
+    var composerModelOptions: [ChatComposerActionRowView.MenuOption] {
+        let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
+        var options = modelOptions(for: activeAgentProviderID).map { option in
+            ChatComposerActionRowView.MenuOption(value: modelValue(for: option), title: option.label)
+        }
+        if options.isEmpty {
+            options = [.init(value: AppSettings.defaultModelValue, title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue))]
+        }
+        if !options.contains(where: { $0.value == selectedModel }) {
+            options.append(.init(value: selectedModel, title: ChatComposerTextSupport.modelLabel(for: selectedModel)))
+        }
+        return options
+    }
+
+    func refreshComposerProviderStatuses() async {
+        async let ordering = providerDiscovery.stableProviderOrdering()
+        async let statuses = providerDiscovery.providerStatuses(projectURL: providerDiscoveryProjectURL)
+        composerProviderOrdering = await ordering
+        composerProviderStatuses = await statuses
+    }
+
+    func isSelectableComposerProvider(_ status: AgentCLIKit.AgentProviderStatus) -> Bool {
+        status.isEnabled && status.isInstalled && status.isSetupReady
+    }
+
+    func providerDisplayName(for providerId: AgentCLIKit.AgentProviderID) -> String {
+        composerProviderStatuses[providerId]?.definition?.displayName ?? providerId.rawValue.capitalized
+    }
+
+    func modelOptions(for providerId: AgentCLIKit.AgentProviderID?) -> [AgentCLIKit.AgentModelOption] {
+        guard let providerId else {
+            return []
+        }
+        if let options = composerProviderStatuses[providerId]?.modelOptions, !options.isEmpty {
+            return options
+        }
+        return AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[providerId]
+            ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+    }
+
+    func modelValue(for option: AgentCLIKit.AgentModelOption) -> String {
+        option.model ?? AppSettings.defaultModelValue
+    }
+
+    func providerPermissionModes() -> [PermissionModeOption] {
+        if let modes = activeProviderStatus?.definition?.supportedPermissionModes {
+            return modes.map { option in
+                PermissionModeOption(value: option.value, label: option.label, description: option.description)
+            }
+        }
+        return providerRegistry.provider(for: activeProviderID)?.supportedPermissionModes ?? []
     }
 }
 

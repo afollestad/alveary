@@ -235,8 +235,8 @@ final class SettingsServiceTests: XCTestCase {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(service.current.defaultProvider, "claude")
-        XCTAssertEqual(service.current.permissionMode, "default")
+        XCTAssertEqual(service.current.defaultProvider, "codex")
+        XCTAssertEqual(service.current.permissionMode, "on-request")
         XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(service.current.theme, "system")
         XCTAssertEqual(service.current.diffViewerWidth, 320)
@@ -403,8 +403,8 @@ final class SettingsServiceTests: XCTestCase {
             $0.notifications.soundName = "Bonk"
         }
 
-        XCTAssertEqual(userDefaultsService.current.defaultProvider, "claude")
-        XCTAssertEqual(userDefaultsService.current.permissionMode, "default")
+        XCTAssertEqual(userDefaultsService.current.defaultProvider, "codex")
+        XCTAssertEqual(userDefaultsService.current.permissionMode, "on-request")
         XCTAssertEqual(userDefaultsService.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(userDefaultsService.current.theme, "system")
         XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 960)
@@ -414,8 +414,8 @@ final class SettingsServiceTests: XCTestCase {
         )
         XCTAssertEqual(userDefaultsService.current.notifications.soundName, "Glass")
 
-        XCTAssertEqual(inMemoryService.current.defaultProvider, "claude")
-        XCTAssertEqual(inMemoryService.current.permissionMode, "default")
+        XCTAssertEqual(inMemoryService.current.defaultProvider, "codex")
+        XCTAssertEqual(inMemoryService.current.permissionMode, "on-request")
         XCTAssertEqual(inMemoryService.current.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(inMemoryService.current.theme, "system")
         XCTAssertEqual(inMemoryService.current.diffViewerWidth, 960)

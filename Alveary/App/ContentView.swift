@@ -1,4 +1,4 @@
-import AppKit
+import AgentCLIKit
 import SwiftData
 import SwiftUI
 
@@ -10,6 +10,7 @@ struct ContentView: View {
     let shellRunner: ShellRunner
     private let gitHubCLI: GitHubCLIService
     private let providerDetection: any ProviderDetectionService
+    private let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
     private let agentRegistry: AgentRegistry
     private let providerRegistry: ProviderRegistry
     private let skillsService: SkillsService
@@ -55,6 +56,7 @@ struct ContentView: View {
         self.shellRunner = dependencies.shellRunner
         self.gitHubCLI = dependencies.gitHubCLI
         self.providerDetection = dependencies.providerDetection
+        self.providerDiscovery = dependencies.providerDiscovery
         self.agentRegistry = dependencies.agentRegistry
         self.providerRegistry = dependencies.providerRegistry
         self.skillsService = dependencies.skillsService
@@ -112,7 +114,7 @@ struct ContentView: View {
         let soundPreviewer = SettingsSoundPreviewer()
         return SettingsViewModel(
             settingsService: dependencies.settingsService,
-            providerDetection: dependencies.providerDetection,
+            providerDiscovery: dependencies.providerDiscovery,
             agentRegistry: dependencies.agentRegistry,
             soundPreviewer: soundPreviewer.play
         )
@@ -128,6 +130,7 @@ struct ContentView: View {
             keepAwakeService: keepAwakeService,
             settingsService: settingsService,
             providerRegistry: providerRegistry,
+            providerDiscovery: providerDiscovery,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
@@ -483,17 +486,5 @@ extension ContentView {
         }
 
         return .idle(stats)
-    }
-}
-
-@MainActor
-private final class SettingsSoundPreviewer {
-    private var currentSound: NSSound?
-
-    func play(_ soundName: String) {
-        currentSound?.stop()
-        let sound = NSSound(named: NSSound.Name(soundName))
-        currentSound = sound
-        sound?.play()
     }
 }

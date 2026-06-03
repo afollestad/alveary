@@ -303,6 +303,42 @@ extension ConversationViewModelTests {
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
+    func testApplyProviderChangeBeforeInitialSetupUpdatesThreadDefaults() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.dbThread().permissionMode = "plan"
+        try fixture.dbThread().effort = "high"
+        try fixture.context.save()
+
+        fixture.viewModel.applyProviderChange("codex")
+
+        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertNil(try fixture.dbThread().model)
+        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(try fixture.dbThread().effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+    }
+
+    func testApplyProviderChangeIsRejectedAfterInitialSetup() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+
+        fixture.viewModel.applyProviderChange("codex")
+
+        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+    }
+
     func testApplyPermissionModeChangeTracksPreviousNonPlanModeWhenEnteringPlan() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,

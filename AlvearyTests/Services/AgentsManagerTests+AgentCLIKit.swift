@@ -346,9 +346,9 @@ extension AgentsManagerTests {
         )
     }
 
-    func spawnConfig(workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
+    func spawnConfig(providerId: String = "claude", workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
         Alveary.AgentSpawnConfig(
-            providerId: "claude",
+            providerId: providerId,
             workingDirectory: workingDirectory,
             permissionMode: nil,
             model: model,
