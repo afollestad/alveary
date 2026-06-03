@@ -125,6 +125,21 @@ extension ThreadDetailView {
         }
     }
 
+    @MainActor
+    func observeProjectTrustUpdates(for conversation: Conversation) async {
+        guard projectTrustContext(for: conversation) != nil else {
+            return
+        }
+
+        let updates = await providerSetup.projectTrustUpdates()
+        for await _ in updates {
+            guard !Task.isCancelled else {
+                return
+            }
+            await refreshProjectTrustPrompt(for: conversation)
+        }
+    }
+
     func projectTrustContext(for conversation: Conversation) -> ProjectTrustPrompt? {
         guard let thread = conversation.thread,
               !thread.hasCompletedInitialSetup,
@@ -133,9 +148,6 @@ extension ThreadDetailView {
         }
 
         let providerID = conversation.provider ?? settingsService.current.defaultProvider
-        guard providerID == "claude" else {
-            return nil
-        }
 
         return ProjectTrustPrompt(
             threadID: thread.persistentModelID,

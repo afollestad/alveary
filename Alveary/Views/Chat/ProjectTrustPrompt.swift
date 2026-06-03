@@ -29,7 +29,7 @@ struct ProjectTrustPromptView: View {
                 Text("Trust this project?")
                     .font(.title3.weight(.semibold))
 
-                Text("Claude needs this project marked as trusted before this thread can start.")
+                Text("This provider needs the project marked as trusted before the thread can start.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

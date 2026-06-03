@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import XCTest
 
@@ -64,7 +65,7 @@ final class ProviderSetupServiceTests: XCTestCase {
         )
     }
 
-    func testCachedProjectTrustStatusUsesInMemoryClaudeSnapshot() async throws {
+    func testCachedProjectTrustStatusUsesAgentCLIKitTrustCache() async throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }
         let workingDirectory = try fixture.makeWorkingDirectory(named: "worktree")
@@ -83,6 +84,32 @@ final class ProviderSetupServiceTests: XCTestCase {
             fixture.service.cachedProjectTrustStatus(providerId: "claude", workingDirectory: workingDirectory.path),
             true
         )
+    }
+
+    func testProjectTrustUpdatesForwardClaudeConfigSnapshots() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let workingDirectory = try fixture.makeWorkingDirectory(named: "worktree")
+        let recorder = TrustUpdateRecorder()
+        let updates = await fixture.service.projectTrustUpdates()
+        let task = Task {
+            for await _ in updates {
+                await recorder.record()
+            }
+        }
+        defer {
+            task.cancel()
+        }
+
+        _ = await recorder.waitForCount(1)
+
+        await fixture.service.trustProject(
+            providerId: "claude",
+            workingDirectory: workingDirectory.path
+        )
+
+        let updateCount = await recorder.waitForCount(2)
+        XCTAssertGreaterThanOrEqual(updateCount, 2)
     }
 
     func testOtherProvidersDoNotRequireProjectTrust() async throws {
@@ -147,10 +174,27 @@ final class ProviderSetupServiceTests: XCTestCase {
         let homeDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true, attributes: nil)
-        let store = DefaultClaudeConfigStore(homeDirectoryURL: homeDirectory)
+        let store = AgentCLIKit.ClaudeConfigStore(homeDirectoryURL: homeDirectory)
+        let setup = AgentCLIKit.ClaudeProviderSetup(configStore: store)
         return TestFixture(
             homeDirectory: homeDirectory,
-            service: DefaultProviderSetupService(claudeConfigStore: store)
+            service: DefaultProviderSetupService(
+                projectTrustService: AgentCLIKit.DefaultAgentProjectTrustService(setups: [setup]),
+                projectTrustUpdates: {
+                    let snapshots = await store.snapshots()
+                    return AsyncStream { continuation in
+                        let task = Task {
+                            for await _ in snapshots {
+                                continuation.yield(())
+                            }
+                            continuation.finish()
+                        }
+                        continuation.onTermination = { _ in
+                            task.cancel()
+                        }
+                    }
+                }
+            )
         )
     }
 
@@ -176,5 +220,20 @@ private struct TestFixture {
         let workingDirectory = homeDirectory.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true, attributes: nil)
         return workingDirectory
+    }
+}
+
+private actor TrustUpdateRecorder {
+    private var count = 0
+
+    func record() {
+        count += 1
+    }
+
+    func waitForCount(_ expectedCount: Int) async -> Int {
+        for _ in 0..<100 where count < expectedCount {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return count
     }
 }

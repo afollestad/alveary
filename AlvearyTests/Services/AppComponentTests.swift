@@ -18,7 +18,6 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.providerRegistry, component.providerRegistry)
         assertSameInstance(component.providerDetectionService, component.providerDetectionService)
         assertSameInstance(component.keepAwakeService, component.keepAwakeService)
-        assertSameInstance(component.claudeConfigStore, component.claudeConfigStore)
         assertSameInstance(component.agentCLIKitRuntime, component.agentCLIKitRuntime)
         assertSameInstance(component.agentCLIKitSessionStore, component.agentCLIKitSessionStore)
         assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
@@ -27,6 +26,7 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude"])
         assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
         assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
+        _ = component.agentCLIKitProjectTrustService
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
         assertSameInstance(component.claudeHookServer, component.claudeHookServer)
         assertSameInstance(component.gitService, component.gitService)
@@ -55,7 +55,6 @@ final class AppComponentTests: XCTestCase {
         _ = component.providerDetectionService
         _ = component.keepAwakeService
         _ = component.agentEnvironmentBuilder
-        _ = component.claudeConfigStore
         _ = component.providerSetupService
         _ = component.contextWindowCache
         _ = component.agentCLIKitShellRunner
@@ -67,6 +66,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitProviderRegistry
         _ = component.agentCLIKitProviderDetector
         _ = component.agentCLIKitProviderSetup
+        _ = component.agentCLIKitProjectTrustService
         _ = component.agentCLIKitContextWindowCache
         _ = component.agentCLIKitHostAdapter
         _ = component.agentCLIKitRuntime

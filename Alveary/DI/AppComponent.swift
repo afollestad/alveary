@@ -120,12 +120,13 @@ extension AppComponent {
         return shared { DefaultAgentEnvironmentBuilder() }
     }
 
-    var claudeConfigStore: ClaudeConfigStore {
-        return shared { DefaultClaudeConfigStore() }
-    }
-
     var providerSetupService: ProviderSetupService {
-        return shared { DefaultProviderSetupService(claudeConfigStore: claudeConfigStore) }
+        return shared {
+            DefaultProviderSetupService(
+                projectTrustService: agentCLIKitProjectTrustService,
+                projectTrustUpdates: claudeProjectTrustUpdates(from: agentCLIKitClaudeConfigStore)
+            )
+        }
     }
 
     var contextWindowCache: ContextWindowCache {
@@ -190,6 +191,10 @@ extension AppComponent {
 
     var agentCLIKitProviderSetup: AgentCLIKit.ClaudeProviderSetup {
         return shared { AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore) }
+    }
+
+    var agentCLIKitProjectTrustService: AgentCLIKit.DefaultAgentProjectTrustService {
+        return shared { AgentCLIKit.DefaultAgentProjectTrustService(setups: [agentCLIKitProviderSetup]) }
     }
 
     var agentCLIKitContextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache {
@@ -304,11 +309,30 @@ extension AppComponent {
     var mcpService: MCPService {
         return shared {
             DefaultMCPService(
-                claudeConfigStore: claudeConfigStore,
+                claudeConfigStore: agentCLIKitClaudeConfigStore,
                 providerDetection: providerDetectionService,
                 agentRegistry: agentRegistry
             )
         }
     }
 
+}
+
+private func claudeProjectTrustUpdates(
+    from configStore: AgentCLIKit.ClaudeConfigStore
+) -> @Sendable () async -> AsyncStream<Void> {
+    {
+        let snapshots = await configStore.snapshots()
+        return AsyncStream { continuation in
+            let task = Task {
+                for await _ in snapshots {
+                    continuation.yield(())
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
 }

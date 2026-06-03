@@ -129,6 +129,9 @@ struct ThreadDetailView: View {
                 .task(id: projectTrustTaskID(for: conversation)) {
                     await refreshProjectTrustPrompt(for: conversation)
                 }
+                .task(id: "\(projectTrustTaskID(for: conversation))|updates") {
+                    await observeProjectTrustUpdates(for: conversation)
+                }
                 .confirmationDialog(
                     "Remove conversation?",
                     isPresented: Binding(
@@ -193,15 +196,6 @@ struct ThreadDetailView: View {
             // finishes work; otherwise the header can stay visually stale until some
             // unrelated state change happens to re-render the parent view.
             statusVersion += 1
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .claudeConfigChanged)) { _ in
-            guard let selectedConversation else {
-                return
-            }
-
-            Task {
-                await refreshProjectTrustPrompt(for: selectedConversation)
-            }
         }
         // Publish the thread-scoped create action so `AlvearyApp.commands`
         // can render a ⌘T "New Conversation" menu item that is disabled

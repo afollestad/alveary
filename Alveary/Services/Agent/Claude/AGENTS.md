@@ -3,8 +3,8 @@
 These instructions cover Claude provider support under `Alveary/Services/Agent/Claude/`.
 
 - Claude HTTP hook listener, settings generation, and approval policy code lives under `Hooks/`; follow `Hooks/AGENTS.md` for that subsystem.
-- `ClaudeConfigStore` is the sole serialized writer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must continue to flow through it rather than performing direct read/merge/write cycles in feature services.
-- `ClaudeConfigStore` owns Claude config observation. UI should use its replaying snapshot stream, `.claudeConfigChanged`, or `ProviderSetupService` trust APIs instead of adding file watchers.
+- `AgentCLIKit.ClaudeConfigStore` is the sole serialized writer and observer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must flow through `AgentCLIKit`; Alveary owns only prompt policy and UI behavior.
+- UI should observe provider-neutral project-trust updates through `ProviderSetupService` instead of adding Claude-specific notifications or file watchers.
 - Claude structured streaming requires `--verbose` alongside `--output-format stream-json`; dropping `--verbose` produces no structured output.
 - Do not re-add Claude `--include-hook-events` in `-p` mode; it does not emit useful hook events there, and lifecycle state should continue to derive from the standard event stream and process lifecycle.
 - Decode assistant-message `usage` into interim token rows so context usage updates while Claude is blocked on app-native prompts. These rows use `ConversationEvent.interimUsageStopReason` and must not end the active turn.

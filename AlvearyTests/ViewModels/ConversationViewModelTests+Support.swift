@@ -420,6 +420,12 @@ actor MockProviderSetupService: ProviderSetupService {
         providerId != "claude" || cachedTrust.isTrusted(workingDirectory)
     }
 
+    func projectTrustUpdates() async -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
     func prepareForSpawn(providerId: String, workingDirectory: String, autoTrust: Bool) async {
         recordedCalls.append(
             Call(

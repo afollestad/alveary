@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 @MainActor
@@ -12,13 +13,13 @@ final class DefaultMCPService: MCPService {
         let headers: [String]?
     }
 
-    private let claudeConfigStore: ClaudeConfigStore
+    private let claudeConfigStore: AgentCLIKit.ClaudeConfigStore
     private let providerDetection: ProviderDetectionService
     private let agentRegistry: AgentRegistry
     private let bundle: Bundle
 
     init(
-        claudeConfigStore: ClaudeConfigStore,
+        claudeConfigStore: AgentCLIKit.ClaudeConfigStore,
         providerDetection: ProviderDetectionService,
         agentRegistry: AgentRegistry,
         bundle: Bundle = .main
@@ -188,7 +189,7 @@ private extension DefaultMCPService {
 
     func readRawServers(for agent: MCPAgentEntry) async throws -> ServerMap {
         if agent.agentId == "claude" {
-            return await claudeConfigStore.readMCPServers().mapValues { server in
+            return try await claudeConfigStore.readMCPServers().mapValues { server in
                 var raw: RawServerEntry = [:]
                 if let command = server.command {
                     raw["command"] = command
@@ -205,6 +206,9 @@ private extension DefaultMCPService {
                 if let env = server.env {
                     raw["env"] = env
                 }
+                if let disabled = server.disabled {
+                    raw["disabled"] = disabled
+                }
                 return raw
             }
         }
@@ -215,15 +219,16 @@ private extension DefaultMCPService {
     func writeRawServers(_ servers: ServerMap, to agent: MCPAgentEntry) async throws {
         if agent.agentId == "claude" {
             let claudeServers = servers.mapValues { server in
-                ClaudeMCPServerConfig(
+                AgentCLIKit.ClaudeMCPServerConfig(
                     command: server["command"] as? String,
                     args: server["args"] as? [String],
                     url: server["url"] as? String,
                     headers: server["headers"] as? [String: String],
-                    env: server["env"] as? [String: String]
+                    env: server["env"] as? [String: String],
+                    disabled: server["disabled"] as? Bool
                 )
             }
-            await claudeConfigStore.writeMCPServers(claudeServers)
+            try await claudeConfigStore.writeMCPServers(claudeServers)
             return
         }
 

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import XCTest
 
@@ -26,7 +27,7 @@ final class MCPServiceTests: XCTestCase {
 
         try await fixture.service.addServer(server, for: ["claude"])
 
-        let claudeServers = await fixture.claudeStore.readMCPServers()
+        let claudeServers = try await fixture.claudeStore.readMCPServers()
         let codexServers = try MCPConfigIO.readServers(from: fixture.codexIntegration)
         let root = try fixture.readClaudeRoot()
 
@@ -39,8 +40,8 @@ final class MCPServiceTests: XCTestCase {
     func testLoadAllDeduplicatesProvidersByServerName() async throws {
         let fixture = try MCPServiceFixture()
         defer { fixture.cleanup() }
-        await fixture.claudeStore.writeMCPServers([
-            "filesystem": ClaudeMCPServerConfig(
+        try await fixture.claudeStore.writeMCPServers([
+            "filesystem": AgentCLIKit.ClaudeMCPServerConfig(
                 command: "npx",
                 args: ["-y", "@modelcontextprotocol/server-filesystem"],
                 url: nil,
@@ -69,8 +70,8 @@ final class MCPServiceTests: XCTestCase {
         let firstLoad = try await fixture.service.loadRecommended()
         XCTAssertEqual(firstLoad.first(where: { $0.template.name == "context7" })?.headerPrompts, ["CONTEXT7_API_KEY"])
 
-        await fixture.claudeStore.writeMCPServers([
-            "context7": ClaudeMCPServerConfig(
+        try await fixture.claudeStore.writeMCPServers([
+            "context7": AgentCLIKit.ClaudeMCPServerConfig(
                 command: nil,
                 args: nil,
                 url: "https://mcp.context7.com/mcp",
@@ -113,7 +114,7 @@ private struct MCPServiceFixture {
     let homeDirectory: URL
     let codexConfigURL: URL
     let codexIntegration: MCPIntegrationDefinition
-    let claudeStore: DefaultClaudeConfigStore
+    let claudeStore: AgentCLIKit.ClaudeConfigStore
     let providerDetection: MCPTestProviderDetectionService
     let service: DefaultMCPService
 
@@ -125,7 +126,7 @@ private struct MCPServiceFixture {
         homeDirectory = rootDirectory.appendingPathComponent("home", isDirectory: true)
         codexConfigURL = rootDirectory.appendingPathComponent("codex/config.json")
         try FileManager.default.createDirectory(at: homeDirectory, withIntermediateDirectories: true, attributes: nil)
-        claudeStore = DefaultClaudeConfigStore(homeDirectoryURL: homeDirectory)
+        claudeStore = AgentCLIKit.ClaudeConfigStore(homeDirectoryURL: homeDirectory)
         providerDetection = MCPTestProviderDetectionService(statuses: statuses)
         codexIntegration = MCPIntegrationDefinition(
             configPath: codexConfigURL.path,

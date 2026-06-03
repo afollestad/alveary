@@ -66,6 +66,10 @@ Run a focused test class:
 ./scripts/test.sh AlvearyTests/AppDelegateTests
 ```
 
+## Agent Provider Runtime
+
+Alveary uses `AgentCLIKit` for provider runtime integration and provider-owned config access. Project trust state and Claude MCP config reads/writes flow through `AgentCLIKit`; Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
+
 ## Snapshot Tests
 
 Verify the full snapshot suite:
