@@ -98,10 +98,13 @@ extension ConversationViewModel {
             )
         )) ?? []
 
-        guard let approvalRecord = approvalRecords.first else {
+        let unresolvedApprovalRecords = approvalRecords.filter { $0.toolApprovalStatus == nil }
+        guard !unresolvedApprovalRecords.isEmpty else {
             return
         }
-        approvalRecord.toolApprovalStatus = status.rawValue
+        for approvalRecord in unresolvedApprovalRecords {
+            approvalRecord.toolApprovalStatus = status.rawValue
+        }
         do {
             try modelContext.save()
             if refreshTranscript {

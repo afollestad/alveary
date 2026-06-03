@@ -92,7 +92,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         let candidate: String?
         switch toolName {
         case "Bash":
-            candidate = parsedInput["command"]
+            candidate = normalizedBashCommand
         case "Write", "Edit", "MultiEdit", "NotebookEdit":
             candidate = Self.displayApprovalPath(
                 parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"]
@@ -299,9 +299,12 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     }
 
     private var normalizedBashCommand: String? {
-        parsedInput["command"]?
+        guard let command = parsedInput["command"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
+            .nilIfEmpty else {
+            return nil
+        }
+        return Self.approvalIdentityCommand(for: command)
     }
 
     private var normalizedApprovalPath: String? {
@@ -369,6 +372,25 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         command
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
+    }
+
+    private static func approvalIdentityCommand(for command: String) -> String {
+        let tokens = (try? parseExtraArgs(command)).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackCommandTokens(command)
+        guard tokens.first == "rtk", tokens.count >= 2 else {
+            return command
+        }
+        let prefixEndIndex = command.index(command.startIndex, offsetBy: "rtk".count)
+        guard command.hasPrefix("rtk"),
+              prefixEndIndex < command.endIndex,
+              command[prefixEndIndex].isWhitespace else {
+            return command
+        }
+
+        // RTK wraps the original command as `rtk <command>`; approval rules
+        // should match the original command rather than the wrapper process.
+        return String(command[prefixEndIndex...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty ?? command
     }
 
     private static func isCommandGroupToken(_ token: String) -> Bool {

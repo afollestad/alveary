@@ -67,6 +67,61 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(request(toolName: "ExitPlanMode").conciseSummary, "Present the plan and leave plan mode")
     }
 
+    func testRTKWrappedBashCommandUsesWrappedCommandForSummaryAndSessionApproval() {
+        let approval = request(
+            toolName: "Bash",
+            toolInput: #"{"command":"rtk git log --oneline -5"}"#
+        )
+
+        XCTAssertEqual(approval.conciseSummary, "git log --oneline -5")
+        XCTAssertEqual(approval.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(
+            approval.sessionApprovalGrant(
+                conversationId: "conversation-1",
+                providerId: "claude",
+                scope: .exact
+            ),
+            AgentSessionApprovalGrant(
+                providerId: "claude",
+                conversationId: "conversation-1",
+                sessionId: "session-1",
+                matchKind: .bashExact,
+                matchValue: "git log --oneline -5"
+            )
+        )
+        XCTAssertEqual(
+            approval.sessionApprovalGrant(
+                conversationId: "conversation-1",
+                providerId: "claude",
+                scope: .group
+            ),
+            AgentSessionApprovalGrant(
+                providerId: "claude",
+                conversationId: "conversation-1",
+                sessionId: "session-1",
+                matchKind: .bashCommandGroup,
+                matchValue: "git log"
+            )
+        )
+    }
+
+    func testQuotedRTKCommandIsNotTreatedAsWrapperPrefix() {
+        let approval = request(
+            toolName: "Bash",
+            toolInput: #"{"command":"\"rtk\" git log --oneline -5"}"#
+        )
+
+        XCTAssertEqual(approval.conciseSummary, #""rtk" git log --oneline -5"#)
+        XCTAssertEqual(
+            approval.sessionApprovalGrant(
+                conversationId: "conversation-1",
+                providerId: "claude",
+                scope: .group
+            )?.matchValue,
+            "rtk git"
+        )
+    }
+
     func testNotificationMessageUsesAskUserQuestionSummaryFallback() {
         XCTAssertEqual(
             request(

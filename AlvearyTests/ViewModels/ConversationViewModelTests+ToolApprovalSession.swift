@@ -35,6 +35,37 @@ extension ConversationViewModelTests {
         )
     }
 
+    func testApproveToolUseForSessionNormalizesRTKWrappedBashGroupApproval() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"rtk git log --oneline -5\"}"
+        )
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        try await fixture.viewModel.approveToolUseForSession(
+            toolUseId: "tool-1",
+            scope: .group
+        )
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.decision, .allow)
+        XCTAssertEqual(
+            calls.first?.sessionApproval,
+            AgentSessionApprovalGrant(
+                providerId: "claude",
+                conversationId: fixture.conversation.id,
+                sessionId: "session-123",
+                matchKind: .bashCommandGroup,
+                matchValue: "git log"
+            )
+        )
+    }
+
     func testApproveToolUseForSessionFallsBackToOneShotStatusWhenSessionApprovalIsNotEffective() async throws {
         let fixture = try ConversationViewModelTestFixture(
             sessionApprovalEffective: false,
@@ -147,6 +178,95 @@ extension ConversationViewModelTests {
             approvalRecord.toolApprovalStatus,
             ToolApprovalStatus.approvedForSessionGroup.rawValue
         )
+    }
+
+    func testResolvedApprovalUpdatesDuplicateRowsForSameToolUseAndSession() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let originalApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git log --oneline -5\"}"
+        )
+        let rewrittenApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"rtk git log --oneline -5\"}"
+        )
+        let originalApprovalRecord = sessionToolApprovalRecord(conversation: conversation, request: originalApproval, timestamp: 1)
+        let rewrittenApprovalRecord = sessionToolApprovalRecord(conversation: conversation, request: rewrittenApproval, timestamp: 2)
+        fixture.context.insert(originalApprovalRecord)
+        fixture.context.insert(rewrittenApprovalRecord)
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(
+            request: rewrittenApproval,
+            status: .approvingForSessionGroup
+        )
+
+        fixture.viewModel.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: false,
+                stopReason: "end_turn",
+                durationMs: 10,
+                costUsd: 0,
+                permissionDenials: []
+            )
+        )
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(
+            originalApprovalRecord.toolApprovalStatus,
+            ToolApprovalStatus.approvedForSessionGroup.rawValue
+        )
+        XCTAssertEqual(
+            rewrittenApprovalRecord.toolApprovalStatus,
+            ToolApprovalStatus.approvedForSessionGroup.rawValue
+        )
+    }
+
+    func testResolvedApprovalPreservesResolvedDuplicateRowsForSameToolUseAndSession() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let originalApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"git log --oneline -5\"}"
+        )
+        let rewrittenApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"rtk git log --oneline -5\"}"
+        )
+        let supersededApprovalRecord = sessionToolApprovalRecord(conversation: conversation, request: originalApproval, timestamp: 1)
+        let rewrittenApprovalRecord = sessionToolApprovalRecord(conversation: conversation, request: rewrittenApproval, timestamp: 2)
+        supersededApprovalRecord.toolApprovalStatus = ToolApprovalStatus.superseded.rawValue
+        fixture.context.insert(supersededApprovalRecord)
+        fixture.context.insert(rewrittenApprovalRecord)
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(
+            request: rewrittenApproval,
+            status: .approvingForSessionGroup
+        )
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(supersededApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        XCTAssertEqual(rewrittenApprovalRecord.toolApprovalStatus, ToolApprovalStatus.approvedForSessionGroup.rawValue)
     }
 
     func testFallbackSessionApprovalPersistsOneShotApprovedStatusOnApprovalRecord() async throws {
@@ -345,4 +465,21 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
+}
+
+private func sessionToolApprovalRecord(
+    conversation: Conversation,
+    request: ToolApprovalRequest,
+    timestamp: TimeInterval
+) -> ConversationEventRecord {
+    ConversationEventRecord(
+        conversationId: conversation.id,
+        type: "tool_approval",
+        content: request.sessionId,
+        toolId: request.toolUseId,
+        toolName: request.toolName,
+        toolInput: request.toolInput,
+        timestamp: Date(timeIntervalSince1970: timestamp),
+        conversation: conversation
+    )
 }
