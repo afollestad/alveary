@@ -156,6 +156,22 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertGreaterThan(size.width, 110)
     }
 
+    func testComposerModelMenuUsesCodexProviderStatusLabelsAndEfforts() {
+        let menuItems = AgentModelOptionSelection.menuItems(
+            in: AgentModelOptionTestFixtures.codexModelOptions,
+            selectedModel: "gpt-5.4-mini",
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        )
+        let effortOptions = AgentModelOptionSelection.effortOptions(
+            in: AgentModelOptionTestFixtures.codexModelOptions,
+            selectedModel: "gpt-5.4-mini"
+        )
+
+        XCTAssertEqual(menuItems.map(\.value), ["gpt-5.5", "gpt-5.4-mini"])
+        XCTAssertEqual(menuItems.map(\.title), ["GPT-5.5", "GPT-5.4-Mini"])
+        XCTAssertEqual(effortOptions.map(\.value), ["low", "medium"])
+    }
+
     func testNarrowRowKeepsSettingsControlsInsideLeadingEdgeAndActionsInsideTrailingEdge() throws {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 340, height: 30))
         row.configure(

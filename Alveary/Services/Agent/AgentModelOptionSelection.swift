@@ -1,6 +1,11 @@
 import AgentCLIKit
 import Foundation
 
+struct AgentModelOptionMenuItem: Equatable, Sendable {
+    let value: String
+    let title: String
+}
+
 enum AgentModelOptionSelection {
     static func pickerValue(for option: AgentCLIKit.AgentModelOption) -> String {
         option.id
@@ -78,6 +83,30 @@ enum AgentModelOptionSelection {
             return normalized
         }
         return defaultEffortValue(in: options, selectedModel: selectedModel)
+    }
+
+    static func menuItems(
+        in options: [AgentCLIKit.AgentModelOption],
+        selectedModel: String?,
+        fallbackTitle: (String) -> String
+    ) -> [AgentModelOptionMenuItem] {
+        let selectedModel = selectedModel ?? AppSettings.defaultModelValue
+        var items = options.map { option in
+            AgentModelOptionMenuItem(value: pickerValue(for: option), title: option.label)
+        }
+        if items.isEmpty {
+            items = [
+                AgentModelOptionMenuItem(
+                    value: AppSettings.defaultModelValue,
+                    title: fallbackTitle(AppSettings.defaultModelValue)
+                )
+            ]
+        }
+        if option(in: options, matching: selectedModel) == nil,
+           !items.contains(where: { $0.value == selectedModel }) {
+            items.append(AgentModelOptionMenuItem(value: selectedModel, title: fallbackTitle(selectedModel)))
+        }
+        return items
     }
 
     private static func defaultOption(

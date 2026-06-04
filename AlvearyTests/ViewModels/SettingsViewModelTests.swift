@@ -91,7 +91,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.codeFontFamilyOptions, [AppSettings.defaultCodeFontFamily])
         XCTAssertTrue(viewModel.permissionModeOptions(for: "unknown").isEmpty)
         XCTAssertTrue(viewModel.effortOptions(for: "unknown", model: "opus").isEmpty)
+        XCTAssertEqual(viewModel.modelOptionValues(for: "codex"), ["gpt-5.5", "gpt-5.4-mini"])
+        XCTAssertEqual(viewModel.modelLabel(for: "gpt-5.4-mini", providerId: "codex"), "GPT-5.4-Mini")
         XCTAssertEqual(viewModel.effortOptions(for: "codex", model: "gpt-5.5").map(\.value), ["low", "medium", "high", "xhigh"])
+        XCTAssertEqual(viewModel.effortOptions(for: "codex", model: "gpt-5.4-mini").map(\.value), ["low", "medium"])
     }
 
     func testCodeFontFamilyOptionsLoadLazilyAndCacheResults() {

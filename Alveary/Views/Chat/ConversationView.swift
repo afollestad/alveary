@@ -271,17 +271,13 @@ private extension ConversationView {
     var composerModelOptions: [ChatComposerActionRowView.MenuOption] {
         let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
         let agentModelOptions = modelOptions(for: activeAgentProviderID)
-        var options = agentModelOptions.map { option in
-            ChatComposerActionRowView.MenuOption(value: AgentModelOptionSelection.pickerValue(for: option), title: option.label)
+        return AgentModelOptionSelection.menuItems(
+            in: agentModelOptions,
+            selectedModel: selectedModel,
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        ).map { item in
+            ChatComposerActionRowView.MenuOption(value: item.value, title: item.title)
         }
-        if options.isEmpty {
-            options = [.init(value: AppSettings.defaultModelValue, title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue))]
-        }
-        if AgentModelOptionSelection.option(in: agentModelOptions, matching: selectedModel) == nil,
-           !options.contains(where: { $0.value == selectedModel }) {
-            options.append(.init(value: selectedModel, title: ChatComposerTextSupport.modelLabel(for: selectedModel)))
-        }
-        return options
     }
 
     var selectedComposerModelOptionID: String {
