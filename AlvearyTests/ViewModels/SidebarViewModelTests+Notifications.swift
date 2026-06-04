@@ -68,7 +68,7 @@ extension SidebarViewModelTests {
         try fixture.markThreadArchived(thread)
         let initial = fixture.notificationManager.refreshBadgeCountCalls
 
-        try fixture.viewModel.restoreThread(thread)
+        try await fixture.viewModel.restoreThread(thread)
 
         XCTAssertEqual(fixture.notificationManager.refreshBadgeCountCalls, initial + 1)
     }

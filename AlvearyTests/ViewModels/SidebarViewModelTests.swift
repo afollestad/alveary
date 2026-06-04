@@ -153,7 +153,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertNotNil(try fixture.requireThread(thread).archivedAt)
     }
 
-    func testRestoreThreadClearsArchiveFlag() throws {
+    func testRestoreThreadClearsArchiveFlag() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -184,7 +184,7 @@ final class SidebarViewModelTests: XCTestCase {
         ]
         try fixture.context.save()
 
-        try fixture.viewModel.restoreThread(thread)
+        try await fixture.viewModel.restoreThread(thread)
 
         let restoredThread = try fixture.requireThread(thread)
         XCTAssertNil(restoredThread.archivedAt)

@@ -12,6 +12,7 @@ struct SidebarTestFixture {
     let agentsManager: SidebarMockAgentsManager
     let worktreeManager: SidebarMockWorktreeManager
     let settingsService: InMemorySettingsService
+    let providerSessionActions: RecordingProviderSessionActionService
     let notificationManager: RecordingNotificationManager
     let viewModel: SidebarViewModel
 
@@ -20,7 +21,8 @@ struct SidebarTestFixture {
         gitHubAuthenticated: Bool = false,
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
-        createWorktreeByDefault: Bool = false
+        createWorktreeByDefault: Bool = false,
+        providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService()
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(
@@ -44,6 +46,7 @@ struct SidebarTestFixture {
         settings.defaultModel = defaultModel
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
+        self.providerSessionActions = providerSessionActions
         notificationManager = RecordingNotificationManager()
 
         viewModel = SidebarViewModel(
@@ -53,6 +56,7 @@ struct SidebarTestFixture {
             gitHubCLI: gitHubCLI,
             worktreeManager: worktreeManager,
             settingsService: settingsService,
+            providerSessionActions: providerSessionActions,
             notificationManager: notificationManager
         )
     }
@@ -73,7 +77,8 @@ struct SidebarTestFixture {
         worktreePath: String? = nil,
         hasCompletedInitialSetup: Bool = false,
         useWorktree: Bool = false,
-        archivedAt: Date? = nil
+        archivedAt: Date? = nil,
+        provider: String = "claude"
     ) throws -> AgentThread {
         let project = Project(path: projectPath, name: projectName)
         let thread = AgentThread(
@@ -90,7 +95,7 @@ struct SidebarTestFixture {
             Conversation(
                 id: id,
                 title: id,
-                provider: "claude",
+                provider: provider,
                 isMain: index == 0,
                 displayOrder: index,
                 thread: thread
@@ -121,6 +126,29 @@ struct SidebarTestFixture {
         let dbThread = try requireThread(thread)
         dbThread.archivedAt = Date()
         try context.save()
+    }
+}
+
+actor RecordingProviderSessionActionService: ProviderSessionActionService {
+    enum Action: Sendable, Equatable {
+        case resolve(ProviderSessionActionSnapshot)
+        case archive(ProviderSessionActionSnapshot)
+        case unarchive(ProviderSessionActionSnapshot)
+    }
+
+    private(set) var actions: [Action] = []
+
+    func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
+        actions.append(.resolve(snapshot))
+        return ProviderSessionActionResolution(snapshot: snapshot, records: [])
+    }
+
+    func archiveSessions(_ resolution: ProviderSessionActionResolution) async {
+        actions.append(.archive(resolution.snapshot))
+    }
+
+    func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async {
+        actions.append(.unarchive(resolution.snapshot))
     }
 }
 

@@ -15,6 +15,7 @@ struct ContentViewDependencies {
     let runtimeStore: any ConversationRuntimeStore
     let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
+    let providerSessionActions: any ProviderSessionActionService
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
@@ -41,6 +42,7 @@ struct ContentViewDependencies {
             runtimeStore: component.conversationRuntimeStore,
             keepAwakeService: component.keepAwakeService,
             worktreeManager: component.worktreeManager,
+            providerSessionActions: component.providerSessionActionService,
             providerSetup: component.providerSetupService,
             contextWindowCache: component.contextWindowCache,
             fileListManager: component.fileListManager,

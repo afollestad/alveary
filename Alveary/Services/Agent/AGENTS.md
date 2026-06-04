@@ -10,6 +10,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Provider status and model options come from `AgentCLIKit.AgentProviderDiscoveryService`. Keep settings and composer provider lists wired to that service instead of duplicating Claude/Codex availability or model lists in UI code.
 - Project trust policy is app-owned, but provider trust state comes from `AgentCLIKit.AgentProjectTrustService`. Keep prompt UI, auto-trust, first-thread gating, and denial cleanup in Alveary while avoiding direct provider config reads.
 - Provider MCP config reads/writes should route through AgentCLIKit config stores for providers that own their config format, including Claude `.claude.json` and Codex `.codex/config.toml`.
+- Provider-native archive/unarchive is a best-effort companion to Alveary's local archive state. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive or restore state.
 
 ## Cross-Folder Debugging
 

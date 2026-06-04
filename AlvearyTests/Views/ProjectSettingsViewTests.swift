@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class ProjectSettingsViewTests: XCTestCase {
-    func testRestoreProjectSettingsArchivedThreadClearsArchiveFlag() throws {
+    func testRestoreProjectSettingsArchivedThreadClearsArchiveFlag() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -35,7 +35,7 @@ final class ProjectSettingsViewTests: XCTestCase {
         ]
         try fixture.context.save()
 
-        try fixture.viewModel.restoreThread(thread)
+        try await fixture.viewModel.restoreThread(thread)
 
         let restoredThread = try fixture.requireThread(thread)
         XCTAssertNil(restoredThread.archivedAt)
@@ -44,7 +44,7 @@ final class ProjectSettingsViewTests: XCTestCase {
         XCTAssertEqual(pendingRestoreContext?.contains("Restoring context from local history."), true)
     }
 
-    func testRestoreProjectSettingsArchivedThreadRefreshesBadgeCount() throws {
+    func testRestoreProjectSettingsArchivedThreadRefreshesBadgeCount() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -53,9 +53,36 @@ final class ProjectSettingsViewTests: XCTestCase {
         )
         let initial = fixture.notificationManager.refreshBadgeCountCalls
 
-        try fixture.viewModel.restoreThread(thread)
+        try await fixture.viewModel.restoreThread(thread)
 
         XCTAssertEqual(fixture.notificationManager.refreshBadgeCountCalls, initial + 1)
+    }
+
+    func testRestoreProjectSettingsArchivedThreadCallsProviderCompanionAction() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project",
+            conversationIDs: ["main"],
+            archivedAt: Date(),
+            provider: "codex"
+        )
+
+        try await fixture.viewModel.restoreThread(thread)
+
+        let actions = await fixture.providerSessionActions.actions
+        XCTAssertEqual(actions, [
+            .resolve(ProviderSessionActionSnapshot(
+                conversationIDs: ["main"],
+                providerIDs: ["codex"],
+                workingDirectory: URL(fileURLWithPath: "/tmp/alveary-project", isDirectory: true)
+            )),
+            .unarchive(ProviderSessionActionSnapshot(
+                conversationIDs: ["main"],
+                providerIDs: ["codex"],
+                workingDirectory: URL(fileURLWithPath: "/tmp/alveary-project", isDirectory: true)
+            ))
+        ])
     }
 
     func testDeleteProjectSettingsArchivedThreadUsesNormalThreadCleanup() async throws {

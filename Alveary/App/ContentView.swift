@@ -96,6 +96,7 @@ struct ContentView: View {
             gitHubCLI: dependencies.gitHubCLI,
             worktreeManager: dependencies.worktreeManager,
             settingsService: dependencies.settingsService,
+            providerSessionActions: dependencies.providerSessionActions,
             notificationManager: dependencies.notificationManager
         )
     }

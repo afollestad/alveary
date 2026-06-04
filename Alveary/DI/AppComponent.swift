@@ -172,6 +172,32 @@ extension AppComponent {
         }
     }
 
+    var agentCLIKitSessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
+        let claudeConfiguration = AgentCLIKit.ClaudeProviderAdapter.Configuration(
+            interactionStore: agentCLIKitInteractionStore,
+            approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
+            hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
+                "ClaudeHooks",
+                isDirectory: true
+            ),
+            hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
+        )
+        return AgentCLIKit.AgentProviderSessionActionRouter {
+            AgentCLIKit.AgentProviderAdapterSet.default(
+                claude: claudeConfiguration
+            )
+        }
+    }
+
+    var providerSessionActionService: any ProviderSessionActionService {
+        return shared {
+            AgentCLIKitProviderSessionActionService(
+                sessionStore: agentCLIKitSessionStore,
+                router: agentCLIKitSessionActionRouter
+            )
+        }
+    }
+
     var agentCLIKitClaudeConfigStore: AgentCLIKit.ClaudeConfigStore {
         return shared {
             AgentCLIKit.ClaudeConfigStore(

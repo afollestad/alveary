@@ -6,11 +6,12 @@ import SwiftData
 @Observable
 final class SidebarViewModel {
     private let agentsManager: any AgentsManager
-    private let modelContext: ModelContext
+    let modelContext: ModelContext
     private let shell: ShellRunner
     private let gitHubCLI: GitHubCLIService
     private let worktreeManager: WorktreeManager
     private let settingsService: SettingsService
+    private let providerSessionActionService: any ProviderSessionActionService
     private let notificationManager: any NotificationManager
     private var statusObserver: NSObjectProtocol?
 
@@ -24,6 +25,7 @@ final class SidebarViewModel {
         gitHubCLI: GitHubCLIService,
         worktreeManager: WorktreeManager,
         settingsService: SettingsService,
+        providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
         notificationManager: any NotificationManager
     ) {
         self.agentsManager = agentsManager
@@ -32,6 +34,7 @@ final class SidebarViewModel {
         self.gitHubCLI = gitHubCLI
         self.worktreeManager = worktreeManager
         self.settingsService = settingsService
+        self.providerSessionActionService = providerSessionActions
         self.notificationManager = notificationManager
 
         statusObserver = NotificationCenter.default.addObserver(
@@ -136,6 +139,7 @@ final class SidebarViewModel {
 
     func archiveThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadArchiveSnapshot(thread)
+        let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
@@ -144,14 +148,20 @@ final class SidebarViewModel {
         }
         dbThread.archivedAt = Date()
         try modelContext.save()
-        do { try await awaitConversationTeardowns(snapshot.conversationIDs) } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
+        do {
+            try await awaitConversationTeardowns(snapshot.conversationIDs)
+            await providerSessionActionService.archiveSessions(providerSessionResolution)
+        } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
     }
 
-    func restoreThread(_ thread: AgentThread) throws {
+    func restoreThread(_ thread: AgentThread) async throws {
+        let snapshot = try makeThreadArchiveSnapshot(thread)
+        let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         let dbThread = try requireThread(thread)
         dbThread.prepareForRestore()
         try modelContext.save()
         notificationManager.refreshBadgeCount()
+        await providerSessionActionService.unarchiveSessions(providerSessionResolution)
     }
 
     func deleteThread(_ thread: AgentThread) async throws {
@@ -432,64 +442,4 @@ extension SidebarViewModel {
         return exists && isDirectory.boolValue
     }
 
-    private func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
-        let dbThread = try requireThread(thread)
-        let threadID = dbThread.persistentModelID
-        return ThreadArchiveSnapshot(
-            threadID: threadID,
-            conversationIDs: liveConversationIDs(for: threadID)
-        )
-    }
-
-    private func makeThreadCleanupSnapshot(_ thread: AgentThread) throws -> ThreadCleanupSnapshot {
-        let dbThread = try requireThread(thread)
-        return try makeThreadCleanupSnapshot(from: dbThread)
-    }
-
-    private func makeThreadCleanupSnapshot(from thread: AgentThread) throws -> ThreadCleanupSnapshot {
-        guard let projectPath = thread.project?.path else {
-            throw SidebarViewModelError.threadMissingParentProject
-        }
-
-        let threadID = thread.persistentModelID
-        return ThreadCleanupSnapshot(
-            threadID: threadID,
-            projectPath: projectPath,
-            conversationIDs: liveConversationIDs(for: threadID),
-            pendingCleanupBranches: thread.pendingCleanupBranches,
-            branch: thread.branch,
-            worktreePath: thread.worktreePath,
-            requiresCompletedWorktreeCleanup: thread.useWorktree && thread.hasCompletedInitialSetup
-        )
-    }
-
-    private func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
-        let dbProject = try requireProject(project)
-        let projectPath = dbProject.path
-        let threadSnapshots = try liveThreads(forProjectPath: projectPath).map(makeThreadCleanupSnapshot(from:))
-        return ProjectDeletionSnapshot(
-            projectID: dbProject.persistentModelID,
-            projectPath: projectPath,
-            conversationIDs: threadSnapshots.flatMap(\.conversationIDs),
-            threadSnapshots: threadSnapshots
-        )
-    }
-
-    private func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.project?.path == projectPath
-            }
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    private func liveConversationIDs(for threadID: PersistentIdentifier) -> [String] {
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.persistentModelID == threadID
-            }
-        )
-        return ((try? modelContext.fetch(descriptor)) ?? []).map(\.id)
-    }
 }

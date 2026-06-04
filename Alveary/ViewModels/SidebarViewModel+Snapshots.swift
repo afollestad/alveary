@@ -4,6 +4,7 @@ import SwiftData
 struct ThreadArchiveSnapshot {
     let threadID: PersistentIdentifier
     let conversationIDs: [String]
+    let providerSessionAction: ProviderSessionActionSnapshot
 }
 
 struct ThreadCleanupSnapshot {
@@ -58,5 +59,81 @@ enum SidebarViewModelError: LocalizedError {
         case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingDeletionMetadata:
             return false
         }
+    }
+}
+
+extension SidebarViewModel {
+    func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
+        let dbThread = try requireThread(thread)
+        let threadID = dbThread.persistentModelID
+        let conversations = liveConversations(for: threadID)
+        let workingDirectory = (dbThread.worktreePath ?? dbThread.project?.path).map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }
+        return ThreadArchiveSnapshot(
+            threadID: threadID,
+            conversationIDs: conversations.map(\.id),
+            providerSessionAction: ProviderSessionActionSnapshot(
+                conversationIDs: conversations.map(\.id),
+                providerIDs: conversations.compactMap(\.provider),
+                workingDirectory: workingDirectory
+            )
+        )
+    }
+
+    func makeThreadCleanupSnapshot(_ thread: AgentThread) throws -> ThreadCleanupSnapshot {
+        let dbThread = try requireThread(thread)
+        return try makeThreadCleanupSnapshot(from: dbThread)
+    }
+
+    func makeThreadCleanupSnapshot(from thread: AgentThread) throws -> ThreadCleanupSnapshot {
+        guard let projectPath = thread.project?.path else {
+            throw SidebarViewModelError.threadMissingParentProject
+        }
+
+        let threadID = thread.persistentModelID
+        return ThreadCleanupSnapshot(
+            threadID: threadID,
+            projectPath: projectPath,
+            conversationIDs: liveConversationIDs(for: threadID),
+            pendingCleanupBranches: thread.pendingCleanupBranches,
+            branch: thread.branch,
+            worktreePath: thread.worktreePath,
+            requiresCompletedWorktreeCleanup: thread.useWorktree && thread.hasCompletedInitialSetup
+        )
+    }
+
+    func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
+        let dbProject = try requireProject(project)
+        let projectPath = dbProject.path
+        let threadSnapshots = try liveThreads(forProjectPath: projectPath).map(makeThreadCleanupSnapshot(from:))
+        return ProjectDeletionSnapshot(
+            projectID: dbProject.persistentModelID,
+            projectPath: projectPath,
+            conversationIDs: threadSnapshots.flatMap(\.conversationIDs),
+            threadSnapshots: threadSnapshots
+        )
+    }
+
+    private func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.project?.path == projectPath
+            }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func liveConversationIDs(for threadID: PersistentIdentifier) -> [String] {
+        liveConversations(for: threadID).map(\.id)
+    }
+
+    private func liveConversations(for threadID: PersistentIdentifier) -> [Conversation] {
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.persistentModelID == threadID
+            }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 }

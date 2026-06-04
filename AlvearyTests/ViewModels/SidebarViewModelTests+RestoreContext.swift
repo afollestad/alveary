@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
-    func testRestoreThreadRegeneratesPendingRestoreContextPerConversation() throws {
+    func testRestoreThreadRegeneratesPendingRestoreContextPerConversation() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -37,7 +37,7 @@ extension SidebarViewModelTests {
         ]
         try fixture.context.save()
 
-        try fixture.viewModel.restoreThread(thread)
+        try await fixture.viewModel.restoreThread(thread)
 
         let restoredThread = try fixture.requireThread(thread)
         let restoredMain = try XCTUnwrap(restoredThread.conversations.first(where: { $0.id == "main" }))

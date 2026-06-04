@@ -162,7 +162,7 @@ struct ProjectSettingsView: View {
         ) { thread in
             Button("Restore") {
                 pendingRestoreThread = nil
-                restoreArchivedThread(thread)
+                Task { await restoreArchivedThread(thread) }
             }
 
             Button("Cancel", role: .cancel) {
@@ -392,9 +392,9 @@ private extension ProjectSettingsView {
         }
     }
 
-    func restoreArchivedThread(_ thread: AgentThread) {
+    func restoreArchivedThread(_ thread: AgentThread) async {
         do {
-            try sidebarViewModel.restoreThread(thread)
+            try await sidebarViewModel.restoreThread(thread)
         } catch {
             screenError = error.localizedDescription
         }
