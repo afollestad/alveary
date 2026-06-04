@@ -40,7 +40,6 @@ final class ProviderRegistryTests: XCTestCase {
                 )
             ]
         )
-        XCTAssertEqual(provider?.supportedEffortLevels, AppSettings.supportedEffortLevels)
         XCTAssertTrue(provider?.supportsMidTurnSteering == true)
         XCTAssertNil(agentRegistry.agent(for: "missing"))
         XCTAssertNil(providerRegistry.provider(for: "missing"))

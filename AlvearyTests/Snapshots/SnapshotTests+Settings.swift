@@ -362,7 +362,7 @@ private actor SnapshotProviderDiscoveryService: AgentCLIKit.AgentProviderDiscove
                     versionDescription: "2.1.104"
                 ),
                 setup: .ready,
-                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.claude] ?? []
+                modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
             ),
             .codex: AgentCLIKit.AgentProviderStatus(
                 providerId: .codex,
@@ -370,7 +370,7 @@ private actor SnapshotProviderDiscoveryService: AgentCLIKit.AgentProviderDiscove
                 installation: .missing,
                 availability: AgentCLIKit.AgentProviderAvailability(providerId: .codex, executablePath: nil),
                 setup: .needsSetup,
-                modelOptions: AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[.codex] ?? []
+                modelOptions: AgentModelOptionTestFixtures.codexModelOptions
             )
         ])
     }

@@ -10,5 +10,4 @@ struct ProviderDefinition: Sendable, Equatable {
     let versionArgs: [String]
     let supportsMidTurnSteering: Bool
     let supportedPermissionModes: [PermissionModeOption]?
-    let supportedEffortLevels: [String]?
 }

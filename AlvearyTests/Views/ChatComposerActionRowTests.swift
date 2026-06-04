@@ -165,7 +165,7 @@ final class ChatComposerActionRowTests: XCTestCase {
                     .init(value: "sonnet", title: "Sonnet"),
                     .init(value: "opus", title: "Extremely Wide Model Name")
                 ],
-                supportedEffortLevels: [.init(value: "medium", title: "Medium")],
+                effortOptions: [.init(value: "medium", title: "Medium")],
                 supportedPermissionModes: [.init(value: "default", title: "Default")]
             )
         )
@@ -360,7 +360,7 @@ private func makeConfiguration(
     mode: ComposerMode,
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
-    supportedEffortLevels: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
     showWorktreePicker: Bool = true,
     sessionLocationLabel: String? = nil,
@@ -376,7 +376,7 @@ private func makeConfiguration(
         selectedProvider: "claude",
         modelOptions: modelOptions,
         selectedModel: "sonnet",
-        supportedEffortLevels: supportedEffortLevels,
+        effortOptions: effortOptions,
         selectedEffort: "medium",
         supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: "default",

@@ -14,23 +14,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         "codex": "on-request"
     ]
     static let defaultEffortLevel = "medium"
-    static let supportedEffortLevels = ["low", "medium", "high", "xhigh", "max"]
-    static let supportedModels = ["default", "opus", "sonnet", "haiku"]
-
-    // Per-model effort overrides. Add or update entries here as models gain or
-    // drop levels; any model not listed falls back to `defaultModelEffortLevels`.
-    // "opus" currently tracks Opus 4.8, which supports `xhigh`.
-    static let defaultModelEffortLevels = ["low", "medium", "high", "max"]
-    static let effortLevelsByModel: [String: [String]] = [
-        "opus": ["low", "medium", "high", "xhigh", "max"]
-    ]
-
-    // Per-model preferred default. Fresh threads and coerced fallbacks should
-    // land on the top-tier level the model is designed for (Opus 4.8 leans
-    // into `xhigh`); models without an entry fall back to `defaultEffortLevel`.
-    static let defaultEffortLevelsByModel: [String: String] = [
-        "opus": "xhigh"
-    ]
     static let defaultModelValue = "default"
     static let supportedThemes = ["system", "light", "dark"]
     static let defaultCodeFontFamily = "SF Mono"
@@ -111,32 +94,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     }
 
     static func normalizedEffortLevel(_ effort: String?) -> String {
-        guard let effort,
-              supportedEffortLevels.contains(effort) else {
+        guard let effort = effort?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !effort.isEmpty else {
             return defaultEffortLevel
         }
 
         return effort
-    }
-
-    static func supportedEffortLevels(forModel model: String?) -> [String] {
-        guard let model,
-              let overrides = effortLevelsByModel[model] else {
-            return defaultModelEffortLevels
-        }
-        return overrides
-    }
-
-    static func effortLevel(_ effort: String, isSupportedByModel model: String?) -> Bool {
-        supportedEffortLevels(forModel: model).contains(effort)
-    }
-
-    static func defaultEffortLevel(forModel model: String?) -> String {
-        guard let model,
-              let override = defaultEffortLevelsByModel[model] else {
-            return defaultEffortLevel
-        }
-        return override
     }
 
     static func supportedPermissionModes(forProvider providerID: String) -> [String] {

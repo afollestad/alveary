@@ -31,8 +31,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                         label: "Automatic",
                         description: "Auto-approve most actions with safety checks."
                     )
-                ],
-                supportedEffortLevels: AppSettings.supportedEffortLevels
+                ]
             ),
             skillsDirectory: "~/.claude/skills",
             mcp: MCPIntegrationDefinition(
@@ -69,8 +68,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                         label: "Never ask",
                         description: "Codex never prompts for command approval and returns failures directly to the model."
                     )
-                ],
-                supportedEffortLevels: nil
+                ]
             ),
             skillsDirectory: "~/.codex/skills",
             mcp: MCPIntegrationDefinition(

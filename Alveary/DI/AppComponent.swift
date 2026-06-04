@@ -255,7 +255,9 @@ extension AppComponent {
                     agentCLIKitCodexProviderSetup
                 ],
                 enablementSource: SettingsAgentProviderEnablementSource(settingsService: settingsService),
-                modelOptionSource: AgentCLIKit.StaticAgentModelOptionSource()
+                modelOptionSource: AgentCLIKit.DefaultAgentModelOptionSource(
+                    codexSource: AgentCLIKit.CodexAppServerModelOptionSource()
+                )
             )
         }
     }

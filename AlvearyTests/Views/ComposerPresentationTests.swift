@@ -115,23 +115,6 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertEqual(unsupported.busyReturnAction(usesAlternateBehavior: false), .submit)
     }
 
-    func testVisibleEffortLevelsIntersectProviderAndModelSupport() {
-        XCTAssertEqual(
-            ComposerSettingsPresentation.visibleEffortLevels(
-                selectedModel: "sonnet",
-                providerSupportedEffortLevels: ["low", "medium", "high", "xhigh", "max"]
-            ),
-            ["low", "medium", "high", "max"]
-        )
-        XCTAssertEqual(
-            ComposerSettingsPresentation.visibleEffortLevels(
-                selectedModel: "opus",
-                providerSupportedEffortLevels: ["medium", "xhigh", "max"]
-            ),
-            ["medium", "xhigh", "max"]
-        )
-    }
-
     private func makePresentation(
         text: String,
         isTextEffectivelyEmpty: Bool? = nil,

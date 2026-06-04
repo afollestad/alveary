@@ -31,10 +31,4 @@ extension ChatView {
         appState.requestComposerFocus()
     }
 
-    var visibleEffortLevels: [String] {
-        ComposerSettingsPresentation.visibleEffortLevels(
-            selectedModel: selectedModelBinding.wrappedValue,
-            providerSupportedEffortLevels: composerCapabilities.supportedEffortLevels
-        )
-    }
 }

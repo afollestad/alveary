@@ -13,7 +13,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
     @Binding var selectedProvider: String
     let modelOptions: [ChatComposerActionRowView.MenuOption]
     @Binding var selectedModel: String
-    let supportedEffortLevels: [String]
+    let effortOptions: [ChatComposerActionRowView.MenuOption]
     @Binding var selectedEffort: String
     let supportedPermissionModes: [PermissionModeOption]
     @Binding var selectedPermissionMode: String
@@ -50,7 +50,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             selectedProvider: selectedProvider,
             modelOptions: modelOptions,
             selectedModel: selectedModel,
-            supportedEffortLevels: supportedEffortLevels.map { .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0)) },
+            effortOptions: effortOptions,
             selectedEffort: selectedEffort,
             supportedPermissionModes: supportedPermissionModes.map {
                 .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
@@ -98,7 +98,7 @@ final class ChatComposerActionRowView: NSView {
         let selectedProvider: String
         let modelOptions: [MenuOption]
         let selectedModel: String
-        let supportedEffortLevels: [MenuOption]
+        let effortOptions: [MenuOption]
         let selectedEffort: String
         let supportedPermissionModes: [MenuOption]
         let selectedPermissionMode: String
@@ -308,8 +308,8 @@ final class ChatComposerActionRowView: NSView {
             onSelect: configuration.onModelChange
         )
         effortMenu.configure(
-            title: title(for: configuration.selectedEffort, in: configuration.supportedEffortLevels),
-            options: configuration.supportedEffortLevels,
+            title: title(for: configuration.selectedEffort, in: configuration.effortOptions),
+            options: configuration.effortOptions,
             selectedValue: configuration.selectedEffort,
             isEnabled: !configuration.areControlsDisabled,
             onSelect: configuration.onEffortChange
@@ -380,7 +380,7 @@ final class ChatComposerActionRowView: NSView {
             addRowSubview(providerMenu)
         }
         addRowSubview(modelMenu)
-        if !configuration.supportedEffortLevels.isEmpty {
+        if !configuration.effortOptions.isEmpty {
             addRowSubview(effortMenu)
         }
         if !configuration.supportedPermissionModes.isEmpty {

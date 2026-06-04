@@ -92,7 +92,7 @@ final class SidebarViewModel {
         let thread = AgentThread(
             name: "New thread",
             permissionMode: permissionMode,
-            effort: seedEffortLevel(forModel: threadModel),
+            effort: seedEffortLevel(),
             model: threadModel,
             useWorktree: settingsService.current.createWorktreeByDefault && dbProject.isGitRepository,
             project: dbProject
@@ -118,18 +118,8 @@ final class SidebarViewModel {
         )
     }
 
-    // Thread seed = user's explicit Settings choice when valid for this model;
-    // otherwise the per-model preferred default (Opus 4.8 -> `xhigh`). "Explicit"
-    // means the stored value differs from the universal `defaultEffortLevel`,
-    // so a fresh install on Opus lands on `xhigh` rather than dragging
-    // `medium` across from the unchanged Settings field.
-    private func seedEffortLevel(forModel model: String?) -> String {
-        let userEffort = settingsService.current.effort
-        if userEffort != AppSettings.defaultEffortLevel,
-           AppSettings.effortLevel(userEffort, isSupportedByModel: model) {
-            return userEffort
-        }
-        return AppSettings.defaultEffortLevel(forModel: model)
+    private func seedEffortLevel() -> String {
+        AppSettings.normalizedEffortLevel(settingsService.current.effort)
     }
 
     func presentSidebarError(_ error: Error) {

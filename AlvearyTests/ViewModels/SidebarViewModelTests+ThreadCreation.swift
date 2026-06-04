@@ -85,11 +85,10 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedThread.effort, AppSettings.defaultEffortLevel)
     }
 
-    // Opus 4.8's preferred default is `xhigh`, so a fresh Opus-default install
-    // must seed new threads to `xhigh` rather than dragging the universal
-    // `medium` across from the untouched Settings field.
-    func testCreateThreadSeedsPerModelDefaultEffortWhenUserHasNotCustomized() async throws {
-        let fixture = try SidebarTestFixture(defaultModel: "opus")
+    // Thread creation uses the already-normalized settings value. Settings UI
+    // owns applying model-scoped defaults when the user changes the model.
+    func testCreateThreadSeedsNormalizedSettingsEffortForSelectedModel() async throws {
+        let fixture = try SidebarTestFixture(defaultEffort: "xhigh", defaultModel: "opus")
         let project = try fixture.insertProject(name: "Opus Project", path: "/tmp/opus-default")
 
         let thread = try await fixture.viewModel.createThread(

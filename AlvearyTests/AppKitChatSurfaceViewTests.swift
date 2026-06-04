@@ -407,7 +407,7 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         selectedProvider: "claude",
         modelOptions: [.init(value: "sonnet", title: "Sonnet")],
         selectedModel: "sonnet",
-        supportedEffortLevels: [.init(value: "medium", title: "Medium")],
+        effortOptions: [.init(value: "medium", title: "Medium")],
         selectedEffort: "medium",
         supportedPermissionModes: [.init(value: "default", title: "Default")],
         selectedPermissionMode: "default",

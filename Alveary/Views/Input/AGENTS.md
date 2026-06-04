@@ -31,7 +31,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 ## Composer Action Row
 
-- Keep renderer-neutral decisions in `ComposerPresentation` and `ComposerSettingsPresentation`.
+- Keep renderer-neutral decisions in `ComposerPresentation` and caller-owned option lists.
 - Keep presentation pure: compute labels, disabled states, placeholders, action copy, busy return behavior, effort options, and trust blocking from caller-owned inputs.
 - Keep effects elsewhere: no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.

@@ -9,6 +9,9 @@ struct ChatView: View {
     let composerCapabilities: ComposerCapabilities
     let providerOptions: [ChatComposerActionRowView.MenuOption]
     let modelOptions: [ChatComposerActionRowView.MenuOption]
+    let selectedModelOptionID: String
+    let effortOptions: [ChatComposerActionRowView.MenuOption]
+    let onModelOptionChange: (String) -> Void
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
     let runtimeStatus: ActivitySignal
@@ -74,8 +77,8 @@ struct ChatView: View {
 
     var selectedModelBinding: Binding<String> {
         Binding(
-            get: { threadPresentation.selectedModel },
-            set: { viewModel.applyModelChange($0) }
+            get: { selectedModelOptionID },
+            set: { onModelOptionChange($0) }
         )
     }
 
@@ -121,6 +124,9 @@ struct ChatView: View {
         composerCapabilities: ComposerCapabilities,
         providerOptions: [ChatComposerActionRowView.MenuOption],
         modelOptions: [ChatComposerActionRowView.MenuOption],
+        selectedModelOptionID: String,
+        effortOptions: [ChatComposerActionRowView.MenuOption],
+        onModelOptionChange: @escaping (String) -> Void,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
         runtimeStatus: ActivitySignal,
@@ -140,6 +146,9 @@ struct ChatView: View {
         self.composerCapabilities = composerCapabilities
         self.providerOptions = providerOptions
         self.modelOptions = modelOptions
+        self.selectedModelOptionID = selectedModelOptionID
+        self.effortOptions = effortOptions
+        self.onModelOptionChange = onModelOptionChange
         self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
         self.runtimeStatus = runtimeStatus
@@ -444,9 +453,7 @@ extension ChatView {
             selectedProvider: selectedProviderBinding.wrappedValue,
             modelOptions: modelOptions,
             selectedModel: selectedModelBinding.wrappedValue,
-            supportedEffortLevels: visibleEffortLevels.map {
-                .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
-            },
+            effortOptions: effortOptions,
             selectedEffort: selectedEffortBinding.wrappedValue,
             supportedPermissionModes: composerCapabilities.supportedPermissionModes.map {
                 .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))

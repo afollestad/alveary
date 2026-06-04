@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 
@@ -73,7 +74,11 @@ extension ConversationViewModel {
     }
 
     @discardableResult
-    func applyModelChange(_ newValue: String) -> Task<Void, Never> {
+    func applyModelChange(
+        _ newValue: String,
+        effortOptions: [AgentCLIKit.AgentProviderOption] = [],
+        defaultEffort: String? = nil
+    ) -> Task<Void, Never> {
         guard canApplySettingsChange else { return .noop }
         guard let threadID = conversation.thread?.persistentModelID,
               let dbThread = modelContext.resolveThread(id: threadID) else {
@@ -85,14 +90,12 @@ extension ConversationViewModel {
 
         dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
 
-        // Model-specific efforts (e.g. `xhigh` for Opus 4.8) must fall back when
-        // switching to a model that does not support them; otherwise the CLI
-        // would reject the flag on the next spawn. The fallback uses the new
-        // model's preferred default so switching back into Opus lands on
-        // `xhigh` rather than the universal `medium`.
         let previousEffort = dbThread.effort
-        if !AppSettings.effortLevel(previousEffort, isSupportedByModel: newValue) {
-            dbThread.effort = AppSettings.defaultEffortLevel(forModel: newValue)
+        if !effortOptions.isEmpty {
+            let supportsPreviousEffort = effortOptions.contains { $0.value == previousEffort }
+            if !supportsPreviousEffort || previousEffort == AppSettings.defaultEffortLevel {
+                dbThread.effort = defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
+            }
         }
 
         state.lastTurnError = nil

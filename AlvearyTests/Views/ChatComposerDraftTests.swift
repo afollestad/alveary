@@ -124,7 +124,6 @@ final class ChatComposerDraftTests: XCTestCase {
             viewModel: fixture.viewModel,
             conversation: fixture.conversation,
             composerCapabilities: ComposerCapabilities(
-                supportedEffortLevels: [],
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true
             ),
@@ -135,6 +134,9 @@ final class ChatComposerDraftTests: XCTestCase {
                     title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue)
                 )
             ],
+            selectedModelOptionID: AppSettings.defaultModelValue,
+            effortOptions: [],
+            onModelOptionChange: { _ in },
             defaultEnterBehavior: .queue,
             providerID: "claude",
             runtimeStatus: .neutral,

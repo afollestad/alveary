@@ -51,7 +51,16 @@ final class SettingsViewModel {
 
     var effort: String {
         get { settingsService.current.effort }
-        set { settingsService.update { $0.effort = newValue } }
+        set {
+            let options = modelOptions(for: settingsService.current.defaultProvider)
+            settingsService.update {
+                $0.effort = AgentModelOptionSelection.normalizedEffort(
+                    newValue,
+                    options: options,
+                    selectedModel: $0.defaultModel
+                )
+            }
+        }
     }
 
     var defaultThreadCleanupAction: ThreadCleanupAction {

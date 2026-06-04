@@ -237,7 +237,7 @@ final class SettingsServiceTests: XCTestCase {
 
         XCTAssertEqual(service.current.defaultProvider, "codex")
         XCTAssertEqual(service.current.permissionMode, "on-request")
-        XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(service.current.effort, "turbo")
         XCTAssertEqual(service.current.theme, "system")
         XCTAssertEqual(service.current.diffViewerWidth, 320)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, 0.25)
@@ -405,7 +405,7 @@ final class SettingsServiceTests: XCTestCase {
 
         XCTAssertEqual(userDefaultsService.current.defaultProvider, "codex")
         XCTAssertEqual(userDefaultsService.current.permissionMode, "on-request")
-        XCTAssertEqual(userDefaultsService.current.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(userDefaultsService.current.effort, "turbo")
         XCTAssertEqual(userDefaultsService.current.theme, "system")
         XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 960)
         XCTAssertEqual(
@@ -416,7 +416,7 @@ final class SettingsServiceTests: XCTestCase {
 
         XCTAssertEqual(inMemoryService.current.defaultProvider, "codex")
         XCTAssertEqual(inMemoryService.current.permissionMode, "on-request")
-        XCTAssertEqual(inMemoryService.current.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(inMemoryService.current.effort, "turbo")
         XCTAssertEqual(inMemoryService.current.theme, "system")
         XCTAssertEqual(inMemoryService.current.diffViewerWidth, 960)
         XCTAssertEqual(

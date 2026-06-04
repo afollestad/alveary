@@ -164,13 +164,3 @@ struct ComposerPresentation: Equatable, Sendable {
         }
     }
 }
-
-enum ComposerSettingsPresentation {
-    static func visibleEffortLevels(
-        selectedModel: String,
-        providerSupportedEffortLevels: [String]
-    ) -> [String] {
-        let modelSupported = Set(AppSettings.supportedEffortLevels(forModel: selectedModel))
-        return providerSupportedEffortLevels.filter(modelSupported.contains)
-    }
-}

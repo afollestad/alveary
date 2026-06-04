@@ -117,7 +117,6 @@ extension SnapshotTests {
 
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
-            supportedEffortLevels: ["low", "medium", "high"],
             supportedPermissionModes: samplePermissionModes,
             supportsMidTurnSteering: true
         )
@@ -212,11 +211,11 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
         ChatComposerActionRowView.Configuration(
             providerOptions: [.init(value: "claude", title: "Claude Code")],
             selectedProvider: "claude",
-            modelOptions: AppSettings.supportedModels.map {
-                .init(value: $0, title: ChatComposerTextSupport.modelLabel(for: $0))
+            modelOptions: AgentModelOptionTestFixtures.claudeModelOptions.map {
+                .init(value: $0.id, title: $0.label)
             },
             selectedModel: selectedModel,
-            supportedEffortLevels: ["low", "medium", "high"].map {
+            effortOptions: ["low", "medium", "high"].map {
                 .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
             },
             selectedEffort: selectedEffort,

@@ -249,7 +249,11 @@ extension ConversationViewModelTests {
         try fixture.dbThread().effort = "xhigh"
         try fixture.context.save()
 
-        await fixture.viewModel.applyModelChange("sonnet").value
+        await fixture.viewModel.applyModelChange(
+            "sonnet",
+            effortOptions: AgentModelOptionTestFixtures.claudeDefaultEfforts,
+            defaultEffort: AgentModelOptionTestFixtures.medium.value
+        ).value
 
         XCTAssertEqual(try fixture.dbThread().model, "sonnet")
         XCTAssertEqual(try fixture.dbThread().effort, AppSettings.defaultEffortLevel)
@@ -267,7 +271,11 @@ extension ConversationViewModelTests {
         try fixture.dbThread().effort = "high"
         try fixture.context.save()
 
-        await fixture.viewModel.applyModelChange("opus").value
+        await fixture.viewModel.applyModelChange(
+            "opus",
+            effortOptions: AgentModelOptionTestFixtures.claudeOpusEfforts,
+            defaultEffort: AgentModelOptionTestFixtures.xhigh.value
+        ).value
 
         XCTAssertEqual(try fixture.dbThread().model, "opus")
         XCTAssertEqual(try fixture.dbThread().effort, "high")

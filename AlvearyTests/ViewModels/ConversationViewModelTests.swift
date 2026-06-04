@@ -283,14 +283,14 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(sentMessages, ["Context block\n\nImplement the authentication retry flow"])
     }
 
-    func testMakeSpawnConfigNormalizesLegacyAutomaticEffortToMedium() throws {
+    func testMakeSpawnConfigPreservesStoredEffortValue() throws {
         let fixture = try ConversationViewModelTestFixture()
         let thread = try fixture.dbThread()
         thread.effort = "auto"
 
         let config = try fixture.viewModel.makeSpawnConfig()
 
-        XCTAssertEqual(config.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(config.effort, "auto")
     }
 }
 

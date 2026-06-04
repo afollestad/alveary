@@ -15,38 +15,46 @@ extension SettingsViewModel {
     var defaultProvider: String {
         get { settingsService.current.defaultProvider }
         set {
-            let modelValues = modelOptionValues(for: newValue)
+            let options = modelOptions(for: newValue)
             settingsService.update { settings in
                 settings.defaultProvider = newValue
                 settings.setProvider(newValue, enabled: true)
-                if !modelValues.contains(settings.defaultModel) {
+                if AgentModelOptionSelection.option(in: options, matching: settings.defaultModel) == nil {
                     settings.defaultModel = AppSettings.defaultModelValue
                 }
                 if !AppSettings.supportedPermissionModes(forProvider: newValue).contains(settings.permissionMode) {
                     settings.permissionMode = AppSettings.defaultPermissionMode(forProvider: newValue)
                 }
-                if !AppSettings.effortLevel(settings.effort, isSupportedByModel: settings.defaultModel) {
-                    settings.effort = AppSettings.defaultEffortLevel(forModel: settings.defaultModel)
-                }
+                settings.effort = AgentModelOptionSelection.normalizedEffort(
+                    settings.effort,
+                    options: options,
+                    selectedModel: settings.defaultModel
+                )
             }
         }
     }
 
     var defaultModel: String {
-        get { settingsService.current.defaultModel }
+        get {
+            AgentModelOptionSelection.pickerValue(
+                in: modelOptions(for: settingsService.current.defaultProvider),
+                matching: settingsService.current.defaultModel
+            )
+        }
         set {
+            let options = modelOptions(for: settingsService.current.defaultProvider)
+            let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: newValue)
             settingsService.update { settings in
                 let previousEffort = settings.effort
-                settings.defaultModel = newValue
-                // Mirror the per-thread coercion in `ConversationViewModel.applyModelChange`
-                // so the Settings Effort picker can never leave a value selected that the
-                // new model doesn't support, and so the "didn't customize effort" case
-                // lands on the new model's preferred default (e.g. Opus -> `xhigh`).
-                let needsFallback = !AppSettings.effortLevel(previousEffort, isSupportedByModel: newValue)
-                    || previousEffort == AppSettings.defaultEffortLevel
-                if needsFallback {
-                    settings.effort = AppSettings.defaultEffortLevel(forModel: newValue)
-                }
+                settings.defaultModel = storedModel
+                let normalizedEffort = AgentModelOptionSelection.normalizedEffort(
+                    previousEffort,
+                    options: options,
+                    selectedModel: storedModel
+                )
+                settings.effort = previousEffort == AppSettings.defaultEffortLevel
+                    ? AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: storedModel)
+                    : normalizedEffort
             }
         }
     }
@@ -176,12 +184,11 @@ extension SettingsViewModel {
         }
     }
 
-    func effortOptions(for providerId: String, model: String?) -> [String] {
-        let providerLevels = providerStatus(for: providerId)?.definition?.supportedEffortLevels
-            ?? agentRegistry.agent(for: providerId)?.provider?.supportedEffortLevels
-            ?? []
-        let modelSupported = Set(AppSettings.supportedEffortLevels(forModel: model))
-        return providerLevels.filter(modelSupported.contains)
+    func effortOptions(for providerId: String, model: String?) -> [AgentCLIKit.AgentProviderOption] {
+        AgentModelOptionSelection.effortOptions(
+            in: modelOptions(for: providerId),
+            selectedModel: model
+        )
     }
 
     func providerDisplayName(for providerId: String) -> String {
@@ -204,20 +211,22 @@ extension SettingsViewModel {
     }
 
     func modelOptionValues(for providerId: String, including selectedModel: String? = nil) -> [String] {
-        var values = modelOptions(for: providerId).map(modelValue(for:))
+        let options = modelOptions(for: providerId)
+        var values = options.map(AgentModelOptionSelection.pickerValue(for:))
         if values.isEmpty {
             values = [AppSettings.defaultModelValue]
         }
         if let selectedModel,
            !selectedModel.isEmpty,
+           AgentModelOptionSelection.option(in: options, matching: selectedModel) == nil,
            !values.contains(selectedModel) {
-            values.append(selectedModel)
+            values.append(AppSettings.normalizedModelSelection(selectedModel))
         }
         return values
     }
 
     func modelLabel(for model: String, providerId: String) -> String {
-        if let option = modelOptions(for: providerId).first(where: { modelValue(for: $0) == model || $0.id == model }) {
+        if let option = AgentModelOptionSelection.option(in: modelOptions(for: providerId), matching: model) {
             return option.label
         }
         return ChatComposerTextSupport.modelLabel(for: model)
@@ -268,12 +277,7 @@ private extension SettingsViewModel {
         return "Installed and ready."
     }
 
-    func modelValue(for option: AgentCLIKit.AgentModelOption) -> String {
-        option.model ?? AppSettings.defaultModelValue
-    }
-
     func defaultModelOptions(for providerId: AgentCLIKit.AgentProviderID) -> [AgentCLIKit.AgentModelOption] {
-        AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[providerId]
-            ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+        AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
     }
 }

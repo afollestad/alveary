@@ -17,98 +17,7 @@ struct ThreadsSettingsTabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
             SettingsFormSection("Defaults") {
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Provider",
-                            selection: $defaultProvider,
-                            options: viewModel.availableProviderIDs,
-                            label: { viewModel.providerDisplayName(for: $0) }
-                        )
-                    }
-                }
-
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                        SettingsMenuPicker(
-                            "Model",
-                            selection: $defaultModel,
-                            options: viewModel.modelOptionValues(for: viewModel.defaultProvider, including: defaultModel),
-                            label: { viewModel.modelLabel(for: $0, providerId: viewModel.defaultProvider) }
-                        )
-                    }
-                }
-
-                if !viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel).isEmpty {
-                    SettingsFormRow {
-                        SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                            SettingsMenuPicker(
-                                "Effort",
-                                selection: $effort,
-                                options: viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel),
-                                label: ChatComposerTextSupport.effortLabel(for:)
-                            )
-                        }
-                    }
-                }
-
-                if !viewModel.permissionModeOptions(for: viewModel.defaultProvider).isEmpty {
-                    SettingsFormRow {
-                        SettingsResponsiveControlRow("Permission mode", horizontalControlSizing: .intrinsic) {
-                            SettingsMenuPicker(
-                                "Permission mode",
-                                selection: $permissionMode,
-                                options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
-                                label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
-                            )
-                        }
-                    }
-                }
-
-                SettingsFormRow {
-                    SettingsResponsiveControlRow(
-                        "Default thread cleanup action",
-                        helpText: ThreadSettingsHelp.defaultThreadCleanupAction,
-                        horizontalControlSizing: .intrinsicInline
-                    ) {
-                        SettingsTwoButtonToggle(
-                            "Default thread cleanup action",
-                            selection: $defaultThreadCleanupAction,
-                            first: .archive,
-                            second: .delete,
-                            label: \.label
-                        )
-                    }
-                }
-
-                SettingsFormRow {
-                    SettingsResponsiveControlRow(
-                        "Default Enter button behavior",
-                        helpText: ThreadSettingsHelp.defaultEnterBehavior,
-                        horizontalControlSizing: .intrinsicInline
-                    ) {
-                        SettingsTwoButtonToggle(
-                            "Default Enter button behavior",
-                            selection: $defaultEnterBehavior,
-                            first: .queue,
-                            second: .steer,
-                            label: \.label
-                        )
-                    }
-                }
-
-                SettingsToggleRow(
-                    "Create worktree by default",
-                    helpText: ThreadSettingsHelp.createWorktreeByDefault,
-                    isOn: $createWorktreeByDefault
-                )
-
-                SettingsToggleRow(
-                    "Auto-trust projects",
-                    helpText: ThreadSettingsHelp.autoTrustProjects,
-                    isOn: $autoTrustProjects,
-                    showsDivider: false
-                )
+                defaultsSectionRows
             }
 
             SettingsFormSection("Startup") {
@@ -134,6 +43,111 @@ struct ThreadsSettingsTabView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            await viewModel.refreshProviderStatusesIfNeeded()
+        }
+    }
+}
+
+private extension ThreadsSettingsTabView {
+    @ViewBuilder
+    var defaultsSectionRows: some View {
+        SettingsFormRow {
+            SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
+                SettingsMenuPicker(
+                    "Provider",
+                    selection: $defaultProvider,
+                    options: viewModel.availableProviderIDs,
+                    label: { viewModel.providerDisplayName(for: $0) }
+                )
+            }
+        }
+
+        SettingsFormRow {
+            SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
+                SettingsMenuPicker(
+                    "Model",
+                    selection: $defaultModel,
+                    options: viewModel.modelOptionValues(for: viewModel.defaultProvider, including: defaultModel),
+                    label: { viewModel.modelLabel(for: $0, providerId: viewModel.defaultProvider) }
+                )
+            }
+        }
+
+        let effortOptions = viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel)
+        if !effortOptions.isEmpty {
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
+                    SettingsMenuPicker(
+                        "Effort",
+                        selection: $effort,
+                        options: effortOptions.map(\.value),
+                        label: { value in
+                            effortOptions.first { $0.value == value }?.label
+                                ?? ChatComposerTextSupport.effortLabel(for: value)
+                        }
+                    )
+                }
+            }
+        }
+
+        if !viewModel.permissionModeOptions(for: viewModel.defaultProvider).isEmpty {
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Permission mode", horizontalControlSizing: .intrinsic) {
+                    SettingsMenuPicker(
+                        "Permission mode",
+                        selection: $permissionMode,
+                        options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
+                        label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
+                    )
+                }
+            }
+        }
+
+        SettingsFormRow {
+            SettingsResponsiveControlRow(
+                "Default thread cleanup action",
+                helpText: ThreadSettingsHelp.defaultThreadCleanupAction,
+                horizontalControlSizing: .intrinsicInline
+            ) {
+                SettingsTwoButtonToggle(
+                    "Default thread cleanup action",
+                    selection: $defaultThreadCleanupAction,
+                    first: .archive,
+                    second: .delete,
+                    label: \.label
+                )
+            }
+        }
+
+        SettingsFormRow {
+            SettingsResponsiveControlRow(
+                "Default Enter button behavior",
+                helpText: ThreadSettingsHelp.defaultEnterBehavior,
+                horizontalControlSizing: .intrinsicInline
+            ) {
+                SettingsTwoButtonToggle(
+                    "Default Enter button behavior",
+                    selection: $defaultEnterBehavior,
+                    first: .queue,
+                    second: .steer,
+                    label: \.label
+                )
+            }
+        }
+
+        SettingsToggleRow(
+            "Create worktree by default",
+            helpText: ThreadSettingsHelp.createWorktreeByDefault,
+            isOn: $createWorktreeByDefault
+        )
+
+        SettingsToggleRow(
+            "Auto-trust projects",
+            helpText: ThreadSettingsHelp.autoTrustProjects,
+            isOn: $autoTrustProjects,
+            showsDivider: false
+        )
     }
 }
 

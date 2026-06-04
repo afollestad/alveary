@@ -3,7 +3,6 @@ import SwiftData
 import SwiftUI
 
 struct ComposerCapabilities: Sendable {
-    let supportedEffortLevels: [String]
     let supportedPermissionModes: [PermissionModeOption]
     let supportsMidTurnSteering: Bool
 }
@@ -57,9 +56,6 @@ struct ConversationView: View {
         let provider = providerRegistry.provider(for: activeProviderID)
 
         return ComposerCapabilities(
-            supportedEffortLevels: activeProviderStatus?.definition?.supportedEffortLevels
-                ?? provider?.supportedEffortLevels
-                ?? [],
             supportedPermissionModes: providerPermissionModes(),
             supportsMidTurnSteering: activeProviderStatus?.definition?.capabilities.supportsMidTurnSteering
                 ?? provider?.supportsMidTurnSteering
@@ -130,6 +126,9 @@ struct ConversationView: View {
             composerCapabilities: composerCapabilities,
             providerOptions: composerProviderOptions,
             modelOptions: composerModelOptions,
+            selectedModelOptionID: selectedComposerModelOptionID,
+            effortOptions: composerEffortOptions,
+            onModelOptionChange: applyComposerModelOptionChange(_:),
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
             runtimeStatus: agentsManager.status(for: conversation.id),
@@ -271,16 +270,35 @@ private extension ConversationView {
 
     var composerModelOptions: [ChatComposerActionRowView.MenuOption] {
         let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
-        var options = modelOptions(for: activeAgentProviderID).map { option in
-            ChatComposerActionRowView.MenuOption(value: modelValue(for: option), title: option.label)
+        let agentModelOptions = modelOptions(for: activeAgentProviderID)
+        var options = agentModelOptions.map { option in
+            ChatComposerActionRowView.MenuOption(value: AgentModelOptionSelection.pickerValue(for: option), title: option.label)
         }
         if options.isEmpty {
             options = [.init(value: AppSettings.defaultModelValue, title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue))]
         }
-        if !options.contains(where: { $0.value == selectedModel }) {
+        if AgentModelOptionSelection.option(in: agentModelOptions, matching: selectedModel) == nil,
+           !options.contains(where: { $0.value == selectedModel }) {
             options.append(.init(value: selectedModel, title: ChatComposerTextSupport.modelLabel(for: selectedModel)))
         }
         return options
+    }
+
+    var selectedComposerModelOptionID: String {
+        AgentModelOptionSelection.pickerValue(
+            in: modelOptions(for: activeAgentProviderID),
+            matching: conversation.thread?.model ?? AppSettings.defaultModelValue
+        )
+    }
+
+    var composerEffortOptions: [ChatComposerActionRowView.MenuOption] {
+        let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
+        return AgentModelOptionSelection.effortOptions(
+            in: modelOptions(for: activeAgentProviderID),
+            selectedModel: selectedModel
+        ).map { option in
+            ChatComposerActionRowView.MenuOption(value: option.value, title: option.label)
+        }
     }
 
     func refreshComposerProviderStatuses() async {
@@ -305,12 +323,17 @@ private extension ConversationView {
         if let options = composerProviderStatuses[providerId]?.modelOptions, !options.isEmpty {
             return options
         }
-        return AgentCLIKit.AgentDefaultModelOptions.optionsByProvider[providerId]
-            ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+        return AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
     }
 
-    func modelValue(for option: AgentCLIKit.AgentModelOption) -> String {
-        option.model ?? AppSettings.defaultModelValue
+    func applyComposerModelOptionChange(_ optionID: String) {
+        let options = modelOptions(for: activeAgentProviderID)
+        let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: optionID)
+        _ = viewModel.applyModelChange(
+            storedModel,
+            effortOptions: AgentModelOptionSelection.effortOptions(in: options, selectedModel: storedModel),
+            defaultEffort: AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: storedModel)
+        )
     }
 
     func providerPermissionModes() -> [PermissionModeOption] {
