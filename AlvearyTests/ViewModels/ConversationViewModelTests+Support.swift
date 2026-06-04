@@ -30,6 +30,9 @@ actor MockAgentsManager: AgentsManager {
         let config: AgentSpawnConfig
     }
 
+    // swiftlint:disable:next large_tuple
+    typealias MarkPersistedCall = (conversationId: String, generation: UUID, index: Int)
+
     struct ApprovalCall: Sendable, Equatable {
         let conversationId: String
         let approval: ToolApprovalRequest
@@ -53,6 +56,7 @@ actor MockAgentsManager: AgentsManager {
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
+    private var recordedMarkPersistedCalls: [MarkPersistedCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var recordedCancelCalls: [String] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
@@ -236,7 +240,9 @@ actor MockAgentsManager: AgentsManager {
         isRunningValue = true
     }
 
-    func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
+    func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {
+        recordedMarkPersistedCalls.append((conversationId, generation, index))
+    }
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {
         statusStore.status(for: conversationId)
@@ -266,6 +272,10 @@ actor MockAgentsManager: AgentsManager {
 
     func freshSessionCalls() -> [FreshSessionCall] {
         recordedFreshSessionCalls
+    }
+
+    func markPersistedCalls() -> [MarkPersistedCall] {
+        recordedMarkPersistedCalls
     }
 
     func approvalCalls() -> [ApprovalCall] {

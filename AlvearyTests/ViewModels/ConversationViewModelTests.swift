@@ -11,6 +11,7 @@ final class ConversationViewModelTests: XCTestCase {
         fixture.viewModel.state.lastObservedEventIndex = 7
         fixture.viewModel.state.lastPersistedEventIndex = 5
         fixture.viewModel.state.activeBufferGeneration = UUID()
+        fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
         let config = AgentSpawnConfig(
             providerId: "claude",
@@ -34,6 +35,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 0)
         XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 0)
         XCTAssertNil(fixture.viewModel.state.activeBufferGeneration)
+        XCTAssertNil(fixture.viewModel.state.activeRuntimeActivityTurnId)
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
     }
 
@@ -41,6 +43,7 @@ final class ConversationViewModelTests: XCTestCase {
         let fixture = try ConversationViewModelTestFixture(reconfigureError: .reconfigureFailed)
         fixture.viewModel.state.lastObservedEventIndex = 7
         fixture.viewModel.state.lastPersistedEventIndex = 5
+        fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
         let config = AgentSpawnConfig(
             providerId: "claude",
@@ -60,6 +63,7 @@ final class ConversationViewModelTests: XCTestCase {
 
         XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 7)
         XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 5)
+        XCTAssertEqual(fixture.viewModel.state.activeRuntimeActivityTurnId, "turn-1")
         XCTAssertFalse(fixture.viewModel.state.isReconfiguringSession)
     }
 

@@ -242,6 +242,84 @@ extension AgentsManagerTests {
             XCTFail("Expected stdinClosed, got \(error)")
         }
     }
+
+    func testRuntimeActivityOnlySetsManagerStatusForFailureFallback() async throws {
+        let executable = try makeScript(named: "idle-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let manager = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        ).manager
+        let conversationId = "agentclikit-runtime-activity-status-fallback"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        try await waitUntil("expected AgentCLIKit runtime to settle idle") {
+            manager.status(for: conversationId) == .idle
+        }
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .idle)
+
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .failed(message: "Codex turn failed.")),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .error)
+
+        await manager.kill(conversationId: conversationId)
+    }
+
+    func testRuntimeActivityFailureDoesNotOverwriteWaitingForUserStatus() async throws {
+        let executable = try makeScript(named: "idle-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let manager = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        ).manager
+        let conversationId = "agentclikit-runtime-activity-preserves-waiting"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        try await waitUntil("expected AgentCLIKit runtime to settle idle") {
+            manager.status(for: conversationId) == .idle
+        }
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+        let approval = ToolApprovalRequest(
+            sessionId: "session-1",
+            toolUseId: "tool-1",
+            toolName: "Bash",
+            toolInput: #"{"command":"pwd"}"#
+        )
+
+        await manager.handleStreamEvent(
+            .toolApprovalRequested(approval),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
+
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .idle, turnId: nil, outcome: .failed(message: "Codex turn failed.")),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
+
+        await manager.kill(conversationId: conversationId)
+    }
 }
 
 private struct TurnStatusAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {

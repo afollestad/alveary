@@ -54,6 +54,7 @@ extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.sessionContinuityNotice = nil
+        state.activeRuntimeActivityTurnId = nil
 
         do {
             if await needsRespawn() {
@@ -72,6 +73,10 @@ extension ConversationViewModel {
     // Hidden handoff events drive fresh-session setup, but never transcript rows.
     // swiftlint:disable:next cyclomatic_complexity
     func shouldPersistHiddenSessionHandoffEvent(_ event: ConversationEvent) -> Bool {
+        if state.failedSessionHandoffMessage != nil, !state.isHandingOffSession {
+            return acknowledgeLateHiddenSessionHandoffTerminalEvent(event)
+        }
+
         switch event {
         case .sessionInit:
             return false
@@ -106,12 +111,13 @@ extension ConversationViewModel {
                 handleHiddenSessionHandoffTokens(payload)
             }
             return false
+        case .runtimeActivity(let activityState, let turnId, let outcome):
+            return handleHiddenSessionHandoffRuntimeActivity(state: activityState, turnId: turnId, outcome: outcome)
         case .toolApprovalRequested, .toolApprovalFailed:
             failSessionHandoff("Session handoff paused because the hidden handoff prompt requested approval.")
             return false
         case .error(let message):
-            failSessionHandoff("Session handoff failed: \(message)")
-            return false
+            return failHiddenSessionHandoffFromError(message)
         default:
             return false
         }
@@ -147,6 +153,10 @@ extension ConversationViewModel {
     var canRetryFailedSessionHandoff: Bool {
         state.failedSessionHandoffMessage != nil
     }
+
+    func failHiddenSessionHandoff(_ message: String) { failSessionHandoff(message) }
+
+    func finishHiddenSessionHandoff(with output: String) async { await finishSessionHandoff(with: output) }
 
     func retryFailedSessionHandoff() {
         guard state.failedSessionHandoffMessage != nil else {
@@ -396,6 +406,7 @@ private extension ConversationViewModel {
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
         state.clearStreamingText()
+        state.activeRuntimeActivityTurnId = nil
         state.turnState.endTurn()
         state.lastTurnError = message
         let draft = flushDraftFromEditor()
@@ -478,6 +489,7 @@ private extension ConversationViewModel {
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
         state.activeSubscriptionToken = nil
+        state.activeRuntimeActivityTurnId = nil
         state.grouper.resetInFlightStateForNewSession()
     }
 }

@@ -238,7 +238,13 @@ private extension ConversationEvent {
         switch self {
         case .message(let role, _, let parentToolUseId):
             return role == "assistant" && parentToolUseId == nil
-        case .tokens, .stop, .error, .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+        case .tokens,
+             .stop,
+             .error,
+             .runtimeActivity,
+             .contextCompactionStarted,
+             .contextCompactionCompleted,
+             .contextCompactionFailed:
             return true
         default:
             return false

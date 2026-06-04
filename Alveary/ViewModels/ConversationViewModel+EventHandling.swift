@@ -6,6 +6,14 @@ extension ConversationViewModel {
         persistEventRecord(for: event)
         handlePostPersistEvent(event)
     }
+
+    func shouldIgnoreRuntimeActivityIdle(turnId: String?) -> Bool {
+        guard let activeRuntimeActivityTurnId = state.activeRuntimeActivityTurnId,
+              let turnId else {
+            return false
+        }
+        return activeRuntimeActivityTurnId != turnId
+    }
 }
 
 private extension ConversationViewModel {
@@ -46,8 +54,14 @@ private extension ConversationViewModel {
         case .toolApprovalFailed(let failure):
             return handleToolApprovalFailed(failure)
 
+        case .runtimeActivity(let activityState, let turnId, let outcome):
+            return handleRuntimeActivity(state: activityState, turnId: turnId, outcome: outcome)
+
         case .stop(let message):
             return shouldPersistStopEvent(message: message)
+
+        case .error(let message):
+            return shouldPersistErrorEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             return handleSubAgentControlEvent(event)
@@ -100,6 +114,7 @@ private extension ConversationViewModel {
         state.clearStreamingText()
         guard payload.stopReason != ConversationEvent.interimUsageStopReason else { return .persistTokens }
         guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
+        state.activeRuntimeActivityTurnId = nil
         clearResolvedPendingToolApprovalIfNeeded()
 
         if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
@@ -152,6 +167,105 @@ private extension ConversationViewModel {
         return .persistTokens
     }
 
+    func handleRuntimeActivity(
+        state activityState: ConversationRuntimeActivityState,
+        turnId: String?,
+        outcome: ConversationRuntimeActivityOutcome
+    ) -> Bool {
+        switch activityState {
+        case .active:
+            state.activeRuntimeActivityTurnId = turnId
+            state.turnState.beginTurn()
+            scheduleSave()
+        case .idle:
+            handleRuntimeActivityIdle(turnId: turnId, outcome: outcome)
+        }
+        return false
+    }
+
+    func handleRuntimeActivityIdle(
+        turnId: String?,
+        outcome: ConversationRuntimeActivityOutcome
+    ) {
+        guard !shouldIgnoreRuntimeActivityIdle(turnId: turnId) else {
+            scheduleSave()
+            return
+        }
+
+        state.clearStreamingText()
+        switch outcome {
+        case .unknown, .completed:
+            state.activeRuntimeActivityTurnId = nil
+            if state.isCancellingTurn {
+                handleRuntimeActivityInterruptedTurn()
+            } else {
+                handleTurnCompleted()
+                scheduleSave()
+            }
+        case .failed(let message):
+            handleRuntimeActivityFailedTurn(message: message)
+        case .interrupted:
+            handleRuntimeActivityInterruptedTurn()
+        }
+    }
+
+    func handleRuntimeActivityFailedTurn(message: String) {
+        state.activeRuntimeActivityTurnId = nil
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnInterrupted = false
+        state.lastTurnError = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+        state.turnState.endTurn()
+        scheduleSave()
+    }
+
+    func handleRuntimeActivityInterruptedTurn() {
+        let shouldPersistInterruption = !state.lastTurnInterrupted
+        state.activeRuntimeActivityTurnId = nil
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.lastTurnInterrupted = true
+        state.turnState.endTurn()
+        if shouldPersistInterruption {
+            persistSyntheticStopRecord(message: ConversationInterruption.displayMessage)
+        }
+        scheduleSave()
+    }
+
+    func shouldPersistErrorEvent(message: String) -> Bool {
+        state.activeRuntimeActivityTurnId = nil
+        state.clearStreamingText()
+        if shouldSuppressInterruptedError(message) {
+            state.isCancellingTurn = false
+            state.turnState.endTurn()
+            scheduleSave()
+            return false
+        }
+
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnInterrupted = false
+        state.lastTurnError = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+        state.turnState.endTurn()
+        return true
+    }
+
+    func shouldSuppressInterruptedError(_ message: String) -> Bool {
+        guard state.lastTurnInterrupted, !state.turnState.isActive else {
+            return false
+        }
+        let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedMessage.contains("interrupt") ||
+            normalizedMessage.contains("cancel") ||
+            normalizedMessage.contains("no active turn")
+    }
+
+    func normalizedTurnErrorMessage(_ message: String, fallback: String) -> String {
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedMessage.isEmpty ? fallback : trimmedMessage
+    }
+
     func shouldPersistTokenEvent(_ payload: TokenEventPayload) -> Bool {
         switch handleTokenEvent(payload) {
         case .persistTokens:
@@ -169,6 +283,7 @@ private extension ConversationViewModel {
     }
 
     func handleInterruptedTokenTurn() {
+        state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
@@ -177,13 +292,21 @@ private extension ConversationViewModel {
     }
 
     func handleFailedTokenTurn(_ payload: TokenEventPayload) {
+        state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
         state.lastTurnInterrupted = false
         state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
     }
 
     func shouldPersistStopEvent(message: String?) -> Bool {
+        state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
+        if ConversationInterruption.isDisplayMessage(message), state.lastTurnInterrupted {
+            state.isCancellingTurn = false
+            state.turnState.endTurn()
+            scheduleSave()
+            return false
+        }
         if state.isCancellingTurn || ConversationInterruption.isDisplayMessage(message) {
             state.isCancellingTurn = false
             state.lastTurnError = nil

@@ -131,5 +131,9 @@ final class ConversationEventTests: XCTestCase {
             ConversationEvent.subAgentCompleted(toolUseId: "tool-1", status: "completed", toolUses: 1, totalTokens: 50, durationMs: 250)
                 .toRecord(conversation: conversation)
         )
+        XCTAssertNil(
+            ConversationEvent.runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed)
+                .toRecord(conversation: conversation)
+        )
     }
 }

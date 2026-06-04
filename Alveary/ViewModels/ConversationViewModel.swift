@@ -189,6 +189,7 @@ final class ConversationViewModel {
             state.lastTurnInterrupted = false
             state.isCancellingTurn = false
             state.lastTurnError = nil
+            state.activeRuntimeActivityTurnId = nil
             try await agentsManager.sendMessage(message, conversationId: conversation.id)
             state.turnState.beginTurn()
             insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: false)
@@ -316,6 +317,7 @@ final class ConversationViewModel {
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
+        state.activeRuntimeActivityTurnId = nil
         state.grouper.resetInFlightStateForNewSession()
         subscribe()
     }

@@ -64,9 +64,23 @@ extension DefaultAgentsManager {
             updateStatus(.waitingForUser, for: conversationId)
         case .error:
             updateStatus(.error, for: conversationId)
+        case .runtimeActivity(_, _, let outcome):
+            handleRuntimeActivityStatus(outcome, conversationId: conversationId)
         default:
             break
         }
+    }
+
+    private func handleRuntimeActivityStatus(
+        _ outcome: ConversationRuntimeActivityOutcome,
+        conversationId: String
+    ) {
+        guard case .failed = outcome,
+              eventBuffers[conversationId]?.acceptsLiveEvents == true,
+              status(for: conversationId) != .waitingForUser else {
+            return
+        }
+        updateStatus(.error, for: conversationId)
     }
 
     private func handleToolApprovalFailureStatus(

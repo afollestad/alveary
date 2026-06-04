@@ -26,6 +26,7 @@ final class ConversationState {
     var lastPersistedEventIndex = 0
     var activeBufferGeneration: UUID?
     var activeSubscriptionToken: UUID?
+    var activeRuntimeActivityTurnId: String?
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
     var inputDraftRevision = 0

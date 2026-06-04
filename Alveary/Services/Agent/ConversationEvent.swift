@@ -63,6 +63,18 @@ struct PermissionDenialSummary: Sendable, Equatable {
     let toolUseId: String?
 }
 
+enum ConversationRuntimeActivityState: Sendable, Equatable {
+    case active
+    case idle
+}
+
+enum ConversationRuntimeActivityOutcome: Sendable, Equatable {
+    case unknown
+    case completed
+    case failed(message: String)
+    case interrupted
+}
+
 struct ToolApprovalFailure: Sendable, Equatable {
     let sessionId: String?
     let toolUseId: String?
@@ -101,6 +113,11 @@ enum ConversationEvent: Sendable, Equatable {
     case contextCompactionStarted(id: String, trigger: String?)
     case contextCompactionCompleted(id: String, summary: String?)
     case contextCompactionFailed(id: String, error: String?)
+    case runtimeActivity(
+        state: ConversationRuntimeActivityState,
+        turnId: String?,
+        outcome: ConversationRuntimeActivityOutcome
+    )
     case notification(type: String, message: String?)
     case stop(message: String?)
     case error(message: String)
@@ -137,7 +154,12 @@ enum ConversationEvent: Sendable, Equatable {
             return contextCompactionCompletedRecord(conversation: conversation)
         case .contextCompactionFailed:
             return contextCompactionFailedRecord(conversation: conversation)
-        case .messageChunk, .subAgentStarted, .subAgentProgress, .subAgentCompleted, .permissionModeChanged:
+        case .messageChunk,
+             .subAgentStarted,
+             .subAgentProgress,
+             .subAgentCompleted,
+             .runtimeActivity,
+             .permissionModeChanged:
             return nil
         }
     }

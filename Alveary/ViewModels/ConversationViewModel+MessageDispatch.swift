@@ -58,6 +58,7 @@ extension ConversationViewModel {
 
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
+        state.activeRuntimeActivityTurnId = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
         try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
         if stagedContextOverride == nil {
@@ -112,6 +113,7 @@ extension ConversationViewModel {
                 state.lastTurnInterrupted = false
                 state.isCancellingTurn = false
                 state.lastTurnError = nil
+                state.activeRuntimeActivityTurnId = nil
                 try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
                 state.turnState.beginTurn()
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)

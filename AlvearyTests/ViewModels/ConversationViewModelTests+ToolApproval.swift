@@ -265,10 +265,18 @@ extension ConversationViewModelTests {
             toolInput: "{\"command\":\"swift test\"}"
         )
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+        fixture.viewModel.state.lastObservedEventIndex = 7
+        fixture.viewModel.state.lastPersistedEventIndex = 5
+        fixture.viewModel.state.activeBufferGeneration = UUID()
+        fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
 
         try await fixture.viewModel.approveToolUse(toolUseId: "tool-1")
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(fixture.viewModel.state.lastObservedEventIndex, 0)
+        XCTAssertEqual(fixture.viewModel.state.lastPersistedEventIndex, 0)
+        XCTAssertNil(fixture.viewModel.state.activeBufferGeneration)
+        XCTAssertNil(fixture.viewModel.state.activeRuntimeActivityTurnId)
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .allow)

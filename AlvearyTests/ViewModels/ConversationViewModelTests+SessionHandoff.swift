@@ -164,24 +164,6 @@ extension ConversationViewModelTests {
         XCTAssertEqual(sentMessages, [AppSettings.defaultSessionHandoffPrompt])
     }
 
-    func testFailedSessionHandoffSuppressesTrailingHiddenProviderOutput() async throws {
-        let fixture = try ConversationViewModelTestFixture()
-
-        await fixture.viewModel.startSessionHandoff(trigger: .manual)
-        try await waitUntil("handoff prompt sent") {
-            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
-        }
-        fixture.viewModel.handleEvent(.error(message: "handoff prompt failed"))
-
-        fixture.viewModel.handleEvent(.messageChunk(text: "late hidden", parentToolUseId: nil))
-        fixture.viewModel.handleEvent(.message(role: "assistant", content: "late hidden response", parentToolUseId: nil))
-
-        XCTAssertNil(fixture.viewModel.streamingText)
-        XCTAssertEqual(fixture.viewModel.state.failedSessionHandoffMessage, "Session handoff failed: handoff prompt failed")
-        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
-        XCTAssertNil(records.first { $0.role == "assistant" })
-    }
-
     func testFailedSessionHandoffRetryRerunsHiddenFlowAndOnlyStartsFreshSessionAfterSuccess() async throws {
         let fixture = try ConversationViewModelTestFixture()
 

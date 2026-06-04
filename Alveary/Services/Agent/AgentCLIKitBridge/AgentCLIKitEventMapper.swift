@@ -33,8 +33,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return diagnosticEvents(from: event)
         case .rateLimit(let event):
             return [.notification(type: "rate_limit", message: event.status.rawValue)]
-        case .activity:
-            return []
+        case .activity(let event):
+            return activityEvents(from: event, envelope: envelope)
         case .rawOutput:
             return []
         }
@@ -221,6 +221,55 @@ struct AgentCLIKitEventMapper: Sendable {
         }
     }
 
+    private func activityEvents(
+        from event: AgentCLIKit.AgentActivityEvent,
+        envelope: AgentCLIKit.AgentEventEnvelope
+    ) -> [ConversationEvent] {
+        [
+            .runtimeActivity(
+                state: activityState(from: event),
+                turnId: event.turnId,
+                outcome: activityOutcome(from: event, envelope: envelope)
+            )
+        ]
+    }
+
+    private func activityState(from event: AgentCLIKit.AgentActivityEvent) -> ConversationRuntimeActivityState {
+        switch event.state {
+        case .active:
+            return .active
+        case .idle:
+            return .idle
+        }
+    }
+
+    private func activityOutcome(
+        from event: AgentCLIKit.AgentActivityEvent,
+        envelope: AgentCLIKit.AgentEventEnvelope
+    ) -> ConversationRuntimeActivityOutcome {
+        guard event.state == .idle else {
+            return .unknown
+        }
+        guard envelope.providerId == .codex else {
+            return .completed
+        }
+
+        if let turnStatus = event.metadata.stringValue("codex_turn_status")?.lowercased() {
+            switch turnStatus {
+            case "failed":
+                return .failed(message: "Codex turn failed.")
+            case "cancelled", "canceled", "interrupted":
+                return .interrupted
+            default:
+                break
+            }
+        }
+        if event.metadata.stringValue("codex_status")?.lowercased() == "systemerror" {
+            return .failed(message: "Codex App Server reported a thread system error.")
+        }
+        return .completed
+    }
+
     private func diagnosticEvents(from event: AgentCLIKit.AgentDiagnosticEvent) -> [ConversationEvent] {
         if event.code == .hookApprovalFailed {
             return [.toolApprovalFailed(ToolApprovalFailure(
@@ -229,6 +278,11 @@ struct AgentCLIKitEventMapper: Sendable {
                 toolName: event.metadata.stringValue("tool_name"),
                 message: event.message
             ))]
+        }
+        if event.code == .codexAppServerResponseFailure,
+           event.severity == .warning,
+           event.metadata.stringValue("codex_status")?.lowercased() == "systemerror" {
+            return [.error(message: event.message)]
         }
         if event.severity == .error {
             return [.error(message: event.message)]

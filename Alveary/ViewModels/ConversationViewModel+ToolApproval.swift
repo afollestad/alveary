@@ -66,6 +66,7 @@ extension ConversationViewModel {
             return false
         }
 
+        state.activeRuntimeActivityTurnId = nil
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
         state.lastTurnError = nil
@@ -369,6 +370,7 @@ private extension ConversationViewModel {
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
         state.activeSubscriptionToken = nil
+        state.activeRuntimeActivityTurnId = nil
     }
 
     func toolApprovalProviderId() -> String {
