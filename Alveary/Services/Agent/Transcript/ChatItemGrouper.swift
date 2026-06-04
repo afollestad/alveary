@@ -223,4 +223,13 @@ final class ChatItemGrouper {
 
         items.insert(item, at: latestTaskListIndex)
     }
+
+    func replaceOrAppendTranscriptItem(_ item: ChatItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
+            appendTranscriptItem(item)
+            return
+        }
+
+        items[index] = item
+    }
 }

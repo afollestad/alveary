@@ -88,6 +88,37 @@ final class ConversationEventTests: XCTestCase {
         XCTAssertNil(sessionInitRecord.content)
     }
 
+    func testContextCompactionEventsProducePersistedRecords() throws {
+        let conversation = Conversation(provider: "claude")
+
+        let started = try XCTUnwrap(
+            ConversationEvent.contextCompactionStarted(id: "compact-1", trigger: "auto")
+                .toRecord(conversation: conversation)
+        )
+        let completed = try XCTUnwrap(
+            ConversationEvent.contextCompactionCompleted(id: "compact-1", summary: "Reduced history")
+                .toRecord(conversation: conversation)
+        )
+        let failed = try XCTUnwrap(
+            ConversationEvent.contextCompactionFailed(id: "compact-2", error: "Compaction failed")
+                .toRecord(conversation: conversation)
+        )
+
+        XCTAssertEqual(started.type, ConversationContextCompaction.startedType)
+        XCTAssertEqual(started.toolId, "compact-1")
+        XCTAssertEqual(started.content, "auto")
+        XCTAssertFalse(started.isError)
+
+        XCTAssertEqual(completed.type, ConversationContextCompaction.completedType)
+        XCTAssertEqual(completed.toolId, "compact-1")
+        XCTAssertEqual(completed.content, "Reduced history")
+
+        XCTAssertEqual(failed.type, ConversationContextCompaction.failedType)
+        XCTAssertEqual(failed.toolId, "compact-2")
+        XCTAssertEqual(failed.content, "Compaction failed")
+        XCTAssertTrue(failed.isError)
+    }
+
     func testStreamOnlyEventsDoNotCreateRecords() {
         let conversation = Conversation(provider: "claude")
 

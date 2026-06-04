@@ -159,6 +159,8 @@ final class DefaultNotificationManager: NotificationManager {
             return request.notificationMessage
         case .error(let errorMessage):
             return errorMessage.isEmpty ? "Your agent encountered an error" : errorMessage
+        case .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+            return nil
         default:
             return nil
         }

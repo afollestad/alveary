@@ -33,16 +33,11 @@ extension ChatItemGrouper {
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.error(id: event.id, message: event.content ?? "Unknown error"))
-        case "stop" where ConversationInterruption.isDisplayMessage(event.content):
-            currentToolApprovalBatch = nil
-            flushGroup()
-            flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))
-        case "stop" where ConversationSessionHandoff.isDisplayMessage(event.content):
-            currentToolApprovalBatch = nil
-            flushGroup()
-            flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: event.id, kind: .sessionHandoff))
+        case "stop",
+             ConversationContextCompaction.startedType,
+             ConversationContextCompaction.completedType,
+             ConversationContextCompaction.failedType:
+            handleLifecycleNote(event)
         default:
             // `thinking` events are intentionally not rendered — they add little for the
             // user and clutter transcripts. The active-turn "Thinking…" spinner in

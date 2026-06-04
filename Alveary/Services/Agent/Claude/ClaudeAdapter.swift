@@ -6,6 +6,7 @@ final class ClaudeAdapter: AgentAdapter, Sendable {
     let localCommandCaveatStartTag = "<local-command-caveat>"
     let localCommandCaveatEndTag = "</local-command-caveat>"
     let hasDeferredTool = LockedState(false)
+    let contextCompactionState = LockedState(ClaudeContextCompactionState())
 
     func buildArgs(config: AgentConfig) -> [String] {
         var args = [

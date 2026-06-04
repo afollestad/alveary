@@ -21,6 +21,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return [.permissionModeChanged(event.mode)]
         case .task(let event):
             return taskEvents(from: event)
+        case .contextCompaction(let event):
+            return contextCompactionEvents(from: event)
         case .sessionContinuity(let event):
             return [.sessionInit(sessionId: event.providerSessionId?.rawValue)]
         case .interaction(let event):
@@ -166,6 +168,17 @@ struct AgentCLIKitEventMapper: Sendable {
             return nil
         }
         return output
+    }
+
+    private func contextCompactionEvents(from event: AgentCLIKit.AgentContextCompactionEvent) -> [ConversationEvent] {
+        switch event.phase {
+        case .started:
+            return [.contextCompactionStarted(id: event.id, trigger: event.trigger)]
+        case .completed:
+            return [.contextCompactionCompleted(id: event.id, summary: event.summary)]
+        case .failed:
+            return [.contextCompactionFailed(id: event.id, error: event.errorMessage ?? event.summary)]
+        }
     }
 
     private func interactionEvents(

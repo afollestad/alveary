@@ -42,6 +42,15 @@ enum ConversationSessionHandoff {
     }
 }
 
+enum ConversationContextCompaction {
+    static let startedType = "context_compaction_started"
+    static let completedType = "context_compaction_completed"
+    static let failedType = "context_compaction_failed"
+    static let startedDisplayMessage = "Automatically compacting context"
+    static let completedDisplayMessage = "Automatically compacted context"
+    static let failedDisplayMessage = "Context compaction failed"
+}
+
 struct ToolResultMetadata: Sendable, Equatable {
     let stderr: String?
     let interrupted: Bool
@@ -89,6 +98,9 @@ enum ConversationEvent: Sendable, Equatable {
     case subAgentStarted(toolUseId: String, description: String, taskType: String?)
     case subAgentProgress(toolUseId: String, description: String?, lastToolName: String?, toolUses: Int, totalTokens: Int, durationMs: Int)
     case subAgentCompleted(toolUseId: String, status: String, toolUses: Int, totalTokens: Int, durationMs: Int)
+    case contextCompactionStarted(id: String, trigger: String?)
+    case contextCompactionCompleted(id: String, summary: String?)
+    case contextCompactionFailed(id: String, error: String?)
     case notification(type: String, message: String?)
     case stop(message: String?)
     case error(message: String)
@@ -119,6 +131,12 @@ enum ConversationEvent: Sendable, Equatable {
             return sessionInitRecord(conversation: conversation)
         case .error:
             return errorRecord(conversation: conversation)
+        case .contextCompactionStarted:
+            return contextCompactionStartedRecord(conversation: conversation)
+        case .contextCompactionCompleted:
+            return contextCompactionCompletedRecord(conversation: conversation)
+        case .contextCompactionFailed:
+            return contextCompactionFailedRecord(conversation: conversation)
         case .messageChunk, .subAgentStarted, .subAgentProgress, .subAgentCompleted, .permissionModeChanged:
             return nil
         }
@@ -322,6 +340,52 @@ private extension ConversationEvent {
             conversationId: conversation.id,
             type: "error",
             content: message,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func contextCompactionStartedRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .contextCompactionStarted(id, trigger) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: ConversationContextCompaction.startedType,
+            content: trigger,
+            toolId: id,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func contextCompactionCompletedRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .contextCompactionCompleted(id, summary) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: ConversationContextCompaction.completedType,
+            content: summary,
+            toolId: id,
+            conversation: conversation
+        )
+    }
+
+    @MainActor
+    func contextCompactionFailedRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case let .contextCompactionFailed(id, error) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            conversationId: conversation.id,
+            type: ConversationContextCompaction.failedType,
+            content: error,
+            toolId: id,
+            isError: true,
             conversation: conversation
         )
     }

@@ -118,6 +118,42 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.streamingText)
     }
 
+    func testSubscriptionContextCompactionClearsRootStreamingTextAndPersistsNote() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Partial", parentToolUseId: nil))
+        try await waitUntil("streaming text appears", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "Partial"
+        }
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: " buffered", parentToolUseId: nil))
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.contextCompactionStarted(id: "compact-1", trigger: "auto"))
+
+        try await waitUntil("compaction event is persisted", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+                $0.conversationId == fixture.conversation.id
+            }
+            return records.contains {
+                $0.type == ConversationContextCompaction.startedType &&
+                    $0.toolId == "compact-1"
+            }
+        }
+
+        XCTAssertNil(fixture.viewModel.streamingText)
+        XCTAssertEqual(fixture.viewModel.state.grouper.items, [
+            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
+        ])
+
+        await fixture.agentsManager.finishSubscription()
+    }
+
     func testSubscriptionPersistsAssistantFailureMessage() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.enableSubscription()

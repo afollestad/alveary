@@ -125,6 +125,9 @@ enum CenteredTranscriptNoteKind: Equatable {
     case enteredPlanMode
     case exitedPlanMode
     case stayingInPlanMode
+    case contextCompactionStarted
+    case contextCompactionCompleted
+    case contextCompactionFailed
 
     var text: String {
         switch self {
@@ -138,6 +141,12 @@ enum CenteredTranscriptNoteKind: Equatable {
             return "Exited plan mode"
         case .stayingInPlanMode:
             return "Staying in plan mode"
+        case .contextCompactionStarted:
+            return ConversationContextCompaction.startedDisplayMessage
+        case .contextCompactionCompleted:
+            return ConversationContextCompaction.completedDisplayMessage
+        case .contextCompactionFailed:
+            return ConversationContextCompaction.failedDisplayMessage
         }
     }
 }

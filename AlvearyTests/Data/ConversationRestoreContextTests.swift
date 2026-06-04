@@ -87,6 +87,41 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("Structured stream decoding failed"))
     }
 
+    func testRefreshPendingRestoreContextExcludesNormalContextCompaction() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Continue after compaction")
+        fixture.addEvent(type: ConversationContextCompaction.startedType, content: "auto", toolId: "compact-1")
+        fixture.addEvent(type: ConversationContextCompaction.completedType, content: "Reduced context", toolId: "compact-1")
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Continue after compaction"))
+        XCTAssertFalse(pendingRestoreContext.contains("Automatically compact"))
+        XCTAssertFalse(pendingRestoreContext.contains("Reduced context"))
+    }
+
+    func testRefreshPendingRestoreContextIncludesFailedContextCompactionError() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "assistant", content: "Working before compaction")
+        fixture.addEvent(
+            type: ConversationContextCompaction.failedType,
+            content: "Compact hook failed",
+            toolId: "compact-1",
+            isError: true
+        )
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Last session note:"))
+        XCTAssertTrue(pendingRestoreContext.contains("Context compaction failed: Compact hook failed"))
+    }
+
     func testRefreshPendingRestoreContextKeepsOnlyRecentTranscriptEntries() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation

@@ -329,6 +329,30 @@ final class NotificationManagerTests: XCTestCase {
         )
     }
 
+    func testContextCompactionEventsDoNotNotifyOrMarkUnread() throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: false,
+            activeConversationId: nil,
+            spy: spy
+        )
+
+        manager.handleEvent(.contextCompactionStarted(id: "compact-1", trigger: "auto"), conversationId: conversation.id)
+        manager.handleEvent(.contextCompactionCompleted(id: "compact-1", summary: nil), conversationId: conversation.id)
+        manager.handleEvent(.contextCompactionFailed(id: "compact-2", error: "Compact hook failed"), conversationId: conversation.id)
+
+        XCTAssertTrue(spy.playedSounds.isEmpty)
+        XCTAssertTrue(spy.postedNotifications.isEmpty)
+        XCTAssertFalse(
+            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? true
+        )
+    }
+
     func testMissingConversationFallsBackToBaseMessage() throws {
         let service = InMemorySettingsService()
         let spy = NotificationSpy()

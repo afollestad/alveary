@@ -55,20 +55,26 @@ extension ClaudeAdapter {
             return []
         }
 
-        switch subtype {
+        var events: [ConversationEvent] = switch subtype {
         case "init":
-            return decodeSystemInitEvent(json)
+            decodeSystemInitEvent(json)
         case "status":
-            return decodeSystemStatusEvent(json)
+            decodeSystemStatusEvent(json)
         case "task_started":
-            return decodeTaskStartedEvent(json)
+            decodeTaskStartedEvent(json)
         case "task_progress":
-            return decodeTaskProgressEvent(json)
+            decodeTaskProgressEvent(json)
         case "task_notification":
-            return decodeTaskNotificationEvent(json)
+            decodeTaskNotificationEvent(json)
         default:
-            return []
+            []
         }
+
+        if let compactionEvent = decodeContextCompactionEvent(json),
+           !events.contains(compactionEvent) {
+            events.append(compactionEvent)
+        }
+        return events
     }
 
     func decodeAssistantEvent(_ json: [String: Any], parentToolUseId: String?) -> [ConversationEvent] {

@@ -66,8 +66,56 @@ extension ChatItemGrouper {
             return "EnterPlanMode"
         case .exitedPlanMode, .stayingInPlanMode:
             return "ExitPlanMode"
-        case .interrupted, .sessionHandoff:
+        case .interrupted, .sessionHandoff, .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return "Tool"
+        }
+    }
+
+    func handleContextCompaction(_ event: ConversationEventRecord) {
+        currentToolApprovalBatch = nil
+        flushGroup()
+        flushSubAgents()
+        replaceOrAppendTranscriptItem(
+            .centeredNote(
+                id: contextCompactionNoteId(for: event),
+                kind: contextCompactionNoteKind(for: event)
+            )
+        )
+    }
+
+    private func contextCompactionNoteId(for event: ConversationEventRecord) -> String {
+        "context-compaction-\(event.toolId ?? event.id)"
+    }
+
+    private func contextCompactionNoteKind(for event: ConversationEventRecord) -> CenteredTranscriptNoteKind {
+        switch event.type {
+        case ConversationContextCompaction.completedType:
+            return .contextCompactionCompleted
+        case ConversationContextCompaction.failedType:
+            return .contextCompactionFailed
+        default:
+            return .contextCompactionStarted
+        }
+    }
+
+    func handleLifecycleNote(_ event: ConversationEventRecord) {
+        switch event.type {
+        case ConversationContextCompaction.startedType,
+             ConversationContextCompaction.completedType,
+             ConversationContextCompaction.failedType:
+            handleContextCompaction(event)
+        case "stop" where ConversationInterruption.isDisplayMessage(event.content):
+            currentToolApprovalBatch = nil
+            flushGroup()
+            flushSubAgents()
+            appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))
+        case "stop" where ConversationSessionHandoff.isDisplayMessage(event.content):
+            currentToolApprovalBatch = nil
+            flushGroup()
+            flushSubAgents()
+            appendTranscriptItem(.centeredNote(id: event.id, kind: .sessionHandoff))
+        default:
+            break
         }
     }
 }

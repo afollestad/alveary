@@ -48,6 +48,21 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertGreaterThan(label.frame.width, 100)
     }
 
+    func testCenteredNoteRendersContextCompactionText() throws {
+        let note = AppKitTranscriptCenteredNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 360, height: 120)
+        note.configure(.init(kind: .contextCompactionStarted))
+        note.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.stringValue, "Automatically compacting context")
+
+        note.configure(.init(kind: .contextCompactionCompleted))
+        note.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(label.stringValue, "Automatically compacted context")
+    }
+
     func testCenteredNoteHeightInvalidatesWhenTextWraps() {
         let note = AppKitTranscriptCenteredNoteView()
         var invalidated = false

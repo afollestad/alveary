@@ -181,4 +181,96 @@ extension ChatItemGrouperTests {
 
         XCTAssertTrue(grouper.centeredNoteToolKinds.isEmpty)
     }
+
+    func testContextCompactionStartRendersCenteredNote() {
+        let grouper = ChatItemGrouper()
+        let event = ConversationEventRecord(
+            id: "compact-start",
+            conversationId: "conversation-1",
+            type: ConversationContextCompaction.startedType,
+            toolId: "compact-1"
+        )
+
+        grouper.update(events: [event])
+
+        XCTAssertEqual(grouper.items, [
+            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
+        ])
+    }
+
+    func testContextCompactionTerminalEventReplacesStartNote() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let start = ConversationEventRecord(
+            id: "compact-start",
+            conversationId: conversationId,
+            type: ConversationContextCompaction.startedType,
+            toolId: "compact-1"
+        )
+        let completed = ConversationEventRecord(
+            id: "compact-completed",
+            conversationId: conversationId,
+            type: ConversationContextCompaction.completedType,
+            toolId: "compact-1"
+        )
+
+        grouper.update(events: [start, completed])
+
+        XCTAssertEqual(grouper.items, [
+            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionCompleted)
+        ])
+    }
+
+    func testContextCompactionClosesOpenGroupBeforeCenteredNote() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let read = ConversationEventRecord(
+            id: "read-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "read-1",
+            toolName: "Read",
+            toolInput: #"{"file_path":"README.md"}"#
+        )
+        let compaction = ConversationEventRecord(
+            id: "compact-start",
+            conversationId: conversationId,
+            type: ConversationContextCompaction.startedType,
+            toolId: "compact-1"
+        )
+
+        grouper.update(events: [read, compaction])
+
+        XCTAssertEqual(grouper.items.count, 2)
+        guard case .toolGroup(_, let tools) = grouper.items[0] else {
+            return XCTFail("Expected the pending tool group to close before compaction")
+        }
+        XCTAssertEqual(tools.map(\.id), ["read-1"])
+        XCTAssertEqual(grouper.items[1], .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted))
+    }
+
+    func testContextCompactionFailureReplacesStartNote() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let start = ConversationEventRecord(
+            id: "compact-start",
+            conversationId: conversationId,
+            type: ConversationContextCompaction.startedType,
+            toolId: "compact-1"
+        )
+        let failed = ConversationEventRecord(
+            id: "compact-failed",
+            conversationId: conversationId,
+            type: ConversationContextCompaction.failedType,
+            content: "Compact hook failed",
+            toolId: "compact-1",
+            isError: true
+        )
+
+        grouper.update(events: [start, failed])
+
+        XCTAssertEqual(grouper.items, [
+            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionFailed)
+        ])
+    }
 }

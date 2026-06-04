@@ -130,6 +130,31 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         ])
     }
 
+    func testMapsContextCompactionEvents() {
+        let mapper = AgentCLIKitEventMapper()
+
+        let started = mapper.conversationEvents(from: envelope(.contextCompaction(AgentContextCompactionEvent(
+            id: "compact-1",
+            phase: .started,
+            trigger: "auto"
+        ))))
+        let completed = mapper.conversationEvents(from: envelope(.contextCompaction(AgentContextCompactionEvent(
+            id: "compact-1",
+            phase: .completed,
+            summary: "Reduced context"
+        ))))
+        let failed = mapper.conversationEvents(from: envelope(.contextCompaction(AgentContextCompactionEvent(
+            id: "compact-2",
+            phase: .failed,
+            summary: "Fallback summary",
+            errorMessage: "Compact hook failed"
+        ))))
+
+        XCTAssertEqual(started, [.contextCompactionStarted(id: "compact-1", trigger: "auto")])
+        XCTAssertEqual(completed, [.contextCompactionCompleted(id: "compact-1", summary: "Reduced context")])
+        XCTAssertEqual(failed, [.contextCompactionFailed(id: "compact-2", error: "Compact hook failed")])
+    }
+
     func testMapsRawClaudeTaskNotificationToSubAgentResultOutput() throws {
         let taskNotification = """
         <task-notification>

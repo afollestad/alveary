@@ -36,6 +36,10 @@ private extension ConversationViewModel {
             guard let payload = TokenEventPayload(event) else { return true }
             return shouldPersistTokensEvent(payload)
 
+        case .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+            state.clearStreamingText()
+            return true
+
         case .toolApprovalRequested(let approval):
             return handleToolApprovalRequested(approval)
 

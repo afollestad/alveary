@@ -170,8 +170,8 @@ private extension Conversation {
                 return nil
             }
             return normalizedRestoreSnippet(record.stopReason) ?? "The previous run ended with an error."
-        case "error":
-            return normalizedRestoreSnippet(record.content)
+        case "error", ConversationContextCompaction.failedType:
+            return restoreErrorSessionNote(for: record)
         case "stop":
             return normalizedRestoreSnippet(record.content)
         case "notification":
@@ -190,6 +190,14 @@ private extension Conversation {
         default:
             return nil
         }
+    }
+
+    static func restoreErrorSessionNote(for record: ConversationEventRecord) -> String? {
+        let note = normalizedRestoreSnippet(record.content)
+        guard record.type == ConversationContextCompaction.failedType else {
+            return note
+        }
+        return note.map { "Context compaction failed: \($0)" }
     }
 
     static func normalizedRestoreSnippet(_ text: String?) -> String? {
