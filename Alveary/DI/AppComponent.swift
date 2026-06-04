@@ -193,7 +193,8 @@ extension AppComponent {
         return shared {
             AgentCLIKitProviderSessionActionService(
                 sessionStore: agentCLIKitSessionStore,
-                router: agentCLIKitSessionActionRouter
+                router: agentCLIKitSessionActionRouter,
+                providerLookup: agentCLIKitProviderRegistry
             )
         }
     }

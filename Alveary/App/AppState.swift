@@ -5,10 +5,13 @@ import SwiftData
 @MainActor
 @Observable
 final class AppState {
+    private static let maxUnexpectedErrorToasts = 3
+
     var selectedSidebarItem: SidebarItem?
     private(set) var isRightPaneVisible = false
     private(set) var isLeftPaneVisible = true
     private(set) var isTerminalPaneVisible = false
+    private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
     var pendingCommand: CommandRequest?
     var pendingDiffAction: DiffActionRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
@@ -31,6 +34,15 @@ final class AppState {
 
     func requestComposerFocus() {
         pendingComposerFocusToken = UUID()
+    }
+
+    func presentUnexpectedError(message: String, id: UUID = UUID()) {
+        let toast = UnexpectedErrorToast(id: id, message: message)
+        unexpectedErrorToasts = Array((unexpectedErrorToasts + [toast]).suffix(Self.maxUnexpectedErrorToasts))
+    }
+
+    func dismissUnexpectedErrorToast(id: UnexpectedErrorToast.ID) {
+        unexpectedErrorToasts.removeAll { $0.id == id }
     }
 
     func openNewProjectFlow() {
@@ -157,6 +169,11 @@ final class AppState {
     struct DiffActionRequest: Equatable {
         let id: UUID
         let conversationID: PersistentIdentifier
+        let message: String
+    }
+
+    struct UnexpectedErrorToast: Identifiable, Equatable, Sendable {
+        let id: UUID
         let message: String
     }
 }

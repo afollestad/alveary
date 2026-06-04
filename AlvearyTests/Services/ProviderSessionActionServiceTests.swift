@@ -34,10 +34,11 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             providerIDs: ["codex"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.archiveSessions(resolution)
+        let diagnostics = await service.archiveSessions(resolution)
 
         let archivedSessionIDs = await state.archivedSessionIDs
 
+        XCTAssertEqual(diagnostics, [])
         XCTAssertEqual(archivedSessionIDs, ["session-1"])
     }
 
@@ -55,10 +56,11 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             providerIDs: ["codex"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.unarchiveSessions(resolution)
+        let diagnostics = await service.unarchiveSessions(resolution)
 
         let unarchivedSessionIDs = await state.unarchivedSessionIDs
 
+        XCTAssertEqual(diagnostics, [])
         XCTAssertEqual(unarchivedSessionIDs, ["session-1"])
     }
 
@@ -71,11 +73,12 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             providerIDs: ["codex"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.archiveSessions(resolution)
+        let diagnostics = await service.archiveSessions(resolution)
 
         let archivedSessionIDs = await state.archivedSessionIDs
         let shutdownCount = await state.shutdownCount
 
+        XCTAssertEqual(diagnostics, [])
         XCTAssertEqual(archivedSessionIDs, [])
         XCTAssertEqual(shutdownCount, 0)
     }
@@ -95,14 +98,20 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             providerIDs: ["codex"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.archiveSessions(resolution)
+        let diagnostics = await service.archiveSessions(resolution)
 
         let archivedSessionIDs = await state.archivedSessionIDs
 
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics.first?.action, .archive)
+        XCTAssertEqual(diagnostics.first?.providerID, .codex)
+        XCTAssertEqual(diagnostics.first?.providerSessionID, "session-a")
+        XCTAssertEqual(diagnostics.first?.providerDisplayName, "Codex")
+        XCTAssertEqual(diagnostics.first?.message.contains("archive failed"), true)
         XCTAssertEqual(archivedSessionIDs, ["session-b"])
     }
 
-    func testClaudeProviderSessionActionNoOps() async throws {
+    func testUnsupportedProviderCapabilitiesSkipActions() async throws {
         let state = ProviderActionAdapterState()
         let store = AgentCLIKit.InMemoryAgentSessionStore(records: [
             sessionRecord(conversationId: "main", providerId: .claude, sessionId: "claude-session", workingDirectory: "/tmp/project")
@@ -113,7 +122,8 @@ final class ProviderSessionActionServiceTests: XCTestCase {
                 AgentCLIKit.AgentProviderAdapterSet(adapters: [
                     ProviderActionDefaultAdapter(providerId: .claude, state: state)
                 ])
-            }
+            },
+            providerLookup: providerRegistry(definitions: [providerDefinition(id: .claude)])
         )
 
         let archiveResolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
@@ -121,17 +131,56 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             providerIDs: ["claude"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.archiveSessions(archiveResolution)
+        let archiveDiagnostics = await service.archiveSessions(archiveResolution)
         let unarchiveResolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
             conversationIDs: ["main"],
             providerIDs: ["claude"],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
-        await service.unarchiveSessions(unarchiveResolution)
+        let unarchiveDiagnostics = await service.unarchiveSessions(unarchiveResolution)
 
         let shutdownCount = await state.shutdownCount
 
-        XCTAssertEqual(shutdownCount, 2)
+        XCTAssertEqual(archiveDiagnostics, [])
+        XCTAssertEqual(unarchiveDiagnostics, [])
+        XCTAssertEqual(shutdownCount, 0)
+    }
+
+    func testMissingProviderDefinitionReturnsDiagnostic() async throws {
+        let state = ProviderActionAdapterState()
+        let service = AgentCLIKitProviderSessionActionService(
+            sessionStore: AgentCLIKit.InMemoryAgentSessionStore(records: [
+                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
+            ]),
+            router: AgentCLIKit.AgentProviderSessionActionRouter {
+                AgentCLIKit.AgentProviderAdapterSet(adapters: [
+                    ProviderActionRecordingAdapter(providerId: .codex, state: state)
+                ])
+            },
+            providerLookup: providerRegistry(definitions: [])
+        )
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversationIDs: ["main"],
+            providerIDs: ["codex"],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.archiveSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+        let shutdownCount = await state.shutdownCount
+
+        XCTAssertEqual(diagnostics, [
+            ProviderSessionActionDiagnostic(
+                action: .archive,
+                providerID: .codex,
+                providerDisplayName: "codex",
+                providerSessionID: "session-1",
+                message: "Provider is not registered."
+            )
+        ])
+        XCTAssertEqual(archivedSessionIDs, [])
+        XCTAssertEqual(shutdownCount, 0)
     }
 
     private func makeService(
@@ -154,7 +203,34 @@ final class ProviderSessionActionServiceTests: XCTestCase {
                 AgentCLIKit.AgentProviderAdapterSet(adapters: [
                     ProviderActionRecordingAdapter(providerId: .codex, state: state)
                 ])
-            }
+            },
+            providerLookup: providerRegistry(definitions: [
+                providerDefinition(
+                    id: .codex,
+                    displayName: "Codex",
+                    capabilities: AgentCLIKit.AgentProviderCapabilities(
+                        supportsSessionArchiving: true,
+                        supportsSessionUnarchiving: true
+                    )
+                )
+            ])
+        )
+    }
+
+    private func providerRegistry(definitions: [AgentCLIKit.AgentProviderDefinition]) -> AgentCLIKit.AgentProviderRegistry {
+        AgentCLIKit.AgentProviderRegistry(definitions: definitions)
+    }
+
+    private func providerDefinition(
+        id: AgentCLIKit.AgentProviderID,
+        displayName: String = "Provider",
+        capabilities: AgentCLIKit.AgentProviderCapabilities = AgentCLIKit.AgentProviderCapabilities()
+    ) -> AgentCLIKit.AgentProviderDefinition {
+        AgentCLIKit.AgentProviderDefinition(
+            id: id,
+            displayName: displayName,
+            executableNames: [id.rawValue],
+            capabilities: capabilities
         )
     }
 

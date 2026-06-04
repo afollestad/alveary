@@ -49,6 +49,10 @@ struct AlvearyApp: App {
 
             #if DEBUG
             CommandMenu("Developer") {
+                Button("Show Fake Error Toast") {
+                    appState.presentUnexpectedError(message: "Developer test error toast")
+                }
+
                 TriggerSessionHandoffCommandButton()
             }
             #endif

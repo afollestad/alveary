@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 
@@ -13,6 +14,7 @@ struct SidebarTestFixture {
     let worktreeManager: SidebarMockWorktreeManager
     let settingsService: InMemorySettingsService
     let providerSessionActions: RecordingProviderSessionActionService
+    let unexpectedErrors: RecordingUnexpectedErrors
     let notificationManager: RecordingNotificationManager
     let viewModel: SidebarViewModel
 
@@ -22,7 +24,8 @@ struct SidebarTestFixture {
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
         createWorktreeByDefault: Bool = false,
-        providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService()
+        providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
+        unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(
@@ -47,6 +50,7 @@ struct SidebarTestFixture {
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
         self.providerSessionActions = providerSessionActions
+        self.unexpectedErrors = unexpectedErrors
         notificationManager = RecordingNotificationManager()
 
         viewModel = SidebarViewModel(
@@ -57,6 +61,9 @@ struct SidebarTestFixture {
             worktreeManager: worktreeManager,
             settingsService: settingsService,
             providerSessionActions: providerSessionActions,
+            presentUnexpectedError: { [unexpectedErrors] message in
+                unexpectedErrors.present(message)
+            },
             notificationManager: notificationManager
         )
     }
@@ -137,18 +144,57 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
     }
 
     private(set) var actions: [Action] = []
+    private var archiveDiagnostics: [ProviderSessionActionDiagnostic]
+    private var unarchiveDiagnostics: [ProviderSessionActionDiagnostic]
+
+    init(
+        archiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
+        unarchiveDiagnostics: [ProviderSessionActionDiagnostic] = []
+    ) {
+        self.archiveDiagnostics = archiveDiagnostics
+        self.unarchiveDiagnostics = unarchiveDiagnostics
+    }
 
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
         actions.append(.resolve(snapshot))
         return ProviderSessionActionResolution(snapshot: snapshot, records: [])
     }
 
-    func archiveSessions(_ resolution: ProviderSessionActionResolution) async {
+    func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
         actions.append(.archive(resolution.snapshot))
+        return archiveDiagnostics
     }
 
-    func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async {
+    func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
         actions.append(.unarchive(resolution.snapshot))
+        return unarchiveDiagnostics
+    }
+}
+
+@MainActor
+final class RecordingUnexpectedErrors {
+    private(set) var messages: [String] = []
+
+    func present(_ message: String) {
+        messages.append(message)
+    }
+}
+
+extension ProviderSessionActionDiagnostic {
+    static func fixture(
+        action: Action,
+        providerID: AgentCLIKit.AgentProviderID = .codex,
+        providerDisplayName: String = "Codex",
+        providerSessionID: AgentCLIKit.AgentSessionID = "session-1",
+        message: String = "Sync failed"
+    ) -> ProviderSessionActionDiagnostic {
+        ProviderSessionActionDiagnostic(
+            action: action,
+            providerID: providerID,
+            providerDisplayName: providerDisplayName,
+            providerSessionID: providerSessionID,
+            message: message
+        )
     }
 }
 
@@ -178,9 +224,9 @@ actor SidebarMockAgentsManager: AgentsManager {
         statuses.set(status, for: conversationId)
     }
 
-    func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {}
+    func spawn(id: String, config: Alveary.AgentSpawnConfig, forkSession: Bool) async throws {}
 
-    func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription? {
+    func subscribe(conversationId: String, afterIndex: Int) -> Alveary.AgentEventSubscription? {
         nil
     }
 
@@ -234,9 +280,9 @@ actor SidebarMockAgentsManager: AgentsManager {
         false
     }
 
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+    func reconfigureSession(conversationId: String, config: Alveary.AgentSpawnConfig) async throws {}
 
-    func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+    func startFreshSession(conversationId: String, config: Alveary.AgentSpawnConfig) async throws {}
 
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int) {}
 

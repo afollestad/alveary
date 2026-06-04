@@ -12,6 +12,7 @@ final class SidebarViewModel {
     private let worktreeManager: WorktreeManager
     private let settingsService: SettingsService
     private let providerSessionActionService: any ProviderSessionActionService
+    private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private var statusObserver: NSObjectProtocol?
 
@@ -26,6 +27,7 @@ final class SidebarViewModel {
         worktreeManager: WorktreeManager,
         settingsService: SettingsService,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
+        presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager
     ) {
         self.agentsManager = agentsManager
@@ -35,6 +37,7 @@ final class SidebarViewModel {
         self.worktreeManager = worktreeManager
         self.settingsService = settingsService
         self.providerSessionActionService = providerSessionActions
+        self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
 
         statusObserver = NotificationCenter.default.addObserver(
@@ -150,7 +153,8 @@ final class SidebarViewModel {
         try modelContext.save()
         do {
             try await awaitConversationTeardowns(snapshot.conversationIDs)
-            await providerSessionActionService.archiveSessions(providerSessionResolution)
+            let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+            presentProviderSessionActionDiagnostics(diagnostics)
         } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
     }
 
@@ -161,7 +165,8 @@ final class SidebarViewModel {
         dbThread.prepareForRestore()
         try modelContext.save()
         notificationManager.refreshBadgeCount()
-        await providerSessionActionService.unarchiveSessions(providerSessionResolution)
+        let diagnostics = await providerSessionActionService.unarchiveSessions(providerSessionResolution)
+        presentProviderSessionActionDiagnostics(diagnostics)
     }
 
     func deleteThread(_ thread: AgentThread) async throws {
@@ -297,6 +302,12 @@ extension SidebarViewModel {
     private func beginConversationTeardowns(_ conversationIDs: [String]) async {
         for conversationId in uniqueConversationIDs(conversationIDs) {
             await agentsManager.kill(conversationId: conversationId)
+        }
+    }
+
+    private func presentProviderSessionActionDiagnostics(_ diagnostics: [ProviderSessionActionDiagnostic]) {
+        for diagnostic in diagnostics {
+            presentUnexpectedError(diagnostic.toastMessage)
         }
     }
 

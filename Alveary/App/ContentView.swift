@@ -79,7 +79,7 @@ struct ContentView: View {
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
-        _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies))
+        _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies, appState: appState))
         _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
@@ -88,7 +88,7 @@ struct ContentView: View {
         _toolbarProjectActions = State(initialValue: [])
     }
 
-    private static func makeSidebarViewModel(dependencies: ContentViewDependencies) -> SidebarViewModel {
+    private static func makeSidebarViewModel(dependencies: ContentViewDependencies, appState: AppState) -> SidebarViewModel {
         SidebarViewModel(
             agentsManager: dependencies.agentsManager,
             modelContext: dependencies.modelContainer.mainContext,
@@ -97,6 +97,9 @@ struct ContentView: View {
             worktreeManager: dependencies.worktreeManager,
             settingsService: dependencies.settingsService,
             providerSessionActions: dependencies.providerSessionActions,
+            presentUnexpectedError: { message in
+                appState.presentUnexpectedError(message: message)
+            },
             notificationManager: dependencies.notificationManager
         )
     }
@@ -206,6 +209,7 @@ struct ContentView: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
         .environment(terminalManager)
+        .overlay(alignment: .bottom, content: errorToastOverlay)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 PrimaryToolbarButtonGroup(

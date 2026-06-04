@@ -221,6 +221,85 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.isLeftPaneVisible)
     }
 
+    func testPresentUnexpectedErrorStoresOldestToNewest() {
+        let state = AppState()
+        let firstID = UUID()
+        let secondID = UUID()
+
+        state.presentUnexpectedError(message: "First", id: firstID)
+        state.presentUnexpectedError(message: "Second", id: secondID)
+
+        XCTAssertEqual(state.unexpectedErrorToasts, [
+            AppState.UnexpectedErrorToast(id: firstID, message: "First"),
+            AppState.UnexpectedErrorToast(id: secondID, message: "Second")
+        ])
+    }
+
+    func testPresentUnexpectedErrorKeepsNewestThreeRecords() {
+        let state = AppState()
+        let ids = (0..<4).map { _ in UUID() }
+
+        for index in ids.indices {
+            state.presentUnexpectedError(message: "Toast \(index)", id: ids[index])
+        }
+
+        XCTAssertEqual(state.unexpectedErrorToasts.map(\.id), Array(ids.suffix(3)))
+        XCTAssertEqual(state.unexpectedErrorToasts.map(\.message), ["Toast 1", "Toast 2", "Toast 3"])
+    }
+
+    func testDismissUnexpectedErrorToastRemovesOnlyMatchingIdentifier() {
+        let state = AppState()
+        let firstID = UUID()
+        let secondID = UUID()
+
+        state.presentUnexpectedError(message: "First", id: firstID)
+        state.presentUnexpectedError(message: "Second", id: secondID)
+        state.dismissUnexpectedErrorToast(id: firstID)
+
+        XCTAssertEqual(state.unexpectedErrorToasts, [
+            AppState.UnexpectedErrorToast(id: secondID, message: "Second")
+        ])
+    }
+
+    func testDismissUnexpectedErrorToastIgnoresStaleIdentifierAfterPruning() {
+        let state = AppState()
+        let ids = (0..<4).map { _ in UUID() }
+
+        for index in ids.indices {
+            state.presentUnexpectedError(message: "Toast \(index)", id: ids[index])
+        }
+        let beforeDismiss = state.unexpectedErrorToasts
+
+        state.dismissUnexpectedErrorToast(id: ids[0])
+
+        XCTAssertEqual(state.unexpectedErrorToasts, beforeDismiss)
+    }
+
+    func testDismissingOldestToastPreservesRemainingStoredOrder() {
+        let state = AppState()
+        let ids = (0..<3).map { _ in UUID() }
+
+        for index in ids.indices {
+            state.presentUnexpectedError(message: "Toast \(index)", id: ids[index])
+        }
+
+        state.dismissUnexpectedErrorToast(id: ids[0])
+
+        XCTAssertEqual(state.unexpectedErrorToasts.map(\.message), ["Toast 1", "Toast 2"])
+    }
+
+    func testErrorToastStackDisplaysNewestToOldest() {
+        let state = AppState()
+
+        state.presentUnexpectedError(message: "Oldest", id: UUID())
+        state.presentUnexpectedError(message: "Middle", id: UUID())
+        state.presentUnexpectedError(message: "Newest", id: UUID())
+
+        let stack = AppErrorToastStack(toasts: state.unexpectedErrorToasts, onDismiss: { _ in })
+
+        XCTAssertEqual(stack.displayToasts.map(\.message), ["Newest", "Middle", "Oldest"])
+    }
+
     private func makeFixture(
         primaryConversations: [Conversation],
         secondaryConversations: [Conversation] = []
