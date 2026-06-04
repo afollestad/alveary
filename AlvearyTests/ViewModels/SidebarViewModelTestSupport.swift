@@ -85,7 +85,10 @@ struct SidebarTestFixture {
         hasCompletedInitialSetup: Bool = false,
         useWorktree: Bool = false,
         archivedAt: Date? = nil,
-        provider: String = "claude"
+        provider: String = "claude",
+        providerSessionId: String? = nil,
+        providerSessionProviderId: String? = nil,
+        providerSessionWorkingDirectory: String? = nil
     ) throws -> AgentThread {
         let project = Project(path: projectPath, name: projectName)
         let thread = AgentThread(
@@ -103,6 +106,9 @@ struct SidebarTestFixture {
                 id: id,
                 title: id,
                 provider: provider,
+                providerSessionId: providerSessionId,
+                providerSessionProviderId: providerSessionProviderId,
+                providerSessionWorkingDirectory: providerSessionWorkingDirectory,
                 isMain: index == 0,
                 displayOrder: index,
                 thread: thread
@@ -120,6 +126,13 @@ struct SidebarTestFixture {
             throw SidebarFixtureError.threadMissing
         }
         return dbThread
+    }
+
+    func requireConversation(id: String) throws -> Conversation {
+        guard let conversation = context.resolveConversation(conversationID: id) else {
+            throw SidebarFixtureError.conversationMissing
+        }
+        return conversation
     }
 
     func threadExists(_ thread: AgentThread) throws -> Bool {
@@ -144,20 +157,23 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
     }
 
     private(set) var actions: [Action] = []
+    private var resolvedRecords: [AgentCLIKit.AgentSessionRecord]
     private var archiveDiagnostics: [ProviderSessionActionDiagnostic]
     private var unarchiveDiagnostics: [ProviderSessionActionDiagnostic]
 
     init(
+        resolvedRecords: [AgentCLIKit.AgentSessionRecord] = [],
         archiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
         unarchiveDiagnostics: [ProviderSessionActionDiagnostic] = []
     ) {
+        self.resolvedRecords = resolvedRecords
         self.archiveDiagnostics = archiveDiagnostics
         self.unarchiveDiagnostics = unarchiveDiagnostics
     }
 
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
         actions.append(.resolve(snapshot))
-        return ProviderSessionActionResolution(snapshot: snapshot, records: [])
+        return ProviderSessionActionResolution(snapshot: snapshot, records: resolvedRecords, missingBindings: [])
     }
 
     func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
@@ -193,6 +209,7 @@ extension ProviderSessionActionDiagnostic {
             providerID: providerID,
             providerDisplayName: providerDisplayName,
             providerSessionID: providerSessionID,
+            conversationID: "conversation-1",
             message: message
         )
     }
@@ -200,6 +217,7 @@ extension ProviderSessionActionDiagnostic {
 
 enum SidebarFixtureError: Error {
     case threadMissing
+    case conversationMissing
 }
 
 actor SidebarMockAgentsManager: AgentsManager {

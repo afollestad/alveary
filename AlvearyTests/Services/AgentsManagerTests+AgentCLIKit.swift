@@ -305,7 +305,7 @@ extension AgentsManagerTests {
     func makeAgentCLIKitFixture(
         adapter: any AgentCLIKit.AgentProviderAdapter,
         detectedPath: String,
-        basePath: String, replayLimit: Int = 500
+        basePath: String, replayLimit: Int = 500, providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore()
     ) -> AgentCLIKitManagerFixture {
         let sessionStore = AgentCLIKit.JSONFileAgentSessionStore(fileURL: temporaryFileURL("agentclikit-sessions.json"))
         let configStore = AgentCLIKit.ClaudeConfigStore(fileURL: temporaryFileURL("claude.json"))
@@ -334,7 +334,8 @@ extension AgentsManagerTests {
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: makeSettings(),
             keepAwakeService: RecordingKeepAwakeService(),
-            notificationManager: StubNotificationManager()
+            notificationManager: StubNotificationManager(),
+            providerSessionBindingStore: providerSessionBindingStore
         )
         return AgentCLIKitManagerFixture(
             manager: manager,

@@ -11,6 +11,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let keepAwakeService: KeepAwakeService
     let notificationManager: NotificationManager
     let claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore
+    let providerSessionBindingStore: any ProviderSessionBindingStore
 
     var eventBuffers: [String: ManagedEventBuffer] = [:]
     var closingConversationIds: Set<String> = []
@@ -25,6 +26,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var agentCLIKitGenerationByConversation: [String: Int] = [:]
     var agentCLIKitGenerationUUIDs: [String: [Int: UUID]] = [:]
     var agentCLIKitStatuses: [String: AgentCLIKit.AgentRuntimeStatus] = [:]
+    var recordedProviderSessionBindings: Set<ProviderSessionBinding> = []
     var hasInstalledAgentCLIKitLiveHookHandler = false
 
     let shutdownRequested = LockedState(false)
@@ -41,7 +43,8 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         settingsService: SettingsService,
         keepAwakeService: KeepAwakeService,
         notificationManager: NotificationManager,
-        claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore = DisabledClaudeApprovalPersistenceStore()
+        claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore = DisabledClaudeApprovalPersistenceStore(),
+        providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore()
     ) {
         self.agentCLIKitServices = agentCLIKitServices
         self.sessionManager = sessionManager
@@ -52,6 +55,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
         self.claudeApprovalPersistenceStore = claudeApprovalPersistenceStore
+        self.providerSessionBindingStore = providerSessionBindingStore
     }
 
     @MainActor

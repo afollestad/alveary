@@ -74,8 +74,15 @@ extension SidebarViewModel {
             threadID: threadID,
             conversationIDs: conversations.map(\.id),
             providerSessionAction: ProviderSessionActionSnapshot(
-                conversationIDs: conversations.map(\.id),
-                providerIDs: conversations.compactMap(\.provider),
+                conversations: conversations.map {
+                    ProviderSessionConversationSnapshot(
+                        conversationID: $0.id,
+                        providerID: $0.provider,
+                        providerSessionID: $0.providerSessionId,
+                        providerSessionProviderID: $0.providerSessionProviderId,
+                        providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory
+                    )
+                },
                 workingDirectory: workingDirectory
             )
         )

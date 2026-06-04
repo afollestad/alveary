@@ -199,6 +199,12 @@ extension AppComponent {
         }
     }
 
+    var providerSessionBindingStore: any ProviderSessionBindingStore {
+        return shared {
+            SwiftDataProviderSessionBindingStore(modelContainer: modelContainer)
+        }
+    }
+
     var agentCLIKitClaudeConfigStore: AgentCLIKit.ClaudeConfigStore {
         return shared {
             AgentCLIKit.ClaudeConfigStore(
@@ -325,7 +331,8 @@ extension AppComponent {
                 settingsService: settingsService,
                 keepAwakeService: keepAwakeService,
                 notificationManager: notificationManager,
-                claudeApprovalPersistenceStore: claudeApprovalPersistenceStore
+                claudeApprovalPersistenceStore: claudeApprovalPersistenceStore,
+                providerSessionBindingStore: providerSessionBindingStore
             )
         }
     }

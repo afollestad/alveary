@@ -6,6 +6,9 @@ final class Conversation {
     @Attribute(.unique) var id: String
     var title: String?
     var provider: String?
+    var providerSessionId: String?
+    var providerSessionProviderId: String?
+    var providerSessionWorkingDirectory: String?
     var pendingRestoreContext: String?
     var isActive: Bool
     var isMain: Bool
@@ -18,6 +21,9 @@ final class Conversation {
         id: String = UUID().uuidString,
         title: String? = nil,
         provider: String? = nil,
+        providerSessionId: String? = nil,
+        providerSessionProviderId: String? = nil,
+        providerSessionWorkingDirectory: String? = nil,
         pendingRestoreContext: String? = nil,
         isActive: Bool = true,
         isMain: Bool = true,
@@ -29,6 +35,9 @@ final class Conversation {
         self.id = id
         self.title = title
         self.provider = provider
+        self.providerSessionId = providerSessionId
+        self.providerSessionProviderId = providerSessionProviderId
+        self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
         self.pendingRestoreContext = pendingRestoreContext
         self.isActive = isActive
         self.isMain = isMain

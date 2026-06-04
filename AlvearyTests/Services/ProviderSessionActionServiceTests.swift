@@ -1,17 +1,18 @@
 import AgentCLIKit
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
 
 final class ProviderSessionActionServiceTests: XCTestCase {
-    func testArchivesMatchingProviderRecordsForWorkingDirectory() async throws {
+    func testArchivesMatchingProviderRecordsByConversationAndProviderWithoutWorkingDirectoryFilter() async throws {
         let state = ProviderActionAdapterState()
         let matchingRecord = sessionRecord(
             conversationId: "main",
             providerId: .codex,
             sessionId: "session-1",
-            workingDirectory: "/tmp/project"
+            workingDirectory: "/tmp/renamed-project"
         )
         let store = AgentCLIKit.InMemoryAgentSessionStore(records: [
             matchingRecord,
@@ -27,11 +28,94 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         )
 
-        XCTAssertEqual(records.map(\.providerSessionId), [matchingRecord.providerSessionId, "session-2"])
+        XCTAssertEqual(records.map(\.providerSessionId), ["session-2"])
 
         let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
             conversationIDs: ["main"],
             providerIDs: ["codex"],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.archiveSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+
+        XCTAssertEqual(diagnostics, [])
+        XCTAssertEqual(archivedSessionIDs, ["session-1"])
+    }
+
+    func testArchiveFallsBackToPersistedConversationBinding() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(records: [], state: state)
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(
+                    conversationID: "main",
+                    providerID: "codex",
+                    providerSessionID: "persisted-session",
+                    providerSessionProviderID: "codex",
+                    providerSessionWorkingDirectory: "/tmp/project"
+                )
+            ],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.archiveSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+
+        XCTAssertEqual(diagnostics, [])
+        XCTAssertEqual(archivedSessionIDs, ["persisted-session"])
+    }
+
+    func testLiveRecordWinsOverPersistedConversationBinding() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(
+            records: [
+                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "live-session", workingDirectory: "/tmp/live")
+            ],
+            state: state
+        )
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(
+                    conversationID: "main",
+                    providerID: "codex",
+                    providerSessionID: "persisted-session",
+                    providerSessionProviderID: "codex",
+                    providerSessionWorkingDirectory: "/tmp/project"
+                )
+            ],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.archiveSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+
+        XCTAssertEqual(diagnostics, [])
+        XCTAssertEqual(archivedSessionIDs, ["live-session"])
+    }
+
+    func testDuplicateConversationProviderSnapshotsRouteOnce() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(
+            records: [
+                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
+            ],
+            state: state
+        )
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(conversationID: "main", providerID: "codex"),
+                ProviderSessionConversationSnapshot(
+                    conversationID: "main",
+                    providerID: "codex",
+                    providerSessionID: "persisted-session",
+                    providerSessionProviderID: "codex",
+                    providerSessionWorkingDirectory: "/tmp/project"
+                )
+            ],
             workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
         ))
         let diagnostics = await service.archiveSessions(resolution)
@@ -62,25 +146,6 @@ final class ProviderSessionActionServiceTests: XCTestCase {
 
         XCTAssertEqual(diagnostics, [])
         XCTAssertEqual(unarchivedSessionIDs, ["session-1"])
-    }
-
-    func testMissingSessionRecordsDoNothing() async throws {
-        let state = ProviderActionAdapterState()
-        let service = try await makeService(records: [], state: state)
-
-        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
-            conversationIDs: ["missing"],
-            providerIDs: ["codex"],
-            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
-        ))
-        let diagnostics = await service.archiveSessions(resolution)
-
-        let archivedSessionIDs = await state.archivedSessionIDs
-        let shutdownCount = await state.shutdownCount
-
-        XCTAssertEqual(diagnostics, [])
-        XCTAssertEqual(archivedSessionIDs, [])
-        XCTAssertEqual(shutdownCount, 0)
     }
 
     func testProviderActionFailureDoesNotStopOtherRecords() async throws {
@@ -176,11 +241,73 @@ final class ProviderSessionActionServiceTests: XCTestCase {
                 providerID: .codex,
                 providerDisplayName: "codex",
                 providerSessionID: "session-1",
+                conversationID: "main",
                 message: "Provider is not registered."
             )
         ])
         XCTAssertEqual(archivedSessionIDs, [])
         XCTAssertEqual(shutdownCount, 0)
+    }
+
+    func testMissingBindingReturnsDiagnosticForSupportedProvider() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(records: [], state: state)
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(conversationID: "main", providerID: "codex")
+            ],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.archiveSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+
+        XCTAssertEqual(diagnostics, [
+            ProviderSessionActionDiagnostic(
+                action: .archive,
+                providerID: .codex,
+                providerDisplayName: "Codex",
+                providerSessionID: nil,
+                conversationID: "main",
+                message: "No provider session binding is available."
+            )
+        ])
+        XCTAssertEqual(archivedSessionIDs, [])
+    }
+
+    @MainActor
+    func testSwiftDataProviderSessionBindingStoreRecordsConversationFields() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: configuration
+        )
+        let context = ModelContext(container)
+        let conversation = Conversation(id: "main", title: "Main", provider: "codex")
+        context.insert(conversation)
+        try context.save()
+
+        let existing = try requireConversation(id: "main", in: container)
+        XCTAssertNil(existing.providerSessionId)
+        XCTAssertNil(existing.providerSessionProviderId)
+        XCTAssertNil(existing.providerSessionWorkingDirectory)
+
+        let store = SwiftDataProviderSessionBindingStore(modelContainer: container)
+        await store.record(ProviderSessionBinding(
+            conversationID: "main",
+            providerID: "codex",
+            providerSessionID: "codex-thread",
+            workingDirectory: "/tmp/alveary-project"
+        ))
+
+        let updated = try requireConversation(id: "main", in: container)
+        XCTAssertEqual(updated.providerSessionId, "codex-thread")
+        XCTAssertEqual(updated.providerSessionProviderId, "codex")
+        XCTAssertEqual(updated.providerSessionWorkingDirectory, "/tmp/alveary-project")
     }
 
     private func makeService(
@@ -250,6 +377,19 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 0)
         )
     }
+
+    @MainActor
+    private func requireConversation(id: String, in container: ModelContainer) throws -> Conversation {
+        let context = ModelContext(container)
+        guard let conversation = context.resolveConversation(conversationID: id) else {
+            throw ProviderSessionActionServiceTestError.conversationMissing
+        }
+        return conversation
+    }
+}
+
+private enum ProviderSessionActionServiceTestError: Error {
+    case conversationMissing
 }
 
 private struct ProviderActionDefaultAdapter: AgentCLIKit.AgentProviderAdapter {

@@ -32,6 +32,16 @@ extension ModelContext {
         )
     }
 
+    func resolveConversation(conversationID: String) -> Conversation? {
+        resolve(
+            FetchDescriptor<Conversation>(
+                predicate: #Predicate { conversation in
+                    conversation.id == conversationID
+                }
+            )
+        )
+    }
+
     private func resolve<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) -> Model? {
         try? fetch(descriptor).first
     }

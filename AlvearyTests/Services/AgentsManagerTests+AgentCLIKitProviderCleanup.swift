@@ -49,6 +49,45 @@ extension AgentsManagerTests {
         }
     }
 
+    func testAgentCLIKitProviderSessionEnvelopeRecordsDurableBindingOnce() async throws {
+        let executable = try makeScript(named: "codex-binding-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let bindingStore = RecordingProviderSessionBindingStore()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ProviderPathCLIKitAdapter(
+                providerId: .codex,
+                displayName: "Codex",
+                executableName: executable.lastPathComponent,
+                providerSessionId: "codex-thread"
+            ),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin",
+            providerSessionBindingStore: bindingStore
+        )
+        let conversationId = "agentclikit-codex-binding"
+        let workingDirectory = executable.deletingLastPathComponent().path
+
+        try await fixture.manager.spawn(
+            id: conversationId,
+            config: spawnConfig(
+                providerId: "codex",
+                workingDirectory: workingDirectory
+            )
+        )
+
+        let expectedBinding = ProviderSessionBinding(
+            conversationID: conversationId,
+            providerID: "codex",
+            providerSessionID: "codex-thread",
+            workingDirectory: workingDirectory
+        )
+        try await waitUntil("expected AgentCLIKit provider session binding to be recorded once") {
+            await bindingStore.recordedBindings == [expectedBinding]
+        }
+
+        await fixture.manager.kill(conversationId: conversationId)
+    }
+
     func testClaudeApprovalStoreAdapterIgnoresNonClaudeSessionRemoval() async {
         let persistenceStore = RecordingClaudeApprovalPersistenceStore()
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: persistenceStore)
@@ -159,14 +198,21 @@ private actor RecordingClaudeApprovalPersistenceStore: ClaudeApprovalPersistence
 private struct ProviderPathCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let definition: AgentCLIKit.AgentProviderDefinition
     let executableName: String
+    let providerSessionId: AgentCLIKit.AgentSessionID?
 
-    init(providerId: AgentCLIKit.AgentProviderID, displayName: String, executableName: String) {
+    init(
+        providerId: AgentCLIKit.AgentProviderID,
+        displayName: String,
+        executableName: String,
+        providerSessionId: AgentCLIKit.AgentSessionID? = nil
+    ) {
         self.definition = AgentCLIKit.AgentProviderDefinition(
             id: providerId,
             displayName: displayName,
             executableNames: [executableName]
         )
         self.executableName = executableName
+        self.providerSessionId = providerSessionId
     }
 
     func makeLaunchConfiguration(
@@ -176,6 +222,7 @@ private struct ProviderPathCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         AgentCLIKit.AgentLaunchConfiguration(
             executable: "/usr/bin/env",
             arguments: [executableName],
+            providerSessionId: providerSessionId,
             includesSpawnArguments: true
         )
     }
@@ -186,5 +233,17 @@ private struct ProviderPathCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
 
     func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
         Data()
+    }
+}
+
+private actor RecordingProviderSessionBindingStore: ProviderSessionBindingStore {
+    private var bindings: [ProviderSessionBinding] = []
+
+    var recordedBindings: [ProviderSessionBinding] {
+        bindings
+    }
+
+    func record(_ binding: ProviderSessionBinding) async {
+        bindings.append(binding)
     }
 }

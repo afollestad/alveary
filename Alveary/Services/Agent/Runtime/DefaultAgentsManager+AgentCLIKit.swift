@@ -335,6 +335,7 @@ extension DefaultAgentsManager {
             conversationId: conversationId,
             subscription: subscription,
             bufferGeneration: bufferGeneration,
+            workingDirectory: config.workingDirectory,
             dropsPreStartTerminalLifecycle: dropsPreStartTerminalLifecycle
         )
     }
@@ -343,6 +344,7 @@ extension DefaultAgentsManager {
         conversationId: String,
         subscription: AgentCLIKit.AgentEventSubscription,
         bufferGeneration: UUID,
+        workingDirectory: String,
         dropsPreStartTerminalLifecycle: Bool = false
     ) {
         agentCLIKitEventTasks[conversationId]?.cancel()
@@ -359,6 +361,11 @@ extension DefaultAgentsManager {
                         continue
                     }
                 }
+                await self?.recordProviderSessionBindingIfNeeded(
+                    from: envelope,
+                    conversationId: conversationId,
+                    workingDirectory: workingDirectory
+                )
                 let events = mapper.conversationEvents(from: envelope)
                 let generation = envelope.generation == subscription.generation
                     ? bufferGeneration

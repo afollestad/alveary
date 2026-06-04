@@ -2,6 +2,27 @@ import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
+    func recordProviderSessionBindingIfNeeded(
+        from envelope: AgentCLIKit.AgentEventEnvelope,
+        conversationId: String,
+        workingDirectory: String
+    ) async {
+        guard let providerSessionId = envelope.providerSessionId?.rawValue else {
+            return
+        }
+
+        let binding = ProviderSessionBinding(
+            conversationID: conversationId,
+            providerID: envelope.providerId.rawValue,
+            providerSessionID: providerSessionId,
+            workingDirectory: workingDirectory
+        )
+        guard recordedProviderSessionBindings.insert(binding).inserted else {
+            return
+        }
+        await providerSessionBindingStore.record(binding)
+    }
+
     func recordAgentCLIKitEnvelopeIndex(
         _ envelopeIndex: Int,
         conversationId: String,

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import Observation
 import SwiftData
@@ -133,6 +134,7 @@ final class SidebarViewModel {
     func archiveThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadArchiveSnapshot(thread)
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
+        try backfillProviderSessionBindings(from: providerSessionResolution.records)
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
@@ -299,6 +301,22 @@ extension SidebarViewModel {
         for diagnostic in diagnostics {
             presentUnexpectedError(diagnostic.toastMessage)
         }
+    }
+
+    private func backfillProviderSessionBindings(from records: [AgentCLIKit.AgentSessionRecord]) throws {
+        guard !records.isEmpty else {
+            return
+        }
+
+        for record in records {
+            guard let conversation = modelContext.resolveConversation(conversationID: record.conversationId.rawValue) else {
+                continue
+            }
+            conversation.providerSessionId = record.providerSessionId.rawValue
+            conversation.providerSessionProviderId = record.providerId.rawValue
+            conversation.providerSessionWorkingDirectory = record.workingDirectory?.path
+        }
+        try modelContext.save()
     }
 
     private func awaitConversationTeardowns(_ conversationIDs: [String]) async throws {

@@ -2,14 +2,83 @@ import AgentCLIKit
 import Foundation
 
 struct ProviderSessionActionSnapshot: Equatable, Sendable {
-    let conversationIDs: [String]
-    let providerIDs: [String]
+    let conversations: [ProviderSessionConversationSnapshot]
     let workingDirectory: URL?
+
+    var conversationIDs: [String] {
+        conversations.map(\.conversationID)
+    }
+
+    var providerIDs: [String] {
+        conversations.compactMap(\.actionProviderID)
+    }
+
+    init(
+        conversations: [ProviderSessionConversationSnapshot],
+        workingDirectory: URL?
+    ) {
+        self.conversations = conversations
+        self.workingDirectory = workingDirectory.map { URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true) }
+    }
+
+    init(
+        conversationIDs: [String],
+        providerIDs: [String],
+        workingDirectory: URL?
+    ) {
+        let conversations: [ProviderSessionConversationSnapshot]
+        if conversationIDs.count == providerIDs.count {
+            conversations = zip(conversationIDs, providerIDs).map {
+                ProviderSessionConversationSnapshot(conversationID: $0.0, providerID: $0.1)
+            }
+        } else if providerIDs.count == 1, let providerID = providerIDs.first {
+            conversations = conversationIDs.map {
+                ProviderSessionConversationSnapshot(conversationID: $0, providerID: providerID)
+            }
+        } else {
+            conversations = conversationIDs.map {
+                ProviderSessionConversationSnapshot(conversationID: $0, providerID: nil)
+            }
+        }
+        self.init(conversations: conversations, workingDirectory: workingDirectory)
+    }
+}
+
+struct ProviderSessionConversationSnapshot: Equatable, Sendable {
+    let conversationID: String
+    let providerID: String?
+    let providerSessionID: String?
+    let providerSessionProviderID: String?
+    let providerSessionWorkingDirectory: String?
+
+    init(
+        conversationID: String,
+        providerID: String?,
+        providerSessionID: String? = nil,
+        providerSessionProviderID: String? = nil,
+        providerSessionWorkingDirectory: String? = nil
+    ) {
+        self.conversationID = conversationID
+        self.providerID = providerID
+        self.providerSessionID = providerSessionID
+        self.providerSessionProviderID = providerSessionProviderID
+        self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
+    }
+
+    var actionProviderID: String? {
+        providerID ?? providerSessionProviderID
+    }
 }
 
 struct ProviderSessionActionResolution: Equatable, Sendable {
     let snapshot: ProviderSessionActionSnapshot
     let records: [AgentCLIKit.AgentSessionRecord]
+    let missingBindings: [ProviderSessionActionMissingBinding]
+}
+
+struct ProviderSessionActionMissingBinding: Equatable, Sendable {
+    let conversationID: AgentCLIKit.AgentConversationID
+    let providerID: AgentCLIKit.AgentProviderID
 }
 
 struct ProviderSessionActionDiagnostic: Equatable, Sendable {
@@ -30,11 +99,18 @@ struct ProviderSessionActionDiagnostic: Equatable, Sendable {
     let action: Action
     let providerID: AgentCLIKit.AgentProviderID
     let providerDisplayName: String
-    let providerSessionID: AgentCLIKit.AgentSessionID
+    let providerSessionID: AgentCLIKit.AgentSessionID?
+    let conversationID: AgentCLIKit.AgentConversationID?
     let message: String
 
     var toastMessage: String {
-        "Could not \(action.toastVerb) \(providerDisplayName) provider session \(providerSessionID.rawValue): \(message)"
+        if let providerSessionID {
+            return "Could not \(action.toastVerb) \(providerDisplayName) provider session \(providerSessionID.rawValue): \(message)"
+        }
+        if let conversationID {
+            return "Could not \(action.toastVerb) \(providerDisplayName) provider session for conversation \(conversationID.rawValue): \(message)"
+        }
+        return "Could not \(action.toastVerb) \(providerDisplayName) provider session: \(message)"
     }
 }
 
@@ -46,7 +122,7 @@ protocol ProviderSessionActionService: Sendable {
 
 struct NoopProviderSessionActionService: ProviderSessionActionService {
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
-        ProviderSessionActionResolution(snapshot: snapshot, records: [])
+        ProviderSessionActionResolution(snapshot: snapshot, records: [], missingBindings: [])
     }
 
     func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
@@ -75,23 +151,25 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
 
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
         do {
+            let result = try await sessionRecords(matching: snapshot)
             return ProviderSessionActionResolution(
                 snapshot: snapshot,
-                records: try await sessionRecords(matching: snapshot)
+                records: result.records,
+                missingBindings: result.missingBindings
             )
         } catch {
-            return ProviderSessionActionResolution(snapshot: snapshot, records: [])
+            return ProviderSessionActionResolution(snapshot: snapshot, records: [], missingBindings: [])
         }
     }
 
     func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
-        await routeSessions(resolution.records, sessionAction: .archive) { [router] record in
+        await routeSessions(resolution, sessionAction: .archive) { [router] record in
             try await router.archiveSession(record)
         }
     }
 
     func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
-        await routeSessions(resolution.records, sessionAction: .unarchive) { [router] record in
+        await routeSessions(resolution, sessionAction: .unarchive) { [router] record in
             try await router.unarchiveSession(record)
         }
     }
@@ -124,29 +202,124 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
         return diagnostics
     }
 
-    private func sessionRecords(matching snapshot: ProviderSessionActionSnapshot) async throws -> [AgentCLIKit.AgentSessionRecord] {
-        let conversationIDs = Set(snapshot.conversationIDs)
-        var records: [AgentCLIKit.AgentSessionRecord] = []
-        for providerID in providerIDs(from: snapshot.providerIDs) {
-            let providerRecords = try await sessionStore.records(
-                providerId: providerID,
-                workingDirectory: snapshot.workingDirectory
-            )
-            records.append(contentsOf: providerRecords.filter { conversationIDs.contains($0.conversationId.rawValue) })
+    private func routeSessions(
+        _ resolution: ProviderSessionActionResolution,
+        sessionAction: ProviderSessionActionDiagnostic.Action,
+        perform: @Sendable (AgentCLIKit.AgentSessionRecord) async throws -> Void
+    ) async -> [ProviderSessionActionDiagnostic] {
+        var diagnostics = await routeSessions(
+            resolution.records,
+            sessionAction: sessionAction,
+            perform: perform
+        )
+        for missingBinding in resolution.missingBindings {
+            guard let definition = await providerLookup.definition(for: missingBinding.providerID) else {
+                diagnostics.append(.missingProviderDefinition(action: sessionAction, missingBinding: missingBinding))
+                continue
+            }
+            guard definition.capabilities.supports(sessionAction) else {
+                continue
+            }
+            diagnostics.append(.missingSessionBinding(
+                action: sessionAction,
+                missingBinding: missingBinding,
+                definition: definition
+            ))
         }
-        return records.sorted {
+        return diagnostics
+    }
+
+    private func sessionRecords(
+        matching snapshot: ProviderSessionActionSnapshot
+    ) async throws -> (records: [AgentCLIKit.AgentSessionRecord], missingBindings: [ProviderSessionActionMissingBinding]) {
+        var records: [AgentCLIKit.AgentSessionRecord] = []
+        var missingBindings: [ProviderSessionActionMissingBinding] = []
+        var seenRecords = Set<ProviderSessionActionRecordKey>()
+
+        for conversation in snapshot.conversations {
+            guard let rawProviderID = conversation.actionProviderID,
+                  let providerID = AgentCLIKit.AgentProviderID(rawValue: rawProviderID) else {
+                continue
+            }
+
+            let conversationID = AgentCLIKit.AgentConversationID(rawValue: conversation.conversationID)
+            if let record = try await sessionStore.record(conversationId: conversationID, providerId: providerID) {
+                append(record, to: &records, seenRecords: &seenRecords)
+                continue
+            }
+
+            if let record = fallbackRecord(from: conversation, providerID: providerID, snapshot: snapshot) {
+                append(record, to: &records, seenRecords: &seenRecords)
+                continue
+            }
+
+            missingBindings.append(ProviderSessionActionMissingBinding(
+                conversationID: conversationID,
+                providerID: providerID
+            ))
+        }
+
+        return (records.sorted {
             if $0.conversationId.rawValue == $1.conversationId.rawValue {
                 return $0.providerSessionId.rawValue < $1.providerSessionId.rawValue
             }
             return $0.conversationId.rawValue < $1.conversationId.rawValue
-        }
+        }, missingBindings.sorted {
+            if $0.conversationID.rawValue == $1.conversationID.rawValue {
+                return $0.providerID.rawValue < $1.providerID.rawValue
+            }
+            return $0.conversationID.rawValue < $1.conversationID.rawValue
+        })
     }
 
-    private func providerIDs(from rawValues: [String]) -> [AgentCLIKit.AgentProviderID] {
-        var seen = Set<AgentCLIKit.AgentProviderID>()
-        return rawValues.compactMap(AgentCLIKit.AgentProviderID.init(rawValue:)).filter {
-            seen.insert($0).inserted
+    private func append(
+        _ record: AgentCLIKit.AgentSessionRecord,
+        to records: inout [AgentCLIKit.AgentSessionRecord],
+        seenRecords: inout Set<ProviderSessionActionRecordKey>
+    ) {
+        guard seenRecords.insert(ProviderSessionActionRecordKey(record)).inserted else {
+            return
         }
+        records.append(record)
+    }
+
+    private func fallbackRecord(
+        from conversation: ProviderSessionConversationSnapshot,
+        providerID: AgentCLIKit.AgentProviderID,
+        snapshot: ProviderSessionActionSnapshot
+    ) -> AgentCLIKit.AgentSessionRecord? {
+        guard conversation.providerSessionProviderID == providerID.rawValue,
+              let providerSessionID = conversation.providerSessionID else {
+            return nil
+        }
+        return AgentCLIKit.AgentSessionRecord(
+            conversationId: AgentCLIKit.AgentConversationID(rawValue: conversation.conversationID),
+            providerId: providerID,
+            providerSessionId: AgentCLIKit.AgentSessionID(rawValue: providerSessionID),
+            workingDirectory: fallbackWorkingDirectory(from: conversation, snapshot: snapshot),
+            generation: 0
+        )
+    }
+
+    private func fallbackWorkingDirectory(
+        from conversation: ProviderSessionConversationSnapshot,
+        snapshot: ProviderSessionActionSnapshot
+    ) -> URL? {
+        if let providerSessionWorkingDirectory = conversation.providerSessionWorkingDirectory {
+            return URL(fileURLWithPath: providerSessionWorkingDirectory, isDirectory: true)
+        }
+        return snapshot.workingDirectory
+    }
+
+}
+
+private struct ProviderSessionActionRecordKey: Hashable {
+    let conversationID: AgentCLIKit.AgentConversationID
+    let providerID: AgentCLIKit.AgentProviderID
+
+    init(_ record: AgentCLIKit.AgentSessionRecord) {
+        conversationID = record.conversationId
+        providerID = record.providerId
     }
 }
 
@@ -171,6 +344,21 @@ private extension ProviderSessionActionDiagnostic {
             providerID: record.providerId,
             providerDisplayName: record.providerId.rawValue,
             providerSessionID: record.providerSessionId,
+            conversationID: record.conversationId,
+            message: "Provider is not registered."
+        )
+    }
+
+    static func missingProviderDefinition(
+        action: Action,
+        missingBinding: ProviderSessionActionMissingBinding
+    ) -> ProviderSessionActionDiagnostic {
+        ProviderSessionActionDiagnostic(
+            action: action,
+            providerID: missingBinding.providerID,
+            providerDisplayName: missingBinding.providerID.rawValue,
+            providerSessionID: nil,
+            conversationID: missingBinding.conversationID,
             message: "Provider is not registered."
         )
     }
@@ -186,7 +374,23 @@ private extension ProviderSessionActionDiagnostic {
             providerID: record.providerId,
             providerDisplayName: definition.displayName,
             providerSessionID: record.providerSessionId,
+            conversationID: record.conversationId,
             message: error.localizedDescription
+        )
+    }
+
+    static func missingSessionBinding(
+        action: Action,
+        missingBinding: ProviderSessionActionMissingBinding,
+        definition: AgentCLIKit.AgentProviderDefinition
+    ) -> ProviderSessionActionDiagnostic {
+        ProviderSessionActionDiagnostic(
+            action: action,
+            providerID: missingBinding.providerID,
+            providerDisplayName: definition.displayName,
+            providerSessionID: nil,
+            conversationID: missingBinding.conversationID,
+            message: "No provider session binding is available."
         )
     }
 }
