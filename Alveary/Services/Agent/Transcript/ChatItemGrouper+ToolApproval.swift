@@ -12,7 +12,7 @@ extension ChatItemGrouper {
               currentToolApprovalBatch.sessionId == approval.sessionId,
               currentToolApprovalBatch.status == status,
               let index = items.firstIndex(where: { $0.id == currentToolApprovalBatch.itemId }),
-              ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+              ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
                   toolName: approval.toolName,
                   with: approvalToolNames(in: items[index])
               ) else {
@@ -128,7 +128,7 @@ extension ChatItemGrouper {
         // same approval batch so one eventual prompt honestly represents every held tool.
         guard let currentToolApprovalBatch,
               let index = items.firstIndex(where: { $0.id == currentToolApprovalBatch.itemId }),
-              ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+              ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
                   toolName: tool.name,
                   with: approvalToolNames(in: items[index])
               ) else {

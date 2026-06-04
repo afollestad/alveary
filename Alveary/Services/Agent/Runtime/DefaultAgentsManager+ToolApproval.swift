@@ -4,44 +4,7 @@ import Foundation
 extension DefaultAgentsManager {
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         let context = await makeToolApprovalResolutionContext(for: request)
-
-        if usesAgentCLIKitRuntime {
-            return try await resolveToolApprovalWithAgentCLIKit(request, context: context)
-        }
-
-        if shouldResolveToolApprovalInLiveHook(conversationId: request.conversationId) {
-            markLiveToolApprovalsResolved(
-                conversationId: request.conversationId,
-                context: context
-            )
-            await recordToolApprovalDecisions(
-                request.resolution,
-                context: context,
-                recordsTransientApprovals: false
-            )
-            decrementPendingLiveToolApprovals(
-                conversationId: request.conversationId,
-                count: context.additionalKeys.count + 1
-            )
-            recordDeniedToolUseIdsIfNeeded(request)
-            eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-            updateStatus(.busy, for: request.conversationId)
-            return context.sessionApprovalRecordResult.isEffective
-        }
-
-        if try await restartAgentForToolApproval(request, context: context) {
-            recordDeniedToolUseIdsIfNeeded(request)
-        }
-        return context.sessionApprovalRecordResult.isEffective
-    }
-
-    private func resolveToolApprovalWithAgentCLIKit(
-        _ request: AgentToolApprovalResolutionRequest,
-        context: ToolApprovalResolutionContext
-    ) async throws -> Bool {
-        guard let services = agentCLIKitServices else {
-            throw AgentError.spawnFailed("AgentCLIKit runtime services are unavailable")
-        }
+        let services = agentCLIKitServices
 
         do {
             let approvals = [request.approval] + request.additionalApprovals
@@ -183,51 +146,6 @@ extension DefaultAgentsManager {
         deniedToolUseIdsByConversation[request.conversationId] = deniedToolUseIds
     }
 
-    private func restartAgentForToolApproval(
-        _ request: AgentToolApprovalResolutionRequest,
-        context: ToolApprovalResolutionContext
-    ) async throws -> Bool {
-        let oldPID = processes[request.conversationId]?.processIdentifier
-        suppressExitStatus(for: request.conversationId, pid: oldPID)
-        await teardownProcess(
-            for: request.conversationId,
-            awaitExit: true,
-            preserveBufferForDurabilityGrace: false,
-            graceSeconds: 1.0
-        )
-        await recordToolApprovalDecisions(
-            request.resolution,
-            context: context,
-            recordsTransientApprovals: true
-        )
-
-        await MainActor.run {
-            conversationState(for: request.conversationId).turnState.beginTurn()
-        }
-        updateStatus(.busy, for: request.conversationId)
-
-        do {
-            try await spawnImpl(
-                id: request.conversationId,
-                config: request.config,
-                forkSession: false,
-                allowReconfigureInFlight: false
-            )
-            if hookTokens[request.conversationId] == nil {
-                await discardToolApprovalResolutionContext(context)
-                return false
-            }
-            updateStatus(.busy, for: request.conversationId)
-            return true
-        } catch {
-            await discardToolApprovalResolutionContext(context)
-            await MainActor.run {
-                conversationState(for: request.conversationId).turnState.endTurn()
-            }
-            throw error
-        }
-    }
-
     private func makeToolApprovalResolutionContext(
         for request: AgentToolApprovalResolutionRequest
     ) async -> ToolApprovalResolutionContext {
@@ -252,24 +170,11 @@ extension DefaultAgentsManager {
         guard let sessionApproval else {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
-        if let services = agentCLIKitServices {
-            guard let agentCLIKitApproval = agentCLIKitSessionApproval(sessionApproval) else {
-                return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
-            }
-            let result = await services.claudeApprovalPolicyStore.recordSessionApproval(agentCLIKitApproval)
-            return SessionApprovalRecordResult(isEffective: result.isEffective, wasInserted: result.wasInserted)
+        guard let agentCLIKitApproval = agentCLIKitSessionApproval(sessionApproval) else {
+            return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
-        return await claudeHookServer.recordSessionApproval(sessionApproval)
-    }
-
-    private func shouldResolveToolApprovalInLiveHook(conversationId: String) -> Bool {
-        guard let buffer = eventBuffers[conversationId],
-              buffer.pendingLiveToolApprovals > 0,
-              !buffer.hasDeferredToolStop,
-              processes[conversationId] != nil else {
-            return false
-        }
-        return true
+        let result = await agentCLIKitServices.claudeApprovalPolicyStore.recordSessionApproval(agentCLIKitApproval)
+        return SessionApprovalRecordResult(isEffective: result.isEffective, wasInserted: result.wasInserted)
     }
 
     func decrementPendingLiveToolApprovals(conversationId: String, count: Int) {
@@ -288,22 +193,6 @@ extension DefaultAgentsManager {
         }
         buffer.resolvedLiveToolApprovals.insert(context.key)
         buffer.resolvedLiveToolApprovals.formUnion(context.additionalKeys)
-    }
-
-    private func recordToolApprovalDecisions(
-        _ resolution: ClaudeToolApprovalResolution,
-        context: ToolApprovalResolutionContext,
-        recordsTransientApprovals: Bool
-    ) async {
-        for additionalKey in context.additionalKeys {
-            await claudeHookServer.recordDecision(resolution, for: additionalKey)
-        }
-        if recordsTransientApprovals {
-            for additionalExactApproval in context.additionalExactApprovals {
-                await claudeHookServer.recordTransientApprovalDecision(resolution, for: additionalExactApproval)
-            }
-        }
-        await claudeHookServer.recordDecision(resolution, for: context.key)
     }
 
     private func additionalSessionApprovals(
@@ -354,18 +243,10 @@ extension DefaultAgentsManager {
     private func discardToolApprovalResolutionContext(
         _ context: ToolApprovalResolutionContext
     ) async {
-        if let services = agentCLIKitServices {
-            await services.liveHookDecisionProvider.discardDecision(for: context.key)
-            for additionalKey in context.additionalKeys {
-                await services.liveHookDecisionProvider.discardDecision(for: additionalKey)
-            }
-        }
-        await claudeHookServer.discardDecision(for: context.key)
+        let services = agentCLIKitServices
+        await services.liveHookDecisionProvider.discardDecision(for: context.key)
         for additionalKey in context.additionalKeys {
-            await claudeHookServer.discardDecision(for: additionalKey)
-        }
-        for additionalExactApproval in context.additionalExactApprovals {
-            await claudeHookServer.discardTransientApprovalDecision(for: additionalExactApproval)
+            await services.liveHookDecisionProvider.discardDecision(for: additionalKey)
         }
         if context.sessionApprovalRecordResult.wasInserted,
            let sessionApproval = context.sessionApproval {
@@ -375,20 +256,16 @@ extension DefaultAgentsManager {
     }
 
     private func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {
-        if let services = agentCLIKitServices {
-            guard let agentCLIKitApproval = agentCLIKitSessionApproval(approval) else {
-                return
-            }
-            await services.claudeApprovalPolicyStore.discardSessionApproval(agentCLIKitApproval)
+        guard let agentCLIKitApproval = agentCLIKitSessionApproval(approval) else {
             return
         }
-        await claudeHookServer.discardSessionApproval(approval)
+        await agentCLIKitServices.claudeApprovalPolicyStore.discardSessionApproval(agentCLIKitApproval)
     }
 
     private func agentCLIKitSessionApproval(
         _ approval: AgentSessionApprovalGrant
     ) -> AgentCLIKit.AgentSessionApprovalGrant? {
-        guard let providerId = agentCLIKitServices?.hostAdapter.providerId(approval.providerId),
+        guard let providerId = agentCLIKitServices.hostAdapter.providerId(approval.providerId),
               let matchKind = AgentCLIKit.AgentSessionApprovalMatchKind(rawValue: approval.matchKind.rawValue) else {
             return nil
         }
@@ -406,7 +283,7 @@ extension DefaultAgentsManager {
         conversationId: String,
         sessionId: String
     ) async -> ToolApprovalSelection? {
-        await claudeHookServer.toolApprovalSelection(
+        await claudeApprovalPersistenceStore.toolApprovalSelection(
             providerId: providerId,
             conversationId: conversationId,
             sessionId: sessionId
@@ -419,7 +296,7 @@ extension DefaultAgentsManager {
         conversationId: String,
         sessionId: String
     ) async {
-        await claudeHookServer.recordToolApprovalSelection(
+        await claudeApprovalPersistenceStore.recordToolApprovalSelection(
             selection,
             providerId: providerId,
             conversationId: conversationId,
@@ -431,7 +308,6 @@ extension DefaultAgentsManager {
 private struct ToolApprovalResolutionContext {
     let key: ClaudeToolApprovalKey
     let additionalKeys: [ClaudeToolApprovalKey]
-    let additionalExactApprovals: [AgentSessionApprovalGrant]
     let sessionApproval: AgentSessionApprovalGrant?
     let sessionApprovalRecordResult: SessionApprovalRecordResult
     let additionalSessionApprovalResults: [(approval: AgentSessionApprovalGrant, result: SessionApprovalRecordResult)]
@@ -447,13 +323,6 @@ private struct ToolApprovalResolutionContext {
         )
         additionalKeys = request.additionalApprovals.map {
             ClaudeToolApprovalKey(sessionId: $0.sessionId, toolUseId: $0.toolUseId)
-        }
-        additionalExactApprovals = request.additionalApprovals.compactMap {
-            $0.sessionApprovalGrant(
-                conversationId: request.conversationId,
-                providerId: request.config.providerId,
-                scope: .exact
-            )
         }
         sessionApproval = request.sessionApproval
         self.sessionApprovalRecordResult = sessionApprovalRecordResult

@@ -2,14 +2,8 @@ import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
-    var usesAgentCLIKitRuntime: Bool {
-        agentCLIKitServices != nil
-    }
-
     func spawnWithAgentCLIKit(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         try assertAgentCLIKitSpawnPreflightAllowed(id: id)
         spawningIds.insert(id)
         defer {
@@ -43,9 +37,7 @@ extension DefaultAgentsManager {
     }
 
     func sendMessageWithAgentCLIKit(_ message: String, conversationId: String) async throws {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         guard !shutdownRequested.withLock({ $0 }),
               !closingConversationIds.contains(conversationId) else {
             throw AgentError.stdinClosed
@@ -73,18 +65,14 @@ extension DefaultAgentsManager {
     }
 
     func cancelTurnWithAgentCLIKit(conversationId: String) {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         Task {
             await services.runtime.cancel(conversationId: services.hostAdapter.conversationId(conversationId))
         }
     }
 
     func startFreshSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
         guard !spawningIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Spawn already in progress for \(conversationId)")
@@ -161,9 +149,7 @@ extension DefaultAgentsManager {
     }
 
     func killWithAgentCLIKit(conversationId: String) {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         closingConversationIds.insert(conversationId)
         pendingSessionRemovalIds.insert(conversationId)
         deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
@@ -257,7 +243,7 @@ extension DefaultAgentsManager {
         }
         hasInstalledAgentCLIKitLiveHookHandler = true
         await services.liveHookDecisionProvider.setDeferredToolRequestHandler { [weak self] request in
-            await self?.handleDeferredToolRequestFromHookServer(request)
+            await self?.handleDeferredToolRequest(request)
         }
     }
 

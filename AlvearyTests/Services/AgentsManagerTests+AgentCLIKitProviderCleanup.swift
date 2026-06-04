@@ -50,8 +50,8 @@ extension AgentsManagerTests {
     }
 
     func testClaudeApprovalStoreAdapterIgnoresNonClaudeSessionRemoval() async {
-        let hookServer = StubClaudeHookServer(launchConfig: nil)
-        let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(claudeHookServer: hookServer)
+        let persistenceStore = RecordingClaudeApprovalPersistenceStore()
+        let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: persistenceStore)
 
         await approvalStore.removeSessionApprovals(
             providerId: .codex,
@@ -64,10 +64,95 @@ extension AgentsManagerTests {
             sessionId: "claude-session"
         )
 
-        let removals = await hookServer.removedSessionApprovalIDs()
+        let removals = await persistenceStore.removedSessionApprovalIDs()
         XCTAssertEqual(removals.count, 1)
         XCTAssertEqual(removals.first?.conversationId, "conversation-1")
         XCTAssertEqual(removals.first?.sessionId, "claude-session")
+    }
+
+    func testAgentCLIKitSessionRecordRemovalClearsClaudeSessionApprovals() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ModelEchoingAgentCLIKitAdapter(),
+            detectedPath: "/bin/sh",
+            basePath: "/usr/bin:/bin"
+        )
+        let conversationId = AgentCLIKit.AgentConversationID(rawValue: "conversation-approval-cleanup")
+        let approvalRequest = AgentCLIKit.AgentSessionApprovalRequest(
+            providerId: .claude,
+            conversationId: conversationId,
+            sessionId: "session-1",
+            toolName: "Bash",
+            toolInput: .object(["command": .string("pwd")])
+        )
+        try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
+            conversationId: conversationId,
+            providerId: .claude,
+            providerSessionId: "session-1",
+            workingDirectory: URL(fileURLWithPath: "/tmp"),
+            generation: 1
+        ))
+        _ = await fixture.approvalStore.recordSessionApproval(AgentCLIKit.AgentSessionApprovalGrant(
+            providerId: .claude,
+            conversationId: conversationId,
+            sessionId: "session-1",
+            matchKind: .bashExact,
+            matchValue: "pwd"
+        ))
+
+        try await fixture.manager.removeAgentCLIKitSessionRecord(
+            conversationId: conversationId,
+            activeProviderId: .claude,
+            services: fixture.services
+        )
+
+        let remainingRecord = try await fixture.sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let stillApproved = await fixture.approvalStore.allowsSessionApproval(approvalRequest)
+        XCTAssertNil(remainingRecord)
+        XCTAssertFalse(stillApproved)
+    }
+}
+
+private struct RemovedSessionApprovalID: Equatable {
+    let conversationId: String
+    let sessionId: String
+}
+
+private actor RecordingClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
+    private var removals: [RemovedSessionApprovalID] = []
+
+    func recordSessionApproval(_ approval: Alveary.AgentSessionApprovalGrant) async -> Alveary.SessionApprovalRecordResult {
+        Alveary.SessionApprovalRecordResult(isEffective: false, wasInserted: false)
+    }
+
+    func discardSessionApproval(_ approval: Alveary.AgentSessionApprovalGrant) async {}
+
+    func allowsSessionApproval(
+        providerId: String,
+        conversationId: String,
+        sessionId: String,
+        toolName: String,
+        toolInput: String
+    ) async -> Bool {
+        false
+    }
+
+    func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection? {
+        nil
+    }
+
+    func recordToolApprovalSelection(
+        _ selection: ToolApprovalSelection,
+        providerId: String,
+        conversationId: String,
+        sessionId: String
+    ) async {}
+
+    func removeSessionApprovals(conversationId: String, sessionId: String) async {
+        removals.append(RemovedSessionApprovalID(conversationId: conversationId, sessionId: sessionId))
+    }
+
+    func removedSessionApprovalIDs() -> [RemovedSessionApprovalID] {
+        removals
     }
 }
 

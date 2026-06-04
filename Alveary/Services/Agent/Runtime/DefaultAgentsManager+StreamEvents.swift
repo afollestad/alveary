@@ -120,12 +120,10 @@ extension DefaultAgentsManager {
         permissionDenials: [PermissionDenialSummary],
         conversationId: String
     ) async -> Bool {
-        guard usesAgentCLIKitRuntime, !isError, permissionDenials.isEmpty else {
+        guard !isError, permissionDenials.isEmpty else {
             return false
         }
-        guard let services = agentCLIKitServices else {
-            return agentCLIKitStatuses[conversationId]?.isTurnActive == true
-        }
+        let services = agentCLIKitServices
         let status = await services.runtime.status(conversationId: services.hostAdapter.conversationId(conversationId))
         if let status {
             agentCLIKitStatuses[conversationId] = status
@@ -144,30 +142,13 @@ extension DefaultAgentsManager {
             return
         }
 
-        if usesAgentCLIKitRuntime {
-            eventBuffers[conversationId]?.hasDeferredToolStop = true
-            eventBuffers[conversationId]?.acceptsLiveEvents = false
-            eventBuffers[conversationId]?.allowsReplay = true
-            Task { [weak self] in
-                await self?.stopAgentCLIKitDeferredRuntimeIfCurrent(
-                    conversationId: conversationId,
-                    generation: generation
-                )
-            }
-            return
-        }
-
-        guard let pid = processes[conversationId]?.processIdentifier else {
-            return
-        }
-
         eventBuffers[conversationId]?.hasDeferredToolStop = true
         eventBuffers[conversationId]?.acceptsLiveEvents = false
+        eventBuffers[conversationId]?.allowsReplay = true
         Task { [weak self] in
-            await self?.stopDeferredRuntimeIfCurrent(
+            await self?.stopAgentCLIKitDeferredRuntimeIfCurrent(
                 conversationId: conversationId,
-                generation: generation,
-                pid: pid
+                generation: generation
             )
         }
     }
@@ -178,10 +159,6 @@ extension DefaultAgentsManager {
     ) async {
         if case .sessionInit(let sessionId) = event, let sessionId {
             await updateConversationSessionID(sessionId, conversationId: conversationId)
-        }
-
-        if case .permissionModeChanged(let permissionMode) = event {
-            await claudeHookServer.updatePermissionMode(permissionMode, for: conversationId)
         }
     }
 }

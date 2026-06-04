@@ -1,7 +1,9 @@
+/// Reusable session-approval scopes that can be offered for a tool approval.
 enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
     case exact
     case group
 
+    /// Button title while the approval is still pending.
     var pendingTitle: String {
         switch self {
         case .exact:
@@ -11,6 +13,7 @@ enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
         }
     }
 
+    /// Button title after the approval resolves.
     var resolvedTitle: String {
         switch self {
         case .exact:
@@ -21,11 +24,13 @@ enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
     }
 }
 
+/// User's selected approval mode for a tool approval prompt.
 enum ToolApprovalSelection: String, Sendable, Equatable, Hashable {
     case once
     case sessionExact
     case sessionGroup
 
+    /// Creates a reusable approval selection for a session scope.
     init(sessionScope: ToolApprovalSessionScope) {
         switch sessionScope {
         case .exact:
@@ -35,6 +40,7 @@ enum ToolApprovalSelection: String, Sendable, Equatable, Hashable {
         }
     }
 
+    /// Session scope represented by this selection, or `nil` for one-shot approvals.
     var sessionScope: ToolApprovalSessionScope? {
         switch self {
         case .once:
@@ -46,6 +52,7 @@ enum ToolApprovalSelection: String, Sendable, Equatable, Hashable {
         }
     }
 
+    /// Coerces the selection to the first currently available scope when needed.
     func normalized(for availableScopes: [ToolApprovalSessionScope]) -> ToolApprovalSelection {
         guard let sessionScope else {
             return .once
@@ -60,6 +67,7 @@ enum ToolApprovalSelection: String, Sendable, Equatable, Hashable {
     }
 }
 
+/// Persisted/UI state for an approval row in the transcript.
 enum ToolApprovalStatus: String, Sendable, Equatable {
     case pending
     case approving
@@ -73,6 +81,7 @@ enum ToolApprovalStatus: String, Sendable, Equatable {
     case superseded
 }
 
+/// Pending approval request paired with its current UI status.
 struct PendingToolApproval: Sendable, Equatable {
     var request: ToolApprovalRequest
     var status: ToolApprovalStatus

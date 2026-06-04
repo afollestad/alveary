@@ -53,7 +53,6 @@ actor AgentCLIKitLiveHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProvidi
         requestIDs[key] = requestID
         let deferredToolRequest = ClaudeDeferredToolRequest(
             conversationId: request.conversationId.rawValue,
-            launchToken: nil,
             request: toolApprovalRequest
         )
 

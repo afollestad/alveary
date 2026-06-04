@@ -337,7 +337,7 @@ private extension ConversationViewModel {
         guard let pendingApproval = state.pendingToolApproval,
               pendingApproval.status == .pending,
               pendingApproval.request.sessionId == approval.sessionId,
-              ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+              ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
                   toolName: approval.toolName,
                   with: [pendingApproval.request.toolName]
               ) else {

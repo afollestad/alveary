@@ -126,8 +126,8 @@ extension DefaultAgentsManager {
     }
 
     func stopAgentCLIKitDeferredRuntimeIfCurrent(conversationId: String, generation: UUID) async {
-        guard let services = agentCLIKitServices,
-              let managedBuffer = eventBuffers[conversationId],
+        let services = agentCLIKitServices
+        guard let managedBuffer = eventBuffers[conversationId],
               managedBuffer.generation == generation,
               managedBuffer.hasDeferredToolStop else {
             return

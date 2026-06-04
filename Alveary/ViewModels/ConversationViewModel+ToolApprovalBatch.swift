@@ -5,7 +5,7 @@ extension ConversationViewModel {
         guard let dbConversation = dbConversation() else {
             return []
         }
-        guard ClaudeHookPolicy.canRenderToolApproval(approval.toolName) else {
+        guard ClaudeApprovalDisplayPolicy.canRenderToolApproval(approval.toolName) else {
             return []
         }
 
@@ -126,8 +126,8 @@ private extension ConversationViewModel {
                   !completedToolIds.contains(toolUseId),
                   record.toolApprovalStatus == nil,
                   let toolName = record.toolName,
-                  ClaudeHookPolicy.canRenderToolApproval(toolName),
-                  ClaudeHookPolicy.canBatchPotentialApprovalToolCall(
+                  ClaudeApprovalDisplayPolicy.canRenderToolApproval(toolName),
+                  ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
                       toolName: toolName,
                       with: [approval.toolName]
                   ),
@@ -170,7 +170,7 @@ private extension ConversationViewModel {
     }
 
     func shouldBatchToolCallApproval(toolName: String, with approvalToolNames: [String]) -> Bool {
-        ClaudeHookPolicy.shouldBatchDeferredToolCall(
+        ClaudeApprovalDisplayPolicy.shouldBatchDeferredToolCall(
             toolName: toolName,
             with: approvalToolNames,
             permissionMode: effectivePermissionMode

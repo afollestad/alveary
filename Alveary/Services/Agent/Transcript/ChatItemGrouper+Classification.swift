@@ -17,7 +17,7 @@ extension ChatItemGrouper {
     /// Unknown tools default to standalone so a tool that actually mutates state never gets
     /// silently folded into a group header.
     static func groupability(forToolNamed name: String) -> ToolGroupability {
-        if ClaudeHookPolicy.canRenderToolApproval(name) {
+        if ClaudeApprovalDisplayPolicy.canRenderToolApproval(name) {
             return .standalone
         }
 

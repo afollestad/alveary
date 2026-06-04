@@ -18,8 +18,8 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/DI/AGENTS.md`: Needle and generated DI.
 - `Alveary/Services/Agent/AGENTS.md`: provider-neutral agent services.
 - `Alveary/Services/Agent/Runtime/AGENTS.md`: runtime, event buffers, deferred tools.
-- `Alveary/Services/Agent/Claude/AGENTS.md`: Claude adapter and stream decoding.
-- `Alveary/Services/Agent/Claude/Hooks/AGENTS.md`: hook listener and approval policy.
+- `Alveary/Services/Agent/Claude/AGENTS.md`: Claude ownership boundaries.
+- `Alveary/Services/Agent/Claude/Approvals/AGENTS.md`: durable approval persistence and UI display policy.
 - `Alveary/Services/Agent/Transcript/AGENTS.md`: `ChatItemGrouper`.
 - `Alveary/Services/Detection/AGENTS.md`: provider detection.
 - `Alveary/Services/Git/AGENTS.md`: worktrees and GitHub CLI.

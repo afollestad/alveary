@@ -1,10 +1,8 @@
 import AgentCLIKit
 import Foundation
 
-let claudeHookTokenEnvironmentKey = "ALVEARY_HOOK_TOKEN"
-
 actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
-    let agentCLIKitServices: AgentCLIKitHostServices?
+    let agentCLIKitServices: AgentCLIKitHostServices
     let sessionManager: SessionManager
     let providerDetection: ProviderDetectionService
     let environmentBuilder: AgentEnvironmentBuilder
@@ -12,16 +10,9 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let settingsService: SettingsService
     let keepAwakeService: KeepAwakeService
     let notificationManager: NotificationManager
-    let claudeHookServer: any ClaudeHookServer
-    let adapterFactory: @Sendable (String) -> AgentAdapter
+    let claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore
 
-    var processes: [String: Process] = [:]
-    var adapters: [String: AgentAdapter] = [:]
-    var hookTokens: [String: String] = [:]
-    var streamTasks: [String: Task<Void, Never>] = [:]
     var eventBuffers: [String: ManagedEventBuffer] = [:]
-    var stdinWriteTails: [String: PendingStdinWrite] = [:]
-    var suppressedExitPIDs: [String: Set<Int32>] = [:]
     var closingConversationIds: Set<String> = []
     var pendingSessionRemovalIds: Set<String> = []
     var pendingSessionRemovalErrors: [String: String] = [:]
@@ -42,7 +33,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let conversationStatesStore = LockedState([String: ConversationState]())
 
     init(
-        agentCLIKitServices: AgentCLIKitHostServices? = nil,
+        agentCLIKitServices: AgentCLIKitHostServices,
         sessionManager: SessionManager,
         providerDetection: ProviderDetectionService,
         environmentBuilder: AgentEnvironmentBuilder,
@@ -50,15 +41,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         settingsService: SettingsService,
         keepAwakeService: KeepAwakeService,
         notificationManager: NotificationManager,
-        claudeHookServer: any ClaudeHookServer = DisabledClaudeHookServer(),
-        adapterFactory: @escaping @Sendable (String) -> AgentAdapter = { providerID in
-            switch providerID {
-            case "claude":
-                return ClaudeAdapter()
-            default:
-                fatalError("Unknown provider: \(providerID). Add an adapter case for this provider.")
-            }
-        }
+        claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore = DisabledClaudeApprovalPersistenceStore()
     ) {
         self.agentCLIKitServices = agentCLIKitServices
         self.sessionManager = sessionManager
@@ -68,8 +51,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         self.settingsService = settingsService
         self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
-        self.claudeHookServer = claudeHookServer
-        self.adapterFactory = adapterFactory
+        self.claudeApprovalPersistenceStore = claudeApprovalPersistenceStore
     }
 
     @MainActor
@@ -87,14 +69,13 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
     nonisolated func beginShutdown() {
         shutdownRequested.withLock { $0 = true }
-        if let agentCLIKitServices {
-            let semaphore = DispatchSemaphore(value: 0)
-            Task.detached(priority: .userInitiated) {
-                await agentCLIKitServices.runtime.shutdown()
-                semaphore.signal()
-            }
-            _ = semaphore.wait(timeout: .now() + 5)
+        let agentCLIKitServices = agentCLIKitServices
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached(priority: .userInitiated) {
+            await agentCLIKitServices.runtime.shutdown()
+            semaphore.signal()
         }
+        _ = semaphore.wait(timeout: .now() + 5)
     }
 
     nonisolated func status(for conversationId: String) -> ActivitySignal {
@@ -110,10 +91,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     func hasTrackedProcess(conversationId: String) -> Bool {
-        if usesAgentCLIKitRuntime {
-            return agentCLIKitStatuses[conversationId]?.processIdentifier != nil
-        }
-        return processes[conversationId] != nil
+        agentCLIKitStatuses[conversationId]?.processIdentifier != nil
     }
 
     func hasInflightLifecycle(conversationId: String) -> Bool {
@@ -121,20 +99,9 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     func isRunning(conversationId: String) -> Bool {
-        if usesAgentCLIKitRuntime {
-            return agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
-                spawningIds.contains(conversationId) ||
-                reconfiguringIds.contains(conversationId)
-        }
-        if let process = processes[conversationId] {
-            return process.isRunning || spawningIds.contains(conversationId) || reconfiguringIds.contains(conversationId)
-        }
-
-        return spawningIds.contains(conversationId) || reconfiguringIds.contains(conversationId)
-    }
-
-    func resolveAdapter(for providerId: String) -> AgentAdapter {
-        adapterFactory(providerId)
+        agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
+            spawningIds.contains(conversationId) ||
+            reconfiguringIds.contains(conversationId)
     }
 
     nonisolated func updateStatus(_ signal: ActivitySignal, for conversationId: String) {

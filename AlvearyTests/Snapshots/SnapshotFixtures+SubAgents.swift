@@ -15,9 +15,9 @@ extension SnapshotTests {
                     ToolEntry(
                         id: "agent-hook-read",
                         name: "Read",
-                        summary: "Reading `DefaultClaudeHookServer.swift`",
-                        input: "{\"file_path\":\"Alveary/Services/Agent/Claude/Hooks/DefaultClaudeHookServer.swift\"}",
-                        output: "final class DefaultClaudeHookServer { ... }",
+                        summary: "Reading `DefaultClaudeApprovalPersistenceStore.swift`",
+                        input: "{\"file_path\":\"Alveary/Services/Agent/Claude/Approvals/DefaultClaudeApprovalPersistenceStore.swift\"}",
+                        output: "actor DefaultClaudeApprovalPersistenceStore { ... }",
                         stderr: nil,
                         isComplete: true,
                         isInterrupted: false,

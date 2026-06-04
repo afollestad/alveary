@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 
@@ -58,45 +59,26 @@ extension ConversationViewModel {
     func resolvedToolApprovalStatusFromClaudeSession(_ approval: ToolApprovalRequest) -> ToolApprovalStatus? {
         let providerId = conversation.provider ?? settingsService.current.defaultProvider
         guard providerId == "claude",
-              let workingDirectory = dbConversation()?.thread?.worktreePath ?? dbConversation()?.thread?.project?.path,
-              let sessionFilePath = ClaudeAdapter().sessionFilePath(
-                  sessionId: approval.sessionId,
-                  cwd: workingDirectory
-              ),
-              let contents = try? String(contentsOfFile: sessionFilePath, encoding: .utf8) else {
+              let workingDirectory = dbConversation()?.thread?.worktreePath ?? dbConversation()?.thread?.project?.path else {
             return nil
         }
 
-        for line in contents.split(whereSeparator: \.isNewline) {
-            guard let data = String(line).data(using: .utf8),
-                  let event = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  event["type"] as? String == "attachment",
-                  let attachment = event["attachment"] as? [String: Any],
-                  attachmentToolUseId(from: attachment) == approval.toolUseId,
-                  let attachmentType = attachment["type"] as? String else {
-                continue
-            }
-
-            if attachmentType == "hook_non_blocking_error" {
-                return .superseded
-            }
-
-            guard attachmentType == "hook_success",
-                  let decision = hookPermissionDecision(from: attachment["stdout"] as? String) else {
-                continue
-            }
-
-            switch decision {
-            case ClaudeHookResponseDecision.allow.rawValue:
-                return .approved
-            case ClaudeHookResponseDecision.deny.rawValue:
-                return .denied
-            default:
-                break
-            }
+        let transcriptReader = AgentCLIKit.ClaudeHookTranscriptReader()
+        let resolution = transcriptReader.resolution(
+            forToolUseId: AgentCLIKit.AgentInteractionID(rawValue: approval.toolUseId),
+            sessionId: AgentCLIKit.AgentSessionID(rawValue: approval.sessionId),
+            workingDirectoryPath: workingDirectory
+        )
+        switch resolution {
+        case .some(.permissionDecision(.allow)):
+            return .approved
+        case .some(.permissionDecision(.deny)):
+            return .denied
+        case .some(.nonBlockingError):
+            return .superseded
+        case .some(.permissionDecision(.deferDecision)), .none:
+            return nil
         }
-
-        return nil
     }
 
     private func askUserQuestionApprovalRecords(
@@ -194,17 +176,4 @@ extension ConversationViewModel {
         }
     }
 
-    private func hookPermissionDecision(from stdout: String?) -> String? {
-        guard let stdout,
-              let data = stdout.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let output = object["hookSpecificOutput"] as? [String: Any] else {
-            return nil
-        }
-        return output["permissionDecision"] as? String
-    }
-
-    private func attachmentToolUseId(from attachment: [String: Any]) -> String? {
-        (attachment["toolUseID"] as? String) ?? (attachment["tool_use_id"] as? String)
-    }
 }

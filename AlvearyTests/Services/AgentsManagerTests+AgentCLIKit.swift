@@ -106,7 +106,7 @@ extension AgentsManagerTests {
     }
 
     func testAgentCLIKitApprovalStoreScopesTransientDecisionsBySession() async {
-        let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(claudeHookServer: DisabledClaudeHookServer())
+        let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: DisabledClaudeApprovalPersistenceStore())
         let scopedKey = AgentCLIKit.ClaudeTransientDecisionKey(sessionId: "session-1", interactionId: "tool-1")
 
         await approvalStore.recordTransientDecision(.deny(reason: "No"), for: scopedKey)
@@ -287,10 +287,9 @@ extension AgentsManagerTests {
 
         try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
         await manager.kill(conversationId: conversationId)
-        await manager.handleDeferredToolRequestFromHookServer(
+        await manager.handleDeferredToolRequest(
             ClaudeDeferredToolRequest(
                 conversationId: conversationId,
-                launchToken: nil,
                 request: ToolApprovalRequest(
                     sessionId: "session-1",
                     toolUseId: "tool-1",
@@ -342,7 +341,8 @@ extension AgentsManagerTests {
             runtime: runtime,
             sessionStore: sessionStore,
             approvalStore: approvalStore,
-            liveHookDecisionProvider: liveHookDecisionProvider
+            liveHookDecisionProvider: liveHookDecisionProvider,
+            services: services
         )
     }
 

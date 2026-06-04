@@ -9,6 +9,7 @@ struct AgentCLIKitManagerFixture {
     let sessionStore: AgentCLIKit.JSONFileAgentSessionStore
     let approvalStore: AgentCLIKit.ClaudeApprovalPolicyStore
     let liveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider
+    let services: AgentCLIKitHostServices
 }
 
 struct ModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {

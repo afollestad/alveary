@@ -1,7 +1,8 @@
 import Foundation
 import SwiftData
 
-extension DefaultClaudeHookServer {
+extension DefaultClaudeApprovalPersistenceStore {
+    /// Persists a reusable approval grant and reports whether the grant was newly inserted.
     func recordSessionApproval(_ approval: AgentSessionApprovalGrant) -> SessionApprovalRecordResult {
         guard let context = sessionApprovalContext() else {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
@@ -44,6 +45,7 @@ extension DefaultClaudeHookServer {
         }
     }
 
+    /// Removes a reusable approval grant when an approval resume fails before Claude consumes it.
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) {
         guard let context = sessionApprovalContext() else {
             return
@@ -75,6 +77,7 @@ extension DefaultClaudeHookServer {
         try? context.save()
     }
 
+    /// Returns the user's last selected approval scope for a Claude session.
     func toolApprovalSelection(
         providerId: String,
         conversationId: String,
@@ -100,6 +103,7 @@ extension DefaultClaudeHookServer {
         return ToolApprovalSelection(rawValue: record.selection)
     }
 
+    /// Records the user's last selected approval scope for a Claude session.
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
         providerId: String,
@@ -138,11 +142,8 @@ extension DefaultClaudeHookServer {
         try? context.save()
     }
 
+    /// Removes reusable approvals and saved scope selection for a Claude session.
     func removeSessionApprovals(conversationId: String, sessionId: String) {
-        transientApprovalDecisions = transientApprovalDecisions.filter {
-            $0.key.conversationId != conversationId || $0.key.sessionId != sessionId
-        }
-
         guard let context = sessionApprovalContext() else {
             return
         }

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import SwiftData
 import XCTest
 
@@ -376,8 +377,10 @@ extension ConversationViewModelTests {
         usesSnakeCaseToolUseId: Bool = false,
         hookError: Bool = false
     ) throws -> URL {
-        let sessionFilePath = try XCTUnwrap(ClaudeAdapter().sessionFilePath(sessionId: sessionId, cwd: cwd))
-        let sessionFileURL = URL(fileURLWithPath: sessionFilePath)
+        let sessionFileURL = AgentCLIKit.ClaudePathEncoder.sessionFileURL(
+            sessionId: AgentCLIKit.AgentSessionID(rawValue: sessionId),
+            workingDirectoryPath: cwd
+        )
         try FileManager.default.createDirectory(
             at: sessionFileURL.deletingLastPathComponent(),
             withIntermediateDirectories: true

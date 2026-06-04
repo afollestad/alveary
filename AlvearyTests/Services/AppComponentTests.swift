@@ -30,7 +30,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitProjectTrustService
         _ = component.agentCLIKitProviderDiscoveryService
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
-        assertSameInstance(component.claudeHookServer, component.claudeHookServer)
+        assertSameInstance(component.claudeApprovalPersistenceStore, component.claudeApprovalPersistenceStore)
         assertSameInstance(component.gitService, component.gitService)
         assertSameInstance(component.gitHubCLIService, component.gitHubCLIService)
         assertSameInstance(component.skillsService, component.skillsService)
@@ -77,7 +77,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitRuntime
         _ = component.agentCLIKitSessionStore
         _ = component.agentCLIKitHostServices
-        _ = component.claudeHookServer
+        _ = component.claudeApprovalPersistenceStore
         _ = component.defaultAgentsManager
         _ = component.agentsManager
         _ = component.conversationRuntimeStore

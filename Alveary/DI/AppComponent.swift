@@ -149,7 +149,7 @@ extension AppComponent {
     }
 
     var agentCLIKitClaudeApprovalPolicyStore: AgentCLIKitClaudeApprovalStoreAdapter {
-        return shared { AgentCLIKitClaudeApprovalStoreAdapter(claudeHookServer: claudeHookServer) }
+        return shared { AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: claudeApprovalPersistenceStore) }
     }
 
     var agentCLIKitLiveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider {
@@ -308,8 +308,8 @@ extension AppComponent {
         }
     }
 
-    var claudeHookServer: ClaudeHookServer {
-        return shared { DefaultClaudeHookServer() }
+    var claudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
+        return shared { DefaultClaudeApprovalPersistenceStore() }
     }
 
     var defaultAgentsManager: DefaultAgentsManager {
@@ -323,7 +323,7 @@ extension AppComponent {
                 settingsService: settingsService,
                 keepAwakeService: keepAwakeService,
                 notificationManager: notificationManager,
-                claudeHookServer: claudeHookServer
+                claudeApprovalPersistenceStore: claudeApprovalPersistenceStore
             )
         }
     }

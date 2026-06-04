@@ -3,9 +3,7 @@ import Foundation
 
 extension DefaultAgentsManager {
     func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
-        guard let services = agentCLIKitServices else {
-            return
-        }
+        let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
         guard !spawningIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Spawn already in progress for \(conversationId)")

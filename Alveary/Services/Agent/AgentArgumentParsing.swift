@@ -1,51 +1,8 @@
-import Foundation
-
-struct PreparedSpawnContext {
-    let cliPath: String
-    let adapter: AgentAdapter
-    let isResuming: Bool
-    let sessionLaunch: SessionLaunchDecision
-    let arguments: [String]
-    let environment: [String: String]
-}
-
-struct LaunchedProcess {
-    let process: Process
-    let stdin: Pipe
-    let stdout: Pipe
-    let stderr: Pipe
-
-    var stdoutReader: FileHandle {
-        stdout.fileHandleForReading
-    }
-
-    var stderrReader: FileHandle {
-        stderr.fileHandleForReading
-    }
-
-    func closeParentLaunchHandles() {
-        stdin.fileHandleForReading.closeFile()
-        stdout.fileHandleForWriting.closeFile()
-        stderr.fileHandleForWriting.closeFile()
-    }
-
-    func closeAllHandles() {
-        stdin.fileHandleForWriting.closeFile()
-        stdin.fileHandleForReading.closeFile()
-        stdout.fileHandleForWriting.closeFile()
-        stdout.fileHandleForReading.closeFile()
-        stderr.fileHandleForWriting.closeFile()
-        stderr.fileHandleForReading.closeFile()
-    }
-}
-
-struct PublishedRuntime {
-    let pid: Int32
-    let generation: UUID
-}
-
-// Accept shell-style quoting for custom extra args, but intentionally stop short of a
-// full shell parser: Alveary does not perform expansions, substitutions, or globbing here.
+/// Parses shell-style provider argument text into tokens without shell expansion.
+///
+/// Alveary uses this for provider extra-args settings and approval-summary command grouping.
+/// It accepts quotes and backslash escapes, but intentionally does not perform substitutions,
+/// globbing, or environment expansion.
 func parseExtraArgs(_ raw: String) throws -> [String] {
     var parser = ShellStyleArgumentsParser()
     return try parser.parse(raw)

@@ -369,7 +369,7 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "ToolSearch"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Skill"), .standalone)
         for toolName in ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"] {
-            XCTAssertTrue(ClaudeHookPolicy.canRenderToolApproval(toolName))
+            XCTAssertTrue(ClaudeApprovalDisplayPolicy.canRenderToolApproval(toolName))
             XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: toolName), .standalone)
         }
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "mcp__linear__search_issues"), .groupable)

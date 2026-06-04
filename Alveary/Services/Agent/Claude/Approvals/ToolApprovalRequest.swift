@@ -1,5 +1,6 @@
 import Foundation
 
+/// Composer copy shown while a deferred tool or prompt is waiting for a user decision.
 struct DeferredToolComposerStatusText: Sendable, Equatable {
     let progressLabel: String
     let placeholder: String
@@ -20,6 +21,7 @@ struct DeferredToolComposerStatusText: Sendable, Equatable {
     )
 }
 
+/// Button and title copy for a tool approval prompt.
 struct ToolApprovalPromptCopy: Sendable, Equatable {
     let title: String
     let approveTitle: String
@@ -44,6 +46,11 @@ struct ToolApprovalPromptCopy: Sendable, Equatable {
     )
 }
 
+/// Alveary's UI model for a Claude tool approval request.
+///
+/// `AgentCLIKit` owns the provider hook transport that creates these requests. This type owns
+/// app-facing copy, summaries, supported session scopes, and updated-input helpers used by
+/// transcript rows and approval controls.
 struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     let sessionId: String
     let toolUseId: String
@@ -53,6 +60,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
 
     var id: String { toolUseId }
 
+    /// Creates a request for a provider session tool approval.
     init(
         sessionId: String,
         toolUseId: String,
@@ -67,6 +75,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         self.planMarkdownFallback = planMarkdownFallback
     }
 
+    /// Composer copy that reflects the tool family waiting on a decision.
     var composerStatusText: DeferredToolComposerStatusText {
         switch toolName {
         case "AskUserQuestion":
@@ -78,6 +87,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Prompt copy for the transcript approval controls.
     var approvalPromptCopy: ToolApprovalPromptCopy {
         switch toolName {
         case "ExitPlanMode":
@@ -87,6 +97,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Short human-readable summary of the requested tool action.
     var conciseSummary: String {
         let parsedInput = parsedInput
         let candidate: String?
@@ -111,6 +122,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         )
     }
 
+    /// Summary text shown inside transcript approval rows.
     var transcriptApprovalSummary: String? {
         switch toolName {
         case "ExitPlanMode":
@@ -120,6 +132,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Notification body for the pending approval.
     var notificationMessage: String {
         if toolName == "AskUserQuestion" {
             return "Your agent has a question: \(askUserQuestionNotificationSummary)"
@@ -129,6 +142,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         return "Your agent needs permission: \(title) \(conciseSummary)"
     }
 
+    /// Markdown plan payload for `ExitPlanMode`, including fallback transcript text when needed.
     var planMarkdown: String? {
         guard toolName == "ExitPlanMode" else {
             return nil
@@ -143,6 +157,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         return explicitPlan ?? fallbackPlan
     }
 
+    /// Session approval scopes currently supported by this request.
     var supportedSessionApprovalScopes: [ToolApprovalSessionScope] {
         switch toolName {
         case "Bash":
@@ -161,6 +176,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Returns the prompt title for one or more same-family approval requests.
     static func approvalPromptTitle(for approvals: [ToolApprovalRequest]) -> String {
         // Keep header copy here so transcript views do not grow duplicate
         // tool-family switches just to choose singular/plural approval wording.
@@ -179,6 +195,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         return firstApproval.approvalPromptTitle(isPlural: true)
     }
 
+    /// Returns a durable approval grant for the selected reusable scope.
     func sessionApprovalGrant(
         conversationId: String,
         providerId: String,
@@ -197,6 +214,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         )
     }
 
+    /// Returns `AskUserQuestion` updated input containing user answers.
     func askUserQuestionUpdatedInput(
         answers: [(question: String, answer: String)]
     ) -> String? {

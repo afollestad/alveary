@@ -1,12 +1,19 @@
 import AgentCLIKit
 import Foundation
 
+/// Bridges `AgentCLIKit` Claude approval policy storage to Alveary's durable approval store.
+///
+/// Session-scoped reusable approvals are persisted by Alveary so the UI can preserve
+/// approval selections across app launches. Transient one-shot and batch fallback
+/// decisions remain in `AgentCLIKit.ClaudeApprovalPolicyStore` because they belong to
+/// the provider hook runtime.
 actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicyStoring, AgentCLIKit.ClaudeTransientDecisionStoring {
-    private let claudeHookServer: any ClaudeHookServer
+    private let approvalPersistenceStore: any ClaudeApprovalPersistenceStore
     private let fallbackStore = AgentCLIKit.ClaudeApprovalPolicyStore()
 
-    init(claudeHookServer: any ClaudeHookServer) {
-        self.claudeHookServer = claudeHookServer
+    /// Creates an adapter backed by Alveary's approval persistence store.
+    init(approvalPersistenceStore: any ClaudeApprovalPersistenceStore) {
+        self.approvalPersistenceStore = approvalPersistenceStore
     }
 
     func approveForSession(operation: String) async {
@@ -29,7 +36,7 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         guard let approval = alvearySessionApproval(grant) else {
             return AgentCLIKit.AgentSessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
-        let result = await claudeHookServer.recordSessionApproval(approval)
+        let result = await approvalPersistenceStore.recordSessionApproval(approval)
         return AgentCLIKit.AgentSessionApprovalRecordResult(
             isEffective: result.isEffective,
             wasInserted: result.wasInserted
@@ -40,11 +47,11 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         guard let approval = alvearySessionApproval(grant) else {
             return
         }
-        await claudeHookServer.discardSessionApproval(approval)
+        await approvalPersistenceStore.discardSessionApproval(approval)
     }
 
     func allowsSessionApproval(_ request: AgentCLIKit.AgentSessionApprovalRequest) async -> Bool {
-        await claudeHookServer.allowsSessionApproval(
+        await approvalPersistenceStore.allowsSessionApproval(
             providerId: request.providerId.rawValue,
             conversationId: request.conversationId.rawValue,
             sessionId: request.sessionId.rawValue,
@@ -61,7 +68,7 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         guard providerId == .claude else {
             return
         }
-        await claudeHookServer.removeSessionApprovals(
+        await approvalPersistenceStore.removeSessionApprovals(
             conversationId: conversationId.rawValue,
             sessionId: sessionId.rawValue
         )
