@@ -5,6 +5,7 @@ struct AppKitChatComposerPanelConfiguration {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration?
+    let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
     let showsTopDivider: Bool
     let layout: AppKitChatComposerPanelView.Layout
 
@@ -13,6 +14,7 @@ struct AppKitChatComposerPanelConfiguration {
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
         queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration? = nil,
         actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
+        interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
         showsTopDivider: Bool,
         layout: AppKitChatComposerPanelView.Layout
     ) {
@@ -20,6 +22,7 @@ struct AppKitChatComposerPanelConfiguration {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessagesConfiguration = queuedMessagesConfiguration
         self.actionRowConfiguration = actionRowConfiguration
+        self.interactionOverlayConfiguration = interactionOverlayConfiguration
         self.showsTopDivider = showsTopDivider
         self.layout = layout
     }
@@ -60,6 +63,7 @@ final class AppKitChatComposerPanelView: NSView {
     private let queuedMessagesView = AppKitChatQueuedMessagesView()
     private let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
+    private let interactionOverlayView = AppKitComposerOverlayView()
 
     private var configuration: AppKitChatComposerPanelConfiguration?
     private var showsTopDivider = false
@@ -96,9 +100,9 @@ final class AppKitChatComposerPanelView: NSView {
         configureQueuedMessages(configuration.queuedMessagesConfiguration)
         configureEditor(configuration.bodyConfiguration)
         configureActionRow(configuration.actionRowConfiguration)
+        configureInteractionOverlay(configuration.interactionOverlayConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
-        invalidateIntrinsicContentSize()
-        needsLayout = true
+        invalidatePreferredHeight()
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -125,19 +129,27 @@ final class AppKitChatComposerPanelView: NSView {
                 height: actionRow.intrinsicContentSize.height
             )
         }
+        layoutInteractionOverlay(configuration: configuration)
         dividerView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
     }
 
     private func setupViews() {
+        wantsLayer = true
+        layer?.masksToBounds = true
+
         addSubview(topContentView)
         addSubview(queuedMessagesView)
         editorController.onPreferredSizeInvalidated = { [weak self] in
-            self?.invalidateIntrinsicContentSize()
-            self?.needsLayout = true
-            self?.superview?.needsLayout = true
+            self?.invalidatePreferredHeight()
         }
         actionRow.isHidden = true
         addSubview(actionRow)
+
+        interactionOverlayView.isHidden = true
+        interactionOverlayView.onPreferredSizeInvalidated = { [weak self] in
+            self?.invalidatePreferredHeight()
+        }
+        addSubview(interactionOverlayView)
 
         dividerView.wantsLayer = true
         dividerView.isHidden = true
@@ -219,6 +231,16 @@ final class AppKitChatComposerPanelView: NSView {
         return currentY + editorController.measuredHeight(width: contentWidth)
     }
 
+    private func layoutInteractionOverlay(configuration: AppKitChatComposerPanelConfiguration) {
+        guard configuration.interactionOverlayConfiguration != nil else {
+            interactionOverlayView.frame = .zero
+            return
+        }
+
+        interactionOverlayView.frame = bounds
+        interactionOverlayView.ensureFocusIfNeeded()
+    }
+
     private func queuedY(configuration: AppKitChatComposerPanelConfiguration, currentY: CGFloat) -> CGFloat {
         guard !topContentView.hasContent else {
             return currentY
@@ -243,6 +265,31 @@ final class AppKitChatComposerPanelView: NSView {
         }
         previousView?.removeFromSuperview()
         addSubview(editorView, positioned: .below, relativeTo: actionRow)
+    }
+
+    private func configureInteractionOverlay(_ configuration: AppKitComposerOverlayConfiguration?) {
+        guard let configuration else {
+            interactionOverlayView.configure(nil)
+            interactionOverlayView.isHidden = true
+            setNormalComposerOverlayHidden(false)
+            return
+        }
+
+        interactionOverlayView.isHidden = false
+        interactionOverlayView.configure(configuration, contentInsets: self.configuration?.layout.horizontalPadding ?? NSEdgeInsetsZero)
+        setNormalComposerOverlayHidden(true)
+        addSubview(interactionOverlayView, positioned: .above, relativeTo: nil)
+        interactionOverlayView.ensureFocusIfNeeded()
+    }
+
+    private func setNormalComposerOverlayHidden(_ isHidden: Bool) {
+        [topContentView, queuedMessagesView, editorController.view, actionRow].forEach {
+            $0?.setAccessibilityHidden(isHidden)
+        }
+        topContentView.isHidden = isHidden || !topContentView.hasContent
+        queuedMessagesView.isHidden = isHidden || (configuration?.queuedMessagesConfiguration?.queuedMessages.isEmpty ?? true)
+        editorController.view?.isHidden = isHidden
+        actionRow.isHidden = isHidden || configuration?.actionRowConfiguration == nil
     }
 
     private func configureDividerVisibility(_ isVisible: Bool) {
@@ -290,6 +337,14 @@ final class AppKitChatComposerPanelView: NSView {
         guard let configuration else {
             return 0
         }
+        let normalHeight = normalMeasuredHeight(for: width, configuration: configuration)
+        guard configuration.interactionOverlayConfiguration != nil else {
+            return normalHeight
+        }
+        return ceil(interactionOverlayView.measuredHeight(width: width))
+    }
+
+    private func normalMeasuredHeight(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
         let contentWidth = contentWidth(for: width, layout: configuration.layout)
         var height = topPadding(for: configuration)
         if topContentView.hasContent {
@@ -319,6 +374,16 @@ final class AppKitChatComposerPanelView: NSView {
         }
         view.layoutSubtreeIfNeeded()
         return max(0, ceil(view.fittingSize.height))
+    }
+
+    private func invalidatePreferredHeight() {
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+        if let surfaceView = superview as? AppKitChatSurfaceView {
+            surfaceView.layoutPreferredComposerHeightChange()
+        } else {
+            superview?.needsLayout = true
+        }
     }
 }
 

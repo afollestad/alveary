@@ -33,3 +33,11 @@ General shared controls live here. Narrower scopes:
 
 - Use `AppHeaderToggle` for compact expand/collapse headers that need the AppKit mouse fallback.
 - Pair `withAnimation(appExpansionAnimation)` with `.appExpansionAnimationOverride(value:)` so header toggles and surrounding lazy-list reflow share timing.
+
+## Hover Info Popups
+
+- Use `AppHoverInfoIcon` / `AppKitHoverInfoButton` for `info.circle` help affordances instead of plain `.help(...)` when the app needs the custom Alveary tooltip chrome.
+- Keep info icons visually stable: center them relative to the adjacent label text and use the shared muted gray treatment regardless of the parent row's enabled or selected state.
+- Keep tooltip sizing content-led but bounded. Short text should wrap content width; long text should wrap within the shared maximum width, use balanced horizontal/vertical insets, and keep the bubble shadow.
+- Prefer placing the tooltip to the trailing side of the icon when there is horizontal room, falling back to vertical placement only when needed.
+- Preserve accessibility value/help on the info button so the custom hover popup does not replace screen-reader help.

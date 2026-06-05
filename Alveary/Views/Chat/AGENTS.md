@@ -39,6 +39,19 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
       the native panel's BlockInputKit editor bridge, preferred-height
       invalidation, and shortcut configuration. Production fixes should stay on
       the native panel/controller path.
+    - **Own interaction overlays.** `AskUserQuestion` and `ExitPlanMode`
+      confirmations render as composer interaction overlays, not transcript
+      controls. Keep the normal composer mounted underneath, cover it with the
+      full-bounds hit-test blocker, measure the overlay as the active composer
+      height, and preserve transcript follow/anchor behavior during height
+      changes.
+    - **Keep overlay interaction native.** Shared `AppKitComposerOverlay*`
+      controls own row focus, hover/pressed states, shortcut badges, and
+      keyboard routing. Rows must be focusable; `Up`/`Down` move between
+      options, `Tab` reaches options and footer buttons, `Space` selects, `Esc`
+      dismisses, and `Return` selects the focused row then advances or submits.
+      For `ExitPlanMode`, keep the plan markdown in the transcript while only
+      the approval confirmation moves into the composer overlay.
 - User-triggered outbound composer clears must request composer focus through
   `appState.requestComposerFocus()` after the draft is cleared. Do not introduce
   another focus path.

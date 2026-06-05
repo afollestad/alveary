@@ -1,10 +1,19 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// Native owner for the active chat surface layout.
 final class AppKitChatSurfaceView: NSView {
     private weak var contentView: NSView?
     private weak var composerView: NSView?
+    private var composerHeightAnimationID: UUID?
+    private var animatedComposerHeight: CGFloat?
+    private var animationBoundsSize = NSSize.zero
+    private let composerHeightAnimationDuration: TimeInterval = 0.18
+
+#if DEBUG
+    var disableHeightAnimationForTesting = false
+#endif
 
     override var isFlipped: Bool {
         true
@@ -30,6 +39,7 @@ final class AppKitChatSurfaceView: NSView {
         }
 
         if composerView !== newComposerView {
+            cancelComposerHeightAnimation()
             clearHostedInvalidation(composerView)
             composerView?.removeFromSuperview()
             composerView = newComposerView
@@ -51,18 +61,39 @@ final class AppKitChatSurfaceView: NSView {
             return
         }
 
-        let width = bounds.width
-        let height = bounds.height
-        let composerHeight = measuredComposerHeight(for: composerView, width: width)
-        let contentHeight = max(0, height - composerHeight)
-
-        contentView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
-        composerView.frame = NSRect(x: 0, y: contentHeight, width: width, height: composerHeight)
-        composerView.layoutSubtreeIfNeeded()
+        if animatedComposerHeight != nil, animationBoundsSize != bounds.size {
+            cancelComposerHeightAnimation()
+        }
+        let composerHeight = animatedComposerHeight ?? measuredComposerHeight(for: composerView, width: bounds.width)
+        applySurfaceLayout(contentView: contentView, composerView: composerView, composerHeight: composerHeight)
     }
 
-    func layoutPreferredComposerHeightChange() {
-        layoutSubtreeIfNeeded()
+    func layoutPreferredComposerHeightChange(animated: Bool = true) {
+        guard let contentView, let composerView else {
+            layoutSubtreeIfNeeded()
+            return
+        }
+        let targetHeight = measuredComposerHeight(for: composerView, width: bounds.width)
+        let currentHeight = composerView.frame.height > 0 ? composerView.frame.height : targetHeight
+        cancelComposerHeightAnimation()
+
+        guard animated,
+              shouldAnimateHeightChange,
+              abs(currentHeight - targetHeight) > 0.5
+        else {
+            animatedComposerHeight = nil
+            applySurfaceLayout(contentView: contentView, composerView: composerView, composerHeight: targetHeight)
+            return
+        }
+
+        animatedComposerHeight = currentHeight
+        animationBoundsSize = bounds.size
+        startComposerHeightAnimation(
+            contentView: contentView,
+            composerView: composerView,
+            from: currentHeight,
+            to: targetHeight
+        )
     }
 
     func scrollEventWindowPoint(_ event: NSEvent) -> NSPoint {
@@ -125,6 +156,95 @@ final class AppKitChatSurfaceView: NSView {
         return max(0, ceil(composerView.fittingSize.height))
     }
 
+    private var shouldAnimateHeightChange: Bool {
+#if DEBUG
+        guard !disableHeightAnimationForTesting else {
+            return false
+        }
+#endif
+        return window != nil && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func startComposerHeightAnimation(
+        contentView: NSView,
+        composerView: NSView,
+        from startHeight: CGFloat,
+        to targetHeight: CGFloat
+    ) {
+        let animationID = UUID()
+        composerHeightAnimationID = animationID
+        let state = ComposerHeightAnimationState(
+            id: animationID,
+            startTime: CACurrentMediaTime(),
+            startHeight: startHeight,
+            targetHeight: targetHeight
+        )
+        advanceComposerHeightAnimation(
+            contentView: contentView,
+            composerView: composerView,
+            state: state
+        )
+    }
+
+    private func advanceComposerHeightAnimation(
+        contentView: NSView,
+        composerView: NSView,
+        state: ComposerHeightAnimationState
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (1.0 / 60.0)) { [weak self, weak contentView, weak composerView] in
+            MainActor.assumeIsolated {
+                guard let self,
+                      self.composerHeightAnimationID == state.id,
+                      let contentView,
+                      let composerView
+                else {
+                    return
+                }
+                let elapsed = CACurrentMediaTime() - state.startTime
+                let progress = min(max(elapsed / self.composerHeightAnimationDuration, 0), 1)
+                let easedProgress = self.easeInEaseOut(progress)
+                let height = state.startHeight + ((state.targetHeight - state.startHeight) * easedProgress)
+                self.animatedComposerHeight = progress < 1 ? height : nil
+                self.applySurfaceLayout(contentView: contentView, composerView: composerView, composerHeight: height)
+                if progress >= 1 {
+                    self.composerHeightAnimationID = nil
+                    self.applySurfaceLayout(contentView: contentView, composerView: composerView, composerHeight: state.targetHeight)
+                    return
+                }
+                self.advanceComposerHeightAnimation(
+                    contentView: contentView,
+                    composerView: composerView,
+                    state: state
+                )
+            }
+        }
+    }
+
+    private func cancelComposerHeightAnimation() {
+        composerHeightAnimationID = nil
+        animatedComposerHeight = nil
+    }
+
+    private func applySurfaceLayout(contentView: NSView, composerView: NSView, composerHeight: CGFloat) {
+        let width = bounds.width
+        let height = bounds.height
+        let resolvedComposerHeight = min(max(0, ceil(composerHeight)), height)
+        let contentHeight = max(0, height - resolvedComposerHeight)
+
+        contentView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
+        composerView.frame = NSRect(x: 0, y: contentHeight, width: width, height: resolvedComposerHeight)
+        contentView.needsLayout = true
+        composerView.needsLayout = true
+        contentView.layoutSubtreeIfNeeded()
+        composerView.layoutSubtreeIfNeeded()
+    }
+
+    private func easeInEaseOut(_ progress: Double) -> CGFloat {
+        let clamped = min(max(progress, 0), 1)
+        let eased = clamped * clamped * (3 - (2 * clamped))
+        return CGFloat(eased)
+    }
+
     private func configureHostedInvalidation(_ view: NSView) {
         guard let hostedView = view as? AppKitChatSurfaceHostingView else {
             return
@@ -148,6 +268,13 @@ final class AppKitChatSurfaceView: NSView {
         wantsLayer = true
         layer?.masksToBounds = true
     }
+}
+
+private struct ComposerHeightAnimationState {
+    let id: UUID
+    let startTime: CFTimeInterval
+    let startHeight: CGFloat
+    let targetHeight: CGFloat
 }
 
 /// Thin SwiftUI bridge that lets `ChatView` continue to produce stateful child

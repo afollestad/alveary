@@ -5,6 +5,10 @@ private enum AppKitTranscriptApprovalButtonMetrics {
     static let horizontalPadding: CGFloat = 10
     static let iconSize: CGFloat = 14
     static let iconTextSpacing: CGFloat = 6
+    static let shortcutHorizontalPadding: CGFloat = 7
+    static let shortcutHeight: CGFloat = 18
+    static let shortcutSymbolSize: CGFloat = 12
+    static let shortcutSpacing: CGFloat = 7
     static let cornerRadius: CGFloat = 9
 }
 
@@ -24,12 +28,23 @@ final class AppKitTranscriptApprovalButton: NSButton {
             invalidateIntrinsicContentSize()
         }
     }
+    var shortcutTitle: String? {
+        didSet {
+            needsDisplay = true
+            invalidateIntrinsicContentSize()
+        }
+    }
+    var keyEventHandler: ((NSEvent) -> Bool)?
 
     var preferredWidth: CGFloat {
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: drawingFont]).width)
         let imageWidth = symbolName == nil ? 0 :
             AppKitTranscriptApprovalButtonMetrics.iconSize + AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
+        let shortcutWidth = measuredShortcutWidth
+        let shortcutSpacing = shortcutWidth > 0 ? AppKitTranscriptApprovalButtonMetrics.shortcutSpacing : 0
         return ceil((AppKitTranscriptApprovalButtonMetrics.horizontalPadding * 2) + imageWidth + titleWidth)
+            + shortcutSpacing
+            + shortcutWidth
     }
 
     override var fittingSize: NSSize {
@@ -85,6 +100,13 @@ final class AppKitTranscriptApprovalButton: NSButton {
         needsDisplay = true
     }
 
+    override func keyDown(with event: NSEvent) {
+        if keyEventHandler?(event) == true {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         drawBackground()
         drawContents()
@@ -135,7 +157,9 @@ final class AppKitTranscriptApprovalButton: NSButton {
         let titleSize = (title as NSString).size(withAttributes: textAttributes)
         let imageWidth = symbolName == nil ? 0 :
             AppKitTranscriptApprovalButtonMetrics.iconSize + AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
-        let contentWidth = imageWidth + titleSize.width
+        let shortcutWidth = measuredShortcutWidth
+        let shortcutSpacing = shortcutWidth > 0 ? AppKitTranscriptApprovalButtonMetrics.shortcutSpacing : 0
+        let contentWidth = imageWidth + titleSize.width + shortcutSpacing + shortcutWidth
         var currentX = floor((bounds.width - contentWidth) / 2)
         let centerY = bounds.midY
 
@@ -158,6 +182,105 @@ final class AppKitTranscriptApprovalButton: NSButton {
             height: titleSize.height
         )
         (title as NSString).draw(in: titleRect, withAttributes: textAttributes)
+        currentX = titleRect.maxX + shortcutSpacing
+
+        if let shortcutTitle, !shortcutTitle.isEmpty {
+            drawShortcut(title: shortcutTitle, originX: currentX, centerY: centerY)
+        }
+    }
+
+    private var measuredShortcutWidth: CGFloat {
+        guard let shortcutTitle, !shortcutTitle.isEmpty else {
+            return 0
+        }
+        if shortcutSymbolName(for: shortcutTitle) != nil {
+            return ceil(AppKitTranscriptApprovalButtonMetrics.shortcutSymbolSize +
+                (AppKitTranscriptApprovalButtonMetrics.shortcutHorizontalPadding * 2))
+        }
+        let width = (shortcutTitle as NSString).size(withAttributes: [.font: shortcutFont]).width
+        return ceil(width + (AppKitTranscriptApprovalButtonMetrics.shortcutHorizontalPadding * 2))
+    }
+
+    private var shortcutFont: NSFont {
+        .systemFont(ofSize: 12, weight: .medium)
+    }
+
+    private func drawShortcut(title: String, originX: CGFloat, centerY: CGFloat) {
+        let rect = shortcutBackgroundRect(originX: originX, centerY: centerY)
+        let path = NSBezierPath(
+            roundedRect: rect,
+            xRadius: AppKitTranscriptApprovalButtonMetrics.shortcutHeight / 2,
+            yRadius: AppKitTranscriptApprovalButtonMetrics.shortcutHeight / 2
+        )
+        NSColor.labelColor.appKitResolvedColor(in: self, alpha: actionStyle == .primary ? 0.16 : 0.12).setFill()
+        path.fill()
+
+        if let image = shortcutSymbolImage(for: title) {
+            image.draw(
+                in: centeredImageRect(for: image, in: rect),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1,
+                respectFlipped: true,
+                hints: nil
+            )
+            return
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: shortcutFont,
+            .foregroundColor: foregroundColor
+        ]
+        let size = (title as NSString).size(withAttributes: attributes)
+        let textRect = NSRect(
+            x: rect.midX - (size.width / 2),
+            y: floor(rect.midY - (size.height / 2)),
+            width: size.width,
+            height: size.height
+        )
+        (title as NSString).draw(in: textRect, withAttributes: attributes)
+    }
+
+    private func shortcutBackgroundRect(originX: CGFloat, centerY: CGFloat) -> NSRect {
+        NSRect(
+            x: originX,
+            y: floor(centerY - (AppKitTranscriptApprovalButtonMetrics.shortcutHeight / 2)),
+            width: measuredShortcutWidth,
+            height: AppKitTranscriptApprovalButtonMetrics.shortcutHeight
+        )
+    }
+
+    private func shortcutSymbolImage(for title: String) -> NSImage? {
+        guard let symbolName = shortcutSymbolName(for: title) else {
+            return nil
+        }
+        let configuration = NSImage.SymbolConfiguration(
+            pointSize: AppKitTranscriptApprovalButtonMetrics.shortcutSymbolSize,
+            weight: .semibold
+        )
+        .applying(.init(hierarchicalColor: foregroundColor))
+        return NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)
+    }
+
+    private func shortcutSymbolName(for title: String) -> String? {
+        title == "↩" ? "return" : nil
+    }
+
+    private func centeredImageRect(for image: NSImage, in rect: NSRect) -> NSRect {
+        let size = image.size
+        guard size.width > 0, size.height > 0, rect.width > 0, rect.height > 0 else {
+            return rect
+        }
+        let maxSymbolSize = AppKitTranscriptApprovalButtonMetrics.shortcutSymbolSize
+        let scale = min(maxSymbolSize / size.width, maxSymbolSize / size.height)
+        let drawingSize = NSSize(width: ceil(size.width * scale), height: ceil(size.height * scale))
+        return NSRect(
+            x: floor(rect.midX - (drawingSize.width / 2)),
+            y: floor(rect.midY - (drawingSize.height / 2)),
+            width: drawingSize.width,
+            height: drawingSize.height
+        )
     }
 
     private func symbolImage(named name: String, color: NSColor) -> NSImage? {
@@ -326,6 +449,13 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
 extension AppKitTranscriptApprovalButton {
     var symbolNameForTesting: String? {
         symbolName
+    }
+
+    func shortcutSymbolDrawingRectForTesting(title: String, in rect: NSRect) -> NSRect? {
+        guard let image = shortcutSymbolImage(for: title) else {
+            return nil
+        }
+        return centeredImageRect(for: image, in: rect)
     }
 
     func setInteractionStateForTesting(isHovering: Bool = false, isPressed: Bool = false) {

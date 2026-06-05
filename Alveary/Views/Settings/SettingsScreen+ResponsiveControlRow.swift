@@ -38,7 +38,7 @@ private struct SettingsResponsiveControlLabel: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        HStack(alignment: .center, spacing: 6) {
             Text(title)
                 .accessibilityHidden(true)
 
