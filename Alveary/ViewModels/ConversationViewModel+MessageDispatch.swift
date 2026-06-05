@@ -44,9 +44,10 @@ extension ConversationViewModel {
     func sendReserved(
         _ message: String,
         stagedContextOverride: String? = nil,
+        useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil
     ) async throws {
-        let appliedContext = stagedContextOverride ?? state.stagedContext
+        let appliedContext = stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let transportMessage = buildTransportMessage(
             message: message,
             stagedContext: appliedContext
@@ -61,7 +62,7 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
         try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
-        if stagedContextOverride == nil {
+        if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
         clearConsumedPendingRestoreContext(using: appliedContext)
@@ -162,6 +163,7 @@ private extension ConversationViewModel {
                 try await deliverMessageReserved(
                     queuedMessage.text,
                     stagedContextOverride: queuedMessage.stagedContext,
+                    useCurrentStagedContextWhenOverrideNil: false,
                     existingLocalUserMessageID: localMessage.id,
                     respawnSettingsSource: .currentContinuation
                 )

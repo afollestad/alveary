@@ -37,6 +37,11 @@ struct PendingSessionSettingsChange: Equatable, Sendable {
     }
 }
 
+struct PendingExitPlanModeFollowUp: Equatable, Sendable {
+    let toolUseId: String
+    let message: String
+}
+
 @MainActor
 @Observable
 final class ConversationState {
@@ -84,6 +89,7 @@ final class ConversationState {
     var inFlightQueuedMessageID: UUID?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
+    var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
     var runtimePermissionMode: String?
     var lastNonPlanPermissionMode: String?
     var liveSessionConfig: AgentSpawnConfig?

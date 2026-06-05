@@ -58,9 +58,10 @@ extension ConversationViewModel {
 
     private func prepareLocalUserMessageAttempt(
         message: String,
-        stagedContextOverride: String?
+        stagedContextOverride: String?,
+        useCurrentStagedContextWhenOverrideNil: Bool
     ) throws -> LocalUserMessageAttempt {
-        let appliedContext = stagedContextOverride ?? state.stagedContext
+        let appliedContext = stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         guard let dbConversation = dbConversation() else {
             throw AgentError.spawnFailed("Conversation no longer exists")
         }
@@ -76,7 +77,7 @@ extension ConversationViewModel {
             shouldAutoNameThread: true
         ).id
 
-        if stagedContextOverride == nil {
+        if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
 
@@ -91,12 +92,13 @@ extension ConversationViewModel {
     private func localUserMessageAttempt(
         message: String,
         stagedContextOverride: String?,
+        useCurrentStagedContextWhenOverrideNil: Bool,
         existingLocalUserMessageID: String?
     ) throws -> LocalUserMessageAttempt {
         if let existingLocalUserMessageID {
             return LocalUserMessageAttempt(
                 id: existingLocalUserMessageID,
-                stagedContext: stagedContextOverride ?? state.stagedContext,
+                stagedContext: stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil),
                 insertedMessage: false,
                 metadata: nil
             )
@@ -104,7 +106,8 @@ extension ConversationViewModel {
 
         return try prepareLocalUserMessageAttempt(
             message: message,
-            stagedContextOverride: stagedContextOverride
+            stagedContextOverride: stagedContextOverride,
+            useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil
         )
     }
 
@@ -188,6 +191,7 @@ extension ConversationViewModel {
     func deliverMessageReserved(
         _ message: String,
         stagedContextOverride: String? = nil,
+        useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn
     ) async throws {
@@ -195,6 +199,7 @@ extension ConversationViewModel {
         let attempt = try localUserMessageAttempt(
             message: message,
             stagedContextOverride: stagedContextOverride,
+            useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
             existingLocalUserMessageID: existingLocalUserMessageID
         )
 
@@ -203,6 +208,7 @@ extension ConversationViewModel {
                 try await setupAndStartReserved(
                     message,
                     stagedContextOverride: stagedContextOverride,
+                    useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
                     snapshotStagedContext: attempt.stagedContext
                 )
@@ -219,6 +225,7 @@ extension ConversationViewModel {
             try await sendReserved(
                 message,
                 stagedContextOverride: stagedContextOverride ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
+                useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id
             )
         } catch is CancellationError {
@@ -238,6 +245,7 @@ extension ConversationViewModel {
     private func setupAndStartReserved(
         _ message: String,
         stagedContextOverride: String? = nil,
+        useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
         snapshotStagedContext: String? = nil
     ) async throws {
@@ -270,6 +278,7 @@ extension ConversationViewModel {
             try await sendReserved(
                 message,
                 stagedContextOverride: stagedContextOverride ?? snapshotStagedContext,
+                useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                 existingLocalUserMessageID: existingLocalUserMessageID
             )
         } catch {

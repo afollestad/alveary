@@ -34,6 +34,7 @@ struct ChatView: View {
     @State private var cachedContextWindowSize: Int?
     @State private var isStopConfirmationArmed = false
     @State var askUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
+    @State var exitPlanModeOverlayStates: [String: ExitPlanModeOverlayState] = [:]
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -50,7 +51,7 @@ struct ChatView: View {
             isReconfiguringSession: viewModel.state.isReconfiguringSession,
             isAwaitingHandoffSteering: viewModel.state.isAwaitingHandoffSteering,
             isHandingOffSession: viewModel.state.isHandingOffSession,
-            pendingToolApprovalStatusText: viewModel.state.pendingToolApproval?.request.composerStatusText,
+            pendingToolApprovalStatusText: pendingToolApprovalStatusTextForComposer,
             isTurnActive: viewModel.turnState.isActive,
             runtimeStatus: runtimeStatus,
             isSendingMessage: viewModel.state.isSendingMessage

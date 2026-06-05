@@ -131,12 +131,15 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
             return tool.noOutputExpected ? [] : [messageLabel("No output", typography: typography)]
         }
 
-        if tool.name == "Read", snapshot.language == "markdown" {
+        if snapshot.language == "markdown" {
+            let markdown = tool.name == "Read"
+                ? ReadToolContent.strippingLineNumberPrefixes(from: content)
+                : content
             return [
                 AppKitTranscriptMarkdownToolContentView(
                     taskStateScope: tool.id,
-                    markdown: ReadToolContent.strippingLineNumberPrefixes(from: content),
-                    baseURL: ReadToolContent.baseURL(for: tool),
+                    markdown: markdown,
+                    baseURL: snapshot.baseURL,
                     typography: typography,
                     onOpenMarkdownLink: onOpenMarkdownLink
                 )

@@ -64,7 +64,7 @@ extension DefaultAgentsManager {
         case .toolApprovalRequested:
             handleToolApprovalRequestedStatus(conversationId: conversationId)
         case .error:
-            if cancelledPromptResolutionsByConversation[conversationId] != nil {
+            if cancelledInteractionsByConversation[conversationId] != nil {
                 updateStatus(.idle, for: conversationId)
             } else {
                 updateStatus(.error, for: conversationId)
@@ -81,7 +81,7 @@ extension DefaultAgentsManager {
         conversationId: String
     ) {
         if case .failed = outcome,
-           cancelledPromptResolutionsByConversation[conversationId] != nil {
+           cancelledInteractionsByConversation[conversationId] != nil {
             updateStatus(.idle, for: conversationId)
             return
         }
@@ -97,7 +97,7 @@ extension DefaultAgentsManager {
         _ failure: ToolApprovalFailure,
         conversationId: String
     ) {
-        if cancelledPromptResolutionsByConversation[conversationId] != nil {
+        if cancelledInteractionsByConversation[conversationId] != nil {
             eventBuffers[conversationId]?.hasSentPendingUserActionNotification = false
             updateStatus(.idle, for: conversationId)
             return
@@ -112,12 +112,12 @@ extension DefaultAgentsManager {
     }
 
     private func handleToolApprovalRequestedStatus(conversationId: String) {
-        if cancelledPromptResolutionsByConversation[conversationId] != nil {
+        if cancelledInteractionsByConversation[conversationId] != nil {
             updateStatus(.idle, for: conversationId)
             return
         }
 
-        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
+        cancelledInteractionsByConversation.removeValue(forKey: conversationId)
         updateStatus(.waitingForUser, for: conversationId)
     }
 
@@ -131,7 +131,7 @@ extension DefaultAgentsManager {
             return
         }
 
-        if cancelledPromptResolutionsByConversation[conversationId] != nil {
+        if cancelledInteractionsByConversation[conversationId] != nil {
             updateStatus(.idle, for: conversationId)
             return
         }
@@ -206,17 +206,17 @@ extension DefaultAgentsManager {
         }
     }
 
-    func suppressCancelledPromptStatusIfNeeded(
+    func suppressCancelledInteractionStatusIfNeeded(
         _ status: AgentCLIKit.AgentRuntimeStatus,
         conversationId: String
     ) -> Bool {
-        guard let cancelledPrompt = cancelledPromptResolutionsByConversation[conversationId] else {
+        guard let cancelledInteraction = cancelledInteractionsByConversation[conversationId] else {
             return false
         }
 
-        if let agentGeneration = cancelledPrompt.agentGeneration,
+        if let agentGeneration = cancelledInteraction.agentGeneration,
            agentGeneration != status.generation {
-            cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
+            cancelledInteractionsByConversation.removeValue(forKey: conversationId)
             return false
         }
 
@@ -233,7 +233,7 @@ extension DefaultAgentsManager {
             updateStatus(.idle, for: conversationId)
             return true
         case .failed, .cancelled, .exited:
-            cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
+            cancelledInteractionsByConversation.removeValue(forKey: conversationId)
             updateStatus(.idle, for: conversationId)
             return true
         }

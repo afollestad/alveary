@@ -80,6 +80,43 @@ extension AgentsManagerTests {
         XCTAssertEqual(manager.status(for: conversationId), .busy)
         await manager.kill(conversationId: conversationId)
     }
+
+    func testAgentCLIKitExitPlanModeDenyCancellationStaysIdleWhileRuntimeStillActive() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ExitPlanModePromptAgentCLIKitAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-exit-plan-deny-stays-idle"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let approvalEvent = try await nextEvent(from: subscription.stream, description: "ExitPlanMode prompt event")
+        guard case let .toolApprovalRequested(approval) = approvalEvent else {
+            return XCTFail("Expected ExitPlanMode approval request, got \(approvalEvent)")
+        }
+        try await waitUntil("expected plan exit to wait for user") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: approval,
+            resolution: ClaudeToolApprovalResolution(decision: .deny),
+            additionalApprovals: [],
+            sessionApproval: nil,
+            config: spawnConfig(workingDirectory: "/tmp")
+        ))
+
+        try await waitUntil("expected denied plan exit to stay idle") {
+            manager.status(for: conversationId) == .idle
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(manager.status(for: conversationId), .idle)
+        await manager.kill(conversationId: conversationId)
+    }
 }
 
 private struct AskUserQuestionPromptAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
@@ -154,6 +191,55 @@ private struct AskUserQuestionPromptAgentCLIKitAdapter: AgentCLIKit.AgentProvide
             return [.lifecycle(AgentCLIKit.AgentLifecycleEvent(
                 state: .failed,
                 message: "Agent process failed"
+            ))]
+        default:
+            return []
+        }
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        switch input {
+        case .userMessage, .interrupt:
+            Data()
+        case .interactionResolution(let resolution):
+            Data("\(resolution.outcome.rawValue)\n".utf8)
+        }
+    }
+}
+
+private struct ExitPlanModePromptAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: [
+                "-c",
+                "printf 'interaction:plan_exit\\n'; read resolution; sleep 1"
+            ],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        switch line {
+        case "interaction:plan_exit":
+            return [.interaction(AgentCLIKit.AgentInteractionEvent(
+                id: "plan-exit-1",
+                kind: .planModeExit,
+                prompt: "Implement this plan?",
+                metadata: [
+                    "session_id": .string("session-1"),
+                    "tool_name": .string("ExitPlanMode"),
+                    "tool_input": .object([:])
+                ]
             ))]
         default:
             return []

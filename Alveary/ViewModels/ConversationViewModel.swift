@@ -223,13 +223,21 @@ final class ConversationViewModel {
             if approvalCandidate?.shouldCheckSessionResolution != false,
                 let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
                 if resolvedStatus != .approved {
-                    try await deliverMessageReserved(message, respawnSettingsSource: .currentContinuation)
+                    try await deliverMessageReserved(
+                        message,
+                        useCurrentStagedContextWhenOverrideNil: false,
+                        respawnSettingsSource: .currentContinuation
+                    )
                 }
             } else {
                 try await answerDeferredAskUserQuestion(promptPendingApproval, answers: answers)
             }
         } else {
-            try await deliverMessageReserved(message, respawnSettingsSource: .currentContinuation)
+            try await deliverMessageReserved(
+                message,
+                useCurrentStagedContextWhenOverrideNil: false,
+                respawnSettingsSource: .currentContinuation
+            )
             supersedePendingToolApprovalAfterPromptAnswer(pendingApproval)
         }
 

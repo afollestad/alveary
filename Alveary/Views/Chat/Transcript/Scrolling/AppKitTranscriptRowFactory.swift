@@ -20,6 +20,7 @@ final class AppKitTranscriptRowFactory {
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
         var isPromptBusy: (PromptEntry) -> Bool = { _ in false }
+        var suppressesApprovalControls: (ToolApprovalRequest) -> Bool = { _ in false }
         var selectedApprovalSelection: (ToolApprovalRequest) -> ToolApprovalSelection = { _ in .once }
         // Row-specific invalidation lets the AppKit container keep rows mounted
         // while remeasuring only the row whose variable-height content changed.
@@ -315,6 +316,10 @@ final class AppKitTranscriptRowFactory {
                     configuration: configuration
                 )
             )
+        }
+
+        guard !configuration.suppressesApprovalControls(approval) else {
+            return rows
         }
 
         let approvalRowID = "\(id)-approval"

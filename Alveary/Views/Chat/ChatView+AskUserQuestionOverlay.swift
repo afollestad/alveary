@@ -79,11 +79,17 @@ struct AskUserQuestionOverlayState: Equatable {
 
 extension ChatView {
     var composerInteractionOverlayID: String? {
-        activeAskUserQuestionPrompt.map { "ask-user-question-\($0.id)" }
+        if let prompt = activeAskUserQuestionPrompt {
+            return "ask-user-question-\(prompt.id)"
+        }
+        if let approval = activeExitPlanModeApproval {
+            return "exit-plan-mode-\(approval.request.toolUseId)"
+        }
+        return nil
     }
 
     var composerInteractionOverlayConfiguration: AppKitComposerOverlayConfiguration? {
-        askUserQuestionOverlayConfiguration
+        askUserQuestionOverlayConfiguration ?? exitPlanModeOverlayConfiguration
     }
 
     var activeAskUserQuestionPrompt: PromptEntry? {

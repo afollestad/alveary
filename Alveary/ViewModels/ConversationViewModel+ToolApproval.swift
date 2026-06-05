@@ -36,6 +36,13 @@ extension ConversationViewModel {
         try await resolveToolUseApproval(toolUseId: toolUseId, decision: .deny)
     }
 
+    func resolveExitPlanModeToolUseApproval(
+        toolUseId: String,
+        decision: ClaudeToolApprovalDecision
+    ) async throws {
+        try await resolveToolUseApproval(toolUseId: toolUseId, decision: decision)
+    }
+
     func dismissPrompt(promptId: String) async throws {
         guard state.grouper.latestUnansweredPrompt?.id == promptId else {
             return
@@ -156,6 +163,7 @@ extension ConversationViewModel {
         }
 
         state.pendingToolApproval = nil
+        clearPendingExitPlanModeFollowUpIfNeeded(toolUseId: pendingApproval.request.toolUseId)
         refreshTranscriptForToolApprovalStatusChanges()
         return true
     }
@@ -169,6 +177,7 @@ extension ConversationViewModel {
         restorePermissionModeAfterPlanExitIfNeeded(pendingApproval)
         persistResolvedToolApproval(pendingApproval)
         state.pendingToolApproval = nil
+        _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: pendingApproval.request.toolUseId)
     }
 
     func replacePendingToolApproval(with approval: ToolApprovalRequest) {
@@ -253,6 +262,7 @@ extension ConversationViewModel {
             refreshTranscript: refreshTranscript
         )
         state.pendingToolApproval = nil
+        _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: approval.toolUseId)
         return resolvedStatus
     }
 }
@@ -466,5 +476,4 @@ private extension ConversationViewModel {
             // rows stay unresolved until the next successful save.
         }
     }
-
 }

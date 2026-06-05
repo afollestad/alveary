@@ -57,9 +57,9 @@ extension DefaultAgentsManager {
         context: ToolApprovalResolutionContext
     ) -> Bool {
         recordDeniedToolUseIdsIfNeeded(request)
-        let didCancelAskUserQuestion = recordCancelledPromptResolutionIfNeeded(request)
+        let didCancelInteraction = recordCancelledInteractionResolutionIfNeeded(request)
         eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-        updateStatus(didCancelAskUserQuestion ? .idle : .busy, for: request.conversationId)
+        updateStatus(didCancelInteraction ? .idle : .busy, for: request.conversationId)
         return context.sessionApprovalRecordResult.isEffective
     }
 
@@ -147,19 +147,23 @@ extension DefaultAgentsManager {
         deniedToolUseIdsByConversation[request.conversationId] = deniedToolUseIds
     }
 
-    private func recordCancelledPromptResolutionIfNeeded(_ request: AgentToolApprovalResolutionRequest) -> Bool {
-        guard request.approval.toolName == "AskUserQuestion",
-              request.resolution.decision == .deny else {
-            cancelledPromptResolutionsByConversation.removeValue(forKey: request.conversationId)
+    private func recordCancelledInteractionResolutionIfNeeded(_ request: AgentToolApprovalResolutionRequest) -> Bool {
+        guard request.resolution.decision == .deny,
+              Self.idlesAfterDeniedInteraction(toolName: request.approval.toolName) else {
+            cancelledInteractionsByConversation.removeValue(forKey: request.conversationId)
             return false
         }
 
-        cancelledPromptResolutionsByConversation[request.conversationId] = CancelledPromptResolution(
+        cancelledInteractionsByConversation[request.conversationId] = CancelledInteractionResolution(
             toolUseId: request.approval.toolUseId,
             agentGeneration: agentCLIKitStatuses[request.conversationId]?.generation
                 ?? agentCLIKitGenerationByConversation[request.conversationId]
         )
         return true
+    }
+
+    private static func idlesAfterDeniedInteraction(toolName: String) -> Bool {
+        toolName == "AskUserQuestion" || toolName == "ExitPlanMode"
     }
 
     private func makeToolApprovalResolutionContext(

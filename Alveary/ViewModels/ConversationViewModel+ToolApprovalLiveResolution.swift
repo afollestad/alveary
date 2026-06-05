@@ -139,6 +139,10 @@ extension ConversationViewModel {
             try modelContext.save()
             if state.pendingToolApproval?.request.toolUseId == toolUseId {
                 state.pendingToolApproval = nil
+                if enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: toolUseId),
+                   !state.turnState.isActive {
+                    handleTurnCompleted()
+                }
             }
             refreshTranscriptForToolApprovalStatusChanges()
         } catch {
@@ -226,6 +230,7 @@ extension ConversationViewModel {
         restorePermissionModeAfterPlanExitIfNeeded(pendingApproval)
         persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
         state.pendingToolApproval = nil
+        _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: pendingApproval.request.toolUseId)
         refreshTranscriptForToolApprovalStatusChanges()
     }
 }

@@ -21,7 +21,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var reconfiguringIds: Set<String> = []
     var pendingKillIds: Set<String> = []
     var deniedToolUseIdsByConversation: [String: Set<String>] = [:]
-    var cancelledPromptResolutionsByConversation: [String: CancelledPromptResolution] = [:]
+    var cancelledInteractionsByConversation: [String: CancelledInteractionResolution] = [:]
     var agentCLIKitEventTasks: [String: Task<Void, Never>] = [:]
     var agentCLIKitStatusTasks: [String: Task<Void, Never>] = [:]
     var agentCLIKitGenerationByConversation: [String: Int] = [:]
@@ -135,9 +135,10 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
 
 }
 
-struct CancelledPromptResolution: Equatable {
-    // AgentCLIKit can keep reporting the cancelled interaction as running or prompt-waiting
-    // until the provider emits terminal fallout. Scope suppression to this prompt/generation.
+struct CancelledInteractionResolution: Equatable {
+    // AgentCLIKit can keep reporting a denied prompt/plan-exit interaction as running
+    // or waiting until the provider emits terminal fallout. Scope suppression to this
+    // interaction/generation so new user work can clear it normally.
     let toolUseId: String
     let agentGeneration: Int?
 }

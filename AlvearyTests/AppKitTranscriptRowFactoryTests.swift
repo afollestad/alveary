@@ -51,6 +51,26 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(rows[1].view is AppKitTranscriptToolApprovalBlockView)
     }
 
+    func testApprovalControlSuppressionKeepsPlanMarkdownRow() {
+        let factory = AppKitTranscriptRowFactory()
+        let approval = ToolApprovalRequest(
+            sessionId: "session",
+            toolUseId: "approval",
+            toolName: "ExitPlanMode",
+            toolInput: #"{"plan":"Ship it"}"#
+        )
+        var configuration = AppKitTranscriptRowFactory.Configuration()
+        configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
+
+        let rows = factory.makeRows(
+            for: [.toolApproval(id: "approval-item", approval: approval, status: nil)],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(rows.map(\.id), ["approval-item-plan"])
+        XCTAssertTrue(rows[0].view is AppKitTranscriptTextBubbleRowView)
+    }
+
     func testApprovalRowsUseConfiguredSelectedApprovalSelection() throws {
         let factory = AppKitTranscriptRowFactory()
         let approval = ToolApprovalRequest(

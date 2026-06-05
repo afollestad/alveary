@@ -1,3 +1,4 @@
+@preconcurrency import AppKit
 import SwiftUI
 import XCTest
 
@@ -115,10 +116,141 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithAskUserQuestionOverlay() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                interactionOverlayConfiguration: askUserQuestionOverlayConfiguration
+            ),
+            size: CGSize(width: 1000, height: 217),
+            named: "appkit_composer_panel_ask_user_question_overlay",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerPanelWithExitPlanModeOverlay() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                interactionOverlayConfiguration: exitPlanModeOverlayConfiguration
+            ),
+            size: CGSize(width: 1000, height: 160),
+            named: "appkit_composer_panel_exit_plan_mode_overlay",
+            colorScheme: .dark
+        )
+    }
+
     private var composerPanelSnapshotCapabilities: ComposerCapabilities {
         ComposerCapabilities(
             supportedPermissionModes: samplePermissionModes,
             supportsMidTurnSteering: true
+        )
+    }
+
+    private var askUserQuestionOverlayConfiguration: AppKitComposerOverlayConfiguration {
+        AppKitComposerOverlayConfiguration(
+            id: "ask-user-question-snapshot",
+            panelConfiguration: AppKitComposerOverlayPanelView.Configuration(
+                title: "Which implementation path should we take?",
+                rows: [
+                    AppKitComposerOverlayOptionRowView.Configuration(
+                        id: "direct",
+                        indexText: "1.",
+                        title: "Direct implementation",
+                        helpText: "Make the smallest focused change.",
+                        isSelected: true,
+                        showsSelectedChip: true,
+                        isFocused: true,
+                        fontSize: AppKitComposerOverlayMetrics.compactOptionFontSize,
+                        fontWeight: AppKitComposerOverlayMetrics.compactOptionFontWeight,
+                        minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
+                        verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
+                        customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                        onSelect: {}
+                    ),
+                    AppKitComposerOverlayOptionRowView.Configuration(
+                        id: "refactor",
+                        indexText: "2.",
+                        title: "Refactor shared behavior",
+                        helpText: "Extract a reusable path before implementing.",
+                        fontSize: AppKitComposerOverlayMetrics.compactOptionFontSize,
+                        fontWeight: AppKitComposerOverlayMetrics.compactOptionFontWeight,
+                        minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
+                        verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
+                        customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                        onSelect: {}
+                    ),
+                    AppKitComposerOverlayOptionRowView.Configuration(
+                        id: "custom",
+                        indexText: "3.",
+                        title: "",
+                        customPlaceholder: "No, and tell the agent what to do differently",
+                        fontSize: AppKitComposerOverlayMetrics.compactOptionFontSize,
+                        fontWeight: AppKitComposerOverlayMetrics.compactOptionFontWeight,
+                        minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
+                        verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
+                        customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                        onSelect: {}
+                    )
+                ],
+                pageText: "1 of 2",
+                canNavigateForward: true,
+                primaryTitle: "Continue",
+                onDismiss: {},
+                onPrimary: {}
+            )
+        )
+    }
+
+    private var exitPlanModeOverlayConfiguration: AppKitComposerOverlayConfiguration {
+        AppKitComposerOverlayConfiguration(
+            id: "exit-plan-mode-snapshot",
+            panelConfiguration: AppKitComposerOverlayPanelView.Configuration(
+                title: "Implement this plan?",
+                rows: [
+                    AppKitComposerOverlayOptionRowView.Configuration(
+                        id: "yes",
+                        indexText: "1.",
+                        title: "Yes, implement this plan",
+                        isSelected: true,
+                        isFocused: true,
+                        fontSize: AppKitComposerOverlayMetrics.compactOptionFontSize,
+                        fontWeight: AppKitComposerOverlayMetrics.compactOptionFontWeight,
+                        minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
+                        verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
+                        customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                        onSelect: {}
+                    ),
+                    AppKitComposerOverlayOptionRowView.Configuration(
+                        id: "no",
+                        indexText: "2.",
+                        title: "",
+                        customPlaceholder: "No, and tell the agent what to do differently",
+                        fontSize: AppKitComposerOverlayMetrics.compactOptionFontSize,
+                        fontWeight: AppKitComposerOverlayMetrics.compactOptionFontWeight,
+                        minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
+                        verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
+                        customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                        usesInlineCustomPlaceholder: true,
+                        onSelect: {}
+                    )
+                ],
+                density: exitPlanModeOverlayDensity,
+                titleFont: .systemFont(ofSize: 14, weight: .semibold),
+                primaryTitle: "Submit",
+                onDismiss: {},
+                onPrimary: {}
+            )
+        )
+    }
+
+    private var exitPlanModeOverlayDensity: AppKitComposerOverlayPanelDensity {
+        AppKitComposerOverlayPanelDensity(
+            panelPadding: AppKitComposerOverlayMetrics.regularDensity.panelPadding,
+            topPadding: AppKitComposerOverlayMetrics.regularDensity.topPadding,
+            headerRowsSpacing: AppKitComposerOverlayMetrics.regularDensity.headerRowsSpacing,
+            rowSpacing: 0,
+            footerSpacing: 4,
+            placesFooterInlineWithLastRow: false,
+            bottomClearance: 12
         )
     }
 }
@@ -126,6 +258,7 @@ extension SnapshotTests {
 private struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessages: [QueuedMessage]
+    let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
@@ -146,10 +279,12 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
     init(
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
-        queuedMessages: [QueuedMessage] = []
+        queuedMessages: [QueuedMessage] = [],
+        interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
+        self.interactionOverlayConfiguration = interactionOverlayConfiguration
     }
 
     var body: some View {
@@ -157,7 +292,8 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             bodyConfiguration: bodyConfiguration,
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
-            actionRowConfiguration: actionRowConfiguration
+            actionRowConfiguration: actionRowConfiguration,
+            interactionOverlayConfiguration: interactionOverlayConfiguration
         )
     }
 
@@ -263,6 +399,7 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessagesConfiguration: AppKitChatQueuedMessagesConfiguration?
     let actionRowConfiguration: ChatComposerActionRowView.Configuration
+    let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
 
     func makeNSView(context: Context) -> AppKitChatComposerPanelView {
         let view = AppKitChatComposerPanelView()
@@ -280,6 +417,7 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
             topContentConfiguration: topContentConfiguration,
             queuedMessagesConfiguration: queuedMessagesConfiguration,
             actionRowConfiguration: actionRowConfiguration,
+            interactionOverlayConfiguration: interactionOverlayConfiguration,
             showsTopDivider: true,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,

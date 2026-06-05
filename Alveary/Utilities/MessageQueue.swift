@@ -16,6 +16,10 @@ final class MessageQueue {
         pending.append(QueuedMessage(text: message, stagedContext: stagedContext))
     }
 
+    func prepend(_ message: String, stagedContext: String? = nil) {
+        pending.insert(QueuedMessage(text: message, stagedContext: stagedContext), at: 0)
+    }
+
     func peekNext() -> QueuedMessage? {
         pending.first
     }
