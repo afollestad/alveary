@@ -203,9 +203,10 @@ final class AppKitContextWindowTooltipView: NSView {
     override var isFlipped: Bool { true }
 
     var preferredSize: NSSize {
-        let contentWidth = [titleField, headlineField, detailField, costField]
+        let contentWidth = visibleFields
             .map(Self.singleLineWidth(for:))
             .max() ?? 0
+        let costContentHeight = showsCostField ? bodySpacing + costFieldHeight : 0
         return NSSize(
             width: max(minimumWidth, contentWidth + (horizontalInset * 2)),
             height: verticalInset * 2 +
@@ -214,8 +215,7 @@ final class AppKitContextWindowTooltipView: NSView {
                 headlineFieldHeight +
                 bodySpacing +
                 detailFieldHeight +
-                bodySpacing +
-                costFieldHeight
+                costContentHeight
         )
     }
 
@@ -239,6 +239,9 @@ final class AppKitContextWindowTooltipView: NSView {
         headlineField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: headlineFieldHeight)
         nextY += headlineFieldHeight + bodySpacing
         detailField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: detailFieldHeight)
+        guard showsCostField else {
+            return
+        }
         nextY += detailFieldHeight + bodySpacing
         costField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: costFieldHeight)
     }
@@ -264,7 +267,7 @@ final class AppKitContextWindowTooltipView: NSView {
     }
 
     private func setup() {
-        [titleField, headlineField, detailField, costField].forEach {
+        [titleField, headlineField, detailField].forEach {
             $0.alignment = .center
             $0.lineBreakMode = .byTruncatingTail
             $0.maximumNumberOfLines = 1
@@ -272,6 +275,11 @@ final class AppKitContextWindowTooltipView: NSView {
             $0.cell?.wraps = false
             addSubview($0)
         }
+        costField.alignment = .center
+        costField.lineBreakMode = .byTruncatingTail
+        costField.maximumNumberOfLines = 1
+        costField.cell?.usesSingleLineMode = true
+        costField.cell?.wraps = false
         titleField.font = Self.preferredFont(for: .callout, weight: .semibold)
         titleField.textColor = .secondaryLabelColor
         headlineField.font = Self.preferredFont(for: .headline, weight: .semibold)
@@ -290,7 +298,15 @@ final class AppKitContextWindowTooltipView: NSView {
             headlineField.stringValue = "No usage yet"
             detailField.stringValue = "\(Self.tokenText(summary.contextWindowSize)) token window"
         }
-        costField.stringValue = "Session spend: \(Self.costText(summary.totalCostUsd))"
+        if summary.hasReportedCost {
+            costField.stringValue = "Session spend: \(Self.costText(summary.totalCostUsd))"
+            if costField.superview == nil {
+                addSubview(costField)
+            }
+        } else {
+            costField.stringValue = ""
+            costField.removeFromSuperview()
+        }
     }
 
     private static func tokenText(_ value: Int) -> String {
@@ -342,5 +358,16 @@ final class AppKitContextWindowTooltipView: NSView {
 
     private var costFieldHeight: CGFloat {
         ceil(costField.intrinsicContentSize.height)
+    }
+
+    private var visibleFields: [NSTextField] {
+        if showsCostField {
+            return [titleField, headlineField, detailField, costField]
+        }
+        return [titleField, headlineField, detailField]
+    }
+
+    private var showsCostField: Bool {
+        costField.superview != nil
     }
 }

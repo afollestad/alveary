@@ -100,7 +100,7 @@ enum ConversationEvent: Sendable, Equatable {
         isError: Bool,
         stopReason: String?,
         durationMs: Int,
-        costUsd: Double,
+        costUsd: Double?,
         providerModelId: String? = nil,
         contextWindowSize: Int? = nil,
         permissionDenials: [PermissionDenialSummary]
@@ -267,7 +267,8 @@ private extension ConversationEvent {
             tokenCacheRead: cacheRead,
             tokenCacheCreation: cacheCreation,
             durationMs: durationMs,
-            costUsd: costUsd,
+            costUsd: costUsd ?? 0,
+            costUsdReported: costUsd != nil,
             providerModelId: providerModelId,
             contextWindowSize: contextWindowSize,
             conversation: conversation

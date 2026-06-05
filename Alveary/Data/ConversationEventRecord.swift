@@ -30,6 +30,7 @@ final class ConversationEventRecord {
     var tokenCacheCreation: Int = 0
     var durationMs: Int
     var costUsd: Double
+    var costUsdReported: Bool = false
     var providerModelId: String?
     var contextWindowSize: Int?
     var notificationType: String?
@@ -61,6 +62,7 @@ final class ConversationEventRecord {
         tokenCacheCreation: Int = 0,
         durationMs: Int = 0,
         costUsd: Double = 0,
+        costUsdReported: Bool = false,
         providerModelId: String? = nil,
         contextWindowSize: Int? = nil,
         notificationType: String? = nil,
@@ -98,6 +100,7 @@ final class ConversationEventRecord {
         self.tokenCacheCreation = tokenCacheCreation
         self.durationMs = durationMs
         self.costUsd = costUsd
+        self.costUsdReported = costUsdReported
         self.providerModelId = providerModelId
         self.contextWindowSize = contextWindowSize
         self.notificationType = notificationType

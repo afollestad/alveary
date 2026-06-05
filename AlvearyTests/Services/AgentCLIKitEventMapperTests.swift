@@ -74,6 +74,19 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(stopReason, "tool_deferred")
     }
 
+    func testMapsMissingUsageCostAsNil() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.usage(AgentUsageEvent(
+            model: nil,
+            inputTokens: 1,
+            outputTokens: 2
+        ))))
+
+        guard case let .tokens(_, _, _, _, _, _, _, costUsd, _, _, _)? = events.first else {
+            return XCTFail("Expected token event")
+        }
+        XCTAssertNil(costUsd)
+    }
+
     func testMapsCompletedTaskNotificationToSubAgentCompletionAndResult() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
             id: "agent-tool-1",

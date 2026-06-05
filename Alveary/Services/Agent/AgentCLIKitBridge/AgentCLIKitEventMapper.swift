@@ -96,7 +96,7 @@ struct AgentCLIKitEventMapper: Sendable {
             isError: event.isError,
             stopReason: event.stopReason ?? event.metadata.stringValue("stop_reason"),
             durationMs: event.durationMs ?? 0,
-            costUsd: event.costUSD ?? 0,
+            costUsd: event.costUSD,
             providerModelId: event.model,
             contextWindowSize: event.contextWindow,
             permissionDenials: event.permissionDenials.map {

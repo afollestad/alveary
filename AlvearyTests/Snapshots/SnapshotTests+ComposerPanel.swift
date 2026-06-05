@@ -130,6 +130,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
         totalCostUsd: 1.42,
+        hasReportedCost: true,
         hasReportedUsage: true,
         isUsingCachedContextWindow: false
     )

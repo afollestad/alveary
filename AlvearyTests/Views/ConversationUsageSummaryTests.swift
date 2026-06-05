@@ -28,6 +28,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.contextUsedTokens, 300)
         XCTAssertEqual(summary?.contextWindowSize, 1_000_000)
         XCTAssertEqual(try XCTUnwrap(summary?.totalCostUsd), 0.03, accuracy: 0.000_001)
+        XCTAssertEqual(summary?.hasReportedCost, true)
         XCTAssertEqual(summary?.hasReportedUsage, true)
         XCTAssertEqual(summary?.isUsingCachedContextWindow, false)
     }
@@ -38,6 +39,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.contextUsedTokens, 0)
         XCTAssertEqual(summary?.contextWindowSize, 200_000)
         XCTAssertEqual(summary?.totalCostUsd, 0)
+        XCTAssertEqual(summary?.hasReportedCost, false)
         XCTAssertEqual(summary?.hasReportedUsage, false)
         XCTAssertEqual(summary?.isUsingCachedContextWindow, true)
     }
@@ -52,6 +54,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
 
         XCTAssertEqual(summary?.contextUsedTokens, 80)
         XCTAssertEqual(try XCTUnwrap(summary?.totalCostUsd), 0.01, accuracy: 0.000_001)
+        XCTAssertEqual(summary?.hasReportedCost, true)
     }
 
     func testContextWindowInvalidationKeepsPriorUsageButDropsPriorReportedMax() throws {
@@ -75,6 +78,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.contextUsedTokens, 150)
         XCTAssertEqual(summary?.contextWindowSize, 1_000_000)
         XCTAssertEqual(try XCTUnwrap(summary?.totalCostUsd), 0.01, accuracy: 0.000_001)
+        XCTAssertEqual(summary?.hasReportedCost, true)
         XCTAssertEqual(summary?.hasReportedUsage, true)
         XCTAssertEqual(summary?.isUsingCachedContextWindow, true)
     }
@@ -108,8 +112,31 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.contextUsedTokens, 300)
         XCTAssertEqual(summary?.contextWindowSize, 1_000_000)
         XCTAssertEqual(try XCTUnwrap(summary?.totalCostUsd), 0.03, accuracy: 0.000_001)
+        XCTAssertEqual(summary?.hasReportedCost, true)
         XCTAssertEqual(summary?.hasReportedUsage, true)
         XCTAssertEqual(summary?.isUsingCachedContextWindow, false)
+    }
+
+    func testReportedZeroCostStillCountsAsReportedCost() {
+        let events = [
+            tokenRecord(input: 10, output: 20, cacheRead: 30, cacheCreation: 40, costUsd: 0, costUsdReported: true)
+        ]
+
+        let summary = ConversationUsageSummary.derive(from: events, cachedContextWindowSize: 200_000)
+
+        XCTAssertEqual(summary?.totalCostUsd, 0)
+        XCTAssertEqual(summary?.hasReportedCost, true)
+    }
+
+    func testMissingCostDoesNotCountAsReportedCost() {
+        let events = [
+            tokenRecord(input: 10, output: 20, cacheRead: 30, cacheCreation: 40, costUsd: 0, costUsdReported: false)
+        ]
+
+        let summary = ConversationUsageSummary.derive(from: events, cachedContextWindowSize: 200_000)
+
+        XCTAssertEqual(summary?.totalCostUsd, 0)
+        XCTAssertEqual(summary?.hasReportedCost, false)
     }
 
     func testReturnsNilWhenNoReportedOrCachedContextWindowSizeExists() {
@@ -122,6 +149,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
         cacheRead: Int,
         cacheCreation: Int,
         costUsd: Double,
+        costUsdReported: Bool = false,
         contextWindowSize: Int? = nil
     ) -> ConversationEventRecord {
         ConversationEventRecord(
@@ -132,6 +160,7 @@ final class ConversationUsageSummaryTests: XCTestCase {
             tokenCacheRead: cacheRead,
             tokenCacheCreation: cacheCreation,
             costUsd: costUsd,
+            costUsdReported: costUsdReported,
             contextWindowSize: contextWindowSize
         )
     }

@@ -4,6 +4,7 @@ struct ConversationUsageSummary: Equatable, Sendable {
     let contextUsedTokens: Int
     let contextWindowSize: Int
     let totalCostUsd: Double
+    let hasReportedCost: Bool
     let hasReportedUsage: Bool
     let isUsingCachedContextWindow: Bool
 
@@ -47,11 +48,13 @@ struct ConversationUsageSummary: Equatable, Sendable {
         let totalCostUsd = tokenEvents.reduce(0) { partialResult, record in
             partialResult + record.costUsd
         }
+        let hasReportedCost = tokenEvents.contains { $0.costUsdReported || $0.costUsd > 0 }
 
         return ConversationUsageSummary(
             contextUsedTokens: contextUsedTokens,
             contextWindowSize: contextWindowSize,
             totalCostUsd: totalCostUsd,
+            hasReportedCost: hasReportedCost,
             hasReportedUsage: latestTokenEvent != nil,
             isUsingCachedContextWindow: reportedContextWindowSize == nil
         )

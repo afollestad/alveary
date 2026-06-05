@@ -11,20 +11,42 @@ extension ChatComposerActionRowTests {
                 contextUsedTokens: 70_060,
                 contextWindowSize: 121_600,
                 totalCostUsd: 0,
+                hasReportedCost: false,
                 hasReportedUsage: true,
                 isUsingCachedContextWindow: false
             )
         )
         tooltip.applyPreferredSize()
 
+        let fields = tooltip.descendants(of: NSTextField.self)
+        XCTAssertEqual(fields.count, 3)
+        XCTAssertNil(fields.first { $0.stringValue.hasPrefix("Session spend:") })
         XCTAssertGreaterThanOrEqual(tooltip.preferredSize.width, 204)
 
         let detailField = try XCTUnwrap(
-            tooltip.descendants(of: NSTextField.self).first {
+            fields.first {
                 $0.stringValue == "70.1k / 121.6k tokens used"
             }
         )
         XCTAssertGreaterThanOrEqual(detailField.frame.width, measuredTextWidth(for: detailField))
+    }
+
+    func testContextWindowTooltipIncludesReportedCostLine() throws {
+        let tooltip = AppKitContextWindowTooltipView(
+            summary: ConversationUsageSummary(
+                contextUsedTokens: 70_060,
+                contextWindowSize: 121_600,
+                totalCostUsd: 0,
+                hasReportedCost: true,
+                hasReportedUsage: true,
+                isUsingCachedContextWindow: false
+            )
+        )
+        tooltip.applyPreferredSize()
+
+        let fields = tooltip.descendants(of: NSTextField.self)
+        XCTAssertEqual(fields.count, 4)
+        XCTAssertNotNil(fields.first { $0.stringValue == "Session spend: $0.00" })
     }
 
     func testContextWindowTooltipUpdatesExistingContent() throws {
@@ -33,6 +55,7 @@ extension ChatComposerActionRowTests {
                 contextUsedTokens: 1_000,
                 contextWindowSize: 100_000,
                 totalCostUsd: 0,
+                hasReportedCost: false,
                 hasReportedUsage: true,
                 isUsingCachedContextWindow: false
             )
@@ -44,6 +67,7 @@ extension ChatComposerActionRowTests {
                 contextUsedTokens: 70_060,
                 contextWindowSize: 121_600,
                 totalCostUsd: 0,
+                hasReportedCost: false,
                 hasReportedUsage: true,
                 isUsingCachedContextWindow: false
             )
@@ -65,6 +89,7 @@ extension ChatComposerActionRowTests {
                 contextUsedTokens: 70_060,
                 contextWindowSize: 121_600,
                 totalCostUsd: 0,
+                hasReportedCost: false,
                 hasReportedUsage: true,
                 isUsingCachedContextWindow: false
             )
@@ -76,6 +101,7 @@ extension ChatComposerActionRowTests {
                 contextUsedTokens: 414_600,
                 contextWindowSize: 121_600,
                 totalCostUsd: 0,
+                hasReportedCost: false,
                 hasReportedUsage: true,
                 isUsingCachedContextWindow: false
             )
@@ -83,7 +109,8 @@ extension ChatComposerActionRowTests {
         tooltip.applyPreferredSize()
 
         let fields = tooltip.descendants(of: NSTextField.self)
-        XCTAssertEqual(fields.count, 4)
+        XCTAssertEqual(fields.count, 3)
+        XCTAssertNil(fields.first { $0.stringValue.hasPrefix("Session spend:") })
         XCTAssertTrue(fields.allSatisfy { abs($0.frame.midX - tooltip.bounds.midX) <= 1 })
 
         let topInset = try XCTUnwrap(fields.map(\.frame.minY).min())
@@ -97,6 +124,7 @@ extension ChatComposerActionRowTests {
             contextUsedTokens: 70_060,
             contextWindowSize: 121_600,
             totalCostUsd: 0,
+            hasReportedCost: false,
             hasReportedUsage: true,
             isUsingCachedContextWindow: false
         )

@@ -63,11 +63,31 @@ final class ConversationEventTests: XCTestCase {
         XCTAssertEqual(tokensRecord.stopReason, "end_turn")
         XCTAssertEqual(tokensRecord.durationMs, 1200)
         XCTAssertEqual(tokensRecord.costUsd, 0.42)
+        XCTAssertTrue(tokensRecord.costUsdReported)
         XCTAssertEqual(tokensRecord.providerModelId, "claude-sonnet-4-6")
         XCTAssertEqual(tokensRecord.contextWindowSize, 200_000)
 
         XCTAssertEqual(sessionInitRecord.type, "session_init")
         XCTAssertEqual(sessionInitRecord.content, "session-1")
+    }
+
+    func testMissingTokenCostPersistsZeroWithoutReportedFlag() throws {
+        let conversation = Conversation(provider: "codex")
+        let tokensRecord = try XCTUnwrap(
+            ConversationEvent.tokens(
+                input: 10,
+                output: 20,
+                cacheRead: 5,
+                isError: false,
+                stopReason: ConversationEvent.interimUsageStopReason,
+                durationMs: 0,
+                costUsd: nil,
+                permissionDenials: []
+            ).toRecord(conversation: conversation)
+        )
+
+        XCTAssertEqual(tokensRecord.costUsd, 0)
+        XCTAssertFalse(tokensRecord.costUsdReported)
     }
 
     func testOptionalMessageContentRemainsNilInPersistedRecords() throws {

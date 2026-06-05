@@ -229,6 +229,7 @@ final class ChatComposerActionRowTests: XCTestCase {
                     contextUsedTokens: 10_000,
                     contextWindowSize: 100_000,
                     totalCostUsd: 0.12,
+                    hasReportedCost: true,
                     hasReportedUsage: true,
                     isUsingCachedContextWindow: false
                 )
@@ -267,6 +268,7 @@ final class ChatComposerActionRowTests: XCTestCase {
                     contextUsedTokens: 10_000,
                     contextWindowSize: 100_000,
                     totalCostUsd: 0.12,
+                    hasReportedCost: true,
                     hasReportedUsage: true,
                     isUsingCachedContextWindow: false
                 )
@@ -291,6 +293,7 @@ final class ChatComposerActionRowTests: XCTestCase {
                     contextUsedTokens: 10_000,
                     contextWindowSize: 100_000,
                     totalCostUsd: 0.12,
+                    hasReportedCost: true,
                     hasReportedUsage: true,
                     isUsingCachedContextWindow: false
                 )
@@ -315,6 +318,7 @@ final class ChatComposerActionRowTests: XCTestCase {
                     contextUsedTokens: 10_000,
                     contextWindowSize: 100_000,
                     totalCostUsd: 0.12,
+                    hasReportedCost: true,
                     hasReportedUsage: true,
                     isUsingCachedContextWindow: false
                 )
