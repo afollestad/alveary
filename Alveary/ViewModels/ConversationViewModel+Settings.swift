@@ -2,19 +2,31 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
+private struct PermissionRuntimeStateSnapshot {
+    let runtimePermissionMode: String?
+    let lastNonPlanPermissionMode: String?
+}
+
 extension ConversationViewModel {
-    // Reject dropdown changes while the agent is working or while the conversation
-    // is waiting on another interaction. The composer pickers are already
-    // `.disabled` in busy modes, but gate at the view-model entry point too so
-    // any stray binding write (programmatic, race on mode flip) can't silently
-    // persist to the DB or fork the session mid-turn, mid-approval, or ahead of
-    // an unanswered prompt.
+    // The model/effort/permission pickers stay editable during active turns.
+    // Those writes persist immediately but are staged for the next new turn.
     var canApplySettingsChange: Bool {
-        !isAgentActivelyWorking &&
-            !state.isSendingMessage &&
+        !state.isSendingMessage &&
             !state.hasActiveSessionHandoff &&
+            !state.isReconfiguringSession &&
+            !state.isCancellingInitialSetup &&
+            setupPhase == nil
+    }
+
+    var canApplyPreStartupSettingChange: Bool {
+        canApplySettingsChange &&
+            !isAgentActivelyWorking &&
             state.pendingToolApproval == nil &&
             !hasUnansweredPrompt
+    }
+
+    var shouldStageSessionSettingChange: Bool {
+        isAgentActivelyWorking || state.pendingToolApproval != nil || hasUnansweredPrompt
     }
 
     // Reconfigure (fork the provider session) whenever the thread already has a
@@ -30,7 +42,7 @@ extension ConversationViewModel {
     // Bindings discard the task; tests `await .value` to observe completion.
 
     func applyProviderChange(_ newValue: String) {
-        guard canApplySettingsChange,
+        guard canApplyPreStartupSettingChange,
               AppSettings.supportedProviderIDs.contains(newValue),
               let dbConversation = modelContext.resolveConversation(id: conversationModelID),
               let dbThread = dbConversation.thread,
@@ -88,15 +100,19 @@ extension ConversationViewModel {
         let previousValue = dbThread.model ?? AppSettings.defaultModelValue
         guard previousValue != newValue else { return .noop }
 
+        let shouldStage = shouldStageSessionSettingChange
+        if shouldStage {
+            ensurePendingSessionSettingsChange(dbThread: dbThread)
+        }
+
         dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
 
         let previousEffort = dbThread.effort
-        if !effortOptions.isEmpty {
-            let supportsPreviousEffort = effortOptions.contains { $0.value == previousEffort }
-            if !supportsPreviousEffort || previousEffort == AppSettings.defaultEffortLevel {
-                dbThread.effort = defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
-            }
-        }
+        resetEffortIfNeeded(
+            for: dbThread,
+            effortOptions: effortOptions,
+            defaultEffort: defaultEffort
+        )
 
         state.lastTurnError = nil
 
@@ -105,7 +121,15 @@ extension ConversationViewModel {
         } catch {
             dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
             dbThread.effort = previousEffort
+            if shouldStage {
+                refreshPendingSessionSettingsChange(from: dbThread)
+            }
             state.lastTurnError = error.localizedDescription
+            return .noop
+        }
+
+        if shouldStage {
+            refreshPendingSessionSettingsChange(from: dbThread, invalidatesContextWindow: true)
             return .noop
         }
 
@@ -135,6 +159,11 @@ extension ConversationViewModel {
         let previousValue = dbThread.effort
         guard previousValue != newValue else { return .noop }
 
+        let shouldStage = shouldStageSessionSettingChange
+        if shouldStage {
+            ensurePendingSessionSettingsChange(dbThread: dbThread)
+        }
+
         dbThread.effort = newValue
         state.lastTurnError = nil
 
@@ -142,7 +171,15 @@ extension ConversationViewModel {
             try modelContext.save()
         } catch {
             dbThread.effort = previousValue
+            if shouldStage {
+                refreshPendingSessionSettingsChange(from: dbThread)
+            }
             state.lastTurnError = error.localizedDescription
+            return .noop
+        }
+
+        if shouldStage {
+            refreshPendingSessionSettingsChange(from: dbThread)
             return .noop
         }
 
@@ -170,16 +207,15 @@ extension ConversationViewModel {
         let previousValue = dbThread.permissionMode
         guard previousValue != newValue else { return .noop }
 
-        let previousRuntimePermissionMode = state.runtimePermissionMode
-        let previousLastNonPlanPermissionMode = state.lastNonPlanPermissionMode
+        let shouldStage = shouldStageSessionSettingChange
+        if shouldStage {
+            ensurePendingSessionSettingsChange(dbThread: dbThread)
+        }
+
+        let previousRuntimeState = permissionRuntimeStateSnapshot()
         dbThread.permissionMode = newValue
-        state.runtimePermissionMode = newValue
-        if newValue == "plan" {
-            if previousValue != "plan" {
-                state.lastNonPlanPermissionMode = previousValue
-            }
-        } else {
-            state.lastNonPlanPermissionMode = newValue
+        if !shouldStage {
+            applyImmediatePermissionRuntimeState(newValue, previousStoredMode: previousValue)
         }
         state.lastTurnError = nil
 
@@ -187,9 +223,16 @@ extension ConversationViewModel {
             try modelContext.save()
         } catch {
             dbThread.permissionMode = previousValue
-            state.runtimePermissionMode = previousRuntimePermissionMode
-            state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
+            restorePermissionRuntimeState(previousRuntimeState)
+            if shouldStage {
+                refreshPendingSessionSettingsChange(from: dbThread)
+            }
             state.lastTurnError = error.localizedDescription
+            return .noop
+        }
+
+        if shouldStage {
+            refreshPendingSessionSettingsChange(from: dbThread)
             return .noop
         }
 
@@ -200,8 +243,7 @@ extension ConversationViewModel {
                 try await reconfigureSession()
             } catch {
                 dbThread.permissionMode = previousValue
-                state.runtimePermissionMode = previousRuntimePermissionMode
-                state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
+                restorePermissionRuntimeState(previousRuntimeState)
                 try? modelContext.save()
                 state.lastTurnError = error.localizedDescription
             }
@@ -209,7 +251,7 @@ extension ConversationViewModel {
     }
 
     func applyWorktreePreferenceChange(_ newValue: Bool) {
-        guard canApplySettingsChange else { return }
+        guard canApplyPreStartupSettingChange else { return }
         guard let threadID = conversation.thread?.persistentModelID,
               let dbThread = modelContext.resolveThread(id: threadID),
               dbThread.project?.isGitRepository == true,
@@ -254,4 +296,46 @@ extension ConversationViewModel {
 
 private extension Task where Success == Void, Failure == Never {
     static var noop: Task<Void, Never> { Task {} }
+}
+
+private extension ConversationViewModel {
+    func resetEffortIfNeeded(
+        for dbThread: AgentThread,
+        effortOptions: [AgentCLIKit.AgentProviderOption],
+        defaultEffort: String?
+    ) {
+        guard !effortOptions.isEmpty else {
+            return
+        }
+
+        let supportsCurrentEffort = effortOptions.contains { $0.value == dbThread.effort }
+        guard !supportsCurrentEffort || dbThread.effort == AppSettings.defaultEffortLevel else {
+            return
+        }
+
+        dbThread.effort = defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
+    }
+
+    func permissionRuntimeStateSnapshot() -> PermissionRuntimeStateSnapshot {
+        PermissionRuntimeStateSnapshot(
+            runtimePermissionMode: state.runtimePermissionMode,
+            lastNonPlanPermissionMode: state.lastNonPlanPermissionMode
+        )
+    }
+
+    func applyImmediatePermissionRuntimeState(_ newValue: String, previousStoredMode: String) {
+        state.runtimePermissionMode = newValue
+        if newValue == "plan" {
+            if previousStoredMode != "plan" {
+                state.lastNonPlanPermissionMode = previousStoredMode
+            }
+        } else {
+            state.lastNonPlanPermissionMode = newValue
+        }
+    }
+
+    func restorePermissionRuntimeState(_ snapshot: PermissionRuntimeStateSnapshot) {
+        state.runtimePermissionMode = snapshot.runtimePermissionMode
+        state.lastNonPlanPermissionMode = snapshot.lastNonPlanPermissionMode
+    }
 }

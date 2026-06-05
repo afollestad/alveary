@@ -3,6 +3,7 @@ import Foundation
 extension ConversationViewModel {
     var effectivePermissionMode: String {
         state.runtimePermissionMode
+            ?? state.pendingSessionSettingsChange?.original.permissionMode
             ?? dbConversation()?.thread?.permissionMode
             ?? "default"
     }
@@ -17,7 +18,9 @@ extension ConversationViewModel {
             state.lastNonPlanPermissionMode = storedMode
         }
 
-        guard let thread = dbThread(), thread.permissionMode != permissionMode else {
+        guard state.pendingSessionSettingsChange?.hasPermissionModeChange != true,
+              let thread = dbThread(),
+              thread.permissionMode != permissionMode else {
             return
         }
 

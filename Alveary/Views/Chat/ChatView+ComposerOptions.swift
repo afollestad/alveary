@@ -26,6 +26,25 @@ extension ChatView {
         }
     }
 
+    var showWorktreePicker: Bool {
+        threadPresentation.showWorktreePicker
+    }
+
+    var showsProviderPicker: Bool {
+        guard let thread = conversation.thread,
+              !thread.hasCompletedInitialSetup,
+              viewModel.setupPhase == nil,
+              !viewModel.state.isSendingMessage,
+              !viewModel.state.isCancellingInitialSetup else {
+            return false
+        }
+        return true
+    }
+
+    var sessionLocationLabel: String? {
+        threadPresentation.sessionLocationLabel
+    }
+
     func clearSubmittedDraftAndRequestFocus(source: ComposerDraftSource) {
         viewModel.clearInputDraft(source: source)
         appState.requestComposerFocus()

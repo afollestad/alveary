@@ -210,6 +210,7 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
     private var actionRowConfiguration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
             providerOptions: [.init(value: "claude", title: "Claude Code")],
+            showsProviderPicker: true,
             selectedProvider: "claude",
             modelOptions: AgentModelOptionTestFixtures.claudeModelOptions.map {
                 .init(value: $0.id, title: $0.label)

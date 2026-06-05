@@ -170,40 +170,6 @@ extension ConversationViewModel {
         )) ?? []
     }
 
-    func makeSpawnConfig(
-        workingDirectory overrideWorkingDirectory: String? = nil,
-        initialPrompt: String? = nil
-    ) throws -> AgentSpawnConfig {
-        guard let dbConversation = dbConversation() else {
-            throw AgentError.spawnFailed("Conversation no longer exists")
-        }
-
-        let providerId = dbConversation.provider ?? settingsService.current.defaultProvider
-        let workingDirectory = overrideWorkingDirectory
-            ?? dbConversation.thread?.worktreePath
-            ?? dbConversation.thread?.project?.path
-
-        guard let workingDirectory, !workingDirectory.isEmpty else {
-            throw AgentError.spawnFailed("Cannot spawn agent: no working directory")
-        }
-
-        let permissionModeOverride: String?
-        if state.pendingToolApproval?.request.toolName == "ExitPlanMode" {
-            permissionModeOverride = "plan"
-        } else {
-            permissionModeOverride = state.runtimePermissionMode
-        }
-
-        return AgentSpawnConfig(
-            providerId: providerId,
-            workingDirectory: workingDirectory,
-            permissionMode: permissionModeOverride ?? dbConversation.thread?.permissionMode,
-            model: dbConversation.thread?.model,
-            effort: AppSettings.normalizedEffortLevel(dbConversation.thread?.effort),
-            initialPrompt: initialPrompt
-        )
-    }
-
     func prepareForSpawn(config: AgentSpawnConfig) async {
         await providerSetup.prepareForSpawn(
             providerId: config.providerId,
@@ -215,13 +181,15 @@ extension ConversationViewModel {
     func startAgentReserved(config: AgentSpawnConfig) async throws {
         await prepareForSpawn(config: config)
         try await agentsManager.spawn(id: conversation.id, config: config)
+        state.liveSessionConfig = config
         subscribe()
     }
 
     func deliverMessageReserved(
         _ message: String,
         stagedContextOverride: String? = nil,
-        existingLocalUserMessageID: String? = nil
+        existingLocalUserMessageID: String? = nil,
+        respawnSettingsSource: SessionSettingsConfigSource = .nextTurn
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let attempt = try localUserMessageAttempt(
@@ -242,7 +210,9 @@ extension ConversationViewModel {
             }
 
             if await needsRespawn() {
-                try await startAgentReserved(config: makeSpawnConfig())
+                try await startAgentReserved(config: makeSpawnConfig(
+                    settingsSource: respawnSettingsSource
+                ))
                 state.respawnAttempts = 0
             }
 
@@ -294,7 +264,7 @@ extension ConversationViewModel {
                 message: message
             )
             setupPhase = .startingAgent
-            try await startAgentReserved(config: makeSpawnConfig(workingDirectory: workingDirectory))
+            try await startAgentReserved(config: makeSpawnConfig(workingDirectory: workingDirectory, settingsSource: .nextTurn))
             thread.hasCompletedInitialSetup = true
             try modelContext.save()
             try await sendReserved(

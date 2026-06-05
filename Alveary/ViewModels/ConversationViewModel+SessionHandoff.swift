@@ -58,7 +58,7 @@ extension ConversationViewModel {
 
         do {
             if await needsRespawn() {
-                try await startAgentReserved(config: makeSpawnConfig())
+                try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
                 state.sessionContinuityNotice = nil
                 state.respawnAttempts = 0
             }
@@ -296,11 +296,13 @@ private extension ConversationViewModel {
     }
 
     func finishSessionHandoff(with output: String) async {
+        let pendingSettings = state.pendingSessionSettingsChange
         do {
-            let config = try makeSpawnConfig()
+            let config = try makeSpawnConfig(settingsSource: .nextTurn)
             await flushPendingSaveIfNeeded()
             await prepareForSpawn(config: config)
             try await agentsManager.startFreshSession(conversationId: conversation.id, config: config)
+            finishFreshSessionSettingsApply(pending: pendingSettings, config: config)
             state.sessionContinuityNotice = nil
             resetSubscriptionTrackingForNewSession()
             subscribe()
@@ -313,6 +315,9 @@ private extension ConversationViewModel {
                 await sendSessionHandoffOutputImmediately(output)
             }
         } catch {
+            if let pendingSettings {
+                rollbackPendingSessionSettings(pendingSettings)
+            }
             await resubscribeIfActiveRuntimeIsRunning()
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
         }

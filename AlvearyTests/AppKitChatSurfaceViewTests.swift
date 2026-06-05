@@ -404,6 +404,7 @@ private func makeComposerBodyConfiguration(
 func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
         providerOptions: [.init(value: "claude", title: "Claude Code")],
+        showsProviderPicker: true,
         selectedProvider: "claude",
         modelOptions: [.init(value: "sonnet", title: "Sonnet")],
         selectedModel: "sonnet",

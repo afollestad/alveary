@@ -56,11 +56,12 @@ struct ChatView: View {
         ))
     }
 
-    private var threadPresentation: ChatThreadPresentation {
+    var threadPresentation: ChatThreadPresentation {
         ChatThreadPresentation(
             thread: conversation.thread,
             providerID: providerID,
-            runtimePermissionMode: viewModel.state.runtimePermissionMode
+            runtimePermissionMode: viewModel.state.runtimePermissionMode,
+            pendingPermissionMode: viewModel.pendingPermissionModeForDisplay()
         )
     }
 
@@ -108,14 +109,6 @@ struct ChatView: View {
             get: { threadPresentation.selectedUseWorktree },
             set: { viewModel.applyWorktreePreferenceChange($0) }
         )
-    }
-
-    private var showWorktreePicker: Bool {
-        threadPresentation.showWorktreePicker
-    }
-
-    private var sessionLocationLabel: String? {
-        threadPresentation.sessionLocationLabel
     }
 
     init(
@@ -450,6 +443,7 @@ extension ChatView {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
             providerOptions: providerOptions,
+            showsProviderPicker: showsProviderPicker,
             selectedProvider: selectedProviderBinding.wrappedValue,
             modelOptions: modelOptions,
             selectedModel: selectedModelBinding.wrappedValue,

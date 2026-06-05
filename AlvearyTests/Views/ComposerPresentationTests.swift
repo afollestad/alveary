@@ -115,6 +115,38 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertEqual(unsupported.busyReturnAction(usesAlternateBehavior: false), .submit)
     }
 
+    func testBusyTurnWithStopKeepsSettingControlsEnabled() {
+        let presentation = makePresentation(
+            text: "Queue this.",
+            mode: .busy(canStop: true)
+        )
+
+        XCTAssertFalse(presentation.areControlsDisabled)
+    }
+
+    func testToolApprovalKeepsSettingControlsEnabled() {
+        let presentation = makePresentation(
+            text: "Approve this.",
+            mode: .progressOnly(.toolApproval(.genericApproval))
+        )
+
+        XCTAssertFalse(presentation.areControlsDisabled)
+    }
+
+    func testSendInFlightAndHandoffStillDisableSettingControls() {
+        let sendInFlight = makePresentation(
+            text: "Pending send.",
+            mode: .busy(canStop: false)
+        )
+        let handoff = makePresentation(
+            text: "",
+            mode: .progressOnly(.sessionHandoff)
+        )
+
+        XCTAssertTrue(sendInFlight.areControlsDisabled)
+        XCTAssertTrue(handoff.areControlsDisabled)
+    }
+
     private func makePresentation(
         text: String,
         isTextEffectivelyEmpty: Bool? = nil,

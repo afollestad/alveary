@@ -71,6 +71,29 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertTrue(row.descendants(of: ComposerActionButton.self).isEmpty)
     }
 
+    func testProviderPickerCanBeHiddenWhileOtherSettingsRemainVisible() {
+        let row = ChatComposerActionRowView()
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                providerOptions: [
+                    .init(value: "claude", title: "Claude Code"),
+                    .init(value: "codex", title: "Codex")
+                ],
+                showsProviderPicker: false,
+                modelOptions: [.init(value: "sonnet", title: "Sonnet")],
+                effortOptions: [.init(value: "medium", title: "Medium")],
+                supportedPermissionModes: [.init(value: "default", title: "Default")]
+            )
+        )
+
+        let menus = row.descendants(of: ComposerMenuButton.self)
+        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Provider" })
+        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Model" })
+        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Effort" })
+        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Permissions" })
+    }
+
     func testActionButtonDoesNotFireWhenDisabledBeforeMouseUp() {
         let button = ComposerActionButton(style: .primary)
         button.frame = NSRect(x: 0, y: 0, width: 76, height: 30)
@@ -375,6 +398,7 @@ final class ChatComposerActionRowTests: XCTestCase {
 private func makeConfiguration(
     mode: ComposerMode,
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
+    showsProviderPicker: Bool = true,
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
@@ -389,6 +413,7 @@ private func makeConfiguration(
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
         providerOptions: providerOptions,
+        showsProviderPicker: showsProviderPicker,
         selectedProvider: "claude",
         modelOptions: modelOptions,
         selectedModel: "sonnet",

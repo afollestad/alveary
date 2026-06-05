@@ -1,7 +1,7 @@
 import Foundation
 
 extension ConversationViewModel {
-    func withOutboundReservation<T>(_ body: () async throws -> T) async throws -> T {
+    func ensureCanReserveOutbound() throws {
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Session changes are still being applied")
         }
@@ -17,7 +17,10 @@ extension ConversationViewModel {
         guard !state.isSendingMessage else {
             throw AgentError.spawnFailed("Another message is already being sent")
         }
+    }
 
+    func withOutboundReservation<T>(_ body: () async throws -> T) async throws -> T {
+        try ensureCanReserveOutbound()
         let keepAwakeSource = KeepAwakeActivitySource.outboundConversationWork(conversationId: conversation.id)
         activeKeepAwakeSource = keepAwakeSource
         keepAwakeService.setActive(true, for: keepAwakeSource)

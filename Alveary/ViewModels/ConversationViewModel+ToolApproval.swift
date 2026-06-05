@@ -251,7 +251,7 @@ private extension ConversationViewModel {
         let hasActiveTurn = state.turnState.isActive
         let hasRunningAgent = hasActiveTurn ? await agentsManager.isRunning(conversationId: conversation.id) : false
         let isResolvingLiveHookApproval = hasActiveTurn && hasRunningAgent
-        let config = try makeSpawnConfig()
+        let config = try makeSpawnConfig(settingsSource: .currentContinuation)
         let sessionApproval = sessionApprovalScope.flatMap {
             pendingApproval.request.sessionApprovalGrant(
                 conversationId: conversation.id,

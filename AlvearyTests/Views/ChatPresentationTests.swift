@@ -177,6 +177,22 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
     }
 
+    func testThreadPresentationUsesPendingPermissionModeBeforeRuntimeModeForPickerDisplay() {
+        let thread = AgentThread(
+            name: "Pending permission",
+            permissionMode: "default"
+        )
+
+        let presentation = ChatThreadPresentation(
+            thread: thread,
+            providerID: "claude",
+            runtimePermissionMode: "plan",
+            pendingPermissionMode: "acceptEdits"
+        )
+
+        XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
+    }
+
     func testThreadPresentationShowsSessionLocationAfterSetup() {
         let project = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
         let thread = AgentThread(

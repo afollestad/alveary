@@ -102,7 +102,11 @@ struct ComposerPresentation: Equatable, Sendable {
         switch mode {
         case .idle:
             return isHandoffSteeringPromptActive
-        case .busy, .progressOnly:
+        case .busy(let canStop):
+            return !canStop
+        case .progressOnly(.toolApproval):
+            return false
+        case .progressOnly:
             return true
         }
     }

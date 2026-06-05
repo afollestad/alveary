@@ -131,6 +131,7 @@ final class ConversationViewModel {
     }
 
     func setupAndStart(_ message: String) async throws {
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
             try await deliverMessageReserved(message)
         }
@@ -141,6 +142,7 @@ final class ConversationViewModel {
             throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before sending a new one")
         }
 
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
             try await deliverMessageReserved(message, stagedContextOverride: stagedContextOverride)
         }
@@ -158,6 +160,7 @@ final class ConversationViewModel {
         }
 
         guard needsSetup else {
+            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
                 try await deliverMessageReserved(message)
             }
@@ -167,6 +170,7 @@ final class ConversationViewModel {
         // Wrap the initial-setup path in an unstructured Task so `cancel()` can abort it
         // (and trigger the existing rollback) even though the setup phase predates the turn.
         let task = Task { [self] in
+            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
                 try await deliverMessageReserved(message)
             }
@@ -220,15 +224,15 @@ final class ConversationViewModel {
 
         if let promptPendingApproval {
             if approvalCandidate?.shouldCheckSessionResolution != false,
-               let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
+                let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
                 if resolvedStatus != .approved {
-                    try await deliverMessageReserved(message)
+                    try await deliverMessageReserved(message, respawnSettingsSource: .currentContinuation)
                 }
             } else {
                 try await answerDeferredAskUserQuestion(promptPendingApproval, answers: answers)
             }
         } else {
-            try await deliverMessageReserved(message)
+            try await deliverMessageReserved(message, respawnSettingsSource: .currentContinuation)
             supersedePendingToolApprovalAfterPromptAnswer(pendingApproval)
         }
 
@@ -314,6 +318,7 @@ final class ConversationViewModel {
             await resubscribeIfActiveRuntimeIsRunning()
             throw error
         }
+        state.liveSessionConfig = config
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
@@ -381,6 +386,7 @@ final class ConversationViewModel {
         }
 
         do {
+            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
                 try await deliverMessageReserved(
                     message,

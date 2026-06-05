@@ -10,6 +10,7 @@ import SwiftUI
 /// prefer native views.
 struct ChatComposerActionRow: NSViewRepresentable {
     let providerOptions: [ChatComposerActionRowView.MenuOption]
+    let showsProviderPicker: Bool
     @Binding var selectedProvider: String
     let modelOptions: [ChatComposerActionRowView.MenuOption]
     @Binding var selectedModel: String
@@ -47,6 +48,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
     private var configuration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
             providerOptions: providerOptions,
+            showsProviderPicker: showsProviderPicker,
             selectedProvider: selectedProvider,
             modelOptions: modelOptions,
             selectedModel: selectedModel,
@@ -95,6 +97,7 @@ final class ChatComposerActionRowView: NSView {
 
     struct Configuration {
         let providerOptions: [MenuOption]
+        let showsProviderPicker: Bool
         let selectedProvider: String
         let modelOptions: [MenuOption]
         let selectedModel: String
@@ -376,7 +379,7 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func addSettingsControls(for configuration: Configuration) {
-        if !configuration.providerOptions.isEmpty {
+        if configuration.showsProviderPicker {
             addRowSubview(providerMenu)
         }
         addRowSubview(modelMenu)

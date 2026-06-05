@@ -6,6 +6,37 @@ enum ComposerDraftSource: Equatable, Sendable {
     case blockInputMarkdown
 }
 
+struct SessionSettingsSnapshot: Equatable, Sendable {
+    var model: String?
+    var effort: String
+    var permissionMode: String
+    var runtimePermissionMode: String?
+    var lastNonPlanPermissionMode: String?
+}
+
+struct PendingSessionSettingsChange: Equatable, Sendable {
+    let original: SessionSettingsSnapshot
+    var pending: SessionSettingsSnapshot
+    var liveSessionConfig: AgentSpawnConfig?
+    var invalidatesContextWindow = false
+
+    var hasModelChange: Bool {
+        original.model != pending.model
+    }
+
+    var hasEffortChange: Bool {
+        original.effort != pending.effort
+    }
+
+    var hasPermissionModeChange: Bool {
+        original.permissionMode != pending.permissionMode
+    }
+
+    var hasAnyChange: Bool {
+        hasModelChange || hasEffortChange || hasPermissionModeChange
+    }
+}
+
 @MainActor
 @Observable
 final class ConversationState {
@@ -55,6 +86,8 @@ final class ConversationState {
     var pendingToolApproval: PendingToolApproval?
     var runtimePermissionMode: String?
     var lastNonPlanPermissionMode: String?
+    var liveSessionConfig: AgentSpawnConfig?
+    var pendingSessionSettingsChange: PendingSessionSettingsChange?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
 

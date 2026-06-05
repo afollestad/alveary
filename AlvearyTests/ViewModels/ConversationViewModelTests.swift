@@ -328,7 +328,8 @@ struct ConversationViewModelTestFixture {
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
         projectIsGitRepository: Bool = true,
         pausesWorktreeCreate: Bool = false,
-        initialAgentIsRunning: Bool? = nil
+        initialAgentIsRunning: Bool? = nil,
+        providerId: String = "claude"
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
 
@@ -340,7 +341,7 @@ struct ConversationViewModelTestFixture {
             useWorktree: useWorktree,
             project: project
         )
-        let conversation = Conversation(title: conversationTitle, provider: "claude", thread: thread)
+        let conversation = Conversation(title: conversationTitle, provider: providerId, thread: thread)
         conversation.pendingRestoreContext = pendingRestoreContext
         project.threads.append(thread); thread.conversations.append(conversation)
         context.insert(project); try context.save()

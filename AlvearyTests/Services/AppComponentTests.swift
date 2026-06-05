@@ -127,12 +127,13 @@ final class AppComponentTests: XCTestCase {
             workingDirectory: "/tmp/project",
             permissionMode: "on-request",
             model: nil,
-            effort: nil,
+            effort: "high",
             initialPrompt: nil
         ))
 
         XCTAssertEqual(config.providerId.rawValue, "codex")
         XCTAssertEqual(config.permissionMode, "on-request")
+        XCTAssertEqual(config.effort, "high")
     }
 
     func testAgentCLIKitHostAdapterRejectsUnsupportedProvider() {

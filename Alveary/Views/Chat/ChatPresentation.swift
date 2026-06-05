@@ -104,10 +104,15 @@ struct ChatThreadPresentation: Equatable, Sendable {
     let contextWindowCacheLookupID: String
 
     @MainActor
-    init(thread: AgentThread?, providerID: String, runtimePermissionMode: String? = nil) {
+    init(
+        thread: AgentThread?,
+        providerID: String,
+        runtimePermissionMode: String? = nil,
+        pendingPermissionMode: String? = nil
+    ) {
         selectedModel = thread?.model ?? AppSettings.defaultModelValue
         selectedEffort = AppSettings.normalizedEffortLevel(thread?.effort)
-        selectedPermissionMode = runtimePermissionMode ?? thread?.permissionMode ?? "default"
+        selectedPermissionMode = pendingPermissionMode ?? runtimePermissionMode ?? thread?.permissionMode ?? "default"
         selectedUseWorktree = thread?.useWorktree ?? false
 
         if let thread,

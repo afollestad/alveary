@@ -134,6 +134,7 @@ private extension ConversationViewModel {
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
 
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
             if await needsRespawn() {
                 guard state.respawnAttempts < Self.maxRespawnAttempts else {
@@ -161,7 +162,8 @@ private extension ConversationViewModel {
                 try await deliverMessageReserved(
                     queuedMessage.text,
                     stagedContextOverride: queuedMessage.stagedContext,
-                    existingLocalUserMessageID: localMessage.id
+                    existingLocalUserMessageID: localMessage.id,
+                    respawnSettingsSource: .currentContinuation
                 )
                 state.respawnAttempts = 0
             } catch {
