@@ -75,6 +75,10 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
     var onKeyEvent: ((NSEvent) -> Bool)?
     var onCustomSubmit: (() -> Void)?
     var onCustomCancel: (() -> Void)?
+    var onCustomMoveUp: (() -> Void)?
+    var onCustomMoveDown: (() -> Void)?
+    var onCustomMoveLeft: (() -> Void)?
+    var onCustomMoveRight: (() -> Void)?
 
     let indexField = NSTextField(labelWithString: "")
     let titleField = NSTextField(labelWithString: "")
@@ -363,10 +367,16 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             onCustomCancel?()
             return true
         case #selector(NSResponder.moveUp(_:)):
-            sendSyntheticKeyEvent(characters: "\u{F700}", keyCode: 126)
+            onCustomMoveUp?()
             return true
         case #selector(NSResponder.moveDown(_:)):
-            sendSyntheticKeyEvent(characters: "\u{F701}", keyCode: 125)
+            onCustomMoveDown?()
+            return true
+        case #selector(NSResponder.moveLeft(_:)):
+            onCustomMoveLeft?()
+            return true
+        case #selector(NSResponder.moveRight(_:)):
+            onCustomMoveRight?()
             return true
         default:
             return false
@@ -457,24 +467,6 @@ extension AppKitComposerOverlayOptionRowView {
             return
         }
         performSelectionFromKeyboard()
-    }
-
-    private func sendSyntheticKeyEvent(characters: String, keyCode: UInt16) {
-        guard let event = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: window?.windowNumber ?? 0,
-            context: nil,
-            characters: characters,
-            charactersIgnoringModifiers: characters,
-            isARepeat: false,
-            keyCode: keyCode
-        ) else {
-            return
-        }
-        _ = onKeyEvent?(event)
     }
 
     func focusPreferredTarget() {

@@ -272,14 +272,6 @@ final class AppKitComposerOverlayPanelView: NSView {
         updateAppearance()
     }
 
-    private func configureNavigationButton(_ button: NSButton, symbolName: String, action: Selector) {
-        button.isBordered = false
-        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        button.target = self
-        button.action = action
-        button.setAccessibilityLabel(symbolName == "chevron.left" ? "Previous question" : "Next question")
-    }
-
     private func rebuildRows(_ rowConfigurations: [AppKitComposerOverlayOptionRowView.Configuration]) {
         let oldRowsByID = Dictionary(uniqueKeysWithValues: rowViews.map { ($0.configurationID, $0) })
         var reusedRows = Set<ObjectIdentifier>()
@@ -298,6 +290,26 @@ final class AppKitComposerOverlayPanelView: NSView {
             }
             row.onCustomCancel = { [weak self] in
                 self?.handleDismiss()
+            }
+            row.onCustomMoveUp = { [weak self] in
+                self?.focusAdjacentRow(delta: -1)
+            }
+            row.onCustomMoveDown = { [weak self] in
+                self?.focusAdjacentRow(delta: 1)
+            }
+            row.onCustomMoveLeft = { [weak self] in
+                guard let configuration = self?.configuration,
+                      configuration.canNavigateBackward else {
+                    return
+                }
+                configuration.onNavigateBackward()
+            }
+            row.onCustomMoveRight = { [weak self] in
+                guard let configuration = self?.configuration,
+                      configuration.canNavigateForward else {
+                    return
+                }
+                configuration.onNavigateForward()
             }
             row.configure(rowConfiguration)
             if row.superview !== backgroundView {
@@ -373,10 +385,17 @@ final class AppKitComposerOverlayPanelView: NSView {
             height: Metrics.buttonHeight
         )
     }
-
 }
 
 private extension AppKitComposerOverlayPanelView {
+    func configureNavigationButton(_ button: NSButton, symbolName: String, action: Selector) {
+        button.isBordered = false
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        button.target = self
+        button.action = action
+        button.setAccessibilityLabel(symbolName == "chevron.left" ? "Previous question" : "Next question")
+    }
+
     func layoutNavigation(contentWidth: CGFloat) {
         guard !pageField.isHidden else {
             previousButton.frame = .zero
@@ -414,11 +433,11 @@ private extension AppKitComposerOverlayPanelView {
         )
     }
 
-    private var navigationWidth: CGFloat {
+    var navigationWidth: CGFloat {
         pageField.isHidden ? 0 : 112
     }
 
-    private func measuredRowWidth(at index: Int, contentWidth: CGFloat) -> CGFloat {
+    func measuredRowWidth(at index: Int, contentWidth: CGFloat) -> CGFloat {
         guard let configuration,
               configuration.density.placesFooterInlineWithLastRow,
               let lastIndex = rowViews.indices.last,
@@ -432,7 +451,7 @@ private extension AppKitComposerOverlayPanelView {
         return max(contentWidth - reservedFooterWidth, 0)
     }
 
-    private func wrappedFrame(for field: NSTextField, originX: CGFloat, originY: CGFloat, width: CGFloat) -> NSRect {
+    func wrappedFrame(for field: NSTextField, originX: CGFloat, originY: CGFloat, width: CGFloat) -> NSRect {
         guard width > 0 else {
             return NSRect(x: originX, y: originY, width: 0, height: 0)
         }
@@ -440,7 +459,7 @@ private extension AppKitComposerOverlayPanelView {
         return NSRect(x: originX, y: originY, width: width, height: height)
     }
 
-    private func updateAppearance() {
+    func updateAppearance() {
         backgroundView.setLayerFillColorPreservingResolvedAlpha { appearance in
             BlockInputComposerStyle.editorFillColor.resolved(for: appearance)
         }
@@ -449,7 +468,7 @@ private extension AppKitComposerOverlayPanelView {
         }
     }
 
-    private func invalidatePreferredSize(force: Bool) {
+    func invalidatePreferredSize(force: Bool) {
         let height = measuredHeight(width: bounds.width)
         guard force || abs(height - lastMeasuredHeight) > 0.5 else {
             return
@@ -459,19 +478,19 @@ private extension AppKitComposerOverlayPanelView {
         onPreferredSizeInvalidated?()
     }
 
-    @objc private func handlePrevious() {
+    @objc func handlePrevious() {
         configuration?.onNavigateBackward()
     }
 
-    @objc private func handleNext() {
+    @objc func handleNext() {
         configuration?.onNavigateForward()
     }
 
-    @objc private func handleDismiss() {
+    @objc func handleDismiss() {
         configuration?.onDismiss()
     }
 
-    @objc private func handlePrimary() {
+    @objc func handlePrimary() {
         guard configuration?.isPrimaryEnabled == true else {
             return
         }

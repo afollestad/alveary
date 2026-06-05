@@ -36,6 +36,63 @@ extension ConversationViewModel {
         try await resolveToolUseApproval(toolUseId: toolUseId, decision: .deny)
     }
 
+    func dismissPrompt(promptId: String) async throws {
+        guard state.grouper.latestUnansweredPrompt?.id == promptId else {
+            return
+        }
+        guard !state.isSendingMessage else {
+            throw AgentError.spawnFailed("Wait for the current approval to finish before dismissing the prompt")
+        }
+        guard !state.isReconfiguringSession else {
+            throw AgentError.spawnFailed("Wait for session changes to finish before dismissing the prompt")
+        }
+
+        let approvalCandidate = latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId)
+        let promptPendingApproval = pendingApprovalForPromptAnswer(
+            promptId: promptId,
+            approvalCandidate: approvalCandidate
+        )
+
+        state.isSendingMessage = true
+        defer { state.isSendingMessage = false }
+
+        guard let promptPendingApproval else {
+            await dismissPromptWithoutApproval(promptId: promptId)
+            return
+        }
+
+        if approvalCandidate?.shouldCheckSessionResolution != false,
+           clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil {
+            completePromptDismissal(promptId: promptId)
+            return
+        }
+
+        let resolvingApproval = PendingToolApproval(
+            request: promptPendingApproval.request,
+            status: .denying
+        )
+        state.pendingToolApproval = resolvingApproval
+        beginPromptDismissResolution(promptId: promptId)
+        defer { endPromptDismissResolution(promptId: promptId) }
+
+        do {
+            try await resumeDeferredToolUse(
+                resolvingApproval,
+                decision: .deny,
+                sessionApprovalScope: nil,
+                updatedToolInput: nil
+            )
+            completePromptDismissal(promptId: promptId)
+        } catch {
+            state.pendingToolApproval = PendingToolApproval(
+                request: promptPendingApproval.request,
+                status: .pending
+            )
+            state.lastTurnError = "Prompt dismiss failed: \(error.localizedDescription)"
+            throw error
+        }
+    }
+
     func toolApprovalSelection(for approval: ToolApprovalRequest) async -> ToolApprovalSelection? {
         let providerId = toolApprovalProviderId()
         return await agentsManager.toolApprovalSelection(

@@ -35,6 +35,32 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(prompt.submittedSummary, "A")
     }
 
+    func testPromptTranscriptVisibilityHidesPendingAndHandledPromptsButKeepsSubmittedSummaries() {
+        let question = PromptEntry.PromptQuestion(
+            question: "Pick one",
+            header: nil,
+            options: [PromptEntry.PromptOption(label: "A", description: "First")],
+            multiSelect: false
+        )
+        let pendingPrompt = ChatItem.promptBlock(
+            id: "pending",
+            prompt: PromptEntry(id: "prompt-1", questions: [question], submittedSummary: nil)
+        )
+        let submittedPrompt = ChatItem.promptBlock(
+            id: "submitted",
+            prompt: PromptEntry(id: "prompt-2", questions: [question], submittedSummary: "Q: Pick one\nA: A")
+        )
+        let handledPrompt = ChatItem.promptBlock(
+            id: "handled",
+            prompt: PromptEntry(id: "prompt-3", questions: [question], submittedSummary: ChatItemGrouper.handledPromptSummary)
+        )
+
+        let visibleItems = [pendingPrompt, submittedPrompt, handledPrompt].visibleTranscriptItems
+
+        XCTAssertEqual(visibleItems.count, 1)
+        XCTAssertEqual(visibleItems.first?.id, "submitted")
+    }
+
     func testNewPromptReplacesUnansweredPromptAndDropsRetryChatter() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

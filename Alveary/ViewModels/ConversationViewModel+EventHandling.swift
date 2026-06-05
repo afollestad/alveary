@@ -23,6 +23,14 @@ private extension ConversationViewModel {
             return shouldPersistHiddenSessionHandoffEvent(event)
         }
 
+        if shouldSuppressPromptDismissalEvent(event) {
+            return false
+        }
+
+        if shouldSuppressInterruptedTurnFallout(event) {
+            return false
+        }
+
         switch event {
         case .sessionInit:
             return false
@@ -85,6 +93,35 @@ private extension ConversationViewModel {
         return false
     }
 
+    func shouldSuppressInterruptedTurnFallout(_ event: ConversationEvent) -> Bool {
+        guard state.lastTurnInterrupted,
+              !state.turnState.isActive else {
+            return false
+        }
+
+        switch event {
+        case .messageChunk,
+             .message,
+             .toolCall,
+             .toolResult,
+             .toolApprovalRequested,
+             .toolApprovalFailed,
+             .tokens,
+             .stop,
+             .runtimeActivity:
+            state.activeRuntimeActivityTurnId = nil
+            state.isAutomaticSessionHandoffPending = false
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.clearStreamingText()
+            state.turnState.endTurn()
+            scheduleSave()
+            return true
+        default:
+            return false
+        }
+    }
+
     func handleMessageChunk(_ text: String, parentToolUseId: String?) -> Bool {
         if parentToolUseId == nil {
             state.appendStreamingChunk(text)
@@ -117,31 +154,8 @@ private extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         clearResolvedPendingToolApprovalIfNeeded()
 
-        if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
-            for: payload,
-            hadStreamingText: hadStreamingText
-        ) {
-            state.isCancellingTurn = false
-            state.lastTurnInterrupted = false
-            state.lastTurnError = nil
-            handleTurnCompleted()
-            return .persistSyntheticAssistant(message: slashCommandNotice)
-        }
-
-        if isConfirmedTurnInterruption(
-            isError: payload.isError,
-            stopReason: payload.stopReason,
-            permissionDenials: payload.permissionDenials
-        ) {
-            handleInterruptedTokenTurn()
-            return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
-        }
-
-        if state.lastTurnInterrupted, payload.isError, payload.permissionDenials.isEmpty {
-            state.isCancellingTurn = false
-            state.lastTurnError = nil
-            state.turnState.endTurn()
-            return .dropTokens
+        if let earlyPersistence = earlyTokenPersistence(payload, hadStreamingText: hadStreamingText) {
+            return earlyPersistence
         }
 
         state.isCancellingTurn = false
@@ -165,6 +179,40 @@ private extension ConversationViewModel {
         }
 
         return .persistTokens
+    }
+
+    func earlyTokenPersistence(
+        _ payload: TokenEventPayload,
+        hadStreamingText: Bool
+    ) -> TokenEventPersistence? {
+        if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
+            for: payload,
+            hadStreamingText: hadStreamingText
+        ) {
+            state.isCancellingTurn = false
+            state.lastTurnInterrupted = false
+            state.lastTurnError = nil
+            handleTurnCompleted()
+            return .persistSyntheticAssistant(message: slashCommandNotice)
+        }
+
+        if isConfirmedTurnInterruption(
+            isError: payload.isError,
+            stopReason: payload.stopReason,
+            permissionDenials: payload.permissionDenials
+        ) {
+            handleInterruptedTokenTurn()
+            return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
+        }
+
+        guard state.lastTurnInterrupted, payload.isError, payload.permissionDenials.isEmpty else {
+            return nil
+        }
+
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.turnState.endTurn()
+        return .dropTokens
     }
 
     func handleRuntimeActivity(

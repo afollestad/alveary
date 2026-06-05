@@ -57,8 +57,9 @@ extension DefaultAgentsManager {
         context: ToolApprovalResolutionContext
     ) -> Bool {
         recordDeniedToolUseIdsIfNeeded(request)
+        let didCancelAskUserQuestion = recordCancelledPromptResolutionIfNeeded(request)
         eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
-        updateStatus(.busy, for: request.conversationId)
+        updateStatus(didCancelAskUserQuestion ? .idle : .busy, for: request.conversationId)
         return context.sessionApprovalRecordResult.isEffective
     }
 
@@ -144,6 +145,21 @@ extension DefaultAgentsManager {
         deniedToolUseIds.insert(request.approval.toolUseId)
         deniedToolUseIds.formUnion(request.additionalApprovals.map(\.toolUseId))
         deniedToolUseIdsByConversation[request.conversationId] = deniedToolUseIds
+    }
+
+    private func recordCancelledPromptResolutionIfNeeded(_ request: AgentToolApprovalResolutionRequest) -> Bool {
+        guard request.approval.toolName == "AskUserQuestion",
+              request.resolution.decision == .deny else {
+            cancelledPromptResolutionsByConversation.removeValue(forKey: request.conversationId)
+            return false
+        }
+
+        cancelledPromptResolutionsByConversation[request.conversationId] = CancelledPromptResolution(
+            toolUseId: request.approval.toolUseId,
+            agentGeneration: agentCLIKitStatuses[request.conversationId]?.generation
+                ?? agentCLIKitGenerationByConversation[request.conversationId]
+        )
+        return true
     }
 
     private func makeToolApprovalResolutionContext(

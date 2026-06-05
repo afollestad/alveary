@@ -27,6 +27,7 @@ final class ConversationViewModel {
     var needsFollowUpSave = false
     var initialSetupTask: Task<Void, Error>?
     @ObservationIgnored var composerDraftSnapshotProvider: ComposerDraftSnapshotProvider?
+    @ObservationIgnored var promptDismissalsResolving: Set<String> = []
 
     var turnState: TurnState { state.turnState }
     var messageQueue: MessageQueue { state.messageQueue }
@@ -62,7 +63,6 @@ final class ConversationViewModel {
 
     func canSubmitPromptAnswer(promptId: String) -> Bool {
         guard !state.isSendingMessage,
-              state.messageQueue.peekNext() == nil,
               !state.isReconfiguringSession else {
             return false
         }
@@ -208,9 +208,6 @@ final class ConversationViewModel {
               !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn to finish before answering the prompt")
         }
-        guard state.messageQueue.peekNext() == nil else {
-            throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before answering the prompt")
-        }
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Wait for session changes to finish before answering the prompt")
         }
@@ -240,7 +237,11 @@ final class ConversationViewModel {
         return summary
     }
 
-    private func recordPromptAnswerSummary(promptId: String, summary: String) {
+    func recordPromptHandled(promptId: String) {
+        recordPromptAnswerSummary(promptId: promptId, summary: ChatItemGrouper.handledPromptSummary)
+    }
+
+    func recordPromptAnswerSummary(promptId: String, summary: String) {
         let conversationID = conversation.id
         let promptEvents = try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
@@ -258,6 +259,7 @@ final class ConversationViewModel {
         )
 
         guard let promptRecord = promptEvents?.last else {
+            state.grouper.markPromptAnswered(promptId: promptId, summary: summary)
             return
         }
 
@@ -266,11 +268,11 @@ final class ConversationViewModel {
             try modelContext.save()
             state.grouper.markPromptAnswered(promptId: promptId, summary: summary)
         } catch {
-            // Best-effort only; the live prompt block already updated.
+            state.grouper.markPromptAnswered(promptId: promptId, summary: summary)
         }
     }
 
-    private func canAnswerLiveAskUserQuestion(promptId: String) -> Bool {
+    func canAnswerLiveAskUserQuestion(promptId: String) -> Bool {
         guard let pendingApproval = state.pendingToolApproval,
               pendingApproval.status == .pending,
               pendingApproval.request.toolName == "AskUserQuestion",
@@ -280,7 +282,7 @@ final class ConversationViewModel {
         return true
     }
 
-    private func pendingApprovalForPromptAnswer(
+    func pendingApprovalForPromptAnswer(
         promptId: String,
         approvalCandidate: AskUserQuestionApprovalCandidate?
     ) -> PendingToolApproval? {

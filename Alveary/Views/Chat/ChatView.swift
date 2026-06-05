@@ -33,6 +33,7 @@ struct ChatView: View {
     @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
     @State private var isStopConfirmationArmed = false
+    @State var askUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -203,6 +204,12 @@ struct ChatView: View {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         ))
+        .onChange(of: composerInteractionOverlayID) { oldID, newID in
+            guard oldID == nil, newID != nil else {
+                return
+            }
+            _ = viewModel.flushDraftFromEditor()
+        }
     }
 }
 
@@ -325,11 +332,12 @@ extension ChatView {
     }
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
-        return AppKitChatComposerPanelConfiguration(
+        AppKitChatComposerPanelConfiguration(
             bodyConfiguration: composerBodyConfiguration,
             topContentConfiguration: composerTopContentConfiguration,
             queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
             actionRowConfiguration: composerActionRowConfiguration,
+            interactionOverlayConfiguration: composerInteractionOverlayConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
             layout: AppKitChatComposerPanelView.Layout(
                 horizontalPadding: ChatComposerPanelLayout.appKitHorizontalPadding,
@@ -390,7 +398,6 @@ extension ChatView {
 
     var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
         var items: [AppKitChatComposerTopContentView.Item] = []
-
         if let lastTurnError = viewModel.lastTurnError {
             if viewModel.canRetryFailedSessionHandoff {
                 items.append(.inlineBanner(.init(
@@ -414,7 +421,6 @@ extension ChatView {
                 )))
             }
         }
-
         if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
             items.append(.inlineBanner(.init(
                 message: sessionContinuityNotice,
@@ -426,7 +432,6 @@ extension ChatView {
                 }
             )))
         }
-
         if let stagedContext = viewModel.stagedContext {
             items.append(.stagedContext(.init(
                 context: stagedContext,
@@ -435,7 +440,6 @@ extension ChatView {
                 }
             )))
         }
-
         return AppKitChatComposerTopContentView.Configuration(items: items)
     }
 
@@ -489,5 +493,4 @@ extension ChatView {
             }
         )
     }
-
 }

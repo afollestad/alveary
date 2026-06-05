@@ -51,6 +51,10 @@ extension [ChatItem] {
         let searchStart = latestUserIndex.map { index(after: $0) } ?? startIndex
         return self[searchStart...].contains(where: \.isTurnInterruptedNote)
     }
+
+    var visibleTranscriptItems: [ChatItem] {
+        filter(\.isVisibleInTranscript)
+    }
 }
 
 struct PromptEntry: Identifiable, Equatable {
@@ -211,6 +215,16 @@ extension TaskEntry {
 }
 
 extension ChatItem {
+    var isVisibleInTranscript: Bool {
+        guard case .promptBlock(_, let prompt) = self else {
+            return true
+        }
+        guard let submittedSummary = prompt.submittedSummary else {
+            return false
+        }
+        return submittedSummary != ChatItemGrouper.handledPromptSummary
+    }
+
     var isTaskListBlock: Bool {
         if case .taskListBlock = self {
             return true

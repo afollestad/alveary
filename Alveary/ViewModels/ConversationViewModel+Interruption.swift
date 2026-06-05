@@ -1,6 +1,59 @@
 import Foundation
 
 extension ConversationViewModel {
+    func beginPromptDismissResolution(promptId: String) {
+        // Claude/Codex can emit fallback text or a follow-up prompt before the host-side
+        // denial call returns. Suppress only that in-flight fallout; do not leave a
+        // durable marker around that can swallow events from the next user turn.
+        promptDismissalsResolving.insert(promptId)
+        state.activeRuntimeActivityTurnId = nil
+        state.lastTurnError = nil
+        state.clearStreamingText()
+    }
+
+    func endPromptDismissResolution(promptId: String) {
+        promptDismissalsResolving.remove(promptId)
+    }
+
+    func shouldSuppressPromptDismissalEvent(_ event: ConversationEvent) -> Bool {
+        guard !promptDismissalsResolving.isEmpty else {
+            return false
+        }
+        if case .sessionInit = event {
+            return false
+        }
+
+        state.activeRuntimeActivityTurnId = nil
+        state.lastTurnError = nil
+        state.clearStreamingText()
+        return true
+    }
+
+    func dismissPromptWithoutApproval(promptId: String) async {
+        beginPromptDismissResolution(promptId: promptId)
+        defer { endPromptDismissResolution(promptId: promptId) }
+
+        if isAgentActivelyWorking {
+            await agentsManager.cancelTurn(conversationId: conversation.id)
+        }
+        completePromptDismissal(promptId: promptId)
+    }
+
+    func completePromptDismissal(promptId: String) {
+        markPromptDismissInterruption()
+        recordPromptHandled(promptId: promptId)
+    }
+
+    func markPromptDismissInterruption() {
+        state.activeRuntimeActivityTurnId = nil
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.lastTurnInterrupted = true
+        state.clearStreamingText()
+        state.turnState.endTurn()
+    }
+
     func isConfirmedTurnInterruption(
         isError: Bool,
         stopReason: String?,

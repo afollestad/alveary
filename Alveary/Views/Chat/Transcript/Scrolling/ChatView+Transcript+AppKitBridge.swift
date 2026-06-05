@@ -4,12 +4,12 @@ import SwiftUI
 extension ChatTranscriptView {
     func appKitTranscriptSurface() -> some View {
         AppKitTranscriptScrollViewRepresentable(
-            items: viewModel.state.grouper.items,
+            items: viewModel.state.grouper.items.visibleTranscriptItems,
             transientRows: appKitTransientRows,
             rowConfiguration: appKitRowConfiguration(),
             isFollowing: isFollowing,
             scrollToBottomRequest: scrollToBottomRequest + appKitScrollToBottomRequest,
-            scrollToRowTopRequest: appKitScrollToRowTopRequest,
+            scrollToRowTopRequest: nil,
             onScrollMetricsChanged: { newMetrics in
                 let oldMetrics = latestMetrics ?? newMetrics
                 handleScrollMetricsChange(oldMetrics: oldMetrics, newMetrics: newMetrics)
@@ -28,7 +28,7 @@ extension ChatTranscriptView {
         return AppKitTranscriptTransientRows(
             isTurnActive: viewModel.turnState.isActive && visibleStreamingText == nil,
             streamingText: visibleStreamingText,
-            showsInterruptedNote: viewModel.state.lastTurnInterrupted &&
+            showsInterruptedNote: viewModel.state.shouldShowInterruptedCue &&
                 !viewModel.turnState.isActive &&
                 shouldShowTransientInterruptedNote
         )
@@ -95,7 +95,7 @@ extension ChatTranscriptView {
 
     var appKitApprovalRequests: [ToolApprovalRequest] {
         var seenSessionIDs: Set<String> = []
-        return viewModel.state.grouper.items
+        return viewModel.state.grouper.items.visibleTranscriptItems
             .flatMap(\.appKitApprovalRequests)
             .filter { seenSessionIDs.insert($0.sessionId).inserted }
     }

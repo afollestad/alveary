@@ -29,6 +29,7 @@ extension DefaultAgentsManager {
         agentCLIKitStatuses.removeValue(forKey: conversationId)
         agentCLIKitGenerationByConversation.removeValue(forKey: conversationId)
         agentCLIKitGenerationUUIDs.removeValue(forKey: conversationId)
+        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
         closingConversationIds.remove(conversationId)
         pendingSessionRemovalIds.remove(conversationId)
         clearStatus(for: conversationId)

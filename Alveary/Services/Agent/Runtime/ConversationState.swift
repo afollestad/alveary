@@ -99,6 +99,10 @@ final class ConversationState {
             || failedSessionHandoffMessage != nil
     }
 
+    var shouldShowInterruptedCue: Bool {
+        lastTurnInterrupted
+    }
+
     func appendStreamingChunk(_ text: String) {
         if streamingText == nil {
             streamingText = text

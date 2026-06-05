@@ -27,12 +27,6 @@ struct ChatTranscriptView: View {
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
     @State var appKitScrollToBottomRequest = 0
-    @State var appKitScrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
-    @State private var appKitScrollToRowTopRequestID = 0
-    @State private var promptTopPinnedRowID: String?
-    @State private var promptTopPinnedPromptID: String?
-    @State private var isPromptTopScrollPending = false
-    @State private var promptTopScrollTimeoutToken: UUID?
     @State var transcriptContentWidth: CGFloat = 0
     @State var expandedTranscriptRows: Set<String> = []
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
@@ -49,8 +43,6 @@ struct ChatTranscriptView: View {
             }
             if shouldForceBottomScroll(for: events) {
                 scrollToBottom(forceFollow: true)
-            } else if pinLatestPromptTopIfNeeded() {
-                return
             } else if isFollowing {
                 scrollToBottom()
             }
@@ -62,13 +54,13 @@ struct ChatTranscriptView: View {
             scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.state.grouper.items.last?.id) {
-            guard !pinLatestPromptTopIfNeeded(), isFollowing else {
+            guard isFollowing else {
                 return
             }
             scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.streamingText) {
-            guard !pinLatestPromptTopIfNeeded(), isFollowing else {
+            guard isFollowing else {
                 return
             }
 
@@ -79,9 +71,7 @@ struct ChatTranscriptView: View {
         }
         .onAppear {
             viewModel.rebuildChatItemsIfNeeded(from: events)
-            if !pinLatestPromptTopIfNeeded() {
-                scrollToBottom(forceFollow: true)
-            }
+            scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.turnState.isActive) { _, isActive in
             if isActive {
@@ -89,15 +79,12 @@ struct ChatTranscriptView: View {
                 scrollToBottom(forceFollow: true)
             } else {
                 viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
-                // Must re-pin after the rebuild even though `onChange(of: events.count)` also
-                // fires an `scrollToBottom()` at turn end. `forceFullRebuild` can swap transient
-                // rows for persisted rows and publish a sequence of AppKit document-height
-                // changes, so a fresh jump-to-latest scroll lands against the settled baseline
-                // and keeps reissuing for any remaining content-size shifts.
+                // `forceFullRebuild` can swap transient rows for persisted rows and publish
+                // a sequence of AppKit document-height changes, so a fresh jump-to-latest
+                // scroll lands against the settled baseline and keeps reissuing for any
+                // remaining content-size shifts.
                 if isFollowing {
-                    if !pinLatestPromptTopIfNeeded() {
-                        scrollToBottom(forceFollow: true)
-                    }
+                    scrollToBottom(forceFollow: true)
                 }
             }
         }
@@ -169,57 +156,11 @@ private extension ChatTranscriptView {
         appKitScrollToBottomRequest += 1
     }
 
-    func issueImmediateRowTopScroll(rowID: String) {
-        appKitScrollToRowTopRequestID += 1
-        appKitScrollToRowTopRequest = AppKitTranscriptRowTopScrollRequest(
-            id: appKitScrollToRowTopRequestID,
-            rowID: rowID,
-            topInset: 0
-        )
-    }
-
-    @discardableResult
-    func pinLatestPromptTopIfNeeded() -> Bool {
-        guard let prompt = latestUnansweredPrompt else {
-            promptTopPinnedRowID = nil
-            promptTopPinnedPromptID = nil
-            isPromptTopScrollPending = false
-            promptTopScrollTimeoutToken = nil
-            appKitScrollToRowTopRequest = nil
-            return false
-        }
-        let isCurrentPin = promptTopPinnedRowID == prompt.rowID &&
-            promptTopPinnedPromptID == prompt.promptID
-        if isPromptTopScrollPending && isCurrentPin {
-            return true
-        }
-        guard isFollowing, !isCurrentPin else {
-            return false
-        }
-
-        promptTopPinnedRowID = prompt.rowID
-        promptTopPinnedPromptID = prompt.promptID
-        scrollToRowTop(rowID: prompt.rowID)
-        return true
-    }
-
-    func scrollToRowTop(rowID: String, at time: Date = Date()) {
-        pendingProgrammaticScrollMode = nil
-        isPromptTopScrollPending = true
-        isFollowing = false
-        lastScrollTime = time
-        issueImmediateRowTopScroll(rowID: rowID)
-        schedulePromptTopScrollTimeout()
-    }
-
     func scrollToBottom(
         forceFollow: Bool = false,
         retries: ScrollToBottomRetries = .triple,
         at time: Date = Date()
     ) {
-        isPromptTopScrollPending = false
-        promptTopScrollTimeoutToken = nil
-        appKitScrollToRowTopRequest = nil
         pendingProgrammaticScrollMode = forceFollow ? .jumpToLatest : .preserveFollow
         if forceFollow {
             isFollowing = true
@@ -243,22 +184,6 @@ private extension ChatTranscriptView {
             }
         }
         schedulePendingProgrammaticScrollTimeout()
-    }
-
-    func schedulePromptTopScrollTimeout() {
-        let token = UUID()
-        promptTopScrollTimeoutToken = token
-        DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgrammaticScrollTimeout) {
-            guard promptTopScrollTimeoutToken == token else {
-                return
-            }
-            promptTopScrollTimeoutToken = nil
-            isPromptTopScrollPending = false
-            if promptTopPinnedRowID != nil,
-               latestMetrics?.isNearBottom != true {
-                isFollowing = false
-            }
-        }
     }
 
     /// Schedule — or reschedule — the watchdog that clears a pending programmatic
@@ -302,14 +227,4 @@ private extension ChatTranscriptView {
         return lastEvent.type == "message" && lastEvent.role == "user"
     }
 
-    var latestUnansweredPrompt: (rowID: String, promptID: String)? {
-        for item in viewModel.state.grouper.items.reversed() {
-            guard case .promptBlock(let rowID, let prompt) = item,
-                  prompt.submittedSummary == nil else {
-                continue
-            }
-            return (rowID, prompt.id)
-        }
-        return nil
-    }
 }

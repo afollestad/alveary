@@ -5,7 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class ChatItemGrouper {
-    static let handledPromptSummary = "Response already handled."
+    nonisolated static let handledPromptSummary = "Response already handled."
 
     var items: [ChatItem] = []
     var processedCount = 0
@@ -111,6 +111,10 @@ final class ChatItemGrouper {
         )
     }
 
+    func markPromptHandled(promptId: String) {
+        markPromptAnswered(promptId: promptId, summary: Self.handledPromptSummary)
+    }
+
     func markLatestUnansweredPromptHandledAfterContinuationIfNeeded() {
         guard let index = items.lastIndex(where: { item in
             guard case .promptBlock(_, let prompt) = item else {
@@ -197,13 +201,19 @@ final class ChatItemGrouper {
         return true
     }
 
-    var hasUnansweredPrompt: Bool {
-        items.contains { item in
-            guard case .promptBlock(_, let prompt) = item else {
-                return false
+    var latestUnansweredPrompt: PromptEntry? {
+        for item in items.reversed() {
+            guard case .promptBlock(_, let prompt) = item,
+                  prompt.submittedSummary == nil else {
+                continue
             }
-            return prompt.submittedSummary == nil
+            return prompt
         }
+        return nil
+    }
+
+    var hasUnansweredPrompt: Bool {
+        latestUnansweredPrompt != nil
     }
 
     func appendLocalUserMessage(id: String, text: String) {

@@ -46,6 +46,7 @@ extension DefaultAgentsManager {
         guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
             throw AgentError.stdinClosed
         }
+        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
         do {
             try await services.runtime.send(
                 .userMessage(AgentCLIKit.AgentMessageInput(text: message)),
@@ -153,6 +154,7 @@ extension DefaultAgentsManager {
         closingConversationIds.insert(conversationId)
         pendingSessionRemovalIds.insert(conversationId)
         deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
+        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
         _ = conversationStatesStore.withLock { $0.removeValue(forKey: conversationId) }
         clearStatus(for: conversationId)
         eventBuffers[conversationId]?.allowsReplay = false
@@ -290,6 +292,7 @@ extension DefaultAgentsManager {
         agentCLIKitGenerationByConversation[conversationId] = agentGeneration
         agentCLIKitGenerationUUIDs[conversationId, default: [:]][agentGeneration] = generation
         deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
+        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
         eventBuffers[conversationId] = ManagedEventBuffer(
             generation: generation,
             allowsReplay: true,
@@ -314,6 +317,7 @@ extension DefaultAgentsManager {
 
     func prepareAgentCLIKitBufferReplacement(conversationId: String) {
         agentCLIKitEventTasks.removeValue(forKey: conversationId)?.cancel()
+        cancelledPromptResolutionsByConversation.removeValue(forKey: conversationId)
         eventBuffers[conversationId]?.allowsReplay = false
         eventBuffers[conversationId]?.acceptsLiveEvents = false
         eventBuffers[conversationId]?.buffer.finishAll()
@@ -427,6 +431,9 @@ extension DefaultAgentsManager {
         agentCLIKitStatuses[conversationId] = status
         processSnapshot.withLock { $0 = [] }
         publishManagedProcessesChanged()
+        if suppressCancelledPromptStatusIfNeeded(status, conversationId: conversationId) {
+            return
+        }
         switch status.waitingState {
         case .approval, .prompt, .planModeExit:
             updateStatus(.waitingForUser, for: conversationId)

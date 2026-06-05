@@ -42,12 +42,9 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
     - `.triple`: immediate, next-runloop, and 150ms AppKit request increments plus watchdog. Use for thread entry and content-growth callers.
     - `.single`: immediate AppKit request plus watchdog. Use container-shrink preserve-follow; metrics reissues cover the animation.
 - Keep retry requests as `appKitScrollToBottomRequest` increments so the representable coordinator owns the actual scroll command.
-- Unanswered prompt presentation is a row-top pin, not a bottom scroll.
-  Route it through `AppKitTranscriptRowTopScrollRequest`, keep the prompt row stable at the viewport top,
-  and let transient thinking rows mount underneath without stealing the pin.
-  Keep the row-top request one-shot; delayed retries can fight mouse-wheel scrolling as the user leaves the pin.
-  Do not special-case scroll metrics during the pin suppression window; mouse-wheel deltas should use normal user-scroll handling.
-  After the pin settles, release follow mode unless the viewport is actually near bottom so mouse-wheel scrolling stays user-owned.
+- Active `AskUserQuestion` prompts render as composer interaction overlays, not transcript rows.
+  Keep unresolved and internally handled prompt blocks out of the AppKit transcript input, and let composer-height changes use the normal
+  follow/anchor preservation path. Submitted prompt summaries still render as transcript cards.
 
 ## Pending Scroll Watchdog
 

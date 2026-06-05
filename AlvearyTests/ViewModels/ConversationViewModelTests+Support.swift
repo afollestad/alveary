@@ -60,6 +60,8 @@ actor MockAgentsManager: AgentsManager {
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var recordedCancelCalls: [String] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
+    private var pausesApprovalResolution = false
+    private var approvalResolutionContinuation: CheckedContinuation<Void, Never>?
     private var subscriptionEnabled = false
     private let subscriptionGeneration = UUID()
     private var subscriptionContinuation: AsyncStream<ConversationEvent>.Continuation?
@@ -131,6 +133,7 @@ actor MockAgentsManager: AgentsManager {
                 config: request.config
             )
         )
+        await waitForApprovalResolutionIfNeeded()
         if let approvalError {
             throw approvalError
         }
@@ -165,6 +168,20 @@ actor MockAgentsManager: AgentsManager {
 
     func enqueueSendResult(_ result: Result<Void, MockError>) {
         queuedSendResults.append(result)
+    }
+
+    func pauseApprovalResolution() {
+        pausesApprovalResolution = true
+    }
+
+    func resumeApprovalResolution() {
+        pausesApprovalResolution = false
+        approvalResolutionContinuation?.resume()
+        approvalResolutionContinuation = nil
+    }
+
+    func isApprovalResolutionPaused() -> Bool {
+        approvalResolutionContinuation != nil
     }
 
     func setStatus(_ status: ActivitySignal, for conversationId: String) {
@@ -294,27 +311,13 @@ actor MockAgentsManager: AgentsManager {
         subscriptionContinuation = nil
         subscriptionTerminationCount += 1
     }
-}
 
-private final class MockAgentsManagerStatusStore: @unchecked Sendable {
-    private let lock = NSLock()
-    private var statuses: [String: ActivitySignal] = [:]
-
-    func set(_ status: ActivitySignal, for conversationId: String) {
-        lock.withLock {
-            statuses[conversationId] = status
+    private func waitForApprovalResolutionIfNeeded() async {
+        guard pausesApprovalResolution else {
+            return
         }
-    }
-
-    func status(for conversationId: String) -> ActivitySignal {
-        lock.withLock {
-            statuses[conversationId] ?? .neutral
-        }
-    }
-
-    func snapshot() -> [String: ActivitySignal] {
-        lock.withLock {
-            statuses
+        await withCheckedContinuation { continuation in
+            approvalResolutionContinuation = continuation
         }
     }
 }
@@ -470,27 +473,5 @@ actor MockProviderSetupService: ProviderSetupService {
 
     func calls() -> [Call] {
         recordedCalls
-    }
-}
-
-private final class MockProviderSetupTrustCache: @unchecked Sendable {
-    private let lock = NSLock()
-    private var trustedProjectPaths: Set<String> = []
-
-    func isTrusted(_ workingDirectory: String) -> Bool {
-        lock.withLock {
-            trustedProjectPaths.contains(CanonicalPath.normalize(workingDirectory))
-        }
-    }
-
-    func setTrustedProject(_ workingDirectory: String, isTrusted: Bool) {
-        let normalizedPath = CanonicalPath.normalize(workingDirectory)
-        lock.withLock {
-            if isTrusted {
-                trustedProjectPaths.insert(normalizedPath)
-            } else {
-                trustedProjectPaths.remove(normalizedPath)
-            }
-        }
     }
 }
