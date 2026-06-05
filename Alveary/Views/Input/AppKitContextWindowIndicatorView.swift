@@ -36,13 +36,14 @@ final class AppKitContextWindowIndicatorView: NSView {
     }
 
     func configure(summary: ConversationUsageSummary?) {
+        let previousSummary = self.summary
         self.summary = summary
         isHidden = summary == nil
         setAccessibilityValue(summary.map(Self.accessibilityValue(for:)) ?? "")
         if summary == nil {
             closeHoverPopover()
-        } else if hoverPopover?.isShown == true {
-            showHoverPopover()
+        } else if hoverPopover?.isShown == true, previousSummary != summary {
+            updateHoverPopover(with: summary)
         }
         needsDisplay = true
     }
@@ -137,19 +138,42 @@ final class AppKitContextWindowIndicatorView: NSView {
         guard let summary, window != nil else {
             return
         }
+        if hoverPopover?.isShown == true {
+            updateHoverPopover(with: summary)
+            return
+        }
         closeHoverPopover()
 
         let popover = NSPopover()
         let tooltipView = AppKitContextWindowTooltipView(summary: summary)
-        tooltipView.frame = NSRect(origin: .zero, size: tooltipView.preferredSize)
+        let preferredSize = tooltipView.applyPreferredSize()
         let controller = NSViewController()
         controller.view = tooltipView
+        controller.preferredContentSize = preferredSize
         popover.contentViewController = controller
-        popover.contentSize = tooltipView.frame.size
+        popover.contentSize = preferredSize
         popover.behavior = .transient
-        popover.animates = true
+        popover.animates = false
         popover.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
         hoverPopover = popover
+    }
+
+    private func updateHoverPopover(with summary: ConversationUsageSummary?) {
+        guard let summary,
+              let popover = hoverPopover,
+              popover.isShown else {
+            return
+        }
+        guard let tooltipView = popover.contentViewController?.view as? AppKitContextWindowTooltipView else {
+            closeHoverPopover()
+            showHoverPopover()
+            return
+        }
+        tooltipView.update(summary: summary)
+        let preferredSize = tooltipView.applyPreferredSize()
+        popover.contentViewController?.preferredContentSize = preferredSize
+        popover.contentSize = preferredSize
+        _ = tooltipView.applyPreferredSize()
     }
 
     private func closeHoverPopover() {
@@ -165,13 +189,14 @@ final class AppKitContextWindowIndicatorView: NSView {
     }
 }
 
-private final class AppKitContextWindowTooltipView: NSView {
+final class AppKitContextWindowTooltipView: NSView {
     private let titleField = NSTextField(labelWithString: "Context window:")
     private let headlineField = NSTextField(labelWithString: "")
     private let detailField = NSTextField(labelWithString: "")
     private let costField = NSTextField(labelWithString: "")
     private let horizontalInset: CGFloat = 16
     private let verticalInset: CGFloat = 16
+    private let minimumWidth: CGFloat = 204
     private let titleHeadlineSpacing: CGFloat = 8
     private let bodySpacing: CGFloat = 8
 
@@ -179,10 +204,10 @@ private final class AppKitContextWindowTooltipView: NSView {
 
     var preferredSize: NSSize {
         let contentWidth = [titleField, headlineField, detailField, costField]
-            .map { ceil($0.intrinsicContentSize.width) }
+            .map(Self.singleLineWidth(for:))
             .max() ?? 0
         return NSSize(
-            width: contentWidth + (horizontalInset * 2),
+            width: max(minimumWidth, contentWidth + (horizontalInset * 2)),
             height: verticalInset * 2 +
                 titleFieldHeight +
                 titleHeadlineSpacing +
@@ -197,7 +222,7 @@ private final class AppKitContextWindowTooltipView: NSView {
     init(summary: ConversationUsageSummary) {
         super.init(frame: .zero)
         setup()
-        configure(summary: summary)
+        update(summary: summary)
     }
 
     required init?(coder: NSCoder) {
@@ -224,10 +249,27 @@ private final class AppKitContextWindowTooltipView: NSView {
         NSBezierPath(roundedRect: bounds, xRadius: 12, yRadius: 12).fill()
     }
 
+    func update(summary: ConversationUsageSummary) {
+        configure(summary: summary)
+        needsLayout = true
+        needsDisplay = true
+    }
+
+    @discardableResult
+    func applyPreferredSize() -> NSSize {
+        let size = preferredSize
+        setFrameSize(size)
+        layoutSubtreeIfNeeded()
+        return size
+    }
+
     private func setup() {
         [titleField, headlineField, detailField, costField].forEach {
             $0.alignment = .center
             $0.lineBreakMode = .byTruncatingTail
+            $0.maximumNumberOfLines = 1
+            $0.cell?.usesSingleLineMode = true
+            $0.cell?.wraps = false
             addSubview($0)
         }
         titleField.font = Self.preferredFont(for: .callout, weight: .semibold)
@@ -277,6 +319,13 @@ private final class AppKitContextWindowTooltipView: NSView {
 
     private static func preferredFont(for textStyle: NSFont.TextStyle, weight: NSFont.Weight) -> NSFont {
         NSFont.systemFont(ofSize: NSFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
+    }
+
+    private static func singleLineWidth(for field: NSTextField) -> CGFloat {
+        let font = field.font ?? .preferredFont(forTextStyle: .callout)
+        let textWidth = (field.stringValue as NSString).size(withAttributes: [.font: font]).width
+        let cellWidth = field.cell?.cellSize.width ?? 0
+        return ceil(max(textWidth, cellWidth, field.fittingSize.width, field.intrinsicContentSize.width)) + 4
     }
 
     private var titleFieldHeight: CGFloat {

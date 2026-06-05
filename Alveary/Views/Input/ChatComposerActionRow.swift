@@ -138,6 +138,7 @@ final class ChatComposerActionRowView: NSView {
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
     // frame logic out of this already-large view type without widening behavior.
     let spacer = NSView()
+    private let accessoryGroup = ChatComposerAccessoryGroupView(spacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing)
     private let contextIndicatorView = AppKitContextWindowIndicatorView()
     private let keyboardButton = ComposerIconButton(symbolName: "keyboard")
     private let primaryButton = ComposerActionButton(style: .primary)
@@ -369,70 +370,66 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func rebuildArrangedSubviews(_ configuration: Configuration) {
-        rowSubviews.forEach { $0.removeFromSuperview() }
-        rowSubviews = []
-
-        addSettingsControls(for: configuration)
-        addRowSubview(spacer)
-        addAccessoryControls(for: configuration)
-        addActionControls(for: configuration)
+        let nextSubviews = arrangedSubviews(for: configuration)
+        rowSubviews
+            .filter { oldView in !nextSubviews.contains { $0 === oldView } }
+            .forEach { $0.removeFromSuperview() }
+        for view in nextSubviews where view.superview !== stack {
+            stack.addSubview(view)
+        }
+        rowSubviews = nextSubviews
     }
 
-    private func addSettingsControls(for configuration: Configuration) {
+    private func arrangedSubviews(for configuration: Configuration) -> [NSView] {
+        var views: [NSView] = []
         if configuration.showsProviderPicker {
-            addRowSubview(providerMenu)
+            views.append(providerMenu)
         }
-        addRowSubview(modelMenu)
+        views.append(modelMenu)
         if !configuration.effortOptions.isEmpty {
-            addRowSubview(effortMenu)
+            views.append(effortMenu)
         }
         if !configuration.supportedPermissionModes.isEmpty {
-            addRowSubview(permissionMenu)
+            views.append(permissionMenu)
         }
         if configuration.showWorktreePicker {
-            addRowSubview(worktreeMenu)
+            views.append(worktreeMenu)
         } else if configuration.sessionLocationLabel != nil {
-            addRowSubview(sessionLocationField)
-        }
-    }
-
-    private func addAccessoryControls(for configuration: Configuration) {
-        guard configuration.usageSummary != nil || !configuration.isTextEditorDisabled else {
-            return
+            views.append(sessionLocationField)
         }
 
-        let accessoryGroup = ChatComposerAccessoryGroupView(spacing: configuration.contextIndicatorKeyboardSpacing)
-        if configuration.usageSummary != nil {
-            accessoryGroup.addAccessory(contextIndicatorView)
+        views.append(spacer)
+        if let accessoryGroup = configuredAccessoryGroup(for: configuration) {
+            views.append(accessoryGroup)
         }
-        if !configuration.isTextEditorDisabled {
-            accessoryGroup.addAccessory(keyboardButton)
-        }
-        addRowSubview(accessoryGroup)
-    }
-
-    private func addActionControls(for configuration: Configuration) {
         switch configuration.mode {
         case .idle:
-            addRowSubview(primaryButton)
+            views.append(primaryButton)
         case .busy(let canStop):
-            addRowSubview(canStop ? stopButton : disabledProgressSlot())
+            views.append(canStop ? stopButton : disabledProgressContainer)
         case .progressOnly(let reason):
             if reason.canStop {
-                addRowSubview(stopButton)
+                views.append(stopButton)
             } else {
-                addRowSubview(progressStack)
+                views.append(progressStack)
             }
         }
+        return views
     }
 
-    private func addRowSubview(_ view: NSView) {
-        rowSubviews.append(view)
-        stack.addSubview(view)
-    }
-
-    private func disabledProgressSlot() -> NSView {
-        disabledProgressContainer
+    private func configuredAccessoryGroup(for configuration: Configuration) -> ChatComposerAccessoryGroupView? {
+        var accessories: [NSView] = []
+        if configuration.usageSummary != nil {
+            accessories.append(contextIndicatorView)
+        }
+        if !configuration.isTextEditorDisabled {
+            accessories.append(keyboardButton)
+        }
+        accessoryGroup.configure(
+            accessories: accessories,
+            spacing: configuration.contextIndicatorKeyboardSpacing
+        )
+        return accessories.isEmpty ? nil : accessoryGroup
     }
 
     private func title(for value: String, in options: [MenuOption]) -> String {

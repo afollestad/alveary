@@ -1,7 +1,7 @@
 import AppKit
 
 final class ChatComposerAccessoryGroupView: NSView {
-    private let spacing: CGFloat
+    private var spacing: CGFloat
     private var accessories: [NSView] = []
 
     override var isFlipped: Bool {
@@ -34,10 +34,17 @@ final class ChatComposerAccessoryGroupView: NSView {
         nil
     }
 
-    func addAccessory(_ view: NSView) {
-        accessories.append(view)
-        addSubview(view)
+    func configure(accessories newAccessories: [NSView], spacing: CGFloat) {
+        self.spacing = spacing
+        accessories
+            .filter { oldView in !newAccessories.contains { $0 === oldView } }
+            .forEach { $0.removeFromSuperview() }
+        for view in newAccessories where view.superview !== self {
+            addSubview(view)
+        }
+        accessories = newAccessories
         invalidateIntrinsicContentSize()
+        needsLayout = true
     }
 
     override func layout() {

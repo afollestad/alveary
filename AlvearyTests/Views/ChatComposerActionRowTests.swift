@@ -395,7 +395,7 @@ final class ChatComposerActionRowTests: XCTestCase {
     }
 }
 
-private func makeConfiguration(
+func makeConfiguration(
     mode: ComposerMode,
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     showsProviderPicker: Bool = true,
