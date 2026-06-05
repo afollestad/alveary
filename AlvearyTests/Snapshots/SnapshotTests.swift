@@ -30,9 +30,17 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testChatComposerKeymapSheet() {
+        let defaultEnterBehavior = AppSettings.defaultEnterBehavior
+        let keymapView = AppKitChatComposerKeymapView()
+        keymapView.configure(.init(supportsMidTurnSteering: true, defaultEnterBehavior: defaultEnterBehavior))
+        let preferredSize = keymapView.preferredModalSize
+
         assertMacSnapshot(
-            ChatComposerKeymapSheet(supportsMidTurnSteering: true),
-            size: CGSize(width: 520, height: 320),
+            ChatComposerKeymapSheet(
+                supportsMidTurnSteering: true,
+                defaultEnterBehavior: defaultEnterBehavior
+            ),
+            size: CGSize(width: preferredSize.width, height: preferredSize.height),
             named: "chat_composer_keymap_sheet"
         )
     }

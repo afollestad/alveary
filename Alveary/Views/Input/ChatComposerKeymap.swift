@@ -72,6 +72,7 @@ enum AppKitChatComposerKeymapPresenter {
             ),
             onClose: { [weak panel, weak parentWindow] in close(panel, parentWindow: parentWindow) }
         )
+        resize(panel: panel, contentView: contentView)
 
         show(panel, parentWindow: parentWindow)
     }
@@ -109,6 +110,12 @@ enum AppKitChatComposerKeymapPresenter {
         }
     }
 
+    private static func resize(panel: NSPanel, contentView: AppKitChatComposerKeymapView) {
+        let size = contentView.preferredModalSize
+        contentView.frame = NSRect(origin: .zero, size: size)
+        panel.setContentSize(size)
+    }
+
     private static func close(_ panel: NSPanel?, parentWindow: NSWindow?) {
         guard let panel else {
             return
@@ -142,12 +149,16 @@ final class AppKitChatComposerKeymapView: NSView {
     private var configuration: Configuration?
     private var onClose: () -> Void = {}
 
+    var preferredModalSize: NSSize {
+        NSSize(width: Self.modalWidth, height: max(Self.minimumModalHeight, measuredContentHeight(for: Self.modalWidth)))
+    }
+
     override var isFlipped: Bool {
         true
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: 520, height: 320)
+        preferredModalSize
     }
 
     override init(frame frameRect: NSRect) {
@@ -165,6 +176,7 @@ final class AppKitChatComposerKeymapView: NSView {
         self.onClose = onClose
         closeButton.actionHandler = onClose
         rebuildRows()
+        invalidateIntrinsicContentSize()
         needsLayout = true
         needsDisplay = true
     }
@@ -177,39 +189,35 @@ final class AppKitChatComposerKeymapView: NSView {
 
     override func layout() {
         super.layout()
-        let inset: CGFloat = 24
         // NSTextField and ComposerIconButton draw with different internal
         // offsets than the SwiftUI controls they replaced; these placements
         // keep the native sheet visually aligned with the old baseline.
         let closeSize = closeButton.intrinsicContentSize
         closeButton.frame = NSRect(
-            x: bounds.maxX - inset - closeSize.width,
-            y: 36,
+            x: bounds.maxX - Self.inset - closeSize.width,
+            y: Self.closeButtonY,
             width: closeSize.width,
             height: closeSize.height
         )
 
-        let headerWidth = max(0, closeButton.frame.minX - inset - 16)
+        let headerWidth = max(0, closeButton.frame.minX - Self.inset - 16)
         let titleHeight = ceil(titleField.intrinsicContentSize.height)
-        titleField.frame = NSRect(x: inset - 2, y: 24, width: headerWidth, height: titleHeight)
+        titleField.frame = NSRect(x: Self.inset - 2, y: Self.titleY, width: headerWidth, height: titleHeight)
 
         let descriptionHeight = ceil(descriptionField.intrinsicContentSize.height)
         descriptionField.frame = NSRect(
-            x: inset - 2,
-            y: titleField.frame.maxY + 7,
-            width: max(0, bounds.width - inset * 2),
+            x: Self.inset - 2,
+            y: titleField.frame.maxY + Self.titleDescriptionSpacing,
+            width: max(0, bounds.width - Self.inset * 2),
             height: descriptionHeight
         )
 
-        var nextY = descriptionField.frame.maxY + 20
-        let rowWidth = max(0, bounds.width - inset * 2)
-        // Match the former SwiftUI sheet footprint: four rows must fit inside
-        // the fixed 320pt keyboard-shortcuts panel and snapshot.
-        let rowHeight: CGFloat = 44
-        let rowSpacing: CGFloat = 12
+        var nextY = descriptionField.frame.maxY + Self.headerRowsSpacing
+        let rowWidth = max(0, bounds.width - Self.inset * 2)
         for row in rows {
-            row.frame = NSRect(x: inset, y: nextY, width: rowWidth, height: rowHeight)
-            nextY += rowHeight + rowSpacing
+            let rowHeight = row.preferredHeight(for: rowWidth)
+            row.frame = NSRect(x: Self.inset, y: nextY, width: rowWidth, height: rowHeight)
+            nextY += rowHeight + Self.rowSpacing
         }
     }
 
@@ -237,6 +245,22 @@ final class AppKitChatComposerKeymapView: NSView {
             addSubview(rowView)
             return rowView
         }
+    }
+
+    private func measuredContentHeight(for width: CGFloat) -> CGFloat {
+        let titleHeight = ceil(titleField.intrinsicContentSize.height)
+        let descriptionHeight = ceil(descriptionField.intrinsicContentSize.height)
+        let headerHeight = Self.titleY
+            + titleHeight
+            + Self.titleDescriptionSpacing
+            + descriptionHeight
+            + Self.headerRowsSpacing
+        let rowWidth = max(0, width - Self.inset * 2)
+        let rowsHeight = rows.reduce(CGFloat.zero) { partialResult, row in
+            partialResult + row.preferredHeight(for: rowWidth)
+        }
+        let spacingHeight = CGFloat(max(0, rows.count - 1)) * Self.rowSpacing
+        return ceil(headerHeight + rowsHeight + spacingHeight + Self.bottomPadding)
     }
 
     private var keymapRows: [(keys: String, description: String)] {
@@ -278,6 +302,16 @@ final class AppKitChatComposerKeymapView: NSView {
             return "Queue for the next turn while the agent is working."
         }
     }
+
+    private static let modalWidth: CGFloat = 520
+    private static let minimumModalHeight: CGFloat = 320
+    private static let inset: CGFloat = 24
+    private static let titleY: CGFloat = 24
+    private static let closeButtonY: CGFloat = 36
+    private static let titleDescriptionSpacing: CGFloat = 7
+    private static let headerRowsSpacing: CGFloat = 20
+    private static let rowSpacing: CGFloat = 12
+    private static let bottomPadding: CGFloat = 24
 }
 
 private final class AppKitChatComposerKeymapRowView: NSView {
@@ -302,8 +336,17 @@ private final class AppKitChatComposerKeymapRowView: NSView {
         keysField.stringValue = keys
         descriptionField.stringValue = description
         setAccessibilityLabel("\(keys), \(description)")
+        invalidateIntrinsicContentSize()
         needsLayout = true
         needsDisplay = true
+    }
+
+    func preferredHeight(for width: CGFloat) -> CGFloat {
+        let contentHeight = max(
+            ceil(keysField.intrinsicContentSize.height),
+            measuredDescriptionHeight(for: width)
+        )
+        return max(Self.minimumHeight, ceil(contentHeight + Self.verticalPadding * 2))
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -313,26 +356,24 @@ private final class AppKitChatComposerKeymapRowView: NSView {
 
     override func layout() {
         super.layout()
-        let horizontalPadding: CGFloat = 16
-        let keyWidth: CGFloat = 150
-        let spacing: CGFloat = 16
         // NSTextField's drawing inset is wider than SwiftUI Text, so the
         // frames shift left to keep text starts aligned with the old sheet.
+        let descriptionWidth = descriptionWidth(for: bounds.width)
         let contentHeight = max(
             ceil(keysField.intrinsicContentSize.height),
-            ceil(descriptionField.intrinsicContentSize.height)
+            measuredDescriptionHeight(for: bounds.width)
         )
-        let textY = floor((bounds.height - contentHeight) / 2)
+        let textY = max(0, floor((bounds.height - contentHeight) / 2))
         keysField.frame = NSRect(
-            x: horizontalPadding - 2,
+            x: Self.horizontalPadding - 2,
             y: textY,
-            width: keyWidth,
+            width: Self.keyWidth,
             height: contentHeight
         )
         descriptionField.frame = NSRect(
-            x: horizontalPadding + keyWidth + spacing - 2,
+            x: Self.horizontalPadding + Self.keyWidth + Self.spacing - 2,
             y: textY,
-            width: max(0, bounds.width - horizontalPadding * 2 - keyWidth - spacing),
+            width: descriptionWidth,
             height: contentHeight
         )
     }
@@ -357,12 +398,45 @@ private final class AppKitChatComposerKeymapRowView: NSView {
 
         descriptionField.font = .preferredFont(forTextStyle: .body)
         descriptionField.textColor = .keymapSecondaryText
-        descriptionField.lineBreakMode = .byTruncatingTail
+        descriptionField.lineBreakMode = .byWordWrapping
+        descriptionField.maximumNumberOfLines = 0
+        descriptionField.cell?.wraps = true
+        descriptionField.cell?.isScrollable = false
+        descriptionField.cell?.usesSingleLineMode = false
         descriptionField.setAccessibilityElement(false)
 
         addSubview(keysField)
         addSubview(descriptionField)
     }
+
+    private func measuredDescriptionHeight(for width: CGFloat) -> CGFloat {
+        let availableWidth = descriptionWidth(for: width)
+        guard availableWidth > 0 else {
+            return ceil(descriptionField.fittingSize.height)
+        }
+        let bounds = NSRect(
+            x: 0,
+            y: 0,
+            width: availableWidth,
+            height: CGFloat.greatestFiniteMagnitude / 2
+        )
+        let cellHeight = descriptionField.cell?.cellSize(forBounds: bounds).height ?? 0
+        let rect = descriptionField.attributedStringValue.boundingRect(
+            with: bounds.size,
+            options: [.usesLineFragmentOrigin, .usesFontLeading, .usesDeviceMetrics]
+        )
+        return ceil(max(cellHeight, rect.height))
+    }
+
+    private func descriptionWidth(for width: CGFloat) -> CGFloat {
+        max(0, width - Self.horizontalPadding * 2 - Self.keyWidth - Self.spacing)
+    }
+
+    private static let minimumHeight: CGFloat = 44
+    private static let horizontalPadding: CGFloat = 16
+    private static let verticalPadding: CGFloat = 10
+    private static let keyWidth: CGFloat = 150
+    private static let spacing: CGFloat = 16
 }
 
 private extension NSColor {

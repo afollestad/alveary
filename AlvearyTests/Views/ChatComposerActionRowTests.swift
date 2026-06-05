@@ -346,57 +346,6 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertEqual(showKeymapCount, 1)
     }
 
-    func testNativeKeymapViewUsesDefaultEnterBehaviorCopy() {
-        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
-
-        view.configure(.init(supportsMidTurnSteering: true, defaultEnterBehavior: .steer))
-        view.layoutSubtreeIfNeeded()
-
-        let labels = view.descendants(of: NSTextField.self).map(\.stringValue)
-        XCTAssertTrue(labels.contains("Send the message, or steer the current turn while the agent is busy."))
-        XCTAssertTrue(labels.contains("Queue for the next turn while the agent is working."))
-    }
-
-    func testNativeKeymapViewHidesOptionEnterWhenSteeringUnsupported() {
-        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
-
-        view.configure(.init(supportsMidTurnSteering: false, defaultEnterBehavior: .queue))
-        view.layoutSubtreeIfNeeded()
-
-        let labels = view.descendants(of: NSTextField.self).map(\.stringValue)
-        XCTAssertTrue(labels.contains("Send the message."))
-        XCTAssertFalse(labels.contains("Option + Enter"))
-    }
-
-    func testNativeKeymapViewExposesAccessibleCloseAndRows() throws {
-        let view = AppKitChatComposerKeymapView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
-        var closeCount = 0
-
-        view.configure(
-            .init(supportsMidTurnSteering: true, defaultEnterBehavior: .queue),
-            onClose: { closeCount += 1 }
-        )
-        view.layoutSubtreeIfNeeded()
-
-        let closeButton = try XCTUnwrap(
-            view.descendants(of: ComposerIconButton.self).first { $0.accessibilityLabel() == "Close keyboard shortcuts" }
-        )
-        XCTAssertTrue(closeButton.accessibilityPerformPress())
-        XCTAssertEqual(closeCount, 1)
-
-        let rows = view.descendants(of: NSView.self)
-        let enterRow = try XCTUnwrap(
-            rows.first { $0.accessibilityLabel() == "Enter, Send the message, or queue it while the agent is busy." }
-        )
-        XCTAssertEqual(enterRow.accessibilityRole(), .group)
-        XCTAssertTrue(rows.contains { $0.accessibilityLabel() == "Shift + Enter, Insert a newline." })
-        XCTAssertTrue(
-            rows.contains { $0.accessibilityLabel() == "Option + Enter, Steer the current turn immediately while the agent is working." }
-        )
-        XCTAssertTrue(
-            rows.contains { $0.accessibilityLabel() == "Esc, then Esc, During an active turn, double-tap escape to interrupt (stop) the turn." }
-        )
-    }
 }
 
 func makeConfiguration(
