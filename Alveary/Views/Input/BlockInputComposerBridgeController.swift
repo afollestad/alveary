@@ -63,7 +63,7 @@ struct BlockInputComposerBridgeConfiguration {
 
 @MainActor
 final class BlockInputComposerBridgeController {
-    static let minVisibleLineCount = 3
+    static let minVisibleLineCount = 2
     static let maxVisibleLineCount = 9
     static let blockVerticalInsetMultiplier: CGFloat = 0.7
 

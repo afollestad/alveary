@@ -33,7 +33,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(popupStyle.highlightedRowBackgroundColor, BlockInputComposerStyle.completionPopupHighlightColor)
         XCTAssertEqual(popupStyle.cornerRadius, BlockInputComposerStyle.completionPopupCornerRadius)
         XCTAssertEqual(popupStyle.borderWidth, BlockInputComposerStyle.completionPopupBorderWidth)
-        XCTAssertEqual(blockInputConfiguration.heightSizing?.defaultVisibleLineCount, 3)
+        XCTAssertEqual(blockInputConfiguration.heightSizing?.defaultVisibleLineCount, 2)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.maximumVisibleLineCount, 9)
         XCTAssertEqual(blockInputConfiguration.heightSizing?.animation, .default)
         XCTAssertNil(blockInputConfiguration.heightSizing?.onPreferredHeightChange)
