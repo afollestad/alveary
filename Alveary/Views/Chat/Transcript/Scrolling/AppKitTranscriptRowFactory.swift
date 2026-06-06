@@ -89,7 +89,7 @@ final class AppKitTranscriptRowFactory {
             return [streamingBubbleRow(text: streamingText, configuration: configuration)]
         }
 
-        if transientRows.isTurnActive {
+        if transientRows.isTurnActive || transientRows.isAwaitingExitPlanModeFollowUp {
             return [thinkingIndicatorRow(transientRows: transientRows, configuration: configuration)]
         }
 

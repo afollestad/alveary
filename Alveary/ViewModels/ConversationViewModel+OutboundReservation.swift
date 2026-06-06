@@ -14,6 +14,9 @@ extension ConversationViewModel {
         guard state.pendingToolApproval == nil else {
             throw AgentError.spawnFailed("Approve or deny the pending tool use before sending another message")
         }
+        guard !state.isAwaitingExitPlanModeFollowUp else {
+            throw AgentError.spawnFailed("Wait for the plan response to be sent before sending another message")
+        }
         guard !state.isSendingMessage else {
             throw AgentError.spawnFailed("Another message is already being sent")
         }

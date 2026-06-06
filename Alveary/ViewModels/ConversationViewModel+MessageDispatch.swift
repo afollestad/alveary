@@ -7,6 +7,11 @@ extension ConversationViewModel {
             return
         }
 
+        guard !state.isAwaitingExitPlanModeFollowUp else {
+            state.turnState.endTurn()
+            return
+        }
+
         guard state.messageQueue.peekNext() != nil else {
             state.turnState.endTurn()
             return

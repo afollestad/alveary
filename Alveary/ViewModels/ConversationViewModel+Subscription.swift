@@ -129,6 +129,7 @@ private extension ConversationViewModel {
 
             self.state.lastObservedEventIndex += 1
             self.handleEvent(event)
+            self.recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: token)
             return true
         }
     }
@@ -154,6 +155,7 @@ private extension ConversationViewModel {
             } else {
                 self.state.appendStreamingChunk(pending.text)
             }
+            self.recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: token)
             return true
         }
     }
@@ -167,6 +169,7 @@ private extension ConversationViewModel {
 
             self.state.lastObservedEventIndex += 1
             self.handleEvent(event)
+            self.recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: token)
             return true
         }
     }
@@ -181,6 +184,9 @@ private extension ConversationViewModel {
 
             self.state.turnState.endTurn()
             self.state.clearStreamingText()
+            if self.drainPendingExitPlanModeFollowUpAfterSubscriptionFinish(token: token) {
+                self.handleTurnCompleted()
+            }
         }
     }
 

@@ -44,8 +44,20 @@ struct PendingSessionSettingsChange: Equatable, Sendable {
 }
 
 struct PendingExitPlanModeFollowUp: Equatable, Sendable {
+    enum Phase: Equatable, Sendable {
+        case awaitingDeniedExitTurn
+        case readyToSend
+    }
+
     let toolUseId: String
+    let sessionId: String
     let message: String
+    let sourceTurnId: String?
+    let sourceSubscriptionToken: UUID?
+    let sourceBufferGeneration: UUID?
+    let sourceEventIndex: Int
+    var lastObservedEventIndex: Int
+    var phase: Phase
 }
 
 @MainActor
@@ -96,6 +108,7 @@ final class ConversationState {
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
+    @ObservationIgnored var pendingExitPlanModeFollowUpQuietTask: Task<Void, Never>?
     var runtimePermissionMode: String?
     var runtimePlanModeEnabled: Bool?
     var lastNonPlanPermissionMode: String?
@@ -114,6 +127,10 @@ final class ConversationState {
 
     var shouldShowInterruptedCue: Bool {
         lastTurnInterrupted
+    }
+
+    var isAwaitingExitPlanModeFollowUp: Bool {
+        pendingExitPlanModeFollowUp?.phase == .awaitingDeniedExitTurn
     }
 
     func appendStreamingChunk(_ text: String) {

@@ -27,6 +27,7 @@ extension ChatTranscriptView {
         let visibleStreamingText = viewModel.state.isHandingOffSession ? nil : viewModel.streamingText
         return AppKitTranscriptTransientRows(
             isTurnActive: viewModel.turnState.isActive && visibleStreamingText == nil,
+            isAwaitingExitPlanModeFollowUp: viewModel.state.isAwaitingExitPlanModeFollowUp && visibleStreamingText == nil,
             streamingText: visibleStreamingText,
             showsInterruptedNote: viewModel.state.shouldShowInterruptedCue &&
                 !viewModel.turnState.isActive &&

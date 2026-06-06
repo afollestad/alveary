@@ -65,6 +65,7 @@ final class ExitPlanModeOverlayStateTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: false,
                 isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: ExitPlanModeOverlayPresentation.composerStatusText(
                     pendingApproval: pendingApproval,
                     overlayState: hiddenState
@@ -74,6 +75,41 @@ final class ExitPlanModeOverlayStateTests: XCTestCase {
                 isSendingMessage: false
             )),
             .idle
+        )
+    }
+
+    func testSubmittedCustomDenialAwaitingFollowUpShowsBusyComposer() {
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "exit-plan-1",
+            toolName: "ExitPlanMode",
+            toolInput: ##"{"plan":"# Plan\n\n- Do the work."}"##
+        )
+        let pendingApproval = PendingToolApproval(request: approval, status: .denying)
+        let hiddenState = ExitPlanModeOverlayState(
+            selection: .customDenial,
+            customResponse: "Test",
+            isSubmitting: true,
+            isHiddenAfterSubmit: true
+        )
+
+        XCTAssertEqual(
+            ChatPresentation.composerMode(for: ChatComposerModeState(
+                isCancellingInitialSetup: false,
+                hasSetupPhase: false,
+                isReconfiguringSession: false,
+                isAwaitingHandoffSteering: false,
+                isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: true,
+                pendingToolApprovalStatusText: ExitPlanModeOverlayPresentation.composerStatusText(
+                    pendingApproval: pendingApproval,
+                    overlayState: hiddenState
+                ),
+                isTurnActive: false,
+                runtimeStatus: .neutral,
+                isSendingMessage: false
+            )),
+            .busy(canStop: false)
         )
     }
 

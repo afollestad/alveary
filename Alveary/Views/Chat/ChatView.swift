@@ -43,7 +43,6 @@ struct ChatView: View {
             hasStreamingText: viewModel.streamingText != nil
         )
     }
-
     var composerMode: ComposerMode {
         ChatPresentation.composerMode(for: ChatComposerModeState(
             isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
@@ -51,6 +50,7 @@ struct ChatView: View {
             isReconfiguringSession: viewModel.state.isReconfiguringSession,
             isAwaitingHandoffSteering: viewModel.state.isAwaitingHandoffSteering,
             isHandingOffSession: viewModel.state.isHandingOffSession,
+            isAwaitingExitPlanModeFollowUp: viewModel.state.isAwaitingExitPlanModeFollowUp,
             pendingToolApprovalStatusText: pendingToolApprovalStatusTextForComposer,
             isTurnActive: viewModel.turnState.isActive,
             runtimeStatus: runtimeStatus,

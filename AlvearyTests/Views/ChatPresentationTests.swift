@@ -42,6 +42,7 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: true,
                 isAwaitingHandoffSteering: true,
                 isHandingOffSession: true,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: .genericApproval,
                 isTurnActive: true,
                 runtimeStatus: .busy,
@@ -56,6 +57,7 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: true,
                 isHandingOffSession: true,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: .genericApproval,
                 isTurnActive: true,
                 runtimeStatus: .busy,
@@ -70,10 +72,29 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: false,
                 isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: nil,
                 isTurnActive: false,
                 runtimeStatus: .neutral,
                 isSendingMessage: true
+            )),
+            .busy(canStop: false)
+        )
+    }
+
+    func testComposerModeTreatsAwaitingExitPlanModeFollowUpAsNonStoppableBusy() {
+        XCTAssertEqual(
+            ChatPresentation.composerMode(for: ChatComposerModeState(
+                isCancellingInitialSetup: false,
+                hasSetupPhase: false,
+                isReconfiguringSession: false,
+                isAwaitingHandoffSteering: false,
+                isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: true,
+                pendingToolApprovalStatusText: nil,
+                isTurnActive: false,
+                runtimeStatus: .neutral,
+                isSendingMessage: false
             )),
             .busy(canStop: false)
         )
@@ -87,6 +108,7 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: false,
                 isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: nil,
                 isTurnActive: false,
                 runtimeStatus: .busy,
@@ -101,6 +123,7 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: false,
                 isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: nil,
                 isTurnActive: false,
                 runtimeStatus: .idle,
@@ -115,6 +138,7 @@ final class ChatPresentationTests: XCTestCase {
                 isReconfiguringSession: false,
                 isAwaitingHandoffSteering: false,
                 isHandingOffSession: false,
+                isAwaitingExitPlanModeFollowUp: false,
                 pendingToolApprovalStatusText: nil,
                 isTurnActive: false,
                 runtimeStatus: .neutral,

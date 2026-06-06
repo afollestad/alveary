@@ -111,6 +111,7 @@ final class ConversationViewModel {
         hydratePendingRestoreContextIfNeeded()
         hydratePendingToolApprovalIfNeeded()
         subscribe()
+        schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
     }
 
     func deactivateViewLifecycle() {
@@ -121,6 +122,7 @@ final class ConversationViewModel {
         hasActivatedViewLifecycle = false
         subscriptionTask?.cancel()
         subscriptionTask = nil
+        cancelPendingExitPlanModeFollowUpQuietTaskForViewDeactivation()
     }
 
     var needsSetup: Bool {
@@ -154,6 +156,9 @@ final class ConversationViewModel {
     func queueOrSend(_ message: String) async throws {
         guard !state.hasActiveSessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
+        }
+        guard !state.isAwaitingExitPlanModeFollowUp else {
+            throw AgentError.spawnFailed("Wait for the plan response to be sent before sending another message")
         }
 
         if isAgentActivelyWorking || state.isSendingMessage || state.messageQueue.peekNext() != nil {

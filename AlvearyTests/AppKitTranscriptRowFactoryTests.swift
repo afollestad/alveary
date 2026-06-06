@@ -124,6 +124,19 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(rows[1].view is AppKitTranscriptThinkingIndicatorView)
     }
 
+    func testAwaitingExitPlanModeFollowUpAppendsThinkingTransientRow() {
+        let factory = AppKitTranscriptRowFactory()
+
+        let rows = factory.makeRows(
+            for: [.centeredNote(id: "staying", kind: .stayingInPlanMode)],
+            transientRows: .init(isAwaitingExitPlanModeFollowUp: true),
+            configuration: .init()
+        )
+
+        XCTAssertEqual(rows.map(\.id), ["staying", AppKitTranscriptTransientRows.thinkingRowID])
+        XCTAssertTrue(rows[1].view is AppKitTranscriptThinkingIndicatorView)
+    }
+
     func testStreamingTransientRowTakesPriorityOverThinking() {
         let factory = AppKitTranscriptRowFactory()
 

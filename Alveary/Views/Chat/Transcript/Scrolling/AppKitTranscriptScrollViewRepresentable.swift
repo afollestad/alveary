@@ -46,6 +46,7 @@ struct AppKitTranscriptTransientRows: Equatable {
     static let interruptedRowID = "transient-interrupted"
 
     var isTurnActive = false
+    var isAwaitingExitPlanModeFollowUp = false
     var streamingText: String?
     var showsInterruptedNote = false
     var isThinkingAnimated = true

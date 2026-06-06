@@ -164,6 +164,7 @@ private extension ConversationViewModel {
         guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
         state.activeRuntimeActivityTurnId = nil
         clearResolvedPendingToolApprovalIfNeeded()
+        let didQueueExitPlanModeFollowUp = markPendingExitPlanModeFollowUpReadyAfterTerminalToken(payload)
 
         if let earlyPersistence = earlyTokenPersistence(payload, hadStreamingText: hadStreamingText) {
             return earlyPersistence
@@ -183,7 +184,7 @@ private extension ConversationViewModel {
             } else {
                 handleTurnCompleted()
             }
-        } else if !payload.permissionDenials.isEmpty { // Permission denials end the provider turn; drain queued follow-up.
+        } else if didQueueExitPlanModeFollowUp || !payload.permissionDenials.isEmpty {
             handleTurnCompleted()
         } else {
             state.turnState.endTurn()
@@ -251,6 +252,10 @@ private extension ConversationViewModel {
             return
         }
 
+        let didQueueExitPlanModeFollowUp = markPendingExitPlanModeFollowUpReadyAfterRuntimeIdle(
+            turnId: turnId,
+            outcome: outcome
+        )
         state.clearStreamingText()
         switch outcome {
         case .unknown, .completed:
@@ -262,10 +267,29 @@ private extension ConversationViewModel {
                 scheduleSave()
             }
         case .failed(let message):
+            if didQueueExitPlanModeFollowUp {
+                handleRuntimeActivityCompletedForPendingExitPlanModeFollowUp()
+                return
+            }
             handleRuntimeActivityFailedTurn(message: message)
         case .interrupted:
+            if didQueueExitPlanModeFollowUp {
+                handleRuntimeActivityCompletedForPendingExitPlanModeFollowUp()
+                return
+            }
             handleRuntimeActivityInterruptedTurn()
         }
+    }
+
+    func handleRuntimeActivityCompletedForPendingExitPlanModeFollowUp() {
+        state.activeRuntimeActivityTurnId = nil
+        state.isAutomaticSessionHandoffPending = false
+        state.isCancellingTurn = false
+        state.lastTurnInterrupted = false
+        state.lastTurnError = nil
+        state.turnState.endTurn()
+        handleTurnCompleted()
+        scheduleSave()
     }
 
     func handleRuntimeActivityFailedTurn(message: String) {
