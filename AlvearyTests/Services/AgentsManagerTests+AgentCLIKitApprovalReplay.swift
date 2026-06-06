@@ -1,3 +1,4 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
@@ -94,6 +95,54 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitFallbackPlanFileApprovalResumeDoesNotReplayFreshApprovalRows() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: PlanFileReplayAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-fallback-plan-file-approval-replay"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let approvalEvent = try await firstApprovalEvent(from: subscription.stream)
+        guard case let .toolApprovalRequested(approval) = approvalEvent else {
+            return XCTFail("Expected tool approval request, got \(approvalEvent)")
+        }
+        try await waitUntil("expected fallback approval to wait for user") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        let resumedEvents = try await approveAndCollectDeltaReplayEvents(
+            manager: manager,
+            conversationId: conversationId,
+            approval: approval,
+            previousGeneration: subscription.generation
+        )
+
+        XCTAssertFalse(resumedEvents.contains(.message(
+            role: "assistant",
+            content: "Writing a test plan now.",
+            parentToolUseId: nil
+        )))
+        XCTAssertFalse(resumedEvents.contains { event in
+            if case .toolApprovalRequested = event {
+                return true
+            }
+            return false
+        })
+        XCTAssertFalse(resumedEvents.contains { event in
+            if case .tokens(_, _, _, _, _, let stopReason, _, _, _, _, _) = event {
+                return stopReason == "tool_deferred"
+            }
+            return false
+        })
+        XCTAssertTrue(resumedEvents.contains(.message(role: "assistant", content: "resumed", parentToolUseId: nil)))
+        await manager.kill(conversationId: conversationId)
+    }
+
     private func approveAndCollectDeltaReplayEvents(
         manager: DefaultAgentsManager,
         conversationId: String,
@@ -174,5 +223,73 @@ extension AgentsManagerTests {
             defer { group.cancelAll() }
             return try await group.next() ?? []
         }
+    }
+}
+
+private struct PlanFileReplayAdapter: AgentCLIKit.AgentProviderAdapter {
+    let counter = AgentCLIKitLaunchCounter()
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        let launch = await counter.next()
+        let output = launch == 1
+            ? "message:Writing a test plan now.\nplan-approval:write-original:write\ndeferred"
+            : "message:Writing a test plan now.\nplan-approval:write-replayed:write\ndeferred\nmessage:resumed"
+        return AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf '%s\\n' \"$1\"", "agent", output],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        if let rawPlanApproval = line.removingPrefix("plan-approval:") {
+            return planApprovalEvents(from: rawPlanApproval)
+        }
+        if line == "deferred" {
+            return [.usage(AgentCLIKit.AgentUsageEvent(
+                model: nil,
+                inputTokens: nil,
+                outputTokens: nil,
+                stopReason: "tool_deferred",
+                metadata: ["stop_reason": .string("tool_deferred")]
+            ))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+
+    private func planApprovalEvents(from rawPlanApproval: String) -> [AgentCLIKit.AgentEvent] {
+        let components = rawPlanApproval.split(separator: ":", maxSplits: 1).map(String.init)
+        guard components.count == 2 else {
+            return []
+        }
+        let isWrite = components[1] == "write"
+        return [.interaction(AgentCLIKit.AgentInteractionEvent(
+            id: AgentCLIKit.AgentInteractionID(rawValue: components[0]),
+            kind: .approval,
+            prompt: isWrite ? "Write" : "Edit",
+            metadata: [
+                "session_id": .string("session-1"),
+                "tool_name": .string(isWrite ? "Write" : "Edit"),
+                "tool_input": .object([
+                    "file_path": .string("/Users/afollestad/.claude/plans/test-plan.md"),
+                    "content": .string(components[1])
+                ])
+            ]
+        ))]
     }
 }
