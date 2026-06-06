@@ -74,11 +74,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
-            isExpanded = configuration.tool.name == "Skill" ? false : configuration.initiallyExpanded ||
-                configuration.tool.autoExpandsMarkdownMutationPreview
-        } else if configuration.tool.autoExpandsMarkdownMutationPreview &&
-                    previousConfiguration?.tool.autoExpandsMarkdownMutationPreview != true {
-            isExpanded = true
+            isExpanded = configuration.tool.name == "Skill" ? false : configuration.initiallyExpanded
         }
         // Local expansion changes echo back through SwiftUI as persisted
         // `initiallyExpanded`; avoid rebuilding the already-updated row mid-animation.

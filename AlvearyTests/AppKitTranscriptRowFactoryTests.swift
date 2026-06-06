@@ -269,6 +269,61 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertEqual(retriedMessageID, "user")
     }
 
+    func testCompletedMarkdownMutationWithEmptyExpandedRowsStaysCollapsedThroughCachedFactoryRow() throws {
+        let factory = AppKitTranscriptRowFactory()
+        var expansionChanges: [(rowID: String, isExpanded: Bool)] = []
+        let configuration = AppKitTranscriptRowFactory.Configuration(
+            onRowExpansionChanged: { rowID, isExpanded in
+                expansionChanges.append((rowID, isExpanded))
+            }
+        )
+        let runningItem = ChatItem.standaloneTool(
+            id: "tool-write",
+            tool: markdownWriteTool(id: "write-1", isComplete: false)
+        )
+        let completedItem = ChatItem.standaloneTool(
+            id: "tool-write",
+            tool: markdownWriteTool(id: "write-1", isComplete: true)
+        )
+
+        let initialRows = factory.makeRows(for: [runningItem], configuration: configuration)
+        let row = try XCTUnwrap(initialRows.first?.view as? AppKitTranscriptInlineToolRowView)
+        row.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        row.layoutSubtreeIfNeeded()
+
+        let completedRows = factory.makeRows(for: [completedItem], configuration: configuration)
+        let completedRow = try XCTUnwrap(completedRows.first?.view as? AppKitTranscriptInlineToolRowView)
+        completedRow.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(completedRow === row)
+        XCTAssertTrue(completedRow.descendants(of: AppKitMarkdownView.self).isEmpty)
+        XCTAssertTrue(expansionChanges.isEmpty)
+
+        completedRow.setExpanded(true)
+        completedRow.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(completedRow.descendants(of: AppKitMarkdownView.self).isEmpty)
+    }
+
+    func testSingleEntryToolGroupKeepsCompletedMarkdownWriteCollapsedUntilUserExpands() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let rows = factory.makeRows(
+            for: [.toolGroup(id: "single-write", tools: [markdownWriteTool(id: "write-1", isComplete: true)])],
+            configuration: .init()
+        )
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptToolGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(group.descendants(of: AppKitMarkdownView.self).isEmpty)
+
+        let singleToolRow = try XCTUnwrap(group.descendants(of: AppKitTranscriptInlineToolRowView.self).first)
+        singleToolRow.setExpanded(true)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(group.descendants(of: AppKitMarkdownView.self).isEmpty)
+    }
+
     func testToolGroupExpansionPersistsThroughParentCallback() throws {
         let factory = AppKitTranscriptRowFactory()
         var expansionChanges: [(rowID: String, isExpanded: Bool)] = []
@@ -364,6 +419,22 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
             output: nil,
             stderr: nil,
             isComplete: true,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+    }
+
+    private func markdownWriteTool(id: String, isComplete: Bool) -> ToolEntry {
+        ToolEntry(
+            id: id,
+            name: "Write",
+            summary: "Write `let-s-test-plan-mode-peppy-puzzle.md`",
+            input: ##"{"file_path":"/tmp/let-s-test-plan-mode-peppy-puzzle.md","content":"# Plan\n\n- Keep tools collapsed."}"##,
+            output: isComplete ? "Wrote file" : nil,
+            stderr: nil,
+            isComplete: isComplete,
             isInterrupted: false,
             isImage: false,
             noOutputExpected: false,

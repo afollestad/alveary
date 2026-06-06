@@ -37,17 +37,6 @@ enum MinimalToolContent {
     }
 }
 
-extension ToolEntry {
-    var autoExpandsMarkdownMutationPreview: Bool {
-        guard isComplete,
-              name == "Write" || name == "Edit" || name == "MultiEdit",
-              let snapshot = MinimalToolContent.snapshot(for: self) else {
-            return false
-        }
-        return snapshot.language == "markdown" && snapshot.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-}
-
 /// Extracts the target path and bounded content preview from `Write` input JSON.
 enum WriteToolContent {
     struct Preview: Equatable {

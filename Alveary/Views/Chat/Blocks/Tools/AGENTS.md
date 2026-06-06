@@ -43,7 +43,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Default AppKit detail code block surfaces use the shared code palette chrome; keep tinted variants as explicit exceptions such as `stderr`.
 - Shared tool-summary parsing lives in `TranscriptToolSummaryFormatter`; update AppKit rows and tests together when chip rules change.
 - Shared tool-content extraction and output paging live in `TranscriptToolDetailPresentation.swift`; keep it UI-free so AppKit rows and tests can reuse the same parsing behavior.
-- Markdown `Write`, `Edit`, and `MultiEdit` previews should also flow through `TranscriptToolDetailPresentation.swift`. Completed markdown mutation rows may auto-expand to show the preview; `Edit` and `MultiEdit` previews are provider-supplied replacement snippets, not reconstructed full-file contents.
+- Markdown `Write`, `Edit`, and `MultiEdit` previews should also flow through `TranscriptToolDetailPresentation.swift`. Markdown mutation previews are manual-expansion-only; completed rows must not auto-expand. `Edit` and `MultiEdit` previews are provider-supplied replacement snippets, not reconstructed full-file contents.
 - Do not dump raw text directly under a row.
 - Inline row details are indented by `transcriptToolDetailLeadingInset`.
 - Rounded code/output containers start under the summary column, not the leading icon.

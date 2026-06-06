@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension AppKitTranscriptToolRowTests {
-    func testMarkdownEditAutoExpandsPreviewWhenCompleted() {
+    func testMarkdownEditStaysCollapsedWhenCompletedUntilUserExpands() {
         let row = AppKitTranscriptInlineToolRowView()
         let input = #"{"file_path":"/tmp/plan.md","old_string":"Done.","new_string":"Done.\n\nLorem ipsum."}"#
         row.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
@@ -35,8 +35,39 @@ extension AppKitTranscriptToolRowTests {
         )
         row.layoutSubtreeIfNeeded()
 
+        XCTAssertTrue(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+
+        row.setExpanded(true)
+        row.layoutSubtreeIfNeeded()
+
         XCTAssertFalse(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
         XCTAssertTrue(row.markdownMutationRenderedText.contains("Lorem ipsum."))
+    }
+
+    func testCompletedMarkdownWriteStaysCollapsedOnFirstMountUntilUserExpands() {
+        let row = AppKitTranscriptInlineToolRowView()
+        let input = ##"{"file_path":"/tmp/let-s-test-plan-mode-peppy-puzzle.md","content":"# Plan\n\n- Keep tools collapsed."}"##
+        row.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        row.configure(
+            .init(
+                tool: markdownMutationTool(
+                    name: "Write",
+                    summary: "Write `let-s-test-plan-mode-peppy-puzzle.md`",
+                    input: input,
+                    output: "Wrote file",
+                    isComplete: true
+                )
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+
+        row.setExpanded(true)
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Keep tools collapsed."))
     }
 
     func testMarkdownMultiEditDetailsUseAppKitMarkdownRenderer() {
