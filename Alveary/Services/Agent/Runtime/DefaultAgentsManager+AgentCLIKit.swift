@@ -429,6 +429,7 @@ extension DefaultAgentsManager {
 
     private func applyAgentCLIKitStatus(_ status: AgentCLIKit.AgentRuntimeStatus, conversationId: String) {
         agentCLIKitStatuses[conversationId] = status
+        syncRuntimeSettingsStatus(status, conversationId: conversationId)
         processSnapshot.withLock { $0 = [] }
         publishManagedProcessesChanged()
         if suppressCancelledInteractionStatusIfNeeded(status, conversationId: conversationId) {
@@ -453,6 +454,26 @@ extension DefaultAgentsManager {
                 updateStatus(.idle, for: conversationId)
             case .failed:
                 updateStatus(.error, for: conversationId)
+            }
+        }
+    }
+
+    private func syncRuntimeSettingsStatus(_ status: AgentCLIKit.AgentRuntimeStatus, conversationId: String) {
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            let state = conversationState(for: conversationId)
+            if let permissionMode = status.permissionMode {
+                if permissionMode == "plan" {
+                    state.runtimePlanModeEnabled = true
+                } else {
+                    state.runtimePermissionMode = permissionMode
+                    state.lastNonPlanPermissionMode = permissionMode
+                }
+            }
+            if let collaborationMode = status.collaborationMode {
+                state.runtimePlanModeEnabled = collaborationMode == .plan
             }
         }
     }

@@ -5,10 +5,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let currentSettingsSchemaVersion = 1
     static let supportedProviderIDs = ["claude", "codex"]
     static let supportedPermissionModesByProvider = [
-        "claude": ["default", "plan", "acceptEdits", "auto"],
+        "claude": ["default", "acceptEdits", "auto"],
         "codex": ["untrusted", "on-request", "never"]
     ]
-    static let supportedPermissionModes = ["default", "plan", "acceptEdits", "auto", "untrusted", "on-request", "never"]
+    static let supportedPermissionModes = ["default", "acceptEdits", "auto", "untrusted", "on-request", "never"]
     static let defaultPermissionModeByProvider = [
         "claude": "default",
         "codex": "on-request"

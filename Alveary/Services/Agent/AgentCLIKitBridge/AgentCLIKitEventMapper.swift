@@ -19,6 +19,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return usageEvents(from: event)
         case .permissionMode(let event):
             return [.permissionModeChanged(event.mode)]
+        case .collaborationMode(let event):
+            return [.collaborationModeChanged(event.mode == .plan)]
         case .task(let event):
             return taskEvents(from: event)
         case .contextCompaction(let event):

@@ -8,7 +8,7 @@ final class ConversationViewModel {
     let conversation: Conversation
 
     private(set) var state: ConversationState
-    private var hasActivatedViewLifecycle = false
+    var hasActivatedViewLifecycle = false
     var activeKeepAwakeSource: KeepAwakeActivitySource?
 
     let agentsManager: any AgentsManager
@@ -93,6 +93,9 @@ final class ConversationViewModel {
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
         self.state = runtimeStore.conversationState(for: conversation.id)
+        if self.state.runtimePlanModeEnabled == nil {
+            self.state.runtimePlanModeEnabled = conversation.thread?.planModeEnabled ?? false
+        }
         if self.state.lastNonPlanPermissionMode == nil,
            conversation.thread?.permissionMode != "plan" {
             self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
@@ -304,49 +307,6 @@ final class ConversationViewModel {
             return nil
         }
         return pendingApproval
-    }
-
-    func reconfigureSession(config: AgentSpawnConfig) async throws {
-        guard !isAgentActivelyWorking, !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Wait for the current turn/send to finish before applying session changes")
-        }
-        guard state.pendingToolApproval == nil else {
-            throw AgentError.spawnFailed("Approve or deny the pending tool use before applying session changes")
-        }
-        guard !state.isReconfiguringSession else {
-            return
-        }
-
-        state.isReconfiguringSession = true
-        defer { state.isReconfiguringSession = false }
-
-        await flushPendingSaveIfNeeded()
-        await prepareForSpawn(config: config)
-        do {
-            try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
-        } catch {
-            await resubscribeIfActiveRuntimeIsRunning()
-            throw error
-        }
-        state.liveSessionConfig = config
-        state.lastObservedEventIndex = 0
-        state.lastPersistedEventIndex = 0
-        state.activeBufferGeneration = nil
-        state.activeRuntimeActivityTurnId = nil
-        state.grouper.resetInFlightStateForNewSession()
-        subscribe()
-    }
-
-    func reconfigureSession() async throws {
-        try await reconfigureSession(config: makeSpawnConfig())
-    }
-
-    func resubscribeIfActiveRuntimeIsRunning() async {
-        guard hasActivatedViewLifecycle,
-              await agentsManager.isRunning(conversationId: conversation.id) else {
-            return
-        }
-        subscribe()
     }
 
     func rebuildChatItemsIfNeeded(from events: [ConversationEventRecord], forceFullRebuild: Bool = false) {

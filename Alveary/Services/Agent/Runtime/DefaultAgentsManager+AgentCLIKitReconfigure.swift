@@ -1,8 +1,17 @@
 import AgentCLIKit
 import Foundation
 
+private struct AgentCLIKitReconfigureFailureContext {
+    let conversationId: String
+    let config: AgentSpawnConfig
+    let runtimeConversationId: AgentCLIKit.AgentConversationID
+    let replayCursor: Int?
+    let services: AgentCLIKitHostServices
+}
+
 extension DefaultAgentsManager {
-    func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
+    @discardableResult
+    func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
         let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
         guard !spawningIds.contains(conversationId) else {
@@ -20,13 +29,17 @@ extension DefaultAgentsManager {
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
         let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
         do {
-            prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
             let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: true, services: services)
-            try await services.runtime.reconfigure(
+            let result = try await services.runtime.reconfigure(
                 conversationId: runtimeConversationId,
                 config: spawnConfig
             )
             await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
+            guard result == .restarted else {
+                return AgentSessionReconfigureResult(result)
+            }
+
+            prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
             let subscription = await services.runtime.subscribe(
                 conversationId: runtimeConversationId,
                 afterIndex: replayCursor
@@ -37,20 +50,37 @@ extension DefaultAgentsManager {
                 subscription: subscription,
                 dropsPreStartTerminalLifecycle: true
             )
+            return .restarted
         } catch {
-            await restoreAgentCLIKitSubscriptionAfterFailedReplacement(
-                conversationId: conversationId,
-                config: config,
-                runtimeConversationId: runtimeConversationId,
-                replayCursor: replayCursor,
-                services: services
+            await handleAgentCLIKitReconfigureFailure(
+                error,
+                context: AgentCLIKitReconfigureFailureContext(
+                    conversationId: conversationId,
+                    config: config,
+                    runtimeConversationId: runtimeConversationId,
+                    replayCursor: replayCursor,
+                    services: services
+                )
             )
-            updateStatus(.error, for: conversationId)
-            await MainActor.run {
-                let state = conversationStatesStore.withLock { $0[conversationId] }
-                state?.lastTurnError = "Reconfigure failed: \(error.localizedDescription)"
-            }
             throw error
+        }
+    }
+
+    private func handleAgentCLIKitReconfigureFailure(
+        _ error: Error,
+        context: AgentCLIKitReconfigureFailureContext
+    ) async {
+        await restoreAgentCLIKitSubscriptionAfterFailedReplacement(
+            conversationId: context.conversationId,
+            config: context.config,
+            runtimeConversationId: context.runtimeConversationId,
+            replayCursor: context.replayCursor,
+            services: context.services
+        )
+        updateStatus(.error, for: context.conversationId)
+        await MainActor.run {
+            let state = conversationStatesStore.withLock { $0[context.conversationId] }
+            state?.lastTurnError = "Reconfigure failed: \(error.localizedDescription)"
         }
     }
 
@@ -74,5 +104,18 @@ extension DefaultAgentsManager {
             subscription: subscription,
             hasImmediateTurn: false
         )
+    }
+}
+
+private extension AgentSessionReconfigureResult {
+    init(_ result: AgentCLIKit.AgentRuntimeReconfigureResult) {
+        switch result {
+        case .restarted:
+            self = .restarted
+        case .appliedInPlace:
+            self = .appliedInPlace
+        case .nextTurnRequired:
+            self = .nextTurnRequired
+        }
     }
 }

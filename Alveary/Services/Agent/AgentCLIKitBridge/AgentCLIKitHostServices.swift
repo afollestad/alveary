@@ -42,6 +42,7 @@ struct AgentCLIKitHostAdapter: Sendable {
             model: config.model,
             effort: config.effort,
             permissionMode: config.permissionMode,
+            collaborationMode: config.planModeEnabled.map { $0 ? .plan : .default },
             forkSession: forkSession,
             initialPrompt: config.initialPrompt
         )

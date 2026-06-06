@@ -98,7 +98,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         assertClipped(samples.bottomRight, "bottom-right")
     }
 
-    func testBlockInputInitialHeightUsesMinimumVisibleLineCountAfterWidthArrives() throws {
+    func testBlockInputInitialHeightUsesPreferredEditorHeightAfterWidthArrives() throws {
         let controller = AppKitChatComposerEditorController()
 
         controller.configure(makeConfiguration(text: "ss\ns"))
@@ -106,7 +106,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
 
         let editor = try XCTUnwrap(controller.view)
         XCTAssertEqual(controller.measuredEditorHeight, editor.preferredHeight(forWidth: 400), accuracy: 0.5)
-        XCTAssertGreaterThan(controller.measuredEditorHeight, AppKitChatComposerEditorController.editorBaseHeight)
+        XCTAssertGreaterThan(controller.measuredEditorHeight, 0)
     }
 
     func testFocusRequestAfterClearRevisionConsumesToken() throws {

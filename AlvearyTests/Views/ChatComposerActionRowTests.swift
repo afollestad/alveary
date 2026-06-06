@@ -362,7 +362,8 @@ func makeConfiguration(
     isStopConfirmationArmed: Bool = false,
     onSubmit: @escaping () -> Void = {},
     onStop: @escaping () -> Void = {},
-    onShowKeymap: @escaping () -> Void = {}
+    onShowKeymap: @escaping () -> Void = {},
+    onAddPhotosAndFiles: @escaping () -> Void = {}
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
         providerOptions: providerOptions,
@@ -394,7 +395,8 @@ func makeConfiguration(
         onUseWorktreeChange: { _ in },
         onSubmit: onSubmit,
         onStop: onStop,
-        onShowKeymap: onShowKeymap
+        onShowKeymap: onShowKeymap,
+        onAddPhotosAndFiles: onAddPhotosAndFiles
     )
 }
 

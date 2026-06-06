@@ -63,7 +63,9 @@ struct ChatView: View {
             thread: conversation.thread,
             providerID: providerID,
             runtimePermissionMode: viewModel.state.runtimePermissionMode,
-            pendingPermissionMode: viewModel.pendingPermissionModeForDisplay()
+            pendingPermissionMode: viewModel.pendingPermissionModeForDisplay(),
+            runtimePlanModeEnabled: viewModel.state.runtimePlanModeEnabled,
+            pendingPlanModeEnabled: viewModel.pendingPlanModeForDisplay()
         )
     }
 
@@ -103,13 +105,6 @@ struct ChatView: View {
         Binding(
             get: { threadPresentation.selectedPermissionMode },
             set: { viewModel.applyPermissionModeChange($0) }
-        )
-    }
-
-    private var selectedUseWorktreeBinding: Binding<Bool> {
-        Binding(
-            get: { threadPresentation.selectedUseWorktree },
-            set: { viewModel.applyWorktreePreferenceChange($0) }
         )
     }
 
@@ -460,6 +455,11 @@ extension ChatView {
             selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
             showWorktreePicker: showWorktreePicker,
             selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,
+            isPlanModeEnabled: selectedPlanModeBinding.wrappedValue,
+            isPlanModeToggleEnabled: composerCapabilities.supportsPlanMode &&
+                composerCapabilities.planModeDisabledTooltip == nil &&
+                !presentation.areControlsDisabled,
+            planModeDisabledTooltip: composerCapabilities.planModeDisabledTooltip,
             sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
             isTextEditorDisabled: presentation.isTextEditorDisabled,
@@ -476,6 +476,7 @@ extension ChatView {
             onEffortChange: { selectedEffortBinding.wrappedValue = $0 },
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
+            onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },
             onSubmit: {
                 guard presentation.canSubmit else {
                     return

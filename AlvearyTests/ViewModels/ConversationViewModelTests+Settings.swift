@@ -207,7 +207,8 @@ extension ConversationViewModelTests {
             initialAgentIsRunning: false
         )
         try fixture.dbThread().model = "opus"
-        try fixture.dbThread().permissionMode = "plan"
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = true
         try fixture.dbThread().effort = "high"
         try fixture.context.save()
 
@@ -237,7 +238,22 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
     }
 
-    func testApplyPermissionModeChangeTracksPreviousNonPlanModeWhenEnteringPlan() async throws {
+    func testNewThreadSpawnConfigCarriesPlanMode() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+        let config = try fixture.viewModel.makeSpawnConfig()
+
+        XCTAssertEqual(config.permissionMode, "acceptEdits")
+        XCTAssertEqual(config.planModeEnabled, true)
+    }
+
+    func testApplyPlanModeChangeKeepsPreviousNonPlanPermissionMode() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: false
@@ -245,11 +261,30 @@ extension ConversationViewModelTests {
         try fixture.dbThread().permissionMode = "acceptEdits"
         try fixture.context.save()
 
-        await fixture.viewModel.applyPermissionModeChange("plan").value
+        await fixture.viewModel.applyPlanModeChange(true).value
 
-        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, "acceptEdits")
+    }
+
+    func testApplyPlanModeChangeReconfiguresIdleThread() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.permissionMode, "acceptEdits")
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.liveSessionConfig?.planModeEnabled, true)
+        XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
     }
 
     func testRuntimePermissionModeChangePersistsLiveModeToThread() throws {
@@ -259,9 +294,11 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.permissionModeChanged("plan"))
 
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertEqual(fixture.viewModel.state.lastNonPlanPermissionMode, "default")
-        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
     }
 
     func testApplyEffortChangeIsRejectedWhileAlreadyReconfiguring() async throws {

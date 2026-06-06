@@ -5,6 +5,8 @@ import SwiftUI
 struct ComposerCapabilities: Sendable {
     let supportedPermissionModes: [PermissionModeOption]
     let supportsMidTurnSteering: Bool
+    var supportsPlanMode = false
+    var planModeDisabledTooltip: String?
 }
 
 struct ConversationView: View {
@@ -55,11 +57,15 @@ struct ConversationView: View {
     private var composerCapabilities: ComposerCapabilities {
         let provider = providerRegistry.provider(for: activeProviderID)
 
+        let supportsPlanMode = activeProviderStatus?.definition?.capabilities.supportsPlanMode
+            ?? Self.fallbackPlanModeProviderIDs.contains(activeProviderID)
         return ComposerCapabilities(
             supportedPermissionModes: providerPermissionModes(),
             supportsMidTurnSteering: activeProviderStatus?.definition?.capabilities.supportsMidTurnSteering
                 ?? provider?.supportsMidTurnSteering
-                ?? false
+                ?? false,
+            supportsPlanMode: supportsPlanMode,
+            planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: supportsPlanMode)
         )
     }
 
@@ -237,6 +243,8 @@ struct ConversationView: View {
 }
 
 private extension ConversationView {
+    static let fallbackPlanModeProviderIDs: Set<String> = ["claude", "codex"]
+
     var composerProviderStatusTaskID: String {
         [
             providerDiscoveryProjectURL?.path ?? "",
@@ -334,11 +342,36 @@ private extension ConversationView {
 
     func providerPermissionModes() -> [PermissionModeOption] {
         if let modes = activeProviderStatus?.definition?.supportedPermissionModes {
-            return modes.map { option in
+            return modes.filter { $0.value != "plan" }.map { option in
                 PermissionModeOption(value: option.value, label: option.label, description: option.description)
             }
         }
-        return providerRegistry.provider(for: activeProviderID)?.supportedPermissionModes ?? []
+        return (providerRegistry.provider(for: activeProviderID)?.supportedPermissionModes ?? [])
+            .filter { $0.value != "plan" }
+    }
+
+    func planModeDisabledTooltip(supportsPlanMode: Bool) -> String? {
+        guard supportsPlanMode else {
+            return "Plan mode is not supported by this agent."
+        }
+        guard activeProviderID == "codex" else {
+            return nil
+        }
+        return hasConcreteCodexModelSelection() ? nil : "Choose a concrete Codex model to use plan mode."
+    }
+
+    func hasConcreteCodexModelSelection() -> Bool {
+        if let storedModel = conversation.thread?.model?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !storedModel.isEmpty,
+           storedModel != AppSettings.defaultModelValue {
+            return true
+        }
+        let options = modelOptions(for: activeAgentProviderID)
+        let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
+        guard let model = AgentModelOptionSelection.option(in: options, matching: selectedModel)?.model else {
+            return false
+        }
+        return !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

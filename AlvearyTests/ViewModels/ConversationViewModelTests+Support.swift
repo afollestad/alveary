@@ -48,6 +48,7 @@ actor MockAgentsManager: AgentsManager {
     private var isRunningValue: Bool
     private let sendError: MockError?
     private let reconfigureError: MockError?
+    private let reconfigureResult: AgentSessionReconfigureResult
     private let approvalError: MockError?
     private let sessionApprovalEffective: Bool
     private let statusStore = MockAgentsManagerStatusStore()
@@ -72,12 +73,14 @@ actor MockAgentsManager: AgentsManager {
         isRunning: Bool,
         sendError: MockError?,
         reconfigureError: MockError?,
+        reconfigureResult: AgentSessionReconfigureResult = .restarted,
         approvalError: MockError?,
         sessionApprovalEffective: Bool = true
     ) {
         self.isRunningValue = isRunning
         self.sendError = sendError
         self.reconfigureError = reconfigureError
+        self.reconfigureResult = reconfigureResult
         self.approvalError = approvalError
         self.sessionApprovalEffective = sessionApprovalEffective
     }
@@ -241,12 +244,13 @@ actor MockAgentsManager: AgentsManager {
         false
     }
 
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {
+    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
         recordedReconfigureCalls.append(ReconfigureCall(conversationId: conversationId, config: config))
         if let reconfigureError {
             throw reconfigureError
         }
         isRunningValue = true
+        return reconfigureResult
     }
 
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {

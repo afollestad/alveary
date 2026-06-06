@@ -87,6 +87,7 @@ enum ConversationEvent: Sendable, Equatable {
 
     case sessionInit(sessionId: String?)
     case permissionModeChanged(String)
+    case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)
     case messageChunk(text: String, parentToolUseId: String?)
     case toolCall(id: String, name: String, input: String, parentToolUseId: String?, callerAgent: String?)
@@ -159,6 +160,7 @@ enum ConversationEvent: Sendable, Equatable {
              .subAgentProgress,
              .subAgentCompleted,
              .runtimeActivity,
+             .collaborationModeChanged,
              .permissionModeChanged:
             return nil
         }

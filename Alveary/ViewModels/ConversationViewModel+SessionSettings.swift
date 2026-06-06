@@ -5,6 +5,11 @@ enum SessionSettingsConfigSource {
     case nextTurn
 }
 
+private struct SpawnSettingsContext {
+    let liveConfig: AgentSpawnConfig?
+    let currentContinuationSnapshot: SessionSettingsSnapshot?
+}
+
 extension ConversationViewModel {
     func makeSpawnConfig(
         workingDirectory overrideWorkingDirectory: String? = nil,
@@ -15,15 +20,10 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Conversation no longer exists")
         }
 
-        let liveConfig = settingsSource == .currentContinuation
-            ? state.pendingSessionSettingsChange?.liveSessionConfig ?? state.liveSessionConfig
-            : nil
-        let currentContinuationSnapshot = settingsSource == .currentContinuation
-            ? state.pendingSessionSettingsChange?.original
-            : nil
-        let providerId = liveConfig?.providerId ?? dbConversation.provider ?? settingsService.current.defaultProvider
+        let settingsContext = spawnSettingsContext(settingsSource: settingsSource)
+        let providerId = settingsContext.liveConfig?.providerId ?? dbConversation.provider ?? settingsService.current.defaultProvider
         let workingDirectory = overrideWorkingDirectory
-            ?? liveConfig?.workingDirectory
+            ?? settingsContext.liveConfig?.workingDirectory
             ?? dbConversation.thread?.worktreePath
             ?? dbConversation.thread?.project?.path
 
@@ -31,42 +31,27 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Cannot spawn agent: no working directory")
         }
 
-        let permissionModeOverride: String?
-        if state.pendingToolApproval?.request.toolName == "ExitPlanMode" {
-            permissionModeOverride = "plan"
-        } else if settingsSource == .currentContinuation {
-            permissionModeOverride = state.runtimePermissionMode
-                ?? liveConfig?.permissionMode
-                ?? currentContinuationSnapshot?.permissionMode
-        } else if let pendingSettings = state.pendingSessionSettingsChange,
-                  pendingSettings.hasPermissionModeChange {
-            permissionModeOverride = pendingSettings.pending.permissionMode
-        } else {
-            permissionModeOverride = state.runtimePermissionMode
-        }
-
-        let model: String?
-        let effort: String?
-        if let liveConfig {
-            model = liveConfig.model
-            effort = liveConfig.effort
-        } else {
-            model = currentContinuationSnapshot?.model ?? dbConversation.thread?.model
-            effort = AppSettings.normalizedEffortLevel(currentContinuationSnapshot?.effort ?? dbConversation.thread?.effort)
-        }
+        let permissionModeOverride = spawnPermissionModeOverride(settingsSource: settingsSource, context: settingsContext)
+        let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
+        let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
 
         return AgentSpawnConfig(
             providerId: providerId,
             workingDirectory: workingDirectory,
-            permissionMode: permissionModeOverride ?? dbConversation.thread?.permissionMode,
-            model: model,
-            effort: effort,
+            permissionMode: nonPlanPermissionMode(permissionModeOverride ?? dbConversation.thread?.permissionMode),
+            planModeEnabled: planModeOverride ?? dbConversation.thread?.planModeEnabled ?? false,
+            model: modelAndEffort.model,
+            effort: modelAndEffort.effort,
             initialPrompt: initialPrompt
         )
     }
 
     func pendingPermissionModeForDisplay() -> String? {
         state.pendingSessionSettingsChange?.pending.permissionMode
+    }
+
+    func pendingPlanModeForDisplay() -> Bool? {
+        state.pendingSessionSettingsChange?.pending.planModeEnabled
     }
 
     func applyPendingSessionSettingsForNextTurn() async throws {
@@ -80,7 +65,10 @@ extension ConversationViewModel {
 
         let config = try makeSpawnConfig(settingsSource: .nextTurn)
         do {
-            try await reconfigureSession(config: config)
+            let result = try await reconfigureSession(config: config)
+            guard result != .nextTurnRequired else {
+                return
+            }
             finishPendingSessionSettingsApply(pending: pending, config: config)
         } catch {
             rollbackPendingSessionSettings(pending)
@@ -105,13 +93,10 @@ extension ConversationViewModel {
     ) {
         if pending.hasPermissionModeChange {
             state.runtimePermissionMode = pending.pending.permissionMode
-            if pending.pending.permissionMode == "plan" {
-                state.lastNonPlanPermissionMode = pending.original.permissionMode == "plan"
-                    ? pending.original.lastNonPlanPermissionMode
-                    : pending.original.permissionMode
-            } else {
-                state.lastNonPlanPermissionMode = pending.pending.permissionMode
-            }
+            state.lastNonPlanPermissionMode = pending.pending.permissionMode
+        }
+        if pending.hasPlanModeChange {
+            state.runtimePlanModeEnabled = pending.pending.planModeEnabled
         }
 
         state.liveSessionConfig = config
@@ -136,6 +121,9 @@ extension ConversationViewModel {
         }
         if pending.hasPermissionModeChange {
             dbThread.permissionMode = pending.original.permissionMode
+        }
+        if pending.hasPlanModeChange {
+            dbThread.planModeEnabled = pending.original.planModeEnabled
         }
         state.pendingSessionSettingsChange = nil
         try? modelContext.save()
@@ -185,16 +173,88 @@ extension ConversationViewModel {
 
         state.pendingSessionSettingsChange = pending.hasAnyChange ? pending : nil
     }
+
+    func stagePendingSessionSettingsChange(
+        original: SessionSettingsSnapshot,
+        dbThread: AgentThread,
+        invalidatesContextWindow: Bool = false
+    ) {
+        var pending = PendingSessionSettingsChange(
+            original: original,
+            pending: sessionSettingsSnapshot(for: dbThread),
+            liveSessionConfig: state.liveSessionConfig
+        )
+        pending.invalidatesContextWindow = invalidatesContextWindow && pending.hasModelChange
+        state.pendingSessionSettingsChange = pending.hasAnyChange ? pending : nil
+    }
 }
 
-private extension ConversationViewModel {
+extension ConversationViewModel {
     func sessionSettingsSnapshot(for dbThread: AgentThread) -> SessionSettingsSnapshot {
         SessionSettingsSnapshot(
             model: dbThread.model,
             effort: dbThread.effort,
             permissionMode: dbThread.permissionMode,
+            planModeEnabled: dbThread.planModeEnabled ?? false,
             runtimePermissionMode: state.runtimePermissionMode,
+            runtimePlanModeEnabled: state.runtimePlanModeEnabled,
             lastNonPlanPermissionMode: state.lastNonPlanPermissionMode
+        )
+    }
+
+    private func spawnSettingsContext(settingsSource: SessionSettingsConfigSource) -> SpawnSettingsContext {
+        guard settingsSource == .currentContinuation else {
+            return SpawnSettingsContext(liveConfig: nil, currentContinuationSnapshot: nil)
+        }
+        return SpawnSettingsContext(
+            liveConfig: state.pendingSessionSettingsChange?.liveSessionConfig ?? state.liveSessionConfig,
+            currentContinuationSnapshot: state.pendingSessionSettingsChange?.original
+        )
+    }
+
+    private func spawnPermissionModeOverride(
+        settingsSource: SessionSettingsConfigSource,
+        context: SpawnSettingsContext
+    ) -> String? {
+        if settingsSource == .currentContinuation {
+            return state.runtimePermissionMode
+                ?? context.liveConfig?.permissionMode
+                ?? context.currentContinuationSnapshot?.permissionMode
+        }
+        if let pendingSettings = state.pendingSessionSettingsChange,
+           pendingSettings.hasPermissionModeChange {
+            return pendingSettings.pending.permissionMode
+        }
+        return state.runtimePermissionMode
+    }
+
+    private func spawnPlanModeOverride(
+        settingsSource: SessionSettingsConfigSource,
+        context: SpawnSettingsContext
+    ) -> Bool? {
+        if state.pendingToolApproval?.request.toolName == "ExitPlanMode" {
+            return true
+        }
+        if settingsSource == .currentContinuation {
+            return state.runtimePlanModeEnabled
+                ?? context.liveConfig?.planModeEnabled
+                ?? context.currentContinuationSnapshot?.runtimePlanModeEnabled
+                ?? context.currentContinuationSnapshot?.planModeEnabled
+        }
+        if let pendingSettings = state.pendingSessionSettingsChange,
+           pendingSettings.hasPlanModeChange {
+            return pendingSettings.pending.planModeEnabled
+        }
+        return state.runtimePlanModeEnabled
+    }
+
+    private func spawnModelAndEffort(context: SpawnSettingsContext, thread: AgentThread?) -> (model: String?, effort: String?) {
+        if let liveConfig = context.liveConfig {
+            return (liveConfig.model, liveConfig.effort)
+        }
+        return (
+            context.currentContinuationSnapshot?.model ?? thread?.model,
+            AppSettings.normalizedEffortLevel(context.currentContinuationSnapshot?.effort ?? thread?.effort)
         )
     }
 }

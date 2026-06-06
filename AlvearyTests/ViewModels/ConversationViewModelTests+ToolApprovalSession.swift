@@ -317,7 +317,7 @@ extension ConversationViewModelTests {
         )
     }
 
-    func testPendingExitPlanApprovalRespawnsWithPlanPermissionMode() async throws {
+    func testPendingExitPlanApprovalRespawnsWithPlanCollaborationMode() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
         try fixture.dbThread().permissionMode = "default"
         try fixture.context.save()
@@ -335,15 +335,18 @@ extension ConversationViewModelTests {
 
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls.first?.config.permissionMode, "plan")
+        XCTAssertEqual(calls.first?.config.permissionMode, "default")
+        XCTAssertEqual(calls.first?.config.planModeEnabled, true)
     }
 
     func testResolvedExitPlanApprovalRestoresPreviousNonPlanModeWithoutStatusEvent() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
-        try fixture.dbThread().permissionMode = "plan"
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
-        fixture.viewModel.state.runtimePermissionMode = "plan"
+        fixture.viewModel.state.runtimePermissionMode = "acceptEdits"
+        fixture.viewModel.state.runtimePlanModeEnabled = true
         fixture.viewModel.state.lastNonPlanPermissionMode = "acceptEdits"
         let approval = ToolApprovalRequest(
             sessionId: "session-123",
@@ -381,16 +384,20 @@ extension ConversationViewModelTests {
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "acceptEdits")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
-    func testResolvingExitPlanApprovalClearsWhenPermissionModeLeavesPlan() throws {
+    func testResolvingExitPlanApprovalClearsWhenCollaborationModeLeavesPlan() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
-        try fixture.dbThread().permissionMode = "plan"
+        try fixture.dbThread().permissionMode = "default"
+        try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
-        fixture.viewModel.state.runtimePermissionMode = "plan"
+        fixture.viewModel.state.runtimePermissionMode = "default"
+        fixture.viewModel.state.runtimePlanModeEnabled = true
         let approval = ToolApprovalRequest(
             sessionId: "session-123",
             toolUseId: "tool-1",
@@ -413,21 +420,25 @@ extension ConversationViewModelTests {
             status: .approving
         )
 
-        fixture.viewModel.handleEvent(.permissionModeChanged("default"))
+        fixture.viewModel.handleEvent(.collaborationModeChanged(false))
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertTrue(fixture.viewModel.state.turnState.isActive)
         XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
         XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
     func testResolvingExitPlanApprovalClearsWhenExitPlanToolResultSucceeds() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
-        try fixture.dbThread().permissionMode = "plan"
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = true
         try fixture.context.save()
-        fixture.viewModel.state.runtimePermissionMode = "plan"
+        fixture.viewModel.state.runtimePermissionMode = "acceptEdits"
+        fixture.viewModel.state.runtimePlanModeEnabled = true
         fixture.viewModel.state.lastNonPlanPermissionMode = "acceptEdits"
         let approval = ToolApprovalRequest(
             sessionId: "session-123",
@@ -462,7 +473,9 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertTrue(fixture.viewModel.state.turnState.isActive)
         XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "acceptEdits")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 }

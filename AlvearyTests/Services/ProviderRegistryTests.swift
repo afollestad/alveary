@@ -24,11 +24,6 @@ final class ProviderRegistryTests: XCTestCase {
                     description: "Safe default; denied writes return as tool errors in non-interactive mode."
                 ),
                 PermissionModeOption(
-                    value: "plan",
-                    label: "Plan",
-                    description: "Read-only exploration and planning."
-                ),
-                PermissionModeOption(
                     value: "acceptEdits",
                     label: "Accept edits",
                     description: "Auto-accept file edits while keeping stronger checks for other actions."

@@ -1,4 +1,5 @@
 import AppKit
+import BlockInputKit
 
 struct AppKitChatComposerPanelConfiguration {
     let bodyConfiguration: AppKitChatComposerBodyConfiguration
@@ -172,7 +173,47 @@ final class AppKitChatComposerPanelView: NSView {
             return
         }
         actionRow.isHidden = false
-        actionRow.configure(configuration)
+        var actionRowConfiguration = configuration
+        actionRowConfiguration.onAddPhotosAndFiles = { [weak self] in
+            self?.presentPhotosAndFilesPicker()
+        }
+        actionRow.configure(actionRowConfiguration)
+    }
+
+    private func presentPhotosAndFilesPicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = true
+        panel.prompt = "Add"
+        panel.message = "Choose photos or files to add to the message."
+
+        guard let window else {
+            let response = panel.runModal()
+            guard response == .OK else {
+                return
+            }
+            insertSelectedLocalFileURLs(panel.urls)
+            return
+        }
+
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                self?.insertSelectedLocalFileURLs(panel.urls)
+            }
+        }
+    }
+
+    private func insertSelectedLocalFileURLs(_ urls: [URL]) {
+        guard !urls.isEmpty else {
+            return
+        }
+        _ = editorController.view?.insertLocalFileURLs(urls)
+        editorController.view?.focusEditor()
     }
 
     private func layoutTopContent(

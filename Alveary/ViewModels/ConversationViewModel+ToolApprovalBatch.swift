@@ -173,7 +173,7 @@ private extension ConversationViewModel {
         ClaudeApprovalDisplayPolicy.shouldBatchDeferredToolCall(
             toolName: toolName,
             with: approvalToolNames,
-            permissionMode: effectivePermissionMode
+            permissionMode: effectivePlanModeEnabled ? "plan" : effectivePermissionMode
         )
     }
 }

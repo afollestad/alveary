@@ -74,7 +74,7 @@ extension SettingsViewModel {
     func permissionModeOptions(for providerId: String) -> [String] {
         if let status = providerStatus(for: providerId),
            let modes = status.definition?.supportedPermissionModes {
-            return modes.map(\.value)
+            return modes.map(\.value).filter { $0 != "plan" }
         }
         return AppSettings.supportedPermissionModes(forProvider: providerId)
     }

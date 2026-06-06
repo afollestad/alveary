@@ -21,7 +21,8 @@ extension DefaultAgentsManager {
         killAllWithAgentCLIKit()
     }
 
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {
+    @discardableResult
+    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
         try await reconfigureSessionWithAgentCLIKit(conversationId: conversationId, config: config)
     }
 

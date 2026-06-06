@@ -298,7 +298,12 @@ actor SidebarMockAgentsManager: AgentsManager {
         false
     }
 
-    func reconfigureSession(conversationId: String, config: Alveary.AgentSpawnConfig) async throws {}
+    func reconfigureSession(
+        conversationId: String,
+        config: Alveary.AgentSpawnConfig
+    ) async throws -> Alveary.AgentSessionReconfigureResult {
+        .restarted
+    }
 
     func startFreshSession(conversationId: String, config: Alveary.AgentSpawnConfig) async throws {}
 

@@ -24,12 +24,12 @@ extension SidebarViewModelTests {
         let thread = try await fixture.viewModel.createThread(
             project: externalProject,
             provider: "claude",
-            permissionMode: "plan"
+            permissionMode: "acceptEdits"
         )
 
         let savedThread = try fixture.requireThread(thread)
         XCTAssertEqual(savedThread.name, "New thread")
-        XCTAssertEqual(savedThread.permissionMode, "plan")
+        XCTAssertEqual(savedThread.permissionMode, "acceptEdits")
         XCTAssertEqual(savedThread.effort, "max")
         XCTAssertTrue(savedThread.useWorktree)
         XCTAssertEqual(savedThread.project?.path, project.path)
@@ -130,7 +130,7 @@ extension SidebarViewModelTests {
         let thread = try await fixture.viewModel.createThread(
             project: externalProject,
             provider: "claude",
-            permissionMode: "plan"
+            permissionMode: "acceptEdits"
         )
 
         let savedThread = try fixture.requireThread(thread)

@@ -16,7 +16,8 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Handle inbound events.** Put provider event filtering, token stop handling, and synthetic event records in `ConversationViewModel+EventHandling.swift`.
   - **Record local user messages.** Put transcript-local user message insertion and auto-naming side effects in `ConversationViewModel+LocalMessages.swift`.
   - **Persist runtime state.** Put debounced SwiftData saves and runtime-buffer cursor acknowledgement in `ConversationViewModel+Persistence.swift`.
-  - **Stage session settings.** Keep pending next-turn model, effort, and permission changes runtime-scoped on `ConversationState`; stored thread fields can reflect the selected UI value immediately, but continuations must use the live session config until a new visible turn consumes the staged change.
+  - **Stage session settings.** Keep pending next-turn model, effort, permission, and plan-mode changes runtime-scoped on `ConversationState`; stored thread fields can reflect the selected UI value immediately, but continuations must use the live session config until a new visible turn consumes the staged change.
+  - **Keep plan separate.** Route plan-mode UI through `applyPlanModeChange(_:)`; do not encode plan as a permission dropdown value. Use runtime collaboration-mode events/status to sync `runtimePlanModeEnabled`, including clearing it after successful `ExitPlanMode`.
   - **Drain resume cursors.** Fallback approval resumes must wait for all queued debounced saves, including follow-up saves, before resetting subscription tracking.
 - Keep automatic session handoff terminal-aware:
   - **Mark pending from usage.** Context-window token rows may mark handoff pending before the provider turn is complete.

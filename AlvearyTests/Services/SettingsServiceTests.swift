@@ -18,7 +18,7 @@ final class SettingsServiceTests: XCTestCase {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         service.update {
-            $0.permissionMode = "plan"
+            $0.permissionMode = "acceptEdits"
             $0.effort = "high"
             $0.defaultThreadCleanupAction = .delete
             $0.defaultEnterBehavior = .steer
@@ -42,7 +42,7 @@ final class SettingsServiceTests: XCTestCase {
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(reloadedService.current.permissionMode, "plan")
+        XCTAssertEqual(reloadedService.current.permissionMode, "acceptEdits")
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(reloadedService.current.defaultEnterBehavior, .steer)
@@ -123,7 +123,7 @@ final class SettingsServiceTests: XCTestCase {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(service.current.permissionMode, "plan")
+        XCTAssertEqual(service.current.permissionMode, "default")
         XCTAssertTrue(service.current.reopenLastThreadAndConversationOnLaunch)
         XCTAssertNil(service.current.lastOpenThreadID)
         XCTAssertNil(service.current.lastOpenConversationID)

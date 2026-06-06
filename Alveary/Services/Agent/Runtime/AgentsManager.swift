@@ -14,6 +14,12 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
     let config: AgentSpawnConfig
 }
 
+enum AgentSessionReconfigureResult: Sendable, Equatable {
+    case restarted
+    case appliedInPlace
+    case nextTurnRequired
+}
+
 protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
@@ -33,7 +39,8 @@ protocol AgentsManager: Actor {
     func isRunning(conversationId: String) -> Bool
     func hasTrackedProcess(conversationId: String) -> Bool
     func hasInflightLifecycle(conversationId: String) -> Bool
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws
+    @discardableResult
+    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int)
     nonisolated func status(for conversationId: String) -> ActivitySignal

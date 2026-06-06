@@ -77,6 +77,72 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.effectivePermissionMode, "default")
     }
 
+    func testApplyPlanModeChangeStagesDuringActiveTurnWithoutChangingLiveMode() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+        fixture.viewModel.state.turnState.beginTurn()
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.effectivePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), true)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testStagedPlanModeAppliesOnNextTurn() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+        fixture.viewModel.state.turnState.beginTurn()
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+        fixture.viewModel.state.turnState.endTurn()
+        try await fixture.viewModel.queueOrSend("Next turn")
+
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.permissionMode, "acceptEdits")
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
+        XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
+    }
+
+    func testPlanModeNextTurnRequiredKeepsLiveStateAndStagesChange() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            reconfigureResult: .nextTurnRequired,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.effectivePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), true)
+        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.original.planModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.planModeEnabled, true)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, true)
+    }
+
     func testApplyPermissionModeChangeStagesDuringPendingToolApproval() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
@@ -114,8 +180,10 @@ extension ConversationViewModelTests {
         await fixture.viewModel.applyEffortChange("high").value
         fixture.viewModel.handleEvent(.permissionModeChanged("plan"))
 
-        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, "high")
     }
 
@@ -141,8 +209,10 @@ extension ConversationViewModelTests {
         }
 
         XCTAssertEqual(try fixture.dbThread().effort, "medium")
-        XCTAssertEqual(try fixture.dbThread().permissionMode, "plan")
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
     }
 
@@ -159,7 +229,9 @@ extension ConversationViewModelTests {
         fixture.viewModel.handleEvent(.permissionModeChanged("plan"))
 
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
-        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "plan")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
         XCTAssertEqual(fixture.viewModel.pendingPermissionModeForDisplay(), "acceptEdits")
     }
 

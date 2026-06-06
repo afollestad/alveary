@@ -98,10 +98,10 @@ targets:
 packages:
   AgentCLIKit:
     url: https://github.com/afollestad/AgentCLIKit.git
-    revision: "e6b00bed3fb7f1df0cd6e1281825468212788b7e"
+    revision: "6116b39e7d55d14f272a229269f11af023cc3e4f"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
-    revision: "88a2861b0493b025d546ad7ce62557220fd13002"
+    revision: "61dccca8967027ef2a519d55dd8c5054841f8615"
   needle:
     url: https://github.com/uber/needle.git
     revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"

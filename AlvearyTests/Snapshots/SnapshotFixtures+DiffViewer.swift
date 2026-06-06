@@ -222,7 +222,9 @@ actor SnapshotMockAgentsManager: AgentsManager {
         false
     }
 
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+        .restarted
+    }
 
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {}
 

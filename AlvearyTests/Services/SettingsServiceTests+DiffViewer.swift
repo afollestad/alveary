@@ -34,7 +34,7 @@ extension SettingsServiceTests {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(service.current.permissionMode, "plan")
+        XCTAssertEqual(service.current.permissionMode, "default")
         XCTAssertEqual(service.current.diffViewerWidth, 520)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
         XCTAssertEqual(service.current.diffViewerCommitsTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)

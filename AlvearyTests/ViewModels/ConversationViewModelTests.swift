@@ -323,6 +323,7 @@ struct ConversationViewModelTestFixture {
         pendingRestoreContext: String? = nil,
         sendError: MockAgentsManager.MockError? = nil,
         reconfigureError: MockAgentsManager.MockError? = nil,
+        reconfigureResult: AgentSessionReconfigureResult = .restarted,
         approvalError: MockAgentsManager.MockError? = nil,
         sessionApprovalEffective: Bool = true,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
@@ -351,6 +352,7 @@ struct ConversationViewModelTestFixture {
             isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
             sendError: sendError,
             reconfigureError: reconfigureError,
+            reconfigureResult: reconfigureResult,
             approvalError: approvalError,
             sessionApprovalEffective: sessionApprovalEffective
         )
@@ -374,16 +376,10 @@ struct ConversationViewModelTestFixture {
             contextWindowCache: contextWindowCache
         )
 
-        self.container = container; self.context = context
-        self.project = project; self.thread = thread
-        self.conversation = conversation
-        self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
-        self.keepAwakeService = keepAwakeService
-        self.worktreeManager = worktreeManager
-        self.providerSetup = providerSetup
-        self.contextWindowCache = contextWindowCache
-        self.settingsService = settingsService
-        self.viewModel = viewModel
+        self.container = container; self.context = context; self.project = project; self.thread = thread
+        self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
+        self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.providerSetup = providerSetup
+        self.contextWindowCache = contextWindowCache; self.settingsService = settingsService; self.viewModel = viewModel
     }
     private static func testSettings() -> AppSettings {
         var settings = AppSettings()

@@ -208,10 +208,11 @@ extension ConversationViewModel {
         guard pendingApproval.request.toolName == "ExitPlanMode",
               pendingApproval.status != .denying,
               pendingApproval.status != .denied,
-              effectivePermissionMode == "plan" else {
+              effectivePlanModeEnabled else {
             return
         }
 
+        syncRuntimePlanMode(false)
         syncRuntimePermissionMode(state.lastNonPlanPermissionMode ?? "default")
     }
 

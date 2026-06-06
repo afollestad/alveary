@@ -257,7 +257,9 @@ actor AppDelegateMockAgentsManager: AgentsManager {
         inflightConversationIds.contains(conversationId)
     }
 
-    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws {}
+    func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+        .restarted
+    }
 
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws {}
 

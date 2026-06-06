@@ -20,6 +20,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
     @Binding var selectedPermissionMode: String
     let showWorktreePicker: Bool
     @Binding var selectedUseWorktree: Bool
+    @Binding var isPlanModeEnabled: Bool
+    let isPlanModeToggleEnabled: Bool
+    let planModeDisabledTooltip: String?
     let sessionLocationLabel: String?
     let usageSummary: ConversationUsageSummary?
     let isTextEditorDisabled: Bool
@@ -34,6 +37,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
     let onSubmit: () -> Void
     let onStop: () -> Void
     let onShowKeymap: () -> Void
+    let onAddPhotosAndFiles: () -> Void
 
     func makeNSView(context: Context) -> ChatComposerActionRowView {
         let view = ChatComposerActionRowView()
@@ -60,6 +64,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: showWorktreePicker,
             selectedUseWorktree: selectedUseWorktree,
+            isPlanModeEnabled: isPlanModeEnabled,
+            isPlanModeToggleEnabled: isPlanModeToggleEnabled,
+            planModeDisabledTooltip: planModeDisabledTooltip,
             sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
             isTextEditorDisabled: isTextEditorDisabled,
@@ -76,9 +83,11 @@ struct ChatComposerActionRow: NSViewRepresentable {
             onEffortChange: { selectedEffort = $0 },
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
+            onPlanModeChange: { isPlanModeEnabled = $0 },
             onSubmit: onSubmit,
             onStop: onStop,
-            onShowKeymap: onShowKeymap
+            onShowKeymap: onShowKeymap,
+            onAddPhotosAndFiles: onAddPhotosAndFiles
         )
     }
 }
@@ -88,6 +97,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
 @MainActor
 final class ChatComposerActionRowView: NSView {
     nonisolated static let defaultHeight: CGFloat = 30
+    nonisolated static let defaultSettingsControlHeight: CGFloat = 24
     nonisolated static let defaultContextIndicatorKeyboardSpacing: CGFloat = 6
 
     struct MenuOption: Equatable {
@@ -107,6 +117,9 @@ final class ChatComposerActionRowView: NSView {
         let selectedPermissionMode: String
         let showWorktreePicker: Bool
         let selectedUseWorktree: Bool
+        var isPlanModeEnabled = false
+        var isPlanModeToggleEnabled = false
+        var planModeDisabledTooltip: String?
         let sessionLocationLabel: String?
         let usageSummary: ConversationUsageSummary?
         let isTextEditorDisabled: Bool
@@ -123,12 +136,15 @@ final class ChatComposerActionRowView: NSView {
         let onEffortChange: (String) -> Void
         let onPermissionModeChange: (String) -> Void
         let onUseWorktreeChange: (Bool) -> Void
+        var onPlanModeChange: (Bool) -> Void = { _ in }
         let onSubmit: () -> Void
         let onStop: () -> Void
         let onShowKeymap: () -> Void
+        var onAddPhotosAndFiles: () -> Void = {}
 
     }
 
+    let plusButton = ComposerPlusButton()
     private let providerMenu = ComposerMenuButton()
     private let modelMenu = ComposerMenuButton()
     private let effortMenu = ComposerMenuButton()
@@ -153,6 +169,7 @@ final class ChatComposerActionRowView: NSView {
     var rowSubviews: [NSView] = []
 
     var configuration: Configuration?
+    var plusPopover: NSPopover?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let minimumSettingsControlWidth: CGFloat = 44
@@ -203,6 +220,7 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func setupMenuAccessibility() {
+        plusButton.setAccessibilityLabel("Open composer actions")
         providerMenu.setAccessibilityLabel("Provider")
         providerMenu.setMenuHeaderTitle("Provider")
         modelMenu.setAccessibilityLabel("Model")
@@ -225,6 +243,9 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func setupActions() {
+        plusButton.actionHandler = { [weak self] in
+            self?.togglePlusMenu()
+        }
         keyboardButton.actionHandler = { [weak self] in
             self?.configuration?.onShowKeymap()
         }
@@ -289,6 +310,7 @@ final class ChatComposerActionRowView: NSView {
         }
 
         applyMenuConfiguration(configuration)
+        applyPlusButtonConfiguration(configuration)
         applyAccessoryConfiguration(configuration)
         applyActionConfiguration(configuration)
         rebuildArrangedSubviews(configuration)
@@ -337,6 +359,16 @@ final class ChatComposerActionRowView: NSView {
         )
     }
 
+    private func applyPlusButtonConfiguration(_ configuration: Configuration) {
+        plusButton.configure(
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: !configuration.areControlsDisabled,
+            actionHandler: { [weak self] in
+                self?.togglePlusMenu()
+            }
+        )
+    }
+
     private func applyAccessoryConfiguration(_ configuration: Configuration) {
         sessionLocationField.stringValue = configuration.sessionLocationLabel ?? ""
         sessionLocationField.toolTip = configuration.sessionLocationLabel
@@ -382,6 +414,7 @@ final class ChatComposerActionRowView: NSView {
 
     private func arrangedSubviews(for configuration: Configuration) -> [NSView] {
         var views: [NSView] = []
+        views.append(plusButton)
         if configuration.showsProviderPicker {
             views.append(providerMenu)
         }
@@ -443,4 +476,5 @@ final class ChatComposerActionRowView: NSView {
         }
         return ChatComposerTextSupport.progressLabel(for: reason)
     }
+
 }

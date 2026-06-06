@@ -4,11 +4,12 @@ import SwiftData
 
 private struct PermissionRuntimeStateSnapshot {
     let runtimePermissionMode: String?
+    let runtimePlanModeEnabled: Bool?
     let lastNonPlanPermissionMode: String?
 }
 
 extension ConversationViewModel {
-    // The model/effort/permission pickers stay editable during active turns.
+    // The model, effort, permission, and plan-mode controls stay editable during active turns.
     // Those writes persist immediately but are staged for the next new turn.
     var canApplySettingsChange: Bool {
         !state.isSendingMessage &&
@@ -29,17 +30,9 @@ extension ConversationViewModel {
         isAgentActivelyWorking || state.pendingToolApproval != nil || hasUnansweredPrompt
     }
 
-    // Reconfigure (fork the provider session) whenever the thread already has a
-    // spawned session to fork from. Between turns the Claude process may have
-    // exited in `-p` mode, so we cannot gate on a live process.
     func shouldReconfigureOnSettingChange() -> Bool {
         conversation.thread?.hasCompletedInitialSetup == true
     }
-
-    // Each `apply*Change` runs its state/DB write synchronously so the SwiftUI
-    // `Picker` binding sees the new value on the same render cycle as the
-    // click, then returns a `Task` carrying the async fork (+ rollback).
-    // Bindings discard the task; tests `await .value` to observe completion.
 
     func applyProviderChange(_ newValue: String) {
         guard canApplyPreStartupSettingChange,
@@ -50,37 +43,27 @@ extension ConversationViewModel {
             return
         }
 
-        let previousProvider = dbConversation.provider
-        let previousModel = dbThread.model
-        let previousPermissionMode = dbThread.permissionMode
-        let previousEffort = dbThread.effort
-        let previousRuntimePermissionMode = state.runtimePermissionMode
-        let previousLastNonPlanPermissionMode = state.lastNonPlanPermissionMode
-
+        let snapshot = ProviderSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
         let newPermissionMode = AppSettings.defaultPermissionMode(forProvider: newValue)
-        guard (previousProvider ?? settingsService.current.defaultProvider) != newValue ||
-            previousModel != nil ||
-            previousPermissionMode != newPermissionMode else {
+        let currentProvider = snapshot.provider ?? settingsService.current.defaultProvider
+        guard currentProvider != newValue || snapshot.model != nil || snapshot.permissionMode != newPermissionMode else {
             return
         }
 
         dbConversation.provider = newValue
         dbThread.model = nil
         dbThread.permissionMode = newPermissionMode
+        dbThread.planModeEnabled = false
         dbThread.effort = AppSettings.defaultEffortLevel
         state.runtimePermissionMode = newPermissionMode
-        state.lastNonPlanPermissionMode = newPermissionMode == "plan" ? nil : newPermissionMode
+        state.runtimePlanModeEnabled = false
+        state.lastNonPlanPermissionMode = newPermissionMode
         state.lastTurnError = nil
 
         do {
             try modelContext.save()
         } catch {
-            dbConversation.provider = previousProvider
-            dbThread.model = previousModel
-            dbThread.permissionMode = previousPermissionMode
-            dbThread.effort = previousEffort
-            state.runtimePermissionMode = previousRuntimePermissionMode
-            state.lastNonPlanPermissionMode = previousLastNonPlanPermissionMode
+            snapshot.restore(conversation: dbConversation, thread: dbThread, state: state)
             state.lastTurnError = error.localizedDescription
         }
     }
@@ -91,169 +74,147 @@ extension ConversationViewModel {
         effortOptions: [AgentCLIKit.AgentProviderOption] = [],
         defaultEffort: String? = nil
     ) -> Task<Void, Never> {
-        guard canApplySettingsChange else { return .noop }
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.resolveThread(id: threadID) else {
+        guard canApplySettingsChange,
+              let dbThread = activeSettingsThread() else {
             return .noop
         }
 
         let previousValue = dbThread.model ?? AppSettings.defaultModelValue
         guard previousValue != newValue else { return .noop }
 
-        let shouldStage = shouldStageSessionSettingChange
-        if shouldStage {
-            ensurePendingSessionSettingsChange(dbThread: dbThread)
-        }
-
-        dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
-
+        let original = preparePendingSnapshotIfNeeded(for: dbThread)
         let previousEffort = dbThread.effort
-        resetEffortIfNeeded(
-            for: dbThread,
-            effortOptions: effortOptions,
-            defaultEffort: defaultEffort
-        )
-
+        dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
+        resetEffortIfNeeded(for: dbThread, effortOptions: effortOptions, defaultEffort: defaultEffort)
         state.lastTurnError = nil
 
-        do {
-            try modelContext.save()
-        } catch {
+        guard saveSettingsChange(dbThread: dbThread, rollback: {
             dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
             dbThread.effort = previousEffort
-            if shouldStage {
-                refreshPendingSessionSettingsChange(from: dbThread)
-            }
-            state.lastTurnError = error.localizedDescription
+        }) else {
+            return .noop
+        }
+        guard !finishStagedSettingsIfNeeded(dbThread: dbThread, invalidatesContextWindow: true),
+              shouldReconfigureOnSettingChange() else {
             return .noop
         }
 
-        if shouldStage {
-            refreshPendingSessionSettingsChange(from: dbThread, invalidatesContextWindow: true)
-            return .noop
-        }
-
-        guard shouldReconfigureOnSettingChange() else { return .noop }
-
-        return Task { @MainActor [self] in
-            do {
-                try await reconfigureSession()
-                recordContextWindowInvalidation()
-            } catch {
-                dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
-                dbThread.effort = previousEffort
-                try? modelContext.save()
-                state.lastTurnError = error.localizedDescription
-            }
+        return reconfigureSettingsTask(original: original, dbThread: dbThread, invalidatesContextWindow: true) {
+            dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
+            dbThread.effort = previousEffort
+        } onApplied: {
+            self.recordContextWindowInvalidation()
         }
     }
 
     @discardableResult
     func applyEffortChange(_ newValue: String) -> Task<Void, Never> {
-        guard canApplySettingsChange else { return .noop }
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.resolveThread(id: threadID) else {
+        guard canApplySettingsChange,
+              let dbThread = activeSettingsThread() else {
             return .noop
         }
 
         let previousValue = dbThread.effort
         guard previousValue != newValue else { return .noop }
 
-        let shouldStage = shouldStageSessionSettingChange
-        if shouldStage {
-            ensurePendingSessionSettingsChange(dbThread: dbThread)
-        }
-
+        let original = preparePendingSnapshotIfNeeded(for: dbThread)
         dbThread.effort = newValue
         state.lastTurnError = nil
 
-        do {
-            try modelContext.save()
-        } catch {
+        guard saveSettingsChange(dbThread: dbThread, rollback: { dbThread.effort = previousValue }) else {
+            return .noop
+        }
+        guard !finishStagedSettingsIfNeeded(dbThread: dbThread),
+              shouldReconfigureOnSettingChange() else {
+            return .noop
+        }
+
+        return reconfigureSettingsTask(original: original, dbThread: dbThread) {
             dbThread.effort = previousValue
-            if shouldStage {
-                refreshPendingSessionSettingsChange(from: dbThread)
-            }
-            state.lastTurnError = error.localizedDescription
-            return .noop
-        }
-
-        if shouldStage {
-            refreshPendingSessionSettingsChange(from: dbThread)
-            return .noop
-        }
-
-        guard shouldReconfigureOnSettingChange() else { return .noop }
-
-        return Task { @MainActor [self] in
-            do {
-                try await reconfigureSession()
-            } catch {
-                dbThread.effort = previousValue
-                try? modelContext.save()
-                state.lastTurnError = error.localizedDescription
-            }
         }
     }
 
     @discardableResult
     func applyPermissionModeChange(_ newValue: String) -> Task<Void, Never> {
-        guard canApplySettingsChange else { return .noop }
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.resolveThread(id: threadID) else {
+        guard canApplySettingsChange,
+              canSelectPermissionMode(newValue),
+              let dbThread = activeSettingsThread() else {
             return .noop
         }
 
         let previousValue = dbThread.permissionMode
         guard previousValue != newValue else { return .noop }
 
-        let shouldStage = shouldStageSessionSettingChange
-        if shouldStage {
-            ensurePendingSessionSettingsChange(dbThread: dbThread)
-        }
-
+        let original = preparePendingSnapshotIfNeeded(for: dbThread)
         let previousRuntimeState = permissionRuntimeStateSnapshot()
         dbThread.permissionMode = newValue
-        if !shouldStage {
-            applyImmediatePermissionRuntimeState(newValue, previousStoredMode: previousValue)
+        if !shouldStageSessionSettingChange {
+            applyImmediatePermissionRuntimeState(newValue)
         }
         state.lastTurnError = nil
 
-        do {
-            try modelContext.save()
-        } catch {
+        guard saveSettingsChange(dbThread: dbThread, rollback: {
             dbThread.permissionMode = previousValue
-            restorePermissionRuntimeState(previousRuntimeState)
-            if shouldStage {
-                refreshPendingSessionSettingsChange(from: dbThread)
-            }
-            state.lastTurnError = error.localizedDescription
+            self.restorePermissionRuntimeState(previousRuntimeState)
+        }) else {
+            return .noop
+        }
+        guard !finishStagedSettingsIfNeeded(dbThread: dbThread),
+              shouldReconfigureOnSettingChange() else {
             return .noop
         }
 
-        if shouldStage {
-            refreshPendingSessionSettingsChange(from: dbThread)
+        return reconfigureSettingsTask(original: original, dbThread: dbThread) {
+            dbThread.permissionMode = previousValue
+            self.restorePermissionRuntimeState(previousRuntimeState)
+        } onNextTurnRequired: {
+            self.restorePermissionRuntimeState(previousRuntimeState)
+        }
+    }
+
+    @discardableResult
+    func applyPlanModeChange(_ newValue: Bool) -> Task<Void, Never> {
+        guard canApplySettingsChange,
+              let dbThread = activeSettingsThread() else {
             return .noop
         }
 
-        guard shouldReconfigureOnSettingChange() else { return .noop }
+        let previousValue = dbThread.planModeEnabled
+        guard previousValue != newValue else { return .noop }
 
-        return Task { @MainActor [self] in
-            do {
-                try await reconfigureSession()
-            } catch {
-                dbThread.permissionMode = previousValue
-                restorePermissionRuntimeState(previousRuntimeState)
-                try? modelContext.save()
-                state.lastTurnError = error.localizedDescription
+        let original = preparePendingSnapshotIfNeeded(for: dbThread)
+        let previousRuntimePlanModeEnabled = state.runtimePlanModeEnabled
+        dbThread.planModeEnabled = newValue
+        if !shouldStageSessionSettingChange {
+            state.runtimePlanModeEnabled = newValue
+            if newValue {
+                state.lastNonPlanPermissionMode = nonPlanPermissionMode(dbThread.permissionMode)
             }
+        }
+        state.lastTurnError = nil
+
+        guard saveSettingsChange(dbThread: dbThread, rollback: {
+            dbThread.planModeEnabled = previousValue
+            self.state.runtimePlanModeEnabled = previousRuntimePlanModeEnabled
+        }) else {
+            return .noop
+        }
+        guard !finishStagedSettingsIfNeeded(dbThread: dbThread),
+              shouldReconfigureOnSettingChange() else {
+            return .noop
+        }
+
+        return reconfigureSettingsTask(original: original, dbThread: dbThread) {
+            dbThread.planModeEnabled = previousValue
+            self.state.runtimePlanModeEnabled = previousRuntimePlanModeEnabled
+        } onNextTurnRequired: {
+            self.state.runtimePlanModeEnabled = previousRuntimePlanModeEnabled
         }
     }
 
     func applyWorktreePreferenceChange(_ newValue: Bool) {
-        guard canApplyPreStartupSettingChange else { return }
-        guard let threadID = conversation.thread?.persistentModelID,
-              let dbThread = modelContext.resolveThread(id: threadID),
+        guard canApplyPreStartupSettingChange,
+              let dbThread = activeSettingsThread(),
               dbThread.project?.isGitRepository == true,
               !dbThread.hasCompletedInitialSetup else {
             return
@@ -263,7 +224,6 @@ extension ConversationViewModel {
         guard previousValue != newValue else { return }
 
         dbThread.useWorktree = newValue
-
         do {
             try modelContext.save()
         } catch {
@@ -271,9 +231,7 @@ extension ConversationViewModel {
             state.lastTurnError = error.localizedDescription
         }
     }
-}
 
-extension ConversationViewModel {
     func recordContextWindowInvalidation() {
         guard let dbConversation = modelContext.resolveConversation(id: conversationModelID) else {
             return
@@ -294,11 +252,98 @@ extension ConversationViewModel {
     }
 }
 
-private extension Task where Success == Void, Failure == Never {
-    static var noop: Task<Void, Never> { Task {} }
-}
-
 private extension ConversationViewModel {
+    func activeSettingsThread() -> AgentThread? {
+        guard let threadID = conversation.thread?.persistentModelID else {
+            return nil
+        }
+        return modelContext.resolveThread(id: threadID)
+    }
+
+    func canSelectPermissionMode(_ value: String) -> Bool {
+        let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
+        return AppSettings.supportedPermissionModes(forProvider: providerId).contains(value)
+    }
+
+    func preparePendingSnapshotIfNeeded(for dbThread: AgentThread) -> SessionSettingsSnapshot {
+        let snapshot = sessionSettingsSnapshot(for: dbThread)
+        if shouldStageSessionSettingChange {
+            ensurePendingSessionSettingsChange(dbThread: dbThread)
+        }
+        return snapshot
+    }
+
+    func finishStagedSettingsIfNeeded(dbThread: AgentThread, invalidatesContextWindow: Bool = false) -> Bool {
+        guard shouldStageSessionSettingChange else {
+            return false
+        }
+        // Active turns and deferred approvals keep their current provider settings;
+        // the persisted settings are staged into the next turn's spawn config.
+        refreshPendingSessionSettingsChange(from: dbThread, invalidatesContextWindow: invalidatesContextWindow)
+        return true
+    }
+
+    func saveSettingsChange(dbThread: AgentThread, rollback: () -> Void) -> Bool {
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            rollback()
+            if shouldStageSessionSettingChange {
+                refreshPendingSessionSettingsChange(from: dbThread)
+            }
+            state.lastTurnError = error.localizedDescription
+            return false
+        }
+    }
+
+    func reconfigureSettingsTask(
+        original: SessionSettingsSnapshot,
+        dbThread: AgentThread,
+        invalidatesContextWindow: Bool = false,
+        rollback: @escaping () -> Void,
+        onNextTurnRequired: @escaping () -> Void = {},
+        onApplied: @escaping () -> Void = {}
+    ) -> Task<Void, Never> {
+        Task { @MainActor [self] in
+            await reconfigureSessionSettingChange(
+                original: original,
+                dbThread: dbThread,
+                invalidatesContextWindow: invalidatesContextWindow,
+                onApplied: onApplied,
+                onNextTurnRequired: onNextTurnRequired,
+                onFailure: rollback
+            )
+        }
+    }
+
+    func reconfigureSessionSettingChange(
+        original: SessionSettingsSnapshot,
+        dbThread: AgentThread,
+        invalidatesContextWindow: Bool = false,
+        onApplied: () -> Void = {},
+        onNextTurnRequired: () -> Void = {},
+        onFailure: () -> Void
+    ) async {
+        do {
+            let result = try await reconfigureSession()
+            if result == .nextTurnRequired {
+                onNextTurnRequired()
+                stagePendingSessionSettingsChange(
+                    original: original,
+                    dbThread: dbThread,
+                    invalidatesContextWindow: invalidatesContextWindow
+                )
+            } else {
+                onApplied()
+            }
+        } catch {
+            onFailure()
+            try? modelContext.save()
+            state.lastTurnError = error.localizedDescription
+        }
+    }
+
     func resetEffortIfNeeded(
         for dbThread: AgentThread,
         effortOptions: [AgentCLIKit.AgentProviderOption],
@@ -319,23 +364,58 @@ private extension ConversationViewModel {
     func permissionRuntimeStateSnapshot() -> PermissionRuntimeStateSnapshot {
         PermissionRuntimeStateSnapshot(
             runtimePermissionMode: state.runtimePermissionMode,
+            runtimePlanModeEnabled: state.runtimePlanModeEnabled,
             lastNonPlanPermissionMode: state.lastNonPlanPermissionMode
         )
     }
 
-    func applyImmediatePermissionRuntimeState(_ newValue: String, previousStoredMode: String) {
+    func applyImmediatePermissionRuntimeState(_ newValue: String) {
         state.runtimePermissionMode = newValue
-        if newValue == "plan" {
-            if previousStoredMode != "plan" {
-                state.lastNonPlanPermissionMode = previousStoredMode
-            }
-        } else {
-            state.lastNonPlanPermissionMode = newValue
-        }
+        state.lastNonPlanPermissionMode = newValue
     }
 
     func restorePermissionRuntimeState(_ snapshot: PermissionRuntimeStateSnapshot) {
         state.runtimePermissionMode = snapshot.runtimePermissionMode
+        state.runtimePlanModeEnabled = snapshot.runtimePlanModeEnabled
         state.lastNonPlanPermissionMode = snapshot.lastNonPlanPermissionMode
     }
+}
+
+private struct ProviderSettingSnapshot {
+    let provider: String?
+    let model: String?
+    let permissionMode: String
+    let planModeEnabled: Bool?
+    let effort: String
+    let runtimePermissionMode: String?
+    let runtimePlanModeEnabled: Bool?
+    let lastNonPlanPermissionMode: String?
+
+    @MainActor
+    init(conversation: Conversation, thread: AgentThread, state: ConversationState) {
+        provider = conversation.provider
+        model = thread.model
+        permissionMode = thread.permissionMode
+        planModeEnabled = thread.planModeEnabled
+        effort = thread.effort
+        runtimePermissionMode = state.runtimePermissionMode
+        runtimePlanModeEnabled = state.runtimePlanModeEnabled
+        lastNonPlanPermissionMode = state.lastNonPlanPermissionMode
+    }
+
+    @MainActor
+    func restore(conversation: Conversation, thread: AgentThread, state: ConversationState) {
+        conversation.provider = provider
+        thread.model = model
+        thread.permissionMode = permissionMode
+        thread.planModeEnabled = planModeEnabled
+        thread.effort = effort
+        state.runtimePermissionMode = runtimePermissionMode
+        state.runtimePlanModeEnabled = runtimePlanModeEnabled
+        state.lastNonPlanPermissionMode = lastNonPlanPermissionMode
+    }
+}
+
+private extension Task where Success == Void, Failure == Never {
+    static var noop: Task<Void, Never> { Task {} }
 }

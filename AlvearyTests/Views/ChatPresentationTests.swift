@@ -141,13 +141,14 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.selectedModel, "opus")
         XCTAssertEqual(presentation.selectedEffort, "high")
         XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
+        XCTAssertFalse(presentation.selectedPlanModeEnabled)
         XCTAssertTrue(presentation.selectedUseWorktree)
         XCTAssertTrue(presentation.showWorktreePicker)
         XCTAssertNil(presentation.sessionLocationLabel)
         XCTAssertEqual(presentation.contextWindowCacheLookupID, "claude:opus")
     }
 
-    func testThreadPresentationUsesRuntimePermissionModeForPickerDisplay() {
+    func testThreadPresentationKeepsPlanOutOfPickerDisplay() {
         let thread = AgentThread(
             name: "Plan mode",
             permissionMode: "default"
@@ -159,22 +160,26 @@ final class ChatPresentationTests: XCTestCase {
             runtimePermissionMode: "plan"
         )
 
-        XCTAssertEqual(presentation.selectedPermissionMode, "plan")
+        XCTAssertEqual(presentation.selectedPermissionMode, "default")
+        XCTAssertFalse(presentation.selectedPlanModeEnabled)
     }
 
-    func testThreadPresentationUsesRuntimePermissionModeAfterPlanExit() {
+    func testThreadPresentationUsesRuntimePlanModeForPlusMenuToggle() {
         let thread = AgentThread(
             name: "Plan mode",
-            permissionMode: "plan"
+            permissionMode: "acceptEdits",
+            planModeEnabled: true
         )
 
         let presentation = ChatThreadPresentation(
             thread: thread,
             providerID: "claude",
-            runtimePermissionMode: "acceptEdits"
+            runtimePermissionMode: "acceptEdits",
+            runtimePlanModeEnabled: false
         )
 
         XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
+        XCTAssertFalse(presentation.selectedPlanModeEnabled)
     }
 
     func testThreadPresentationUsesPendingPermissionModeBeforeRuntimeModeForPickerDisplay() {

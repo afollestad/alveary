@@ -121,7 +121,7 @@ final class SettingsViewModelTests: XCTestCase {
         let service = InMemorySettingsService()
         service.update {
             $0.defaultModel = "opus"
-            $0.permissionMode = "plan"
+            $0.permissionMode = "acceptEdits"
             $0.effort = "high"
             $0.defaultThreadCleanupAction = .delete
             $0.defaultEnterBehavior = .steer
@@ -145,7 +145,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.defaultProvider, "claude")
         XCTAssertEqual(viewModel.defaultModel, "opus")
-        XCTAssertEqual(viewModel.permissionMode, "plan")
+        XCTAssertEqual(viewModel.permissionMode, "acceptEdits")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.defaultThreadCleanupAction, .delete)
         XCTAssertEqual(viewModel.defaultEnterBehavior, .steer)

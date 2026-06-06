@@ -10,7 +10,9 @@ struct SessionSettingsSnapshot: Equatable, Sendable {
     var model: String?
     var effort: String
     var permissionMode: String
+    var planModeEnabled: Bool
     var runtimePermissionMode: String?
+    var runtimePlanModeEnabled: Bool?
     var lastNonPlanPermissionMode: String?
 }
 
@@ -32,8 +34,12 @@ struct PendingSessionSettingsChange: Equatable, Sendable {
         original.permissionMode != pending.permissionMode
     }
 
+    var hasPlanModeChange: Bool {
+        original.planModeEnabled != pending.planModeEnabled
+    }
+
     var hasAnyChange: Bool {
-        hasModelChange || hasEffortChange || hasPermissionModeChange
+        hasModelChange || hasEffortChange || hasPermissionModeChange || hasPlanModeChange
     }
 }
 
@@ -91,6 +97,7 @@ final class ConversationState {
     var pendingToolApproval: PendingToolApproval?
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
     var runtimePermissionMode: String?
+    var runtimePlanModeEnabled: Bool?
     var lastNonPlanPermissionMode: String?
     var liveSessionConfig: AgentSpawnConfig?
     var pendingSessionSettingsChange: PendingSessionSettingsChange?

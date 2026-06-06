@@ -5,6 +5,7 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
 - `AgentsManager.destroyRuntime()` is the single public owner for waiting on destructive runtime teardown. UI flows may call `kill(conversationId:)` first when they need the visible model row removed immediately, but they must still call `destroyRuntime(conversationId:)` as the wait/cleanup phase instead of reimplementing wait loops or direct session-map removal.
 - `DefaultAgentsManager` is `AgentCLIKit`-only. Keep provider launch, provider process lifetime, stream decoding, hook transport, provider approval policy, transcript-path logic, and restored transcript inspection in `AgentCLIKit`.
 - `DefaultAgentsManager+Spawn.swift` should stay as host orchestration. Keep event buffer/status work in the `AgentCLIKit` companions and stream-status mapping in `DefaultAgentsManager+StreamEvents.swift`.
+- Runtime reconfiguration returns a semantic result. Treat `.nextTurnRequired` as a staged-settings outcome for the next outbound turn, not as a fatal provider failure or a reason to roll back the user's persisted picker state.
 - Session handoff uses `startFreshSession(...)` to replace the provider session binding for the same conversation. It must remove old session approvals, drop the old event buffer, and spawn with `forkSession: false`; do not route it through normal settings reconfiguration.
 - Runtime notification gating is terminal-aware:
     - **Suppress progress token notifications.** `usage_update` token rows are interim usage, not turn completion.

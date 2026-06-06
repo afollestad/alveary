@@ -9,8 +9,8 @@ These instructions cover Claude-related Alveary code under `Alveary/Services/Age
 - Claude structured streaming details and `--include-hook-events` behavior belong in `AgentCLIKit` docs/tests, not Alveary.
 - Decode assistant-message `usage` into interim token rows so context usage updates while Claude is blocked on app-native prompts. These rows use `ConversationEvent.interimUsageStopReason` and must not end the active turn.
 - Claude resume checks and transcript path construction must use `AgentCLIKit.ClaudePathEncoder`.
-- Treat Claude `permissionMode` updates from the stream as the live runtime source of truth:
+- Treat Claude permission and collaboration updates from the stream as the live runtime source of truth:
     - **Sync `system/init` and `system/status`.** When Claude emits `permissionMode`, update both the in-memory runtime mode and the persisted thread picker state.
-    - **Keep plan resumes in plan.** If a deferred `ExitPlanMode` approval is pending, respawn Claude with `permissionMode: "plan"` even if the stored thread mode is stale, or Claude will reject the tool with `You are not in plan mode.`
+    - **Keep plan resumes in plan.** If a deferred `ExitPlanMode` approval is pending, respawn Claude with provider-neutral plan mode enabled even if the stored thread mode is stale, or Claude will reject the tool with `You are not in plan mode.`
     - **Restore fallback mode after plan exit.** Track the last non-plan mode so Alveary can fall back to it if `ExitPlanMode` succeeds but no later status event arrives before the turn resolves.
 - Claude event decoding details, including local-command caveats, interruption markers, deferred-tool attachments, hook failures, and context-compaction events, belong in `AgentCLIKit` tests and docs.

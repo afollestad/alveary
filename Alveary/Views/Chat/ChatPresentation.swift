@@ -98,6 +98,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
     let selectedModel: String
     let selectedEffort: String
     let selectedPermissionMode: String
+    let selectedPlanModeEnabled: Bool
     let selectedUseWorktree: Bool
     let showWorktreePicker: Bool
     let sessionLocationLabel: String?
@@ -108,11 +109,18 @@ struct ChatThreadPresentation: Equatable, Sendable {
         thread: AgentThread?,
         providerID: String,
         runtimePermissionMode: String? = nil,
-        pendingPermissionMode: String? = nil
+        pendingPermissionMode: String? = nil,
+        runtimePlanModeEnabled: Bool? = nil,
+        pendingPlanModeEnabled: Bool? = nil
     ) {
         selectedModel = thread?.model ?? AppSettings.defaultModelValue
         selectedEffort = AppSettings.normalizedEffortLevel(thread?.effort)
-        selectedPermissionMode = pendingPermissionMode ?? runtimePermissionMode ?? thread?.permissionMode ?? "default"
+        selectedPermissionMode = Self.nonPlanPermissionMode(
+            pendingPermissionMode ?? runtimePermissionMode ?? thread?.permissionMode,
+            providerID: providerID,
+            fallback: thread?.permissionMode
+        )
+        selectedPlanModeEnabled = pendingPlanModeEnabled ?? runtimePlanModeEnabled ?? thread?.planModeEnabled ?? false
         selectedUseWorktree = thread?.useWorktree ?? false
 
         if let thread,
@@ -137,5 +145,15 @@ struct ChatThreadPresentation: Equatable, Sendable {
         }
 
         contextWindowCacheLookupID = "\(providerID):\(selectedModel)"
+    }
+
+    private static func nonPlanPermissionMode(_ mode: String?, providerID: String, fallback: String?) -> String {
+        if let mode, mode != "plan" {
+            return mode
+        }
+        if let fallback, fallback != "plan" {
+            return fallback
+        }
+        return AppSettings.defaultPermissionMode(forProvider: providerID)
     }
 }

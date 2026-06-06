@@ -38,6 +38,9 @@ private extension ConversationViewModel {
         case .permissionModeChanged(let permissionMode):
             return handlePermissionModeChanged(permissionMode)
 
+        case .collaborationModeChanged(let isPlanModeEnabled):
+            return handleCollaborationModeChanged(isPlanModeEnabled)
+
         case .toolResult(let id, _, let isError, _, _):
             clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: id, isError: isError)
             return true
@@ -90,6 +93,14 @@ private extension ConversationViewModel {
     func handlePermissionModeChanged(_ permissionMode: String) -> Bool {
         syncRuntimePermissionMode(permissionMode)
         clearApprovedExitPlanModeApprovalAfterPermissionModeChange(permissionMode)
+        return false
+    }
+
+    func handleCollaborationModeChanged(_ isPlanModeEnabled: Bool) -> Bool {
+        syncRuntimePlanMode(isPlanModeEnabled)
+        if !isPlanModeEnabled {
+            clearApprovedExitPlanModeApprovalIfNeeded()
+        }
         return false
     }
 

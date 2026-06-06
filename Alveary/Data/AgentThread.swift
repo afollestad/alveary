@@ -10,6 +10,7 @@ final class AgentThread {
     var worktreePath: String?
     var hasCompletedInitialSetup: Bool
     var permissionMode: String
+    var planModeEnabled: Bool?
     var effort: String
     var model: String?
     var useWorktree: Bool
@@ -25,6 +26,7 @@ final class AgentThread {
         worktreePath: String? = nil,
         hasCompletedInitialSetup: Bool = false,
         permissionMode: String = "default",
+        planModeEnabled: Bool = false,
         effort: String = AppSettings.defaultEffortLevel,
         model: String? = nil,
         useWorktree: Bool = false,
@@ -39,6 +41,7 @@ final class AgentThread {
         self.worktreePath = worktreePath.map(CanonicalPath.normalize)
         self.hasCompletedInitialSetup = hasCompletedInitialSetup
         self.permissionMode = permissionMode
+        self.planModeEnabled = planModeEnabled
         self.effort = effort
         self.model = model
         self.useWorktree = useWorktree
