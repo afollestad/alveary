@@ -181,7 +181,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         case .carriageReturn:
             if let row = focusedOrConfiguredRow,
                shouldReturnSelectFocusedRow(row) {
-                row.performSubmitSelectionFromKeyboard()
+                row.performSubmitSelection()
                 return true
             }
             guard configuration.isPrimaryEnabled, !configuration.isResolving else {

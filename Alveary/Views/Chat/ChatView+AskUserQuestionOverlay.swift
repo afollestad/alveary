@@ -174,36 +174,55 @@ extension ChatView {
                 minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
                 verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
                 customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+                mouseActivationBehavior: askUserQuestionMouseActivationBehavior(question: question, option: option),
                 onSelect: {
-                    selectAskUserQuestionOption(
-                        prompt: prompt,
-                        questionIndex: questionIndex,
-                        option: option
-                    )
+                    selectAskUserQuestionOption(prompt: prompt, questionIndex: questionIndex, option: option)
                 },
                 onSubmitSelection: option.isCustomResponse ? nil : {
-                    submitAskUserQuestionOptionSelection(
-                        prompt: prompt,
-                        questionIndex: questionIndex,
-                        option: option
-                    )
+                    submitAskUserQuestionOptionSelection(prompt: prompt, questionIndex: questionIndex, option: option)
                 },
                 onCustomTextChanged: { text in
-                    updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
-                        state.customResponses[questionIndex] = text
-                        if !text.trimmedAskPromptText.isEmpty {
-                            if question.multiSelect {
-                                var selectedIDs = state.selections[questionIndex] ?? []
-                                selectedIDs.insert(option.id)
-                                state.selections[questionIndex] = selectedIDs
-                            } else {
-                                state.selections[questionIndex] = [option.id]
-                            }
-                        }
-                    }
+                    updateAskUserQuestionCustomResponse(
+                        prompt: prompt,
+                        question: question,
+                        questionIndex: questionIndex,
+                        option: option,
+                        text: text
+                    )
                 }
             )
         }
+    }
+
+    func updateAskUserQuestionCustomResponse(
+        prompt: PromptEntry,
+        question: PromptEntry.PromptQuestion,
+        questionIndex: Int,
+        option: PromptEntry.PromptOption,
+        text: String
+    ) {
+        updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+            state.customResponses[questionIndex] = text
+            if !text.trimmedAskPromptText.isEmpty {
+                if question.multiSelect {
+                    var selectedIDs = state.selections[questionIndex] ?? []
+                    selectedIDs.insert(option.id)
+                    state.selections[questionIndex] = selectedIDs
+                } else {
+                    state.selections[questionIndex] = [option.id]
+                }
+            }
+        }
+    }
+
+    func askUserQuestionMouseActivationBehavior(
+        question: PromptEntry.PromptQuestion,
+        option: PromptEntry.PromptOption
+    ) -> AppKitComposerOverlayOptionRowView.MouseActivationBehavior {
+        if question.multiSelect || option.isCustomResponse {
+            return .select
+        }
+        return .submitSelection
     }
 
     func askUserQuestionOverlayState(for prompt: PromptEntry) -> AskUserQuestionOverlayState {
@@ -212,15 +231,17 @@ extension ChatView {
         return state
     }
 
+    @discardableResult
     func updateAskUserQuestionOverlayState(
         promptID: String,
         questionCount: Int,
         _ update: (inout AskUserQuestionOverlayState) -> Void
-    ) {
+    ) -> AskUserQuestionOverlayState {
         var state = askUserQuestionOverlayStates[promptID] ?? AskUserQuestionOverlayState()
         update(&state)
         state.currentQuestionIndex = clampedQuestionIndex(state.currentQuestionIndex, questionCount: questionCount)
         askUserQuestionOverlayStates[promptID] = state
+        return state
     }
 
     func navigateAskUserQuestion(promptID: String, delta: Int, questionCount: Int) {
@@ -257,15 +278,19 @@ extension ChatView {
             return
         }
 
-        updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+        let updatedState = updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
             state.select(option: option, for: question, at: questionIndex, togglesMultiSelect: false)
         }
 
-        advanceOrSubmitAskUserQuestionPrompt(prompt, submitWhenComplete: true)
+        advanceOrSubmitAskUserQuestionPrompt(prompt, state: updatedState, submitWhenComplete: true)
     }
 
-    func advanceOrSubmitAskUserQuestionPrompt(_ prompt: PromptEntry, submitWhenComplete: Bool = false) {
-        let state = askUserQuestionOverlayState(for: prompt)
+    func advanceOrSubmitAskUserQuestionPrompt(
+        _ prompt: PromptEntry,
+        state providedState: AskUserQuestionOverlayState? = nil,
+        submitWhenComplete: Bool = false
+    ) {
+        let state = providedState ?? askUserQuestionOverlayState(for: prompt)
         let questionIndex = clampedQuestionIndex(state.currentQuestionIndex, questionCount: prompt.questions.count)
         guard let question = prompt.questions[safe: questionIndex],
               state.isQuestionAnswered(question, at: questionIndex) else {

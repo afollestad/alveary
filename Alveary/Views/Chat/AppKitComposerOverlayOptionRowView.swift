@@ -4,6 +4,8 @@ private typealias Metrics = AppKitComposerOverlayMetrics
 
 @MainActor
 final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
+    enum MouseActivationBehavior { case select, submitSelection }
+
     struct Configuration {
         let id: String
         let indexText: String
@@ -22,6 +24,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         let verticalPadding: CGFloat
         let customFieldHeight: CGFloat
         let usesInlineCustomPlaceholder: Bool
+        let mouseActivationBehavior: MouseActivationBehavior
         let onSelect: () -> Void
         let onSubmitSelection: (() -> Void)?
         let onCustomTextChanged: (String) -> Void
@@ -44,6 +47,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             verticalPadding: CGFloat = Metrics.optionVerticalPadding,
             customFieldHeight: CGFloat = Metrics.customFieldHeight,
             usesInlineCustomPlaceholder: Bool = false,
+            mouseActivationBehavior: MouseActivationBehavior = .select,
             onSelect: @escaping () -> Void,
             onSubmitSelection: (() -> Void)? = nil,
             onCustomTextChanged: @escaping (String) -> Void = { _ in }
@@ -65,6 +69,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             self.verticalPadding = verticalPadding
             self.customFieldHeight = customFieldHeight
             self.usesInlineCustomPlaceholder = usesInlineCustomPlaceholder
+            self.mouseActivationBehavior = mouseActivationBehavior
             self.onSelect = onSelect
             self.onSubmitSelection = onSubmitSelection
             self.onCustomTextChanged = onCustomTextChanged
@@ -91,13 +96,8 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
     var isHovering = false
     var isPressed = false
 
-    var configurationID: String {
-        configuration?.id ?? ""
-    }
-
-    var configurationIsFocused: Bool {
-        configuration?.isFocused == true
-    }
+    var configurationID: String { configuration?.id ?? "" }
+    var configurationIsFocused: Bool { configuration?.isFocused == true }
 
     var containsKeyboardFocus: Bool {
         guard let firstResponder = window?.firstResponder else {
@@ -109,19 +109,14 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             (firstResponder as? NSView)?.isDescendant(of: self) == true
     }
 
-    var keyViewSequence: [NSView] {
-        customField.isHidden ? [self] : [customField]
-    }
+    var keyViewSequence: [NSView] { customField.isHidden ? [self] : [customField] }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { true }
@@ -221,7 +216,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             return
         }
         if event.specialKey == .carriageReturn {
-            performSubmitSelectionFromKeyboard()
+            performSubmitSelection()
             return
         }
         if onKeyEvent?(event) == true {
@@ -241,11 +236,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         isPressed = false
         needsDisplay = true
         if releasedInside {
-            if configuration?.customPlaceholder != nil {
-                focusPreferredTarget()
-            } else {
-                configuration?.onSelect()
-            }
+            performMouseActivation()
         }
     }
 
@@ -425,9 +416,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))
     }
 
-    private var customFieldHeight: CGFloat {
-        configuration?.customFieldHeight ?? Metrics.customFieldHeight
-    }
+    private var customFieldHeight: CGFloat { configuration?.customFieldHeight ?? Metrics.customFieldHeight }
 }
 extension AppKitComposerOverlayOptionRowView {
     func measuredHeight(width: CGFloat) -> CGFloat {
@@ -458,7 +447,7 @@ extension AppKitComposerOverlayOptionRowView {
         configuration?.onSelect()
     }
 
-    func performSubmitSelectionFromKeyboard() {
+    func performSubmitSelection() {
         guard configuration?.isEnabled == true else {
             return
         }
@@ -467,6 +456,22 @@ extension AppKitComposerOverlayOptionRowView {
             return
         }
         performSelectionFromKeyboard()
+    }
+
+    func performMouseActivation() {
+        guard configuration?.isEnabled == true else {
+            return
+        }
+        if configuration?.customPlaceholder != nil {
+            focusPreferredTarget()
+            return
+        }
+        switch configuration?.mouseActivationBehavior {
+        case .submitSelection:
+            performSubmitSelection()
+        case .select, nil:
+            configuration?.onSelect()
+        }
     }
 
     func focusPreferredTarget() {
@@ -490,11 +495,3 @@ extension AppKitComposerOverlayOptionRowView {
         isPressed = false
     }
 }
-
-#if DEBUG
-extension AppKitComposerOverlayOptionRowView {
-    var isHoveringForTesting: Bool {
-        isHovering
-    }
-}
-#endif

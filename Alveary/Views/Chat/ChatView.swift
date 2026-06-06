@@ -129,7 +129,8 @@ struct ChatView: View {
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         transcriptTypography: TranscriptTypography,
-        appState: AppState
+        appState: AppState,
+        initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     ) {
         self.viewModel = viewModel
         self.conversation = conversation
@@ -152,6 +153,7 @@ struct ChatView: View {
         self.loadSkillCompletions = loadSkillCompletions
         self.transcriptTypography = transcriptTypography
         self.appState = appState
+        _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
 
         let conversationID = conversation.id
         _events = Query(

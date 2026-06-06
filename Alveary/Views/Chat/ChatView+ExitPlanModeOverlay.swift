@@ -153,6 +153,7 @@ extension ChatView {
             minimumHeight: AppKitComposerOverlayMetrics.compactOptionMinimumHeight,
             verticalPadding: AppKitComposerOverlayMetrics.compactOptionVerticalPadding,
             customFieldHeight: AppKitComposerOverlayMetrics.compactCustomFieldHeight,
+            mouseActivationBehavior: .submitSelection,
             onSelect: {
                 updateExitPlanModeOverlayState(toolUseId: approval.request.toolUseId) { state in
                     state.selection = .implement
