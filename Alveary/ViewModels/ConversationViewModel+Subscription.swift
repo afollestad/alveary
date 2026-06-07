@@ -149,12 +149,7 @@ private extension ConversationViewModel {
             }
 
             self.state.lastObservedEventIndex += pending.eventCount
-            if self.state.isHandingOffSession || self.state.failedSessionHandoffMessage != nil {
-                self.state.hiddenHandoffResponse.append(pending.text)
-                self.state.clearStreamingText()
-            } else {
-                self.state.appendStreamingChunk(pending.text)
-            }
+            self.handleEvent(.messageChunk(text: pending.text, parentToolUseId: nil))
             self.recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: token)
             return true
         }
