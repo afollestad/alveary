@@ -155,6 +155,30 @@ enum CenteredTranscriptNoteKind: Equatable {
     }
 }
 
+enum ToolContentPreviewOrigin: Equatable {
+    case knownMarkdownMutation
+    case exitPlanModeFollowUp
+}
+
+struct ToolContentPreview: Equatable {
+    let content: String
+    let language: String
+    let baseURL: URL?
+    let origin: ToolContentPreviewOrigin
+
+    init(
+        content: String,
+        language: String,
+        baseURL: URL?,
+        origin: ToolContentPreviewOrigin = .knownMarkdownMutation
+    ) {
+        self.content = content
+        self.language = language
+        self.baseURL = baseURL
+        self.origin = origin
+    }
+}
+
 struct ToolEntry: Identifiable, Equatable {
     let id: String
     let name: String
@@ -167,6 +191,35 @@ struct ToolEntry: Identifiable, Equatable {
     let isImage: Bool
     let noOutputExpected: Bool
     let isError: Bool
+    let previewOverride: ToolContentPreview?
+
+    init(
+        id: String,
+        name: String,
+        summary: String,
+        input: String,
+        output: String?,
+        stderr: String?,
+        isComplete: Bool,
+        isInterrupted: Bool,
+        isImage: Bool,
+        noOutputExpected: Bool,
+        isError: Bool,
+        previewOverride: ToolContentPreview? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.summary = summary
+        self.input = input
+        self.output = output
+        self.stderr = stderr
+        self.isComplete = isComplete
+        self.isInterrupted = isInterrupted
+        self.isImage = isImage
+        self.noOutputExpected = noOutputExpected
+        self.isError = isError
+        self.previewOverride = previewOverride
+    }
 }
 
 struct SubAgentEntry: Identifiable, Equatable {

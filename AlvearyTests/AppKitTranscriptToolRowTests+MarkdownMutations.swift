@@ -99,6 +99,90 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertTrue(row.markdownMutationRenderedText.contains("First"))
         XCTAssertTrue(row.markdownMutationRenderedText.contains("Second"))
     }
+
+    func testMarkdownEditPreviewOverrideRendersFullDocument() {
+        let row = AppKitTranscriptInlineToolRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        row.configure(
+            .init(
+                tool: markdownMutationTool(
+                    name: "Edit",
+                    summary: "Edit `plan.md`",
+                    input: #"{"file_path":"/tmp/plan.md","old_string":"- Existing","new_string":"- Existing\n- Follow-up"}"#,
+                    output: "Updated",
+                    isComplete: true,
+                    previewOverride: ToolContentPreview(
+                        content: "# Plan\n\n- Existing\n- Follow-up",
+                        language: "markdown",
+                        baseURL: URL(fileURLWithPath: "/tmp")
+                    )
+                ),
+                initiallyExpanded: true
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Plan"))
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Existing"))
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Follow-up"))
+    }
+
+    func testMarkdownEditDetailsRefreshWhenPreviewOverrideArrivesForReusedCollapsedRow() throws {
+        let row = AppKitTranscriptInlineToolRowView()
+        let input = #"{"file_path":"/tmp/plan.md","old_string":"- Existing","new_string":"- Existing\n- Follow-up"}"#
+        row.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        row.configure(
+            .init(
+                tool: markdownMutationTool(
+                    id: "edit-1",
+                    name: "Edit",
+                    summary: "Edit `plan.md`",
+                    input: input,
+                    output: "Updated",
+                    isComplete: true
+                )
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+        row.prewarmDetailsIfNeededForTesting()
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+        XCTAssertEqual(row.prewarmedDetailsToolForTesting?.previewOverride, nil)
+        XCTAssertFalse(row.prewarmedDetailsRenderedTextForTesting.contains("Plan"))
+
+        row.configure(
+            .init(
+                tool: markdownMutationTool(
+                    id: "edit-1",
+                    name: "Edit",
+                    summary: "Edit `plan.md`",
+                    input: input,
+                    output: "Updated",
+                    isComplete: true,
+                    previewOverride: ToolContentPreview(
+                        content: "# Plan\n\n- Existing\n- Follow-up",
+                        language: "markdown",
+                        baseURL: nil
+                    )
+                )
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+        row.prewarmDetailsIfNeededForTesting()
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.markdownMutationDescendants(of: AppKitMarkdownView.self).isEmpty)
+        XCTAssertNotNil(row.prewarmedDetailsToolForTesting?.previewOverride)
+        XCTAssertTrue(row.prewarmedDetailsRenderedTextForTesting.contains("Plan"))
+
+        row.setExpanded(true)
+        row.layoutSubtreeIfNeeded()
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Plan"))
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Existing"))
+        XCTAssertTrue(row.markdownMutationRenderedText.contains("Follow-up"))
+    }
 }
 
 private func markdownMutationTool(
@@ -107,7 +191,8 @@ private func markdownMutationTool(
     summary: String,
     input: String,
     output: String? = nil,
-    isComplete: Bool = false
+    isComplete: Bool = false,
+    previewOverride: ToolContentPreview? = nil
 ) -> ToolEntry {
     ToolEntry(
         id: id,
@@ -120,7 +205,8 @@ private func markdownMutationTool(
         isInterrupted: false,
         isImage: false,
         noOutputExpected: false,
-        isError: false
+        isError: false,
+        previewOverride: previewOverride
     )
 }
 

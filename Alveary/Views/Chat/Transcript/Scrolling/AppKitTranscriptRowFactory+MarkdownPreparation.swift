@@ -21,8 +21,9 @@ extension AppKitTranscriptRowFactory {
             return approvalMarkdownPreparationRequests(id: id, approvals: [approval], configuration: configuration)
         case .toolApprovalBatch(let id, let approvals, _):
             return approvalMarkdownPreparationRequests(id: id, approvals: approvals, configuration: configuration)
+        case .standaloneTool(let id, let tool):
+            return exitPlanModeFollowUpMarkdownPreparationRequest(id: id, tool: tool)
         case .toolGroup,
-             .standaloneTool,
              .subAgentBlock,
              .taskListBlock,
              .promptBlock,
@@ -58,5 +59,19 @@ extension AppKitTranscriptRowFactory {
             return []
         }
         return [markdownPreparationRequest(id: "\(id)-plan", role: .assistant, markdown: planMarkdown)]
+    }
+
+    private func exitPlanModeFollowUpMarkdownPreparationRequest(
+        id: String,
+        tool: ToolEntry
+    ) -> [AppKitTranscriptMarkdownPrepRequest] {
+        guard tool.previewOverride?.origin == .exitPlanModeFollowUp,
+              let snapshot = MinimalToolContent.snapshot(for: tool),
+              snapshot.language == "markdown",
+              let content = snapshot.content,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return []
+        }
+        return [markdownPreparationRequest(id: "\(id)-plan-preview", role: .assistant, markdown: content)]
     }
 }

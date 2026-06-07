@@ -3,6 +3,7 @@ import Foundation
 extension ChatItemGrouper {
     func appendToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
         let approval = approvalWithFallbackPlanIfNeeded(approval)
+        rememberExitPlanModePlanMarkdownIfNeeded(approval)
 
         if updateExistingRenderedApproval(approval, status: status) {
             return

@@ -334,3 +334,53 @@ extension AppKitTranscriptInlineToolRowView: AppKitTranscriptFrameAnimatable {
         clipView.finishVisibleHeightAnimation()
     }
 }
+
+#if DEBUG
+extension AppKitTranscriptInlineToolRowView {
+    var prewarmedDetailsRenderedTextForTesting: String {
+        detailsView.renderedTextForPrewarmTesting
+    }
+
+    var prewarmedDetailsToolForTesting: ToolEntry? {
+        prewarmedDetailsConfiguration?.tool
+    }
+
+    func prewarmDetailsIfNeededForTesting() {
+        guard let configuration,
+              configuration.tool.name != "Skill",
+              !isExpanded else {
+            return
+        }
+        let detailsConfiguration = AppKitTranscriptToolDetailsView.Configuration(
+            tool: configuration.tool,
+            typography: configuration.typography
+        )
+        guard prewarmedDetailsConfiguration != detailsConfiguration else {
+            return
+        }
+        detailsPrewarmTask?.cancel()
+        detailsPrewarmTask = nil
+        isPrewarmingDetails = true
+        configureDetailsView(detailsConfiguration)
+        prewarmDetailsLayoutIfPossible()
+        isPrewarmingDetails = false
+    }
+}
+
+private extension NSView {
+    var renderedTextForPrewarmTesting: String {
+        subviews.flatMap { child -> [String] in
+            let childText = child.renderedTextForPrewarmTesting
+            var values = childText.isEmpty ? [] : [childText]
+            if let field = child as? NSTextField {
+                values.insert(field.stringValue, at: 0)
+            }
+            if let markdownText = child as? AppKitMarkdownTextView {
+                values.insert(markdownText.string, at: 0)
+            }
+            return values
+        }
+        .joined(separator: "\n")
+    }
+}
+#endif

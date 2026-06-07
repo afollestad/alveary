@@ -64,7 +64,7 @@ final class AppKitTranscriptRowFactory {
         case .toolGroup(let id, let tools):
             return [toolGroupRow(id: id, tools: tools, configuration: configuration)]
         case .standaloneTool(let id, let tool):
-            return [standaloneToolRow(id: id, tool: tool, configuration: configuration)]
+            return standaloneToolRows(id: id, tool: tool, configuration: configuration)
         case .subAgentBlock(let id, let agents):
             return [subAgentRow(id: id, agents: agents, configuration: configuration)]
         case .taskListBlock(let id, let tasks):
@@ -158,6 +158,17 @@ final class AppKitTranscriptRowFactory {
         return .init(id: id, view: view)
     }
 
+    private func standaloneToolRows(
+        id: String,
+        tool: ToolEntry,
+        configuration: Configuration
+    ) -> [AppKitTranscriptLayoutRow] {
+        if let previewRow = exitPlanModeFollowUpPreviewRow(id: id, tool: tool, configuration: configuration) {
+            return [previewRow]
+        }
+        return [standaloneToolRow(id: id, tool: tool, configuration: configuration)]
+    }
+
     private func standaloneToolRow(
         id: String,
         tool: ToolEntry,
@@ -178,6 +189,27 @@ final class AppKitTranscriptRowFactory {
             )
         )
         return .init(id: id, view: view)
+    }
+
+    private func exitPlanModeFollowUpPreviewRow(
+        id: String,
+        tool: ToolEntry,
+        configuration: Configuration
+    ) -> AppKitTranscriptLayoutRow? {
+        guard tool.previewOverride?.origin == .exitPlanModeFollowUp,
+              let snapshot = MinimalToolContent.snapshot(for: tool),
+              snapshot.language == "markdown",
+              let content = snapshot.content,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return textBubbleRow(
+            id: "\(id)-plan-preview",
+            role: .assistant,
+            markdown: content,
+            markdownBaseURL: snapshot.baseURL,
+            configuration: configuration
+        )
     }
 
     private func subAgentRow(
@@ -272,6 +304,7 @@ final class AppKitTranscriptRowFactory {
         id: String,
         role: AppKitTranscriptTextBubbleRowView.Role,
         markdown: String,
+        markdownBaseURL: URL? = nil,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptTextBubbleRowView.self)
@@ -292,7 +325,7 @@ final class AppKitTranscriptRowFactory {
                 markdown: markdown,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography.appKitMarkdownTypography,
-                markdownBaseURL: configuration.markdownBaseURL,
+                markdownBaseURL: markdownBaseURL ?? configuration.markdownBaseURL,
                 showsRetry: role == .user && configuration.retryableFailedMessageIDs.contains(id),
                 initiallyExpanded: configuration.expandedRowIDs.contains(id)
             )

@@ -26,6 +26,8 @@ final class ChatItemGrouper {
     var centeredNoteToolKinds: [String: CenteredTranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
     var currentToolApprovalBatch: ToolApprovalBatchState?
+    var markdownSnapshotsByPath: [String: MarkdownSnapshot] = [:]
+    var exitPlanModePlanMarkdowns: [String] = []
     var subAgentProgressRefreshTask: Task<Void, Never>?
 
     func append(event: ConversationEventRecord) {

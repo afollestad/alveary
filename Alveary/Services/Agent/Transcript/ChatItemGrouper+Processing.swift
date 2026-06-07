@@ -68,6 +68,8 @@ extension ChatItemGrouper {
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
         currentToolApprovalBatch = nil
+        markdownSnapshotsByPath = [:]
+        exitPlanModePlanMarkdowns = []
     }
 
     func removeTrailingPendingBlocksIfNeeded() {
@@ -137,7 +139,8 @@ extension ChatItemGrouper {
     }
 
     func completedToolEntry(from tool: ToolEntry, event: ConversationEventRecord) -> ToolEntry {
-        ToolEntry(
+        let previewOverride = markdownMutationPreview(for: tool, event: event)
+        return ToolEntry(
             id: tool.id,
             name: tool.name,
             summary: tool.summary,
@@ -148,7 +151,8 @@ extension ChatItemGrouper {
             isInterrupted: event.toolOutputInterrupted,
             isImage: event.toolOutputIsImage,
             noOutputExpected: event.toolOutputNoOutputExpected,
-            isError: event.isError
+            isError: event.isError,
+            previewOverride: previewOverride
         )
     }
 }
@@ -395,7 +399,8 @@ private extension ChatItemGrouper {
             isInterrupted: tool.isInterrupted,
             isImage: tool.isImage,
             noOutputExpected: tool.noOutputExpected,
-            isError: tool.isError
+            isError: tool.isError,
+            previewOverride: tool.previewOverride
         )
     }
 
@@ -411,7 +416,8 @@ private extension ChatItemGrouper {
             isInterrupted: false,
             isImage: false,
             noOutputExpected: false,
-            isError: true
+            isError: true,
+            previewOverride: nil
         )
     }
 }

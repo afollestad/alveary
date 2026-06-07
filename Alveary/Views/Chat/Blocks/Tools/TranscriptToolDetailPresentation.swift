@@ -23,6 +23,13 @@ enum MinimalToolContent {
             }
             return Snapshot(content: preview.content, language: preview.language, baseURL: preview.baseURL)
         case "Edit", "MultiEdit":
+            if let preview = tool.previewOverride {
+                return Snapshot(
+                    content: ToolContentPreviewLimiter.bounded(preview.content),
+                    language: preview.language,
+                    baseURL: preview.baseURL
+                )
+            }
             guard let preview = FileEditToolContent.extract(from: tool) else {
                 return nil
             }
@@ -68,9 +75,9 @@ enum WriteToolContent {
     }
 }
 
-/// Extracts markdown replacement previews from file-edit inputs. `Edit` and
-/// `MultiEdit` do not carry the full post-edit file, so this intentionally
-/// previews only the inserted/replacement markdown the provider supplied.
+/// Extracts markdown replacement previews from file-edit inputs. Known markdown
+/// mutations may carry a reconstructed full-document preview on `ToolEntry`; this
+/// fallback intentionally previews only the provider-supplied replacement snippets.
 enum FileEditToolContent {
     struct Preview: Equatable {
         let filePath: String
