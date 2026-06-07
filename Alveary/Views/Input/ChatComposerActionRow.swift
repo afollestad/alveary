@@ -193,6 +193,13 @@ final class ChatComposerActionRowView: NSView {
         layoutArrangedSubviews()
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            closePlusMenu()
+        }
+    }
+
     func configure(_ configuration: Configuration) {
         self.configuration = configuration
         applyConfiguration()
@@ -309,6 +316,9 @@ final class ChatComposerActionRowView: NSView {
             return
         }
 
+        if configuration.areControlsDisabled {
+            closePlusMenu()
+        }
         applyMenuConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
         applyAccessoryConfiguration(configuration)

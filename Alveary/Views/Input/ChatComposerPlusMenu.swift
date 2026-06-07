@@ -43,6 +43,14 @@ final class ComposerPlusButton: NSView {
         needsDisplay = true
     }
 
+    func releaseMenuFocusIfNeeded() {
+        isPressed = false
+        if window?.firstResponder === self {
+            window?.makeFirstResponder(nil)
+        }
+        needsDisplay = true
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
     }

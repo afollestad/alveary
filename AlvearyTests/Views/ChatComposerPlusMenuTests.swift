@@ -95,6 +95,78 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         XCTAssertEqual(addFilesCount, 1)
         XCTAssertEqual(planModeChanges, [true])
     }
+
+    func testPopoverDidCloseReleasesPlusButtonFocus() throws {
+        let fixture = makeWindowBackedActionRow()
+        let row = fixture.row
+        let plusButton = try XCTUnwrap(row.descendants(of: ComposerPlusButton.self).first)
+        let window = fixture.window
+        XCTAssertTrue(window.makeFirstResponder(plusButton))
+
+        let popover = NSPopover()
+        row.plusPopover = popover
+
+        row.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: popover))
+
+        XCTAssertFalse(window.firstResponder === plusButton)
+        XCTAssertNil(row.plusPopover)
+    }
+
+    func testPopoverDidCloseLeavesUnrelatedFirstResponderIntact() throws {
+        let fixture = makeWindowBackedActionRow()
+        let row = fixture.row
+        let focusTarget = FocusTargetView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        row.addSubview(focusTarget)
+        let window = fixture.window
+        XCTAssertTrue(window.makeFirstResponder(focusTarget))
+
+        let popover = NSPopover()
+        row.plusPopover = popover
+
+        row.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: popover))
+
+        XCTAssertTrue(window.firstResponder === focusTarget)
+        XCTAssertNil(row.plusPopover)
+    }
+
+    func testStalePopoverDidCloseDoesNotClearCurrentPopover() throws {
+        let fixture = makeWindowBackedActionRow()
+        let row = fixture.row
+        let plusButton = try XCTUnwrap(row.descendants(of: ComposerPlusButton.self).first)
+        let window = fixture.window
+        XCTAssertTrue(window.makeFirstResponder(plusButton))
+
+        let currentPopover = NSPopover()
+        row.plusPopover = currentPopover
+
+        row.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: NSPopover()))
+
+        XCTAssertTrue(row.plusPopover === currentPopover)
+        XCTAssertTrue(window.firstResponder === plusButton)
+    }
+
+    func testDisablingControlsReleasesPlusButtonFocusWithoutPopover() throws {
+        let fixture = makeWindowBackedActionRow()
+        let row = fixture.row
+        let plusButton = try XCTUnwrap(row.descendants(of: ComposerPlusButton.self).first)
+        let window = fixture.window
+        XCTAssertNil(row.plusPopover)
+        XCTAssertTrue(window.makeFirstResponder(plusButton))
+
+        row.configure(makeConfiguration(mode: .idle, areControlsDisabled: true))
+
+        XCTAssertFalse(window.firstResponder === plusButton)
+        XCTAssertNil(row.plusPopover)
+    }
+}
+
+private final class FocusTargetView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+}
+
+private struct WindowBackedActionRow {
+    let row: ChatComposerActionRowView
+    let window: NSWindow
 }
 
 private extension NSView {
@@ -107,6 +179,16 @@ private extension NSView {
             return matches
         }
     }
+}
+
+@MainActor
+private func makeWindowBackedActionRow() -> WindowBackedActionRow {
+    let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+    row.configure(makeConfiguration(mode: .idle))
+    let window = NSWindow(contentRect: row.frame, styleMask: .borderless, backing: .buffered, defer: false)
+    window.contentView = row
+    row.layoutSubtreeIfNeeded()
+    return WindowBackedActionRow(row: row, window: window)
 }
 
 private func keyEvent(keyCode: UInt16) -> NSEvent {
