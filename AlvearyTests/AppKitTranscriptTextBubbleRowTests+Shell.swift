@@ -130,6 +130,28 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertEqual(row.intrinsicContentSize.height, initialCollapsedHeight, accuracy: 0.5)
     }
 
+    func testExpansionReportsUserHeightChangeBeforeInvalidation() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        var events: [String] = []
+        row.onUserInitiatedHeightChange = { events.append("user") }
+        row.onHeightInvalidated = { events.append("height") }
+        row.frame = NSRect(x: 0, y: 0, width: 520, height: 2_000)
+        row.configure(
+            .init(
+                id: "assistant-long",
+                role: .assistant,
+                markdown: (0..<30).map { "Long assistant line \($0)" }.joined(separator: "\n\n"),
+                bubbleMaxWidth: 480
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+        events = []
+
+        row.expansionButton.performClick(nil)
+
+        XCTAssertEqual(Array(events.prefix(2)), ["user", "height"])
+    }
+
     func testExpansionStateEchoDoesNotResetCollapsedMarkdownMetrics() throws {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 520, height: 2_000)

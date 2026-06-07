@@ -27,6 +27,7 @@ final class AppKitTranscriptRowFactory {
         // The Boolean carries animation intent: expansion rows animate, while
         // streaming rows opt out so stale AppKit frame animations cannot rewind text.
         var onRowHeightInvalidated: (String, Bool) -> Void = { _, _ in }
+        var onUserInitiatedHeightChange: () -> Void = {}
         var onOpenMarkdownLink: (URL) -> Void = { _ in }
         var onRetryFailedUserMessage: (String) -> Void = { _ in }
         var onRowExpansionChanged: (String, Bool) -> Void = { _, _ in }
@@ -142,6 +143,7 @@ final class AppKitTranscriptRowFactory {
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptToolGroupView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
@@ -163,6 +165,7 @@ final class AppKitTranscriptRowFactory {
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptInlineToolRowView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
@@ -184,6 +187,7 @@ final class AppKitTranscriptRowFactory {
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptSubAgentBlockView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
@@ -273,6 +277,7 @@ final class AppKitTranscriptRowFactory {
         let view = cachedView(for: id, as: AppKitTranscriptTextBubbleRowView.self)
         view.hydratesMarkdownImmediately = false
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)

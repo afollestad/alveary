@@ -14,6 +14,11 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            applyUserInitiatedHeightChangeHandler()
+        }
+    }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             applyMarkdownLinkHandler()
@@ -170,6 +175,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         if let view = view as? AppKitTranscriptDetailCodeBlockView {
             view.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         } else if let view = view as? AppKitTranscriptToolOutputView {
+            view.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             view.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         } else if let view = view as? AppKitTranscriptHighlightedCodeBlockView {
             view.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
@@ -183,6 +189,11 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     private func applyMarkdownLinkHandler() {
         contentViews.compactMap { $0 as? AppKitTranscriptMarkdownToolContentView }
             .forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
+    }
+
+    private func applyUserInitiatedHeightChangeHandler() {
+        contentViews.compactMap { $0 as? AppKitTranscriptToolOutputView }
+            .forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
     }
 
     private func layoutContent() {

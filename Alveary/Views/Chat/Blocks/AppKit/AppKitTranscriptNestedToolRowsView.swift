@@ -9,6 +9,11 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
+        }
+    }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             rowViews.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
@@ -60,6 +65,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             rowViewsByToolID[tool.id] = row
             row.usesLocalClipAnimationForExpansion = true
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+            row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
             row.configure(.init(tool: tool, typography: configuration.typography))
             if row.superview == nil {

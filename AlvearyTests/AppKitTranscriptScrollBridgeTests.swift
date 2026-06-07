@@ -361,6 +361,52 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         XCTAssertLessThan(container.visibleBottomY, container.documentHeight - 1)
     }
 
+    func testToolExpansionEchoPreservesScrollOffset() async throws {
+        let container = makeContainer()
+        let window = NSWindow(contentRect: container.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView?.addSubview(container)
+        container.layoutSubtreeIfNeeded()
+        let coordinator = AppKitTranscriptScrollBridgeCoordinator()
+        let items = (0..<8).map { index in
+            ChatItem.assistantMessage(id: "assistant-\(index)", text: String(repeating: "Line \(index) ", count: 40))
+        } + [
+            ChatItem.standaloneTool(id: "tool", tool: bridgeTool())
+        ]
+        var userHeightChangeCount = 0
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(
+                bubbleMaxWidth: 220,
+                onUserInitiatedHeightChange: { userHeightChangeCount += 1 }
+            ),
+            isFollowing: true,
+            scrollToBottomRequest: 1
+        )
+        await container.waitForRow(id: "tool")
+        container.scrollToBottom()
+        let toolRow = try XCTUnwrap(container.rowView(id: "tool") as? AppKitTranscriptInlineToolRowView)
+
+        toolRow.setExpanded(true)
+        let offsetAfterExpansion = container.scrollOffsetY
+
+        coordinator.update(
+            container: container,
+            items: items,
+            rowConfiguration: .init(
+                bubbleMaxWidth: 220,
+                expandedRowIDs: ["tool"],
+                onUserInitiatedHeightChange: { userHeightChangeCount += 1 }
+            ),
+            isFollowing: true,
+            scrollToBottomRequest: 1
+        )
+
+        XCTAssertEqual(userHeightChangeCount, 1)
+        XCTAssertEqual(container.scrollOffsetY, offsetAfterExpansion, accuracy: 0.5)
+    }
+
     func testCoordinatorForwardsScrollMetrics() async throws {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
@@ -424,4 +470,20 @@ private extension AppKitTranscriptScrollContainerView {
             $0.identifier?.rawValue == id
         }
     }
+}
+
+private func bridgeTool() -> ToolEntry {
+    ToolEntry(
+        id: "tool-use",
+        name: "Bash",
+        summary: "Running `swift test`",
+        input: #"{"command":"swift test"}"#,
+        output: (1...20).map { "line \($0)" }.joined(separator: "\n"),
+        stderr: nil,
+        isComplete: true,
+        isInterrupted: false,
+        isImage: false,
+        noOutputExpected: false,
+        isError: false
+    )
 }

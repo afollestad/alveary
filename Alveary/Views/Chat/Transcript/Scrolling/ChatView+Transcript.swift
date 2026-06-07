@@ -150,6 +150,11 @@ extension ChatTranscriptView {
             newMetrics: newMetrics
         )
     }
+
+    func cancelPendingScrollForUserLocalHeightChange() {
+        pendingProgrammaticScrollMode = nil
+        pendingProgrammaticScrollTimeoutToken = nil
+    }
 }
 private extension ChatTranscriptView {
     func issueImmediateBottomScroll() {

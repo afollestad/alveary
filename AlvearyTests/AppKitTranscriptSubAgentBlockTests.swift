@@ -130,6 +130,36 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertFalse(block.renderedText.contains("nested result line 15"))
     }
 
+    func testNestedAgentExpansionReportsUserHeightChangeBeforeInvalidation() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        var events: [String] = []
+        block.onUserInitiatedHeightChange = { events.append("user") }
+        block.onHeightInvalidated = { events.append("height") }
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                agents: [
+                    agent(
+                        id: "agent-one",
+                        description: "Inspect transcript rows",
+                        tools: [tool(id: "read-1", name: "Read", summary: "Reading AGENTS.md")],
+                        result: (0..<16).map { "nested result line \($0)" }.joined(separator: "\n")
+                    ),
+                    agent(id: "agent-two", description: "Search code paths", result: "Search result")
+                ],
+                initiallyExpanded: true
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
+        let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        events = []
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+
+        XCTAssertEqual(Array(events.prefix(2)), ["user", "height"])
+    }
+
     func testNestedAgentExpandedStateSurvivesParentRefresh() throws {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)

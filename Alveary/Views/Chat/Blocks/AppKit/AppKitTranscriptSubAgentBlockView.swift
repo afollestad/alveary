@@ -20,6 +20,12 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            singleAgentContentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+            nestedAgentsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        }
+    }
     var onExpansionChanged: ((Bool) -> Void)?
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
@@ -78,6 +84,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         guard isExpanded != expanded else {
             return
         }
+        onUserInitiatedHeightChange?()
         isExpanded = expanded
         rebuildAndPrelayoutExpandedContent()
         needsLayout = true
@@ -101,6 +108,8 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         singleAgentContentView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedAgentsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        singleAgentContentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        nestedAgentsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         singleAgentContentView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedAgentsView.onOpenMarkdownLink = onOpenMarkdownLink
         addSubview(clipView)
@@ -137,10 +146,12 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         if configuration.agents.count == 1, let agent = configuration.agents.first {
             clipView.addSubview(singleAgentContentView)
             singleAgentContentView.onOpenMarkdownLink = onOpenMarkdownLink
+            singleAgentContentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             singleAgentContentView.configure(.init(agent: agent, typography: configuration.typography))
         } else {
             clipView.addSubview(nestedAgentsView)
             nestedAgentsView.onOpenMarkdownLink = onOpenMarkdownLink
+            nestedAgentsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             nestedAgentsView.configure(.init(agents: configuration.agents, typography: configuration.typography))
         }
     }
@@ -253,6 +264,11 @@ final class AppKitSubAgentExpandedContentView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            toolsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        }
+    }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             toolsView.onOpenMarkdownLink = onOpenMarkdownLink
@@ -309,6 +325,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
         toolsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         resultCodeView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         resultMarkdownView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        toolsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         toolsView.onOpenMarkdownLink = onOpenMarkdownLink
         resultMarkdownView.onOpenMarkdownLink = onOpenMarkdownLink
     }
@@ -325,6 +342,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
         if !configuration.agent.tools.isEmpty {
             addSubview(toolsView)
             toolsView.onOpenMarkdownLink = onOpenMarkdownLink
+            toolsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             toolsView.configure(.init(tools: configuration.agent.tools, typography: configuration.typography))
         }
 

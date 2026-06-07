@@ -16,6 +16,7 @@ final class AppKitTranscriptToolOutputView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)?
 
     private let codeBlock = AppKitTranscriptDetailCodeBlockView()
     private let showMoreButton = NSButton(title: "", target: nil, action: nil)
@@ -60,6 +61,7 @@ final class AppKitTranscriptToolOutputView: NSView {
         guard let configuration, isPaged else {
             return
         }
+        onUserInitiatedHeightChange?()
         visibleTailLines = min(visibleTailLines + pageStep(for: configuration.toolName), totalLineCount)
         updateRenderedContent()
         needsLayout = true

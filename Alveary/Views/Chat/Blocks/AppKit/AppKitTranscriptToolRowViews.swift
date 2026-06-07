@@ -21,6 +21,11 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            detailsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        }
+    }
     var onExpansionChanged: ((Bool) -> Void)?
     var usesLocalClipAnimationForExpansion = false
     var onOpenMarkdownLink: ((URL) -> Void)? {
@@ -92,6 +97,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             return
         }
         let previousHeight = measuredHeight()
+        onUserInitiatedHeightChange?()
         isExpanded = expanded
         if expanded {
             detailsPrewarmTask?.cancel()

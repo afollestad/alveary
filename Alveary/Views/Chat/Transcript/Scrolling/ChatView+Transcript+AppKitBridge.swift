@@ -47,6 +47,9 @@ extension ChatTranscriptView {
         configuration.actionContextID = workingDirectory ?? ""
         configuration.isPromptBusy = { !viewModel.canSubmitPromptAnswer(promptId: $0.id) }
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
+        configuration.onUserInitiatedHeightChange = {
+            cancelPendingScrollForUserLocalHeightChange()
+        }
         configuration.onOpenMarkdownLink = openAppKitMarkdownLink(_:)
         configuration.onRetryFailedUserMessage = { id in
             retryAction(for: id, isRetryable: true)?()

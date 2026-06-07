@@ -58,6 +58,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)?
     var onExpansionChanged: ((Bool) -> Void)?
     var onRetry: (() -> Void)?
     var onOpenMarkdownLink: ((URL) -> Void)? {
@@ -454,6 +455,10 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     @objc
     private func toggleExpansion() {
+        guard lastLayoutMetrics?.overflows ?? true else {
+            return
+        }
+        onUserInitiatedHeightChange?()
         isExpanded.toggle()
         updateExpansionButton()
         refreshLayoutMetricsForCurrentState()

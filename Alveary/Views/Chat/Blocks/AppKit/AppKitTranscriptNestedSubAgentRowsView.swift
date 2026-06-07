@@ -10,6 +10,11 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
+        }
+    }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             rowViews.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
@@ -60,6 +65,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             let row = rowViewsByAgentID[agent.id] ?? AppKitTranscriptSubAgentInlineRowView()
             rowViewsByAgentID[agent.id] = row
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+            row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
             row.configure(.init(agent: agent, typography: configuration.typography))
             if row.superview == nil {
@@ -125,6 +131,11 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        }
+    }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
@@ -149,6 +160,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         contentView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         contentView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         contentView.onOpenMarkdownLink = onOpenMarkdownLink
         addSubview(clipView)
         clipView.addSubview(headerView)
@@ -187,6 +199,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
             return
         }
         let previousHeight = measuredHeight()
+        onUserInitiatedHeightChange?()
         isExpanded = expanded
         rebuildAndPrelayoutExpandedContent()
         prepareLocalClipAnimationIfNeeded(from: previousHeight)
@@ -244,6 +257,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
                 clipView.addSubview(contentView)
             }
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
+            contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             contentView.configure(.init(agent: configuration.agent, typography: configuration.typography))
         } else {
             contentView.removeFromSuperview()

@@ -20,6 +20,12 @@ final class AppKitTranscriptToolGroupView: NSView {
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onUserInitiatedHeightChange: (() -> Void)? {
+        didSet {
+            singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+            nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        }
+    }
     var onExpansionChanged: ((Bool) -> Void)? {
         didSet {
             singleToolRow.onExpansionChanged = onExpansionChanged
@@ -84,6 +90,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         guard isExpanded != expanded else {
             return
         }
+        onUserInitiatedHeightChange?()
         isExpanded = expanded
         rebuildAndPrelayoutExpandedContent()
         needsLayout = true
@@ -108,8 +115,10 @@ final class AppKitTranscriptToolGroupView: NSView {
         singleToolRow.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedRowsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
+        singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         singleToolRow.onExpansionChanged = onExpansionChanged
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         addSubview(clipView)
     }
 
@@ -125,6 +134,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         if configuration.tools.count <= 1, let only = configuration.tools.first {
             clipView.addSubview(singleToolRow)
             singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
+            singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             singleToolRow.onExpansionChanged = onExpansionChanged
             singleToolRow.configure(
                 .init(tool: only, initiallyExpanded: isExpanded, typography: configuration.typography)
@@ -153,6 +163,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         if isExpanded {
             clipView.addSubview(nestedRowsView)
             nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+            nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             nestedRowsView.configure(.init(tools: configuration.tools, typography: configuration.typography))
         }
     }

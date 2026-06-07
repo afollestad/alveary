@@ -51,6 +51,36 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertFalse(renderedText(in: group).contains("nested output line 17"))
     }
 
+    func testNestedToolExpansionReportsUserHeightChangeBeforeInvalidation() throws {
+        let group = AppKitTranscriptToolGroupView()
+        var events: [String] = []
+        group.onUserInitiatedHeightChange = { events.append("user") }
+        group.onHeightInvalidated = { events.append("height") }
+        group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
+        group.configure(
+            .init(
+                tools: [
+                    nestedToolRowTool(
+                        id: "custom-1",
+                        name: "CustomTool",
+                        summary: "Running custom tool",
+                        output: (0..<18).map { "nested output line \($0)" }.joined(separator: "\n")
+                    ),
+                    nestedToolRowTool(id: "grep-1", name: "Grep", summary: "Searching for AppKit")
+                ],
+                initiallyExpanded: true
+            )
+        )
+        group.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(descendants(of: AppKitTranscriptNestedToolRowsView.self, in: group).first)
+        let firstNestedHeader = try XCTUnwrap(descendants(of: AppKitTranscriptToolHeaderRowView.self, in: nestedRows).first)
+        events = []
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+
+        XCTAssertEqual(Array(events.prefix(2)), ["user", "height"])
+    }
+
     func testNestedToolExpansionClipsColdContentDuringFirstAnimation() throws {
         let group = AppKitTranscriptToolGroupView()
         group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)

@@ -176,6 +176,22 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertFalse(view.renderedText.contains("10 /"))
     }
 
+    func testToolOutputPagingReportsUserHeightChangeBeforeInvalidation() {
+        let output = (1...20).map { "line \($0)" }.joined(separator: "\n")
+        let view = AppKitTranscriptToolOutputView()
+        var events: [String] = []
+        view.onUserInitiatedHeightChange = { events.append("user") }
+        view.onHeightInvalidated = { events.append("height") }
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(.init(toolName: "Bash", content: output))
+        view.layoutSubtreeIfNeeded()
+        events = []
+
+        view.showMore()
+
+        XCTAssertEqual(Array(events.prefix(2)), ["user", "height"])
+    }
+
     func testHighlightedCodeBlockForwardsVerticalScrollToAncestor() throws {
         let block = AppKitTranscriptHighlightedCodeBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 180, height: 400)
