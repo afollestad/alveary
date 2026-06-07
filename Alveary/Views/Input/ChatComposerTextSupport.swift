@@ -102,7 +102,7 @@ enum ChatComposerTextSupport {
         case "high":
             return "High"
         case "xhigh":
-            return "Extra high"
+            return "Extra High"
         case "max":
             return "Max"
         default:

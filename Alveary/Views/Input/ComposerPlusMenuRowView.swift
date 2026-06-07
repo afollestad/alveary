@@ -199,10 +199,10 @@ enum ComposerPlusMenuMetrics {
     static let dividerInset: CGFloat = 14
     static let dividerSpacing: CGFloat = 4
     static let iconLeading: CGFloat = 12
-    static let iconSlotSize: CGFloat = 16
-    static let iconPointSize: CGFloat = 15
+    @MainActor static var iconSlotSize: CGFloat { SidebarProjectRow.leadingIconWidth }
+    @MainActor static var iconPointSize: CGFloat { SidebarProjectRow.leadingIconFontSize }
     static let labelSpacing: CGFloat = 10
     static let trailingInset: CGFloat = 10
     static let trailingSpacing: CGFloat = 8
-    @MainActor static var itemFont: NSFont { NSFont.systemFont(ofSize: 14) }
+    @MainActor static var itemFont: NSFont { NSFont.preferredFont(forTextStyle: .body) }
 }

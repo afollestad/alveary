@@ -15,8 +15,8 @@ enum AgentModelOptionTestFixtures {
 
     static let xhigh = AgentCLIKit.AgentProviderOption(
         value: "xhigh",
-        label: "XHigh",
-        description: "Use xhigh reasoning effort."
+        label: "Extra High",
+        description: "Use extra high reasoning effort."
     )
 
     static let max = AgentCLIKit.AgentProviderOption(
