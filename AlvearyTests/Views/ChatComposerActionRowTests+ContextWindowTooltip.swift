@@ -49,6 +49,17 @@ extension ChatComposerActionRowTests {
         XCTAssertNotNil(fields.first { $0.stringValue == "Session spend: $0.00" })
     }
 
+    func testContextWindowTooltipHandlesUnknownContextWindowSize() throws {
+        let tooltip = AppKitContextWindowTooltipView(summary: .unreported)
+
+        tooltip.applyPreferredSize()
+
+        let fields = tooltip.descendants(of: NSTextField.self)
+        XCTAssertNotNil(fields.first { $0.stringValue == "No usage yet" })
+        XCTAssertNotNil(fields.first { $0.stringValue == "Context window size not reported" })
+        XCTAssertNil(fields.first { $0.stringValue == "0 token window" })
+    }
+
     func testContextWindowTooltipUpdatesExistingContent() throws {
         let tooltip = AppKitContextWindowTooltipView(
             summary: ConversationUsageSummary(
@@ -139,6 +150,17 @@ extension ChatComposerActionRowTests {
 
         XCTAssertTrue(indicator.superview === originalSuperview)
         XCTAssertTrue(row.descendants(of: AppKitContextWindowIndicatorView.self).first === indicator)
+    }
+
+    func testUnreportedUsageSummaryKeepsContextIndicatorAttached() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 900, height: 30))
+        row.configure(makeConfiguration(mode: .idle, usageSummary: .unreported))
+        row.layoutSubtreeIfNeeded()
+
+        let indicator = try XCTUnwrap(row.descendants(of: AppKitContextWindowIndicatorView.self).first)
+
+        XCTAssertFalse(indicator.isHidden)
+        XCTAssertEqual(indicator.accessibilityValue() as? String, "No usage reported yet")
     }
 }
 

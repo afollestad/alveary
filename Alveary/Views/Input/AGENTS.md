@@ -22,6 +22,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Programmatic app-owned draft replacements should go through `replaceInputDraft` / `clearInputDraft` so the bridge sees a revisioned external replacement without resetting selection for self-publishes.
 - `ChatComposerTextSupport` is not an editor helper. Keep it limited to shared presentation labels, progress placeholders, effective-empty checks for string fallbacks, and legacy transcript `@` mention chip rendering.
 
+## Composer Popovers
+
+- Composer popup menus must reuse `AppKitComposerPopoverSurfaceView` and `AppKitComposerPopoverDividerView` from `Components/AppKit/` instead of hand-rolled popover surfaces or divider views.
+
 ## Worktree Picker And Session Location
 
 - The worktree-location picker is an empty-thread-only control for git-backed threads. New threads seed `AgentThread.useWorktree` from the global `createWorktreeByDefault` setting, the picker edits that per-thread override before first send, and it should disappear once `hasCompletedInitialSetup` flips true.

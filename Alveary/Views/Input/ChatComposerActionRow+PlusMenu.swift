@@ -63,5 +63,6 @@ extension ChatComposerActionRowView: NSPopoverDelegate {
             return
         }
         finishPlusMenuClose(for: popover)
+        finishReasoningMenuClose(for: popover)
     }
 }

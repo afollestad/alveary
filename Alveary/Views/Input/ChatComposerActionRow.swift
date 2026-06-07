@@ -9,13 +9,7 @@ import SwiftUI
 /// position and performance issues in this UX, so new composer internals should
 /// prefer native views.
 struct ChatComposerActionRow: NSViewRepresentable {
-    let providerOptions: [ChatComposerActionRowView.MenuOption]
-    let showsProviderPicker: Bool
-    @Binding var selectedProvider: String
-    let modelOptions: [ChatComposerActionRowView.MenuOption]
-    @Binding var selectedModel: String
-    let effortOptions: [ChatComposerActionRowView.MenuOption]
-    @Binding var selectedEffort: String
+    let reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration
     let supportedPermissionModes: [PermissionModeOption]
     @Binding var selectedPermissionMode: String
     let showWorktreePicker: Bool
@@ -51,13 +45,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
 
     private var configuration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
-            providerOptions: providerOptions,
-            showsProviderPicker: showsProviderPicker,
-            selectedProvider: selectedProvider,
-            modelOptions: modelOptions,
-            selectedModel: selectedModel,
-            effortOptions: effortOptions,
-            selectedEffort: selectedEffort,
+            reasoning: reasoningConfiguration,
             supportedPermissionModes: supportedPermissionModes.map {
                 .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
@@ -78,9 +66,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: composerActionRowHeight,
             contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
-            onProviderChange: { selectedProvider = $0 },
-            onModelChange: { selectedModel = $0 },
-            onEffortChange: { selectedEffort = $0 },
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onPlanModeChange: { isPlanModeEnabled = $0 },
@@ -92,7 +77,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
     }
 }
 
-/// Native bottom composer row for model/effort/permission/worktree selectors,
+/// Native bottom composer row for reasoning/permission/worktree selectors,
 /// context/keymap accessories, and send/stop/progress action slots.
 @MainActor
 final class ChatComposerActionRowView: NSView {
@@ -105,14 +90,58 @@ final class ChatComposerActionRowView: NSView {
         let title: String
     }
 
-    struct Configuration {
-        let providerOptions: [MenuOption]
-        let showsProviderPicker: Bool
-        let selectedProvider: String
-        let modelOptions: [MenuOption]
-        let selectedModel: String
+    struct ReasoningSelection: Equatable {
+        let providerID: String
+        let providerTitle: String
+        let modelID: String
+        let modelTitle: String
+        let effortValue: String
+        let effortTitle: String
         let effortOptions: [MenuOption]
-        let selectedEffort: String
+
+        var accessibilityValue: String {
+            effortOptions.isEmpty ? modelTitle : "\(modelTitle), \(effortTitle)"
+        }
+    }
+
+    struct ReasoningModelOption: Equatable {
+        let providerID: String
+        let value: String
+        let title: String
+
+        var identity: String {
+            // Model IDs such as `default` can appear under multiple providers.
+            "\(providerID):\(value)"
+        }
+    }
+
+    struct ReasoningModelGroup: Equatable {
+        let providerID: String
+        let providerTitle: String?
+        let options: [ReasoningModelOption]
+    }
+
+    struct ReasoningModelSelectionRequest: Equatable {
+        let providerID: String
+        let modelID: String
+    }
+
+    enum ReasoningModelSelectionOutcome {
+        case rejected
+        case unchanged(ReasoningSelection)
+        case applied(selection: ReasoningSelection)
+    }
+
+    struct ReasoningConfiguration {
+        var selection: ReasoningSelection
+        var modelGroups: [ReasoningModelGroup]
+        var hasStartedThread: Bool
+        var onEffortChange: (String) -> Bool
+        var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
+    }
+
+    struct Configuration {
+        let reasoning: ReasoningConfiguration
         let supportedPermissionModes: [MenuOption]
         let selectedPermissionMode: String
         let showWorktreePicker: Bool
@@ -131,9 +160,6 @@ final class ChatComposerActionRowView: NSView {
         let isStopConfirmationArmed: Bool
         let composerActionRowHeight: CGFloat
         let contextIndicatorKeyboardSpacing: CGFloat
-        let onProviderChange: (String) -> Void
-        let onModelChange: (String) -> Void
-        let onEffortChange: (String) -> Void
         let onPermissionModeChange: (String) -> Void
         let onUseWorktreeChange: (Bool) -> Void
         var onPlanModeChange: (Bool) -> Void = { _ in }
@@ -141,13 +167,10 @@ final class ChatComposerActionRowView: NSView {
         let onStop: () -> Void
         let onShowKeymap: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
-
     }
 
     let plusButton = ComposerPlusButton()
-    private let providerMenu = ComposerMenuButton()
-    private let modelMenu = ComposerMenuButton()
-    private let effortMenu = ComposerMenuButton()
+    let reasoningButton = ComposerReasoningButton()
     private let permissionMenu = ComposerMenuButton()
     private let worktreeMenu = ComposerMenuButton()
     let sessionLocationField = NSTextField(labelWithString: "")
@@ -170,6 +193,8 @@ final class ChatComposerActionRowView: NSView {
 
     var configuration: Configuration?
     var plusPopover: NSPopover?
+    var reasoningPopover: NSPopover?
+    var reasoningMenuController: ComposerReasoningMenuViewController?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let minimumSettingsControlWidth: CGFloat = 44
@@ -197,6 +222,7 @@ final class ChatComposerActionRowView: NSView {
         super.viewWillMove(toWindow: newWindow)
         if newWindow == nil {
             closePlusMenu()
+            closeReasoningMenu()
         }
     }
 
@@ -228,12 +254,7 @@ final class ChatComposerActionRowView: NSView {
 
     private func setupMenuAccessibility() {
         plusButton.setAccessibilityLabel("Open composer actions")
-        providerMenu.setAccessibilityLabel("Provider")
-        providerMenu.setMenuHeaderTitle("Provider")
-        modelMenu.setAccessibilityLabel("Model")
-        modelMenu.setMenuHeaderTitle("Model")
-        effortMenu.setAccessibilityLabel("Effort")
-        effortMenu.setMenuHeaderTitle("Effort")
+        reasoningButton.setAccessibilityLabel("Reasoning")
         permissionMenu.setAccessibilityLabel("Permissions")
         permissionMenu.setMenuHeaderTitle("Permissions")
         worktreeMenu.setAccessibilityLabel("Thread location")
@@ -252,6 +273,9 @@ final class ChatComposerActionRowView: NSView {
     private func setupActions() {
         plusButton.actionHandler = { [weak self] in
             self?.togglePlusMenu()
+        }
+        reasoningButton.actionHandler = { [weak self] in
+            self?.toggleReasoningMenu()
         }
         keyboardButton.actionHandler = { [weak self] in
             self?.configuration?.onShowKeymap()
@@ -318,6 +342,7 @@ final class ChatComposerActionRowView: NSView {
 
         if configuration.areControlsDisabled {
             closePlusMenu()
+            closeReasoningMenu()
         }
         applyMenuConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
@@ -329,29 +354,10 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func applyMenuConfiguration(_ configuration: Configuration) {
-        providerMenu.configure(
-            title: title(for: configuration.selectedProvider, in: configuration.providerOptions),
-            options: configuration.providerOptions,
-            selectedValue: configuration.selectedProvider,
-            isEnabled: !configuration.areControlsDisabled && configuration.providerOptions.count > 1,
-            onSelect: configuration.onProviderChange
-        )
-        modelMenu.configure(
-            title: title(for: configuration.selectedModel, in: configuration.modelOptions),
-            options: configuration.modelOptions,
-            selectedValue: configuration.selectedModel,
-            isEnabled: !configuration.areControlsDisabled,
-            onSelect: configuration.onModelChange
-        )
-        effortMenu.configure(
-            title: title(for: configuration.selectedEffort, in: configuration.effortOptions),
-            options: configuration.effortOptions,
-            selectedValue: configuration.selectedEffort,
-            isEnabled: !configuration.areControlsDisabled,
-            onSelect: configuration.onEffortChange
-        )
         permissionMenu.configure(
-            title: title(for: configuration.selectedPermissionMode, in: configuration.supportedPermissionModes),
+            title: configuration.supportedPermissionModes.first {
+                $0.value == configuration.selectedPermissionMode
+            }?.title ?? configuration.selectedPermissionMode,
             options: configuration.supportedPermissionModes,
             selectedValue: configuration.selectedPermissionMode,
             isEnabled: !configuration.areControlsDisabled,
@@ -377,6 +383,18 @@ final class ChatComposerActionRowView: NSView {
                 self?.togglePlusMenu()
             }
         )
+        reasoningButton.configure(
+            selection: configuration.reasoning.selection,
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: !configuration.areControlsDisabled,
+            showsProgress: configuration.isReconfiguringSession,
+            actionHandler: { [weak self] in
+                self?.toggleReasoningMenu()
+            }
+        )
+        // Keep an open reasoning popup tied to the persisted provider/model/
+        // effort state, including async reconfigure rollback updates.
+        reasoningMenuController?.update(configuration: configuration.reasoning)
     }
 
     private func applyAccessoryConfiguration(_ configuration: Configuration) {
@@ -384,14 +402,20 @@ final class ChatComposerActionRowView: NSView {
         sessionLocationField.toolTip = configuration.sessionLocationLabel
 
         contextIndicatorView.configure(summary: configuration.usageSummary)
-        keyboardButton.isHidden = configuration.isTextEditorDisabled
+        keyboardButton.configure(isEnabled: !configuration.isTextEditorDisabled && !configuration.areControlsDisabled)
     }
 
     private func applyActionConfiguration(_ configuration: Configuration) {
+        let primaryActionIsEnabled: Bool
+        if case .idle = configuration.mode {
+            primaryActionIsEnabled = !configuration.isPrimaryActionDisabled
+        } else {
+            primaryActionIsEnabled = false
+        }
         primaryButton.configure(
             title: configuration.primaryActionTitle,
             symbolName: configuration.primaryActionSystemImage,
-            isEnabled: !configuration.isPrimaryActionDisabled,
+            isEnabled: primaryActionIsEnabled,
             accessibilityLabel: configuration.primaryActionTitle
         )
         stopButton.configure(
@@ -425,13 +449,6 @@ final class ChatComposerActionRowView: NSView {
     private func arrangedSubviews(for configuration: Configuration) -> [NSView] {
         var views: [NSView] = []
         views.append(plusButton)
-        if configuration.showsProviderPicker {
-            views.append(providerMenu)
-        }
-        views.append(modelMenu)
-        if !configuration.effortOptions.isEmpty {
-            views.append(effortMenu)
-        }
         if !configuration.supportedPermissionModes.isEmpty {
             views.append(permissionMenu)
         }
@@ -454,7 +471,10 @@ final class ChatComposerActionRowView: NSView {
             if reason.canStop {
                 views.append(stopButton)
             } else {
-                views.append(progressStack)
+                if reason != .reconfiguringSession {
+                    views.append(progressStack)
+                }
+                views.append(primaryButton)
             }
         }
         return views
@@ -465,26 +485,13 @@ final class ChatComposerActionRowView: NSView {
         if configuration.usageSummary != nil {
             accessories.append(contextIndicatorView)
         }
-        if !configuration.isTextEditorDisabled {
-            accessories.append(keyboardButton)
-        }
+        // Keep reasoning pinned between context usage and keyboard help.
+        accessories.append(reasoningButton)
+        accessories.append(keyboardButton)
         accessoryGroup.configure(
             accessories: accessories,
             spacing: configuration.contextIndicatorKeyboardSpacing
         )
         return accessories.isEmpty ? nil : accessoryGroup
     }
-
-    private func title(for value: String, in options: [MenuOption]) -> String {
-        options.first { $0.value == value }?.title ?? value
-    }
-
-    private func progressLabelText(for configuration: Configuration) -> String {
-        guard case .progressOnly(let reason) = configuration.mode,
-              !reason.canStop else {
-            return ""
-        }
-        return ChatComposerTextSupport.progressLabel(for: reason)
-    }
-
 }

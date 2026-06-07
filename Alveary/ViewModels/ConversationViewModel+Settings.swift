@@ -69,6 +69,63 @@ extension ConversationViewModel {
     }
 
     @discardableResult
+    func applyPreStartupProviderModelChange(
+        providerID: String,
+        model: String,
+        effortOptions: [AgentCLIKit.AgentProviderOption],
+        defaultEffort: String?
+    ) -> Bool {
+        guard canApplyPreStartupSettingChange,
+              AppSettings.supportedProviderIDs.contains(providerID),
+              let dbConversation = modelContext.resolveConversation(id: conversationModelID),
+              let dbThread = dbConversation.thread,
+              !dbThread.hasCompletedInitialSetup else {
+            return false
+        }
+
+        let snapshot = ProviderSettingSnapshot(conversation: dbConversation, thread: dbThread, state: state)
+        let storedModel = model == AppSettings.defaultModelValue ? nil : model
+        let currentProvider = snapshot.provider ?? settingsService.current.defaultProvider
+        let providerChanged = currentProvider != providerID
+        let newPermissionMode = AppSettings.defaultPermissionMode(forProvider: providerID)
+        let newEffort = supportedOrDefaultEffort(
+            currentEffort: dbThread.effort,
+            effortOptions: effortOptions,
+            defaultEffort: defaultEffort
+        )
+        guard providerChanged ||
+            snapshot.model != storedModel ||
+            snapshot.effort != newEffort ||
+            (providerChanged && snapshot.permissionMode != newPermissionMode) else {
+            return true
+        }
+
+        // Pre-start provider switches must save the provider, model, default
+        // permission, plan mode, and effort together so the first spawn sees a
+        // coherent agent configuration.
+        dbConversation.provider = providerID
+        dbThread.model = storedModel
+        dbThread.effort = newEffort
+        if providerChanged {
+            dbThread.permissionMode = newPermissionMode
+            dbThread.planModeEnabled = false
+            state.runtimePermissionMode = newPermissionMode
+            state.runtimePlanModeEnabled = false
+            state.lastNonPlanPermissionMode = newPermissionMode
+        }
+        state.lastTurnError = nil
+
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            snapshot.restore(conversation: dbConversation, thread: dbThread, state: state)
+            state.lastTurnError = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
     func applyModelChange(
         _ newValue: String,
         effortOptions: [AgentCLIKit.AgentProviderOption] = [],
@@ -354,11 +411,25 @@ private extension ConversationViewModel {
         }
 
         let supportsCurrentEffort = effortOptions.contains { $0.value == dbThread.effort }
-        guard !supportsCurrentEffort || dbThread.effort == AppSettings.defaultEffortLevel else {
+        guard !supportsCurrentEffort else {
             return
         }
 
         dbThread.effort = defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
+    }
+
+    func supportedOrDefaultEffort(
+        currentEffort: String,
+        effortOptions: [AgentCLIKit.AgentProviderOption],
+        defaultEffort: String?
+    ) -> String {
+        guard !effortOptions.isEmpty else {
+            return currentEffort
+        }
+        if effortOptions.contains(where: { $0.value == currentEffort }) {
+            return currentEffort
+        }
+        return defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
     }
 
     func permissionRuntimeStateSnapshot() -> PermissionRuntimeStateSnapshot {

@@ -167,4 +167,13 @@ extension ChatComposerActionRowView {
         let intrinsicWidth = field.intrinsicContentSize.width
         return ceil(max(textWidth, cellWidth, intrinsicWidth)) + 4
     }
+
+    func progressLabelText(for configuration: Configuration) -> String {
+        guard case .progressOnly(let reason) = configuration.mode,
+              !reason.canStop,
+              reason != .reconfiguringSession else {
+            return ""
+        }
+        return ChatComposerTextSupport.progressLabel(for: reason)
+    }
 }

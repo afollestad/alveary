@@ -6,6 +6,7 @@ final class ComposerIconButton: NSView {
     var actionHandler: (() -> Void)?
 
     private let symbolName: String
+    private var controlIsEnabled = true
     private var isPressed = false
     private var isHovering = false
     private var trackingArea: NSTrackingArea?
@@ -16,6 +17,7 @@ final class ComposerIconButton: NSView {
         setContentHuggingPriority(.required, for: .horizontal)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
+        setAccessibilityEnabled(true)
     }
 
     required init?(coder: NSCoder) {
@@ -23,6 +25,7 @@ final class ComposerIconButton: NSView {
         super.init(coder: coder)
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
+        setAccessibilityEnabled(true)
     }
 
     override var isFlipped: Bool { true }
@@ -37,6 +40,15 @@ final class ComposerIconButton: NSView {
                 resetInteractionState()
             }
         }
+    }
+
+    func configure(isEnabled: Bool) {
+        controlIsEnabled = isEnabled
+        if !isEnabled {
+            resetInteractionState()
+        }
+        setAccessibilityEnabled(isEnabled)
+        needsDisplay = true
     }
 
     override func viewDidMoveToSuperview() {
@@ -73,6 +85,9 @@ final class ComposerIconButton: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        guard controlIsEnabled else {
+            return
+        }
         isHovering = true
         needsDisplay = true
     }
@@ -82,12 +97,17 @@ final class ComposerIconButton: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard controlIsEnabled else {
+            return
+        }
         isPressed = true
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard isPressed else {
+        guard isPressed, controlIsEnabled else {
+            isPressed = false
+            needsDisplay = true
             return
         }
         isPressed = false
@@ -98,20 +118,23 @@ final class ComposerIconButton: NSView {
     }
 
     override func accessibilityPerformPress() -> Bool {
+        guard controlIsEnabled else {
+            return false
+        }
         actionHandler?()
         return true
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if isHovering {
+        if isHovering, controlIsEnabled {
             NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: 0.16).setFill()
             NSBezierPath(ovalIn: bounds).fill()
         }
 
         guard let image = symbolImage(
             named: symbolName,
-            color: NSColor.labelColor.appKitResolvedColor(in: self, alpha: isHovering ? 0.95 : 0.80)
+            color: NSColor.labelColor.appKitResolvedColor(in: self, alpha: imageAlpha)
         ) else {
             return
         }
@@ -129,6 +152,13 @@ final class ComposerIconButton: NSView {
             respectFlipped: true,
             hints: nil
         )
+    }
+
+    private var imageAlpha: CGFloat {
+        guard controlIsEnabled else {
+            return 0.28
+        }
+        return isHovering ? 0.95 : 0.80
     }
 
     private func symbolImage(named name: String, color: NSColor) -> NSImage? {

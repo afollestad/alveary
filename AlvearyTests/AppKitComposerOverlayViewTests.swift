@@ -383,13 +383,7 @@ func makeComposerBodyConfiguration(text: String = "Panel body") -> AppKitChatCom
 
 func makeOverlayActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
-        providerOptions: [.init(value: "claude", title: "Claude Code")],
-        showsProviderPicker: true,
-        selectedProvider: "claude",
-        modelOptions: [.init(value: "sonnet", title: "Sonnet")],
-        selectedModel: "sonnet",
-        effortOptions: [.init(value: "medium", title: "Medium")],
-        selectedEffort: "medium",
+        reasoning: makeReasoningConfiguration(),
         supportedPermissionModes: [.init(value: "default", title: "Default")],
         selectedPermissionMode: "default",
         showWorktreePicker: false,
@@ -405,9 +399,6 @@ func makeOverlayActionRowConfiguration() -> ChatComposerActionRowView.Configurat
         isStopConfirmationArmed: false,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
-        onProviderChange: { _ in },
-        onModelChange: { _ in },
-        onEffortChange: { _ in },
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         onSubmit: {},

@@ -7,11 +7,7 @@ struct ChatView: View {
     let viewModel: ConversationViewModel
     let conversation: Conversation
     let composerCapabilities: ComposerCapabilities
-    let providerOptions: [ChatComposerActionRowView.MenuOption]
-    let modelOptions: [ChatComposerActionRowView.MenuOption]
-    let selectedModelOptionID: String
-    let effortOptions: [ChatComposerActionRowView.MenuOption]
-    let onModelOptionChange: (String) -> Void
+    let reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
     let runtimeStatus: ActivitySignal
@@ -77,28 +73,7 @@ struct ChatView: View {
         ConversationUsageSummary.derive(
             from: events,
             cachedContextWindowSize: cachedContextWindowSize
-        )
-    }
-
-    var selectedModelBinding: Binding<String> {
-        Binding(
-            get: { selectedModelOptionID },
-            set: { onModelOptionChange($0) }
-        )
-    }
-
-    private var selectedProviderBinding: Binding<String> {
-        Binding(
-            get: { providerID },
-            set: { viewModel.applyProviderChange($0) }
-        )
-    }
-
-    private var selectedEffortBinding: Binding<String> {
-        Binding(
-            get: { threadPresentation.selectedEffort },
-            set: { viewModel.applyEffortChange($0) }
-        )
+        ) ?? .unreported
     }
 
     private var selectedPermissionModeBinding: Binding<String> {
@@ -112,11 +87,7 @@ struct ChatView: View {
         viewModel: ConversationViewModel,
         conversation: Conversation,
         composerCapabilities: ComposerCapabilities,
-        providerOptions: [ChatComposerActionRowView.MenuOption],
-        modelOptions: [ChatComposerActionRowView.MenuOption],
-        selectedModelOptionID: String,
-        effortOptions: [ChatComposerActionRowView.MenuOption],
-        onModelOptionChange: @escaping (String) -> Void,
+        reasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
         runtimeStatus: ActivitySignal,
@@ -135,11 +106,7 @@ struct ChatView: View {
         self.viewModel = viewModel
         self.conversation = conversation
         self.composerCapabilities = composerCapabilities
-        self.providerOptions = providerOptions
-        self.modelOptions = modelOptions
-        self.selectedModelOptionID = selectedModelOptionID
-        self.effortOptions = effortOptions
-        self.onModelOptionChange = onModelOptionChange
+        self.reasoningConfiguration = reasoningConfiguration
         self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
         self.runtimeStatus = runtimeStatus
@@ -444,13 +411,7 @@ extension ChatView {
     var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
-            providerOptions: providerOptions,
-            showsProviderPicker: showsProviderPicker,
-            selectedProvider: selectedProviderBinding.wrappedValue,
-            modelOptions: modelOptions,
-            selectedModel: selectedModelBinding.wrappedValue,
-            effortOptions: effortOptions,
-            selectedEffort: selectedEffortBinding.wrappedValue,
+            reasoning: reasoningConfiguration,
             supportedPermissionModes: composerCapabilities.supportedPermissionModes.map {
                 .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
@@ -473,9 +434,6 @@ extension ChatView {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
-            onProviderChange: { selectedProviderBinding.wrappedValue = $0 },
-            onModelChange: { selectedModelBinding.wrappedValue = $0 },
-            onEffortChange: { selectedEffortBinding.wrappedValue = $0 },
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
             onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },

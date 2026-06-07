@@ -8,6 +8,19 @@ struct ConversationUsageSummary: Equatable, Sendable {
     let hasReportedUsage: Bool
     let isUsingCachedContextWindow: Bool
 
+    static let unreported = ConversationUsageSummary(
+        contextUsedTokens: 0,
+        contextWindowSize: 0,
+        totalCostUsd: 0,
+        hasReportedCost: false,
+        hasReportedUsage: false,
+        isUsingCachedContextWindow: false
+    )
+
+    var hasKnownContextWindowSize: Bool {
+        contextWindowSize > 0
+    }
+
     var contextUsageFraction: Double {
         guard contextWindowSize > 0 else {
             return 0

@@ -63,15 +63,30 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertFalse(footprintButton.accessibilityPerformPress())
     }
 
-    func testProgressOnlyWithoutStopShowsProgressLabelWithoutActionButtons() throws {
+    func testProgressOnlyWithoutStopShowsProgressLabelAndDisabledActionButton() throws {
         let row = ChatComposerActionRowView()
         row.configure(makeConfiguration(mode: .progressOnly(.sessionHandoff)))
 
         XCTAssertNotNil(row.descendants(of: NSTextField.self).first { $0.stringValue == "Handing off session..." })
-        XCTAssertTrue(row.descendants(of: ComposerActionButton.self).isEmpty)
+        let actionButton = try XCTUnwrap(row.descendants(of: ComposerActionButton.self).first)
+        XCTAssertFalse(actionButton.accessibilityPerformPress())
     }
 
-    func testProviderPickerCanBeHiddenWhileOtherSettingsRemainVisible() {
+    func testReconfiguringSessionProgressIsIntegratedIntoReasoningButton() throws {
+        let row = ChatComposerActionRowView()
+        row.configure(makeConfiguration(mode: .progressOnly(.reconfiguringSession)))
+
+        XCTAssertNil(row.descendants(of: NSTextField.self).first { $0.stringValue == "Applying session changes..." })
+        let actionButton = try XCTUnwrap(row.descendants(of: ComposerActionButton.self).first)
+        XCTAssertFalse(actionButton.accessibilityPerformPress())
+        let reasoningButton = try XCTUnwrap(row.descendants(of: ComposerReasoningButton.self).first)
+        #if DEBUG
+        XCTAssertTrue(reasoningButton.debugShowsProgress)
+        XCTAssertGreaterThan(reasoningButton.debugTextAlpha, 0.5)
+        #endif
+    }
+
+    func testReasoningButtonReplacesProviderModelAndEffortMenus() {
         let row = ChatComposerActionRowView()
         row.configure(
             makeConfiguration(
@@ -80,7 +95,6 @@ final class ChatComposerActionRowTests: XCTestCase {
                     .init(value: "claude", title: "Claude Code"),
                     .init(value: "codex", title: "Codex")
                 ],
-                showsProviderPicker: false,
                 modelOptions: [.init(value: "sonnet", title: "Sonnet")],
                 effortOptions: [.init(value: "medium", title: "Medium")],
                 supportedPermissionModes: [.init(value: "default", title: "Default")]
@@ -89,9 +103,10 @@ final class ChatComposerActionRowTests: XCTestCase {
 
         let menus = row.descendants(of: ComposerMenuButton.self)
         XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Provider" })
-        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Model" })
-        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Effort" })
+        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Model" })
+        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Effort" })
         XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Permissions" })
+        XCTAssertEqual(row.descendants(of: ComposerReasoningButton.self).first?.accessibilityLabel(), "Reasoning")
     }
 
     func testActionButtonDoesNotFireWhenDisabledBeforeMouseUp() {
@@ -179,7 +194,7 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertGreaterThan(size.width, 110)
     }
 
-    func testComposerModelMenuUsesCodexProviderStatusLabelsAndEfforts() {
+    func testReasoningModelOptionsUseCodexProviderStatusLabelsAndEfforts() {
         let menuItems = AgentModelOptionSelection.menuItems(
             in: AgentModelOptionTestFixtures.codexModelOptions,
             selectedModel: "gpt-5.4-mini",
@@ -255,6 +270,11 @@ final class ChatComposerActionRowTests: XCTestCase {
         let contextFrame = contextIndicator.convert(contextIndicator.bounds, to: row)
         XCTAssertGreaterThan(contextFrame.minX, row.bounds.midX)
         XCTAssertLessThan(contextFrame.maxX, keyboardFrame.minX)
+
+        let reasoningButton = try XCTUnwrap(row.descendants(of: ComposerReasoningButton.self).first)
+        let reasoningFrame = reasoningButton.convert(reasoningButton.bounds, to: row)
+        XCTAssertGreaterThan(reasoningFrame.minX, contextFrame.maxX)
+        XCTAssertLessThan(reasoningFrame.maxX, keyboardFrame.minX)
     }
 
     func testSessionLocationLabelKeepsIntrinsicWidthWhenDropdownsCompress() throws {
@@ -344,6 +364,10 @@ final class ChatComposerActionRowTests: XCTestCase {
         )
         XCTAssertTrue(keyboardButton.accessibilityPerformPress())
         XCTAssertEqual(showKeymapCount, 1)
+
+        row.configure(makeConfiguration(mode: .idle, isTextEditorDisabled: true, onShowKeymap: { showKeymapCount += 1 }))
+        XCTAssertFalse(keyboardButton.isHidden || keyboardButton.accessibilityPerformPress())
+        XCTAssertEqual(showKeymapCount, 1)
     }
 
 }
@@ -351,13 +375,13 @@ final class ChatComposerActionRowTests: XCTestCase {
 func makeConfiguration(
     mode: ComposerMode,
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
-    showsProviderPicker: Bool = true,
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
     showWorktreePicker: Bool = true,
     sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
+    isTextEditorDisabled: Bool = false,
     areControlsDisabled: Bool = false,
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
@@ -367,20 +391,18 @@ func makeConfiguration(
     onAddPhotosAndFiles: @escaping () -> Void = {}
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
-        providerOptions: providerOptions,
-        showsProviderPicker: showsProviderPicker,
-        selectedProvider: "claude",
-        modelOptions: modelOptions,
-        selectedModel: "sonnet",
-        effortOptions: effortOptions,
-        selectedEffort: "medium",
+        reasoning: makeReasoningConfiguration(
+            providerOptions: providerOptions,
+            modelOptions: modelOptions,
+            effortOptions: effortOptions
+        ),
         supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: "default",
         showWorktreePicker: showWorktreePicker,
         selectedUseWorktree: false,
         sessionLocationLabel: sessionLocationLabel,
         usageSummary: usageSummary,
-        isTextEditorDisabled: false,
+        isTextEditorDisabled: isTextEditorDisabled,
         areControlsDisabled: areControlsDisabled,
         mode: mode,
         primaryActionTitle: "Send",
@@ -389,15 +411,56 @@ func makeConfiguration(
         isStopConfirmationArmed: isStopConfirmationArmed,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
-        onProviderChange: { _ in },
-        onModelChange: { _ in },
-        onEffortChange: { _ in },
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         onSubmit: onSubmit,
         onStop: onStop,
         onShowKeymap: onShowKeymap,
         onAddPhotosAndFiles: onAddPhotosAndFiles
+    )
+}
+
+func makeReasoningConfiguration(
+    providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
+    modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
+    effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    selectedProvider: String = "claude",
+    selectedModel: String = "sonnet",
+    selectedEffort: String = "medium",
+    hasStartedThread: Bool = false,
+    onEffortChange: @escaping (String) -> Bool = { _ in true },
+    onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
+        -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
+) -> ChatComposerActionRowView.ReasoningConfiguration {
+    let selectedProviderOption = providerOptions.first { $0.value == selectedProvider } ?? providerOptions.first
+    let selectedModelOption = modelOptions.first { $0.value == selectedModel } ?? modelOptions.first
+    let selectedEffortOption = effortOptions.first { $0.value == selectedEffort } ?? effortOptions.first
+    return ChatComposerActionRowView.ReasoningConfiguration(
+        selection: .init(
+            providerID: selectedProviderOption?.value ?? selectedProvider,
+            providerTitle: selectedProviderOption?.title ?? selectedProvider.capitalized,
+            modelID: selectedModelOption?.value ?? selectedModel,
+            modelTitle: selectedModelOption?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel),
+            effortValue: selectedEffortOption?.value ?? selectedEffort,
+            effortTitle: selectedEffortOption?.title ?? ChatComposerTextSupport.effortLabel(for: selectedEffort),
+            effortOptions: effortOptions
+        ),
+        modelGroups: providerOptions.map { provider in
+            ChatComposerActionRowView.ReasoningModelGroup(
+                providerID: provider.value,
+                providerTitle: hasStartedThread ? nil : provider.title,
+                options: modelOptions.map { model in
+                    ChatComposerActionRowView.ReasoningModelOption(
+                        providerID: provider.value,
+                        value: model.value,
+                        title: model.title
+                    )
+                }
+            )
+        },
+        hasStartedThread: hasStartedThread,
+        onEffortChange: onEffortChange,
+        onModelChange: onModelChange
     )
 }
 

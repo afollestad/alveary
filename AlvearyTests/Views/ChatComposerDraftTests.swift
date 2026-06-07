@@ -127,16 +127,16 @@ final class ChatComposerDraftTests: XCTestCase {
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true
             ),
-            providerOptions: [.init(value: "claude", title: "Claude Code")],
-            modelOptions: [
-                .init(
-                    value: AppSettings.defaultModelValue,
-                    title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue)
-                )
-            ],
-            selectedModelOptionID: AppSettings.defaultModelValue,
-            effortOptions: [],
-            onModelOptionChange: { _ in },
+            reasoningConfiguration: makeReasoningConfiguration(
+                modelOptions: [
+                    .init(
+                        value: AppSettings.defaultModelValue,
+                        title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue)
+                    )
+                ],
+                effortOptions: [],
+                selectedModel: AppSettings.defaultModelValue
+            ),
             defaultEnterBehavior: .queue,
             providerID: "claude",
             runtimeStatus: .neutral,

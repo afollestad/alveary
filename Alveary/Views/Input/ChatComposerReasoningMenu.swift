@@ -1,0 +1,308 @@
+import AppKit
+
+@MainActor
+final class ComposerReasoningMenuViewController: NSViewController {
+    private var configuration: ChatComposerActionRowView.ReasoningConfiguration
+    private let onRequestCloseMainMenu: () -> Void
+    private var menuView: ComposerReasoningMenuView?
+    private var modelPopover: NSPopover?
+    private var modelMenuController: ComposerReasoningModelMenuViewController?
+    private var closeModelMenuTask: Task<Void, Never>?
+    private var isModelRowHovered = false
+    private var isModelMenuHovered = false
+
+    init(
+        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        onRequestCloseMainMenu: @escaping () -> Void
+    ) {
+        self.configuration = configuration
+        self.onRequestCloseMainMenu = onRequestCloseMainMenu
+        super.init(nibName: nil, bundle: nil)
+        preferredContentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let menuView = ComposerReasoningMenuView(
+            configuration: configuration,
+            onEffortSelected: { [weak self] effort in
+                self?.selectEffort(effort)
+            },
+            onModelMenuRequested: { [weak self] anchor in
+                self?.showModelMenu(relativeTo: anchor)
+            },
+            onModelRowHoverChanged: { [weak self] isHovering, anchor in
+                self?.setModelRowHovered(isHovering, relativeTo: anchor)
+            },
+            onCancel: { [weak self] in
+                self?.onRequestCloseMainMenu()
+            }
+        )
+        self.menuView = menuView
+        view = menuView
+    }
+
+    func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+        self.configuration = configuration
+        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        preferredContentSize = size
+        menuView?.update(configuration: configuration)
+        modelMenuController?.update(
+            groups: configuration.modelGroups,
+            selectedProviderID: configuration.selection.providerID,
+            selectedModelID: configuration.selection.modelID,
+            showsProviderHeaders: !configuration.hasStartedThread
+        )
+    }
+
+    func closeModelMenu() {
+        closeModelMenuTask?.cancel()
+        closeModelMenuTask = nil
+        isModelRowHovered = false
+        isModelMenuHovered = false
+        modelPopover?.performClose(nil)
+        modelPopover = nil
+        modelMenuController = nil
+    }
+
+    private func selectEffort(_ effort: String) {
+        guard configuration.onEffortChange(effort) else {
+            onRequestCloseMainMenu()
+            return
+        }
+        onRequestCloseMainMenu()
+    }
+
+    private func showModelMenu(relativeTo anchor: NSView) {
+        if modelPopover?.isShown == true {
+            modelMenuController?.update(
+                groups: configuration.modelGroups,
+                selectedProviderID: configuration.selection.providerID,
+                selectedModelID: configuration.selection.modelID,
+                showsProviderHeaders: !configuration.hasStartedThread
+            )
+            return
+        }
+
+        let controller = ComposerReasoningModelMenuViewController(
+            groups: configuration.modelGroups,
+            selectedProviderID: configuration.selection.providerID,
+            selectedModelID: configuration.selection.modelID,
+            showsProviderHeaders: !configuration.hasStartedThread,
+            onModelSelected: { [weak self] request in
+                self?.selectModel(request)
+            },
+            onHoverChanged: { [weak self] isHovering in
+                self?.setModelMenuHovered(isHovering)
+            },
+            onCancel: { [weak self] in
+                self?.closeModelMenu()
+            }
+        )
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = controller
+        modelMenuController = controller
+        modelPopover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
+    }
+
+    func selectModel(_ request: ChatComposerActionRowView.ReasoningModelSelectionRequest) {
+        switch configuration.onModelChange(request) {
+        case .rejected:
+            closeModelMenu()
+            onRequestCloseMainMenu()
+        case .unchanged(let selection):
+            configuration.selection = selection
+            closeModelMenu()
+            update(configuration: configuration)
+        case .applied(let selection):
+            configuration.selection = selection
+            update(configuration: configuration)
+            // Model selections close only the drill-in submenu. The main popup
+            // stays open so the selected model's reasoning default remains visible.
+            closeModelMenu()
+        }
+    }
+
+    private func setModelRowHovered(_ isHovering: Bool, relativeTo anchor: NSView) {
+        isModelRowHovered = isHovering
+        if isHovering {
+            closeModelMenuTask?.cancel()
+            closeModelMenuTask = nil
+            showModelMenu(relativeTo: anchor)
+        } else {
+            scheduleModelMenuCloseIfNeeded()
+        }
+    }
+
+    private func setModelMenuHovered(_ isHovering: Bool) {
+        isModelMenuHovered = isHovering
+        if isHovering {
+            closeModelMenuTask?.cancel()
+            closeModelMenuTask = nil
+        } else {
+            scheduleModelMenuCloseIfNeeded()
+        }
+    }
+
+    private func scheduleModelMenuCloseIfNeeded() {
+        closeModelMenuTask?.cancel()
+        closeModelMenuTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self,
+                  !isModelRowHovered,
+                  !isModelMenuHovered else {
+                return
+            }
+            closeModelMenu()
+        }
+    }
+}
+
+@MainActor
+private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
+    private var configuration: ChatComposerActionRowView.ReasoningConfiguration
+    private let onEffortSelected: (String) -> Void
+    private let onModelMenuRequested: (NSView) -> Void
+    private let onModelRowHoverChanged: (Bool, NSView) -> Void
+    private let onCancel: () -> Void
+    private let headerField = ComposerReasoningHeaderView(title: "Reasoning")
+    private let divider = AppKitComposerPopoverDividerView()
+    private let modelRow = ComposerReasoningMenuRowView()
+    private var effortRows: [ComposerReasoningMenuRowView] = []
+
+    init(
+        configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        onEffortSelected: @escaping (String) -> Void,
+        onModelMenuRequested: @escaping (NSView) -> Void,
+        onModelRowHoverChanged: @escaping (Bool, NSView) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.configuration = configuration
+        self.onEffortSelected = onEffortSelected
+        self.onModelMenuRequested = onModelMenuRequested
+        self.onModelRowHoverChanged = onModelRowHoverChanged
+        self.onCancel = onCancel
+        super.init(frame: NSRect(origin: .zero, size: ComposerReasoningMenuMetrics.mainContentSize(for: configuration)))
+        setup()
+        rebuildRows()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+        self.configuration = configuration
+        frame.size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        rebuildRows()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        var nextY = ComposerReasoningMenuMetrics.verticalInset
+        headerField.frame = NSRect(
+            x: ComposerReasoningMenuMetrics.headerInset,
+            y: nextY,
+            width: bounds.width - ComposerReasoningMenuMetrics.headerInset * 2,
+            height: ComposerReasoningMenuMetrics.headerHeight
+        )
+        nextY += ComposerReasoningMenuMetrics.headerHeight + ComposerReasoningMenuMetrics.headerBottomSpacing
+        if !configuration.selection.effortOptions.isEmpty {
+            for row in effortRows {
+                row.frame = NSRect(
+                    x: ComposerReasoningMenuMetrics.horizontalInset,
+                    y: nextY,
+                    width: bounds.width - ComposerReasoningMenuMetrics.horizontalInset * 2,
+                    height: ComposerReasoningMenuMetrics.rowHeight
+                )
+                nextY += ComposerReasoningMenuMetrics.rowHeight
+            }
+            nextY += ComposerReasoningMenuMetrics.dividerSpacing
+            divider.frame = NSRect(
+                x: AppKitComposerPopoverDividerView.horizontalInset,
+                y: nextY,
+                width: bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2,
+                height: AppKitComposerPopoverDividerView.height
+            )
+            nextY += AppKitComposerPopoverDividerView.height + ComposerReasoningMenuMetrics.dividerSpacing
+        }
+        modelRow.frame = NSRect(
+            x: ComposerReasoningMenuMetrics.horizontalInset,
+            y: nextY,
+            width: bounds.width - ComposerReasoningMenuMetrics.horizontalInset * 2,
+            height: ComposerReasoningMenuMetrics.rowHeight
+        )
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            onCancel()
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    private func setup() {
+        // Match the context-window tooltip instead of the system material so
+        // composer popovers read as one family.
+        headerField.setAccessibilityElement(false)
+        addSubview(headerField)
+
+        addSubview(divider)
+        addSubview(modelRow)
+    }
+
+    private func rebuildRows() {
+        effortRows.forEach { $0.removeFromSuperview() }
+        effortRows = configuration.selection.effortOptions.map { option in
+            let row = ComposerReasoningMenuRowView()
+            row.configure(.init(
+                title: option.title,
+                iconName: nil,
+                trailingIconName: option.value == configuration.selection.effortValue ? "checkmark" : nil,
+                accessibilityLabel: option.title,
+                isSelected: option.value == configuration.selection.effortValue,
+                isEnabled: true,
+                action: { [weak self] in self?.onEffortSelected(option.value) },
+                hoverAction: nil,
+                cancelAction: { [weak self] in self?.onCancel() }
+            ))
+            addSubview(row)
+            return row
+        }
+
+        divider.isHidden = configuration.selection.effortOptions.isEmpty
+        modelRow.configure(.init(
+            title: configuration.selection.modelTitle,
+            iconName: nil,
+            trailingIconName: "chevron.right",
+            accessibilityLabel: "Model",
+            isSelected: false,
+            isEnabled: true,
+            action: { [weak self, weak modelRow] in
+                guard let modelRow else { return }
+                self?.onModelMenuRequested(modelRow)
+            },
+            hoverAction: { [weak self, weak modelRow] in
+                guard let modelRow else { return }
+                self?.onModelMenuRequested(modelRow)
+            },
+            exitAction: { [weak self, weak modelRow] in
+                guard let modelRow else { return }
+                self?.onModelRowHoverChanged(false, modelRow)
+            },
+            cancelAction: { [weak self] in self?.onCancel() }
+        ))
+        modelRow.onHoverEntered = { [weak self, weak modelRow] in
+            guard let modelRow else { return }
+            self?.onModelRowHoverChanged(true, modelRow)
+        }
+    }
+}

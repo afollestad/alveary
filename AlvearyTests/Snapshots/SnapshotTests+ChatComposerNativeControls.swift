@@ -9,7 +9,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStates() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 570, height: 76),
+            size: CGSize(width: 610, height: 76),
             named: "chat_composer_native_action_control_interaction_states"
         )
     }
@@ -17,7 +17,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStatesDark() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 570, height: 76),
+            size: CGSize(width: 610, height: 76),
             named: "chat_composer_native_action_control_interaction_states_dark",
             colorScheme: .dark
         )
@@ -25,8 +25,8 @@ extension SnapshotTests {
 
     private var nativeActionControlInteractionStates: some View {
         HStack(spacing: 16) {
-            ComposerMenuButtonSnapshot(title: "Sonnet", state: .hovered)
-                .frame(width: 100, height: 24)
+            ComposerReasoningButtonSnapshot(state: .hovered)
+                .frame(width: 132, height: 24)
             ComposerIconButtonSnapshot(symbolName: "keyboard", state: .idle)
                 .frame(width: 30, height: 30)
             ComposerIconButtonSnapshot(symbolName: "keyboard", state: .hovered)
@@ -50,32 +50,35 @@ private enum ComposerControlSnapshotState {
     case pressed
 }
 
-private struct ComposerMenuButtonSnapshot: NSViewRepresentable {
-    let title: String
+private struct ComposerReasoningButtonSnapshot: NSViewRepresentable {
     let state: ComposerControlSnapshotState
 
-    func makeNSView(context: Context) -> ComposerMenuButton {
-        let view = ComposerMenuButton()
+    func makeNSView(context: Context) -> ComposerReasoningButton {
+        let view = ComposerReasoningButton()
         configure(view)
         return view
     }
 
-    func updateNSView(_ view: ComposerMenuButton, context: Context) {
+    func updateNSView(_ view: ComposerReasoningButton, context: Context) {
         configure(view)
     }
 
-    private func configure(_ view: ComposerMenuButton) {
-        view.setAccessibilityLabel("Model")
-        view.setMenuHeaderTitle("Model")
+    private func configure(_ view: ComposerReasoningButton) {
         view.configure(
-            title: title,
-            options: [.init(value: "sonnet", title: title)],
-            selectedValue: "sonnet",
+            selection: makeReasoningConfiguration().selection,
+            height: ChatComposerActionRowView.defaultSettingsControlHeight,
             isEnabled: true,
-            onSelect: { _ in }
+            showsProgress: false,
+            actionHandler: {}
         )
-        if case .hovered = state {
+        switch state {
+        case .idle:
+            break
+        case .hovered:
             view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
         }
     }
 

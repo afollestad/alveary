@@ -196,7 +196,6 @@ enum ComposerPlusMenuMetrics {
     static let horizontalInset: CGFloat = 6
     static let verticalInset: CGFloat = 6
     static let rowHeight: CGFloat = 32
-    static let dividerInset: CGFloat = 14
     static let dividerSpacing: CGFloat = 4
     static let iconLeading: CGFloat = 12
     @MainActor static var iconSlotSize: CGFloat { SidebarProjectRow.leadingIconWidth }

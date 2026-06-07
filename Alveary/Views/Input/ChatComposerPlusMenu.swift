@@ -231,12 +231,12 @@ final class ComposerPlusMenuViewController: NSViewController {
 }
 
 @MainActor
-private final class ComposerPlusMenuView: NSVisualEffectView {
+private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     private let configuration: ComposerPlusMenuViewController.Configuration
     private let addFilesRow = ComposerPlusMenuRowView()
     private let planSwitch = NSSwitch()
     private let planRow = ComposerPlusMenuRowView()
-    private let divider = NSView()
+    private let divider = AppKitComposerPopoverDividerView()
 
     init(configuration: ComposerPlusMenuViewController.Configuration) {
         self.configuration = configuration
@@ -248,8 +248,6 @@ private final class ComposerPlusMenuView: NSVisualEffectView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var isFlipped: Bool { true }
-
     override func layout() {
         super.layout()
         addFilesRow.frame = NSRect(
@@ -259,10 +257,10 @@ private final class ComposerPlusMenuView: NSVisualEffectView {
             height: ComposerPlusMenuMetrics.rowHeight
         )
         divider.frame = NSRect(
-            x: ComposerPlusMenuMetrics.dividerInset,
+            x: AppKitComposerPopoverDividerView.horizontalInset,
             y: ComposerPlusMenuMetrics.verticalInset + ComposerPlusMenuMetrics.rowHeight + ComposerPlusMenuMetrics.dividerSpacing,
-            width: bounds.width - ComposerPlusMenuMetrics.dividerInset * 2,
-            height: 1
+            width: bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2,
+            height: AppKitComposerPopoverDividerView.height
         )
         planRow.frame = NSRect(
             x: ComposerPlusMenuMetrics.horizontalInset,
@@ -273,13 +271,6 @@ private final class ComposerPlusMenuView: NSVisualEffectView {
     }
 
     private func setup() {
-        material = .popover
-        blendingMode = .behindWindow
-        state = .active
-        wantsLayer = true
-        layer?.cornerRadius = 18
-        layer?.masksToBounds = true
-
         setupAddFilesButton()
         setupDivider()
         setupPlanRow()
@@ -301,8 +292,6 @@ private final class ComposerPlusMenuView: NSVisualEffectView {
     }
 
     private func setupDivider() {
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
         addSubview(divider)
     }
 

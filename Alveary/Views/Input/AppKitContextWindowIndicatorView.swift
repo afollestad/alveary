@@ -189,7 +189,7 @@ final class AppKitContextWindowIndicatorView: NSView {
     }
 }
 
-final class AppKitContextWindowTooltipView: NSView {
+final class AppKitContextWindowTooltipView: AppKitComposerPopoverSurfaceView {
     private let titleField = NSTextField(labelWithString: "Context window:")
     private let headlineField = NSTextField(labelWithString: "")
     private let detailField = NSTextField(labelWithString: "")
@@ -199,8 +199,6 @@ final class AppKitContextWindowTooltipView: NSView {
     private let minimumWidth: CGFloat = 204
     private let titleHeadlineSpacing: CGFloat = 8
     private let bodySpacing: CGFloat = 8
-
-    override var isFlipped: Bool { true }
 
     var preferredSize: NSSize {
         let contentWidth = visibleFields
@@ -246,12 +244,6 @@ final class AppKitContextWindowTooltipView: NSView {
         costField.frame = NSRect(x: horizontalInset, y: nextY, width: contentWidth, height: costFieldHeight)
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        NSColor.windowBackgroundColor.appKitResolvedColor(in: self, alpha: 0.98).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 12, yRadius: 12).fill()
-    }
-
     func update(summary: ConversationUsageSummary) {
         configure(summary: summary)
         needsLayout = true
@@ -292,11 +284,20 @@ final class AppKitContextWindowTooltipView: NSView {
 
     private func configure(summary: ConversationUsageSummary) {
         if summary.hasReportedUsage {
-            headlineField.stringValue = "\(summary.contextUsagePercent)% full"
-            detailField.stringValue = "\(Self.tokenText(summary.contextUsedTokens)) / \(Self.tokenText(summary.contextWindowSize)) tokens used"
+            if summary.hasKnownContextWindowSize {
+                headlineField.stringValue = "\(summary.contextUsagePercent)% full"
+                detailField.stringValue = "\(Self.tokenText(summary.contextUsedTokens)) / \(Self.tokenText(summary.contextWindowSize)) tokens used"
+            } else {
+                headlineField.stringValue = "Usage reported"
+                detailField.stringValue = "\(Self.tokenText(summary.contextUsedTokens)) tokens used"
+            }
         } else {
             headlineField.stringValue = "No usage yet"
-            detailField.stringValue = "\(Self.tokenText(summary.contextWindowSize)) token window"
+            if summary.hasKnownContextWindowSize {
+                detailField.stringValue = "\(Self.tokenText(summary.contextWindowSize)) token window"
+            } else {
+                detailField.stringValue = "Context window size not reported"
+            }
         }
         if summary.hasReportedCost {
             costField.stringValue = "Session spend: \(Self.costText(summary.totalCostUsd))"

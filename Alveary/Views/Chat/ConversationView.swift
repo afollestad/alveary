@@ -31,8 +31,8 @@ struct ConversationView: View {
     @Bindable var appState: AppState
 
     @State private var viewModel: ConversationViewModel
-    @State private var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] = [:]
-    @State private var composerProviderOrdering: [AgentCLIKit.AgentProviderID] = AgentCLIKit.AgentProviderID.allCases
+    @State private var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
+    @State private var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
 
     private var activeWorkingDirectory: String? {
         conversation.thread?.worktreePath ?? conversation.thread?.project?.path
@@ -109,6 +109,16 @@ struct ConversationView: View {
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
         self.appState = appState
+        let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
+            projectURL: conversation.thread?.project.map {
+                URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true)
+            },
+            activeProviderID: conversation.provider ?? settingsService.current.defaultProvider,
+            settings: settingsService.current
+        )
+        let providerStatusSnapshot = ComposerProviderStatusCache.snapshot(for: providerStatusCacheKey)
+        _composerProviderStatuses = State(initialValue: providerStatusSnapshot?.statuses ?? [:])
+        _composerProviderOrdering = State(initialValue: providerStatusSnapshot?.ordering ?? AgentCLIKit.AgentProviderID.allCases)
         _viewModel = State(initialValue: ConversationViewModel(
             conversation: conversation,
             agentsManager: agentsManager,
@@ -130,11 +140,7 @@ struct ConversationView: View {
             viewModel: viewModel,
             conversation: conversation,
             composerCapabilities: composerCapabilities,
-            providerOptions: composerProviderOptions,
-            modelOptions: composerModelOptions,
-            selectedModelOptionID: selectedComposerModelOptionID,
-            effortOptions: composerEffortOptions,
-            onModelOptionChange: applyComposerModelOptionChange(_:),
+            reasoningConfiguration: composerReasoningConfiguration,
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
             runtimeStatus: agentsManager.status(for: conversation.id),
@@ -246,70 +252,85 @@ private extension ConversationView {
     static let fallbackPlanModeProviderIDs: Set<String> = ["claude", "codex"]
 
     var composerProviderStatusTaskID: String {
-        [
-            providerDiscoveryProjectURL?.path ?? "",
-            activeProviderID,
-            settingsService.current.defaultProvider,
-            settingsService.current.disabledProviderIDs.sorted().joined(separator: ",")
-        ].joined(separator: "|")
-    }
-
-    var composerProviderOptions: [ChatComposerActionRowView.MenuOption] {
-        let options = composerProviderOrdering.compactMap { providerId -> ChatComposerActionRowView.MenuOption? in
-            let rawValue = providerId.rawValue
-            guard AppSettings.supportedProviderIDs.contains(rawValue) else {
-                return nil
-            }
-            let status = composerProviderStatuses[providerId]
-            let isActiveProvider = rawValue == activeProviderID
-            let isSelectable = status.map(isSelectableComposerProvider(_:))
-                ?? settingsService.current.isProviderEnabled(rawValue)
-            guard isActiveProvider || isSelectable else {
-                return nil
-            }
-            return .init(value: rawValue, title: providerDisplayName(for: providerId))
-        }
-
-        if !options.isEmpty {
-            return options
-        }
-        return [.init(value: activeProviderID, title: activeProviderID.capitalized)]
-    }
-
-    var composerModelOptions: [ChatComposerActionRowView.MenuOption] {
-        let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
-        let agentModelOptions = modelOptions(for: activeAgentProviderID)
-        return AgentModelOptionSelection.menuItems(
-            in: agentModelOptions,
-            selectedModel: selectedModel,
-            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
-        ).map { item in
-            ChatComposerActionRowView.MenuOption(value: item.value, title: item.title)
-        }
-    }
-
-    var selectedComposerModelOptionID: String {
-        AgentModelOptionSelection.pickerValue(
-            in: modelOptions(for: activeAgentProviderID),
-            matching: conversation.thread?.model ?? AppSettings.defaultModelValue
+        Self.composerProviderStatusCacheKey(
+            projectURL: providerDiscoveryProjectURL,
+            activeProviderID: activeProviderID,
+            settings: settingsService.current
         )
     }
 
-    var composerEffortOptions: [ChatComposerActionRowView.MenuOption] {
-        let selectedModel = conversation.thread?.model ?? AppSettings.defaultModelValue
-        return AgentModelOptionSelection.effortOptions(
-            in: modelOptions(for: activeAgentProviderID),
-            selectedModel: selectedModel
-        ).map { option in
-            ChatComposerActionRowView.MenuOption(value: option.value, title: option.label)
+    var composerReasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration {
+        ChatComposerActionRowView.ReasoningConfiguration(
+            selection: composerReasoningSelection,
+            modelGroups: composerReasoningModelGroups,
+            hasStartedThread: conversation.thread?.hasCompletedInitialSetup == true,
+            onEffortChange: applyComposerReasoningEffortChange(_:),
+            onModelChange: applyComposerReasoningModelChange(_:)
+        )
+    }
+
+    var composerReasoningSelection: ChatComposerActionRowView.ReasoningSelection {
+        let selectedModel = selectedComposerModelOptionID(for: activeAgentProviderID)
+        let options = modelOptions(for: activeAgentProviderID)
+        let modelTitle = AgentModelOptionSelection.menuItems(
+            in: options,
+            selectedModel: selectedModel,
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        ).first { $0.value == selectedModel }?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel)
+        let effortOptions = reasoningEffortOptions(for: activeAgentProviderID, selectedModel: selectedModel)
+        let effortValue = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
+        let effortTitle = effortOptions.first { $0.value == effortValue }?.title
+            ?? ChatComposerTextSupport.effortLabel(for: effortValue)
+
+        return ChatComposerActionRowView.ReasoningSelection(
+            providerID: activeProviderID,
+            providerTitle: activeAgentProviderID.map(providerDisplayName(for:)) ?? activeProviderID.capitalized,
+            modelID: selectedModel,
+            modelTitle: modelTitle,
+            effortValue: effortValue,
+            effortTitle: effortTitle,
+            effortOptions: effortOptions
+        )
+    }
+
+    var composerReasoningModelGroups: [ChatComposerActionRowView.ReasoningModelGroup] {
+        let hasStartedThread = conversation.thread?.hasCompletedInitialSetup == true
+        if hasStartedThread {
+            guard let providerID = activeAgentProviderID else {
+                return []
+            }
+            return [reasoningModelGroup(for: providerID, providerTitle: nil)]
+        }
+
+        return composerProviderOrdering.compactMap { providerID in
+            let rawValue = providerID.rawValue
+            guard AppSettings.supportedProviderIDs.contains(rawValue) else {
+                return nil
+            }
+            let status = composerProviderStatuses[providerID]
+            let isSelectable = status.map(isSelectableComposerProvider(_:))
+                ?? settingsService.current.isProviderEnabled(rawValue)
+            guard isSelectable else {
+                return nil
+            }
+            return reasoningModelGroup(for: providerID, providerTitle: providerDisplayName(for: providerID))
         }
     }
 
     func refreshComposerProviderStatuses() async {
         async let ordering = providerDiscovery.stableProviderOrdering()
         async let statuses = providerDiscovery.providerStatuses(projectURL: providerDiscoveryProjectURL)
-        composerProviderOrdering = await ordering
-        composerProviderStatuses = await statuses
+        let resolvedOrdering = await ordering
+        let resolvedStatuses = await statuses
+        composerProviderOrdering = resolvedOrdering
+        composerProviderStatuses = resolvedStatuses
+        // Thread switches create a fresh `ConversationView`; seed it from the
+        // last successful discovery result so model-scoped effort labels do not
+        // temporarily disappear while async provider discovery warms back up.
+        ComposerProviderStatusCache.store(
+            .init(ordering: resolvedOrdering, statuses: resolvedStatuses),
+            for: composerProviderStatusTaskID
+        )
     }
 
     func isSelectableComposerProvider(_ status: AgentCLIKit.AgentProviderStatus) -> Bool {
@@ -330,14 +351,113 @@ private extension ConversationView {
         return AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
     }
 
-    func applyComposerModelOptionChange(_ optionID: String) {
-        let options = modelOptions(for: activeAgentProviderID)
-        let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: optionID)
-        _ = viewModel.applyModelChange(
-            storedModel,
-            effortOptions: AgentModelOptionSelection.effortOptions(in: options, selectedModel: storedModel),
-            defaultEffort: AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: storedModel)
+    func reasoningModelGroup(
+        for providerID: AgentCLIKit.AgentProviderID,
+        providerTitle: String?
+    ) -> ChatComposerActionRowView.ReasoningModelGroup {
+        let selectedModel = providerID.rawValue == activeProviderID
+            ? conversation.thread?.model ?? AppSettings.defaultModelValue
+            : AppSettings.defaultModelValue
+        let options = AgentModelOptionSelection.menuItems(
+            in: modelOptions(for: providerID),
+            selectedModel: selectedModel,
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        ).map { item in
+            ChatComposerActionRowView.ReasoningModelOption(
+                providerID: providerID.rawValue,
+                value: item.value,
+                title: item.title
+            )
+        }
+        return ChatComposerActionRowView.ReasoningModelGroup(
+            providerID: providerID.rawValue,
+            providerTitle: providerTitle,
+            options: options
         )
+    }
+
+    func selectedComposerModelOptionID(for providerID: AgentCLIKit.AgentProviderID?) -> String {
+        AgentModelOptionSelection.pickerValue(
+            in: modelOptions(for: providerID),
+            matching: conversation.thread?.model ?? AppSettings.defaultModelValue
+        )
+    }
+
+    func reasoningEffortOptions(
+        for providerID: AgentCLIKit.AgentProviderID?,
+        selectedModel: String
+    ) -> [ChatComposerActionRowView.MenuOption] {
+        AgentModelOptionSelection.effortOptions(
+            in: modelOptions(for: providerID),
+            selectedModel: selectedModel
+        ).map { option in
+            ChatComposerActionRowView.MenuOption(value: option.value, title: option.label)
+        }
+    }
+
+    func applyComposerReasoningEffortChange(_ effort: String) -> Bool {
+        guard viewModel.canApplySettingsChange else {
+            return false
+        }
+        let currentEffort = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
+        guard currentEffort != effort else {
+            return true
+        }
+        _ = viewModel.applyEffortChange(effort)
+        return (conversation.thread?.effort ?? AppSettings.defaultEffortLevel) == effort
+    }
+
+    func applyComposerReasoningModelChange(
+        _ request: ChatComposerActionRowView.ReasoningModelSelectionRequest
+    ) -> ChatComposerActionRowView.ReasoningModelSelectionOutcome {
+        guard composerReasoningModelGroups.contains(where: { group in
+            group.providerID == request.providerID && group.options.contains { $0.value == request.modelID }
+        }),
+        let requestProviderID = AgentCLIKit.AgentProviderID(rawValue: request.providerID) else {
+            return .rejected
+        }
+
+        let previousProviderID = activeProviderID
+        let previousModelID = selectedComposerModelOptionID(for: activeAgentProviderID)
+        guard previousProviderID != request.providerID || previousModelID != request.modelID else {
+            return .unchanged(composerReasoningSelection)
+        }
+
+        let requestOptions = modelOptions(for: requestProviderID)
+        let storedModel = AgentModelOptionSelection.storedModelValue(in: requestOptions, matching: request.modelID)
+        let requestEffortOptions = AgentModelOptionSelection.effortOptions(in: requestOptions, selectedModel: storedModel)
+        let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: requestOptions, selectedModel: storedModel)
+        let didApply: Bool
+
+        if previousProviderID == request.providerID {
+            guard viewModel.canApplySettingsChange else {
+                return .rejected
+            }
+            _ = viewModel.applyModelChange(
+                storedModel,
+                effortOptions: requestEffortOptions,
+                defaultEffort: defaultEffort
+            )
+            didApply = activeProviderID == request.providerID &&
+                selectedComposerModelOptionID(for: activeAgentProviderID) == request.modelID
+        } else {
+            guard conversation.thread?.hasCompletedInitialSetup != true else {
+                return .rejected
+            }
+            didApply = viewModel.applyPreStartupProviderModelChange(
+                providerID: request.providerID,
+                model: storedModel,
+                effortOptions: requestEffortOptions,
+                defaultEffort: defaultEffort
+            ) && activeProviderID == request.providerID &&
+                selectedComposerModelOptionID(for: requestProviderID) == request.modelID
+        }
+
+        guard didApply else {
+            return .rejected
+        }
+
+        return .applied(selection: composerReasoningSelection)
     }
 
     func providerPermissionModes() -> [PermissionModeOption] {
@@ -372,19 +492,5 @@ private extension ConversationView {
             return false
         }
         return !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-}
-
-private extension ConversationView {
-    static func makeFileCompletionLoader(
-        fileListManager: FileListManager,
-        workingDirectory: String?
-    ) -> @Sendable () async -> [String] {
-        {
-            guard let workingDirectory else {
-                return []
-            }
-            return await fileListManager.files(for: workingDirectory)
-        }
     }
 }

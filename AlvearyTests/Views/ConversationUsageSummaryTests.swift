@@ -143,6 +143,17 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertNil(ConversationUsageSummary.derive(from: [], cachedContextWindowSize: nil))
     }
 
+    func testUnreportedPlaceholderHasNoKnownContextWindowSize() {
+        let summary = ConversationUsageSummary.unreported
+
+        XCTAssertEqual(summary.contextUsedTokens, 0)
+        XCTAssertEqual(summary.contextWindowSize, 0)
+        XCTAssertEqual(summary.contextUsageFraction, 0)
+        XCTAssertEqual(summary.contextUsagePercent, 0)
+        XCTAssertFalse(summary.hasReportedUsage)
+        XCTAssertFalse(summary.hasKnownContextWindowSize)
+    }
+
     private func tokenRecord(
         input: Int,
         output: Int,

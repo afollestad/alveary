@@ -354,18 +354,37 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
     }
 
     private var actionRowConfiguration: ChatComposerActionRowView.Configuration {
-        ChatComposerActionRowView.Configuration(
-            providerOptions: [.init(value: "claude", title: "Claude Code")],
-            showsProviderPicker: true,
-            selectedProvider: "claude",
-            modelOptions: AgentModelOptionTestFixtures.claudeModelOptions.map {
-                .init(value: $0.id, title: $0.label)
-            },
-            selectedModel: selectedModel,
-            effortOptions: ["low", "medium", "high"].map {
-                .init(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
-            },
-            selectedEffort: selectedEffort,
+        let modelOptions = AgentModelOptionTestFixtures.claudeModelOptions.map {
+            ChatComposerActionRowView.MenuOption(value: $0.id, title: $0.label)
+        }
+        let effortOptions = ["low", "medium", "high"].map {
+            ChatComposerActionRowView.MenuOption(value: $0, title: ChatComposerTextSupport.effortLabel(for: $0))
+        }
+        return ChatComposerActionRowView.Configuration(
+            reasoning: makeReasoningConfiguration(
+                providerOptions: [.init(value: "claude", title: "Claude Code")],
+                modelOptions: modelOptions,
+                effortOptions: effortOptions,
+                selectedModel: selectedModel,
+                selectedEffort: selectedEffort,
+                hasStartedThread: true,
+                onEffortChange: {
+                    selectedEffort = $0
+                    return true
+                },
+                onModelChange: { request in
+                    selectedModel = request.modelID
+                    return .applied(
+                        selection: makeReasoningConfiguration(
+                            modelOptions: modelOptions,
+                            effortOptions: effortOptions,
+                            selectedModel: request.modelID,
+                            selectedEffort: selectedEffort,
+                            hasStartedThread: true
+                        ).selection
+                    )
+                }
+            ),
             supportedPermissionModes: Self.permissionModes.map {
                 .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
             },
@@ -383,9 +402,6 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
-            onProviderChange: { _ in },
-            onModelChange: { selectedModel = $0 },
-            onEffortChange: { selectedEffort = $0 },
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onSubmit: {},

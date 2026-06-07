@@ -238,6 +238,76 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
     }
 
+    func testApplyPreStartupProviderModelChangeSavesProviderModelPermissionPlanAndPreservesSupportedEffort() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = true
+        try fixture.dbThread().effort = "high"
+        try fixture.context.save()
+
+        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
+            providerID: "codex",
+            model: "gpt-5.5",
+            effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
+            defaultEffort: AgentModelOptionTestFixtures.medium.value
+        )
+
+        XCTAssertTrue(didApply)
+        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertEqual(try fixture.dbThread().model, "gpt-5.5")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
+        XCTAssertEqual(try fixture.dbThread().effort, "high")
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, AppSettings.defaultPermissionMode(forProvider: "codex"))
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+    }
+
+    func testApplyPreStartupProviderModelChangeDefaultsUnsupportedEffortAndKeepsDefaultModelSentinel() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.dbThread().effort = "max"
+        try fixture.context.save()
+
+        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
+            providerID: "codex",
+            model: AppSettings.defaultModelValue,
+            effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
+            defaultEffort: AgentModelOptionTestFixtures.medium.value
+        )
+
+        XCTAssertTrue(didApply)
+        XCTAssertEqual(try fixture.dbConversation().provider, "codex")
+        XCTAssertNil(try fixture.dbThread().model)
+        XCTAssertEqual(try fixture.dbThread().effort, "medium")
+    }
+
+    func testApplyPreStartupProviderModelChangeIsRejectedAfterInitialSetup() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().model = "opus"
+        try fixture.context.save()
+
+        let didApply = fixture.viewModel.applyPreStartupProviderModelChange(
+            providerID: "codex",
+            model: "gpt-5.5",
+            effortOptions: AgentModelOptionTestFixtures.codexDefaultEfforts,
+            defaultEffort: AgentModelOptionTestFixtures.medium.value
+        )
+
+        XCTAssertFalse(didApply)
+        XCTAssertEqual(try fixture.dbConversation().provider, "claude")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
+    }
+
     func testNewThreadSpawnConfigCarriesPlanMode() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,
