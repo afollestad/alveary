@@ -86,17 +86,13 @@ final class BlockInputComposerStyleTests: XCTestCase {
         )
         XCTAssertEqual(style.cornerRadius, BlockInputComposerStyle.completionPopupCornerRadius)
         XCTAssertEqual(style.borderWidth, BlockInputComposerStyle.completionPopupBorderWidth)
-        try assertColor(
-            style.backgroundColor,
-            appearanceName: .aqua,
-            matches: NSColor(calibratedRed: 0.93, green: 0.93, blue: 0.94, alpha: 1)
-        )
-        try assertColor(
-            style.backgroundColor,
-            appearanceName: .darkAqua,
-            matches: NSColor(calibratedRed: 0.16, green: 0.16, blue: 0.17, alpha: 1)
-        )
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
+            try assertColor(
+                style.backgroundColor,
+                appearanceName: appearanceName,
+                matches: expectedPopupBackgroundColor(for: appearance)
+            )
             try assertDynamicColor(
                 style.borderColor,
                 matches: DynamicLabelExpectation(
@@ -116,6 +112,32 @@ final class BlockInputComposerStyleTests: XCTestCase {
         }
     }
 
+    func testPopupSurfaceStyleResolvesSharedFill() throws {
+        let view = NSView()
+
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
+            let expected = expectedPopupBackgroundColor(for: appearance)
+            view.appearance = appearance
+
+            try assertColor(
+                AppPopupSurfaceStyle.backgroundColor(for: appearance),
+                appearanceName: appearanceName,
+                matches: expected
+            )
+            try assertColor(
+                AppKitComposerPopoverSurface.fillColor(in: view),
+                appearanceName: appearanceName,
+                matches: expected
+            )
+            try assertColor(
+                BlockInputComposerStyle.completionPopupBackgroundColor,
+                appearanceName: appearanceName,
+                matches: expected
+            )
+        }
+    }
+
     private func assertComposerChipStyle(
         _ style: BlockInputInlineChipStyle,
         file: StaticString = #filePath,
@@ -125,6 +147,12 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertNil(style.strokeColor, file: file, line: line)
         XCTAssertEqual(style.foregroundColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor, file: file, line: line)
         XCTAssertEqual(style.cornerRadius, BlockInputComposerStyle.chipCornerRadius, file: file, line: line)
+    }
+
+    private func expectedPopupBackgroundColor(for appearance: NSAppearance) -> NSColor {
+        NSColor.windowBackgroundColor
+            .resolved(for: appearance)
+            .withAlphaComponent(0.98)
     }
 
     private func assertColor(

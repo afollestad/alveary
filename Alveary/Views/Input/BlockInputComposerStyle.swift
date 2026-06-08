@@ -6,14 +6,7 @@ enum BlockInputComposerStyle {
     static let completionPopupCornerRadius: CGFloat = 18
     static let completionPopupBorderWidth: CGFloat = 1
 
-    static let completionPopupBackgroundColor = NSColor(name: nil) { appearance in
-        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-        case .darkAqua:
-            return NSColor(calibratedRed: 0.16, green: 0.16, blue: 0.17, alpha: 1)
-        default:
-            return NSColor(calibratedRed: 0.93, green: 0.93, blue: 0.94, alpha: 1)
-        }
-    }
+    static let completionPopupBackgroundColor = AppPopupSurfaceStyle.backgroundNSColor
 
     static let completionPopupBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
     static let completionPopupHighlightColor = dynamicLabelColor(.labelColor, opacity: 0.1)

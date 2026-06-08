@@ -1,11 +1,30 @@
 import AppKit
 
+enum AppPopupSurfaceStyle {
+    static let backgroundAlpha: CGFloat = 0.98
+
+    static let backgroundNSColor = NSColor(name: nil) { appearance in
+        backgroundColor(for: appearance)
+    }
+
+    static func backgroundColor(for appearance: NSAppearance) -> NSColor {
+        NSColor.windowBackgroundColor
+            .resolved(for: appearance)
+            .withAlphaComponent(backgroundAlpha)
+    }
+
+    @MainActor
+    static func backgroundColor(in view: NSView) -> NSColor {
+        backgroundColor(for: view.appKitRenderingAppearance)
+    }
+}
+
 @MainActor
 enum AppKitComposerPopoverSurface {
     static let cornerRadius: CGFloat = 12
 
     static func fillColor(in view: NSView) -> NSColor {
-        NSColor.windowBackgroundColor.appKitResolvedColor(in: view, alpha: 0.98)
+        AppPopupSurfaceStyle.backgroundColor(in: view)
     }
 
     static func draw(in view: NSView, bounds: NSRect) {

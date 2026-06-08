@@ -76,16 +76,18 @@ extension SnapshotTests {
 
     func testSettingsHelpTextPopup() {
         assertMacSnapshot(
-            AppHoverPopup(horizontalPadding: 12, verticalPadding: 10, textAlignment: .leading) {
-                Text("Seconds to enter steering before continuing with the default handoff. " +
-                    "The countdown stops when you start typing in the composer.")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 280)
-            }
-            .padding(24),
+            settingsHelpTextPopup,
             size: CGSize(width: 360, height: 160),
             named: "settings_help_text_popup"
+        )
+    }
+
+    func testSettingsHelpTextPopupDark() {
+        assertMacSnapshot(
+            settingsHelpTextPopup,
+            size: CGSize(width: 360, height: 160),
+            named: "settings_help_text_popup_dark",
+            colorScheme: .dark
         )
     }
 
@@ -340,6 +342,19 @@ extension SnapshotTests {
             size: CGSize(width: 400, height: 700),
             named: "settings_screen_interface_narrow_controls"
         )
+    }
+}
+
+private extension SnapshotTests {
+    var settingsHelpTextPopup: some View {
+        AppHoverPopup(horizontalPadding: 12, verticalPadding: 10, textAlignment: .leading) {
+            Text("Seconds to enter steering before continuing with the default handoff. " +
+                "The countdown stops when you start typing in the composer.")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 280)
+        }
+        .padding(24)
     }
 }
 

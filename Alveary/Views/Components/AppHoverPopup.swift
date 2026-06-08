@@ -31,7 +31,7 @@ struct AppHoverPopup<Content: View>: View {
             .padding(.leading, arrowEdge == .leading ? AppHoverPopupBubbleShape.arrowDepth : 0)
             .background {
                 AppHoverPopupBubbleShape(arrowEdge: arrowEdge)
-                    .fill(.regularMaterial)
+                    .fill(Color(nsColor: AppPopupSurfaceStyle.backgroundNSColor))
                     .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
                     .overlay {
                         AppHoverPopupBubbleShape(arrowEdge: arrowEdge)
