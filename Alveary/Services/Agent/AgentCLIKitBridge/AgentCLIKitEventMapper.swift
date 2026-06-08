@@ -25,6 +25,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return taskEvents(from: event)
         case .contextCompaction(let event):
             return contextCompactionEvents(from: event)
+        case .sessionMetadata(let event):
+            return [.providerSessionMetadataChanged(sessionId: event.providerSessionId?.rawValue, name: event.name)]
         case .sessionContinuity(let event):
             return [.sessionInit(sessionId: event.providerSessionId?.rawValue)]
         case .interaction(let event):

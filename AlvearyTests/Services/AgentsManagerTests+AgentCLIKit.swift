@@ -104,7 +104,6 @@ extension AgentsManagerTests {
         XCTAssertTrue(allowsApproval)
         await manager.kill(conversationId: conversationId)
     }
-
     func testAgentCLIKitApprovalStoreScopesTransientDecisionsBySession() async {
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: DisabledClaudeApprovalPersistenceStore())
         let scopedKey = AgentCLIKit.ClaudeTransientDecisionKey(sessionId: "session-1", interactionId: "tool-1")
@@ -119,7 +118,6 @@ extension AgentsManagerTests {
         XCTAssertEqual(matchingSessionDecision?.approval, .deny)
         XCTAssertEqual(matchingSessionDecision?.reason, "No")
     }
-
     func testAgentCLIKitFallbackApprovalRecordsTransientDecisionAndRespawns() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: DeferredThenMessageAgentCLIKitAdapter(),
@@ -312,6 +310,7 @@ extension AgentsManagerTests {
         let approvalStore = AgentCLIKit.ClaudeApprovalPolicyStore()
         let liveHookDecisionProvider = AgentCLIKitLiveHookDecisionProvider()
         let runtime = AgentCLIKit.DefaultAgentRuntime(adapters: [adapter], sessionStore: sessionStore, replayLimit: replayLimit)
+        let sessionManager = InMemorySessionManager()
         let services = AgentCLIKitHostServices(
             runtime: runtime,
             sessionStore: sessionStore,
@@ -328,7 +327,7 @@ extension AgentsManagerTests {
         )
         let manager = DefaultAgentsManager(
             agentCLIKitServices: services,
-            sessionManager: InMemorySessionManager(),
+            sessionManager: sessionManager,
             providerDetection: StubProviderDetectionService(resolvedPath: detectedPath),
             environmentBuilder: FixedPathEnvironmentBuilder(path: basePath),
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
@@ -339,6 +338,7 @@ extension AgentsManagerTests {
         )
         return AgentCLIKitManagerFixture(
             manager: manager,
+            sessionManager: sessionManager,
             runtime: runtime,
             sessionStore: sessionStore,
             approvalStore: approvalStore,

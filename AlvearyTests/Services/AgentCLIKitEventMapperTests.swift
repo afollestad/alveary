@@ -374,6 +374,20 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(events, [.sessionInit(sessionId: "session-1")])
     }
 
+    func testMapsSessionMetadataToProviderSessionMetadataChanged() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
+            .sessionMetadata(AgentSessionMetadataEvent(
+                providerSessionId: "thread-1",
+                name: "Generated thread name"
+            )),
+            providerSessionId: "thread-1"
+        ))
+
+        XCTAssertEqual(events, [
+            .providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated thread name")
+        ])
+    }
+
     func testMapsHookApprovalFailureDiagnostic() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
             .diagnostic(AgentDiagnosticEvent(

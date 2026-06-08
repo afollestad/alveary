@@ -155,5 +155,9 @@ final class ConversationEventTests: XCTestCase {
             ConversationEvent.runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed)
                 .toRecord(conversation: conversation)
         )
+        XCTAssertNil(
+            ConversationEvent.providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated")
+                .toRecord(conversation: conversation)
+        )
     }
 }

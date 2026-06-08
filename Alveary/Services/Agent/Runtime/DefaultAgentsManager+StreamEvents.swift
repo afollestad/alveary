@@ -201,7 +201,16 @@ extension DefaultAgentsManager {
         _ event: ConversationEvent,
         conversationId: String
     ) async {
-        if case .sessionInit(let sessionId) = event, let sessionId {
+        let sessionId: String?
+        switch event {
+        case .sessionInit(let value),
+             .providerSessionMetadataChanged(let value, _):
+            sessionId = value
+        default:
+            sessionId = nil
+        }
+
+        if let sessionId {
             await updateConversationSessionID(sessionId, conversationId: conversationId)
         }
     }

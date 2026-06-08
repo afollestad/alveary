@@ -88,6 +88,67 @@ extension AgentsManagerTests {
         await fixture.manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitProviderSessionMetadataUpdatesSessionBinding() async throws {
+        let executable = try makeScript(named: "metadata-session-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ProviderPathCLIKitAdapter(
+                providerId: .codex,
+                displayName: "Codex",
+                executableName: executable.lastPathComponent
+            ),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        )
+        let conversationId = "agentclikit-session-metadata"
+        let workingDirectory = executable.deletingLastPathComponent().path
+        _ = await fixture.sessionManager.createEntry(
+            conversationId: conversationId,
+            cwd: workingDirectory,
+            providerId: "codex"
+        )
+
+        try await fixture.manager.spawn(
+            id: conversationId,
+            config: spawnConfig(providerId: "codex", workingDirectory: workingDirectory)
+        )
+        let maybeSubscription = await awaitedSubscription(
+            fixture.manager,
+            conversationId: conversationId,
+            afterIndex: 0
+        )
+        let subscription = try XCTUnwrap(maybeSubscription)
+        await fixture.manager.handleStreamEvent(
+            ConversationEvent.providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated"),
+            conversationId: conversationId,
+            generation: subscription.generation,
+            providerId: "codex"
+        )
+
+        try await waitUntil("expected metadata session id to update session binding") {
+            await fixture.sessionManager.sessionId(for: conversationId) == "codex-thread"
+        }
+        await fixture.manager.kill(conversationId: conversationId)
+    }
+
+    func testAgentCLIKitProviderSessionMetadataDoesNotTriggerNotification() async {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ProviderPathCLIKitAdapter(
+                providerId: .codex,
+                displayName: "Codex",
+                executableName: "codex"
+            ),
+            detectedPath: "/usr/bin/codex",
+            basePath: "/usr/bin:/bin"
+        )
+
+        let canTriggerNotification = await fixture.manager.canTriggerNotification(
+            .providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated")
+        )
+
+        XCTAssertFalse(canTriggerNotification)
+    }
+
     func testClaudeApprovalStoreAdapterIgnoresNonClaudeSessionRemoval() async {
         let persistenceStore = RecordingClaudeApprovalPersistenceStore()
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: persistenceStore)

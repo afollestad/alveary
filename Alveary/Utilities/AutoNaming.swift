@@ -29,6 +29,14 @@ extension ConversationViewModel {
         return String(prefix) + "..."
     }
 
+    static func normalizedProviderSessionName(_ name: String?) -> String? {
+        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmedName, !trimmedName.isEmpty else {
+            return nil
+        }
+        return trimmedName
+    }
+
     static func formatPromptAnswers(answers: [(question: String, answer: String)]) -> String {
         answers.map { question, answer in
             "For the question '\(question)': \(answer)"

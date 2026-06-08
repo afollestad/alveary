@@ -5,6 +5,7 @@ import Foundation
 
 struct AgentCLIKitManagerFixture {
     let manager: DefaultAgentsManager
+    let sessionManager: InMemorySessionManager
     let runtime: AgentCLIKit.DefaultAgentRuntime
     let sessionStore: AgentCLIKit.JSONFileAgentSessionStore
     let approvalStore: AgentCLIKit.ClaudeApprovalPolicyStore

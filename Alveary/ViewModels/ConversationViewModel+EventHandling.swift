@@ -1,5 +1,10 @@
 extension ConversationViewModel {
     func handleEvent(_ event: ConversationEvent) {
+        if handleProviderSessionMetadataChanged(event) {
+            scheduleSave()
+            return
+        }
+
         guard shouldPersistEvent(event) else {
             return
         }
@@ -32,7 +37,8 @@ private extension ConversationViewModel {
         }
 
         switch event {
-        case .sessionInit:
+        case .sessionInit,
+             .providerSessionMetadataChanged:
             return false
 
         case .permissionModeChanged(let permissionMode):
@@ -88,6 +94,28 @@ private extension ConversationViewModel {
         }
         // Tool output proves the approval prompt is terminal even if the provider replays prompts late.
         resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: id)
+    }
+
+    func handleProviderSessionMetadataChanged(_ event: ConversationEvent) -> Bool {
+        guard case .providerSessionMetadataChanged(_, let name) = event else {
+            return false
+        }
+        guard let providerName = Self.normalizedProviderSessionName(name),
+              let dbConversation = dbConversation(),
+              let thread = dbConversation.thread,
+              !thread.hasCustomName,
+              thread.displayName() != providerName else {
+            return true
+        }
+
+        let previousThreadDisplayName = thread.displayName()
+        let mainConversation = thread.conversations.first { $0.isMain }
+        thread.name = providerName
+        if let mainConversation,
+           mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousThreadDisplayName) {
+            mainConversation.title = mainConversation.persistedTitle(from: providerName)
+        }
+        return true
     }
 
     func handlePermissionModeChanged(_ permissionMode: String) -> Bool {
