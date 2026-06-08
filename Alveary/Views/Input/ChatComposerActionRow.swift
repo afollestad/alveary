@@ -19,7 +19,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
     let planModeDisabledTooltip: String?
     let sessionLocationLabel: String?
     let usageSummary: ConversationUsageSummary?
-    let isTextEditorDisabled: Bool
     let areControlsDisabled: Bool
     let mode: ComposerMode
     let primaryActionTitle: String
@@ -27,10 +26,8 @@ struct ChatComposerActionRow: NSViewRepresentable {
     let isPrimaryActionDisabled: Bool
     let isStopConfirmationArmed: Bool
     let composerActionRowHeight: CGFloat
-    let contextIndicatorKeyboardSpacing: CGFloat
     let onSubmit: () -> Void
     let onStop: () -> Void
-    let onShowKeymap: () -> Void
     let onAddPhotosAndFiles: () -> Void
 
     func makeNSView(context: Context) -> ChatComposerActionRowView {
@@ -58,7 +55,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
             planModeDisabledTooltip: planModeDisabledTooltip,
             sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
-            isTextEditorDisabled: isTextEditorDisabled,
             areControlsDisabled: areControlsDisabled,
             mode: mode,
             primaryActionTitle: primaryActionTitle,
@@ -66,25 +62,22 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isPrimaryActionDisabled: isPrimaryActionDisabled,
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: composerActionRowHeight,
-            contextIndicatorKeyboardSpacing: contextIndicatorKeyboardSpacing,
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onPlanModeChange: { isPlanModeEnabled = $0 },
             onSubmit: onSubmit,
             onStop: onStop,
-            onShowKeymap: onShowKeymap,
             onAddPhotosAndFiles: onAddPhotosAndFiles
         )
     }
 }
 
 /// Native bottom composer row for reasoning/permission/worktree selectors,
-/// context/keymap accessories, and send/stop/progress action slots.
+/// context usage, and send/stop/progress action slots.
 @MainActor
 final class ChatComposerActionRowView: NSView {
     nonisolated static let defaultHeight: CGFloat = 30
     nonisolated static let defaultSettingsControlHeight: CGFloat = 24
-    nonisolated static let defaultContextIndicatorKeyboardSpacing: CGFloat = 6
 
     struct MenuOption: Equatable {
         let value: String
@@ -152,7 +145,6 @@ final class ChatComposerActionRowView: NSView {
         var planModeDisabledTooltip: String?
         let sessionLocationLabel: String?
         let usageSummary: ConversationUsageSummary?
-        let isTextEditorDisabled: Bool
         let areControlsDisabled: Bool
         let mode: ComposerMode
         let primaryActionTitle: String
@@ -160,13 +152,11 @@ final class ChatComposerActionRowView: NSView {
         let isPrimaryActionDisabled: Bool
         let isStopConfirmationArmed: Bool
         let composerActionRowHeight: CGFloat
-        let contextIndicatorKeyboardSpacing: CGFloat
         let onPermissionModeChange: (String) -> Void
         let onUseWorktreeChange: (Bool) -> Void
         var onPlanModeChange: (Bool) -> Void = { _ in }
         let onSubmit: () -> Void
         let onStop: () -> Void
-        let onShowKeymap: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
     }
 
@@ -178,9 +168,7 @@ final class ChatComposerActionRowView: NSView {
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
     // frame logic out of this already-large view type without widening behavior.
     let spacer = NSView()
-    private let accessoryGroup = ChatComposerAccessoryGroupView(spacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing)
-    private let contextIndicatorView = AppKitContextWindowIndicatorView()
-    private let keyboardButton = ComposerIconButton(symbolName: "keyboard")
+    let contextIndicatorView = AppKitContextWindowIndicatorView()
     private let primaryButton = ComposerActionButton(style: .primary)
     private let stopButton = ComposerActionButton(style: .destructive)
     let disabledSendSlot = ComposerActionButton(style: .primary)
@@ -202,6 +190,10 @@ final class ChatComposerActionRowView: NSView {
     var worktreeMenuController: ComposerWorktreeMenuViewController?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
+    let plusControlVisibleSpacing: CGFloat = 20
+    let leadingControlVisibleSpacing: CGFloat = 16
+    let contextReasoningVisibleSpacing: CGFloat = 12
+    let reasoningActionVisibleSpacing: CGFloat = 16
     let minimumSettingsControlWidth: CGFloat = 44
 
     override init(frame frameRect: NSRect) {
@@ -289,11 +281,6 @@ final class ChatComposerActionRowView: NSView {
         worktreeButton.actionHandler = { [weak self] in
             self?.toggleWorktreeLocationMenu()
         }
-        keyboardButton.actionHandler = { [weak self] in
-            self?.configuration?.onShowKeymap()
-        }
-        keyboardButton.setAccessibilityLabel("Show chat keyboard shortcuts")
-
         primaryButton.actionHandler = { [weak self] in
             self?.configuration?.onSubmit()
         }
@@ -395,7 +382,6 @@ final class ChatComposerActionRowView: NSView {
         sessionLocationField.toolTip = configuration.sessionLocationLabel
 
         contextIndicatorView.configure(summary: configuration.usageSummary)
-        keyboardButton.configure(isEnabled: !configuration.isTextEditorDisabled && !configuration.areControlsDisabled)
     }
 
     private func applyActionConfiguration(_ configuration: Configuration) {
@@ -452,9 +438,11 @@ final class ChatComposerActionRowView: NSView {
         }
 
         views.append(spacer)
-        if let accessoryGroup = configuredAccessoryGroup(for: configuration) {
-            views.append(accessoryGroup)
+        if configuration.usageSummary != nil {
+            views.append(contextIndicatorView)
         }
+        // Keep reasoning pinned between optional context usage and the action slot.
+        views.append(reasoningButton)
         switch configuration.mode {
         case .idle:
             views.append(primaryButton)
@@ -471,21 +459,6 @@ final class ChatComposerActionRowView: NSView {
             }
         }
         return views
-    }
-
-    private func configuredAccessoryGroup(for configuration: Configuration) -> ChatComposerAccessoryGroupView? {
-        var accessories: [NSView] = []
-        if configuration.usageSummary != nil {
-            accessories.append(contextIndicatorView)
-        }
-        // Keep reasoning pinned between context usage and keyboard help.
-        accessories.append(reasoningButton)
-        accessories.append(keyboardButton)
-        accessoryGroup.configure(
-            accessories: accessories,
-            spacing: configuration.contextIndicatorKeyboardSpacing
-        )
-        return accessories.isEmpty ? nil : accessoryGroup
     }
 
 }

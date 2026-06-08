@@ -426,7 +426,6 @@ extension ChatView {
             planModeDisabledTooltip: composerCapabilities.planModeDisabledTooltip,
             sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
-            isTextEditorDisabled: presentation.isTextEditorDisabled,
             areControlsDisabled: presentation.areControlsDisabled,
             mode: composerMode,
             primaryActionTitle: presentation.primaryActionTitle,
@@ -434,7 +433,6 @@ extension ChatView {
             isPrimaryActionDisabled: presentation.isPrimaryActionDisabled,
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
-            contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
             onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },
@@ -447,12 +445,6 @@ extension ChatView {
             onStop: {
                 isStopConfirmationArmed = false
                 Task { await viewModel.cancel() }
-            },
-            onShowKeymap: {
-                AppKitChatComposerKeymapPresenter.present(
-                    supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-                    defaultEnterBehavior: defaultEnterBehavior
-                )
             }
         )
     }

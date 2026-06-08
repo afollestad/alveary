@@ -410,7 +410,6 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         selectedUseWorktree: false,
         sessionLocationLabel: "Local",
         usageSummary: nil,
-        isTextEditorDisabled: false,
         areControlsDisabled: false,
         mode: .idle,
         primaryActionTitle: "Send",
@@ -418,12 +417,10 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         isPrimaryActionDisabled: false,
         isStopConfirmationArmed: false,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
-        contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         onSubmit: {},
-        onStop: {},
-        onShowKeymap: {}
+        onStop: {}
     )
 }
 

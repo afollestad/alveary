@@ -9,7 +9,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStates() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 770, height: 76),
+            size: CGSize(width: 632, height: 76),
             named: "chat_composer_native_action_control_interaction_states"
         )
     }
@@ -17,7 +17,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStatesDark() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 770, height: 76),
+            size: CGSize(width: 632, height: 76),
             named: "chat_composer_native_action_control_interaction_states_dark",
             colorScheme: .dark
         )
@@ -38,12 +38,6 @@ extension SnapshotTests {
                 .frame(width: 132, height: 24)
             ComposerPermissionButtonSnapshot(state: .hovered)
                 .frame(width: 144, height: 24)
-            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .idle)
-                .frame(width: 30, height: 30)
-            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .hovered)
-                .frame(width: 30, height: 30)
-            ComposerIconButtonSnapshot(symbolName: "keyboard", state: .pressed)
-                .frame(width: 30, height: 30)
             ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .hovered)
                 .frame(width: 76, height: 30)
             ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .pressed)
@@ -191,48 +185,6 @@ private struct ComposerWorktreeLocationButtonSnapshot: NSViewRepresentable {
             isEnabled: true,
             actionHandler: {}
         )
-        switch state {
-        case .idle:
-            break
-        case .hovered:
-            view.mouseEntered(with: Self.event)
-        case .pressed:
-            view.mouseEntered(with: Self.event)
-            view.mouseDown(with: Self.event)
-        }
-    }
-
-    private static var event: NSEvent {
-        NSEvent.mouseEvent(
-            with: .mouseMoved,
-            location: .zero,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            eventNumber: 0,
-            clickCount: 0,
-            pressure: 0
-        ) ?? NSEvent()
-    }
-}
-
-private struct ComposerIconButtonSnapshot: NSViewRepresentable {
-    let symbolName: String
-    let state: ComposerControlSnapshotState
-
-    func makeNSView(context: Context) -> ComposerIconButton {
-        let view = ComposerIconButton(symbolName: symbolName)
-        configure(view)
-        return view
-    }
-
-    func updateNSView(_ view: ComposerIconButton, context: Context) {
-        configure(view)
-    }
-
-    private func configure(_ view: ComposerIconButton) {
-        view.setAccessibilityLabel("Show chat keyboard shortcuts")
         switch state {
         case .idle:
             break

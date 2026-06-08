@@ -9,7 +9,7 @@ class ComposerCompactDropdownButton: NSView {
 
     var minimumDropdownWidth: CGFloat { 64 }
     var maximumDropdownWidth: CGFloat { 180 }
-    var horizontalPadding: CGFloat { 10 }
+    var horizontalPadding: CGFloat { 8 }
     var chevronSlotWidth: CGFloat { 18 }
     var chevronMaxSize: CGFloat { 10 }
     var chevronOpticalYOffset: CGFloat { 1.5 }

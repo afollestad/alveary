@@ -6,13 +6,14 @@ import AppKit
 /// inside AppKit layout.
 @MainActor
 final class AppKitContextWindowIndicatorView: NSView {
+    static let visibleCircleDiameter: CGFloat = 14
+
     private var summary: ConversationUsageSummary?
     private var trackingArea: NSTrackingArea?
     private var hoverPopover: NSPopover?
     // Keep the visible ring smaller than the hover target so it matches the
     // SwiftUI indicator while preserving the wider AppKit hit area.
     private let hitTargetSize: CGFloat = 22
-    private let circleDiameter: CGFloat = 14
     private let strokeWidth: CGFloat = 3
 
     override var isFlipped: Bool { true }
@@ -97,10 +98,10 @@ final class AppKitContextWindowIndicatorView: NSView {
         }
 
         let circleRect = NSRect(
-            x: floor((bounds.width - circleDiameter) / 2),
-            y: floor((bounds.height - circleDiameter) / 2),
-            width: circleDiameter,
-            height: circleDiameter
+            x: floor((bounds.width - Self.visibleCircleDiameter) / 2),
+            y: floor((bounds.height - Self.visibleCircleDiameter) / 2),
+            width: Self.visibleCircleDiameter,
+            height: Self.visibleCircleDiameter
         )
         let basePath = NSBezierPath(ovalIn: circleRect.insetBy(dx: strokeWidth / 2, dy: strokeWidth / 2))
         basePath.lineWidth = strokeWidth
@@ -108,7 +109,7 @@ final class AppKitContextWindowIndicatorView: NSView {
         basePath.stroke()
 
         let progressPath = NSBezierPath()
-        let radius = (circleDiameter - strokeWidth) / 2
+        let radius = (Self.visibleCircleDiameter - strokeWidth) / 2
         let center = NSPoint(x: circleRect.midX, y: circleRect.midY)
         progressPath.appendArc(
             withCenter: center,

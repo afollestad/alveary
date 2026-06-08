@@ -33,12 +33,20 @@ extension ChatComposerActionRowView {
 
     private func trailingFrames(for views: [NSView], rowWidth: CGFloat) -> [NSView: NSRect] {
         var frames: [NSView: NSRect] = [:]
-        var nextX = rowWidth
+        var rightNeighbor: NSView?
+        var rightNeighborMinX = rowWidth
         for view in views.reversed() {
             let width = preferredWidth(for: view)
-            nextX -= width
-            frames[view] = centeredFrame(originX: nextX, width: width, for: view)
-            nextX -= rowSpacing
+            let maxX: CGFloat
+            if let rightNeighbor {
+                maxX = rightNeighborMinX - preferredFrameSpacing(after: view, before: rightNeighbor)
+            } else {
+                maxX = rowWidth
+            }
+            let originX = maxX - width
+            frames[view] = centeredFrame(originX: originX, width: width, for: view)
+            rightNeighbor = view
+            rightNeighborMinX = originX
         }
         return frames
     }
@@ -50,10 +58,14 @@ extension ChatComposerActionRowView {
             }
         }
 
-        let spacing = min(rowSpacing, views.count > 1 ? availableWidth / CGFloat(views.count - 1) : rowSpacing)
-        let spacingWidth = spacing * CGFloat(max(0, views.count - 1))
-        let contentWidth = max(0, availableWidth - spacingWidth)
         let preferredWidths = views.map(preferredWidth(for:))
+        let spacings = settingsSpacings(
+            views: views,
+            preferredWidths: preferredWidths,
+            availableWidth: availableWidth
+        )
+        let spacingWidth = spacings.reduce(0, +)
+        let contentWidth = max(0, availableWidth - spacingWidth)
         let widths = compressedWidths(views: views, preferredWidths: preferredWidths, availableWidth: contentWidth)
 
         var frames: [NSView: NSRect] = [:]
@@ -61,9 +73,62 @@ extension ChatComposerActionRowView {
         for (index, view) in views.enumerated() {
             let width = widths[index]
             frames[view] = centeredFrame(originX: nextX, width: width, for: view)
-            nextX += width + spacing
+            nextX += width
+            if index < spacings.count {
+                nextX += spacings[index]
+            }
         }
         return frames
+    }
+
+    private func settingsSpacings(
+        views: [NSView],
+        preferredWidths: [CGFloat],
+        availableWidth: CGFloat
+    ) -> [CGFloat] {
+        guard views.count > 1 else {
+            return []
+        }
+
+        let preferredSpacings = views.indices.dropLast().map { index in
+            preferredFrameSpacing(
+                after: views[index],
+                before: views[index + 1],
+                previousWidth: preferredWidths[index],
+                nextWidth: preferredWidths[index + 1]
+            )
+        }
+        let preferredWidthTotal = preferredWidths.reduce(0, +)
+        let preferredSpacingTotal = preferredSpacings.reduce(0, +)
+        let spacingBudget = max(0, availableWidth - preferredWidthTotal)
+        guard preferredSpacingTotal > spacingBudget else {
+            return preferredSpacings
+        }
+
+        let compactSpacings = preferredSpacings.map { min(rowSpacing, $0) }
+        let compactSpacingTotal = compactSpacings.reduce(0, +)
+        guard compactSpacingTotal > 0 else {
+            return compactSpacings
+        }
+        guard compactSpacingTotal <= spacingBudget else {
+            let scale = max(0, spacingBudget / compactSpacingTotal)
+            return compactSpacings.map { floor($0 * scale) }
+        }
+        guard compactSpacingTotal < spacingBudget else {
+            return compactSpacings
+        }
+
+        var spacings = compactSpacings
+        var remaining = spacingBudget - compactSpacingTotal
+        for index in spacings.indices {
+            let expansion = min(preferredSpacings[index] - spacings[index], remaining)
+            spacings[index] += expansion
+            remaining -= expansion
+            if remaining <= 0 {
+                break
+            }
+        }
+        return spacings
     }
 
     private func compressedWidths(views: [NSView], preferredWidths: [CGFloat], availableWidth: CGFloat) -> [CGFloat] {
@@ -150,6 +215,81 @@ extension ChatComposerActionRowView {
             return ceil(intrinsicWidth)
         }
         return ceil(view.fittingSize.width)
+    }
+
+    private func preferredFrameSpacing(after previousView: NSView, before nextView: NSView) -> CGFloat {
+        preferredFrameSpacing(
+            after: previousView,
+            before: nextView,
+            previousWidth: preferredWidth(for: previousView),
+            nextWidth: preferredWidth(for: nextView)
+        )
+    }
+
+    private func preferredFrameSpacing(
+        after previousView: NSView,
+        before nextView: NSView,
+        previousWidth: CGFloat,
+        nextWidth: CGFloat
+    ) -> CGFloat {
+        let visibleSpacing = preferredVisibleSpacing(after: previousView, before: nextView)
+        let previousInsets = visibleHorizontalInsets(for: previousView, width: previousWidth)
+        let nextInsets = visibleHorizontalInsets(for: nextView, width: nextWidth)
+        return max(0, visibleSpacing - previousInsets.trailing - nextInsets.leading)
+    }
+
+    private func preferredVisibleSpacing(after previousView: NSView, before nextView: NSView) -> CGFloat {
+        if previousView === plusButton, isLeadingControl(nextView) {
+            return plusControlVisibleSpacing
+        }
+        if isLeadingControl(previousView), isLeadingControl(nextView) {
+            return leadingControlVisibleSpacing
+        }
+        if previousView === contextIndicatorView, nextView === reasoningButton {
+            return contextReasoningVisibleSpacing
+        }
+        if nextView is ComposerActionButton || nextView === disabledProgressContainer {
+            if previousView === reasoningButton {
+                return reasoningActionVisibleSpacing
+            }
+        }
+        return rowSpacing
+    }
+
+    private func isLeadingControl(_ view: NSView) -> Bool {
+        view === plusButton ||
+            view === permissionButton ||
+            view === worktreeButton ||
+            view === sessionLocationField
+    }
+
+    #if DEBUG
+    func visibleFrameForTesting(for view: NSView, in coordinateView: NSView? = nil) -> NSRect {
+        let frame = view.convert(view.bounds, to: coordinateView)
+        let insets = visibleHorizontalInsets(for: view, width: frame.width)
+        return NSRect(
+            x: frame.minX + insets.leading,
+            y: frame.minY,
+            width: max(0, frame.width - insets.leading - insets.trailing),
+            height: frame.height
+        )
+    }
+    #endif
+
+    private func visibleHorizontalInsets(for view: NSView, width: CGFloat) -> (leading: CGFloat, trailing: CGFloat) {
+        if view === plusButton {
+            let visibleHalfWidth = (min(width, preferredHeight(for: view)) * 0.24) + 1
+            let inset = max(0, floor((width / 2) - visibleHalfWidth))
+            return (inset, inset)
+        }
+        if view === contextIndicatorView {
+            let inset = max(0, floor((width - AppKitContextWindowIndicatorView.visibleCircleDiameter) / 2))
+            return (inset, inset)
+        }
+        if let dropdownButton = view as? ComposerCompactDropdownButton {
+            return (dropdownButton.horizontalPadding, dropdownButton.horizontalPadding)
+        }
+        return (0, 0)
     }
 
     private func preferredHeight(for view: NSView) -> CGFloat {

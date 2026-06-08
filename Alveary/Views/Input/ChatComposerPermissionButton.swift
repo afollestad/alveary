@@ -75,7 +75,7 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
                 image,
                 in: NSRect(
                     x: rect.minX + floor((Self.iconSlotSize - drawSize.width) / 2),
-                    y: floor((bounds.height - drawSize.height) / 2),
+                    y: floor((bounds.height - drawSize.height) / 2) + iconOpticalYOffset(for: presentation),
                     width: drawSize.width,
                     height: drawSize.height
                 ),
@@ -114,6 +114,10 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     private func foregroundColor(for presentation: Presentation) -> NSColor {
         let color: NSColor = presentation.isWarning ? .systemOrange : .labelColor
         return color.appKitResolvedColor(in: self, alpha: textAlpha)
+    }
+
+    private func iconOpticalYOffset(for presentation: Presentation) -> CGFloat {
+        presentation.iconRotationRadians == 0 ? 0 : 1
     }
 
     private func permissionSymbolImage(named name: String, color: NSColor) -> NSImage? {

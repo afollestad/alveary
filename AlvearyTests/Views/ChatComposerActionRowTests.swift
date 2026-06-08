@@ -244,24 +244,14 @@ final class ChatComposerActionRowTests: XCTestCase {
         let actionFrame = actionButton.convert(actionButton.bounds, to: row)
         XCTAssertEqual(actionFrame.maxX, row.bounds.maxX, accuracy: 1)
 
-        let keyboardButton = try XCTUnwrap(
-            row.descendants(of: ComposerIconButton.self).first {
-                $0.accessibilityLabel() == "Show chat keyboard shortcuts"
-            }
-        )
-        let keyboardFrame = keyboardButton.convert(keyboardButton.bounds, to: row)
-        XCTAssertGreaterThan(keyboardFrame.minX, row.bounds.midX)
-        XCTAssertLessThan(keyboardFrame.maxX, actionFrame.minX)
-
         let contextIndicator = try XCTUnwrap(row.descendants(of: AppKitContextWindowIndicatorView.self).first)
         let contextFrame = contextIndicator.convert(contextIndicator.bounds, to: row)
         XCTAssertGreaterThan(contextFrame.minX, row.bounds.midX)
-        XCTAssertLessThan(contextFrame.maxX, keyboardFrame.minX)
 
         let reasoningButton = try XCTUnwrap(row.descendants(of: ComposerReasoningButton.self).first)
         let reasoningFrame = reasoningButton.convert(reasoningButton.bounds, to: row)
-        XCTAssertGreaterThan(reasoningFrame.minX, contextFrame.maxX)
-        XCTAssertLessThan(reasoningFrame.maxX, keyboardFrame.minX)
+        XCTAssertGreaterThanOrEqual(reasoningFrame.minX, contextFrame.maxX)
+        XCTAssertLessThan(reasoningFrame.maxX, actionFrame.minX)
     }
 
     func testSessionLocationLabelKeepsIntrinsicWidthWhenDropdownsCompress() throws {
@@ -339,24 +329,6 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
     }
 
-    func testKeyboardButtonRoutesKeymapAction() throws {
-        let row = ChatComposerActionRowView()
-        var showKeymapCount = 0
-        row.configure(makeConfiguration(mode: .idle, onShowKeymap: { showKeymapCount += 1 }))
-
-        let keyboardButton = try XCTUnwrap(
-            row.descendants(of: ComposerIconButton.self).first {
-                $0.accessibilityLabel() == "Show chat keyboard shortcuts"
-            }
-        )
-        XCTAssertTrue(keyboardButton.accessibilityPerformPress())
-        XCTAssertEqual(showKeymapCount, 1)
-
-        row.configure(makeConfiguration(mode: .idle, isTextEditorDisabled: true, onShowKeymap: { showKeymapCount += 1 }))
-        XCTAssertFalse(keyboardButton.isHidden || keyboardButton.accessibilityPerformPress())
-        XCTAssertEqual(showKeymapCount, 1)
-    }
-
 }
 
 func makeConfiguration(
@@ -370,13 +342,11 @@ func makeConfiguration(
     selectedUseWorktree: Bool = false,
     sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
-    isTextEditorDisabled: Bool = false,
     areControlsDisabled: Bool = false,
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
     onSubmit: @escaping () -> Void = {},
     onStop: @escaping () -> Void = {},
-    onShowKeymap: @escaping () -> Void = {},
     onAddPhotosAndFiles: @escaping () -> Void = {}
 ) -> ChatComposerActionRowView.Configuration {
     ChatComposerActionRowView.Configuration(
@@ -391,7 +361,6 @@ func makeConfiguration(
         selectedUseWorktree: selectedUseWorktree,
         sessionLocationLabel: sessionLocationLabel,
         usageSummary: usageSummary,
-        isTextEditorDisabled: isTextEditorDisabled,
         areControlsDisabled: areControlsDisabled,
         mode: mode,
         primaryActionTitle: "Send",
@@ -399,12 +368,10 @@ func makeConfiguration(
         isPrimaryActionDisabled: isPrimaryActionDisabled,
         isStopConfirmationArmed: isStopConfirmationArmed,
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
-        contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         onSubmit: onSubmit,
         onStop: onStop,
-        onShowKeymap: onShowKeymap,
         onAddPhotosAndFiles: onAddPhotosAndFiles
     )
 }

@@ -394,7 +394,6 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             selectedUseWorktree: selectedUseWorktree,
             sessionLocationLabel: "Local",
             usageSummary: usageSummary,
-            isTextEditorDisabled: false,
             areControlsDisabled: false,
             mode: .idle,
             primaryActionTitle: "Send",
@@ -402,12 +401,10 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
             isPrimaryActionDisabled: true,
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
-            contextIndicatorKeyboardSpacing: ChatComposerActionRowView.defaultContextIndicatorKeyboardSpacing,
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onSubmit: {},
-            onStop: {},
-            onShowKeymap: {}
+            onStop: {}
         )
     }
 
