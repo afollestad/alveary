@@ -159,6 +159,45 @@ extension ConversationViewModel {
         )
     }
 
+    func preparePlanModePendingSnapshotIfNeeded(
+        for dbThread: AgentThread,
+        displayedValue: Bool
+    ) -> SessionSettingsSnapshot {
+        var snapshot = sessionSettingsSnapshot(for: dbThread)
+        snapshot.planModeEnabled = displayedValue
+        guard shouldStageSessionSettingChange else {
+            return snapshot
+        }
+
+        if let pending = state.pendingSessionSettingsChange {
+            guard !pending.hasPlanModeChange else {
+                return snapshot
+            }
+            var original = pending.original
+            original.planModeEnabled = displayedValue
+            state.pendingSessionSettingsChange = PendingSessionSettingsChange(
+                original: original,
+                pending: pending.pending,
+                liveSessionConfig: pending.liveSessionConfig,
+                invalidatesContextWindow: pending.invalidatesContextWindow
+            )
+        } else {
+            state.pendingSessionSettingsChange = PendingSessionSettingsChange(
+                original: snapshot,
+                pending: snapshot,
+                liveSessionConfig: state.liveSessionConfig
+            )
+        }
+        return snapshot
+    }
+
+    func displayedPlanModeSetting(for dbThread: AgentThread) -> Bool {
+        state.pendingSessionSettingsChange?.pending.planModeEnabled
+            ?? state.runtimePlanModeEnabled
+            ?? dbThread.planModeEnabled
+            ?? false
+    }
+
     func refreshPendingSessionSettingsChange(
         from dbThread: AgentThread,
         invalidatesContextWindow: Bool = false

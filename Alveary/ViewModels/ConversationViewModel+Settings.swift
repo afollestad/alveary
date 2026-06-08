@@ -237,9 +237,13 @@ extension ConversationViewModel {
         }
 
         let previousValue = dbThread.planModeEnabled
-        guard previousValue != newValue else { return .noop }
+        let displayedValue = displayedPlanModeSetting(for: dbThread)
+        guard displayedValue != newValue else { return .noop }
 
-        let original = preparePendingSnapshotIfNeeded(for: dbThread)
+        let original = preparePlanModePendingSnapshotIfNeeded(
+            for: dbThread,
+            displayedValue: displayedValue
+        )
         let previousRuntimePlanModeEnabled = state.runtimePlanModeEnabled
         dbThread.planModeEnabled = newValue
         if !shouldStageSessionSettingChange {

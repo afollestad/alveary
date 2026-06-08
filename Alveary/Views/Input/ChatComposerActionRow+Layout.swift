@@ -259,6 +259,7 @@ extension ChatComposerActionRowView {
     private func isLeadingControl(_ view: NSView) -> Bool {
         view === plusButton ||
             view === permissionButton ||
+            view === planModeButton ||
             view === worktreeButton ||
             view === sessionLocationField
     }

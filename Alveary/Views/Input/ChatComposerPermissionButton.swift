@@ -8,6 +8,7 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     private static let iconSlotSize: CGFloat = 16
     private static let iconTextSpacing: CGFloat = 5
     private static let iconPointSize: CGFloat = 13
+    private static let symbolTransitionDuration: TimeInterval = 0.14
 
     struct Presentation: Equatable {
         let title: String
@@ -28,7 +29,15 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
         }
     }
 
+    private struct SymbolTransition {
+        let previous: Presentation
+        let current: Presentation
+        let startedAt: TimeInterval
+    }
+
     private var presentation: Presentation?
+    private var lastResolvedPresentation: Presentation?
+    private var symbolTransition: SymbolTransition?
 
     override var minimumDropdownWidth: CGFloat { Self.minWidth }
     override var maximumDropdownWidth: CGFloat { Self.maxWidth }
@@ -53,35 +62,64 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     }
 
     #if DEBUG
-    var debugTitle: String? { presentation?.title }
-    var debugSymbolName: String? { presentation?.symbolName }
-    var debugIconRotationRadians: CGFloat { presentation?.iconRotationRadians ?? 0 }
-    var debugIsWarning: Bool { presentation?.isWarning == true }
+    var debugTitle: String? { currentPresentation?.title }
+    var debugSymbolName: String? { currentPresentation?.symbolName }
+    var debugIconRotationRadians: CGFloat { currentPresentation?.iconRotationRadians ?? 0 }
+    var debugIsWarning: Bool { currentPresentation?.isWarning == true }
     var debugIconTextSpacing: CGFloat { Self.iconTextSpacing }
     var debugTextChevronSpacing: CGFloat { chevronSlotWidth - chevronDrawingWidth }
+    var debugReservesTrailingSlot: Bool { reservesTrailingSlot }
+    var debugDrawsChevron: Bool { drawsChevron }
+    var debugHasSymbolTransition: Bool { symbolTransition != nil }
     #endif
 
+    func resolvedPresentation(from presentation: Presentation) -> Presentation {
+        presentation
+    }
+
+    func cancelSymbolTransition() {
+        symbolTransition = nil
+    }
+
+    func currentResolvedPresentation() -> Presentation? {
+        currentPresentation
+    }
+
+    func prepareSymbolTransitionForCurrentPresentation(previousPresentation: Presentation? = nil) {
+        guard let presentation = currentPresentation else {
+            lastResolvedPresentation = nil
+            symbolTransition = nil
+            return
+        }
+        let previousPresentation = lastResolvedPresentation ?? previousPresentation
+        defer {
+            lastResolvedPresentation = presentation
+        }
+        guard animatesSymbolChanges,
+              controlIsEnabled,
+              let previousPresentation,
+              previousPresentation.symbolName != presentation.symbolName else {
+            if !animatesSymbolChanges || !controlIsEnabled {
+                symbolTransition = nil
+            }
+            return
+        }
+        symbolTransition = SymbolTransition(
+            previous: previousPresentation,
+            current: presentation,
+            startedAt: Date().timeIntervalSinceReferenceDate
+        )
+    }
+
     override func drawContent(in rect: NSRect) {
-        guard let presentation else {
+        guard let presentation = currentPresentation else {
+            lastResolvedPresentation = nil
+            symbolTransition = nil
             return
         }
         let foregroundColor = foregroundColor(for: presentation)
-        if let image = permissionSymbolImage(
-            named: presentation.symbolName,
-            color: foregroundColor
-        ) {
-            let drawSize = symbolDrawingSize(for: image, maxSize: Self.iconSlotSize)
-            drawImage(
-                image,
-                in: NSRect(
-                    x: rect.minX + floor((Self.iconSlotSize - drawSize.width) / 2),
-                    y: floor((bounds.height - drawSize.height) / 2) + iconOpticalYOffset(for: presentation),
-                    width: drawSize.width,
-                    height: drawSize.height
-                ),
-                rotationRadians: presentation.iconRotationRadians
-            )
-        }
+        updateSymbolTransitionIfNeeded(to: presentation)
+        drawSymbol(for: presentation, color: foregroundColor, in: rect)
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: titleFont,
@@ -99,6 +137,10 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
             ),
             withAttributes: attributes
         )
+    }
+
+    private var currentPresentation: Presentation? {
+        presentation.map { resolvedPresentation(from: $0) }
     }
 
     private var titleFont: NSFont {
@@ -120,6 +162,75 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
         presentation.iconRotationRadians == 0 ? 0 : 1
     }
 
+    private func updateSymbolTransitionIfNeeded(to presentation: Presentation) {
+        defer {
+            lastResolvedPresentation = presentation
+        }
+        guard animatesSymbolChanges,
+              controlIsEnabled,
+              let previous = lastResolvedPresentation,
+              previous.symbolName != presentation.symbolName else {
+            if !animatesSymbolChanges || !controlIsEnabled {
+                symbolTransition = nil
+            }
+            return
+        }
+        symbolTransition = SymbolTransition(
+            previous: previous,
+            current: presentation,
+            startedAt: Date().timeIntervalSinceReferenceDate
+        )
+    }
+
+    var animatesSymbolChanges: Bool {
+        false
+    }
+
+    private func drawSymbol(for presentation: Presentation, color: NSColor, in rect: NSRect) {
+        guard let transition = symbolTransition,
+              transition.current.symbolName == presentation.symbolName else {
+            drawSymbol(presentation, color: color, alpha: 1, in: rect)
+            return
+        }
+
+        let elapsed = Date().timeIntervalSinceReferenceDate - transition.startedAt
+        let progress = min(1, max(0, elapsed / Self.symbolTransitionDuration))
+        drawSymbol(transition.previous, color: color, alpha: 1 - progress, in: rect)
+        drawSymbol(transition.current, color: color, alpha: progress, in: rect)
+
+        if progress >= 1 {
+            symbolTransition = nil
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.needsDisplay = true
+            }
+        }
+    }
+
+    private func drawSymbol(_ presentation: Presentation, color: NSColor, alpha: CGFloat, in rect: NSRect) {
+        guard alpha > 0,
+              let image = permissionSymbolImage(named: presentation.symbolName, color: color) else {
+            return
+        }
+        let maxSize = symbolDrawMaxSize(for: presentation)
+        let drawSize = symbolDrawingSize(for: image, maxSize: maxSize)
+        drawImage(
+            image,
+            in: NSRect(
+                x: rect.minX + floor((Self.iconSlotSize - drawSize.width) / 2),
+                y: floor((bounds.height - drawSize.height) / 2) + iconOpticalYOffset(for: presentation),
+                width: drawSize.width,
+                height: drawSize.height
+            ),
+            rotationRadians: presentation.iconRotationRadians,
+            alpha: alpha
+        )
+    }
+
+    func symbolDrawMaxSize(for presentation: Presentation) -> CGFloat {
+        Self.iconSlotSize
+    }
+
     private func permissionSymbolImage(named name: String, color: NSColor) -> NSImage? {
         let configuration = NSImage.SymbolConfiguration(
             pointSize: Self.iconPointSize,
@@ -129,13 +240,13 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
             .withSymbolConfiguration(configuration)
     }
 
-    private func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat) {
+    private func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat, alpha: CGFloat) {
         guard rotationRadians != 0 else {
             image.draw(
                 in: rect,
                 from: .zero,
                 operation: .sourceOver,
-                fraction: 1,
+                fraction: alpha,
                 respectFlipped: true,
                 hints: nil
             )
@@ -152,7 +263,7 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
             in: rect,
             from: .zero,
             operation: .sourceOver,
-            fraction: 1,
+            fraction: alpha,
             respectFlipped: true,
             hints: nil
         )
@@ -195,5 +306,78 @@ final class ComposerPermissionButton: ComposerIconTitleDropdownButton {
             isEnabled: isEnabled,
             actionHandler: actionHandler
         )
+    }
+}
+
+@MainActor
+final class ComposerPlanModeButton: ComposerIconTitleDropdownButton {
+    private var usesExitSymbol = false
+
+    override var reservesTrailingSlot: Bool { false }
+    override var drawsChevron: Bool { false }
+    override var animatesSymbolChanges: Bool { true }
+
+    override func symbolDrawMaxSize(for presentation: Presentation) -> CGFloat {
+        presentation.symbolName == "xmark" ? 12 : super.symbolDrawMaxSize(for: presentation)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setAccessibilityLabel("Exit plan mode")
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setAccessibilityLabel("Exit plan mode")
+    }
+
+    func configure(height: CGFloat, isEnabled: Bool, actionHandler: @escaping () -> Void) {
+        configure(
+            presentation: .init(
+                title: "Plan",
+                symbolName: "checklist"
+            ),
+            height: height,
+            isEnabled: isEnabled,
+            actionHandler: { [weak self] in
+                self?.resetInteractionState()
+                actionHandler()
+            }
+        )
+    }
+
+    override func resolvedPresentation(from presentation: Presentation) -> Presentation {
+        Presentation(
+            title: presentation.title,
+            symbolName: usesExitSymbol ? "xmark" : presentation.symbolName,
+            iconRotationRadians: presentation.iconRotationRadians,
+            isWarning: presentation.isWarning
+        )
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        guard controlIsEnabled else {
+            return
+        }
+        let previousPresentation = currentResolvedPresentation()
+        usesExitSymbol = true
+        prepareSymbolTransitionForCurrentPresentation(previousPresentation: previousPresentation)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.resetInteractionState()
+        let previousPresentation = currentResolvedPresentation()
+        usesExitSymbol = false
+        prepareSymbolTransitionForCurrentPresentation(previousPresentation: previousPresentation)
+        needsDisplay = true
+    }
+
+    override func resetInteractionState() {
+        super.resetInteractionState()
+        usesExitSymbol = false
+        cancelSymbolTransition()
+        needsDisplay = true
     }
 }

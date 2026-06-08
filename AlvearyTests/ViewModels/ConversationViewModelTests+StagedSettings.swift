@@ -98,6 +98,55 @@ extension ConversationViewModelTests {
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
 
+    func testApplyPlanModeChangeCanCancelDisplayedPendingEnableWhenStoredValueIsAlreadyFalse() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = false
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+        fixture.viewModel.state.turnState.beginTurn()
+
+        let original = fixture.viewModel.sessionSettingsSnapshot(for: try fixture.dbThread())
+        var pending = original
+        pending.planModeEnabled = true
+        fixture.viewModel.state.pendingSessionSettingsChange = PendingSessionSettingsChange(
+            original: original,
+            pending: pending,
+            liveSessionConfig: nil
+        )
+
+        await fixture.viewModel.applyPlanModeChange(false).value
+
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertNil(fixture.viewModel.pendingPlanModeForDisplay())
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testApplyPlanModeChangeCanExitDisplayedRuntimePlanModeWhenStoredValueIsAlreadyFalse() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = false
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+
+        await fixture.viewModel.applyPlanModeChange(false).value
+
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.permissionMode, "acceptEdits")
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, false)
+    }
+
     func testStagedPlanModeAppliesOnNextTurn() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,

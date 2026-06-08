@@ -163,6 +163,7 @@ final class ChatComposerActionRowView: NSView {
     let plusButton = ComposerPlusButton()
     let reasoningButton = ComposerReasoningButton()
     let permissionButton = ComposerPermissionButton()
+    let planModeButton = ComposerPlanModeButton()
     let worktreeButton = ComposerWorktreeLocationButton()
     let sessionLocationField = NSTextField(labelWithString: "")
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
@@ -255,6 +256,7 @@ final class ChatComposerActionRowView: NSView {
         plusButton.setAccessibilityLabel("Open composer actions")
         reasoningButton.setAccessibilityLabel("Reasoning")
         permissionButton.setAccessibilityLabel("Permissions")
+        planModeButton.setAccessibilityLabel("Exit plan mode")
         worktreeButton.setAccessibilityLabel("Thread location")
     }
 
@@ -277,6 +279,9 @@ final class ChatComposerActionRowView: NSView {
         }
         permissionButton.actionHandler = { [weak self] in
             self?.togglePermissionMenu()
+        }
+        planModeButton.actionHandler = { [weak self] in
+            self?.configuration?.onPlanModeChange(false)
         }
         worktreeButton.actionHandler = { [weak self] in
             self?.toggleWorktreeLocationMenu()
@@ -430,6 +435,9 @@ final class ChatComposerActionRowView: NSView {
         views.append(plusButton)
         if !configuration.supportedPermissionModes.isEmpty {
             views.append(permissionButton)
+        }
+        if configuration.isPlanModeEnabled {
+            views.append(planModeButton)
         }
         if configuration.showWorktreePicker {
             views.append(worktreeButton)

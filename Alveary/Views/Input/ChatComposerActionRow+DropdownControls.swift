@@ -28,6 +28,13 @@ extension ChatComposerActionRowView {
                 }
             )
         }
+        planModeButton.configure(
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: !configuration.areControlsDisabled,
+            actionHandler: { [weak self] in
+                self?.configuration?.onPlanModeChange(false)
+            }
+        )
         // Keep open popovers tied to the persisted provider/model/effort and
         // permission state, including async reconfigure rollback updates.
         reasoningMenuController?.update(configuration: configuration.reasoning)

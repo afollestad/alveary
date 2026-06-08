@@ -222,6 +222,23 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.selectedPermissionMode, "acceptEdits")
     }
 
+    func testThreadPresentationUsesPendingPlanModeBeforeRuntimeModeForDisplay() {
+        let thread = AgentThread(
+            name: "Pending plan mode",
+            permissionMode: "acceptEdits",
+            planModeEnabled: false
+        )
+
+        let presentation = ChatThreadPresentation(
+            thread: thread,
+            providerID: "claude",
+            runtimePlanModeEnabled: true,
+            pendingPlanModeEnabled: false
+        )
+
+        XCTAssertFalse(presentation.selectedPlanModeEnabled)
+    }
+
     func testThreadPresentationShowsSessionLocationAfterSetup() {
         let project = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
         let thread = AgentThread(
