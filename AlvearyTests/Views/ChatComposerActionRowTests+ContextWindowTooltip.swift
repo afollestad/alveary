@@ -60,6 +60,28 @@ extension ChatComposerActionRowTests {
         XCTAssertNil(fields.first { $0.stringValue == "0 token window" })
     }
 
+    func testContextWindowTooltipShowsReportedUsageWithUnknownContextWindowSize() throws {
+        let tooltip = AppKitContextWindowTooltipView(
+            summary: ConversationUsageSummary(
+                contextUsedTokens: 70_060,
+                contextWindowSize: 0,
+                totalCostUsd: 0,
+                hasReportedCost: false,
+                hasReportedUsage: true,
+                isUsingCachedContextWindow: false
+            )
+        )
+
+        tooltip.applyPreferredSize()
+
+        let fields = tooltip.descendants(of: NSTextField.self)
+        XCTAssertEqual(fields.count, 3)
+        XCTAssertNotNil(fields.first { $0.stringValue == "Usage reported" })
+        XCTAssertNotNil(fields.first { $0.stringValue == "70.1k tokens used" })
+        XCTAssertNil(fields.first { $0.stringValue == "No usage yet" })
+        XCTAssertNil(fields.first { $0.stringValue == "0% full" })
+    }
+
     func testContextWindowTooltipUpdatesExistingContent() throws {
         let tooltip = AppKitContextWindowTooltipView(
             summary: ConversationUsageSummary(
@@ -161,6 +183,27 @@ extension ChatComposerActionRowTests {
 
         XCTAssertFalse(indicator.isHidden)
         XCTAssertEqual(indicator.accessibilityValue() as? String, "No usage reported yet")
+    }
+
+    func testReportedUsageWithUnknownContextWindowSizeDoesNotAnnounceZeroPercent() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 900, height: 30))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            usageSummary: ConversationUsageSummary(
+                contextUsedTokens: 70_060,
+                contextWindowSize: 0,
+                totalCostUsd: 0,
+                hasReportedCost: false,
+                hasReportedUsage: true,
+                isUsingCachedContextWindow: false
+            )
+        ))
+        row.layoutSubtreeIfNeeded()
+
+        let indicator = try XCTUnwrap(row.descendants(of: AppKitContextWindowIndicatorView.self).first)
+
+        XCTAssertFalse(indicator.isHidden)
+        XCTAssertEqual(indicator.accessibilityValue() as? String, "Usage reported, context window size not reported")
     }
 }
 

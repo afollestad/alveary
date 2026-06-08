@@ -83,6 +83,35 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.isUsingCachedContextWindow, true)
     }
 
+    func testContextWindowInvalidationKeepsPriorUsageWhenNoCurrentMaxExists() throws {
+        let events = [
+            tokenRecord(
+                input: 100,
+                output: 50,
+                cacheRead: 20,
+                cacheCreation: 30,
+                costUsd: 0.01,
+                contextWindowSize: 200_000
+            ),
+            ConversationEventRecord(
+                conversationId: "conversation-1",
+                type: ConversationEventRecord.contextWindowInvalidatedType
+            )
+        ]
+
+        let summary = try XCTUnwrap(ConversationUsageSummary.derive(from: events, cachedContextWindowSize: nil))
+
+        XCTAssertEqual(summary.contextUsedTokens, 150)
+        XCTAssertEqual(summary.contextWindowSize, 0)
+        XCTAssertEqual(summary.contextUsageFraction, 0)
+        XCTAssertEqual(summary.contextUsagePercent, 0)
+        XCTAssertEqual(summary.totalCostUsd, 0.01, accuracy: 0.000_001)
+        XCTAssertEqual(summary.hasReportedCost, true)
+        XCTAssertEqual(summary.hasReportedUsage, true)
+        XCTAssertEqual(summary.hasKnownContextWindowSize, false)
+        XCTAssertEqual(summary.isUsingCachedContextWindow, false)
+    }
+
     func testTokenRecordAfterContextWindowInvalidationDrivesUsageAndReportedMax() throws {
         let events = [
             tokenRecord(
@@ -117,6 +146,47 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.isUsingCachedContextWindow, false)
     }
 
+    func testNonPositiveReportedMaxFallsBackToPositiveCachedMax() throws {
+        let events = [
+            tokenRecord(
+                input: 10,
+                output: 20,
+                cacheRead: 30,
+                cacheCreation: 40,
+                costUsd: 0.01,
+                contextWindowSize: 0
+            )
+        ]
+
+        let summary = try XCTUnwrap(ConversationUsageSummary.derive(from: events, cachedContextWindowSize: 200_000))
+
+        XCTAssertEqual(summary.contextUsedTokens, 80)
+        XCTAssertEqual(summary.contextWindowSize, 200_000)
+        XCTAssertEqual(summary.hasKnownContextWindowSize, true)
+        XCTAssertEqual(summary.isUsingCachedContextWindow, true)
+    }
+
+    func testNonPositiveReportedAndCachedMaxKeepUsageWithoutKnownContextWindow() throws {
+        let events = [
+            tokenRecord(
+                input: 10,
+                output: 20,
+                cacheRead: 30,
+                cacheCreation: 40,
+                costUsd: 0.01,
+                contextWindowSize: 0
+            )
+        ]
+
+        let summary = try XCTUnwrap(ConversationUsageSummary.derive(from: events, cachedContextWindowSize: 0))
+
+        XCTAssertEqual(summary.contextUsedTokens, 80)
+        XCTAssertEqual(summary.contextWindowSize, 0)
+        XCTAssertEqual(summary.hasReportedUsage, true)
+        XCTAssertEqual(summary.hasKnownContextWindowSize, false)
+        XCTAssertEqual(summary.isUsingCachedContextWindow, false)
+    }
+
     func testReportedZeroCostStillCountsAsReportedCost() {
         let events = [
             tokenRecord(input: 10, output: 20, cacheRead: 30, cacheCreation: 40, costUsd: 0, costUsdReported: true)
@@ -141,6 +211,10 @@ final class ConversationUsageSummaryTests: XCTestCase {
 
     func testReturnsNilWhenNoReportedOrCachedContextWindowSizeExists() {
         XCTAssertNil(ConversationUsageSummary.derive(from: [], cachedContextWindowSize: nil))
+    }
+
+    func testReturnsNilWhenOnlyNonPositiveCachedContextWindowSizeExists() {
+        XCTAssertNil(ConversationUsageSummary.derive(from: [], cachedContextWindowSize: 0))
     }
 
     func testUnreportedPlaceholderHasNoKnownContextWindowSize() {

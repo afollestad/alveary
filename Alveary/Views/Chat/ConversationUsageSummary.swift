@@ -48,10 +48,16 @@ struct ConversationUsageSummary: Equatable, Sendable {
         // still describes the current provider window until a new result replaces it.
         let currentWindowTokenEvents = currentWindowEvents.filter { $0.type == "tokens" }
         let latestTokenEvent = tokenEvents.last
-        let reportedContextWindowSize = currentWindowTokenEvents.reversed().compactMap(\.contextWindowSize).first
-        let contextWindowSize = reportedContextWindowSize ?? cachedContextWindowSize
+        let reportedContextWindowSize = currentWindowTokenEvents.reversed().compactMap { record -> Int? in
+            guard let contextWindowSize = record.contextWindowSize, contextWindowSize > 0 else {
+                return nil
+            }
+            return contextWindowSize
+        }.first
+        let positiveCachedContextWindowSize = cachedContextWindowSize.flatMap { $0 > 0 ? $0 : nil }
+        let contextWindowSize = reportedContextWindowSize ?? positiveCachedContextWindowSize ?? 0
 
-        guard let contextWindowSize, contextWindowSize > 0 else {
+        guard latestTokenEvent != nil || contextWindowSize > 0 else {
             return nil
         }
 
@@ -69,7 +75,7 @@ struct ConversationUsageSummary: Equatable, Sendable {
             totalCostUsd: totalCostUsd,
             hasReportedCost: hasReportedCost,
             hasReportedUsage: latestTokenEvent != nil,
-            isUsingCachedContextWindow: reportedContextWindowSize == nil
+            isUsingCachedContextWindow: reportedContextWindowSize == nil && positiveCachedContextWindowSize != nil
         )
     }
 }

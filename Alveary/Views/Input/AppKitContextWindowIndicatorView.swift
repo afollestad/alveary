@@ -184,6 +184,9 @@ final class AppKitContextWindowIndicatorView: NSView {
 
     private static func accessibilityValue(for summary: ConversationUsageSummary) -> String {
         if summary.hasReportedUsage {
+            guard summary.hasKnownContextWindowSize else {
+                return "Usage reported, context window size not reported"
+            }
             return "\(summary.contextUsagePercent)% full"
         }
         return "No usage reported yet"
