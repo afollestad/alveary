@@ -25,27 +25,20 @@ enum AgentModelOptionTestFixtures {
         description: "Use max reasoning effort."
     )
 
-    static let claudeDefaultEfforts = [low, medium, high, max]
+    static let claudeSonnetEfforts = [low, medium, high, max]
     static let claudeOpusEfforts = [low, medium, high, xhigh, max]
+    static let claudeHaikuEfforts = [low, medium, high]
     static let codexDefaultEfforts = [low, medium, high, xhigh]
 
     static let claudeModelOptions: [AgentCLIKit.AgentModelOption] = [
         AgentCLIKit.AgentModelOption(
             providerId: .claude,
-            id: "default",
-            model: nil,
-            label: "Provider default",
-            isDefault: true,
-            supportedEffortOptions: claudeDefaultEfforts,
-            defaultEffortOption: medium
-        ),
-        AgentCLIKit.AgentModelOption(
-            providerId: .claude,
             id: "sonnet",
             model: "sonnet",
             label: "Sonnet",
-            supportedEffortOptions: claudeDefaultEfforts,
-            defaultEffortOption: medium
+            isDefault: true,
+            supportedEffortOptions: claudeSonnetEfforts,
+            defaultEffortOption: high
         ),
         AgentCLIKit.AgentModelOption(
             providerId: .claude,
@@ -53,7 +46,15 @@ enum AgentModelOptionTestFixtures {
             model: "opus",
             label: "Opus",
             supportedEffortOptions: claudeOpusEfforts,
-            defaultEffortOption: xhigh
+            defaultEffortOption: high
+        ),
+        AgentCLIKit.AgentModelOption(
+            providerId: .claude,
+            id: "haiku",
+            model: "haiku",
+            label: "Haiku",
+            supportedEffortOptions: claudeHaikuEfforts,
+            defaultEffortOption: medium
         )
     ]
 

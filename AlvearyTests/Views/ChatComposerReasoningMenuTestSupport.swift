@@ -8,7 +8,7 @@ func makeGroupedReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningMo
         .init(
             providerID: "claude",
             providerTitle: "Claude Code",
-            options: [.init(providerID: "claude", value: AppSettings.defaultModelValue, title: "Provider default")]
+            options: [.init(providerID: "claude", value: "sonnet", title: "Sonnet")]
         ),
         .init(
             providerID: "codex",
@@ -25,7 +25,7 @@ func makeGroupedReasoningModelMenu(
     ComposerReasoningModelMenuViewController(
         groups: makeGroupedReasoningModelGroups(),
         selectedProviderID: "claude",
-        selectedModelID: AppSettings.defaultModelValue,
+        selectedModelID: "sonnet",
         showsProviderHeaders: true,
         onModelSelected: onModelSelected,
         onHoverChanged: { _ in },

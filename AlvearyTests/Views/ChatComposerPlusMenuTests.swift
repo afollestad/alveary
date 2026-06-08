@@ -309,7 +309,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
 
         let selectedRow = try XCTUnwrap(
             controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Provider default"
+                $0.accessibilityLabel() == "Sonnet"
             }
         )
         XCTAssertEqual(selectedRow.accessibilityValue() as? String, "Selected")
@@ -337,7 +337,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         let codexHeader = try XCTUnwrap(headerViews.first { $0.stringValue == "Codex" })
         let selectedRow = try XCTUnwrap(
             controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Provider default"
+                $0.accessibilityLabel() == "Sonnet"
             }
         )
         let codexRow = try XCTUnwrap(

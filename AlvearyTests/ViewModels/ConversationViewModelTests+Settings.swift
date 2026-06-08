@@ -127,8 +127,7 @@ extension ConversationViewModelTests {
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
     }
 
-    // Opus 4.8-only efforts (currently `xhigh`) must fall back to the default
-    // when the user switches to a model that does not accept them; otherwise
+    // Unsupported efforts must fall back to the new model default; otherwise
     // the next spawn would pass a flag the CLI rejects.
     func testApplyModelChangeResetsEffortWhenNewModelDoesNotSupportIt() async throws {
         let fixture = try ConversationViewModelTestFixture(
@@ -141,13 +140,13 @@ extension ConversationViewModelTests {
 
         await fixture.viewModel.applyModelChange(
             "sonnet",
-            effortOptions: AgentModelOptionTestFixtures.claudeDefaultEfforts,
-            defaultEffort: AgentModelOptionTestFixtures.medium.value
+            effortOptions: [AgentModelOptionTestFixtures.medium, AgentModelOptionTestFixtures.high],
+            defaultEffort: AgentModelOptionTestFixtures.high.value
         ).value
 
         XCTAssertEqual(try fixture.dbThread().model, "sonnet")
-        XCTAssertEqual(try fixture.dbThread().effort, AppSettings.defaultEffortLevel)
-        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(try fixture.dbThread().effort, "high")
+        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, "high")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)
     }
@@ -164,7 +163,7 @@ extension ConversationViewModelTests {
         await fixture.viewModel.applyModelChange(
             "opus",
             effortOptions: AgentModelOptionTestFixtures.claudeOpusEfforts,
-            defaultEffort: AgentModelOptionTestFixtures.xhigh.value
+            defaultEffort: AgentModelOptionTestFixtures.high.value
         ).value
 
         XCTAssertEqual(try fixture.dbThread().model, "opus")

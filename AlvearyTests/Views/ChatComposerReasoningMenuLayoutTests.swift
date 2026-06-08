@@ -164,7 +164,7 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         )
         let selectedRow = try XCTUnwrap(
             controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Provider default"
+                $0.accessibilityLabel() == "Sonnet"
             }
         )
         let divider = try XCTUnwrap(controller.view.descendants(of: AppKitComposerPopoverDividerView.self).first)

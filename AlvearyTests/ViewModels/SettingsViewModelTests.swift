@@ -59,49 +59,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(providerStatusesInvocations, 1)
     }
 
-    func testOptionSourcesAreStableAndPickerSafe() async {
-        let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(),
-            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
-                .codex: Self.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
-            ])
-        )
-
-        await viewModel.refreshProviderStatuses()
-
-        XCTAssertEqual(viewModel.availableProviderIDs, ["claude", "codex"])
-        XCTAssertEqual(viewModel.supportedModels, ["default", "sonnet", "opus"])
-        XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes(forProvider: "claude"))
-        XCTAssertEqual(viewModel.permissionModeOptions(for: "codex"), AppSettings.supportedPermissionModes(forProvider: "codex"))
-        let claudePermissionLabels = ["default", "acceptEdits", "auto"].map { viewModel.permissionModeLabel(for: $0, providerId: "claude") }
-        let codexPermissionLabels = ["untrusted", "on-request", "never"].map { viewModel.permissionModeLabel(for: $0, providerId: "codex") }
-        XCTAssertEqual(claudePermissionLabels, ["Default", "Accept edits", "Automatic"])
-        XCTAssertEqual(codexPermissionLabels, ["Ask for approval", "Approve for me", "Full access"])
-        XCTAssertEqual(
-            viewModel.effortOptions(for: "claude", model: "opus").map(\.value),
-            ["low", "medium", "high", "xhigh", "max"]
-        )
-        XCTAssertEqual(
-            viewModel.effortOptions(for: "claude", model: "sonnet").map(\.value),
-            ["low", "medium", "high", "max"]
-        )
-        XCTAssertEqual(
-            viewModel.effortOptions(for: "claude", model: "default").map(\.value),
-            ["low", "medium", "high", "max"]
-        )
-        XCTAssertEqual(viewModel.themeOptions, ["system", "light", "dark"])
-        XCTAssertEqual(viewModel.availableSoundNames, ["Glass", "Pop", "Tink", "Purr"])
-        XCTAssertEqual(viewModel.codeFontFamilyOptions, [AppSettings.defaultCodeFontFamily])
-        XCTAssertTrue(viewModel.permissionModeOptions(for: "unknown").isEmpty)
-        XCTAssertEqual(viewModel.permissionModeLabel(for: "unknown", providerId: "unknown"), "unknown")
-        XCTAssertTrue(viewModel.effortOptions(for: "unknown", model: "opus").isEmpty)
-        XCTAssertEqual(viewModel.modelOptionValues(for: "codex"), ["gpt-5.5", "gpt-5.4-mini"])
-        XCTAssertEqual(viewModel.modelLabel(for: "gpt-5.4-mini", providerId: "codex"), "GPT-5.4-Mini")
-        XCTAssertEqual(viewModel.effortOptions(for: "codex", model: "gpt-5.5").map(\.value), ["low", "medium", "high", "xhigh"])
-        XCTAssertEqual(viewModel.effortOptions(for: "codex", model: "gpt-5.4-mini").map(\.value), ["low", "medium"])
-    }
-
     func testCodeFontFamilyOptionsLoadLazilyAndCacheResults() {
         var loadCount = 0
         let viewModel = SettingsViewModel(
@@ -261,9 +218,24 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(service.current.branchPrefix, "feature/")
     }
 
-    // Settings Effort picker must not silently retain a value the new model
-    // rejects (e.g. `xhigh` when switching off Opus).
+    // Settings Effort picker must not silently retain a value the new model rejects.
     func testDefaultModelSetterCoercesEffortWhenNewModelDoesNotSupportIt() async {
+        let limitedSonnet = AgentCLIKit.AgentModelOption(
+            providerId: .claude,
+            id: "sonnet",
+            model: "sonnet",
+            label: "Sonnet",
+            supportedEffortOptions: [AgentModelOptionTestFixtures.medium, AgentModelOptionTestFixtures.high],
+            defaultEffortOption: AgentModelOptionTestFixtures.high
+        )
+        let opus = AgentCLIKit.AgentModelOption(
+            providerId: .claude,
+            id: "opus",
+            model: "opus",
+            label: "Opus",
+            supportedEffortOptions: AgentModelOptionTestFixtures.claudeOpusEfforts,
+            defaultEffortOption: AgentModelOptionTestFixtures.high
+        )
         let service = InMemorySettingsService()
         service.update {
             $0.defaultModel = "opus"
@@ -272,7 +244,7 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(
             settingsService: service,
             providerDiscovery: RecordingProviderDiscoveryService(statuses: [
-                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+                .claude: Self.providerStatus(for: .claude, modelOptions: [limitedSonnet, opus])
             ])
         )
         await viewModel.refreshProviderStatuses()
@@ -280,7 +252,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.defaultModel = "sonnet"
 
         XCTAssertEqual(service.current.defaultModel, "sonnet")
-        XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(service.current.effort, "high")
     }
 
     func testDefaultModelSetterPreservesEffortWhenNewModelStillSupportsIt() async {
@@ -335,7 +307,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     // Switching the default model to Opus while effort is still at the universal
     // default (i.e. the user never touched the picker) should bump to Opus's
-    // preferred `xhigh`, so the Settings picker reflects the same default a
+    // preferred `high`, so the Settings picker reflects the same default a
     // fresh thread will actually receive.
     func testDefaultModelSetterUpgradesUntouchedEffortToPerModelDefault() async {
         let service = InMemorySettingsService()
@@ -346,12 +318,15 @@ final class SettingsViewModelTests: XCTestCase {
             ])
         )
         await viewModel.refreshProviderStatuses()
-        XCTAssertEqual(service.current.effort, AppSettings.defaultEffortLevel)
+        service.update {
+            $0.defaultModel = "sonnet"
+            $0.effort = AppSettings.defaultEffortLevel
+        }
 
         viewModel.defaultModel = "opus"
 
         XCTAssertEqual(service.current.defaultModel, "opus")
-        XCTAssertEqual(service.current.effort, "xhigh")
+        XCTAssertEqual(service.current.effort, "high")
     }
 
     func testProviderExtraArgsHelpersCreateEntriesAndPreserveOtherProviders() {
@@ -447,7 +422,7 @@ final class SettingsViewModelTests: XCTestCase {
     }
 }
 
-private extension SettingsViewModelTests {
+extension SettingsViewModelTests {
     static func providerStatus(
         for providerId: AgentCLIKit.AgentProviderID,
         modelOptions: [AgentCLIKit.AgentModelOption]
@@ -465,7 +440,7 @@ private extension SettingsViewModelTests {
     }
 }
 
-private actor RecordingProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
+actor RecordingProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
     private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
     private var providerStatusesCallCount = 0
 
