@@ -101,7 +101,11 @@ enum ComposerReasoningMenuMetrics {
         }
         return NSSize(
             width: width,
-            height: verticalInset * 2 + headerHeight + headerBottomSpacing + variableHeight + rowHeight
+            height: verticalInset * 2 +
+                headerHeight + headerBottomSpacing +
+                variableHeight +
+                headerHeight + headerBottomSpacing +
+                rowHeight
         )
     }
 

@@ -172,6 +172,7 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
     private let onModelRowHoverChanged: (Bool, NSView) -> Void
     private let onCancel: () -> Void
     private let headerField = ComposerReasoningHeaderView(title: "Reasoning")
+    private let modelHeaderField = ComposerReasoningHeaderView(title: "Model")
     private let divider = AppKitComposerPopoverDividerView()
     private let modelRow = ComposerReasoningMenuRowView()
     private var effortRows: [ComposerReasoningMenuRowView] = []
@@ -233,6 +234,14 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
             )
             nextY += AppKitComposerPopoverDividerView.height + ComposerReasoningMenuMetrics.dividerSpacing
         }
+        modelHeaderField.frame = NSRect(
+            x: ComposerReasoningMenuMetrics.headerInset,
+            y: nextY,
+            width: bounds.width - ComposerReasoningMenuMetrics.headerInset * 2,
+            height: ComposerReasoningMenuMetrics.headerHeight
+        )
+        nextY += ComposerReasoningMenuMetrics.headerHeight + ComposerReasoningMenuMetrics.headerBottomSpacing
+
         modelRow.frame = NSRect(
             x: ComposerReasoningMenuMetrics.horizontalInset,
             y: nextY,
@@ -254,6 +263,8 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
         // composer popovers read as one family.
         headerField.setAccessibilityElement(false)
         addSubview(headerField)
+        modelHeaderField.setAccessibilityElement(false)
+        addSubview(modelHeaderField)
 
         addSubview(divider)
         addSubview(modelRow)

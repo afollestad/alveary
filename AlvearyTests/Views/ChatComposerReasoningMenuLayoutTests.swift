@@ -28,12 +28,28 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
                 $0.accessibilityLabel() == "Low"
             }
         )
+        let divider = try XCTUnwrap(controller.view.descendants(of: AppKitComposerPopoverDividerView.self).first)
+        let modelHeader = try XCTUnwrap(
+            controller.view.descendants(of: ComposerReasoningHeaderView.self).first {
+                $0.stringValue == "Model"
+            }
+        )
+        let modelRow = try XCTUnwrap(
+            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+                $0.accessibilityLabel() == "Model"
+            }
+        )
 
         XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
         XCTAssertEqual(firstRow.frame.minY - header.frame.maxY, ComposerReasoningMenuMetrics.headerBottomSpacing, accuracy: 1)
         XCTAssertEqual(firstRow.frame.minX + ComposerReasoningMenuMetrics.titleLeading, header.frame.minX, accuracy: 1)
+        XCTAssertEqual(modelHeader.frame.minY - divider.frame.maxY, ComposerReasoningMenuMetrics.dividerSpacing, accuracy: 1)
+        XCTAssertEqual(modelRow.frame.minY - modelHeader.frame.maxY, ComposerReasoningMenuMetrics.headerBottomSpacing, accuracy: 1)
+        XCTAssertEqual(modelHeader.frame.minX, header.frame.minX, accuracy: 1)
+        XCTAssertEqual(modelRow.frame.minX + ComposerReasoningMenuMetrics.titleLeading, modelHeader.frame.minX, accuracy: 1)
         XCTAssertGreaterThan(header.frame.height, header.fontLineHeight)
         assertHeaderTextBottomInset(header)
+        assertHeaderTextBottomInset(modelHeader)
     }
 
     func testReasoningMenusUseSharedComposerPopoverSurface() throws {
