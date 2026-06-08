@@ -111,7 +111,8 @@ enum ChatComposerTextSupport {
     }
 
     static func permissionModeLabel(for option: PermissionModeOption) -> String {
-        permissionModeLabel(for: option.value, fallbackLabel: option.label)
+        let label = option.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        return label.isEmpty ? permissionModeLabel(for: option.value) : label
     }
 
     static func permissionModeLabel(for value: String, fallbackLabel: String? = nil) -> String {

@@ -385,9 +385,10 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
                     )
                 }
             ),
-            supportedPermissionModes: Self.permissionModes.map {
-                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
-            },
+            supportedPermissionModes: ChatComposerPermissionPresentation.options(
+                providerID: "claude",
+                permissionModes: Self.permissionModes
+            ),
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: false,
             selectedUseWorktree: selectedUseWorktree,
@@ -412,9 +413,13 @@ private struct AppKitComposerPanelNativeRowSnapshot: View {
 
     private static var permissionModes: [PermissionModeOption] {
         [
-            PermissionModeOption(value: "default", label: "Default permissions", description: "Prompt before restricted tool actions."),
-            PermissionModeOption(value: "acceptEdits", label: "Accept edits", description: "Allow edit tools without asking."),
-            PermissionModeOption(value: "auto", label: "Automatic", description: "Allow safe actions automatically.")
+            PermissionModeOption(value: "default", label: "Default", description: "Ask before file edits and restricted tool actions."),
+            PermissionModeOption(
+                value: "acceptEdits",
+                label: "Accept edits",
+                description: "Automatically allow file edits, but ask for other sensitive actions."
+            ),
+            PermissionModeOption(value: "auto", label: "Automatic", description: "Automatically approve most actions with safety checks.")
         ]
     }
 }

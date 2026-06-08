@@ -4,11 +4,13 @@ import AppKit
 final class ComposerReasoningMenuRowView: NSView {
     struct Configuration {
         let title: String
+        let subtitle: String?
         let iconName: String?
         let trailingIconName: String?
         let accessibilityLabel: String
         let isSelected: Bool
         let isEnabled: Bool
+        let isWarning: Bool
         let action: () -> Void
         let hoverAction: (() -> Void)?
         var exitAction: (() -> Void)?
@@ -16,22 +18,26 @@ final class ComposerReasoningMenuRowView: NSView {
 
         init(
             title: String,
+            subtitle: String? = nil,
             iconName: String?,
             trailingIconName: String?,
             accessibilityLabel: String,
             isSelected: Bool,
             isEnabled: Bool,
+            isWarning: Bool = false,
             action: @escaping () -> Void,
             hoverAction: (() -> Void)?,
             exitAction: (() -> Void)? = nil,
             cancelAction: @escaping () -> Void
         ) {
             self.title = title
+            self.subtitle = subtitle
             self.iconName = iconName
             self.trailingIconName = trailingIconName
             self.accessibilityLabel = accessibilityLabel
             self.isSelected = isSelected
             self.isEnabled = isEnabled
+            self.isWarning = isWarning
             self.action = action
             self.hoverAction = hoverAction
             self.exitAction = exitAction
@@ -81,7 +87,17 @@ final class ComposerReasoningMenuRowView: NSView {
     #if DEBUG
     var debugIconName: String? { configuration?.iconName }
     var debugTrailingIconName: String? { configuration?.trailingIconName }
+    var debugSubtitle: String? { configuration?.subtitle }
+    var debugIsWarning: Bool { configuration?.isWarning == true }
     var debugShowsInteractionBackground: Bool { interactionBackgroundAlpha != nil }
+    var debugLeadingIconLeft: CGFloat? {
+        configuration?.iconName == nil
+            ? nil
+            : ComposerReasoningMenuMetrics.iconLeading + ComposerReasoningMenuMetrics.iconOpticalLeadingAdjustment
+    }
+    var debugTitleLeading: CGFloat? {
+        configuration.map { titleLeading(for: $0) }
+    }
     #endif
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -201,15 +217,19 @@ final class ComposerReasoningMenuRowView: NSView {
     }
 
     private func drawIcon() {
-        guard let iconName = configuration?.iconName,
-              let image = symbolImage(named: iconName) else {
+        guard let configuration,
+              let iconName = configuration.iconName,
+              let image = symbolImage(
+                named: iconName,
+                pointSize: ComposerReasoningMenuMetrics.leadingIconPointSize,
+                color: iconColor(for: configuration)
+              ) else {
             return
         }
-        let drawSize = symbolDrawingSize(for: image, maxSize: ComposerReasoningMenuMetrics.iconPointSize)
+        let drawSize = image.size
         image.draw(
             in: NSRect(
-                x: ComposerReasoningMenuMetrics.iconLeading +
-                    floor((ComposerReasoningMenuMetrics.iconSlotSize - drawSize.width) / 2),
+                x: ComposerReasoningMenuMetrics.iconLeading,
                 y: floor((bounds.height - drawSize.height) / 2),
                 width: drawSize.width,
                 height: drawSize.height
@@ -226,33 +246,100 @@ final class ComposerReasoningMenuRowView: NSView {
         guard let configuration else {
             return
         }
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: ComposerReasoningMenuMetrics.itemFont,
-            .foregroundColor: NSColor.labelColor.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.86 : 0.42),
-            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
-        ]
+        let attributes = titleAttributes(for: configuration)
         let titleSize = configuration.title.size(withAttributes: attributes)
+        let titleRect = titleTextRect(for: configuration, titleHeight: titleSize.height)
+        guard let subtitle = configuration.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !subtitle.isEmpty else {
+            drawCenteredTitle(configuration.title, in: titleRect, attributes: attributes)
+            return
+        }
+
+        drawStackedTitle(
+            configuration.title,
+            subtitle: subtitle,
+            titleRect: titleRect,
+            titleAttributes: attributes,
+            subtitleAttributes: subtitleAttributes(for: configuration)
+        )
+    }
+
+    private func titleTextRect(for configuration: Configuration, titleHeight: CGFloat) -> NSRect {
         let trailingReserved: CGFloat = configuration.trailingIconName == nil ? 0 : ComposerReasoningMenuMetrics.trailingIconReservedWidth
-        (configuration.title as NSString).draw(
+        let leading = titleLeading(for: configuration)
+        return NSRect(
+            x: leading,
+            y: 0,
+            width: max(
+                0,
+                bounds.width -
+                    leading -
+                    ComposerReasoningMenuMetrics.titleTrailing -
+                    trailingReserved
+            ),
+            height: titleHeight
+        )
+    }
+
+    private func titleLeading(for configuration: Configuration) -> CGFloat {
+        configuration.iconName == nil
+            ? ComposerReasoningMenuMetrics.titleLeading
+            : ComposerReasoningMenuMetrics.iconTitleLeading
+    }
+
+    private func drawCenteredTitle(
+        _ title: String,
+        in titleRect: NSRect,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        (title as NSString).draw(
             in: NSRect(
-                x: ComposerReasoningMenuMetrics.titleLeading,
-                y: floor((bounds.height - titleSize.height) / 2),
-                width: max(
-                    0,
-                    bounds.width -
-                        ComposerReasoningMenuMetrics.titleLeading -
-                        ComposerReasoningMenuMetrics.titleTrailing -
-                        trailingReserved
-                ),
-                height: titleSize.height
+                x: titleRect.minX,
+                y: floor((bounds.height - titleRect.height) / 2),
+                width: titleRect.width,
+                height: titleRect.height
             ),
             withAttributes: attributes
         )
     }
 
+    private func drawStackedTitle(
+        _ title: String,
+        subtitle: String,
+        titleRect: NSRect,
+        titleAttributes: [NSAttributedString.Key: Any],
+        subtitleAttributes: [NSAttributedString.Key: Any]
+    ) {
+        let subtitleSize = subtitle.size(withAttributes: subtitleAttributes)
+        let groupHeight = titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing + subtitleSize.height
+        let titleY = floor((bounds.height - groupHeight) / 2)
+        (title as NSString).draw(
+            in: NSRect(
+                x: titleRect.minX,
+                y: titleY,
+                width: titleRect.width,
+                height: titleRect.height
+            ),
+            withAttributes: titleAttributes
+        )
+        (subtitle as NSString).draw(
+            in: NSRect(
+                x: titleRect.minX,
+                y: titleY + titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing,
+                width: titleRect.width,
+                height: subtitleSize.height
+            ),
+            withAttributes: subtitleAttributes
+        )
+    }
+
     private func drawTrailingIcon() {
         guard let trailingIconName = configuration?.trailingIconName,
-              let image = symbolImage(named: trailingIconName) else {
+              let image = symbolImage(
+                named: trailingIconName,
+                pointSize: ComposerReasoningMenuMetrics.iconPointSize,
+                color: NSColor.labelColor.appKitResolvedColor(in: self, alpha: 0.72)
+              ) else {
             return
         }
         let drawSize = symbolDrawingSize(for: image, maxSize: ComposerReasoningMenuMetrics.iconPointSize)
@@ -271,13 +358,35 @@ final class ComposerReasoningMenuRowView: NSView {
         )
     }
 
-    private func symbolImage(named name: String) -> NSImage? {
+    private func symbolImage(named name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
         let configuration = NSImage.SymbolConfiguration(
-            pointSize: ComposerReasoningMenuMetrics.iconPointSize,
-            weight: .medium
-        ).applying(.init(hierarchicalColor: NSColor.labelColor.appKitResolvedColor(in: self, alpha: 0.72)))
+            pointSize: pointSize,
+            weight: .semibold
+        ).applying(.init(paletteColors: [color, color, color]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration)
+    }
+
+    private func iconColor(for configuration: Configuration) -> NSColor {
+        let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
+        return color.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.72 : 0.32)
+    }
+
+    private func titleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
+        let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
+        return [
+            .font: ComposerReasoningMenuMetrics.itemFont,
+            .foregroundColor: color.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.86 : 0.42),
+            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
+        ]
+    }
+
+    private func subtitleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
+        [
+            .font: ComposerReasoningMenuMetrics.subtitleFont,
+            .foregroundColor: NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.68 : 0.32),
+            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
+        ]
     }
 
     private func symbolDrawingSize(for image: NSImage, maxSize: CGFloat) -> NSSize {
@@ -293,129 +402,5 @@ final class ComposerReasoningMenuRowView: NSView {
         isHovering = false
         isPressed = false
         needsDisplay = true
-    }
-}
-
-@MainActor
-final class ComposerReasoningHeaderView: NSTextField {
-    init(title: String) {
-        super.init(frame: .zero)
-        stringValue = title
-        isEditable = false
-        isBordered = false
-        drawsBackground = false
-        font = .preferredFont(forTextStyle: .caption1)
-        textColor = .secondaryLabelColor
-        setAccessibilityElement(false)
-    }
-
-    override var isFlipped: Bool { true }
-
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    #if DEBUG
-    var debugTitleDrawingRect: NSRect {
-        titleDrawingRect(with: titleAttributes)
-    }
-    #endif
-
-    override func draw(_ dirtyRect: NSRect) {
-        let attributes = titleAttributes
-        (stringValue as NSString).draw(in: titleDrawingRect(with: attributes), withAttributes: attributes)
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-    }
-
-    private var titleAttributes: [NSAttributedString.Key: Any] {
-        [
-            .font: font ?? .preferredFont(forTextStyle: .caption1),
-            .foregroundColor: NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: 1),
-            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
-        ]
-    }
-
-    private func titleDrawingRect(with attributes: [NSAttributedString.Key: Any]) -> NSRect {
-        let titleSize = stringValue.size(withAttributes: attributes)
-        return NSRect(
-            x: 0,
-            y: max(0, floor(bounds.height - titleSize.height)),
-            width: bounds.width,
-            height: titleSize.height
-        )
-    }
-}
-
-enum ComposerReasoningMenuMetrics {
-    static let width: CGFloat = 244
-    static let modelWidth: CGFloat = 260
-    static let maxModelHeight: CGFloat = 360
-    static let horizontalInset: CGFloat = 6
-    static let verticalInset: CGFloat = 8
-    static let headerInset: CGFloat = 18
-    // Headers bottom-align within their own rows; this spacing is the visual
-    // inset before the selectable rows that follow.
-    static let headerHeight: CGFloat = 18
-    static let headerBottomSpacing: CGFloat = 4
-    static let rowHeight: CGFloat = 32
-    static let dividerSpacing: CGFloat = 7
-    static let iconLeading: CGFloat = 12
-    static let iconSlotSize: CGFloat = 16
-    @MainActor static var iconPointSize: CGFloat { SidebarProjectRow.leadingIconFontSize }
-    static let titleLeading: CGFloat = headerInset - horizontalInset
-    static let titleTrailing: CGFloat = headerInset - horizontalInset
-    static let trailingIconInset: CGFloat = 10
-    static let trailingIconReservedWidth: CGFloat = 30
-
-    @MainActor static var itemFont: NSFont { NSFont.preferredFont(forTextStyle: .body) }
-    @MainActor static var truncatingParagraphStyle: NSParagraphStyle {
-        let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byTruncatingTail
-        return style
-    }
-
-    @MainActor
-    static func mainContentSize(for configuration: ChatComposerActionRowView.ReasoningConfiguration) -> NSSize {
-        let effortCount = configuration.selection.effortOptions.count
-        let variableHeight: CGFloat
-        if effortCount == 0 {
-            variableHeight = 0
-        } else {
-            variableHeight = rowHeight * CGFloat(effortCount) +
-                dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing
-        }
-        return NSSize(
-            width: width,
-            height: verticalInset * 2 + headerHeight + headerBottomSpacing + variableHeight + rowHeight
-        )
-    }
-
-    @MainActor
-    static func modelContentSize(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        showsProviderHeaders: Bool
-    ) -> NSSize {
-        NSSize(
-            width: modelWidth,
-            height: min(maxModelHeight, modelDocumentHeight(groups: groups, showsProviderHeaders: showsProviderHeaders))
-        )
-    }
-
-    @MainActor
-    static func modelDocumentHeight(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        showsProviderHeaders: Bool
-    ) -> CGFloat {
-        let modelCount = max(1, groups.flatMap(\.options).count)
-        let headerCount = showsProviderHeaders ? groups.filter { $0.providerTitle != nil }.count : 0
-        let dividerCount = showsProviderHeaders ? max(0, groups.count - 1) : 0
-        return verticalInset * 2 +
-            rowHeight * CGFloat(modelCount) +
-            (headerHeight + headerBottomSpacing) * CGFloat(headerCount) +
-            (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
     }
 }

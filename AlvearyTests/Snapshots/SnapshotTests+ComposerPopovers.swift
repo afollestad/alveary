@@ -29,6 +29,18 @@ extension SnapshotTests {
             colorScheme: .dark
         )
     }
+
+    func testComposerPermissionMenuCodexContent() {
+        let options = makeSnapshotPermissionOptions()
+        let size = ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)
+
+        assertMacSnapshot(
+            ComposerPermissionMenuSnapshot(options: options),
+            size: size,
+            named: "composer_permission_menu_codex_content",
+            colorScheme: .dark
+        )
+    }
 }
 
 @MainActor
@@ -62,4 +74,43 @@ private struct ComposerReasoningModelMenuSnapshot: NSViewControllerRepresentable
     }
 
     func updateNSViewController(_ controller: ComposerReasoningModelMenuViewController, context: Context) {}
+}
+
+@MainActor
+private func makeSnapshotPermissionOptions() -> [ChatComposerActionRowView.PermissionOptionPresentation] {
+    ChatComposerPermissionPresentation.options(
+        providerID: "codex",
+        permissionModes: [
+            PermissionModeOption(
+                value: "untrusted",
+                label: "Ask for approval",
+                description: "Always ask to edit external files and use the internet."
+            ),
+            PermissionModeOption(
+                value: "on-request",
+                label: "Approve for me",
+                description: "Only ask for actions detected as potentially unsafe."
+            ),
+            PermissionModeOption(
+                value: "never",
+                label: "Full access",
+                description: "Unrestricted access to the internet and any file on your computer."
+            )
+        ]
+    )
+}
+
+private struct ComposerPermissionMenuSnapshot: NSViewControllerRepresentable {
+    let options: [ChatComposerActionRowView.PermissionOptionPresentation]
+
+    func makeNSViewController(context: Context) -> ComposerPermissionMenuViewController {
+        ComposerPermissionMenuViewController(
+            options: options,
+            selectedValue: "never",
+            onPermissionSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+    }
+
+    func updateNSViewController(_ controller: ComposerPermissionMenuViewController, context: Context) {}
 }

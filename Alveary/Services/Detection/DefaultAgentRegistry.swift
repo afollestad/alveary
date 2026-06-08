@@ -13,18 +13,18 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 supportedPermissionModes: [
                     PermissionModeOption(
                         value: "default",
-                        label: "Default permissions",
-                        description: "Safe default; denied writes return as tool errors in non-interactive mode."
+                        label: "Default",
+                        description: "Ask before file edits and restricted tool actions."
                     ),
                     PermissionModeOption(
                         value: "acceptEdits",
                         label: "Accept edits",
-                        description: "Auto-accept file edits while keeping stronger checks for other actions."
+                        description: "Automatically allow file edits, but ask for other sensitive actions."
                     ),
                     PermissionModeOption(
                         value: "auto",
                         label: "Automatic",
-                        description: "Auto-approve most actions with safety checks."
+                        description: "Automatically approve most actions with safety checks."
                     )
                 ]
             ),
@@ -50,18 +50,18 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 supportedPermissionModes: [
                     PermissionModeOption(
                         value: "untrusted",
-                        label: "Untrusted",
-                        description: "Only known-safe read-only commands run without approval; other commands prompt."
+                        label: "Ask for approval",
+                        description: "Always ask to edit external files and use the internet."
                     ),
                     PermissionModeOption(
                         value: "on-request",
-                        label: "On request",
-                        description: "Codex decides when to request approval for higher-risk commands."
+                        label: "Approve for me",
+                        description: "Only ask for actions detected as potentially unsafe."
                     ),
                     PermissionModeOption(
                         value: "never",
-                        label: "Never ask",
-                        description: "Codex never prompts for command approval and returns failures directly to the model."
+                        label: "Full access",
+                        description: "Unrestricted access to the internet and any file on your computer."
                     )
                 ]
             ),

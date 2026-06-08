@@ -412,9 +412,10 @@ extension ChatView {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
             reasoning: reasoningConfiguration,
-            supportedPermissionModes: composerCapabilities.supportedPermissionModes.map {
-                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
-            },
+            supportedPermissionModes: ChatComposerPermissionPresentation.options(
+                providerID: reasoningConfiguration.selection.providerID,
+                permissionModes: composerCapabilities.supportedPermissionModes
+            ),
             selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
             showWorktreePicker: showWorktreePicker,
             selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,

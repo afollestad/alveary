@@ -46,9 +46,10 @@ struct ChatComposerActionRow: NSViewRepresentable {
     private var configuration: ChatComposerActionRowView.Configuration {
         ChatComposerActionRowView.Configuration(
             reasoning: reasoningConfiguration,
-            supportedPermissionModes: supportedPermissionModes.map {
-                .init(value: $0.value, title: ChatComposerTextSupport.permissionModeLabel(for: $0))
-            },
+            supportedPermissionModes: ChatComposerPermissionPresentation.options(
+                providerID: reasoningConfiguration.selection.providerID,
+                permissionModes: supportedPermissionModes
+            ),
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: showWorktreePicker,
             selectedUseWorktree: selectedUseWorktree,
@@ -142,7 +143,7 @@ final class ChatComposerActionRowView: NSView {
 
     struct Configuration {
         let reasoning: ReasoningConfiguration
-        let supportedPermissionModes: [MenuOption]
+        let supportedPermissionModes: [PermissionOptionPresentation]
         let selectedPermissionMode: String
         let showWorktreePicker: Bool
         let selectedUseWorktree: Bool
@@ -171,7 +172,7 @@ final class ChatComposerActionRowView: NSView {
 
     let plusButton = ComposerPlusButton()
     let reasoningButton = ComposerReasoningButton()
-    private let permissionMenu = ComposerMenuButton()
+    let permissionButton = ComposerPermissionButton()
     private let worktreeMenu = ComposerMenuButton()
     let sessionLocationField = NSTextField(labelWithString: "")
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
@@ -195,6 +196,8 @@ final class ChatComposerActionRowView: NSView {
     var plusPopover: NSPopover?
     var reasoningPopover: NSPopover?
     var reasoningMenuController: ComposerReasoningMenuViewController?
+    var permissionPopover: NSPopover?
+    var permissionMenuController: ComposerPermissionMenuViewController?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let minimumSettingsControlWidth: CGFloat = 44
@@ -223,6 +226,7 @@ final class ChatComposerActionRowView: NSView {
         if newWindow == nil {
             closePlusMenu()
             closeReasoningMenu()
+            closePermissionMenu()
         }
     }
 
@@ -255,8 +259,7 @@ final class ChatComposerActionRowView: NSView {
     private func setupMenuAccessibility() {
         plusButton.setAccessibilityLabel("Open composer actions")
         reasoningButton.setAccessibilityLabel("Reasoning")
-        permissionMenu.setAccessibilityLabel("Permissions")
-        permissionMenu.setMenuHeaderTitle("Permissions")
+        permissionButton.setAccessibilityLabel("Permissions")
         worktreeMenu.setAccessibilityLabel("Thread location")
     }
 
@@ -276,6 +279,9 @@ final class ChatComposerActionRowView: NSView {
         }
         reasoningButton.actionHandler = { [weak self] in
             self?.toggleReasoningMenu()
+        }
+        permissionButton.actionHandler = { [weak self] in
+            self?.togglePermissionMenu()
         }
         keyboardButton.actionHandler = { [weak self] in
             self?.configuration?.onShowKeymap()
@@ -344,6 +350,9 @@ final class ChatComposerActionRowView: NSView {
             closePlusMenu()
             closeReasoningMenu()
         }
+        if configuration.areControlsDisabled || configuration.supportedPermissionModes.isEmpty {
+            closePermissionMenu()
+        }
         applyMenuConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
         applyAccessoryConfiguration(configuration)
@@ -354,15 +363,6 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func applyMenuConfiguration(_ configuration: Configuration) {
-        permissionMenu.configure(
-            title: configuration.supportedPermissionModes.first {
-                $0.value == configuration.selectedPermissionMode
-            }?.title ?? configuration.selectedPermissionMode,
-            options: configuration.supportedPermissionModes,
-            selectedValue: configuration.selectedPermissionMode,
-            isEnabled: !configuration.areControlsDisabled,
-            onSelect: configuration.onPermissionModeChange
-        )
         worktreeMenu.configure(
             title: ChatComposerTextSupport.worktreeLocationLabel(for: configuration.selectedUseWorktree),
             options: [
@@ -373,28 +373,6 @@ final class ChatComposerActionRowView: NSView {
             isEnabled: !configuration.areControlsDisabled,
             onSelect: { configuration.onUseWorktreeChange($0 == "true") }
         )
-    }
-
-    private func applyPlusButtonConfiguration(_ configuration: Configuration) {
-        plusButton.configure(
-            height: Self.defaultSettingsControlHeight,
-            isEnabled: !configuration.areControlsDisabled,
-            actionHandler: { [weak self] in
-                self?.togglePlusMenu()
-            }
-        )
-        reasoningButton.configure(
-            selection: configuration.reasoning.selection,
-            height: Self.defaultSettingsControlHeight,
-            isEnabled: !configuration.areControlsDisabled,
-            showsProgress: configuration.isReconfiguringSession,
-            actionHandler: { [weak self] in
-                self?.toggleReasoningMenu()
-            }
-        )
-        // Keep an open reasoning popup tied to the persisted provider/model/
-        // effort state, including async reconfigure rollback updates.
-        reasoningMenuController?.update(configuration: configuration.reasoning)
     }
 
     private func applyAccessoryConfiguration(_ configuration: Configuration) {
@@ -450,7 +428,7 @@ final class ChatComposerActionRowView: NSView {
         var views: [NSView] = []
         views.append(plusButton)
         if !configuration.supportedPermissionModes.isEmpty {
-            views.append(permissionMenu)
+            views.append(permissionButton)
         }
         if configuration.showWorktreePicker {
             views.append(worktreeMenu)
@@ -494,4 +472,5 @@ final class ChatComposerActionRowView: NSView {
         )
         return accessories.isEmpty ? nil : accessoryGroup
     }
+
 }

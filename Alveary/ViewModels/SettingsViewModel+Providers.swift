@@ -72,11 +72,29 @@ extension SettingsViewModel {
     }
 
     func permissionModeOptions(for providerId: String) -> [String] {
-        if let status = providerStatus(for: providerId),
-           let modes = status.definition?.supportedPermissionModes {
-            return modes.map(\.value).filter { $0 != "plan" }
+        let metadata = permissionModeOptionMetadata(for: providerId)
+        if !metadata.isEmpty {
+            return metadata.map(\.value)
         }
         return AppSettings.supportedPermissionModes(forProvider: providerId)
+    }
+
+    func permissionModeOptionMetadata(for providerId: String) -> [PermissionModeOption] {
+        if let status = providerStatus(for: providerId),
+           let modes = status.definition?.supportedPermissionModes {
+            return modes
+                .filter { $0.value != "plan" }
+                .map { PermissionModeOption(value: $0.value, label: $0.label, description: $0.description) }
+        }
+        return (agentRegistry.agent(for: providerId)?.provider?.supportedPermissionModes ?? [])
+            .filter { $0.value != "plan" }
+    }
+
+    func permissionModeLabel(for value: String, providerId: String) -> String {
+        if let option = permissionModeOptionMetadata(for: providerId).first(where: { $0.value == value }) {
+            return ChatComposerTextSupport.permissionModeLabel(for: option)
+        }
+        return ChatComposerTextSupport.permissionModeLabel(for: value)
     }
 
     func installCommand(for providerId: String) -> String? {

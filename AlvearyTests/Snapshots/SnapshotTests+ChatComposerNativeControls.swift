@@ -9,7 +9,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStates() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 610, height: 76),
+            size: CGSize(width: 770, height: 76),
             named: "chat_composer_native_action_control_interaction_states"
         )
     }
@@ -17,7 +17,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStatesDark() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 610, height: 76),
+            size: CGSize(width: 770, height: 76),
             named: "chat_composer_native_action_control_interaction_states_dark",
             colorScheme: .dark
         )
@@ -27,6 +27,8 @@ extension SnapshotTests {
         HStack(spacing: 16) {
             ComposerReasoningButtonSnapshot(state: .hovered)
                 .frame(width: 132, height: 24)
+            ComposerPermissionButtonSnapshot(state: .hovered)
+                .frame(width: 144, height: 24)
             ComposerIconButtonSnapshot(symbolName: "keyboard", state: .idle)
                 .frame(width: 30, height: 30)
             ComposerIconButtonSnapshot(symbolName: "keyboard", state: .hovered)
@@ -69,6 +71,58 @@ private struct ComposerReasoningButtonSnapshot: NSViewRepresentable {
             height: ChatComposerActionRowView.defaultSettingsControlHeight,
             isEnabled: true,
             showsProgress: false,
+            actionHandler: {}
+        )
+        switch state {
+        case .idle:
+            break
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ComposerPermissionButtonSnapshot: NSViewRepresentable {
+    let state: ComposerControlSnapshotState
+
+    func makeNSView(context: Context) -> ComposerPermissionButton {
+        let view = ComposerPermissionButton()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerPermissionButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerPermissionButton) {
+        view.configure(
+            option: .init(
+                value: "never",
+                title: "Full access",
+                description: "Unrestricted access to the internet and any file on your computer.",
+                symbolName: "exclamationmark.shield",
+                isWarning: true
+            ),
+            height: ChatComposerActionRowView.defaultSettingsControlHeight,
+            isEnabled: true,
             actionHandler: {}
         )
         switch state {

@@ -98,7 +98,7 @@ private extension ThreadsSettingsTabView {
                         "Permission mode",
                         selection: $permissionMode,
                         options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
-                        label: { ChatComposerTextSupport.permissionModeLabel(for: $0) }
+                        label: { viewModel.permissionModeLabel(for: $0, providerId: viewModel.defaultProvider) }
                     )
                 }
             }

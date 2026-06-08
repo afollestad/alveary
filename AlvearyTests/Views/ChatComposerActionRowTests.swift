@@ -105,7 +105,8 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Provider" })
         XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Model" })
         XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Effort" })
-        XCTAssertTrue(menus.contains { $0.accessibilityLabel() == "Permissions" })
+        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Permissions" })
+        XCTAssertEqual(row.descendants(of: ComposerPermissionButton.self).first?.accessibilityLabel(), "Permissions")
         XCTAssertEqual(row.descendants(of: ComposerReasoningButton.self).first?.accessibilityLabel(), "Reasoning")
     }
 
@@ -192,22 +193,6 @@ final class ChatComposerActionRowTests: XCTestCase {
         let size = button.intrinsicContentSize
         XCTAssertEqual(size.height, 24)
         XCTAssertGreaterThan(size.width, 110)
-    }
-
-    func testReasoningModelOptionsUseCodexProviderStatusLabelsAndEfforts() {
-        let menuItems = AgentModelOptionSelection.menuItems(
-            in: AgentModelOptionTestFixtures.codexModelOptions,
-            selectedModel: "gpt-5.4-mini",
-            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
-        )
-        let effortOptions = AgentModelOptionSelection.effortOptions(
-            in: AgentModelOptionTestFixtures.codexModelOptions,
-            selectedModel: "gpt-5.4-mini"
-        )
-
-        XCTAssertEqual(menuItems.map(\.value), ["gpt-5.5", "gpt-5.4-mini"])
-        XCTAssertEqual(menuItems.map(\.title), ["GPT-5.5", "GPT-5.4-Mini"])
-        XCTAssertEqual(effortOptions.map(\.value), ["low", "medium"])
     }
 
     func testNarrowRowKeepsSettingsControlsInsideLeadingEdgeAndActionsInsideTrailingEdge() throws {
@@ -377,7 +362,8 @@ func makeConfiguration(
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
-    supportedPermissionModes: [ChatComposerActionRowView.MenuOption] = [.init(value: "default", title: "Default")],
+    supportedPermissionModes: [ChatComposerActionRowView.PermissionOptionPresentation] = [.init(value: "default", title: "Default")],
+    selectedPermissionMode: String = "default",
     showWorktreePicker: Bool = true,
     sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
@@ -397,7 +383,7 @@ func makeConfiguration(
             effortOptions: effortOptions
         ),
         supportedPermissionModes: supportedPermissionModes,
-        selectedPermissionMode: "default",
+        selectedPermissionMode: selectedPermissionMode,
         showWorktreePicker: showWorktreePicker,
         selectedUseWorktree: false,
         sessionLocationLabel: sessionLocationLabel,

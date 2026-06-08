@@ -20,23 +20,48 @@ final class ProviderRegistryTests: XCTestCase {
             [
                 PermissionModeOption(
                     value: "default",
-                    label: "Default permissions",
-                    description: "Safe default; denied writes return as tool errors in non-interactive mode."
+                    label: "Default",
+                    description: "Ask before file edits and restricted tool actions."
                 ),
                 PermissionModeOption(
                     value: "acceptEdits",
                     label: "Accept edits",
-                    description: "Auto-accept file edits while keeping stronger checks for other actions."
+                    description: "Automatically allow file edits, but ask for other sensitive actions."
                 ),
                 PermissionModeOption(
                     value: "auto",
                     label: "Automatic",
-                    description: "Auto-approve most actions with safety checks."
+                    description: "Automatically approve most actions with safety checks."
                 )
             ]
         )
         XCTAssertTrue(provider?.supportsMidTurnSteering == true)
         XCTAssertNil(agentRegistry.agent(for: "missing"))
         XCTAssertNil(providerRegistry.provider(for: "missing"))
+    }
+
+    func testCodexPermissionMetadataUsesDisplayLabelsWithoutChangingValues() {
+        let provider = DefaultAgentRegistry().agent(for: "codex")?.provider
+
+        XCTAssertEqual(
+            provider?.supportedPermissionModes,
+            [
+                PermissionModeOption(
+                    value: "untrusted",
+                    label: "Ask for approval",
+                    description: "Always ask to edit external files and use the internet."
+                ),
+                PermissionModeOption(
+                    value: "on-request",
+                    label: "Approve for me",
+                    description: "Only ask for actions detected as potentially unsafe."
+                ),
+                PermissionModeOption(
+                    value: "never",
+                    label: "Full access",
+                    description: "Unrestricted access to the internet and any file on your computer."
+                )
+            ]
+        )
     }
 }

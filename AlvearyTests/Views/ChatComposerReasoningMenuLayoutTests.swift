@@ -51,6 +51,24 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         XCTAssertTrue(modelController.view is AppKitComposerPopoverSurfaceView)
         XCTAssertFalse(modelController.view is NSVisualEffectView)
         XCTAssertNil(modelController.view.layer?.backgroundColor)
+
+        let permissionController = ComposerPermissionMenuViewController(
+            options: [
+                .init(
+                    value: "default",
+                    title: "Default",
+                    description: "Ask before file edits and restricted tool actions.",
+                    symbolName: "hand.raised"
+                )
+            ],
+            selectedValue: "default",
+            onPermissionSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+        permissionController.loadViewIfNeeded()
+        XCTAssertTrue(permissionController.view is AppKitComposerPopoverSurfaceView)
+        XCTAssertFalse(permissionController.view is NSVisualEffectView)
+        XCTAssertNil(permissionController.view.layer?.backgroundColor)
     }
 
     func testReasoningButtonProgressKeepsCompactTextDropdownMetrics() throws {
