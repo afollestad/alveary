@@ -6,6 +6,7 @@ extension ChatView {
             mode: composerMode,
             defaultEnterBehavior: defaultEnterBehavior,
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+            canSteerCurrentTurn: viewModel.canSteerCurrentTurn,
             isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
             isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
             handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,

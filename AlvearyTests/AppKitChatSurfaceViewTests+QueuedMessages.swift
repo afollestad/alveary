@@ -71,6 +71,29 @@ extension AppKitChatSurfaceViewTests {
             )
         }
     }
+
+    func testNativeQueuedMessagesDisableSteerWhenTurnIsNotSteerable() throws {
+        let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+        let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
+        var didSteer = false
+        view.configure(
+            AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [message],
+                supportsMidTurnSteering: true,
+                isTurnActive: false,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                onSteer: { _ in didSteer = true },
+                onEdit: { _ in },
+                onDismiss: { _ in }
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        let steerButton = try XCTUnwrap(firstDescendant(of: view) { $0.accessibilityLabel() == "Steer queued message" })
+        XCTAssertFalse(steerButton.accessibilityPerformPress())
+        XCTAssertFalse(didSteer)
+    }
 }
 
 @MainActor

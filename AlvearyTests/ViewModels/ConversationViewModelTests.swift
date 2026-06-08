@@ -121,7 +121,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.state.isSendingMessage)
     }
 
-    func testSetupAndStartCreatesWorktreeSpawnsAgentAndSendsFirstMessage() async throws {
+    func testSetupAndStartCreatesWorktreeAndStartsInitialPrompt() async throws {
         let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
         let fixture = try ConversationViewModelTestFixture(
             threadName: "New thread",
@@ -129,6 +129,7 @@ final class ConversationViewModelTests: XCTestCase {
             hasCompletedInitialSetup: false,
             worktreeInfo: worktreeInfo
         )
+        fixture.viewModel.state.stagedContext = "Context block"
 
         try await fixture.viewModel.setupAndStart("Implement the authentication retry flow")
 
@@ -153,11 +154,13 @@ final class ConversationViewModelTests: XCTestCase {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
         XCTAssertEqual(spawnCalls.first?.config.workingDirectory, worktreeInfo.path)
-        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Implement the authentication retry flow")
+        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Context block\n\nImplement the authentication retry flow")
 
         let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, ["Implement the authentication retry flow"])
+        XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Implement the authentication retry flow"])
+        XCTAssertNil(fixture.viewModel.state.stagedContext)
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
         XCTAssertNil(fixture.viewModel.setupPhase)
     }
 
@@ -193,8 +196,9 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Implement the authentication retry flow")
 
         let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, ["Implement the authentication retry flow"])
+        XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Implement the authentication retry flow"])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
         XCTAssertNil(fixture.viewModel.setupPhase)
     }
 
@@ -285,8 +289,11 @@ final class ConversationViewModelTests: XCTestCase {
 
         let createCalls = await fixture.worktreeManager.createCalls()
         XCTAssertEqual(createCalls.count, 2)
+        let spawnCalls = await fixture.agentsManager.spawnCalls()
+        XCTAssertEqual(spawnCalls.count, 1)
+        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Context block\n\nImplement the authentication retry flow")
         let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, ["Context block\n\nImplement the authentication retry flow"])
+        XCTAssertTrue(sentMessages.isEmpty)
     }
 
     func testMakeSpawnConfigPreservesStoredEffortValue() throws {

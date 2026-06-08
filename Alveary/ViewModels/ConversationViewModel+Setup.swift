@@ -250,10 +250,11 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("No project associated with this thread")
         }
 
+        let resolvedStagedContext = snapshotStagedContext ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let snapshot = ConversationInitialSetupSnapshot(
             draft: message,
             draftSource: state.inputDraftSource,
-            stagedContext: snapshotStagedContext ?? state.stagedContext
+            stagedContext: resolvedStagedContext
         )
 
         do {
@@ -262,18 +263,19 @@ extension ConversationViewModel {
                 project: project,
                 message: message
             )
+            let transportMessage = buildTransportMessage(
+                message: message,
+                stagedContext: snapshot.stagedContext
+            )
             setupPhase = .startingAgent
             try await startAgentReserved(config: makeSpawnConfig(
                 workingDirectory: workingDirectory,
-                initialPrompt: message,
+                initialPrompt: transportMessage,
                 settingsSource: .nextTurn
             ))
-            thread.hasCompletedInitialSetup = true
-            try modelContext.save()
-            try await sendReserved(
-                message,
-                stagedContextOverride: stagedContextOverride ?? snapshotStagedContext,
-                useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
+            try completeInitialPromptSetup(
+                thread: thread,
+                stagedContext: snapshot.stagedContext,
                 existingLocalUserMessageID: existingLocalUserMessageID
             )
         } catch {
@@ -288,6 +290,25 @@ extension ConversationViewModel {
         }
 
         setupPhase = nil
+    }
+
+    private func completeInitialPromptSetup(
+        thread: AgentThread,
+        stagedContext: String?,
+        existingLocalUserMessageID: String?
+    ) throws {
+        thread.hasCompletedInitialSetup = true
+        try modelContext.save()
+        state.lastTurnInterrupted = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.activeRuntimeActivityTurnId = nil
+        clearConsumedPendingRestoreContext(using: stagedContext)
+        state.turnState.beginTurn()
+        if let existingLocalUserMessageID {
+            state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
+        }
+        state.respawnAttempts = 0
     }
 
     private func createInitialWorkingDirectory(

@@ -110,9 +110,18 @@ final class ComposerPresentationTests: XCTestCase {
             defaultEnterBehavior: .steer,
             supportsMidTurnSteering: false
         )
+        let notReady = makePresentation(
+            text: "Queue this.",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer,
+            canSteerCurrentTurn: false
+        )
 
         XCTAssertEqual(cannotStop.busyReturnAction(usesAlternateBehavior: false), .submit)
         XCTAssertEqual(unsupported.busyReturnAction(usesAlternateBehavior: false), .submit)
+        XCTAssertEqual(notReady.busyReturnAction(usesAlternateBehavior: false), .submit)
+        XCTAssertFalse(notReady.canSteer)
+        XCTAssertEqual(notReady.placeholder, "Type a message to queue for the next turn...")
     }
 
     func testBusyTurnWithStopKeepsSettingControlsEnabled() {
@@ -153,6 +162,7 @@ final class ComposerPresentationTests: XCTestCase {
         mode: ComposerMode = .idle,
         defaultEnterBehavior: ThreadEnterDefaultBehavior = .queue,
         supportsMidTurnSteering: Bool = true,
+        canSteerCurrentTurn: Bool = true,
         isHandoffSteeringPromptActive: Bool = false,
         isHandoffOutputPromptActive: Bool = false,
         handoffSteeringCountdown: Int? = nil,
@@ -165,6 +175,7 @@ final class ComposerPresentationTests: XCTestCase {
             mode: mode,
             defaultEnterBehavior: defaultEnterBehavior,
             supportsMidTurnSteering: supportsMidTurnSteering,
+            canSteerCurrentTurn: canSteerCurrentTurn,
             isHandoffSteeringPromptActive: isHandoffSteeringPromptActive,
             isHandoffOutputPromptActive: isHandoffOutputPromptActive,
             handoffSteeringCountdown: handoffSteeringCountdown,

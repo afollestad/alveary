@@ -267,10 +267,14 @@ extension ConversationViewModelTests {
             followUp: "Please revise the plan first."
         )
 
-        try await waitUntil("custom plan follow-up sent without live staged context during setup") {
-            await fixture.agentsManager.sentMessages() == ["Please revise the plan first."]
+        try await waitUntil("custom plan follow-up started without live staged context during setup") {
+            let spawnCalls = await fixture.agentsManager.spawnCalls()
+            return spawnCalls.first?.config.initialPrompt == "Please revise the plan first."
         }
 
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Please revise the plan first."])
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(fixture.viewModel.state.stagedContext, "Live staged context")
     }

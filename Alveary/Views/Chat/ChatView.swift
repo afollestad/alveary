@@ -323,6 +323,7 @@ extension ChatView {
             defaultEnterBehavior: defaultEnterBehavior,
             isStopConfirmationArmed: isStopConfirmationArmed,
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
+            canSteerCurrentTurn: viewModel.canSteerCurrentTurn,
             isProjectTrustBlocked: isProjectTrustBlocked,
             isHandoffSteeringPromptActive: viewModel.state.isAwaitingHandoffSteering,
             isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,

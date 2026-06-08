@@ -95,6 +95,7 @@ extension AppKitChatComposerEditorController {
             mode: configuration.mode,
             defaultEnterBehavior: configuration.defaultEnterBehavior,
             supportsMidTurnSteering: configuration.supportsMidTurnSteering,
+            canSteerCurrentTurn: configuration.canSteerCurrentTurn,
             isHandoffSteeringPromptActive: configuration.isHandoffSteeringPromptActive,
             isHandoffOutputPromptActive: configuration.isHandoffOutputPromptActive,
             handoffSteeringCountdown: configuration.handoffSteeringCountdown,

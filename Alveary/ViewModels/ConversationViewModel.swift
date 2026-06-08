@@ -37,6 +37,14 @@ final class ConversationViewModel {
         state.turnState.isActive || agentsManager.status(for: conversation.id) == .busy
     }
 
+    var canSteerCurrentTurn: Bool {
+        let providerId = conversation.provider ?? settingsService.current.defaultProvider
+        if providerId == "codex" {
+            return state.turnState.isActive && state.activeRuntimeActivityTurnId != nil
+        }
+        return isAgentActivelyWorking
+    }
+
     var lastTurnError: String? {
         get { state.lastTurnError }
         set { state.lastTurnError = newValue }
@@ -189,7 +197,7 @@ final class ConversationViewModel {
     }
 
     func steer(_ message: String) async throws {
-        guard isAgentActivelyWorking else {
+        guard canSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
 

@@ -56,6 +56,35 @@ extension ConversationViewModelTests {
         }
     }
 
+    func testCodexSteerRequiresRuntimeActivityTurnId() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        do {
+            try await fixture.viewModel.steer("Too soon")
+            XCTFail("Expected Codex steer to fail before the runtime reports a steerable turn")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Wait for the agent to be actively working before steering")
+        }
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
+    func testCodexSteerSucceedsAfterRuntimeActivityTurnId() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.activeRuntimeActivityTurnId = "turn-1"
+
+        try await fixture.viewModel.steer("Steer now")
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Steer now"])
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Steer now"])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+    }
+
     func testCancelWhileRuntimeBusyDoesNotRequireLocalTurnState() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
@@ -186,6 +215,28 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.messageQueue.pending.isEmpty)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Queued steer"])
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
+    }
+
+    func testCodexSteerQueuedMessageRequiresRuntimeActivityTurnId() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.stagedContext = "Queued context"
+        fixture.viewModel.turnState.beginTurn()
+        try await fixture.viewModel.queueOrSend("Queued steer")
+        fixture.viewModel.turnState.endTurn()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+
+        let queuedID = try XCTUnwrap(fixture.viewModel.messageQueue.peekNext()?.id)
+        do {
+            try await fixture.viewModel.steerQueuedMessage(id: queuedID)
+            XCTFail("Expected Codex queued steer to fail before the runtime reports a steerable turn")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Wait for the agent to be actively working before steering")
+        }
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Queued steer"])
         XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
     }
 }

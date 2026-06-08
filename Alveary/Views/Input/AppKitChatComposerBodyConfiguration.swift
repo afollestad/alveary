@@ -15,6 +15,7 @@ struct AppKitChatComposerBodyConfiguration {
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let isStopConfirmationArmed: Bool
     let supportsMidTurnSteering: Bool
+    let canSteerCurrentTurn: Bool
     let isProjectTrustBlocked: Bool
     let isHandoffSteeringPromptActive: Bool
     let isHandoffOutputPromptActive: Bool
@@ -44,6 +45,7 @@ struct AppKitChatComposerBodyConfiguration {
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         isStopConfirmationArmed: Bool,
         supportsMidTurnSteering: Bool,
+        canSteerCurrentTurn: Bool = true,
         isProjectTrustBlocked: Bool,
         isHandoffSteeringPromptActive: Bool,
         isHandoffOutputPromptActive: Bool,
@@ -72,6 +74,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.defaultEnterBehavior = defaultEnterBehavior
         self.isStopConfirmationArmed = isStopConfirmationArmed
         self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.canSteerCurrentTurn = canSteerCurrentTurn
         self.isProjectTrustBlocked = isProjectTrustBlocked
         self.isHandoffSteeringPromptActive = isHandoffSteeringPromptActive
         self.isHandoffOutputPromptActive = isHandoffOutputPromptActive

@@ -8,7 +8,7 @@ extension ChatView {
         return AppKitChatQueuedMessagesConfiguration(
             queuedMessages: viewModel.messageQueue.pending,
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
-            isTurnActive: viewModel.state.turnState.isActive || runtimeStatus == .busy,
+            isTurnActive: viewModel.canSteerCurrentTurn,
             inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
             borderWidth: 1,
             onSteer: { messageID in

@@ -79,8 +79,18 @@ extension ConversationViewModel {
         }
     }
 
+    func buildTransportMessage(
+        message: String,
+        stagedContext: String?
+    ) -> String {
+        if let context = stagedContext {
+            return context + "\n\n" + message
+        }
+        return message
+    }
+
     func steerQueuedMessage(id: UUID) async throws {
-        guard isAgentActivelyWorking else {
+        guard canSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
         guard state.inFlightQueuedMessageID == nil else {
@@ -183,13 +193,4 @@ private extension ConversationViewModel {
         }
     }
 
-    func buildTransportMessage(
-        message: String,
-        stagedContext: String?
-    ) -> String {
-        if let context = stagedContext {
-            return context + "\n\n" + message
-        }
-        return message
-    }
 }

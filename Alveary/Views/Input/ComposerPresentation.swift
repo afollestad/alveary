@@ -16,6 +16,7 @@ struct ComposerPresentation: Equatable, Sendable {
     let mode: ComposerMode
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let supportsMidTurnSteering: Bool
+    let canSteerCurrentTurn: Bool
     let isHandoffSteeringPromptActive: Bool
     let isHandoffOutputPromptActive: Bool
     let handoffSteeringCountdown: Int?
@@ -28,6 +29,7 @@ struct ComposerPresentation: Equatable, Sendable {
         mode: ComposerMode,
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         supportsMidTurnSteering: Bool,
+        canSteerCurrentTurn: Bool = true,
         isHandoffSteeringPromptActive: Bool,
         isHandoffOutputPromptActive: Bool,
         handoffSteeringCountdown: Int?,
@@ -39,6 +41,7 @@ struct ComposerPresentation: Equatable, Sendable {
         self.mode = mode
         self.defaultEnterBehavior = defaultEnterBehavior
         self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.canSteerCurrentTurn = canSteerCurrentTurn
         self.isHandoffSteeringPromptActive = isHandoffSteeringPromptActive
         self.isHandoffOutputPromptActive = isHandoffOutputPromptActive
         self.handoffSteeringCountdown = handoffSteeringCountdown
@@ -131,7 +134,7 @@ struct ComposerPresentation: Equatable, Sendable {
             }
             return "Ask anything, @ to add files, / for skills"
         case .busy(let canStop):
-            if canStop, supportsMidTurnSteering {
+            if canStop, supportsMidTurnSteering, canSteerCurrentTurn {
                 switch defaultEnterBehavior {
                 case .queue:
                     return "Enter to queue for the next turn, or Option+Enter to steer..."
@@ -150,13 +153,14 @@ struct ComposerPresentation: Equatable, Sendable {
     }
 
     var canSteer: Bool {
-        !isProjectTrustBlocked && !isTextEffectivelyEmpty
+        !isProjectTrustBlocked && !isTextEffectivelyEmpty && canSteerCurrentTurn
     }
 
     func busyReturnAction(usesAlternateBehavior: Bool) -> ComposerPrimaryAction {
         guard case .busy(let canStop) = mode,
               canStop,
-              supportsMidTurnSteering else {
+              supportsMidTurnSteering,
+              canSteerCurrentTurn else {
             return .submit
         }
 
