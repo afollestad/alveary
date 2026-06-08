@@ -36,7 +36,7 @@ enum MinimalToolContent {
             return Snapshot(content: preview.content, language: preview.language, baseURL: preview.baseURL)
         case "Read":
             return Snapshot(content: tool.output, language: ReadToolContent.language(for: tool), baseURL: ReadToolContent.baseURL(for: tool))
-        case "Bash":
+        case let name where CommandToolPresentation.isCommandToolName(name):
             return Snapshot(content: tool.output, language: "bash")
         default:
             return nil
@@ -209,7 +209,7 @@ enum ReadToolContent {
 enum TranscriptToolOutputPaging {
     static func initialTailLineCount(for toolName: String) -> Int {
         switch toolName {
-        case "Bash":
+        case let name where CommandToolPresentation.isCommandToolName(name):
             return 10
         case "Read":
             return 20
@@ -220,7 +220,7 @@ enum TranscriptToolOutputPaging {
 
     static func pageStep(for toolName: String) -> Int? {
         switch toolName {
-        case "Bash":
+        case let name where CommandToolPresentation.isCommandToolName(name):
             return 10
         case "Read":
             return 20

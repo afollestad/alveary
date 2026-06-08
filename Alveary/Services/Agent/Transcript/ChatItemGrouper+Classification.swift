@@ -22,7 +22,7 @@ extension ChatItemGrouper {
         }
 
         switch name {
-        case "Skill":
+        case "Skill", "CommandExecution":
             return .standalone
         case "Read", "Grep", "Glob", "WebFetch", "WebSearch", "ToolSearch":
             return .groupable

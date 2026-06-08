@@ -253,6 +253,26 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertFalse(view.renderedText.contains("line 10"))
     }
 
+    func testToolOutputStartsWithCommandExecutionTailAndPreservesPagingWindow() {
+        let view = AppKitTranscriptToolOutputView()
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(.init(toolName: "CommandExecution", content: (1...30).map { "line \($0)" }.joined(separator: "\n")))
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("Output (showing last 10 of 30 lines)"))
+        XCTAssertFalse(view.renderedText.contains("line 20"))
+        XCTAssertTrue(view.renderedText.contains("line 30"))
+
+        view.showMore()
+        view.layoutSubtreeIfNeeded()
+        view.configure(.init(toolName: "CommandExecution", content: (1...31).map { "line \($0)" }.joined(separator: "\n")))
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("Output (showing last 20 of 31 lines)"))
+        XCTAssertTrue(view.renderedText.contains("line 12"))
+        XCTAssertFalse(view.renderedText.contains("line 11"))
+    }
+
     func testToolOutputInvalidatesHeightWhenPagedOutputExpands() {
         let output = (1...30).map { "line \($0)" }.joined(separator: "\n")
         let view = AppKitTranscriptToolOutputView()

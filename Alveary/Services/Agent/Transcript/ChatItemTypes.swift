@@ -222,6 +222,69 @@ struct ToolEntry: Identifiable, Equatable {
     }
 }
 
+enum CommandToolPresentation {
+    static let rowSummaryCommandLimit = 60
+
+    static func isCommandToolName(_ name: String) -> Bool {
+        switch name {
+        case "Bash", "CommandExecution":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func command(fromInput input: String?) -> String? {
+        guard let input,
+              let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return command(fromJSON: json)
+    }
+
+    static func command(fromJSON json: [String: Any]) -> String? {
+        guard let command = json["command"] as? String else {
+            return nil
+        }
+        let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedCommand.isEmpty ? nil : trimmedCommand
+    }
+
+    static func executingSummary(command: String) -> String {
+        "Executing \(summaryBody(command: command))"
+    }
+
+    static func summaryBody(command: String) -> String {
+        "`\(truncated(command, limit: rowSummaryCommandLimit))`"
+    }
+
+    static func summaryBody(from summary: String) -> String {
+        summary
+            .replacingPrefix("Denied ", with: "")
+            .replacingPrefix("Executing ", with: "")
+            .replacingPrefix("Running ", with: "")
+            .replacingPrefix("Ran ", with: "")
+    }
+
+    private static func truncated(_ value: String, limit: Int) -> String {
+        guard value.count > limit else {
+            return value
+        }
+        return String(value.prefix(limit - 3)) + "..."
+    }
+}
+
+private extension String {
+    func replacingPrefix(_ prefix: String, with replacement: String) -> String {
+        guard hasPrefix(prefix) else {
+            return self
+        }
+        return replacement + String(dropFirst(prefix.count))
+    }
+}
+
 struct SubAgentEntry: Identifiable, Equatable {
     let id: String
     var agentType: String

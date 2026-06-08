@@ -145,6 +145,40 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(status, .denied)
     }
 
+    func testDeniedCommandExecutionApprovalUsesCommandDisplaySummary() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let toolCall = ConversationEventRecord(
+            id: "tool-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-1",
+            toolName: "CommandExecution",
+            toolInput: #"{"command":"swift test"}"#
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-1",
+            toolName: "CommandExecution",
+            toolInput: #"{"command":"swift test"}"#,
+            toolApprovalStatus: ToolApprovalStatus.denied.rawValue
+        )
+
+        grouper.update(events: [toolCall, approval])
+
+        guard case .standaloneTool(_, let tool) = grouper.items.first else {
+            return XCTFail("Expected the CommandExecution tool row to remain visible")
+        }
+        XCTAssertEqual(tool.summary, "Denied Executing `swift test`")
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertTrue(tool.isError)
+        XCTAssertEqual(tool.transcriptStatusPhase, .error)
+        XCTAssertEqual(tool.transcriptDisplaySummary, "Denied `swift test`")
+    }
+
     func testDeniedFileMutationApprovalDoesNotRenderAsSuccessfulTool() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

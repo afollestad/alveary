@@ -311,7 +311,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
 
     private func leadingIconKind(for tool: ToolEntry, isExpanded: Bool) -> TranscriptToolLeadingIconKind {
         switch tool.name {
-        case "Bash":
+        case let name where CommandToolPresentation.isCommandToolName(name):
             return .bash
         case "Skill":
             return .symbol(systemName: "book")

@@ -46,8 +46,8 @@ extension ToolEntry {
         }
 
         switch name {
-        case "Bash":
-            return "\(isComplete ? "Ran" : "Running") \(bashSummaryBody)"
+        case let name where CommandToolPresentation.isCommandToolName(name) && hasCommandDisplayBody:
+            return "\(isComplete ? "Ran" : "Running") \(commandSummaryBody)"
         case "Read":
             return isComplete
                 ? summary.replacingLeadingWord("Reading", with: "Read")
@@ -75,19 +75,22 @@ extension ToolEntry {
 
     private var deniedDisplaySummary: String {
         switch name {
-        case "Bash":
-            return "Denied \(bashSummaryBody)"
+        case let name where CommandToolPresentation.isCommandToolName(name) && hasCommandDisplayBody:
+            return "Denied \(commandSummaryBody)"
         default:
             return summary
         }
     }
 
-    private var bashSummaryBody: String {
-        summary
-            .replacingPrefix("Denied ", with: "")
-            .replacingPrefix("Executing ", with: "")
-            .replacingPrefix("Running ", with: "")
-            .replacingPrefix("Ran ", with: "")
+    private var commandSummaryBody: String {
+        if let command = CommandToolPresentation.command(fromInput: input) {
+            return CommandToolPresentation.summaryBody(command: command)
+        }
+        return CommandToolPresentation.summaryBody(from: summary)
+    }
+
+    private var hasCommandDisplayBody: Bool {
+        CommandToolPresentation.command(fromInput: input) != nil || summary != name
     }
 }
 

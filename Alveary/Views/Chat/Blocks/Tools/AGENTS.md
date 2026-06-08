@@ -7,7 +7,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Tool transcript blocks render as inline rows, not bubble/pill chrome.
 - Use AppKit header rows with fixed leading slot, summary text column, and fixed status slot.
 - Keep slots near glyph size so rows do not grow wider or taller than needed.
-- Bash rows use `dollarsign`; generic tools, groups, and sub-agents use a disclosure chevron; static approval headers use `lock.fill`.
+- Command-like rows such as `Bash` and `CommandExecution` use `dollarsign`; generic tools, groups, and sub-agents use a disclosure chevron; static approval headers use `lock.fill`.
 - AppKit tool rows use native `chevron.right`/`chevron.down` symbols instead of layer rotation so SF Symbol bounds stay stable.
 - Keep status indicators inside the fixed status frame.
 - Use platform progress controls, green `checkmark`, or red `xmark`; do not tint summary text red.
@@ -59,10 +59,10 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 ## Output And Status
 
 - AppKit tool output views own output paging.
-- `Bash` tails 10 lines; `Read` tails 20 lines.
+- Command-like tools such as `Bash` and `CommandExecution` tail 10 lines; `Read` tails 20 lines.
 - `Show N more` extends the window upward.
 - Other tools render full output through the AppKit detail code block.
-- Keep Bash tail-not-head behavior so streaming shows the latest line at the bottom.
+- Keep command-tool tail-not-head behavior so streaming shows the latest line at the bottom.
 - Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; the transient AppKit thinking indicator is the only thinking affordance.
 - Tune tool dimensions only in `ChatBlocks.swift`.
 - Use platform progress controls over custom spinners; a prior custom spinner caused blank thread-open renders until scrolling.

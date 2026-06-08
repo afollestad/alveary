@@ -22,8 +22,8 @@ extension ChatItemGrouper {
             return readToolSummary(from: json)
         case "Edit", "Write":
             return fileMutationToolSummary(name: name, json: json)
-        case "Bash":
-            return bashToolSummary(from: json)
+        case let name where CommandToolPresentation.isCommandToolName(name):
+            return commandToolSummary(name: name, json: json)
         case "Grep", "Glob":
             return "Searching for pattern `\(json["pattern"] as? String ?? "")`"
         case "ToolSearch":
@@ -153,10 +153,11 @@ private extension ChatItemGrouper {
         return "\(name) `\(fileName)`"
     }
 
-    static func bashToolSummary(from json: [String: Any]) -> String {
-        let command = json["command"] as? String ?? ""
-        let truncated = command.count > 60 ? String(command.prefix(57)) + "..." : command
-        return "Executing `\(truncated)`"
+    static func commandToolSummary(name: String, json: [String: Any]) -> String {
+        guard let command = CommandToolPresentation.command(fromJSON: json) else {
+            return name
+        }
+        return CommandToolPresentation.executingSummary(command: command)
     }
 
     /// `ToolSearch.query` is either `select:<Name>[,<Name>...]` to pull specific tool schemas,

@@ -73,7 +73,10 @@ extension AppKitTranscriptToolApprovalBlockView {
             guard let summary = approval.transcriptApprovalSummary else {
                 return nil
             }
-            return AppKitTranscriptApprovalSummaryItem(summary: summary, isCommand: approval.toolName == "Bash")
+            return AppKitTranscriptApprovalSummaryItem(
+                summary: summary,
+                isCommand: CommandToolPresentation.isCommandToolName(approval.toolName)
+            )
         }
     }
 
