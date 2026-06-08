@@ -44,12 +44,17 @@ extension ConversationViewModel {
         recordPromptHandled(promptId: promptId)
     }
 
+    func markTranscriptToolsInterrupted() {
+        state.grouper.markIncompleteToolsInterrupted()
+    }
+
     func markPromptDismissInterruption() {
         state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
+        markTranscriptToolsInterrupted()
         state.clearStreamingText()
         state.turnState.endTurn()
     }

@@ -4,7 +4,7 @@ import SwiftUI
 extension ChatTranscriptView {
     func appKitTranscriptSurface() -> some View {
         AppKitTranscriptScrollViewRepresentable(
-            items: viewModel.state.grouper.items.visibleTranscriptItems,
+            items: appKitTranscriptItems,
             transientRows: appKitTransientRows,
             rowConfiguration: appKitRowConfiguration(),
             isFollowing: isFollowing,
@@ -21,6 +21,15 @@ extension ChatTranscriptView {
         } action: { newValue in
             transcriptContentWidth = newValue
         }
+    }
+
+    var appKitTranscriptItems: [ChatItem] {
+        let items = viewModel.state.grouper.items.visibleTranscriptItems
+        guard viewModel.state.shouldShowInterruptedCue,
+              !viewModel.turnState.isActive else {
+            return items
+        }
+        return items.interruptedToolsTerminalized
     }
 
     var appKitTransientRows: AppKitTranscriptTransientRows {

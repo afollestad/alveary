@@ -55,6 +55,24 @@ extension [ChatItem] {
     var visibleTranscriptItems: [ChatItem] {
         filter(\.isVisibleInTranscript)
     }
+
+    var interruptedToolsTerminalized: [ChatItem] {
+        let terminalizationStart = lastIndex(where: \.isUserMessage).map { index(after: $0) } ?? startIndex
+        return indices.map { index in
+            let item = self[index]
+            guard index >= terminalizationStart else {
+                return item
+            }
+            switch item {
+            case .toolGroup(let id, let tools):
+                return .toolGroup(id: id, tools: tools.map(\.terminalizingAsInterruptedIfNeeded))
+            case .standaloneTool(let id, let tool):
+                return .standaloneTool(id: id, tool: tool.terminalizingAsInterruptedIfNeeded)
+            default:
+                return item
+            }
+        }
+    }
 }
 
 struct PromptEntry: Identifiable, Equatable {
@@ -219,6 +237,28 @@ struct ToolEntry: Identifiable, Equatable {
         self.noOutputExpected = noOutputExpected
         self.isError = isError
         self.previewOverride = previewOverride
+    }
+}
+
+extension ToolEntry {
+    var terminalizingAsInterruptedIfNeeded: ToolEntry {
+        guard !isComplete else {
+            return self
+        }
+        return ToolEntry(
+            id: id,
+            name: name,
+            summary: summary,
+            input: input,
+            output: output,
+            stderr: stderr,
+            isComplete: true,
+            isInterrupted: true,
+            isImage: isImage,
+            noOutputExpected: noOutputExpected,
+            isError: isError,
+            previewOverride: previewOverride
+        )
     }
 }
 

@@ -123,6 +123,37 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertEqual(grouper.items, [.centeredNote(id: "stop-1", kind: .interrupted)])
     }
 
+    func testInterruptedStopTerminalizesRunningToolGroup() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let read = ConversationEventRecord(
+            id: "read",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "r1",
+            toolName: "Read",
+            toolInput: "{\"file_path\":\"a.swift\"}"
+        )
+        let stop = ConversationEventRecord(
+            id: "stop-1",
+            conversationId: conversationId,
+            type: "stop",
+            content: ConversationInterruption.displayMessage
+        )
+
+        grouper.update(events: [read, stop])
+
+        XCTAssertEqual(grouper.items.count, 2)
+        guard case .toolGroup(_, let tools) = grouper.items[0],
+              let tool = tools.first else {
+            return XCTFail("Expected the running Read tool to be flushed as a group")
+        }
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertTrue(tool.isInterrupted)
+        XCTAssertFalse(tool.isError)
+        XCTAssertEqual(grouper.items[1], .centeredNote(id: "stop-1", kind: .interrupted))
+    }
+
     func testInterruptedNoteLookupOnlyConsidersCurrentTurn() {
         let items: [ChatItem] = [
             .userMessage(id: "user-1", text: "First turn"),

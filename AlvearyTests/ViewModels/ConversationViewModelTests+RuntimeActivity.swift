@@ -98,6 +98,28 @@ extension ConversationViewModelTests {
         XCTAssertEqual(stopRecords.first?.content, ConversationInterruption.displayMessage)
     }
 
+    func testRuntimeActivityInterruptedIdleTerminalizesRunningCommandTool() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.grouper.append(event: ConversationEventRecord(
+            id: "cmd-1",
+            conversationId: fixture.conversation.id,
+            type: "tool_call",
+            toolId: "cmd-1",
+            toolName: "CommandExecution",
+            toolInput: #"{"command":"swift test"}"#
+        ))
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .interrupted))
+
+        guard case .standaloneTool(_, let tool) = fixture.viewModel.state.grouper.items.first else {
+            return XCTFail("Expected the running command to stay visible as a standalone row")
+        }
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertTrue(tool.isInterrupted)
+        XCTAssertFalse(tool.transcriptDisplaySummary.hasPrefix("Running "))
+    }
+
     func testRealErrorAfterInterruptedTurnPersists() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.turnState.beginTurn()

@@ -106,6 +106,7 @@ extension ChatItemGrouper {
             handleContextCompaction(event)
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
+            markIncompleteToolsInterrupted()
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))

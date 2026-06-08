@@ -155,6 +155,17 @@ extension ChatItemGrouper {
             previewOverride: previewOverride
         )
     }
+
+    func markIncompleteToolsInterrupted() {
+        pendingGroupTools = pendingGroupTools.map { tool in
+            tool.isComplete ? tool : interruptedToolEntry(from: tool)
+        }
+        items = items.interruptedToolsTerminalized
+    }
+
+    func interruptedToolEntry(from tool: ToolEntry) -> ToolEntry {
+        tool.terminalizingAsInterruptedIfNeeded
+    }
 }
 
 private extension ChatItemGrouper {
