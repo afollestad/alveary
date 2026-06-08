@@ -101,13 +101,9 @@ final class ChatComposerActionRowTests: XCTestCase {
             )
         )
 
-        let menus = row.descendants(of: ComposerMenuButton.self)
-        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Provider" })
-        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Model" })
-        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Effort" })
-        XCTAssertFalse(menus.contains { $0.accessibilityLabel() == "Permissions" })
         XCTAssertEqual(row.descendants(of: ComposerPermissionButton.self).first?.accessibilityLabel(), "Permissions")
         XCTAssertEqual(row.descendants(of: ComposerReasoningButton.self).first?.accessibilityLabel(), "Reasoning")
+        XCTAssertEqual(row.descendants(of: ComposerWorktreeLocationButton.self).first?.accessibilityLabel(), "Thread location")
     }
 
     func testActionButtonDoesNotFireWhenDisabledBeforeMouseUp() {
@@ -177,22 +173,27 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertEqual(stopCount, 1)
     }
 
-    func testMenuButtonUsesSwiftUIPickerHeightAndWidestOptionWidth() {
-        let button = ComposerMenuButton()
-        button.configure(
-            title: "Default",
-            options: [
-                .init(value: "default", title: "Default"),
-                .init(value: "acceptEdits", title: "Accept edits")
-            ],
-            selectedValue: "default",
-            isEnabled: true,
-            onSelect: { _ in }
+    func testWorktreeLocationButtonUsesPermissionStylePresentationAndMetrics() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                selectedUseWorktree: true
+            )
         )
 
-        let size = button.intrinsicContentSize
-        XCTAssertEqual(size.height, 24)
-        XCTAssertGreaterThan(size.width, 110)
+        let button = row.worktreeButton
+        XCTAssertEqual(button.accessibilityLabel(), "Thread location")
+        XCTAssertEqual(button.accessibilityValue() as? String, "New worktree")
+        XCTAssertEqual(button.intrinsicContentSize.height, 24)
+        XCTAssertGreaterThan(button.intrinsicContentSize.width, 120)
+        #if DEBUG
+        XCTAssertEqual(button.debugTitle, "New worktree")
+        XCTAssertTrue(["arrow.trianglehead.branch", "arrow.triangle.branch"].contains(button.debugSymbolName ?? ""))
+        XCTAssertEqual(button.debugIconRotationRadians, CGFloat.pi / 2, accuracy: 0.0001)
+        XCTAssertFalse(button.debugIsWarning)
+        XCTAssertEqual(button.debugTextChevronSpacing, button.debugIconTextSpacing)
+        #endif
     }
 
     func testNarrowRowKeepsSettingsControlsInsideLeadingEdgeAndActionsInsideTrailingEdge() throws {
@@ -211,9 +212,10 @@ final class ChatComposerActionRowTests: XCTestCase {
 
         row.layoutSubtreeIfNeeded()
 
-        let menuFrames = row.descendants(of: ComposerMenuButton.self).map { $0.convert($0.bounds, to: row) }
-        XCTAssertFalse(menuFrames.isEmpty)
-        XCTAssertTrue(menuFrames.allSatisfy { $0.minX >= 0 })
+        let settingFrames = row.descendants(of: ComposerCompactDropdownButton.self)
+            .map { $0.convert($0.bounds, to: row) }
+        XCTAssertFalse(settingFrames.isEmpty)
+        XCTAssertTrue(settingFrames.allSatisfy { $0.minX >= 0 })
 
         let actionButton = try XCTUnwrap(row.descendants(of: ComposerActionButton.self).first)
         let actionFrame = actionButton.convert(actionButton.bounds, to: row)
@@ -365,6 +367,7 @@ func makeConfiguration(
     supportedPermissionModes: [ChatComposerActionRowView.PermissionOptionPresentation] = [.init(value: "default", title: "Default")],
     selectedPermissionMode: String = "default",
     showWorktreePicker: Bool = true,
+    selectedUseWorktree: Bool = false,
     sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
     isTextEditorDisabled: Bool = false,
@@ -385,7 +388,7 @@ func makeConfiguration(
         supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: selectedPermissionMode,
         showWorktreePicker: showWorktreePicker,
-        selectedUseWorktree: false,
+        selectedUseWorktree: selectedUseWorktree,
         sessionLocationLabel: sessionLocationLabel,
         usageSummary: usageSummary,
         isTextEditorDisabled: isTextEditorDisabled,

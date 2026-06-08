@@ -63,8 +63,8 @@ extension AppKitTextEditorCoordinatorTests {
     }
 
     func testWorktreeLocationLabelsUseFriendlyNames() {
-        XCTAssertEqual(ChatComposerTextSupport.worktreeLocationLabel(for: false), "Local")
-        XCTAssertEqual(ChatComposerTextSupport.worktreeLocationLabel(for: true), "Worktree")
+        XCTAssertEqual(ChatComposerTextSupport.worktreeLocationLabel(for: false), "Work locally")
+        XCTAssertEqual(ChatComposerTextSupport.worktreeLocationLabel(for: true), "New worktree")
     }
 
     func testSessionLocationLabelFormats() {

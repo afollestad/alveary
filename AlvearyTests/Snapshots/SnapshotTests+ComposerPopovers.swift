@@ -41,6 +41,18 @@ extension SnapshotTests {
             colorScheme: .dark
         )
     }
+
+    func testComposerWorktreeLocationMenuContent() {
+        let options = ChatComposerWorktreeLocationPresentation.options()
+        let size = ComposerWorktreeMenuMetrics.contentSize(optionCount: options.count)
+
+        assertMacSnapshot(
+            ComposerWorktreeLocationMenuSnapshot(options: options),
+            size: size,
+            named: "composer_worktree_location_menu_content",
+            colorScheme: .dark
+        )
+    }
 }
 
 @MainActor
@@ -113,4 +125,19 @@ private struct ComposerPermissionMenuSnapshot: NSViewControllerRepresentable {
     }
 
     func updateNSViewController(_ controller: ComposerPermissionMenuViewController, context: Context) {}
+}
+
+private struct ComposerWorktreeLocationMenuSnapshot: NSViewControllerRepresentable {
+    let options: [ChatComposerActionRowView.WorktreeLocationOptionPresentation]
+
+    func makeNSViewController(context: Context) -> ComposerWorktreeMenuViewController {
+        ComposerWorktreeMenuViewController(
+            options: options,
+            selectedValue: ChatComposerWorktreeLocationPresentation.worktreeValue,
+            onUseWorktreeSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+    }
+
+    func updateNSViewController(_ controller: ComposerWorktreeMenuViewController, context: Context) {}
 }

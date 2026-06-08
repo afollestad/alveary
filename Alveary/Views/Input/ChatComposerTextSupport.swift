@@ -137,7 +137,7 @@ enum ChatComposerTextSupport {
     }
 
     static func worktreeLocationLabel(for usesWorktree: Bool) -> String {
-        usesWorktree ? "Worktree" : "Local"
+        usesWorktree ? "New worktree" : "Work locally"
     }
 
     static func sessionLocationLabel(useWorktree: Bool, worktreePath: String?) -> String {

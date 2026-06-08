@@ -23,6 +23,15 @@ extension SnapshotTests {
         )
     }
 
+    func testChatComposerWorktreeLocationButtonContent() {
+        assertMacSnapshot(
+            worktreeLocationButtonContent,
+            size: CGSize(width: 340, height: 64),
+            named: "chat_composer_worktree_location_button_content",
+            colorScheme: .dark
+        )
+    }
+
     private var nativeActionControlInteractionStates: some View {
         HStack(spacing: 16) {
             ComposerReasoningButtonSnapshot(state: .hovered)
@@ -41,6 +50,16 @@ extension SnapshotTests {
                 .frame(width: 76, height: 30)
             ComposerActionButtonSnapshot(style: .destructive, title: "Stop", symbolName: "stop.fill", state: .pressed)
                 .frame(width: 76, height: 30)
+        }
+        .padding(20)
+    }
+
+    private var worktreeLocationButtonContent: some View {
+        HStack(spacing: 16) {
+            ComposerWorktreeLocationButtonSnapshot(useWorktree: false, state: .hovered)
+                .frame(width: 140, height: 24)
+            ComposerWorktreeLocationButtonSnapshot(useWorktree: true, state: .pressed)
+                .frame(width: 150, height: 24)
         }
         .padding(20)
     }
@@ -121,6 +140,53 @@ private struct ComposerPermissionButtonSnapshot: NSViewRepresentable {
                 symbolName: "exclamationmark.shield",
                 isWarning: true
             ),
+            height: ChatComposerActionRowView.defaultSettingsControlHeight,
+            isEnabled: true,
+            actionHandler: {}
+        )
+        switch state {
+        case .idle:
+            break
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.mouseEntered(with: Self.event)
+            view.mouseDown(with: Self.event)
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ComposerWorktreeLocationButtonSnapshot: NSViewRepresentable {
+    let useWorktree: Bool
+    let state: ComposerControlSnapshotState
+
+    func makeNSView(context: Context) -> ComposerWorktreeLocationButton {
+        let view = ComposerWorktreeLocationButton()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerWorktreeLocationButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerWorktreeLocationButton) {
+        view.configure(
+            option: ChatComposerWorktreeLocationPresentation.selectedOption(usesWorktree: useWorktree),
             height: ChatComposerActionRowView.defaultSettingsControlHeight,
             isEnabled: true,
             actionHandler: {}

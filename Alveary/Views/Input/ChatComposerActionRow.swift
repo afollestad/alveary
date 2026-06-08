@@ -173,7 +173,7 @@ final class ChatComposerActionRowView: NSView {
     let plusButton = ComposerPlusButton()
     let reasoningButton = ComposerReasoningButton()
     let permissionButton = ComposerPermissionButton()
-    private let worktreeMenu = ComposerMenuButton()
+    let worktreeButton = ComposerWorktreeLocationButton()
     let sessionLocationField = NSTextField(labelWithString: "")
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
     // frame logic out of this already-large view type without widening behavior.
@@ -198,6 +198,8 @@ final class ChatComposerActionRowView: NSView {
     var reasoningMenuController: ComposerReasoningMenuViewController?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?
+    var worktreePopover: NSPopover?
+    var worktreeMenuController: ComposerWorktreeMenuViewController?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let minimumSettingsControlWidth: CGFloat = 44
@@ -227,6 +229,7 @@ final class ChatComposerActionRowView: NSView {
             closePlusMenu()
             closeReasoningMenu()
             closePermissionMenu()
+            closeWorktreeLocationMenu()
         }
     }
 
@@ -260,7 +263,7 @@ final class ChatComposerActionRowView: NSView {
         plusButton.setAccessibilityLabel("Open composer actions")
         reasoningButton.setAccessibilityLabel("Reasoning")
         permissionButton.setAccessibilityLabel("Permissions")
-        worktreeMenu.setAccessibilityLabel("Thread location")
+        worktreeButton.setAccessibilityLabel("Thread location")
     }
 
     private func setupAccessoryViews() {
@@ -282,6 +285,9 @@ final class ChatComposerActionRowView: NSView {
         }
         permissionButton.actionHandler = { [weak self] in
             self?.togglePermissionMenu()
+        }
+        worktreeButton.actionHandler = { [weak self] in
+            self?.toggleWorktreeLocationMenu()
         }
         keyboardButton.actionHandler = { [weak self] in
             self?.configuration?.onShowKeymap()
@@ -349,9 +355,13 @@ final class ChatComposerActionRowView: NSView {
         if configuration.areControlsDisabled {
             closePlusMenu()
             closeReasoningMenu()
+            closeWorktreeLocationMenu()
         }
         if configuration.areControlsDisabled || configuration.supportedPermissionModes.isEmpty {
             closePermissionMenu()
+        }
+        if configuration.areControlsDisabled || !configuration.showWorktreePicker {
+            closeWorktreeLocationMenu()
         }
         applyMenuConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
@@ -363,15 +373,20 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func applyMenuConfiguration(_ configuration: Configuration) {
-        worktreeMenu.configure(
-            title: ChatComposerTextSupport.worktreeLocationLabel(for: configuration.selectedUseWorktree),
-            options: [
-                .init(value: "false", title: ChatComposerTextSupport.worktreeLocationLabel(for: false)),
-                .init(value: "true", title: ChatComposerTextSupport.worktreeLocationLabel(for: true))
-            ],
-            selectedValue: String(configuration.selectedUseWorktree),
+        let option = ChatComposerWorktreeLocationPresentation.selectedOption(
+            usesWorktree: configuration.selectedUseWorktree
+        )
+        worktreeButton.configure(
+            option: option,
+            height: Self.defaultSettingsControlHeight,
             isEnabled: !configuration.areControlsDisabled,
-            onSelect: { configuration.onUseWorktreeChange($0 == "true") }
+            actionHandler: { [weak self] in
+                self?.toggleWorktreeLocationMenu()
+            }
+        )
+        worktreeMenuController?.update(
+            options: ChatComposerWorktreeLocationPresentation.options(),
+            selectedValue: option.value
         )
     }
 
@@ -431,7 +446,7 @@ final class ChatComposerActionRowView: NSView {
             views.append(permissionButton)
         }
         if configuration.showWorktreePicker {
-            views.append(worktreeMenu)
+            views.append(worktreeButton)
         } else if configuration.sessionLocationLabel != nil {
             views.append(sessionLocationField)
         }

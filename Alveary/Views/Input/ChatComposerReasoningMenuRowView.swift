@@ -6,6 +6,7 @@ final class ComposerReasoningMenuRowView: NSView {
         let title: String
         let subtitle: String?
         let iconName: String?
+        let iconRotationRadians: CGFloat
         let trailingIconName: String?
         let accessibilityLabel: String
         let isSelected: Bool
@@ -20,6 +21,7 @@ final class ComposerReasoningMenuRowView: NSView {
             title: String,
             subtitle: String? = nil,
             iconName: String?,
+            iconRotationRadians: CGFloat = 0,
             trailingIconName: String?,
             accessibilityLabel: String,
             isSelected: Bool,
@@ -33,6 +35,7 @@ final class ComposerReasoningMenuRowView: NSView {
             self.title = title
             self.subtitle = subtitle
             self.iconName = iconName
+            self.iconRotationRadians = iconRotationRadians
             self.trailingIconName = trailingIconName
             self.accessibilityLabel = accessibilityLabel
             self.isSelected = isSelected
@@ -86,6 +89,7 @@ final class ComposerReasoningMenuRowView: NSView {
 
     #if DEBUG
     var debugIconName: String? { configuration?.iconName }
+    var debugIconRotationRadians: CGFloat { configuration?.iconRotationRadians ?? 0 }
     var debugTrailingIconName: String? { configuration?.trailingIconName }
     var debugSubtitle: String? { configuration?.subtitle }
     var debugIsWarning: Bool { configuration?.isWarning == true }
@@ -223,22 +227,19 @@ final class ComposerReasoningMenuRowView: NSView {
                 named: iconName,
                 pointSize: ComposerReasoningMenuMetrics.leadingIconPointSize,
                 color: iconColor(for: configuration)
-              ) else {
+        ) else {
             return
         }
-        let drawSize = image.size
-        image.draw(
+        let drawSize = symbolDrawingSize(for: image, maxSize: ComposerReasoningMenuMetrics.iconSlotSize)
+        drawImage(
+            image,
             in: NSRect(
-                x: ComposerReasoningMenuMetrics.iconLeading,
+                x: ComposerReasoningMenuMetrics.iconLeading + floor((ComposerReasoningMenuMetrics.iconSlotSize - drawSize.width) / 2),
                 y: floor((bounds.height - drawSize.height) / 2),
                 width: drawSize.width,
                 height: drawSize.height
             ),
-            from: .zero,
-            operation: .sourceOver,
-            fraction: 1,
-            respectFlipped: true,
-            hints: nil
+            rotationRadians: configuration.iconRotationRadians
         )
     }
 
@@ -396,6 +397,36 @@ final class ComposerReasoningMenuRowView: NSView {
         }
         let scale = min(maxSize / imageSize.width, maxSize / imageSize.height)
         return NSSize(width: ceil(imageSize.width * scale), height: ceil(imageSize.height * scale))
+    }
+
+    private func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat) {
+        guard rotationRadians != 0 else {
+            image.draw(
+                in: rect,
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1,
+                respectFlipped: true,
+                hints: nil
+            )
+            return
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        let transform = NSAffineTransform()
+        transform.translateX(by: rect.midX, yBy: rect.midY)
+        transform.rotate(byRadians: rotationRadians)
+        transform.translateX(by: -rect.midX, yBy: -rect.midY)
+        transform.concat()
+        image.draw(
+            in: rect,
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: nil
+        )
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func resetInteractionState() {

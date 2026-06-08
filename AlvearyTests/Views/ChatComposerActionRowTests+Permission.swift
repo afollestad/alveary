@@ -30,6 +30,7 @@ extension ChatComposerActionRowTests {
         #if DEBUG
         XCTAssertEqual(button.debugTitle, "Full access")
         XCTAssertEqual(button.debugSymbolName, "exclamationmark.shield")
+        XCTAssertEqual(button.debugIconRotationRadians, 0, accuracy: 0.0001)
         XCTAssertTrue(button.debugIsWarning)
         XCTAssertEqual(button.debugTextChevronSpacing, button.debugIconTextSpacing)
         #endif
