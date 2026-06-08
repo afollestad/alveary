@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -140,11 +141,111 @@ extension ConversationViewModelTests {
         await fixture.viewModel.applyPlanModeChange(false).value
 
         XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
-        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), false)
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testClaudeInactivePlanModeChangeStagesWithoutReconfiguring() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "claude"
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = false
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+
+        await fixture.viewModel.applyPlanModeChange(true).value
+
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), true)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+
+        try await fixture.viewModel.queueOrSend("Next turn")
+
+        let appliedReconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(appliedReconfigureCalls.count, 1)
+        XCTAssertEqual(appliedReconfigureCalls.first?.config.providerId, "claude")
+        XCTAssertEqual(appliedReconfigureCalls.first?.config.planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
+        XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
+    }
+
+    func testClaudeInactivePlanModeExitStagesDisplayedOffWithoutReconfiguring() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "claude"
+        )
+        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().planModeEnabled = true
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+
+        await fixture.viewModel.applyPlanModeChange(false).value
+
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), false)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testClaudeInactiveComposerSettingsApplyTogetherOnNextTurn() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: false,
+            providerId: "claude"
+        )
+        try fixture.dbThread().permissionMode = "default"
+        try fixture.dbThread().planModeEnabled = false
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+
+        await fixture.viewModel.applyModelChange("opus").value
+        await fixture.viewModel.applyEffortChange("high").value
+        await fixture.viewModel.applyPermissionModeChange("acceptEdits").value
+        await fixture.viewModel.applyPlanModeChange(true).value
+
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
+        XCTAssertEqual(try fixture.dbThread().effort, "high")
+        XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.model, "opus")
+        XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, "high")
+        XCTAssertEqual(fixture.viewModel.pendingPermissionModeForDisplay(), "acceptEdits")
+        XCTAssertEqual(fixture.viewModel.pendingPlanModeForDisplay(), true)
+        var reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+
+        var invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == ConversationEventRecord.contextWindowInvalidatedType
+        }
+        XCTAssertTrue(invalidations.isEmpty)
+
+        try await fixture.viewModel.queueOrSend("Next turn")
+
+        reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.providerId, "claude")
+        XCTAssertEqual(reconfigureCalls.first?.config.model, "opus")
+        XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
         XCTAssertEqual(reconfigureCalls.first?.config.permissionMode, "acceptEdits")
-        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, false)
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, true)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "acceptEdits")
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, true)
+        XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
+
+        invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == ConversationEventRecord.contextWindowInvalidatedType
+        }
+        XCTAssertEqual(invalidations.count, 1)
+        XCTAssertEqual(invalidations.first?.conversationId, fixture.conversation.id)
     }
 
     func testStagedPlanModeAppliesOnNextTurn() async throws {
@@ -173,9 +274,10 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: true,
             reconfigureResult: .nextTurnRequired,
-            initialAgentIsRunning: false
+            initialAgentIsRunning: false,
+            providerId: "codex"
         )
-        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().permissionMode = "on-request"
         try fixture.context.save()
         fixture.viewModel.state.runtimePlanModeEnabled = false
 

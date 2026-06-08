@@ -27,7 +27,17 @@ extension ConversationViewModel {
     }
 
     var shouldStageSessionSettingChange: Bool {
-        isAgentActivelyWorking || state.pendingToolApproval != nil || hasUnansweredPrompt
+        isAgentActivelyWorking ||
+            state.pendingToolApproval != nil ||
+            hasUnansweredPrompt ||
+            shouldStageInactiveClaudeSettings
+    }
+
+    var shouldStageInactiveClaudeSettings: Bool {
+        let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
+        return providerId == "claude" &&
+            !state.turnState.isActive &&
+            shouldReconfigureOnSettingChange()
     }
 
     func shouldReconfigureOnSettingChange() -> Bool {
@@ -324,85 +334,6 @@ private extension ConversationViewModel {
     func canSelectPermissionMode(_ value: String) -> Bool {
         let providerId = dbConversation()?.provider ?? settingsService.current.defaultProvider
         return AppSettings.supportedPermissionModes(forProvider: providerId).contains(value)
-    }
-
-    func preparePendingSnapshotIfNeeded(for dbThread: AgentThread) -> SessionSettingsSnapshot {
-        let snapshot = sessionSettingsSnapshot(for: dbThread)
-        if shouldStageSessionSettingChange {
-            ensurePendingSessionSettingsChange(dbThread: dbThread)
-        }
-        return snapshot
-    }
-
-    func finishStagedSettingsIfNeeded(dbThread: AgentThread, invalidatesContextWindow: Bool = false) -> Bool {
-        guard shouldStageSessionSettingChange else {
-            return false
-        }
-        // Active turns and deferred approvals keep their current provider settings;
-        // the persisted settings are staged into the next turn's spawn config.
-        refreshPendingSessionSettingsChange(from: dbThread, invalidatesContextWindow: invalidatesContextWindow)
-        return true
-    }
-
-    func saveSettingsChange(dbThread: AgentThread, rollback: () -> Void) -> Bool {
-        do {
-            try modelContext.save()
-            return true
-        } catch {
-            rollback()
-            if shouldStageSessionSettingChange {
-                refreshPendingSessionSettingsChange(from: dbThread)
-            }
-            state.lastTurnError = error.localizedDescription
-            return false
-        }
-    }
-
-    func reconfigureSettingsTask(
-        original: SessionSettingsSnapshot,
-        dbThread: AgentThread,
-        invalidatesContextWindow: Bool = false,
-        rollback: @escaping () -> Void,
-        onNextTurnRequired: @escaping () -> Void = {},
-        onApplied: @escaping () -> Void = {}
-    ) -> Task<Void, Never> {
-        Task { @MainActor [self] in
-            await reconfigureSessionSettingChange(
-                original: original,
-                dbThread: dbThread,
-                invalidatesContextWindow: invalidatesContextWindow,
-                onApplied: onApplied,
-                onNextTurnRequired: onNextTurnRequired,
-                onFailure: rollback
-            )
-        }
-    }
-
-    func reconfigureSessionSettingChange(
-        original: SessionSettingsSnapshot,
-        dbThread: AgentThread,
-        invalidatesContextWindow: Bool = false,
-        onApplied: () -> Void = {},
-        onNextTurnRequired: () -> Void = {},
-        onFailure: () -> Void
-    ) async {
-        do {
-            let result = try await reconfigureSession()
-            if result == .nextTurnRequired {
-                onNextTurnRequired()
-                stagePendingSessionSettingsChange(
-                    original: original,
-                    dbThread: dbThread,
-                    invalidatesContextWindow: invalidatesContextWindow
-                )
-            } else {
-                onApplied()
-            }
-        } catch {
-            onFailure()
-            try? modelContext.save()
-            state.lastTurnError = error.localizedDescription
-        }
     }
 
     func resetEffortIfNeeded(
