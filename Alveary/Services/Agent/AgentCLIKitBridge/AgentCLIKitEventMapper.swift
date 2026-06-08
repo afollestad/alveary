@@ -99,6 +99,7 @@ struct AgentCLIKitEventMapper: Sendable {
         [.tokens(
             input: event.inputTokens ?? 0,
             output: event.outputTokens ?? 0,
+            // `cachedInputTokens` is already included in input tokens; only additive cache-read tokens persist here.
             cacheRead: event.cacheReadInputTokens ?? 0,
             cacheCreation: event.cacheCreationInputTokens ?? 0,
             isError: event.isError,

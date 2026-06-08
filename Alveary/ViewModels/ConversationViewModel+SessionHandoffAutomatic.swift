@@ -30,7 +30,12 @@ private extension ConversationViewModel {
             return
         }
 
-        let contextUsedTokens = payload.input + payload.cacheRead + payload.cacheCreation
+        let providerID = conversation.provider ?? settings.defaultProvider
+        let contextUsedTokens = ContextTokenAccounting(providerID: providerID).contextUsedTokens(
+            input: payload.input,
+            cacheRead: payload.cacheRead,
+            cacheCreation: payload.cacheCreation
+        )
         let threshold = AppSettings.normalizedSessionHandoffWindowPercentage(
             settings.sessionHandoffWindowPercentage
         )

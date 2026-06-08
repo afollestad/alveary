@@ -34,7 +34,8 @@ struct ConversationUsageSummary: Equatable, Sendable {
 
     static func derive(
         from events: [ConversationEventRecord],
-        cachedContextWindowSize: Int?
+        cachedContextWindowSize: Int?,
+        accounting: ContextTokenAccounting = .additiveCacheRead
     ) -> ConversationUsageSummary? {
         let tokenEvents = events.filter { $0.type == "tokens" }
         let currentWindowEvents: ArraySlice<ConversationEventRecord>
@@ -62,7 +63,11 @@ struct ConversationUsageSummary: Equatable, Sendable {
         }
 
         let contextUsedTokens = latestTokenEvent.map {
-            $0.tokenInput + $0.tokenCacheCreation + $0.tokenCacheRead
+            accounting.contextUsedTokens(
+                input: $0.tokenInput,
+                cacheRead: $0.tokenCacheRead,
+                cacheCreation: $0.tokenCacheCreation
+            )
         } ?? 0
         let totalCostUsd = tokenEvents.reduce(0) { partialResult, record in
             partialResult + record.costUsd

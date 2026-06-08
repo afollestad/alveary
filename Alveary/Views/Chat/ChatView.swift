@@ -72,7 +72,8 @@ struct ChatView: View {
     private var usageSummary: ConversationUsageSummary? {
         ConversationUsageSummary.derive(
             from: events,
-            cachedContextWindowSize: cachedContextWindowSize
+            cachedContextWindowSize: cachedContextWindowSize,
+            accounting: ContextTokenAccounting(providerID: providerID)
         ) ?? .unreported
     }
 

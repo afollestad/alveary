@@ -70,6 +70,8 @@ Run a focused test class:
 
 Alveary uses `AgentCLIKit` for provider runtime integration, provider-owned config access, provider status, model discovery, and provider context-compaction lifecycle events. Claude and Codex are surfaced through the same provider/model settings and thread composer controls; disabled, missing, setup-blocked, and project-untrusted providers stay visible with actionable status.
 
+Context-window usage keeps provider cache semantics distinct: Claude cache-read tokens are additive, while Codex cached-input tokens are already included in input tokens.
+
 Project trust state and provider MCP config reads/writes flow through `AgentCLIKit`. Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
 
 ## Snapshot Tests

@@ -57,6 +57,29 @@ final class ConversationUsageSummaryTests: XCTestCase {
         XCTAssertEqual(summary?.hasReportedCost, true)
     }
 
+    func testCodexAccountingTreatsLegacyCacheReadRowsAsCachedInputSubset() throws {
+        let events = [
+            tokenRecord(
+                input: 62_419,
+                output: 4_000,
+                cacheRead: 61_312,
+                cacheCreation: 0,
+                costUsd: 0.01,
+                contextWindowSize: 121_600
+            )
+        ]
+
+        let summary = try XCTUnwrap(ConversationUsageSummary.derive(
+            from: events,
+            cachedContextWindowSize: nil,
+            accounting: ContextTokenAccounting(providerID: "codex")
+        ))
+
+        XCTAssertEqual(summary.contextUsedTokens, 62_419)
+        XCTAssertEqual(summary.contextWindowSize, 121_600)
+        XCTAssertEqual(summary.contextUsagePercent, 51)
+    }
+
     func testContextWindowInvalidationKeepsPriorUsageButDropsPriorReportedMax() throws {
         let events = [
             tokenRecord(
