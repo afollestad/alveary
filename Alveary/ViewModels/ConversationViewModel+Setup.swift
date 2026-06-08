@@ -263,7 +263,11 @@ extension ConversationViewModel {
                 message: message
             )
             setupPhase = .startingAgent
-            try await startAgentReserved(config: makeSpawnConfig(workingDirectory: workingDirectory, settingsSource: .nextTurn))
+            try await startAgentReserved(config: makeSpawnConfig(
+                workingDirectory: workingDirectory,
+                initialPrompt: message,
+                settingsSource: .nextTurn
+            ))
             thread.hasCompletedInitialSetup = true
             try modelContext.save()
             try await sendReserved(

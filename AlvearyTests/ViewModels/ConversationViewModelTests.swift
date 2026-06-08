@@ -153,6 +153,7 @@ final class ConversationViewModelTests: XCTestCase {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
         XCTAssertEqual(spawnCalls.first?.config.workingDirectory, worktreeInfo.path)
+        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Implement the authentication retry flow")
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Implement the authentication retry flow"])
@@ -189,6 +190,7 @@ final class ConversationViewModelTests: XCTestCase {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         XCTAssertEqual(spawnCalls.count, 1)
         XCTAssertEqual(spawnCalls.first?.config.workingDirectory, fixture.project.path)
+        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Implement the authentication retry flow")
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Implement the authentication retry flow"])
