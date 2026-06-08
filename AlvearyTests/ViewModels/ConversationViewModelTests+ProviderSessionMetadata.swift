@@ -10,7 +10,61 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "  Generated Codex Name  "
+            name: "  Generated Codex Name  ",
+            preview: "Initial preview"
+        ))
+        await fixture.viewModel.flushPendingSaveIfNeeded()
+
+        XCTAssertEqual(try fixture.dbThread().name, "Generated Codex Name")
+        XCTAssertFalse(try fixture.dbThread().hasCustomName)
+        XCTAssertEqual(try fixture.dbConversation().title, "Generated Codex Name")
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+    }
+
+    func testProviderSessionMetadataUsesPreviewWhenNameIsMissing() async throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
+
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: nil,
+            preview: "  Initial Prompt Preview  "
+        ))
+        await fixture.viewModel.flushPendingSaveIfNeeded()
+
+        XCTAssertEqual(try fixture.dbThread().name, "Initial Prompt Preview")
+        XCTAssertFalse(try fixture.dbThread().hasCustomName)
+        XCTAssertEqual(try fixture.dbConversation().title, "Initial Prompt Preview")
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+    }
+
+    func testProviderSessionMetadataPrefersNameOverPreview() async throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
+
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: "Generated Codex Name",
+            preview: "Initial Prompt Preview"
+        ))
+        await fixture.viewModel.flushPendingSaveIfNeeded()
+
+        XCTAssertEqual(try fixture.dbThread().name, "Generated Codex Name")
+        XCTAssertFalse(try fixture.dbThread().hasCustomName)
+        XCTAssertEqual(try fixture.dbConversation().title, "Generated Codex Name")
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+    }
+
+    func testProviderSessionMetadataNameReplacesEarlierPreview() async throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
+
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: nil,
+            preview: "Initial Prompt Preview"
+        ))
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: "Generated Codex Name",
+            preview: "Initial Prompt Preview"
         ))
         await fixture.viewModel.flushPendingSaveIfNeeded()
 
@@ -28,7 +82,24 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "Generated Codex Name"
+            name: "Generated Codex Name",
+            preview: "Initial preview"
+        ))
+        await fixture.viewModel.flushPendingSaveIfNeeded()
+
+        XCTAssertEqual(try fixture.dbThread().name, "Generated Codex Name")
+        XCTAssertFalse(try fixture.dbThread().hasCustomName)
+        XCTAssertEqual(try fixture.dbConversation().title, "Generated Codex Name")
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+    }
+
+    func testProviderSessionMetadataCascadesWhenThreadAlreadyMatchesProviderTitle() async throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: "Generated Codex Name")
+
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: "Generated Codex Name",
+            preview: "Initial preview"
         ))
         await fixture.viewModel.flushPendingSaveIfNeeded()
 
@@ -46,7 +117,8 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "Generated Codex Name"
+            name: "Generated Codex Name",
+            preview: "Initial preview"
         ))
         await fixture.viewModel.flushPendingSaveIfNeeded()
 
@@ -64,7 +136,8 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "Generated Codex Name"
+            name: "Generated Codex Name",
+            preview: "Initial preview"
         ))
         await fixture.viewModel.flushPendingSaveIfNeeded()
 
@@ -79,7 +152,8 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "   "
+            name: "   ",
+            preview: nil
         ))
         await fixture.viewModel.flushPendingSaveIfNeeded()
 
@@ -94,7 +168,8 @@ extension ConversationViewModelTests {
         fixture.viewModel.beginPromptDismissResolution(promptId: "prompt-1")
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "Generated Codex Name"
+            name: "Generated Codex Name",
+            preview: nil
         ))
         fixture.viewModel.endPromptDismissResolution(promptId: "prompt-1")
         await fixture.viewModel.flushPendingSaveIfNeeded()
@@ -115,7 +190,8 @@ extension ConversationViewModelTests {
 
         await fixture.agentsManager.yieldSubscriptionEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
-            name: "Generated Codex Name"
+            name: "Generated Codex Name",
+            preview: "Initial preview"
         ))
         try await waitUntil("metadata event observed", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             fixture.viewModel.state.lastObservedEventIndex == 1

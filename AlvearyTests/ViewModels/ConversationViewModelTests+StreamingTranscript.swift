@@ -205,8 +205,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.turnState.beginTurn()
         _ = fixture.viewModel.insertLocalUserMessage(
             "/test-command",
-            into: conversation,
-            shouldAutoNameThread: false
+            into: conversation
         )
 
         fixture.viewModel.handleEvent(
@@ -240,8 +239,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.turnState.beginTurn()
         _ = fixture.viewModel.insertLocalUserMessage(
             "/test-command",
-            into: conversation,
-            shouldAutoNameThread: false
+            into: conversation
         )
         fixture.viewModel.handleEvent(
             .toolCall(
@@ -293,8 +291,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.turnState.beginTurn()
         _ = fixture.viewModel.insertLocalUserMessage(
             "/test-command",
-            into: conversation,
-            shouldAutoNameThread: false
+            into: conversation
         )
         fixture.viewModel.handleEvent(
             .messageChunk(

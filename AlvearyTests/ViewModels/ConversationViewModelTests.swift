@@ -136,7 +136,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(refreshedThread.worktreePath, worktreeInfo.path)
         XCTAssertEqual(refreshedThread.branch, worktreeInfo.branch)
         XCTAssertTrue(refreshedThread.hasCompletedInitialSetup)
-        XCTAssertEqual(refreshedThread.name, "Implement the authentication retry flow")
+        XCTAssertEqual(refreshedThread.name, "New thread")
 
         let createCalls = await fixture.worktreeManager.createCalls()
         XCTAssertEqual(createCalls.count, 1)
@@ -175,7 +175,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertNil(refreshedThread.worktreePath)
         XCTAssertNil(refreshedThread.branch)
         XCTAssertTrue(refreshedThread.hasCompletedInitialSetup)
-        XCTAssertEqual(refreshedThread.name, "Implement the authentication retry flow")
+        XCTAssertEqual(refreshedThread.name, "New thread")
 
         let createCalls = await fixture.worktreeManager.createCalls()
         XCTAssertTrue(createCalls.isEmpty)

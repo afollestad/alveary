@@ -1,34 +1,6 @@
 import Foundation
 
 extension ConversationViewModel {
-    static func threadName(from message: String) -> String? {
-        let source = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard source.count >= 10 else {
-            return nil
-        }
-
-        let trimmed = appMarkdownCompactDisplaySource(from: source)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 10 || trimmed.contains("(Image)") else {
-            return nil
-        }
-
-        let lowercased = trimmed.lowercased()
-        let confirmations: Set<String> = ["y", "yes", "ok", "sure", "yep", "yeah", "yea", "go", "do it", "go ahead"]
-        guard !confirmations.contains(lowercased), !trimmed.hasPrefix("/") else {
-            return nil
-        }
-        guard trimmed.count > 50 else {
-            return trimmed
-        }
-
-        let prefix = trimmed.prefix(50)
-        if let lastSpace = prefix.lastIndex(of: " ") {
-            return String(prefix[prefix.startIndex..<lastSpace]) + "..."
-        }
-        return String(prefix) + "..."
-    }
-
     static func normalizedProviderSessionName(_ name: String?) -> String? {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedName, !trimmedName.isEmpty else {

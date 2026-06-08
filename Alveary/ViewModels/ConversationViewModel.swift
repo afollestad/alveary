@@ -204,7 +204,7 @@ final class ConversationViewModel {
             state.activeRuntimeActivityTurnId = nil
             try await agentsManager.sendMessage(message, conversationId: conversation.id)
             state.turnState.beginTurn()
-            insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: false)
+            insertLocalUserMessage(message, into: dbConversation)
         }
     }
 

@@ -119,7 +119,7 @@ extension AgentsManagerTests {
         )
         let subscription = try XCTUnwrap(maybeSubscription)
         await fixture.manager.handleStreamEvent(
-            ConversationEvent.providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated"),
+            ConversationEvent.providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated", preview: nil),
             conversationId: conversationId,
             generation: subscription.generation,
             providerId: "codex"
@@ -143,7 +143,7 @@ extension AgentsManagerTests {
         )
 
         let canTriggerNotification = await fixture.manager.canTriggerNotification(
-            .providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated")
+            .providerSessionMetadataChanged(sessionId: "codex-thread", name: "Generated", preview: "Preview")
         )
 
         XCTAssertFalse(canTriggerNotification)

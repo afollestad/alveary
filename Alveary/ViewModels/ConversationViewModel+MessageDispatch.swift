@@ -75,7 +75,7 @@ extension ConversationViewModel {
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
         } else {
-            insertLocalUserMessage(message, into: dbConversation, shouldAutoNameThread: true)
+            insertLocalUserMessage(message, into: dbConversation)
         }
     }
 
@@ -111,8 +111,7 @@ extension ConversationViewModel {
                 )
                 let localMessage = insertLocalUserMessage(
                     queuedMessage.text,
-                    into: dbConversation,
-                    shouldAutoNameThread: false
+                    into: dbConversation
                 )
                 localMessageID = localMessage.id
 
@@ -159,8 +158,7 @@ private extension ConversationViewModel {
 
             let localMessage = insertLocalUserMessage(
                 queuedMessage.text,
-                into: dbConversation,
-                shouldAutoNameThread: true
+                into: dbConversation
             )
             localMessageID = localMessage.id
 

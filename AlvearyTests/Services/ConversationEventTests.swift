@@ -156,7 +156,7 @@ final class ConversationEventTests: XCTestCase {
                 .toRecord(conversation: conversation)
         )
         XCTAssertNil(
-            ConversationEvent.providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated")
+            ConversationEvent.providerSessionMetadataChanged(sessionId: "thread-1", name: "Generated", preview: "Preview")
                 .toRecord(conversation: conversation)
         )
     }

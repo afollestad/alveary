@@ -1,3 +1,4 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
@@ -19,58 +20,60 @@ final class AutoNamingTests: XCTestCase {
         XCTAssertNil(AgentThread.persistedName(from: "   "))
     }
 
-    func testThreadNameRejectsShortMessagesConfirmationsAndCommands() {
-        XCTAssertNil(ConversationViewModel.threadName(from: "Short"))
-        XCTAssertNil(ConversationViewModel.threadName(from: "yes"))
-        XCTAssertNil(ConversationViewModel.threadName(from: "/commit"))
+    func testSessionPreviewRejectsShortMessagesConfirmationsAndCommands() {
+        XCTAssertNil(AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Short"))
+        XCTAssertNil(AgentSessionPreviewGenerator.preview(fromInitialPrompt: "yes"))
+        XCTAssertNil(AgentSessionPreviewGenerator.preview(fromInitialPrompt: "/commit"))
     }
 
-    func testThreadNameAllowsLongerMessagesThatContainConfirmationWords() {
+    func testSessionPreviewAllowsLongerMessagesThatContainConfirmationWords() {
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: "yes please fix the auth bug"),
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "yes please fix the auth bug"),
             "yes please fix the auth bug"
         )
     }
 
-    func testThreadNameTruncatesAtWordBoundary() {
+    func testSessionPreviewTruncatesAtWordBoundary() {
         let message = "Implement a really long authentication fix for the session manager regression today"
 
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: message),
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: message),
             "Implement a really long authentication fix for..."
         )
     }
 
-    func testThreadNameFallsBackToHardTruncationWithoutWordBoundary() {
+    func testSessionPreviewFallsBackToHardTruncationWithoutWordBoundary() {
         let message = String(repeating: "a", count: 60)
 
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: message),
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: message),
             String(repeating: "a", count: 50) + "..."
         )
     }
 
-    func testThreadNameReplacesHTMLImageTagBeforeTruncating() {
+    func testSessionPreviewReplacesHTMLImageTagBeforeTruncating() {
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: #"<img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />"#),
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: #"<img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />"#
+            ),
             "(Image)"
         )
     }
 
-    func testThreadNameStripsHTMLTagsBeforeTruncating() {
+    func testSessionPreviewStripsHTMLTagsBeforeTruncating() {
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: #"<div class="note">Title <span>body</span></div>"#),
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: #"<div class="note">Title <span>body</span></div>"#),
             "Title body"
         )
     }
 
-    func testThreadNameRejectsShortContentAfterStrippingHTMLTags() {
-        XCTAssertNil(ConversationViewModel.threadName(from: "<div>hi</div>"))
+    func testSessionPreviewRejectsShortContentAfterStrippingHTMLTags() {
+        XCTAssertNil(AgentSessionPreviewGenerator.preview(fromInitialPrompt: "<div>hi</div>"))
     }
 
-    func testThreadNamePreservesHTMLLikeTextInsideInlineCode() {
+    func testSessionPreviewPreservesHTMLLikeTextInsideInlineCode() {
         XCTAssertEqual(
-            ConversationViewModel.threadName(from: "Fix `Array<String>` now"),
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Fix `Array<String>` now"),
             "Fix `Array<String>` now"
         )
     }

@@ -86,7 +86,7 @@ enum ConversationEvent: Sendable, Equatable {
     static let interimUsageStopReason = "usage_update"
 
     case sessionInit(sessionId: String?)
-    case providerSessionMetadataChanged(sessionId: String?, name: String?)
+    case providerSessionMetadataChanged(sessionId: String?, name: String?, preview: String?)
     case permissionModeChanged(String)
     case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 
@@ -7,11 +8,10 @@ private struct ConversationInitialSetupSnapshot {
     let stagedContext: String?
 }
 
-// Cancellation deletes the attempted bubble, so restore any auto-naming side effects.
+// Cancellation deletes the attempted bubble, so restore local secondary-title side effects.
 private struct LocalUserMessageAttemptMetadata {
+    let restoresConversationTitle: Bool
     let conversationTitle: String?
-    let threadName: String?
-    let threadHasCustomName: Bool?
 }
 
 private struct LocalUserMessageAttempt {
@@ -66,15 +66,14 @@ extension ConversationViewModel {
             throw AgentError.spawnFailed("Conversation no longer exists")
         }
 
+        let restoresConversationTitle = !dbConversation.isMain
         let metadata = LocalUserMessageAttemptMetadata(
-            conversationTitle: dbConversation.title,
-            threadName: dbConversation.thread?.name,
-            threadHasCustomName: dbConversation.thread?.hasCustomName
+            restoresConversationTitle: restoresConversationTitle,
+            conversationTitle: restoresConversationTitle ? dbConversation.title : nil
         )
         let localUserMessageID = insertLocalUserMessage(
             message,
-            into: dbConversation,
-            shouldAutoNameThread: true
+            into: dbConversation
         ).id
 
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
@@ -138,16 +137,8 @@ extension ConversationViewModel {
             modelContext.delete(record)
         }
 
-        if let dbConversation = dbConversation() {
+        if let dbConversation = dbConversation(), metadata?.restoresConversationTitle == true {
             dbConversation.title = metadata?.conversationTitle
-            if let thread = dbConversation.thread {
-                if let threadName = metadata?.threadName {
-                    thread.name = threadName
-                }
-                if let threadHasCustomName = metadata?.threadHasCustomName {
-                    thread.hasCustomName = threadHasCustomName
-                }
-            }
         }
 
         state.clearRetryableFailedMessage(id: id)
@@ -311,7 +302,7 @@ extension ConversationViewModel {
         }
 
         setupPhase = .creatingWorktree
-        let worktreeSlug = Self.threadName(from: message) ?? thread.name
+        let worktreeSlug = AgentSessionPreviewGenerator.preview(fromInitialPrompt: message) ?? thread.name
 
         do {
             let info = try await worktreeManager.create(

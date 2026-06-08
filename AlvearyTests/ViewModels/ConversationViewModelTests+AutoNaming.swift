@@ -4,12 +4,12 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testSendAutoNamesConversationFromFirstMessage() async throws {
+    func testSendDoesNotAutoTitleMainConversationFromFirstMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: "Existing Thread")
 
         try await fixture.viewModel.send("Investigate the flaky login flow and summarize the regressions")
 
-        XCTAssertEqual(try fixture.dbConversation().title, "Investigate the flaky login flow and summarize...")
+        XCTAssertNil(try fixture.dbConversation().title)
         XCTAssertEqual(try fixture.dbThread().name, "Existing Thread")
     }
 
@@ -22,13 +22,13 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().name, "Existing Thread")
     }
 
-    func testSendAutoNamesThreadFromFirstMessage() async throws {
+    func testSendDoesNotAutoNameThreadFromFirstMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: "New thread")
 
         try await fixture.viewModel.send("Fix the flaky login flow")
 
-        XCTAssertEqual(try fixture.dbConversation().title, "Fix the flaky login flow")
-        XCTAssertEqual(try fixture.dbThread().name, "Fix the flaky login flow")
+        XCTAssertNil(try fixture.dbConversation().title)
+        XCTAssertEqual(try fixture.dbThread().name, "New thread")
     }
 
     func testSendDoesNotAutoNameThreadWhenManualTitleMatchesDefaultLabel() async throws {
@@ -39,9 +39,32 @@ extension ConversationViewModelTests {
 
         try await fixture.viewModel.send("Fix the flaky login flow")
 
-        XCTAssertEqual(try fixture.dbConversation().title, "Fix the flaky login flow")
+        XCTAssertNil(try fixture.dbConversation().title)
         XCTAssertEqual(try fixture.dbThread().name, AgentThread.untitledName)
         XCTAssertTrue(try fixture.dbThread().hasCustomName)
+    }
+
+    func testSecondaryConversationAutoTitleUsesProviderPreviewGenerator() throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: "Existing Thread")
+        let thread = try fixture.dbThread()
+        let conversation = Conversation(
+            title: nil,
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: thread
+        )
+        thread.conversations.append(conversation)
+        fixture.context.insert(conversation)
+        try fixture.context.save()
+
+        _ = fixture.viewModel.insertLocalUserMessage(
+            "Investigate the flaky login flow and summarize the regressions",
+            into: conversation
+        )
+
+        XCTAssertEqual(conversation.title, "Investigate the flaky login flow and summarize...")
+        XCTAssertEqual(thread.name, "Existing Thread")
     }
 
     func testConversationDisplayNameUsesStableDisplayOrderFallbacks() {

@@ -204,7 +204,7 @@ extension DefaultAgentsManager {
         let sessionId: String?
         switch event {
         case .sessionInit(let value),
-             .providerSessionMetadataChanged(let value, _):
+             .providerSessionMetadataChanged(let value, _, _):
             sessionId = value
         default:
             sessionId = nil

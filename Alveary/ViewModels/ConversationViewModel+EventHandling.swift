@@ -97,23 +97,24 @@ private extension ConversationViewModel {
     }
 
     func handleProviderSessionMetadataChanged(_ event: ConversationEvent) -> Bool {
-        guard case .providerSessionMetadataChanged(_, let name) = event else {
+        guard case .providerSessionMetadataChanged(_, let name, let preview) = event else {
             return false
         }
-        guard let providerName = Self.normalizedProviderSessionName(name),
+        guard let providerTitle = Self.normalizedProviderSessionName(name) ?? Self.normalizedProviderSessionName(preview),
               let dbConversation = dbConversation(),
               let thread = dbConversation.thread,
-              !thread.hasCustomName,
-              thread.displayName() != providerName else {
+              !thread.hasCustomName else {
             return true
         }
 
         let previousThreadDisplayName = thread.displayName()
         let mainConversation = thread.conversations.first { $0.isMain }
-        thread.name = providerName
+        if previousThreadDisplayName != providerTitle {
+            thread.name = providerTitle
+        }
         if let mainConversation,
            mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousThreadDisplayName) {
-            mainConversation.title = mainConversation.persistedTitle(from: providerName)
+            mainConversation.title = mainConversation.persistedTitle(from: providerTitle)
         }
         return true
     }
