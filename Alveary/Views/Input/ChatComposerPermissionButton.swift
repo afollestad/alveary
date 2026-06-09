@@ -42,6 +42,12 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     override var minimumDropdownWidth: CGFloat { Self.minWidth }
     override var maximumDropdownWidth: CGFloat { Self.maxWidth }
     override var chevronSlotWidth: CGFloat { Self.iconTextSpacing + chevronDrawingWidth }
+    override var chevronColor: NSColor {
+        guard let presentation = currentPresentation, presentation.isWarning else {
+            return super.chevronColor
+        }
+        return foregroundColor(for: presentation)
+    }
     override var measuredContentWidth: CGFloat {
         guard let presentation else {
             return 0
@@ -72,6 +78,9 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     var debugReservesTrailingSlot: Bool { reservesTrailingSlot }
     var debugDrawsChevron: Bool { drawsChevron }
     var debugHasSymbolTransition: Bool { symbolTransition != nil }
+    var debugForegroundColor: NSColor? {
+        currentPresentation.map { foregroundColor(for: $0) }
+    }
     #endif
 
     func resolvedPresentation(from presentation: Presentation) -> Presentation {

@@ -16,6 +16,9 @@ class ComposerCompactDropdownButton: NSView {
     var reservesTrailingSlot: Bool { true }
     var drawsChevron: Bool { true }
     var measuredContentWidth: CGFloat { 0 }
+    var chevronColor: NSColor {
+        NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: controlIsEnabled ? 0.72 : 0.18)
+    }
 
     private var isPressed = false
     private var isHovering = false
@@ -273,7 +276,7 @@ class ComposerCompactDropdownButton: NSView {
         )
     }
 
-    private var chevronColor: NSColor {
-        NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: controlIsEnabled ? 0.72 : 0.18)
-    }
+    #if DEBUG
+    var debugChevronColor: NSColor { chevronColor }
+    #endif
 }

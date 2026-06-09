@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension ChatComposerActionRowTests {
-    func testPermissionButtonUsesMetadataPresentationAndCompactDropdownMetrics() {
+    func testPermissionButtonUsesMetadataPresentationAndCompactDropdownMetrics() throws {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         row.configure(
             makeConfiguration(
@@ -33,6 +33,10 @@ extension ChatComposerActionRowTests {
         XCTAssertEqual(button.debugIconRotationRadians, 0, accuracy: 0.0001)
         XCTAssertTrue(button.debugIsWarning)
         XCTAssertEqual(button.debugTextChevronSpacing, button.debugIconTextSpacing)
+        assertColorComponentsMatch(
+            button.debugChevronColor,
+            try XCTUnwrap(button.debugForegroundColor)
+        )
         #endif
     }
 
@@ -232,6 +236,48 @@ private extension NSView {
             return matches
         }
     }
+}
+
+private func assertColorComponentsMatch(
+    _ firstColor: NSColor,
+    _ secondColor: NSColor,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    guard let firstColor = firstColor.usingColorSpace(.sRGB),
+          let secondColor = secondColor.usingColorSpace(.sRGB) else {
+        XCTFail("Expected colors to resolve to sRGB", file: file, line: line)
+        return
+    }
+
+    XCTAssertEqual(
+        firstColor.redComponent,
+        secondColor.redComponent,
+        accuracy: 0.0001,
+        file: file,
+        line: line
+    )
+    XCTAssertEqual(
+        firstColor.greenComponent,
+        secondColor.greenComponent,
+        accuracy: 0.0001,
+        file: file,
+        line: line
+    )
+    XCTAssertEqual(
+        firstColor.blueComponent,
+        secondColor.blueComponent,
+        accuracy: 0.0001,
+        file: file,
+        line: line
+    )
+    XCTAssertEqual(
+        firstColor.alphaComponent,
+        secondColor.alphaComponent,
+        accuracy: 0.0001,
+        file: file,
+        line: line
+    )
 }
 
 private func mouseEvent(type: NSEvent.EventType = .leftMouseUp, at point: NSPoint) -> NSEvent {
