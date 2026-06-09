@@ -49,6 +49,16 @@ final class SettingsViewModel {
         loadedCodeFontFamilyOptions = Self.normalizedCodeFontFamilies(codeFontFamilyLoader())
     }
 
+    var lastSettingsPage: AppSettings.SettingsPage {
+        get { settingsService.current.lastSettingsPage }
+        set {
+            guard settingsService.current.lastSettingsPage != newValue else {
+                return
+            }
+            settingsService.update { $0.lastSettingsPage = newValue }
+        }
+    }
+
     var effort: String {
         get { settingsService.current.effort }
         set {

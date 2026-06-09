@@ -29,6 +29,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
+    var lastSettingsPage = SettingsPage.agents
     var defaultProvider = "claude"
     var defaultModel = Self.defaultModelValue
     var permissionMode = "default"
@@ -238,7 +239,19 @@ struct AppSettings: Codable, Sendable, Equatable {
 }
 
 extension AppSettings {
+    enum SettingsPage: String, Codable, CaseIterable, Identifiable, Sendable, Equatable {
+        case agents
+        case interface
+        case git
+        case notifications
+        case terminal
+        case threads
+
+        var id: String { rawValue }
+    }
+
     enum CodingKeys: String, CodingKey {
+        case lastSettingsPage
         case defaultProvider
         case defaultModel
         case permissionMode
@@ -288,11 +301,20 @@ extension AppSettings {
 
         let storedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .settingsSchemaVersion) ?? 0
         self = AppSettings()
+        decodeLastSettingsPage(from: container)
         try decodeAgentDefaults(from: container, legacyContainer: legacyContainer)
         try decodeAppearance(from: container)
         try decodeLayout(from: container)
         try decodeContextManagement(from: container)
         try decodeStorage(from: container, storedSchemaVersion: storedSchemaVersion)
+    }
+
+    private mutating func decodeLastSettingsPage(from container: KeyedDecodingContainer<CodingKeys>) {
+        guard let rawValue = try? container.decodeIfPresent(String.self, forKey: .lastSettingsPage),
+              let page = SettingsPage(rawValue: rawValue) else {
+            return
+        }
+        lastSettingsPage = page
     }
 
     private mutating func decodeAgentDefaults(

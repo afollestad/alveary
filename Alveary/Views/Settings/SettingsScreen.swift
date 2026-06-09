@@ -8,18 +8,23 @@ struct SettingsScreen: View {
     let gitHubCLI: GitHubCLIService
     let onClose: (() -> Void)?
 
-    @State private var selectedTab: SettingsTab = .agents
+    @State private var selectedPage: AppSettings.SettingsPage
 
     init(
         viewModel: SettingsViewModel,
         gitHubCLI: GitHubCLIService,
         onClose: (() -> Void)? = nil,
-        initialTabRawValue: String = SettingsTab.agents.rawValue
+        initialTabRawValue: String? = nil
     ) {
         self.viewModel = viewModel
         self.gitHubCLI = gitHubCLI
         self.onClose = onClose
-        _selectedTab = State(initialValue: SettingsTab(rawValue: initialTabRawValue) ?? .agents)
+        _selectedPage = State(
+            initialValue: Self.initialPage(
+                rawValue: initialTabRawValue,
+                storedPage: viewModel.lastSettingsPage
+            )
+        )
     }
 
     var body: some View {
@@ -47,9 +52,9 @@ struct SettingsScreen: View {
 
     private func stackedLayout(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Picker("Settings section", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
+            Picker("Settings section", selection: selectedPageBinding) {
+                ForEach(AppSettings.SettingsPage.allCases) { page in
+                    Text(page.title).tag(page)
                 }
             }
             .pickerStyle(.segmented)
@@ -64,18 +69,18 @@ struct SettingsScreen: View {
     }
 
     private var settingsSidebar: some View {
-        List(SettingsTab.allCases) { tab in
+        List(AppSettings.SettingsPage.allCases) { page in
             Label {
-                Text(tab.title)
+                Text(page.title)
             } icon: {
-                Image(systemName: tab.icon)
+                Image(systemName: page.icon)
                     .foregroundStyle(Color.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
             .appSelectableRow(
-                isSelected: selectedTab == tab,
-                action: { selectedTab = tab }
+                isSelected: selectedPage == page,
+                action: { selectPage(page) }
             )
         }
     }
@@ -84,12 +89,12 @@ struct SettingsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 SettingsScreenHeader(
-                    title: selectedTab.title,
-                    description: description(for: selectedTab),
+                    title: selectedPage.title,
+                    description: selectedPage.description,
                     onClose: onClose
                 )
 
-                selectedTabView
+                selectedPageView
             }
             .padding(28)
             .frame(width: width, alignment: .leading)
@@ -98,8 +103,8 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder
-    private var selectedTabView: some View {
-        switch selectedTab {
+    private var selectedPageView: some View {
+        switch selectedPage {
         case .agents:
             AgentsSettingsTabView(
                 viewModel: viewModel,
@@ -157,69 +162,32 @@ struct SettingsScreen: View {
             )
         }
     }
-
-    private enum SettingsTab: String, CaseIterable, Identifiable {
-        case agents
-        case interface
-        case git
-        case notifications
-        case terminal
-        case threads
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .agents:
-                return "Agents"
-            case .git:
-                return "Git"
-            case .interface:
-                return "Appearance"
-            case .notifications:
-                return "Notifications"
-            case .terminal:
-                return "Terminal"
-            case .threads:
-                return "Threads"
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .agents:
-                return "brain"
-            case .git:
-                return "arrow.triangle.branch"
-            case .interface:
-                return "paintbrush"
-            case .notifications:
-                return "bell"
-            case .terminal:
-                return "terminal"
-            case .threads:
-                return "bubble.left.and.bubble.right"
-            }
-        }
-    }
 }
 
 private extension SettingsScreen {
-    private func description(for tab: SettingsTab) -> String {
-        switch tab {
-        case .agents:
-            return "Manage agent installs and override CLI settings for each supported provider."
-        case .git:
-            return "Configure Git defaults and GitHub authentication for new worktrees."
-        case .interface:
-            return "Adjust theme and typography for the app shell."
-        case .notifications:
-            return "Configure notification delivery and sounds."
-        case .terminal:
-            return "Configure terminal pane behavior for project actions."
-        case .threads:
-            return "Manage thread defaults and startup behavior."
+    static func initialPage(
+        rawValue: String?,
+        storedPage: AppSettings.SettingsPage
+    ) -> AppSettings.SettingsPage {
+        guard let rawValue else {
+            return storedPage
         }
+        return AppSettings.SettingsPage(rawValue: rawValue) ?? .agents
+    }
+
+    var selectedPageBinding: Binding<AppSettings.SettingsPage> {
+        Binding(
+            get: { selectedPage },
+            set: { selectPage($0) }
+        )
+    }
+
+    func selectPage(_ page: AppSettings.SettingsPage) {
+        guard selectedPage != page else {
+            return
+        }
+        selectedPage = page
+        viewModel.lastSettingsPage = page
     }
 
     func binding<Value>(for keyPath: ReferenceWritableKeyPath<SettingsViewModel, Value>) -> Binding<Value> {
@@ -238,5 +206,58 @@ private extension SettingsScreen {
                 viewModel.updateProviderExtraArgs(for: providerID, extraArgs: newValue.isEmpty ? nil : newValue)
             }
         )
+    }
+}
+
+private extension AppSettings.SettingsPage {
+    var title: String {
+        switch self {
+        case .agents:
+            return "Agents"
+        case .git:
+            return "Git"
+        case .interface:
+            return "Appearance"
+        case .notifications:
+            return "Notifications"
+        case .terminal:
+            return "Terminal"
+        case .threads:
+            return "Threads"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .agents:
+            return "brain"
+        case .git:
+            return "arrow.triangle.branch"
+        case .interface:
+            return "paintbrush"
+        case .notifications:
+            return "bell"
+        case .terminal:
+            return "terminal"
+        case .threads:
+            return "bubble.left.and.bubble.right"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .agents:
+            return "Manage agent installs and override CLI settings for each supported provider."
+        case .git:
+            return "Configure Git defaults and GitHub authentication for new worktrees."
+        case .interface:
+            return "Adjust theme and typography for the app shell."
+        case .notifications:
+            return "Configure notification delivery and sounds."
+        case .terminal:
+            return "Configure terminal pane behavior for project actions."
+        case .threads:
+            return "Manage thread defaults and startup behavior."
+        }
     }
 }

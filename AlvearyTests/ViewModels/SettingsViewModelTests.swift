@@ -82,6 +82,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testGettersReflectCurrentSettings() {
         let service = InMemorySettingsService()
         service.update {
+            $0.lastSettingsPage = .terminal
             $0.defaultModel = "opus"
             $0.permissionMode = "acceptEdits"
             $0.effort = "high"
@@ -105,6 +106,7 @@ final class SettingsViewModelTests: XCTestCase {
         }
         let viewModel = SettingsViewModel(settingsService: service)
 
+        XCTAssertEqual(viewModel.lastSettingsPage, .terminal)
         XCTAssertEqual(viewModel.defaultProvider, "claude")
         XCTAssertEqual(viewModel.defaultModel, "opus")
         XCTAssertEqual(viewModel.permissionMode, "acceptEdits")
@@ -175,6 +177,7 @@ final class SettingsViewModelTests: XCTestCase {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(settingsService: service)
 
+        viewModel.lastSettingsPage = .git
         viewModel.defaultProvider = "claude"
         viewModel.defaultModel = "sonnet"
         viewModel.permissionMode = "acceptEdits"
@@ -196,6 +199,7 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.soundName = "Pop"
         viewModel.branchPrefix = "feature/"
 
+        XCTAssertEqual(service.current.lastSettingsPage, .git)
         XCTAssertEqual(service.current.defaultProvider, "claude")
         XCTAssertEqual(service.current.defaultModel, "sonnet")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
@@ -216,6 +220,18 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(service.current.notifications.sound)
         XCTAssertEqual(service.current.notifications.soundName, "Pop")
         XCTAssertEqual(service.current.branchPrefix, "feature/")
+    }
+
+    func testLastSettingsPageSetterIgnoresUnchangedValue() {
+        var settings = AppSettings()
+        settings.lastSettingsPage = .notifications
+        let service = InMemorySettingsService(current: settings)
+        let viewModel = SettingsViewModel(settingsService: service)
+
+        viewModel.lastSettingsPage = .notifications
+
+        XCTAssertEqual(service.updateCount, 0)
+        XCTAssertEqual(service.current.lastSettingsPage, .notifications)
     }
 
     // Settings Effort picker must not silently retain a value the new model rejects.

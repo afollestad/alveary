@@ -16,6 +16,10 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().maxTerminalSessions, 10)
     }
 
+    func testDefaultLastSettingsPageIsAgents() {
+        XCTAssertEqual(AppSettings().lastSettingsPage, .agents)
+    }
+
     func testDefaultEnterBehaviorIsQueue() {
         XCTAssertEqual(AppSettings().defaultEnterBehavior, .queue)
     }
@@ -100,6 +104,21 @@ final class AppSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertEqual(settings.maxTerminalSessions, 10)
+    }
+
+    func testDecodePreservesLastSettingsPage() throws {
+        let json = Data(#"{"lastSettingsPage":"git"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.lastSettingsPage, .git)
+    }
+
+    func testDecodeDefaultsLastSettingsPageWhenFieldIsInvalid() throws {
+        let json = Data(#"{"lastSettingsPage":"advanced","theme":"dark"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.lastSettingsPage, .agents)
+        XCTAssertEqual(settings.theme, "dark")
     }
 
     func testDecodeDefaultsContextManagementWhenFieldsAreMissing() throws {
@@ -217,6 +236,13 @@ final class AppSettingsTests: XCTestCase {
         settings.defaultModel = "opus"
 
         XCTAssertEqual(settings.normalized().defaultModel, "opus")
+    }
+
+    func testNormalizedPreservesLastSettingsPage() {
+        var settings = AppSettings()
+        settings.lastSettingsPage = .terminal
+
+        XCTAssertEqual(settings.normalized().lastSettingsPage, .terminal)
     }
 
     func testSetProviderTogglesSupportedProviderEnablement() {

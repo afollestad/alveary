@@ -242,6 +242,7 @@ extension SnapshotTests {
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"
+        settings.lastSettingsPage = .git
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
         let gitHubCLI = SidebarMockGitHubCLIService(
@@ -253,8 +254,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
-                onClose: {},
-                initialTabRawValue: "git"
+                onClose: {}
             ),
             size: CGSize(width: 1100, height: 820),
             named: "settings_screen_git"

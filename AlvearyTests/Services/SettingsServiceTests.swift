@@ -18,6 +18,7 @@ final class SettingsServiceTests: XCTestCase {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         service.update {
+            $0.lastSettingsPage = .git
             $0.permissionMode = "acceptEdits"
             $0.effort = "high"
             $0.defaultThreadCleanupAction = .delete
@@ -42,6 +43,7 @@ final class SettingsServiceTests: XCTestCase {
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
 
+        XCTAssertEqual(reloadedService.current.lastSettingsPage, .git)
         XCTAssertEqual(reloadedService.current.permissionMode, "acceptEdits")
         XCTAssertEqual(reloadedService.current.effort, "high")
         XCTAssertEqual(reloadedService.current.defaultThreadCleanupAction, .delete)
@@ -207,6 +209,7 @@ final class SettingsServiceTests: XCTestCase {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
             "defaultProvider": "codex",
+            "lastSettingsPage": "advanced",
             "permissionMode": "invalid",
             "effort": "turbo",
             "autoTrustProjects": true,
@@ -236,6 +239,7 @@ final class SettingsServiceTests: XCTestCase {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertEqual(service.current.defaultProvider, "codex")
+        XCTAssertEqual(service.current.lastSettingsPage, .agents)
         XCTAssertEqual(service.current.permissionMode, "on-request")
         XCTAssertEqual(service.current.effort, "turbo")
         XCTAssertEqual(service.current.theme, "system")
