@@ -51,14 +51,13 @@ struct SkillsScreen: View {
                 let combinedSearchResults = viewModel.searchDisplayResults
 
                 if viewModel.hasActiveSearch {
-                    if combinedSearchResults.isEmpty && hasLoaded {
+                    if combinedSearchResults.isEmpty {
                         if viewModel.isSearchingSkillsSh {
                             SearchingSkillsLabel()
-                        } else {
+                        } else if hasLoaded {
                             CenteredSkillsStatusLabel("No search results")
                         }
-                    }
-                    if !combinedSearchResults.isEmpty {
+                    } else {
                         SkillsSection(
                             title: "Results",
                             skills: combinedSearchResults,
@@ -78,9 +77,9 @@ struct SkillsScreen: View {
                                 }
                             }
                         )
-                    }
-                    if viewModel.isSearchingSkillsSh {
-                        SearchingSkillsLabel()
+                        if viewModel.isSearchingSkillsSh {
+                            SearchingSkillsLabel()
+                        }
                     }
                 } else if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
                     EmptyStateView(
