@@ -12,7 +12,7 @@ final class SidebarViewModel {
     private let gitHubCLI: GitHubCLIService
     private let worktreeManager: WorktreeManager
     private let settingsService: SettingsService
-    private let providerSessionActionService: any ProviderSessionActionService
+    let providerSessionActionService: any ProviderSessionActionService
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private var statusObserver: NSObjectProtocol?
@@ -137,17 +137,17 @@ final class SidebarViewModel {
         try backfillProviderSessionBindings(from: providerSessionResolution.records)
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
-        guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
-            do { try await awaitConversationTeardowns(snapshot.conversationIDs) } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
-            return
+        if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
+            dbThread.archivedAt = Date()
+            try modelContext.save()
         }
-        dbThread.archivedAt = Date()
-        try modelContext.save()
-        do {
-            try await awaitConversationTeardowns(snapshot.conversationIDs)
-            let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
-            presentProviderSessionActionDiagnostics(diagnostics)
-        } catch { throw SidebarViewModelError.archiveCleanupFailed(error) }
+
+        let teardownError = await conversationTeardownError(snapshot.conversationIDs)
+        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        presentProviderSessionActionDiagnostics(diagnostics)
+        if let teardownError {
+            throw SidebarViewModelError.archiveCleanupFailed(teardownError)
+        }
     }
 
     func restoreThread(_ thread: AgentThread) async throws {
@@ -163,45 +163,62 @@ final class SidebarViewModel {
 
     func deleteThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadCleanupSnapshot(thread)
+        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.providerSessionAction)
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
-        guard let dbThread = modelContext.resolveThread(id: snapshot.threadID) else {
-            do { try await cleanupThread(snapshot) } catch { throw SidebarViewModelError.threadDeleteCleanupFailed(error) }
-            return
+        if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
+            modelContext.delete(dbThread)
+            try modelContext.save()
         }
-        modelContext.delete(dbThread)
-        try modelContext.save()
 
-        do { try await cleanupThread(snapshot) } catch { throw SidebarViewModelError.threadDeleteCleanupFailed(error) }
+        let teardownError = await conversationTeardownError(snapshot.conversationIDs)
+        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        presentProviderSessionActionDiagnostics(diagnostics)
+        if let teardownError {
+            throw SidebarViewModelError.threadDeleteCleanupFailed(teardownError)
+        }
+
+        do { try await cleanupThread(snapshot, waitForRuntime: false) } catch { throw SidebarViewModelError.threadDeleteCleanupFailed(error) }
     }
 
     func deleteProject(_ project: Project) async throws {
         let snapshot = try makeProjectDeletionSnapshot(project)
+        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.threadSnapshots)
         let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
 
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
-        guard let dbProject = modelContext.resolveProject(id: snapshot.projectID) else {
-            do {
-                try await cleanupProjectResources(snapshot, projectDirectoryExists: projectDirectoryExists)
-            } catch {
-                throw SidebarViewModelError.projectDeleteCleanupFailed(error)
-            }
-            return
+        if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
+            modelContext.delete(dbProject)
+            try modelContext.save()
         }
-        modelContext.delete(dbProject)
-        try modelContext.save()
 
+        let teardownError = await conversationTeardownError(snapshot.conversationIDs)
+        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        presentProviderSessionActionDiagnostics(diagnostics)
+        if let teardownError {
+            throw SidebarViewModelError.projectDeleteCleanupFailed(teardownError)
+        }
         do {
-            try await cleanupProjectResources(snapshot, projectDirectoryExists: projectDirectoryExists)
+            try await cleanupProjectResources(
+                snapshot,
+                projectDirectoryExists: projectDirectoryExists,
+                waitForRuntime: false
+            )
         } catch {
             throw SidebarViewModelError.projectDeleteCleanupFailed(error)
         }
     }
 
-    private func cleanupProjectResources(_ snapshot: ProjectDeletionSnapshot, projectDirectoryExists: Bool) async throws {
-        try await awaitConversationTeardowns(snapshot.conversationIDs)
+    private func cleanupProjectResources(
+        _ snapshot: ProjectDeletionSnapshot,
+        projectDirectoryExists: Bool,
+        waitForRuntime: Bool = true
+    ) async throws {
+        if waitForRuntime {
+            try await awaitConversationTeardowns(snapshot.conversationIDs)
+        }
 
         for thread in snapshot.threadSnapshots {
             try await cleanupThread(
@@ -317,6 +334,15 @@ extension SidebarViewModel {
             conversation.providerSessionWorkingDirectory = record.workingDirectory?.path
         }
         try modelContext.save()
+    }
+
+    private func conversationTeardownError(_ conversationIDs: [String]) async -> Error? {
+        do {
+            try await awaitConversationTeardowns(conversationIDs)
+            return nil
+        } catch {
+            return error
+        }
     }
 
     private func awaitConversationTeardowns(_ conversationIDs: [String]) async throws {
@@ -460,5 +486,4 @@ extension SidebarViewModel {
         )
         return exists && isDirectory.boolValue
     }
-
 }

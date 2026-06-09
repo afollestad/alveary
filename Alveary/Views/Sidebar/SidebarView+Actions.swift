@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 func threadDeleteConfirmationMessage(for thread: AgentThread) -> String {
-    "This permanently deletes \"\(thread.displayName())\" and removes its worktree and branch if present."
+    "This permanently deletes \"\(thread.displayName())\" from Alveary and removes its worktree and branch if present."
 }
 
 extension SidebarView {

@@ -30,7 +30,7 @@ extension ProjectSettingsViewTests {
 
         XCTAssertEqual(
             message,
-            "This permanently deletes \"Delete archived auth thread\" and removes its worktree and branch if present."
+            "This permanently deletes \"Delete archived auth thread\" from Alveary and removes its worktree and branch if present."
         )
     }
 }

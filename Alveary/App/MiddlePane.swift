@@ -56,6 +56,9 @@ struct MiddlePane: View {
                 contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
+                deleteThread: { thread in
+                    try await sidebarViewModel.deleteThread(thread)
+                },
                 loadSkillCompletions: loadInstalledSkills,
                 diffViewModel: diffViewModel
             )

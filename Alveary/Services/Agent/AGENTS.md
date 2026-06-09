@@ -13,7 +13,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Plan mode is collaboration state, not an approval policy. Alveary should pass it through `AgentSpawnConfig.planModeEnabled`/AgentCLIKit `collaborationMode` and keep `"plan"` out of permission-picker option sources.
 - Project trust policy is app-owned, but provider trust state comes from `AgentCLIKit.AgentProjectTrustService`. Keep prompt UI, auto-trust, first-thread gating, and denial cleanup in Alveary while avoiding direct provider config reads.
 - Provider MCP config reads/writes should route through AgentCLIKit config stores for providers that own their config format, including Claude `.claude.json` and Codex `.codex/config.toml`.
-- Provider-native archive/unarchive is a best-effort companion to Alveary's local archive state. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive or restore state.
+- Provider-native archive/unarchive is a best-effort companion to Alveary's local archive and delete lifecycle. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive, restore, or delete state. Delete paths should archive only known provider sessions and treat missing bindings as nothing to clean up.
 
 ## Cross-Folder Debugging
 

@@ -17,6 +17,7 @@ struct ThreadDetailView: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
 
@@ -115,7 +116,7 @@ struct ThreadDetailView: View {
                             Task { await trustProject(prompt) }
                         },
                         onDenyProjectTrust: { prompt in
-                            denyProjectTrust(prompt)
+                            Task { await denyProjectTrust(prompt) }
                         },
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,

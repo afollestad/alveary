@@ -116,7 +116,11 @@ final class ProjectSettingsViewTests: XCTestCase {
             worktreePath: "/tmp/alveary-worktree",
             hasCompletedInitialSetup: true,
             useWorktree: true,
-            archivedAt: Date()
+            archivedAt: Date(),
+            provider: "codex",
+            providerSessionId: "codex-thread",
+            providerSessionProviderId: "codex",
+            providerSessionWorkingDirectory: "/tmp/alveary-worktree"
         )
         let appState = AppState()
         let selectedConversationID = try XCTUnwrap(try fixture.requireThread(thread).conversations.first?.persistentModelID)
@@ -142,6 +146,15 @@ final class ProjectSettingsViewTests: XCTestCase {
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])
+        let actions = await fixture.providerSessionActions.actions
+        XCTAssertEqual(actions.count, 2)
+        guard case .resolve(let resolveSnapshot) = actions.first,
+              case .archive(let archiveSnapshot) = actions.last else {
+            XCTFail("Expected resolve then archive actions")
+            return
+        }
+        XCTAssertEqual(Set(resolveSnapshot.conversationIDs), ["main", "side"])
+        XCTAssertEqual(archiveSnapshot, resolveSnapshot)
         XCTAssertFalse(try fixture.threadExists(thread))
         XCTAssertEqual(appState.selectedSidebarItem, .project(project))
         XCTAssertEqual(appState.previousSelection, .projectPath(project.path))

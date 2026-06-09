@@ -94,7 +94,7 @@ final class SidebarViewTests: XCTestCase {
 
         XCTAssertEqual(
             message,
-            "This permanently deletes \"Thread\" and removes its worktree and branch if present."
+            "This permanently deletes \"Thread\" from Alveary and removes its worktree and branch if present."
         )
     }
 

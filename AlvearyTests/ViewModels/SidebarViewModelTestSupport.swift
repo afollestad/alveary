@@ -157,27 +157,34 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
     }
 
     private(set) var actions: [Action] = []
+    private(set) var archivedRecords: [AgentCLIKit.AgentSessionRecord] = []
+    private(set) var archivedMissingBindings: [ProviderSessionActionMissingBinding] = []
     private var resolvedRecords: [AgentCLIKit.AgentSessionRecord]
+    private var resolvedMissingBindings: [ProviderSessionActionMissingBinding]
     private var archiveDiagnostics: [ProviderSessionActionDiagnostic]
     private var unarchiveDiagnostics: [ProviderSessionActionDiagnostic]
 
     init(
         resolvedRecords: [AgentCLIKit.AgentSessionRecord] = [],
+        resolvedMissingBindings: [ProviderSessionActionMissingBinding] = [],
         archiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
         unarchiveDiagnostics: [ProviderSessionActionDiagnostic] = []
     ) {
         self.resolvedRecords = resolvedRecords
+        self.resolvedMissingBindings = resolvedMissingBindings
         self.archiveDiagnostics = archiveDiagnostics
         self.unarchiveDiagnostics = unarchiveDiagnostics
     }
 
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
         actions.append(.resolve(snapshot))
-        return ProviderSessionActionResolution(snapshot: snapshot, records: resolvedRecords, missingBindings: [])
+        return ProviderSessionActionResolution(snapshot: snapshot, records: resolvedRecords, missingBindings: resolvedMissingBindings)
     }
 
     func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
         actions.append(.archive(resolution.snapshot))
+        archivedRecords = resolution.records
+        archivedMissingBindings = resolution.missingBindings
         return archiveDiagnostics
     }
 

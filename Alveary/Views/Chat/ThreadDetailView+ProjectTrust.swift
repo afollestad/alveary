@@ -99,28 +99,34 @@ extension ThreadDetailView {
     }
 
     @MainActor
-    func denyProjectTrust(_ prompt: ProjectTrustPrompt) {
+    func denyProjectTrust(_ prompt: ProjectTrustPrompt) async {
         guard isVisibleThreadContext(prompt),
               case .thread(let selectedThread) = appState.selectedSidebarItem,
               selectedThread.persistentModelID == prompt.threadID,
-              let dbThread = uiModelContext.resolveThread(id: prompt.threadID),
+              let dbThread = modelContext.resolveThread(id: prompt.threadID),
               !dbThread.hasCompletedInitialSetup else {
             return
         }
 
+        let previousSelectedItem = appState.selectedSidebarItem
+        let previousBookmark = appState.previousSelection
+        let previousConversationIDs = appState.selectedConversationIDs
         let replacementItem = dbThread.project.map(SidebarItem.project)
-        let conversationIDs = dbThread.conversations.map(\.id)
-        notificationManager.forgetConversations(withIDs: conversationIDs)
         appState.selectedConversationIDs.removeValue(forKey: prompt.threadID)
         appState.selectedSidebarItem = replacementItem
         projectTrustPrompt = nil
         isCheckingProjectTrust = false
 
-        uiModelContext.delete(dbThread)
-
         do {
-            try uiModelContext.save()
+            try await deleteThread(dbThread)
+        } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+            appState.presentUnexpectedError(message: error.localizedDescription)
         } catch {
+            appState.selectedSidebarItem = previousSelectedItem
+            appState.previousSelection = previousBookmark
+            appState.selectedConversationIDs = previousConversationIDs
+            projectTrustPrompt = prompt
+            isCheckingProjectTrust = false
             conversationActionError = "Couldn't delete untrusted thread: \(error.localizedDescription)"
         }
     }

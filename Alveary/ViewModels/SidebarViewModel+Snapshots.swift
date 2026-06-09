@@ -11,6 +11,7 @@ struct ThreadCleanupSnapshot {
     let threadID: PersistentIdentifier
     let projectPath: String
     let conversationIDs: [String]
+    let providerSessionAction: ProviderSessionActionSnapshot
     let pendingCleanupBranches: [String]
     let branch: String?
     let worktreePath: String?
@@ -66,25 +67,10 @@ extension SidebarViewModel {
     func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
         let dbThread = try requireThread(thread)
         let threadID = dbThread.persistentModelID
-        let conversations = liveConversations(for: threadID)
-        let workingDirectory = (dbThread.worktreePath ?? dbThread.project?.path).map {
-            URL(fileURLWithPath: $0, isDirectory: true)
-        }
         return ThreadArchiveSnapshot(
             threadID: threadID,
-            conversationIDs: conversations.map(\.id),
-            providerSessionAction: ProviderSessionActionSnapshot(
-                conversations: conversations.map {
-                    ProviderSessionConversationSnapshot(
-                        conversationID: $0.id,
-                        providerID: $0.provider,
-                        providerSessionID: $0.providerSessionId,
-                        providerSessionProviderID: $0.providerSessionProviderId,
-                        providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory
-                    )
-                },
-                workingDirectory: workingDirectory
-            )
+            conversationIDs: liveConversationIDs(for: threadID),
+            providerSessionAction: providerSessionActionSnapshot(for: dbThread)
         )
     }
 
@@ -103,6 +89,7 @@ extension SidebarViewModel {
             threadID: threadID,
             projectPath: projectPath,
             conversationIDs: liveConversationIDs(for: threadID),
+            providerSessionAction: providerSessionActionSnapshot(for: thread),
             pendingCleanupBranches: thread.pendingCleanupBranches,
             branch: thread.branch,
             worktreePath: thread.worktreePath,
@@ -133,6 +120,25 @@ extension SidebarViewModel {
 
     private func liveConversationIDs(for threadID: PersistentIdentifier) -> [String] {
         liveConversations(for: threadID).map(\.id)
+    }
+
+    private func providerSessionActionSnapshot(for thread: AgentThread) -> ProviderSessionActionSnapshot {
+        let threadID = thread.persistentModelID
+        let workingDirectory = (thread.worktreePath ?? thread.project?.path).map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }
+        return ProviderSessionActionSnapshot(
+            conversations: liveConversations(for: threadID).map {
+                ProviderSessionConversationSnapshot(
+                    conversationID: $0.id,
+                    providerID: $0.provider,
+                    providerSessionID: $0.providerSessionId,
+                    providerSessionProviderID: $0.providerSessionProviderId,
+                    providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory
+                )
+            },
+            workingDirectory: workingDirectory
+        )
     }
 
     private func liveConversations(for threadID: PersistentIdentifier) -> [Conversation] {
