@@ -44,15 +44,18 @@ extension BlockInputComposerBridgeControllerTests {
     func testLocalCommandCompletionMatchesSlashPrefixedQuery() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
-            localCommands: ComposerLocalCommandAvailability(supportsSessionHandoff: true),
+            localCommands: ComposerLocalCommandAvailability(supportsSpeedMode: true, supportsSessionHandoff: true),
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] }
         )
 
-        let suggestions = await provider.suggestions(for: Self.completionContext(query: "/h"))
+        let handoffSuggestions = await provider.suggestions(for: Self.completionContext(query: "/h"))
+        let fastSuggestions = await provider.suggestions(for: Self.completionContext(query: "/f"))
 
-        XCTAssertEqual(suggestions.first?.insertionText, "/handoff ")
-        XCTAssertEqual(suggestions.first?.detailText, "Alveary")
+        XCTAssertEqual(handoffSuggestions.first?.insertionText, "/handoff ")
+        XCTAssertEqual(handoffSuggestions.first?.detailText, "Alveary")
+        XCTAssertEqual(fastSuggestions.first?.insertionText, "/fast ")
+        XCTAssertEqual(fastSuggestions.first?.detailText, "Alveary")
     }
 
     nonisolated private static func skill(id: String, name: String, description: String) -> Skill {

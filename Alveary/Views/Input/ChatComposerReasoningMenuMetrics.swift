@@ -57,6 +57,7 @@ final class ComposerReasoningHeaderView: NSTextField {
 enum ComposerReasoningMenuMetrics {
     static let width: CGFloat = 244
     static let modelWidth: CGFloat = 260
+    static let speedWidth: CGFloat = 172
     static let maxModelHeight: CGFloat = 360
     static let horizontalInset: CGFloat = 6
     static let verticalInset: CGFloat = 8
@@ -105,7 +106,15 @@ enum ComposerReasoningMenuMetrics {
                 headerHeight + headerBottomSpacing +
                 variableHeight +
                 headerHeight + headerBottomSpacing +
-                rowHeight
+                rowHeight +
+                (configuration.selection.supportsSpeedMode ? rowHeight : 0)
+        )
+    }
+
+    static func speedContentSize() -> NSSize {
+        NSSize(
+            width: speedWidth,
+            height: verticalInset * 2 + rowHeight * CGFloat(AgentSpeedMode.allCases.count)
         )
     }
 

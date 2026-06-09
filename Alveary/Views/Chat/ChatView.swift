@@ -251,6 +251,7 @@ extension ChatView {
         let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
+                viewModel.normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
                 if isSessionHandoffDraft {
                     try await viewModel.sendSessionHandoffOutput(outboundMessage)
                 } else {

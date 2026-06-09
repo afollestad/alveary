@@ -5,9 +5,9 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     static let minWidth: CGFloat = 64
     static let maxWidth: CGFloat = 184
 
-    private static let iconSlotSize: CGFloat = 16
-    private static let iconTextSpacing: CGFloat = 5
-    private static let iconPointSize: CGFloat = 13
+    static let iconSlotSize: CGFloat = 16
+    static let iconTextSpacing: CGFloat = 5
+    static let iconPointSize: CGFloat = 13
     private static let symbolTransitionDuration: TimeInterval = 0.14
 
     struct Presentation: Equatable {
@@ -66,6 +66,7 @@ class ComposerIconTitleDropdownButton: ComposerCompactDropdownButton {
     var debugSymbolName: String? { currentPresentation?.symbolName }
     var debugIconRotationRadians: CGFloat { currentPresentation?.iconRotationRadians ?? 0 }
     var debugIsWarning: Bool { currentPresentation?.isWarning == true }
+    var debugIconSlotSize: CGFloat { Self.iconSlotSize }
     var debugIconTextSpacing: CGFloat { Self.iconTextSpacing }
     var debugTextChevronSpacing: CGFloat { chevronSlotWidth - chevronDrawingWidth }
     var debugReservesTrailingSlot: Bool { reservesTrailingSlot }

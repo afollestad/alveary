@@ -101,6 +101,7 @@ struct ChatComposerModeState: Equatable, Sendable {
 struct ChatThreadPresentation: Equatable, Sendable {
     let selectedModel: String
     let selectedEffort: String
+    let selectedSpeedMode: AgentSpeedMode
     let selectedPermissionMode: String
     let selectedPlanModeEnabled: Bool
     let selectedUseWorktree: Bool
@@ -119,6 +120,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
     ) {
         selectedModel = thread?.model ?? AppSettings.defaultModelValue
         selectedEffort = AppSettings.normalizedEffortLevel(thread?.effort)
+        selectedSpeedMode = thread?.normalizedSpeedMode ?? .standard
         selectedPermissionMode = Self.nonPlanPermissionMode(
             pendingPermissionMode ?? runtimePermissionMode ?? thread?.permissionMode,
             providerID: providerID,

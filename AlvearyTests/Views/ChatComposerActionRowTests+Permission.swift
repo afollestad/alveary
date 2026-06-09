@@ -36,6 +36,36 @@ extension ChatComposerActionRowTests {
         #endif
     }
 
+    func testReasoningButtonShowsFastIconWithPermissionLeadingMetricsAndAccessibility() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 520, height: 30))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: [.init(value: "medium", title: "Medium")],
+            supportedPermissionModes: [.init(value: "default", title: "Default", symbolName: "hand.raised")]
+        ))
+        let reasoningButton = row.reasoningButton
+        let permissionButton = row.permissionButton
+
+        #if DEBUG
+        XCTAssertFalse(reasoningButton.debugShowsFastIcon)
+        #endif
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: [.init(value: "medium", title: "Medium")],
+            supportedPermissionModes: [.init(value: "default", title: "Default", symbolName: "hand.raised")],
+            selectedSpeedMode: .fast,
+            supportsSpeedMode: true
+        ))
+
+        #if DEBUG
+        XCTAssertTrue(reasoningButton.debugShowsFastIcon)
+        XCTAssertEqual(reasoningButton.debugFastIconSlotSize, permissionButton.debugIconSlotSize)
+        XCTAssertEqual(reasoningButton.debugFastIconTextSpacing, permissionButton.debugIconTextSpacing)
+        #endif
+        XCTAssertEqual(reasoningButton.accessibilityValue() as? String, "Sonnet, Medium, Fast")
+    }
+
     func testPlanModeButtonAppearsOnlyWhilePlanModeIsDisplayed() {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
 

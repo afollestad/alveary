@@ -6,11 +6,18 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     let text: String
     let stagedContext: String?
     let requiredPlanModeEnabled: Bool?
+    let requiredSpeedMode: AgentSpeedMode?
 
-    init(text: String, stagedContext: String?, requiredPlanModeEnabled: Bool? = nil) {
+    init(
+        text: String,
+        stagedContext: String?,
+        requiredPlanModeEnabled: Bool? = nil,
+        requiredSpeedMode: AgentSpeedMode? = nil
+    ) {
         self.text = text
         self.stagedContext = stagedContext
         self.requiredPlanModeEnabled = requiredPlanModeEnabled
+        self.requiredSpeedMode = requiredSpeedMode
     }
 }
 
@@ -19,19 +26,31 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
 final class MessageQueue {
     private(set) var pending: [QueuedMessage] = []
 
-    func enqueue(_ message: String, stagedContext: String? = nil, requiredPlanModeEnabled: Bool? = nil) {
+    func enqueue(
+        _ message: String,
+        stagedContext: String? = nil,
+        requiredPlanModeEnabled: Bool? = nil,
+        requiredSpeedMode: AgentSpeedMode? = nil
+    ) {
         pending.append(QueuedMessage(
             text: message,
             stagedContext: stagedContext,
-            requiredPlanModeEnabled: requiredPlanModeEnabled
+            requiredPlanModeEnabled: requiredPlanModeEnabled,
+            requiredSpeedMode: requiredSpeedMode
         ))
     }
 
-    func prepend(_ message: String, stagedContext: String? = nil, requiredPlanModeEnabled: Bool? = nil) {
+    func prepend(
+        _ message: String,
+        stagedContext: String? = nil,
+        requiredPlanModeEnabled: Bool? = nil,
+        requiredSpeedMode: AgentSpeedMode? = nil
+    ) {
         pending.insert(QueuedMessage(
             text: message,
             stagedContext: stagedContext,
-            requiredPlanModeEnabled: requiredPlanModeEnabled
+            requiredPlanModeEnabled: requiredPlanModeEnabled,
+            requiredSpeedMode: requiredSpeedMode
         ), at: 0)
     }
 

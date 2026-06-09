@@ -7,9 +7,14 @@ final class ComposerReasoningMenuViewController: NSViewController {
     private var menuView: ComposerReasoningMenuView?
     private var modelPopover: NSPopover?
     private var modelMenuController: ComposerReasoningModelMenuViewController?
+    private var speedPopover: NSPopover?
+    private var speedMenuController: ComposerReasoningSpeedMenuViewController?
     private var closeModelMenuTask: Task<Void, Never>?
+    private var closeSpeedMenuTask: Task<Void, Never>?
     private var isModelRowHovered = false
     private var isModelMenuHovered = false
+    private var isSpeedRowHovered = false
+    private var isSpeedMenuHovered = false
 
     init(
         configuration: ChatComposerActionRowView.ReasoningConfiguration,
@@ -37,6 +42,12 @@ final class ComposerReasoningMenuViewController: NSViewController {
             onModelRowHoverChanged: { [weak self] isHovering, anchor in
                 self?.setModelRowHovered(isHovering, relativeTo: anchor)
             },
+            onSpeedMenuRequested: { [weak self] anchor in
+                self?.showSpeedMenu(relativeTo: anchor)
+            },
+            onSpeedRowHoverChanged: { [weak self] isHovering, anchor in
+                self?.setSpeedRowHovered(isHovering, relativeTo: anchor)
+            },
             onCancel: { [weak self] in
                 self?.onRequestCloseMainMenu()
             }
@@ -56,6 +67,10 @@ final class ComposerReasoningMenuViewController: NSViewController {
             selectedModelID: configuration.selection.modelID,
             showsProviderHeaders: !configuration.hasStartedThread
         )
+        speedMenuController?.update(selectedSpeedMode: configuration.selection.speedMode)
+        if !configuration.selection.supportsSpeedMode {
+            closeSpeedMenu()
+        }
     }
 
     func closeModelMenu() {
@@ -68,6 +83,16 @@ final class ComposerReasoningMenuViewController: NSViewController {
         modelMenuController = nil
     }
 
+    func closeSpeedMenu() {
+        closeSpeedMenuTask?.cancel()
+        closeSpeedMenuTask = nil
+        isSpeedRowHovered = false
+        isSpeedMenuHovered = false
+        speedPopover?.performClose(nil)
+        speedPopover = nil
+        speedMenuController = nil
+    }
+
     private func selectEffort(_ effort: String) {
         guard configuration.onEffortChange(effort) else {
             onRequestCloseMainMenu()
@@ -77,6 +102,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
     }
 
     private func showModelMenu(relativeTo anchor: NSView) {
+        closeSpeedMenu()
         if modelPopover?.isShown == true {
             modelMenuController?.update(
                 groups: configuration.modelGroups,
@@ -111,6 +137,37 @@ final class ComposerReasoningMenuViewController: NSViewController {
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
     }
 
+    private func showSpeedMenu(relativeTo anchor: NSView) {
+        guard configuration.selection.supportsSpeedMode else {
+            return
+        }
+        closeModelMenu()
+        if speedPopover?.isShown == true {
+            speedMenuController?.update(selectedSpeedMode: configuration.selection.speedMode)
+            return
+        }
+
+        let controller = ComposerReasoningSpeedMenuViewController(
+            selectedSpeedMode: configuration.selection.speedMode,
+            onSpeedSelected: { [weak self] speedMode in
+                self?.selectSpeedMode(speedMode)
+            },
+            onHoverChanged: { [weak self] isHovering in
+                self?.setSpeedMenuHovered(isHovering)
+            },
+            onCancel: { [weak self] in
+                self?.closeSpeedMenu()
+            }
+        )
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = controller
+        speedMenuController = controller
+        speedPopover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
+    }
+
     func selectModel(_ request: ChatComposerActionRowView.ReasoningModelSelectionRequest) {
         switch configuration.onModelChange(request) {
         case .rejected:
@@ -129,6 +186,27 @@ final class ComposerReasoningMenuViewController: NSViewController {
         }
     }
 
+    private func selectSpeedMode(_ speedMode: AgentSpeedMode) {
+        guard configuration.onSpeedChange(speedMode) else {
+            closeSpeedMenu()
+            onRequestCloseMainMenu()
+            return
+        }
+        configuration.selection = ChatComposerActionRowView.ReasoningSelection(
+            providerID: configuration.selection.providerID,
+            providerTitle: configuration.selection.providerTitle,
+            modelID: configuration.selection.modelID,
+            modelTitle: configuration.selection.modelTitle,
+            effortValue: configuration.selection.effortValue,
+            effortTitle: configuration.selection.effortTitle,
+            effortOptions: configuration.selection.effortOptions,
+            speedMode: speedMode,
+            supportsSpeedMode: configuration.selection.supportsSpeedMode
+        )
+        closeSpeedMenu()
+        onRequestCloseMainMenu()
+    }
+
     private func setModelRowHovered(_ isHovering: Bool, relativeTo anchor: NSView) {
         isModelRowHovered = isHovering
         if isHovering {
@@ -140,6 +218,17 @@ final class ComposerReasoningMenuViewController: NSViewController {
         }
     }
 
+    private func setSpeedRowHovered(_ isHovering: Bool, relativeTo anchor: NSView) {
+        isSpeedRowHovered = isHovering
+        if isHovering {
+            closeSpeedMenuTask?.cancel()
+            closeSpeedMenuTask = nil
+            showSpeedMenu(relativeTo: anchor)
+        } else {
+            scheduleSpeedMenuCloseIfNeeded()
+        }
+    }
+
     private func setModelMenuHovered(_ isHovering: Bool) {
         isModelMenuHovered = isHovering
         if isHovering {
@@ -147,6 +236,16 @@ final class ComposerReasoningMenuViewController: NSViewController {
             closeModelMenuTask = nil
         } else {
             scheduleModelMenuCloseIfNeeded()
+        }
+    }
+
+    private func setSpeedMenuHovered(_ isHovering: Bool) {
+        isSpeedMenuHovered = isHovering
+        if isHovering {
+            closeSpeedMenuTask?.cancel()
+            closeSpeedMenuTask = nil
+        } else {
+            scheduleSpeedMenuCloseIfNeeded()
         }
     }
 
@@ -162,6 +261,19 @@ final class ComposerReasoningMenuViewController: NSViewController {
             closeModelMenu()
         }
     }
+
+    private func scheduleSpeedMenuCloseIfNeeded() {
+        closeSpeedMenuTask?.cancel()
+        closeSpeedMenuTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self,
+                  !isSpeedRowHovered,
+                  !isSpeedMenuHovered else {
+                return
+            }
+            closeSpeedMenu()
+        }
+    }
 }
 
 @MainActor
@@ -170,11 +282,14 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
     private let onEffortSelected: (String) -> Void
     private let onModelMenuRequested: (NSView) -> Void
     private let onModelRowHoverChanged: (Bool, NSView) -> Void
+    private let onSpeedMenuRequested: (NSView) -> Void
+    private let onSpeedRowHoverChanged: (Bool, NSView) -> Void
     private let onCancel: () -> Void
     private let headerField = ComposerReasoningHeaderView(title: "Reasoning")
     private let modelHeaderField = ComposerReasoningHeaderView(title: "Model")
     private let divider = AppKitComposerPopoverDividerView()
     private let modelRow = ComposerReasoningMenuRowView()
+    private let speedRow = ComposerReasoningMenuRowView()
     private var effortRows: [ComposerReasoningMenuRowView] = []
 
     init(
@@ -182,12 +297,16 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
         onEffortSelected: @escaping (String) -> Void,
         onModelMenuRequested: @escaping (NSView) -> Void,
         onModelRowHoverChanged: @escaping (Bool, NSView) -> Void,
+        onSpeedMenuRequested: @escaping (NSView) -> Void,
+        onSpeedRowHoverChanged: @escaping (Bool, NSView) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.configuration = configuration
         self.onEffortSelected = onEffortSelected
         self.onModelMenuRequested = onModelMenuRequested
         self.onModelRowHoverChanged = onModelRowHoverChanged
+        self.onSpeedMenuRequested = onSpeedMenuRequested
+        self.onSpeedRowHoverChanged = onSpeedRowHoverChanged
         self.onCancel = onCancel
         super.init(frame: NSRect(origin: .zero, size: ComposerReasoningMenuMetrics.mainContentSize(for: configuration)))
         setup()
@@ -248,6 +367,16 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
             width: bounds.width - ComposerReasoningMenuMetrics.horizontalInset * 2,
             height: ComposerReasoningMenuMetrics.rowHeight
         )
+        nextY += ComposerReasoningMenuMetrics.rowHeight
+
+        if configuration.selection.supportsSpeedMode {
+            speedRow.frame = NSRect(
+                x: ComposerReasoningMenuMetrics.horizontalInset,
+                y: nextY,
+                width: bounds.width - ComposerReasoningMenuMetrics.horizontalInset * 2,
+                height: ComposerReasoningMenuMetrics.rowHeight
+            )
+        }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -268,28 +397,36 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
 
         addSubview(divider)
         addSubview(modelRow)
+        addSubview(speedRow)
     }
 
     private func rebuildRows() {
         effortRows.forEach { $0.removeFromSuperview() }
-        effortRows = configuration.selection.effortOptions.map { option in
-            let row = ComposerReasoningMenuRowView()
-            row.configure(.init(
-                title: option.title,
-                iconName: nil,
-                trailingIconName: option.value == configuration.selection.effortValue ? "checkmark" : nil,
-                accessibilityLabel: option.title,
-                isSelected: option.value == configuration.selection.effortValue,
-                isEnabled: true,
-                action: { [weak self] in self?.onEffortSelected(option.value) },
-                hoverAction: nil,
-                cancelAction: { [weak self] in self?.onCancel() }
-            ))
-            addSubview(row)
-            return row
-        }
+        effortRows = configuration.selection.effortOptions.map(makeEffortRow(option:))
 
         divider.isHidden = configuration.selection.effortOptions.isEmpty
+        configureModelRow()
+        configureSpeedRow()
+    }
+
+    private func makeEffortRow(option: ChatComposerActionRowView.MenuOption) -> ComposerReasoningMenuRowView {
+        let row = ComposerReasoningMenuRowView()
+        row.configure(.init(
+            title: option.title,
+            iconName: nil,
+            trailingIconName: option.value == configuration.selection.effortValue ? "checkmark" : nil,
+            accessibilityLabel: option.title,
+            isSelected: option.value == configuration.selection.effortValue,
+            isEnabled: true,
+            action: { [weak self] in self?.onEffortSelected(option.value) },
+            hoverAction: nil,
+            cancelAction: { [weak self] in self?.onCancel() }
+        ))
+        addSubview(row)
+        return row
+    }
+
+    private func configureModelRow() {
         modelRow.configure(.init(
             title: configuration.selection.modelTitle,
             iconName: nil,
@@ -314,6 +451,39 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
         modelRow.onHoverEntered = { [weak self, weak modelRow] in
             guard let modelRow else { return }
             self?.onModelRowHoverChanged(true, modelRow)
+        }
+    }
+
+    private func configureSpeedRow() {
+        speedRow.isHidden = !configuration.selection.supportsSpeedMode
+        guard configuration.selection.supportsSpeedMode else {
+            speedRow.onHoverEntered = nil
+            return
+        }
+        speedRow.configure(.init(
+            title: "Speed",
+            iconName: nil,
+            trailingIconName: "chevron.right",
+            accessibilityLabel: "Speed, \(configuration.selection.speedMode.title)",
+            isSelected: false,
+            isEnabled: true,
+            action: { [weak self, weak speedRow] in
+                guard let speedRow else { return }
+                self?.onSpeedMenuRequested(speedRow)
+            },
+            hoverAction: { [weak self, weak speedRow] in
+                guard let speedRow else { return }
+                self?.onSpeedMenuRequested(speedRow)
+            },
+            exitAction: { [weak self, weak speedRow] in
+                guard let speedRow else { return }
+                self?.onSpeedRowHoverChanged(false, speedRow)
+            },
+            cancelAction: { [weak self] in self?.onCancel() }
+        ))
+        speedRow.onHoverEntered = { [weak self, weak speedRow] in
+            guard let speedRow else { return }
+            self?.onSpeedRowHoverChanged(true, speedRow)
         }
     }
 }

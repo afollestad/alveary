@@ -2,6 +2,7 @@ import Foundation
 
 enum ComposerLocalCommandKind: String, CaseIterable, Sendable, Equatable {
     case plan
+    case fast
     case handoff
 
     var command: String { rawValue }
@@ -15,6 +16,7 @@ struct ComposerLocalCommand: Sendable, Equatable {
 
 struct ComposerLocalCommandAvailability: Sendable, Equatable {
     var supportsPlanMode = false
+    var supportsSpeedMode = false
     var supportsSessionHandoff = false
 
     var enabledKinds: [ComposerLocalCommandKind] {
@@ -25,6 +27,8 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
         switch kind {
         case .plan:
             supportsPlanMode
+        case .fast:
+            supportsSpeedMode
         case .handoff:
             supportsSessionHandoff
         }

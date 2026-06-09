@@ -118,6 +118,30 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.state.pendingHandoffOutput)
     }
 
+    func testFastCommandWithArgumentEnablesFastAndSendsPrompt() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let appState = AppState()
+        fixture.viewModel.state.runtimeSpeedMode = .standard
+        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNotNil(appState.pendingComposerFocusToken)
+        try await waitUntil("expected fast command prompt to send") {
+            await fixture.agentsManager.sentMessages() == ["Fix the tests"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .fast)
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
+    }
+
     func testEmptySendDraftDoesNotRequestComposerFocus() throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()
@@ -158,7 +182,9 @@ final class ChatComposerDraftTests: XCTestCase {
         fixture: ConversationViewModelTestFixture,
         appState: AppState,
         isProjectTrustBlocked: Bool = false,
-        supportsPlanMode: Bool = false
+        supportsPlanMode: Bool = false,
+        supportsSpeedMode: Bool = false,
+        providerID: String = "claude"
     ) -> ChatView {
         ChatView(
             viewModel: fixture.viewModel,
@@ -166,7 +192,8 @@ final class ChatComposerDraftTests: XCTestCase {
             composerCapabilities: ComposerCapabilities(
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true,
-                supportsPlanMode: supportsPlanMode
+                supportsPlanMode: supportsPlanMode,
+                supportsSpeedMode: supportsSpeedMode
             ),
             reasoningConfiguration: makeReasoningConfiguration(
                 modelOptions: [
@@ -179,7 +206,7 @@ final class ChatComposerDraftTests: XCTestCase {
                 selectedModel: AppSettings.defaultModelValue
             ),
             defaultEnterBehavior: .queue,
-            providerID: "claude",
+            providerID: providerID,
             runtimeStatus: .neutral,
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,

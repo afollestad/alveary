@@ -43,9 +43,21 @@ struct AgentCLIKitHostAdapter: Sendable {
             effort: config.effort,
             permissionMode: config.permissionMode,
             collaborationMode: config.planModeEnabled.map { $0 ? .plan : .default },
+            speedMode: config.speedMode.map(AgentCLIKit.AgentSpeedMode.init(alvearyMode:)),
             forkSession: forkSession,
             initialPrompt: config.initialPrompt
         )
+    }
+}
+
+private extension AgentCLIKit.AgentSpeedMode {
+    init(alvearyMode: AgentSpeedMode) {
+        switch alvearyMode {
+        case .standard:
+            self = .standard
+        case .fast:
+            self = .fast
+        }
     }
 }
 

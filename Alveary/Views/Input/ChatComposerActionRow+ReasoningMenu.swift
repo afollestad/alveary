@@ -45,6 +45,7 @@ extension ChatComposerActionRowView {
             return
         }
         reasoningMenuController?.closeModelMenu()
+        reasoningMenuController?.closeSpeedMenu()
         popover.delegate = nil
         reasoningPopover = nil
         reasoningMenuController = nil

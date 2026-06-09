@@ -176,6 +176,7 @@ extension ConversationViewModel {
         await prepareForSpawn(config: config)
         try await agentsManager.spawn(id: conversation.id, config: config)
         state.liveSessionConfig = config
+        state.runtimeSpeedMode = config.speedMode
         subscribe()
     }
 

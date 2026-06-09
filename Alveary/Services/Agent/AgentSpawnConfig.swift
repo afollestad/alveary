@@ -10,6 +10,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let planModeEnabled: Bool?
     let model: String?
     let effort: String?
+    let speedMode: AgentSpeedMode?
     let initialPrompt: String?
 
     init(
@@ -19,6 +20,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         planModeEnabled: Bool? = nil,
         model: String? = nil,
         effort: String? = nil,
+        speedMode: AgentSpeedMode? = nil,
         initialPrompt: String? = nil
     ) {
         self.providerId = providerId
@@ -27,6 +29,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.planModeEnabled = planModeEnabled
         self.model = model
         self.effort = effort
+        self.speedMode = speedMode
         self.initialPrompt = initialPrompt
     }
 }

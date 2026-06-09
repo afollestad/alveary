@@ -132,6 +132,22 @@ final class BlockInputComposerArgumentHintTests: XCTestCase {
         XCTAssertEqual(hint?.text, " Optional steering prompt")
     }
 
+    func testLocalFastCommandDoesNotProvideArgumentHint() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportsSpeedMode: true),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] }
+        )
+        _ = await provider.suggestions(for: completionContext(
+            trigger: .slashCommand,
+            query: "fast",
+            rawQuery: "fast"
+        ))
+
+        XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/fast")))
+    }
+
     private func makeConfiguration(
         markdown: String,
         loadSkillCompletions: @escaping @Sendable () async -> [Skill] = { [] }

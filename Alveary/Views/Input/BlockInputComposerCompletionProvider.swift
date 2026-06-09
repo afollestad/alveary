@@ -207,6 +207,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         switch kind {
         case .plan:
             "Toggle plan mode"
+        case .fast:
+            "Enable fast mode"
         case .handoff:
             "Start session handoff"
         }

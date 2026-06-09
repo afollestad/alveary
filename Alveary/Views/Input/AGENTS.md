@@ -40,6 +40,8 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep effects elsewhere: no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
 - Keep the `+` menu presentation-only inside `ChatComposerActionRowView`. File picking, BlockInputKit insertion, and plan-mode mutation must remain callbacks owned by the composer panel or view model.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
+- Speed controls are caller-owned inputs too. Render the `Speed` submenu only when the active provider reports support; `Standard` has no leading icon, `Fast` uses SF Symbol `bolt`, selected rows use a trailing checkmark, and the composer reasoning button shows the same `bolt` with the permission dropdown's leading-icon metrics.
+- `/fast` is an Alveary local command. Keep it enable-only: `/fast` selects Fast, `/fast <prompt>` selects Fast and sends or queues that prompt with a next-turn required speed. Do not add a special inline argument hint for it.
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
 - The leading `+` button must remain square to the dropdown height, with default, hover, pressed, focused, and disabled states clipped to the same circular background.
 - Native controls that custom-draw dynamic `NSColor`s must resolve colors through `appKitRenderingAppearance` and invalidate display from `viewDidChangeEffectiveAppearance()`.

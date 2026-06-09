@@ -10,6 +10,8 @@ extension ChatView {
         switch command.kind {
         case .plan:
             handlePlanLocalCommand(command, draft: draft)
+        case .fast:
+            handleFastLocalCommand(command, draft: draft)
         case .handoff:
             handleHandoffLocalCommand(command, draft: draft)
         }
@@ -30,6 +32,28 @@ extension ChatView {
                 }
             } catch {
                 let restoredText = didTogglePlanMode && !command.argument.isEmpty ? command.argument : draft.text
+                viewModel.replaceInputDraft(restoredText, source: draft.source)
+                if viewModel.lastTurnError == nil {
+                    viewModel.lastTurnError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func handleFastLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
+        clearSubmittedDraftAndRequestFocus(source: draft.source)
+        Task {
+            var didEnableFastMode = false
+            do {
+                try await viewModel.ensureSpeedModeEnabledForOutbound(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
+                didEnableFastMode = true
+                if command.argument.isEmpty {
+                    return
+                } else {
+                    try await viewModel.queueOrSend(command.argument, requiredSpeedMode: .fast)
+                }
+            } catch {
+                let restoredText = didEnableFastMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription

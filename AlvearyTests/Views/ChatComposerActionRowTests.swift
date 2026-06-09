@@ -341,6 +341,8 @@ func makeConfiguration(
     showWorktreePicker: Bool = true,
     selectedUseWorktree: Bool = false,
     isPlanModeEnabled: Bool = false,
+    selectedSpeedMode: AgentSpeedMode = .standard,
+    supportsSpeedMode: Bool = false,
     sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
     areControlsDisabled: Bool = false,
@@ -355,7 +357,9 @@ func makeConfiguration(
         reasoning: makeReasoningConfiguration(
             providerOptions: providerOptions,
             modelOptions: modelOptions,
-            effortOptions: effortOptions
+            effortOptions: effortOptions,
+            selectedSpeedMode: selectedSpeedMode,
+            supportsSpeedMode: supportsSpeedMode
         ),
         supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: selectedPermissionMode,
@@ -387,8 +391,11 @@ func makeReasoningConfiguration(
     selectedProvider: String = "claude",
     selectedModel: String = "sonnet",
     selectedEffort: String = "medium",
+    selectedSpeedMode: AgentSpeedMode = .standard,
+    supportsSpeedMode: Bool = false,
     hasStartedThread: Bool = false,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
+    onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
     onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
         -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
 ) -> ChatComposerActionRowView.ReasoningConfiguration {
@@ -403,7 +410,9 @@ func makeReasoningConfiguration(
             modelTitle: selectedModelOption?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel),
             effortValue: selectedEffortOption?.value ?? selectedEffort,
             effortTitle: selectedEffortOption?.title ?? ChatComposerTextSupport.effortLabel(for: selectedEffort),
-            effortOptions: effortOptions
+            effortOptions: effortOptions,
+            speedMode: selectedSpeedMode,
+            supportsSpeedMode: supportsSpeedMode
         ),
         modelGroups: providerOptions.map { provider in
             ChatComposerActionRowView.ReasoningModelGroup(
@@ -420,6 +429,7 @@ func makeReasoningConfiguration(
         },
         hasStartedThread: hasStartedThread,
         onEffortChange: onEffortChange,
+        onSpeedChange: onSpeedChange,
         onModelChange: onModelChange
     )
 }

@@ -18,6 +18,32 @@ extension SnapshotTests {
         )
     }
 
+    func testComposerReasoningMenuSpeedContent() {
+        let configuration = makeSnapshotReasoningMenuConfiguration(
+            selectedSpeedMode: .fast,
+            supportsSpeedMode: true
+        )
+        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+
+        assertMacSnapshot(
+            ComposerReasoningMenuSnapshot(configuration: configuration),
+            size: size,
+            named: "composer_reasoning_menu_speed_content",
+            colorScheme: .dark
+        )
+    }
+
+    func testComposerReasoningSpeedMenuContent() {
+        let size = ComposerReasoningMenuMetrics.speedContentSize()
+
+        assertMacSnapshot(
+            ComposerReasoningSpeedMenuSnapshot(selectedSpeedMode: .fast),
+            size: size,
+            named: "composer_reasoning_speed_menu_content",
+            colorScheme: .dark
+        )
+    }
+
     func testComposerReasoningModelMenuGroupedContent() {
         let groups = makeGroupedReasoningModelGroups()
         let size = ComposerReasoningMenuMetrics.modelContentSize(groups: groups, showsProviderHeaders: true)
@@ -56,7 +82,10 @@ extension SnapshotTests {
 }
 
 @MainActor
-private func makeSnapshotReasoningMenuConfiguration() -> ChatComposerActionRowView.ReasoningConfiguration {
+private func makeSnapshotReasoningMenuConfiguration(
+    selectedSpeedMode: AgentSpeedMode = .standard,
+    supportsSpeedMode: Bool = false
+) -> ChatComposerActionRowView.ReasoningConfiguration {
     makeReasoningConfiguration(
         modelOptions: [.init(value: "gpt-5.3-codex-spark", title: "GPT-5.3-Codex-Spark")],
         effortOptions: [
@@ -66,7 +95,9 @@ private func makeSnapshotReasoningMenuConfiguration() -> ChatComposerActionRowVi
             .init(value: "extra-high", title: "Extra High")
         ],
         selectedModel: "gpt-5.3-codex-spark",
-        selectedEffort: "medium"
+        selectedEffort: "medium",
+        selectedSpeedMode: selectedSpeedMode,
+        supportsSpeedMode: supportsSpeedMode
     )
 }
 
@@ -78,6 +109,21 @@ private struct ComposerReasoningMenuSnapshot: NSViewControllerRepresentable {
     }
 
     func updateNSViewController(_ controller: ComposerReasoningMenuViewController, context: Context) {}
+}
+
+private struct ComposerReasoningSpeedMenuSnapshot: NSViewControllerRepresentable {
+    let selectedSpeedMode: AgentSpeedMode
+
+    func makeNSViewController(context: Context) -> ComposerReasoningSpeedMenuViewController {
+        ComposerReasoningSpeedMenuViewController(
+            selectedSpeedMode: selectedSpeedMode,
+            onSpeedSelected: { _ in },
+            onHoverChanged: { _ in },
+            onCancel: {}
+        )
+    }
+
+    func updateNSViewController(_ controller: ComposerReasoningSpeedMenuViewController, context: Context) {}
 }
 
 private struct ComposerReasoningModelMenuSnapshot: NSViewControllerRepresentable {

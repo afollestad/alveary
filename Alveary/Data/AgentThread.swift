@@ -13,6 +13,7 @@ final class AgentThread {
     var planModeEnabled: Bool?
     var effort: String
     var model: String?
+    var speedMode: String?
     var useWorktree: Bool
     var archivedAt: Date?
     var project: Project?
@@ -29,6 +30,7 @@ final class AgentThread {
         planModeEnabled: Bool = false,
         effort: String = AppSettings.defaultEffortLevel,
         model: String? = nil,
+        speedMode: String? = AgentSpeedMode.standard.rawValue,
         useWorktree: Bool = false,
         archivedAt: Date? = nil,
         project: Project? = nil,
@@ -44,6 +46,7 @@ final class AgentThread {
         self.planModeEnabled = planModeEnabled
         self.effort = effort
         self.model = model
+        self.speedMode = speedMode
         self.useWorktree = useWorktree
         self.archivedAt = archivedAt
         self.project = project
@@ -52,6 +55,10 @@ final class AgentThread {
 }
 
 extension AgentThread {
+    var normalizedSpeedMode: AgentSpeedMode {
+        AgentSpeedMode(normalizing: speedMode)
+    }
+
     func prepareForRestore() {
         for conversation in conversations {
             conversation.refreshPendingRestoreContextFromHistory()

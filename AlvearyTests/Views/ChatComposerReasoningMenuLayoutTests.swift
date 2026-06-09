@@ -152,6 +152,58 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         })
     }
 
+    func testReasoningMenuShowsSpeedRowOnlyWhenSupported() throws {
+        let standardController = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(supportsSpeedMode: false),
+            onRequestCloseMainMenu: {}
+        )
+        standardController.loadViewIfNeeded()
+        XCTAssertNil(standardController.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel()?.hasPrefix("Speed") == true
+        })
+
+        let speedController = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(
+                selectedSpeedMode: .fast,
+                supportsSpeedMode: true
+            ),
+            onRequestCloseMainMenu: {}
+        )
+        speedController.loadViewIfNeeded()
+        speedController.view.layoutSubtreeIfNeeded()
+
+        let modelRow = try XCTUnwrap(speedController.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Model"
+        })
+        let speedRow = try XCTUnwrap(speedController.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Speed, Fast"
+        })
+        XCTAssertEqual(speedRow.frame.minY, modelRow.frame.maxY, accuracy: 1)
+    }
+
+    func testReasoningSpeedSubmenuUsesBoltOnlyForFastAndTrailingCheckmarkForSelection() throws {
+        let controller = ComposerReasoningSpeedMenuViewController(
+            selectedSpeedMode: .fast,
+            onSpeedSelected: { _ in },
+            onHoverChanged: { _ in },
+            onCancel: {}
+        )
+        controller.loadViewIfNeeded()
+        let standardRow = try XCTUnwrap(controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Standard"
+        })
+        let fastRow = try XCTUnwrap(controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Fast"
+        })
+
+        #if DEBUG
+        XCTAssertNil(standardRow.debugIconName)
+        XCTAssertNil(standardRow.debugTrailingIconName)
+        XCTAssertEqual(fastRow.debugIconName, "bolt")
+        XCTAssertEqual(fastRow.debugTrailingIconName, "checkmark")
+        #endif
+    }
+
     func testReasoningModelSubmenuHeaderAndDividerSpacing() throws {
         let controller = makeGroupedReasoningModelMenu()
         controller.loadViewIfNeeded()

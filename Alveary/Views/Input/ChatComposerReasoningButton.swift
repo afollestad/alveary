@@ -15,7 +15,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     override var maximumDropdownWidth: CGFloat { Self.maxWidth }
     override var chevronSlotWidth: CGFloat { 16 }
     override var drawsChevron: Bool { !showsProgress }
-    override var measuredContentWidth: CGFloat { measuredLabelWidth }
+    override var measuredContentWidth: CGFloat { measuredSpeedIconWidth + measuredLabelWidth }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -44,6 +44,9 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     #if DEBUG
     var debugShowsProgress: Bool { showsProgress && !progressIndicator.isHidden }
     var debugTextAlpha: CGFloat { reasoningTextAlpha }
+    var debugShowsFastIcon: Bool { showsFastIcon }
+    var debugFastIconSlotSize: CGFloat { ComposerIconTitleDropdownButton.iconSlotSize }
+    var debugFastIconTextSpacing: CGFloat { ComposerIconTitleDropdownButton.iconTextSpacing }
     #endif
 
     override func layout() {
@@ -75,19 +78,21 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         let modelHeight = selection.modelTitle.size(withAttributes: modelAttributes).height
         let labelY = floor((bounds.height - modelHeight) / 2)
 
+        let labelRect = speedAdjustedContentRect(rect, textAlpha: reasoningTextAlpha)
+
         if selection.effortOptions.isEmpty {
             (selection.modelTitle as NSString).draw(
-                in: NSRect(x: rect.minX, y: labelY, width: rect.width, height: modelHeight),
+                in: NSRect(x: labelRect.minX, y: labelY, width: labelRect.width, height: modelHeight),
                 withAttributes: modelAttributes
             )
             return
         }
 
         let effortWidth = ceil(selection.effortTitle.size(withAttributes: effortAttributes).width)
-        let effortX = max(rect.minX, rect.maxX - effortWidth)
-        let modelWidth = max(0, effortX - rect.minX - 6)
+        let effortX = max(labelRect.minX, labelRect.maxX - effortWidth)
+        let modelWidth = max(0, effortX - labelRect.minX - 6)
         (selection.modelTitle as NSString).draw(
-            in: NSRect(x: rect.minX, y: labelY, width: modelWidth, height: modelHeight),
+            in: NSRect(x: labelRect.minX, y: labelY, width: modelWidth, height: modelHeight),
             withAttributes: modelAttributes
         )
         (selection.effortTitle as NSString).draw(
@@ -106,6 +111,57 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         }
         let effortWidth = selection.effortTitle.size(withAttributes: [.font: effortFont]).width
         return modelWidth + 6 + effortWidth
+    }
+
+    private var measuredSpeedIconWidth: CGFloat {
+        guard showsFastIcon else {
+            return 0
+        }
+        return ComposerIconTitleDropdownButton.iconSlotSize + ComposerIconTitleDropdownButton.iconTextSpacing
+    }
+
+    private var showsFastIcon: Bool {
+        selection?.supportsSpeedMode == true && selection?.speedMode == .fast
+    }
+
+    private func speedAdjustedContentRect(_ rect: NSRect, textAlpha: CGFloat) -> NSRect {
+        guard showsFastIcon else {
+            return rect
+        }
+        drawFastIcon(in: rect, alpha: textAlpha)
+        let offset = ComposerIconTitleDropdownButton.iconSlotSize + ComposerIconTitleDropdownButton.iconTextSpacing
+        return NSRect(
+            x: rect.minX + offset,
+            y: rect.minY,
+            width: max(0, rect.width - offset),
+            height: rect.height
+        )
+    }
+
+    private func drawFastIcon(in rect: NSRect, alpha: CGFloat) {
+        let color = NSColor.labelColor.appKitResolvedColor(in: self, alpha: alpha)
+        guard let image = symbolImage(
+            named: "bolt",
+            pointSize: ComposerIconTitleDropdownButton.iconPointSize,
+            color: color,
+            weight: .semibold
+        ) else {
+            return
+        }
+        let drawSize = symbolDrawingSize(for: image, maxSize: ComposerIconTitleDropdownButton.iconSlotSize)
+        image.draw(
+            in: NSRect(
+                x: rect.minX + floor((ComposerIconTitleDropdownButton.iconSlotSize - drawSize.width) / 2),
+                y: floor((bounds.height - drawSize.height) / 2),
+                width: drawSize.width,
+                height: drawSize.height
+            ),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: nil
+        )
     }
 
     private var modelFont: NSFont {

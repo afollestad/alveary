@@ -30,6 +30,15 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertEqual(command, ComposerLocalCommand(kind: .handoff, argument: "Focus on release notes."))
     }
 
+    func testParsesFastWithArgument() {
+        let command = ComposerLocalCommandParser.parse(
+            "/fast Fix the tests.",
+            availability: ComposerLocalCommandAvailability(supportsSpeedMode: true)
+        )
+
+        XCTAssertEqual(command, ComposerLocalCommand(kind: .fast, argument: "Fix the tests."))
+    }
+
     func testIgnoresLeadingWhitespaceAndUnknownCommands() {
         let availability = ComposerLocalCommandAvailability(supportsPlanMode: true, supportsSessionHandoff: true)
 
@@ -39,6 +48,7 @@ final class ComposerLocalCommandParserTests: XCTestCase {
 
     func testInactiveCommandsAreNotIntercepted() {
         XCTAssertNil(ComposerLocalCommandParser.parse("/plan Fix it", availability: ComposerLocalCommandAvailability()))
+        XCTAssertNil(ComposerLocalCommandParser.parse("/fast Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/handoff Focus", availability: ComposerLocalCommandAvailability()))
     }
 }

@@ -22,6 +22,7 @@ extension ChatView {
 
         return ComposerLocalCommandAvailability(
             supportsPlanMode: composerCapabilities.supportsPlanMode,
+            supportsSpeedMode: composerCapabilities.supportsSpeedMode,
             supportsSessionHandoff: viewModel.settingsService.current.sessionHandoffCommandEnabled
         )
     }

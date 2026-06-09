@@ -152,6 +152,9 @@ private extension ConversationViewModel {
         guard queuedMessage.requiredPlanModeEnabled == nil else {
             throw AgentError.spawnFailed("Plan-mode queued messages send on the next turn")
         }
+        guard queuedMessage.requiredSpeedMode == nil else {
+            throw AgentError.spawnFailed("Speed-mode queued messages send on the next turn")
+        }
         return queuedMessage
     }
 
@@ -160,6 +163,9 @@ private extension ConversationViewModel {
 
         if let requiredPlanModeEnabled = next.requiredPlanModeEnabled {
             try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+        }
+        if let requiredSpeedMode = next.requiredSpeedMode {
+            try await ensureSpeedModeForOutbound(requiredSpeedMode)
         }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {

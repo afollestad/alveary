@@ -92,9 +92,15 @@ final class ChatComposerActionRowView: NSView {
         let effortValue: String
         let effortTitle: String
         let effortOptions: [MenuOption]
+        let speedMode: AgentSpeedMode
+        let supportsSpeedMode: Bool
 
         var accessibilityValue: String {
-            effortOptions.isEmpty ? modelTitle : "\(modelTitle), \(effortTitle)"
+            let reasoningValue = effortOptions.isEmpty ? modelTitle : "\(modelTitle), \(effortTitle)"
+            guard supportsSpeedMode, speedMode == .fast else {
+                return reasoningValue
+            }
+            return "\(reasoningValue), Fast"
         }
     }
 
@@ -131,6 +137,7 @@ final class ChatComposerActionRowView: NSView {
         var modelGroups: [ReasoningModelGroup]
         var hasStartedThread: Bool
         var onEffortChange: (String) -> Bool
+        var onSpeedChange: (AgentSpeedMode) -> Bool
         var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
     }
 

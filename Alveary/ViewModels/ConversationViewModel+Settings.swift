@@ -5,6 +5,7 @@ import SwiftData
 private struct PermissionRuntimeStateSnapshot {
     let runtimePermissionMode: String?
     let runtimePlanModeEnabled: Bool?
+    let runtimeSpeedMode: AgentSpeedMode?
     let lastNonPlanPermissionMode: String?
 }
 
@@ -65,8 +66,10 @@ extension ConversationViewModel {
         dbThread.permissionMode = newPermissionMode
         dbThread.planModeEnabled = false
         dbThread.effort = AppSettings.defaultEffortLevel
+        dbThread.speedMode = AgentSpeedMode.standard.rawValue
         state.runtimePermissionMode = newPermissionMode
         state.runtimePlanModeEnabled = false
+        state.runtimeSpeedMode = .standard
         state.lastNonPlanPermissionMode = newPermissionMode
         state.lastTurnError = nil
 
@@ -83,7 +86,8 @@ extension ConversationViewModel {
         providerID: String,
         model: String,
         effortOptions: [AgentCLIKit.AgentProviderOption],
-        defaultEffort: String?
+        defaultEffort: String?,
+        supportsSpeedMode: Bool = true
     ) -> Bool {
         guard canApplyPreStartupSettingChange,
               AppSettings.supportedProviderIDs.contains(providerID),
@@ -103,9 +107,13 @@ extension ConversationViewModel {
             effortOptions: effortOptions,
             defaultEffort: defaultEffort
         )
+        let newSpeedMode = supportsSpeedMode ? dbThread.normalizedSpeedMode : .standard
+        let runtimeSpeedModeChanged = snapshot.runtimeSpeedMode != newSpeedMode
         guard providerChanged ||
             snapshot.model != storedModel ||
             snapshot.effort != newEffort ||
+            snapshot.speedMode != newSpeedMode ||
+            runtimeSpeedModeChanged ||
             (providerChanged && snapshot.permissionMode != newPermissionMode) else {
             return true
         }
@@ -116,6 +124,8 @@ extension ConversationViewModel {
         dbConversation.provider = providerID
         dbThread.model = storedModel
         dbThread.effort = newEffort
+        dbThread.speedMode = newSpeedMode.rawValue
+        state.runtimeSpeedMode = newSpeedMode
         if providerChanged {
             dbThread.permissionMode = newPermissionMode
             dbThread.planModeEnabled = false
@@ -139,7 +149,8 @@ extension ConversationViewModel {
     func applyModelChange(
         _ newValue: String,
         effortOptions: [AgentCLIKit.AgentProviderOption] = [],
-        defaultEffort: String? = nil
+        defaultEffort: String? = nil,
+        supportsSpeedMode: Bool = true
     ) -> Task<Void, Never> {
         guard canApplySettingsChange,
               let dbThread = activeSettingsThread() else {
@@ -151,13 +162,16 @@ extension ConversationViewModel {
 
         let original = preparePendingSnapshotIfNeeded(for: dbThread)
         let previousEffort = dbThread.effort
+        let previousSpeedMode = dbThread.speedMode
         dbThread.model = newValue == AppSettings.defaultModelValue ? nil : newValue
         resetEffortIfNeeded(for: dbThread, effortOptions: effortOptions, defaultEffort: defaultEffort)
+        normalizeSpeedModeIfUnsupported(for: dbThread, supportsSpeedMode: supportsSpeedMode)
         state.lastTurnError = nil
 
         guard saveSettingsChange(dbThread: dbThread, rollback: {
             dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
             dbThread.effort = previousEffort
+            dbThread.speedMode = previousSpeedMode
         }) else {
             return .noop
         }
@@ -169,6 +183,7 @@ extension ConversationViewModel {
         return reconfigureSettingsTask(original: original, dbThread: dbThread, invalidatesContextWindow: true) {
             dbThread.model = previousValue == AppSettings.defaultModelValue ? nil : previousValue
             dbThread.effort = previousEffort
+            dbThread.speedMode = previousSpeedMode
         } onApplied: {
             self.recordContextWindowInvalidation()
         }
@@ -371,6 +386,17 @@ private extension ConversationViewModel {
         dbThread.effort = defaultEffort ?? effortOptions.first?.value ?? AppSettings.defaultEffortLevel
     }
 
+    func normalizeSpeedModeIfUnsupported(for dbThread: AgentThread, supportsSpeedMode: Bool) {
+        guard !supportsSpeedMode,
+              dbThread.normalizedSpeedMode == .fast else {
+            return
+        }
+        dbThread.speedMode = AgentSpeedMode.standard.rawValue
+        if !shouldStageSessionSettingChange {
+            state.runtimeSpeedMode = .standard
+        }
+    }
+
     func supportedOrDefaultEffort(
         currentEffort: String,
         effortOptions: [AgentCLIKit.AgentProviderOption],
@@ -389,6 +415,7 @@ private extension ConversationViewModel {
         PermissionRuntimeStateSnapshot(
             runtimePermissionMode: state.runtimePermissionMode,
             runtimePlanModeEnabled: state.runtimePlanModeEnabled,
+            runtimeSpeedMode: state.runtimeSpeedMode,
             lastNonPlanPermissionMode: state.lastNonPlanPermissionMode
         )
     }
@@ -401,6 +428,7 @@ private extension ConversationViewModel {
     func restorePermissionRuntimeState(_ snapshot: PermissionRuntimeStateSnapshot) {
         state.runtimePermissionMode = snapshot.runtimePermissionMode
         state.runtimePlanModeEnabled = snapshot.runtimePlanModeEnabled
+        state.runtimeSpeedMode = snapshot.runtimeSpeedMode
         state.lastNonPlanPermissionMode = snapshot.lastNonPlanPermissionMode
     }
 }
@@ -411,8 +439,10 @@ private struct ProviderSettingSnapshot {
     let permissionMode: String
     let planModeEnabled: Bool?
     let effort: String
+    let speedMode: AgentSpeedMode
     let runtimePermissionMode: String?
     let runtimePlanModeEnabled: Bool?
+    let runtimeSpeedMode: AgentSpeedMode?
     let lastNonPlanPermissionMode: String?
 
     @MainActor
@@ -422,8 +452,10 @@ private struct ProviderSettingSnapshot {
         permissionMode = thread.permissionMode
         planModeEnabled = thread.planModeEnabled
         effort = thread.effort
+        speedMode = thread.normalizedSpeedMode
         runtimePermissionMode = state.runtimePermissionMode
         runtimePlanModeEnabled = state.runtimePlanModeEnabled
+        runtimeSpeedMode = state.runtimeSpeedMode
         lastNonPlanPermissionMode = state.lastNonPlanPermissionMode
     }
 
@@ -434,8 +466,10 @@ private struct ProviderSettingSnapshot {
         thread.permissionMode = permissionMode
         thread.planModeEnabled = planModeEnabled
         thread.effort = effort
+        thread.speedMode = speedMode.rawValue
         state.runtimePermissionMode = runtimePermissionMode
         state.runtimePlanModeEnabled = runtimePlanModeEnabled
+        state.runtimeSpeedMode = runtimeSpeedMode
         state.lastNonPlanPermissionMode = lastNonPlanPermissionMode
     }
 }

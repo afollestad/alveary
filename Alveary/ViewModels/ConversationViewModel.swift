@@ -104,6 +104,9 @@ final class ConversationViewModel {
         if self.state.runtimePlanModeEnabled == nil {
             self.state.runtimePlanModeEnabled = conversation.thread?.planModeEnabled ?? false
         }
+        if self.state.runtimeSpeedMode == nil {
+            self.state.runtimeSpeedMode = conversation.thread?.normalizedSpeedMode ?? .standard
+        }
         if self.state.lastNonPlanPermissionMode == nil,
            conversation.thread?.permissionMode != "plan" {
             self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
@@ -161,7 +164,11 @@ final class ConversationViewModel {
         }
     }
 
-    func queueOrSend(_ message: String, requiredPlanModeEnabled: Bool? = nil) async throws {
+    func queueOrSend(
+        _ message: String,
+        requiredPlanModeEnabled: Bool? = nil,
+        requiredSpeedMode: AgentSpeedMode? = nil
+    ) async throws {
         guard !state.hasActiveSessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
@@ -173,7 +180,8 @@ final class ConversationViewModel {
             state.messageQueue.enqueue(
                 message,
                 stagedContext: state.stagedContext,
-                requiredPlanModeEnabled: requiredPlanModeEnabled
+                requiredPlanModeEnabled: requiredPlanModeEnabled,
+                requiredSpeedMode: requiredSpeedMode
             )
             state.stagedContext = nil
             return
@@ -182,6 +190,9 @@ final class ConversationViewModel {
         guard needsSetup else {
             if let requiredPlanModeEnabled {
                 try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+            }
+            if let requiredSpeedMode {
+                try await ensureSpeedModeForOutbound(requiredSpeedMode)
             }
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
@@ -195,6 +206,9 @@ final class ConversationViewModel {
         let task = Task { [self] in
             if let requiredPlanModeEnabled {
                 try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+            }
+            if let requiredSpeedMode {
+                try await ensureSpeedModeForOutbound(requiredSpeedMode)
             }
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {

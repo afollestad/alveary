@@ -2,13 +2,6 @@ import AgentCLIKit
 import SwiftData
 import SwiftUI
 
-struct ComposerCapabilities: Sendable {
-    let supportedPermissionModes: [PermissionModeOption]
-    let supportsMidTurnSteering: Bool
-    var supportsPlanMode = false
-    var planModeDisabledTooltip: String?
-}
-
 struct ConversationView: View {
     let conversation: Conversation
     let agentsManager: any AgentsManager
@@ -30,7 +23,7 @@ struct ConversationView: View {
     let diffViewModel: DiffViewerViewModel
     @Bindable var appState: AppState
 
-    @State private var viewModel: ConversationViewModel
+    @State var viewModel: ConversationViewModel
     @State private var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
     @State private var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
 
@@ -54,7 +47,7 @@ struct ConversationView: View {
         activeAgentProviderID.flatMap { composerProviderStatuses[$0] }
     }
 
-    private var composerCapabilities: ComposerCapabilities {
+    var composerCapabilities: ComposerCapabilities {
         let provider = providerRegistry.provider(for: activeProviderID)
 
         let supportsPlanMode = activeProviderStatus?.definition?.capabilities.supportsPlanMode
@@ -65,6 +58,7 @@ struct ConversationView: View {
                 ?? provider?.supportsMidTurnSteering
                 ?? false,
             supportsPlanMode: supportsPlanMode,
+            supportsSpeedMode: activeProviderStatus?.definition?.capabilities.supportsSpeedMode ?? false,
             planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: supportsPlanMode)
         )
     }
@@ -224,6 +218,7 @@ struct ConversationView: View {
                 }
 
                 do {
+                    viewModel.normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
                     try await viewModel.queueOrSend(request.message)
                 } catch {
                     viewModel.replaceInputDraft(
@@ -265,6 +260,7 @@ private extension ConversationView {
             modelGroups: composerReasoningModelGroups,
             hasStartedThread: conversation.thread?.hasCompletedInitialSetup == true,
             onEffortChange: applyComposerReasoningEffortChange(_:),
+            onSpeedChange: applyComposerReasoningSpeedChange(_:),
             onModelChange: applyComposerReasoningModelChange(_:)
         )
     }
@@ -281,6 +277,7 @@ private extension ConversationView {
         let effortValue = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
         let effortTitle = effortOptions.first { $0.value == effortValue }?.title
             ?? ChatComposerTextSupport.effortLabel(for: effortValue)
+        let speedMode = composerCapabilities.supportsSpeedMode ? conversation.thread?.normalizedSpeedMode ?? .standard : .standard
 
         return ChatComposerActionRowView.ReasoningSelection(
             providerID: activeProviderID,
@@ -289,7 +286,9 @@ private extension ConversationView {
             modelTitle: modelTitle,
             effortValue: effortValue,
             effortTitle: effortTitle,
-            effortOptions: effortOptions
+            effortOptions: effortOptions,
+            speedMode: speedMode,
+            supportsSpeedMode: composerCapabilities.supportsSpeedMode
         )
     }
 
@@ -427,6 +426,7 @@ private extension ConversationView {
         let storedModel = AgentModelOptionSelection.storedModelValue(in: requestOptions, matching: request.modelID)
         let requestEffortOptions = AgentModelOptionSelection.effortOptions(in: requestOptions, selectedModel: storedModel)
         let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: requestOptions, selectedModel: storedModel)
+        let requestSupportsSpeedMode = composerProviderStatuses[requestProviderID]?.definition?.capabilities.supportsSpeedMode ?? false
         let didApply: Bool
 
         if previousProviderID == request.providerID {
@@ -436,7 +436,8 @@ private extension ConversationView {
             _ = viewModel.applyModelChange(
                 storedModel,
                 effortOptions: requestEffortOptions,
-                defaultEffort: defaultEffort
+                defaultEffort: defaultEffort,
+                supportsSpeedMode: requestSupportsSpeedMode
             )
             didApply = activeProviderID == request.providerID &&
                 selectedComposerModelOptionID(for: activeAgentProviderID) == request.modelID
@@ -448,7 +449,8 @@ private extension ConversationView {
                 providerID: request.providerID,
                 model: storedModel,
                 effortOptions: requestEffortOptions,
-                defaultEffort: defaultEffort
+                defaultEffort: defaultEffort,
+                supportsSpeedMode: requestSupportsSpeedMode
             ) && activeProviderID == request.providerID &&
                 selectedComposerModelOptionID(for: requestProviderID) == request.modelID
         }

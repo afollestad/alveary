@@ -38,6 +38,7 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
     - **Coerce in lockstep with model changes.** `ConversationViewModel.applyModelChange` receives the selected model's effort options from `ConversationView`, and `SettingsViewModel.defaultModel` resolves them from refreshed provider status. Reset unsupported values to the model option default in the same save as the model write so SwiftUI sees model + effort invalidate on one render tick and only **one** `reconfigureSession()` fork fires.
     - **Seed new threads from Settings.** `SidebarViewModel` reads the already-normalized Settings effort when creating a thread; Settings owns applying model-option defaults when the user changes the default model.
     - **Filter the composer dropdown before rendering.** `ConversationView` derives reasoning effort options from the selected `AgentModelOption` and passes them into `ChatView`/`ChatComposerActionRow`; action-row presentation must not rediscover providers or consult app-owned effort maps.
+- `AgentThread.speedMode` is optional thread-scoped speed state. Normalize `nil`, empty, or unknown strings to `AgentSpeedMode.standard`; only persist `.fast` when the active provider status reports speed support, and coerce stale Fast back to Standard in the same save as provider/model normalization.
 
 ## Model Context Helpers
 

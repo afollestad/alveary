@@ -11,8 +11,10 @@ struct SessionSettingsSnapshot: Equatable, Sendable {
     var effort: String
     var permissionMode: String
     var planModeEnabled: Bool
+    var speedMode: AgentSpeedMode
     var runtimePermissionMode: String?
     var runtimePlanModeEnabled: Bool?
+    var runtimeSpeedMode: AgentSpeedMode?
     var lastNonPlanPermissionMode: String?
 }
 
@@ -38,8 +40,12 @@ struct PendingSessionSettingsChange: Equatable, Sendable {
         original.planModeEnabled != pending.planModeEnabled
     }
 
+    var hasSpeedModeChange: Bool {
+        original.speedMode != pending.speedMode
+    }
+
     var hasAnyChange: Bool {
-        hasModelChange || hasEffortChange || hasPermissionModeChange || hasPlanModeChange
+        hasModelChange || hasEffortChange || hasPermissionModeChange || hasPlanModeChange || hasSpeedModeChange
     }
 }
 
@@ -111,6 +117,7 @@ final class ConversationState {
     @ObservationIgnored var pendingExitPlanModeFollowUpQuietTask: Task<Void, Never>?
     var runtimePermissionMode: String?
     var runtimePlanModeEnabled: Bool?
+    var runtimeSpeedMode: AgentSpeedMode?
     var lastNonPlanPermissionMode: String?
     var liveSessionConfig: AgentSpawnConfig?
     var pendingSessionSettingsChange: PendingSessionSettingsChange?

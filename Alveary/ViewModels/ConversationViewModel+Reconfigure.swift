@@ -49,11 +49,13 @@ extension ConversationViewModel {
         guard result == .restarted else {
             if result == .appliedInPlace {
                 state.liveSessionConfig = config
+                state.runtimeSpeedMode = config.speedMode
             }
             return
         }
 
         state.liveSessionConfig = config
+        state.runtimeSpeedMode = config.speedMode
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil

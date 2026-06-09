@@ -33,6 +33,7 @@ extension ConversationViewModel {
 
         let permissionModeOverride = spawnPermissionModeOverride(settingsSource: settingsSource, context: settingsContext)
         let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
+        let speedModeOverride = spawnSpeedModeOverride(settingsSource: settingsSource, context: settingsContext)
         let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
 
         return AgentSpawnConfig(
@@ -42,6 +43,7 @@ extension ConversationViewModel {
             planModeEnabled: planModeOverride ?? dbConversation.thread?.planModeEnabled ?? false,
             model: modelAndEffort.model,
             effort: modelAndEffort.effort,
+            speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
             initialPrompt: initialPrompt
         )
     }
@@ -52,6 +54,10 @@ extension ConversationViewModel {
 
     func pendingPlanModeForDisplay() -> Bool? {
         state.pendingSessionSettingsChange?.pending.planModeEnabled
+    }
+
+    func pendingSpeedModeForDisplay() -> AgentSpeedMode? {
+        state.pendingSessionSettingsChange?.pending.speedMode
     }
 
     func applyPendingSessionSettingsForNextTurn() async throws {
@@ -98,6 +104,9 @@ extension ConversationViewModel {
         if pending.hasPlanModeChange {
             state.runtimePlanModeEnabled = pending.pending.planModeEnabled
         }
+        if pending.hasSpeedModeChange {
+            state.runtimeSpeedMode = pending.pending.speedMode
+        }
 
         state.liveSessionConfig = config
         state.pendingSessionSettingsChange = nil
@@ -124,6 +133,9 @@ extension ConversationViewModel {
         }
         if pending.hasPlanModeChange {
             dbThread.planModeEnabled = pending.original.planModeEnabled
+        }
+        if pending.hasSpeedModeChange {
+            dbThread.speedMode = pending.original.speedMode.rawValue
         }
         state.pendingSessionSettingsChange = nil
         try? modelContext.save()
@@ -204,6 +216,11 @@ extension ConversationViewModel {
             ?? state.runtimePlanModeEnabled
             ?? dbThread.planModeEnabled
             ?? false
+    }
+
+    func displayedSpeedModeSetting(for dbThread: AgentThread) -> AgentSpeedMode {
+        state.pendingSessionSettingsChange?.pending.speedMode
+            ?? dbThread.normalizedSpeedMode
     }
 
     func refreshPendingSessionSettingsChange(
@@ -314,8 +331,10 @@ extension ConversationViewModel {
             effort: dbThread.effort,
             permissionMode: dbThread.permissionMode,
             planModeEnabled: dbThread.planModeEnabled ?? false,
+            speedMode: dbThread.normalizedSpeedMode,
             runtimePermissionMode: state.runtimePermissionMode,
             runtimePlanModeEnabled: state.runtimePlanModeEnabled,
+            runtimeSpeedMode: state.runtimeSpeedMode,
             lastNonPlanPermissionMode: state.lastNonPlanPermissionMode
         )
     }
@@ -364,6 +383,23 @@ extension ConversationViewModel {
             return pendingSettings.pending.planModeEnabled
         }
         return state.runtimePlanModeEnabled
+    }
+
+    private func spawnSpeedModeOverride(
+        settingsSource: SessionSettingsConfigSource,
+        context: SpawnSettingsContext
+    ) -> AgentSpeedMode? {
+        if settingsSource == .currentContinuation {
+            return state.runtimeSpeedMode
+                ?? context.liveConfig?.speedMode
+                ?? context.currentContinuationSnapshot?.runtimeSpeedMode
+                ?? context.currentContinuationSnapshot?.speedMode
+        }
+        if let pendingSettings = state.pendingSessionSettingsChange,
+           pendingSettings.hasSpeedModeChange {
+            return pendingSettings.pending.speedMode
+        }
+        return state.runtimeSpeedMode
     }
 
     private func spawnModelAndEffort(context: SpawnSettingsContext, thread: AgentThread?) -> (model: String?, effort: String?) {
