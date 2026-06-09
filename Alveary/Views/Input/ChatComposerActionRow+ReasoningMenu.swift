@@ -19,6 +19,9 @@ extension ChatComposerActionRowView {
             configuration: configuration.reasoning,
             onRequestCloseMainMenu: { [weak self] in
                 self?.closeReasoningMenu()
+            },
+            onContentSizeChanged: { [weak self] size in
+                self?.applyReasoningPopoverContentSize(size)
             }
         )
         let popover = NSPopover()
@@ -26,9 +29,13 @@ extension ChatComposerActionRowView {
         popover.animates = false
         popover.delegate = self
         popover.contentViewController = controller
+        popover.contentSize = controller.preferredContentSize
         reasoningMenuController = controller
         reasoningPopover = popover
-        popover.show(relativeTo: reasoningButton.bounds, of: reasoningButton, preferredEdge: .minY)
+        let anchorRect = captureReasoningPopoverAnchorRect()
+        reasoningPopoverAnchorRect = anchorRect
+        popover.show(relativeTo: anchorRect, of: self, preferredEdge: .minY)
+        controller.alignContentViewToPopoverHost()
     }
 
     func closeReasoningMenu() {
@@ -48,8 +55,23 @@ extension ChatComposerActionRowView {
         reasoningMenuController?.closeSpeedMenu()
         popover.delegate = nil
         reasoningPopover = nil
+        reasoningPopoverAnchorRect = nil
         reasoningMenuController = nil
         reasoningButton.releaseMenuFocusIfNeeded()
+    }
+
+    func captureReasoningPopoverAnchorRect() -> NSRect {
+        reasoningButton.convert(reasoningButton.bounds, to: self)
+    }
+
+    func applyReasoningPopoverContentSize(_ size: NSSize) {
+        guard let popover = reasoningPopover,
+              let controller = reasoningMenuController,
+              popover.contentViewController === controller else {
+            return
+        }
+        controller.preferredContentSize = size
+        popover.contentSize = size
     }
 }
 

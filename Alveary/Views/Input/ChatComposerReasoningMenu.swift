@@ -4,6 +4,7 @@ import AppKit
 final class ComposerReasoningMenuViewController: NSViewController {
     private var configuration: ChatComposerActionRowView.ReasoningConfiguration
     private let onRequestCloseMainMenu: () -> Void
+    private let onContentSizeChanged: (NSSize) -> Void
     private var menuView: ComposerReasoningMenuView?
     private var modelPopover: NSPopover?
     private var modelMenuController: ComposerReasoningModelMenuViewController?
@@ -18,39 +19,31 @@ final class ComposerReasoningMenuViewController: NSViewController {
 
     init(
         configuration: ChatComposerActionRowView.ReasoningConfiguration,
-        onRequestCloseMainMenu: @escaping () -> Void
+        onRequestCloseMainMenu: @escaping () -> Void,
+        onContentSizeChanged: @escaping (NSSize) -> Void = { _ in }
     ) {
         self.configuration = configuration
         self.onRequestCloseMainMenu = onRequestCloseMainMenu
+        self.onContentSizeChanged = onContentSizeChanged
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func loadView() {
         let menuView = ComposerReasoningMenuView(
             configuration: configuration,
-            onEffortSelected: { [weak self] effort in
-                self?.selectEffort(effort)
-            },
-            onModelMenuRequested: { [weak self] anchor in
-                self?.showModelMenu(relativeTo: anchor)
-            },
+            onEffortSelected: { [weak self] in self?.selectEffort($0) },
+            onModelMenuRequested: { [weak self] in self?.showModelMenu(relativeTo: $0) },
             onModelRowHoverChanged: { [weak self] isHovering, anchor in
                 self?.setModelRowHovered(isHovering, relativeTo: anchor)
             },
-            onSpeedMenuRequested: { [weak self] anchor in
-                self?.showSpeedMenu(relativeTo: anchor)
-            },
+            onSpeedMenuRequested: { [weak self] in self?.showSpeedMenu(relativeTo: $0) },
             onSpeedRowHoverChanged: { [weak self] isHovering, anchor in
                 self?.setSpeedRowHovered(isHovering, relativeTo: anchor)
             },
-            onCancel: { [weak self] in
-                self?.onRequestCloseMainMenu()
-            }
+            onCancel: { [weak self] in self?.onRequestCloseMainMenu() }
         )
         self.menuView = menuView
         view = menuView
@@ -58,9 +51,8 @@ final class ComposerReasoningMenuViewController: NSViewController {
 
     func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
         self.configuration = configuration
-        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
-        preferredContentSize = size
         menuView?.update(configuration: configuration)
+        applyContentSize(for: configuration)
         modelMenuController?.update(
             groups: configuration.modelGroups,
             selectedProviderID: configuration.selection.providerID,
@@ -118,29 +110,27 @@ final class ComposerReasoningMenuViewController: NSViewController {
             selectedProviderID: configuration.selection.providerID,
             selectedModelID: configuration.selection.modelID,
             showsProviderHeaders: !configuration.hasStartedThread,
-            onModelSelected: { [weak self] request in
-                self?.selectModel(request)
-            },
-            onHoverChanged: { [weak self] isHovering in
-                self?.setModelMenuHovered(isHovering)
-            },
-            onCancel: { [weak self] in
-                self?.closeModelMenu()
+            onModelSelected: { [weak self] in self?.selectModel($0) },
+            onHoverChanged: { [weak self] in self?.setModelMenuHovered($0) },
+            onCancel: { [weak self] in self?.closeModelMenu() },
+            onContentSizeChanged: { [weak self] size in
+                self?.applyModelPopoverContentSize(size)
             }
         )
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = false
         popover.contentViewController = controller
+        popover.contentSize = controller.preferredContentSize
         modelMenuController = controller
         modelPopover = popover
-        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxX)
+        let sourceRect = submenuSourceRect(relativeTo: anchor, contentSize: controller.preferredContentSize)
+        popover.show(relativeTo: sourceRect, of: view, preferredEdge: .maxX)
+        controller.alignContentViewToPopoverHost()
     }
 
     private func showSpeedMenu(relativeTo anchor: NSView) {
-        guard configuration.selection.supportsSpeedMode else {
-            return
-        }
+        guard configuration.selection.supportsSpeedMode else { return }
         closeModelMenu()
         if speedPopover?.isShown == true {
             speedMenuController?.update(selectedSpeedMode: configuration.selection.speedMode)
@@ -149,15 +139,9 @@ final class ComposerReasoningMenuViewController: NSViewController {
 
         let controller = ComposerReasoningSpeedMenuViewController(
             selectedSpeedMode: configuration.selection.speedMode,
-            onSpeedSelected: { [weak self] speedMode in
-                self?.selectSpeedMode(speedMode)
-            },
-            onHoverChanged: { [weak self] isHovering in
-                self?.setSpeedMenuHovered(isHovering)
-            },
-            onCancel: { [weak self] in
-                self?.closeSpeedMenu()
-            }
+            onSpeedSelected: { [weak self] in self?.selectSpeedMode($0) },
+            onHoverChanged: { [weak self] in self?.setSpeedMenuHovered($0) },
+            onCancel: { [weak self] in self?.closeSpeedMenu() }
         )
         let popover = NSPopover()
         popover.behavior = .transient
@@ -179,11 +163,13 @@ final class ComposerReasoningMenuViewController: NSViewController {
             update(configuration: configuration)
         case .applied(let selection):
             configuration.selection = selection
-            update(configuration: configuration)
-            // Model selections close only the drill-in submenu. The main popup
-            // stays open so the selected model's reasoning default remains visible.
             closeModelMenu()
+            update(configuration: configuration)
         }
+    }
+
+    func alignContentViewToPopoverHost() {
+        applyLoadedContentFrame(size: preferredContentSize)
     }
 
     private func selectSpeedMode(_ speedMode: AgentSpeedMode) {
@@ -253,11 +239,7 @@ final class ComposerReasoningMenuViewController: NSViewController {
         closeModelMenuTask?.cancel()
         closeModelMenuTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
-            guard let self,
-                  !isModelRowHovered,
-                  !isModelMenuHovered else {
-                return
-            }
+            guard let self, !isModelRowHovered, !isModelMenuHovered else { return }
             closeModelMenu()
         }
     }
@@ -266,13 +248,43 @@ final class ComposerReasoningMenuViewController: NSViewController {
         closeSpeedMenuTask?.cancel()
         closeSpeedMenuTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
-            guard let self,
-                  !isSpeedRowHovered,
-                  !isSpeedMenuHovered else {
-                return
-            }
+            guard let self, !isSpeedRowHovered, !isSpeedMenuHovered else { return }
             closeSpeedMenu()
         }
+    }
+
+    private func applyContentSize(for configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        preferredContentSize = size
+        onContentSizeChanged(size)
+        applyLoadedContentFrame(size: size)
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self, preferredContentSize == size else { return }
+            applyLoadedContentFrame(size: size)
+        }
+    }
+
+    private func applyLoadedContentFrame(size: NSSize) {
+        guard isViewLoaded else { return }
+        view.frame = ComposerReasoningPopoverContentFrame.topAlignedFrame(for: view, size: size)
+        view.layoutSubtreeIfNeeded()
+    }
+
+    private func applyModelPopoverContentSize(_ size: NSSize) {
+        guard let popover = modelPopover,
+              let controller = modelMenuController,
+              popover.contentViewController === controller else {
+            return
+        }
+        controller.preferredContentSize = size
+        popover.contentSize = size
+    }
+
+    func submenuSourceRect(relativeTo anchor: NSView, contentSize: NSSize) -> NSRect {
+        let anchorRect = anchor.convert(anchor.bounds, to: view)
+        let originY = max(0, min(anchorRect.minY, view.bounds.height - contentSize.height))
+        return NSRect(x: anchorRect.minX, y: originY, width: anchorRect.width, height: contentSize.height)
     }
 }
 
@@ -313,9 +325,7 @@ private final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView 
         rebuildRows()
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
         self.configuration = configuration

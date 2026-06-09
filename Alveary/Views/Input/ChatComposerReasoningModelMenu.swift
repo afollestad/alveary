@@ -9,6 +9,7 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
     private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
     private let onHoverChanged: (Bool) -> Void
     private let onCancel: () -> Void
+    private let onContentSizeChanged: (NSSize) -> Void
     private var modelView: ComposerReasoningModelMenuView?
 
     init(
@@ -18,7 +19,8 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
         showsProviderHeaders: Bool,
         onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
         onHoverChanged: @escaping (Bool) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onContentSizeChanged: @escaping (NSSize) -> Void = { _ in }
     ) {
         self.groups = groups
         self.selectedProviderID = selectedProviderID
@@ -27,6 +29,7 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
         self.onModelSelected = onModelSelected
         self.onHoverChanged = onHoverChanged
         self.onCancel = onCancel
+        self.onContentSizeChanged = onContentSizeChanged
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = ComposerReasoningMenuMetrics.modelContentSize(
             groups: groups,
@@ -58,20 +61,62 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
         selectedModelID: String,
         showsProviderHeaders: Bool
     ) {
+        let previousGroups = self.groups
+        let previousShowsProviderHeaders = self.showsProviderHeaders
+        let previousContentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
+            groups: self.groups,
+            showsProviderHeaders: self.showsProviderHeaders
+        )
+        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
+            groups: groups,
+            showsProviderHeaders: showsProviderHeaders
+        )
+        let shouldResetScrollPosition = previousGroups != groups ||
+            previousShowsProviderHeaders != showsProviderHeaders ||
+            previousContentHeight != contentHeight
+
         self.groups = groups
         self.selectedProviderID = selectedProviderID
         self.selectedModelID = selectedModelID
         self.showsProviderHeaders = showsProviderHeaders
-        preferredContentSize = ComposerReasoningMenuMetrics.modelContentSize(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
         modelView?.update(
             groups: groups,
             selectedProviderID: selectedProviderID,
             selectedModelID: selectedModelID,
             showsProviderHeaders: showsProviderHeaders
         )
+        applyContentSize(groups: groups, showsProviderHeaders: showsProviderHeaders)
+        if shouldResetScrollPosition {
+            modelView?.resetScrollPosition()
+        }
+    }
+
+    func alignContentViewToPopoverHost() {
+        applyLoadedContentFrame(size: preferredContentSize)
+    }
+
+    private func applyContentSize(
+        groups: [ChatComposerActionRowView.ReasoningModelGroup],
+        showsProviderHeaders: Bool
+    ) {
+        let size = ComposerReasoningMenuMetrics.modelContentSize(
+            groups: groups,
+            showsProviderHeaders: showsProviderHeaders
+        )
+        preferredContentSize = size
+        onContentSizeChanged(size)
+        applyLoadedContentFrame(size: size)
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self, preferredContentSize == size else { return }
+            applyLoadedContentFrame(size: size)
+        }
+    }
+
+    private func applyLoadedContentFrame(size: NSSize) {
+        guard isViewLoaded else { return }
+        view.frame = ComposerReasoningPopoverContentFrame.topAlignedFrame(for: view, size: size)
+        view.layoutSubtreeIfNeeded()
     }
 }
 
@@ -133,6 +178,11 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
         )
         rebuildRows()
         needsLayout = true
+    }
+
+    func resetScrollPosition() {
+        scrollView.contentView.scroll(to: .zero)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
     }
 
     override func layout() {

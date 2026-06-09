@@ -124,6 +124,108 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         #endif
     }
 
+    func testReasoningMenuResizeFromManyEffortOptionsToFewKeepsContentTopPinned() throws {
+        var publishedSizes: [NSSize] = []
+        let initialConfiguration = makeReasoningConfiguration(effortOptions: [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High"),
+            .init(value: "max", title: "Max")
+        ])
+        let fewOptions: [ChatComposerActionRowView.MenuOption] = [
+            .init(value: "low", title: "Low")
+        ]
+        let controller = ComposerReasoningMenuViewController(
+            configuration: initialConfiguration,
+            onRequestCloseMainMenu: {},
+            onContentSizeChanged: { publishedSizes.append($0) }
+        )
+        controller.loadViewIfNeeded()
+        let host = NSView(frame: NSRect(origin: .zero, size: controller.preferredContentSize))
+        host.addSubview(controller.view)
+
+        controller.update(configuration: makeReasoningConfiguration(effortOptions: fewOptions))
+
+        let expectedSize = ComposerReasoningMenuMetrics.mainContentSize(for: makeReasoningConfiguration(effortOptions: fewOptions))
+        let header = try XCTUnwrap(reasoningHeader(in: controller.view))
+        XCTAssertEqual(publishedSizes.last, expectedSize)
+        XCTAssertEqual(controller.preferredContentSize, expectedSize)
+        XCTAssertEqual(controller.view.frame.size, expectedSize)
+        XCTAssertEqual(controller.view.frame.maxY, ComposerReasoningPopoverContentFrame.visibleTopY(
+            in: host,
+            contentSize: expectedSize
+        ), accuracy: 1)
+        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
+    }
+
+    func testReasoningMenuResizeFromFewEffortOptionsToManyKeepsContentTopPinned() throws {
+        var publishedSizes: [NSSize] = []
+        let fewConfiguration = makeReasoningConfiguration(effortOptions: [
+            .init(value: "low", title: "Low")
+        ])
+        let manyOptions: [ChatComposerActionRowView.MenuOption] = [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High"),
+            .init(value: "max", title: "Max")
+        ]
+        let controller = ComposerReasoningMenuViewController(
+            configuration: fewConfiguration,
+            onRequestCloseMainMenu: {},
+            onContentSizeChanged: { publishedSizes.append($0) }
+        )
+        controller.loadViewIfNeeded()
+        let host = NSView(frame: NSRect(origin: .zero, size: controller.preferredContentSize))
+        host.addSubview(controller.view)
+
+        controller.update(configuration: makeReasoningConfiguration(effortOptions: manyOptions))
+
+        let expectedSize = ComposerReasoningMenuMetrics.mainContentSize(for: makeReasoningConfiguration(effortOptions: manyOptions))
+        let header = try XCTUnwrap(reasoningHeader(in: controller.view))
+        let firstRow = try XCTUnwrap(controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Low"
+        })
+        XCTAssertEqual(publishedSizes.last, expectedSize)
+        XCTAssertEqual(controller.preferredContentSize, expectedSize)
+        XCTAssertEqual(controller.view.frame.size, expectedSize)
+        XCTAssertEqual(controller.view.frame.maxY, ComposerReasoningPopoverContentFrame.visibleTopY(
+            in: host,
+            contentSize: expectedSize
+        ), accuracy: 1)
+        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(firstRow.frame.minY, controller.view.bounds.minY)
+        XCTAssertLessThanOrEqual(firstRow.frame.maxY, controller.view.bounds.maxY)
+    }
+
+    func testReasoningMenuContentFrameCompensatesForPopoverHostTopInset() throws {
+        let configuration = makeReasoningConfiguration(effortOptions: [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High"),
+            .init(value: "extra-high", title: "Extra High")
+        ], supportsSpeedMode: true)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration,
+            onRequestCloseMainMenu: {}
+        )
+        controller.loadViewIfNeeded()
+        let contentSize = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        let host = NSView(frame: NSRect(
+            x: 0,
+            y: 0,
+            width: contentSize.width,
+            height: contentSize.height + ComposerReasoningMenuMetrics.verticalInset
+        ))
+        host.addSubview(controller.view)
+
+        controller.alignContentViewToPopoverHost()
+
+        let header = try XCTUnwrap(reasoningHeader(in: controller.view))
+        XCTAssertEqual(controller.view.frame.origin.y, 0, accuracy: 1)
+        XCTAssertEqual(controller.view.frame.maxY, contentSize.height, accuracy: 1)
+        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
+    }
+
     func testReasoningMenuModelSelectionKeepsMainMenuOpen() {
         var closeCount = 0
         let modelOptions: [ChatComposerActionRowView.MenuOption] = [
@@ -237,6 +339,56 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         assertHeaderTextBottomInset(codexHeader)
     }
 
+    func testReasoningModelSubmenuResizeResetsScrollOnlyWhenContentChanges() throws {
+        var publishedSizes: [NSSize] = []
+        let longGroups = makeReasoningModelGroups(modelCount: 20)
+        let controller = ComposerReasoningModelMenuViewController(
+            groups: longGroups,
+            selectedProviderID: "claude",
+            selectedModelID: "model-0",
+            showsProviderHeaders: true,
+            onModelSelected: { _ in },
+            onHoverChanged: { _ in },
+            onCancel: {},
+            onContentSizeChanged: { publishedSizes.append($0) }
+        )
+        controller.loadViewIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+        let scrollView = try XCTUnwrap(controller.view.descendants(of: NSScrollView.self).first)
+        let host = NSView(frame: NSRect(origin: .zero, size: controller.preferredContentSize))
+        host.addSubview(controller.view)
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 80))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        controller.update(
+            groups: longGroups,
+            selectedProviderID: "claude",
+            selectedModelID: "model-1",
+            showsProviderHeaders: true
+        )
+        XCTAssertEqual(scrollView.contentView.bounds.origin.y, 80, accuracy: 1)
+
+        controller.update(
+            groups: makeReasoningModelGroups(modelCount: 2),
+            selectedProviderID: "claude",
+            selectedModelID: "model-0",
+            showsProviderHeaders: true
+        )
+
+        let expectedSize = ComposerReasoningMenuMetrics.modelContentSize(
+            groups: makeReasoningModelGroups(modelCount: 2),
+            showsProviderHeaders: true
+        )
+        XCTAssertEqual(publishedSizes.last, expectedSize)
+        XCTAssertEqual(controller.preferredContentSize, expectedSize)
+        XCTAssertEqual(controller.view.frame.size, expectedSize)
+        XCTAssertEqual(controller.view.frame.maxY, ComposerReasoningPopoverContentFrame.visibleTopY(
+            in: host,
+            contentSize: expectedSize
+        ), accuracy: 1)
+        XCTAssertEqual(scrollView.contentView.bounds.origin, NSPoint.zero)
+    }
+
     func testSharedPopoverDividerResolvesAppearanceColor() throws {
         let divider = AppKitComposerPopoverDividerView(frame: NSRect(
             x: 0,
@@ -257,39 +409,60 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         }
     }
 
-    private func assertHeaderTextBottomInset(
-        _ header: ComposerReasoningHeaderView,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        #if DEBUG
-        XCTAssertEqual(
-            header.debugTitleDrawingRect.maxY,
-            header.bounds.height,
-            accuracy: 1,
-            file: file,
-            line: line
-        )
-        #endif
-    }
+}
 
-    private func assertColor(
-        _ actualColor: CGColor?,
-        equals expectedColor: NSColor,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard let actualColor,
-              let actual = NSColor(cgColor: actualColor)?.usingColorSpace(.deviceRGB),
-              let expected = expectedColor.usingColorSpace(.deviceRGB) else {
-            XCTFail("Expected comparable colors", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(actual.redComponent, expected.redComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(actual.greenComponent, expected.greenComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.001, file: file, line: line)
-        XCTAssertEqual(actual.alphaComponent, expected.alphaComponent, accuracy: 0.001, file: file, line: line)
+@MainActor
+private func assertHeaderTextBottomInset(
+    _ header: ComposerReasoningHeaderView,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    #if DEBUG
+    XCTAssertEqual(
+        header.debugTitleDrawingRect.maxY,
+        header.bounds.height,
+        accuracy: 1,
+        file: file,
+        line: line
+    )
+    #endif
+}
+
+private func assertColor(
+    _ actualColor: CGColor?,
+    equals expectedColor: NSColor,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    guard let actualColor,
+          let actual = NSColor(cgColor: actualColor)?.usingColorSpace(.deviceRGB),
+          let expected = expectedColor.usingColorSpace(.deviceRGB) else {
+        XCTFail("Expected comparable colors", file: file, line: line)
+        return
     }
+    XCTAssertEqual(actual.redComponent, expected.redComponent, accuracy: 0.001, file: file, line: line)
+    XCTAssertEqual(actual.greenComponent, expected.greenComponent, accuracy: 0.001, file: file, line: line)
+    XCTAssertEqual(actual.blueComponent, expected.blueComponent, accuracy: 0.001, file: file, line: line)
+    XCTAssertEqual(actual.alphaComponent, expected.alphaComponent, accuracy: 0.001, file: file, line: line)
+}
+
+@MainActor
+private func reasoningHeader(in view: NSView) -> ComposerReasoningHeaderView? {
+    view.descendants(of: ComposerReasoningHeaderView.self).first {
+        $0.stringValue == "Reasoning"
+    }
+}
+
+private func makeReasoningModelGroups(modelCount: Int) -> [ChatComposerActionRowView.ReasoningModelGroup] {
+    [
+        .init(
+            providerID: "claude",
+            providerTitle: "Claude Code",
+            options: (0..<modelCount).map { index in
+                .init(providerID: "claude", value: "model-\(index)", title: "Model \(index)")
+            }
+        )
+    ]
 }
 
 private extension NSView {

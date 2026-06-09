@@ -143,3 +143,39 @@ enum ComposerReasoningMenuMetrics {
             (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
     }
 }
+
+@MainActor
+enum ComposerReasoningPopoverContentFrame {
+    static func topAlignedFrame(for view: NSView, size: NSSize) -> NSRect {
+        guard let superview = view.superview else {
+            return NSRect(origin: .zero, size: size)
+        }
+        // AppKit's popover host can be a few points taller than the content
+        // surface because of chrome/arrow geometry. Align to the usable top so
+        // the flipped menu content is not clipped while the host fill stays covered.
+        let topInset = hostTopInset(for: superview, contentSize: size)
+        let originY = superview.isFlipped
+            ? superview.bounds.minY + topInset
+            : superview.bounds.maxY - size.height - topInset
+        return NSRect(
+            x: view.frame.origin.x,
+            y: originY,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    static func visibleTopY(in superview: NSView, contentSize: NSSize) -> CGFloat {
+        let topInset = hostTopInset(for: superview, contentSize: contentSize)
+        return superview.isFlipped
+            ? superview.bounds.minY + topInset
+            : superview.bounds.maxY - topInset
+    }
+
+    private static func hostTopInset(for superview: NSView, contentSize: NSSize) -> CGFloat {
+        min(
+            max(0, superview.bounds.height - contentSize.height),
+            ComposerReasoningMenuMetrics.verticalInset
+        )
+    }
+}

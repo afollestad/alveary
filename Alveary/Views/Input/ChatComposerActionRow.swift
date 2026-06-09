@@ -191,6 +191,7 @@ final class ChatComposerActionRowView: NSView {
     var configuration: Configuration?
     var plusPopover: NSPopover?
     var reasoningPopover: NSPopover?
+    var reasoningPopoverAnchorRect: NSRect?
     var reasoningMenuController: ComposerReasoningMenuViewController?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?

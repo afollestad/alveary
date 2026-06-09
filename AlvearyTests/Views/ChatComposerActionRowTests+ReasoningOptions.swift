@@ -21,6 +21,174 @@ extension ChatComposerActionRowTests {
         XCTAssertEqual(effortOptions.map(\.value), ["low", "medium"])
     }
 
+    func testReasoningPopoverAnchorStaysFixedWhenReasoningButtonWidthChanges() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            modelOptions: [.init(value: "haiku", title: "Haiku")]
+        ))
+        row.layoutSubtreeIfNeeded()
+
+        let initialAnchor = row.captureReasoningPopoverAnchorRect()
+        row.reasoningPopoverAnchorRect = initialAnchor
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            modelOptions: [.init(value: "codex-spark", title: "GPT-5.3-Codex-Spark")]
+        ))
+        row.layoutSubtreeIfNeeded()
+
+        let storedAnchor = try XCTUnwrap(row.reasoningPopoverAnchorRect)
+        let liveAnchor = row.captureReasoningPopoverAnchorRect()
+        XCTAssertEqual(storedAnchor.minX, initialAnchor.minX, accuracy: 1)
+        XCTAssertEqual(storedAnchor.midX, initialAnchor.midX, accuracy: 1)
+        XCTAssertEqual(storedAnchor.width, initialAnchor.width, accuracy: 1)
+        XCTAssertGreaterThan(liveAnchor.width, initialAnchor.width + 1)
+        XCTAssertGreaterThan(abs(liveAnchor.midX - initialAnchor.midX), 1)
+    }
+
+    func testReasoningPopoverContentSizeUpdatesEvenWhenPopoverIsNotReportedShown() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(effortOptions: [
+                .init(value: "low", title: "Low"),
+                .init(value: "medium", title: "Medium"),
+                .init(value: "high", title: "High"),
+                .init(value: "max", title: "Max")
+            ]),
+            onRequestCloseMainMenu: {},
+            onContentSizeChanged: { [weak row] in
+                row?.applyReasoningPopoverContentSize($0)
+            }
+        )
+        let popover = NSPopover()
+        popover.contentViewController = controller
+        popover.contentSize = controller.preferredContentSize
+        row.reasoningMenuController = controller
+        row.reasoningPopover = popover
+
+        let smallerConfiguration = makeReasoningConfiguration(effortOptions: [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High")
+        ])
+        controller.update(configuration: smallerConfiguration)
+
+        XCTAssertFalse(popover.isShown)
+        XCTAssertEqual(popover.contentSize, ComposerReasoningMenuMetrics.mainContentSize(for: smallerConfiguration))
+    }
+
+    func testOpenReasoningPopoverContentSizeTracksConfigurationChanges() throws {
+        let largeEffortOptions: [ChatComposerActionRowView.MenuOption] = [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High"),
+            .init(value: "max", title: "Max")
+        ]
+        let smallEffortOptions: [ChatComposerActionRowView.MenuOption] = [
+            .init(value: "low", title: "Low"),
+            .init(value: "medium", title: "Medium"),
+            .init(value: "high", title: "High")
+        ]
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+        let largeConfiguration = makeConfiguration(mode: .idle, effortOptions: largeEffortOptions)
+        row.configure(largeConfiguration)
+        let window = NSWindow(contentRect: row.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = row
+        window.orderFrontRegardless()
+        row.layoutSubtreeIfNeeded()
+        defer {
+            row.closeReasoningMenu()
+            window.close()
+        }
+
+        row.toggleReasoningMenu()
+
+        let popover = try XCTUnwrap(row.reasoningPopover)
+        XCTAssertEqual(popover.contentSize, ComposerReasoningMenuMetrics.mainContentSize(for: largeConfiguration.reasoning))
+
+        let smallConfiguration = makeConfiguration(mode: .idle, effortOptions: smallEffortOptions)
+        row.configure(smallConfiguration)
+
+        XCTAssertEqual(popover.contentSize, ComposerReasoningMenuMetrics.mainContentSize(for: smallConfiguration.reasoning))
+        XCTAssertEqual(row.reasoningMenuController?.view.frame.size, popover.contentSize)
+    }
+
+    func testOpenReasoningModelSubmenuContentTopAlignsToPopoverHost() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            providerOptions: [
+                .init(value: "claude", title: "Claude"),
+                .init(value: "codex", title: "Codex")
+            ],
+            modelOptions: [
+                .init(value: "sonnet", title: "Sonnet"),
+                .init(value: "opus", title: "Opus"),
+                .init(value: "haiku", title: "Haiku")
+            ]
+        ))
+        let window = NSWindow(contentRect: row.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = row
+        window.orderFrontRegardless()
+        row.layoutSubtreeIfNeeded()
+        defer {
+            row.closeReasoningMenu()
+            window.close()
+        }
+
+        row.toggleReasoningMenu()
+        let controller = try XCTUnwrap(row.reasoningMenuController)
+        controller.view.layoutSubtreeIfNeeded()
+        let modelRow = try XCTUnwrap(controller.view.subviews.compactMap { $0 as? ComposerReasoningMenuRowView }.first {
+            $0.accessibilityLabel() == "Model"
+        })
+
+        XCTAssertTrue(modelRow.accessibilityPerformPress())
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+
+        let modelSurface = try XCTUnwrap(NSApp.windows.compactMap(\.contentView).flatMap {
+            var surfaces = $0.descendants(of: AppKitComposerPopoverSurfaceView.self)
+            if let surface = $0 as? AppKitComposerPopoverSurfaceView {
+                surfaces.insert(surface, at: 0)
+            }
+            return surfaces
+        }.first { !$0.descendants(of: NSScrollView.self).isEmpty })
+        let scrollView = try XCTUnwrap(modelSurface.descendants(of: NSScrollView.self).first)
+        XCTAssertEqual(scrollView.frame, modelSurface.bounds)
+        let header = try XCTUnwrap(scrollView.documentView?.subviews.compactMap { $0 as? ComposerReasoningHeaderView }.first)
+        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
+    }
+
+    func testReasoningModelSubmenuSourceRectTopAlignsTallContent() throws {
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(
+                effortOptions: [
+                    .init(value: "low", title: "Low"),
+                    .init(value: "medium", title: "Medium"),
+                    .init(value: "high", title: "High"),
+                    .init(value: "extra-high", title: "Extra High"),
+                    .init(value: "max", title: "Max")
+                ],
+                supportsSpeedMode: true
+            ),
+            onRequestCloseMainMenu: {}
+        )
+        controller.loadViewIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+        let modelRow = try XCTUnwrap(controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
+            $0.accessibilityLabel() == "Model"
+        })
+        let tallContentSize = NSSize(width: ComposerReasoningMenuMetrics.modelWidth, height: controller.view.bounds.height)
+        let sourceRect = controller.submenuSourceRect(relativeTo: modelRow, contentSize: tallContentSize)
+        let modelRowRect = modelRow.convert(modelRow.bounds, to: controller.view)
+
+        XCTAssertGreaterThan(modelRowRect.minY, 0)
+        XCTAssertEqual(sourceRect.minY, 0, accuracy: 1)
+        XCTAssertEqual(sourceRect.height, tallContentSize.height, accuracy: 1)
+        XCTAssertEqual(sourceRect.minX, modelRowRect.minX, accuracy: 1)
+    }
+
     #if DEBUG
     func testReasoningButtonKeepsFixedGapWhenModelIsTruncated() throws {
         let button = makeReasoningButton(
@@ -210,6 +378,18 @@ extension ChatComposerActionRowTests {
         try assertReasoningButtonEffortChevronGap(button)
     }
     #endif
+}
+
+private extension NSView {
+    func descendants<ViewType: NSView>(of type: ViewType.Type) -> [ViewType] {
+        subviews.flatMap { child -> [ViewType] in
+            var matches = child.descendants(of: type)
+            if let typed = child as? ViewType {
+                matches.insert(typed, at: 0)
+            }
+            return matches
+        }
+    }
 }
 
 #if DEBUG
