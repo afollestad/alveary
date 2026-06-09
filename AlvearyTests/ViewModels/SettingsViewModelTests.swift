@@ -132,7 +132,6 @@ final class SettingsViewModelTests: XCTestCase {
         let service = InMemorySettingsService()
         service.update {
             $0.contextManagementEnabled = false
-            $0.sessionHandoffCommandEnabled = false
             $0.sessionHandoffWindowPercentage = 75
             $0.handoffSteeringEnabled = false
             $0.handoffSteeringCountdownSeconds = 15
@@ -143,7 +142,6 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         XCTAssertFalse(viewModel.contextManagementEnabled)
-        XCTAssertFalse(viewModel.sessionHandoffCommandEnabled)
         XCTAssertEqual(viewModel.sessionHandoffWindowPercentage, 75)
         XCTAssertFalse(viewModel.handoffSteeringEnabled)
         XCTAssertEqual(viewModel.handoffSteeringCountdownSeconds, 15)
@@ -157,7 +155,6 @@ final class SettingsViewModelTests: XCTestCase {
         let viewModel = SettingsViewModel(settingsService: service)
 
         viewModel.contextManagementEnabled = false
-        viewModel.sessionHandoffCommandEnabled = false
         viewModel.sessionHandoffWindowPercentage = 80
         viewModel.handoffSteeringEnabled = false
         viewModel.handoffSteeringCountdownSeconds = 20
@@ -166,7 +163,6 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.sessionHandoffPrompt = "Updated handoff prompt"
 
         XCTAssertFalse(service.current.contextManagementEnabled)
-        XCTAssertFalse(service.current.sessionHandoffCommandEnabled)
         XCTAssertEqual(service.current.sessionHandoffWindowPercentage, 80)
         XCTAssertFalse(service.current.handoffSteeringEnabled)
         XCTAssertEqual(service.current.handoffSteeringCountdownSeconds, 20)

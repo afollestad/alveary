@@ -142,6 +142,23 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
     }
 
+    func testLocalHandoffCommandAvailabilityDoesNotDependOnAutomaticHandoffSetting() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.settingsService.update {
+            $0.contextManagementEnabled = false
+        }
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        let availability = chatView.localCommandAvailability
+
+        XCTAssertTrue(availability.supportsSessionHandoff)
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/handoff Focus on the next session.", availability: availability),
+            ComposerLocalCommand(kind: .handoff, argument: "Focus on the next session.")
+        )
+    }
+
     func testEmptySendDraftDoesNotRequestComposerFocus() throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()

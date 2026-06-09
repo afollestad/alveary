@@ -106,7 +106,6 @@ struct SettingsScreen: View {
                 providerIDs: viewModel.availableProviderIDs,
                 providerExtraArgsBinding: providerExtraArgsBinding,
                 contextManagementEnabled: binding(for: \.contextManagementEnabled),
-                sessionHandoffCommandEnabled: binding(for: \.sessionHandoffCommandEnabled),
                 sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
                 handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
                 handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),

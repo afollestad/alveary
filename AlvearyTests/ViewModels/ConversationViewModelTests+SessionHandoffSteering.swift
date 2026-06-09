@@ -82,18 +82,17 @@ extension ConversationViewModelTests {
         XCTAssertTrue(sentMessages.isEmpty)
     }
 
-    func testCommandHandoffDoesNotStartWhenCommandIsDisabled() async throws {
+    func testCommandHandoffStartsWhenAutomaticHandoffIsDisabled() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.settingsService.update {
-            $0.sessionHandoffCommandEnabled = false
+            $0.contextManagementEnabled = false
         }
 
-        XCTAssertFalse(fixture.viewModel.triggerSessionHandoffFromCommand())
+        XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand(steeringPrompt: "Focus the next session."))
 
-        await Task.yield()
-        let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertFalse(fixture.viewModel.state.hasActiveSessionHandoff)
-        XCTAssertTrue(sentMessages.isEmpty)
+        try await waitUntil("command handoff prompt sent while automatic handoff disabled") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
     }
 
     func testCommandHandoffBlockedByActiveTurnShowsError() async throws {

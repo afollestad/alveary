@@ -1,18 +1,13 @@
 import Foundation
 
 extension ConversationViewModel {
-    func canUseSessionHandoff(
-        trigger: SessionHandoffTrigger,
-        retryingFailedHandoff: Bool
-    ) -> Bool {
+    func canUseSessionHandoff(trigger: SessionHandoffTrigger) -> Bool {
         let settings = settingsService.current
         switch trigger {
         case .automatic:
             return settings.contextManagementEnabled
-        case .command:
-            return settings.sessionHandoffCommandEnabled
-        case .manual:
-            return retryingFailedHandoff || settings.contextManagementEnabled || settings.sessionHandoffCommandEnabled
+        case .command, .manual:
+            return true
         }
     }
 

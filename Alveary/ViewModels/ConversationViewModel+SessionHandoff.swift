@@ -213,7 +213,7 @@ extension ConversationViewModel {
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) -> Bool {
-        guard canUseSessionHandoff(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) else {
+        guard canUseSessionHandoff(trigger: trigger) else {
             return false
         }
         let hasBlockingHandoff = state.isHandingOffSession ||

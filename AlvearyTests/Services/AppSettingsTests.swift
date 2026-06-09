@@ -24,7 +24,6 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings()
 
         XCTAssertFalse(settings.contextManagementEnabled)
-        XCTAssertTrue(settings.sessionHandoffCommandEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffSteeringEnabled)
         XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
@@ -108,7 +107,6 @@ final class AppSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertFalse(settings.contextManagementEnabled)
-        XCTAssertTrue(settings.sessionHandoffCommandEnabled)
         XCTAssertEqual(settings.sessionHandoffWindowPercentage, AppSettings.defaultSessionHandoffWindowPercentage)
         XCTAssertTrue(settings.handoffSteeringEnabled)
         XCTAssertEqual(settings.handoffSteeringCountdownSeconds, AppSettings.defaultHandoffSteeringCountdownSeconds)
