@@ -229,6 +229,10 @@ extension ChatView {
 
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
+        if handleLocalCommandIfNeeded(draft: draft) {
+            return
+        }
+
         let steeringMessage = draft.isEffectivelyEmpty ? "" : message
         if viewModel.submitSessionHandoffSteeringPrompt(steeringMessage) {
             appState.requestComposerFocus()
@@ -272,6 +276,10 @@ extension ChatView {
 
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
+        if handleLocalCommandIfNeeded(draft: draft) {
+            return
+        }
+
         guard !draft.isEffectivelyEmpty else {
             return
         }
@@ -333,6 +341,7 @@ extension ChatView {
             hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
+            localCommands: localCommandAvailability,
             requestFirstResponder: appState.pendingComposerFocusToken,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,

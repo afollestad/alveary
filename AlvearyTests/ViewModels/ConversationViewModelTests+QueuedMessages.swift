@@ -17,6 +17,90 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.stagedContext)
     }
 
+    func testQueuedPlanModeIntentDoesNotAffectOlderQueuedMessages() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Older queued")
+        try await fixture.viewModel.queueOrSend("Plan queued", requiredPlanModeEnabled: true)
+
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Older queued", "Plan queued"])
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.requiredPlanModeEnabled), [nil, true])
+
+        fixture.viewModel.turnState.endTurn()
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("older queued message sent first") {
+            await fixture.agentsManager.sentMessages() == ["Older queued"]
+        }
+        let reconfigureCallsBeforePlan = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCallsBeforePlan.isEmpty)
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        try await waitUntil("plan queued message sent") {
+            await fixture.agentsManager.sentMessages() == ["Older queued", "Plan queued"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, true)
+    }
+
+    func testQueuedPlanModeDisableIntentDoesNotAffectOlderQueuedMessages() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Older queued")
+        try await fixture.viewModel.queueOrSend("Plan-off queued", requiredPlanModeEnabled: false)
+
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Older queued", "Plan-off queued"])
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.requiredPlanModeEnabled), [nil, false])
+
+        fixture.viewModel.turnState.endTurn()
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("older queued message sent first") {
+            await fixture.agentsManager.sentMessages() == ["Older queued"]
+        }
+        let reconfigureCallsBeforePlanToggle = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCallsBeforePlanToggle.isEmpty)
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        try await waitUntil("plan-off queued message sent") {
+            await fixture.agentsManager.sentMessages() == ["Older queued", "Plan-off queued"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.planModeEnabled, false)
+    }
+
     func testQueueOrSendWhileRuntimeBusyQueuesWithoutSendingImmediately() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
@@ -216,6 +300,24 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Queued steer"])
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
         XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
+    }
+
+    func testSteerQueuedMessageRejectsPlanModeIntent() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.turnState.beginTurn()
+        try await fixture.viewModel.queueOrSend("Plan queued", requiredPlanModeEnabled: true)
+
+        let queuedID = try XCTUnwrap(fixture.viewModel.messageQueue.peekNext()?.id)
+        do {
+            try await fixture.viewModel.steerQueuedMessage(id: queuedID)
+            XCTFail("Expected plan-mode queued message steering to fail")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Plan-mode queued messages send on the next turn")
+        }
+
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Plan queued"])
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
     }
 
     func testCodexSteerQueuedMessageRequiresRuntimeActivityTurnId() async throws {

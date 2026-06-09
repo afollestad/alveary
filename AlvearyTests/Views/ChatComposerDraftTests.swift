@@ -79,6 +79,45 @@ final class ChatComposerDraftTests: XCTestCase {
         }
     }
 
+    func testHandoffSteeringSubmitDoesNotTreatSlashTextAsLocalCommand() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.isAwaitingHandoffSteering = true
+        fixture.viewModel.replaceInputDraft("/handoff keep the next session concise", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsPlanMode: true)
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertEqual(
+            fixture.viewModel.state.submittedHandoffSteeringPrompt,
+            "/handoff keep the next session concise"
+        )
+        try await waitUntil("expected slash-looking steering prompt to start hidden handoff") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testSessionHandoffOutputSendDoesNotTreatSlashTextAsLocalCommand() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.pendingHandoffOutput = "/plan carry this context forward"
+        fixture.viewModel.replaceInputDraft("/plan carry this context forward", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState, supportsPlanMode: true)
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        try await waitUntil("expected slash-looking handoff output to send") {
+            await fixture.agentsManager.sentMessages() == ["/plan carry this context forward"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+        XCTAssertNil(fixture.viewModel.state.pendingHandoffOutput)
+    }
+
     func testEmptySendDraftDoesNotRequestComposerFocus() throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()
@@ -118,14 +157,16 @@ final class ChatComposerDraftTests: XCTestCase {
     private func makeChatView(
         fixture: ConversationViewModelTestFixture,
         appState: AppState,
-        isProjectTrustBlocked: Bool = false
+        isProjectTrustBlocked: Bool = false,
+        supportsPlanMode: Bool = false
     ) -> ChatView {
         ChatView(
             viewModel: fixture.viewModel,
             conversation: fixture.conversation,
             composerCapabilities: ComposerCapabilities(
                 supportedPermissionModes: [],
-                supportsMidTurnSteering: true
+                supportsMidTurnSteering: true,
+                supportsPlanMode: supportsPlanMode
             ),
             reasoningConfiguration: makeReasoningConfiguration(
                 modelOptions: [

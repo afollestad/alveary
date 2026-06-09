@@ -136,6 +136,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.contextManagementEnabled = newValue } }
     }
 
+    var sessionHandoffCommandEnabled: Bool {
+        get { settingsService.current.sessionHandoffCommandEnabled }
+        set { settingsService.update { $0.sessionHandoffCommandEnabled = newValue } }
+    }
+
     var sessionHandoffWindowPercentage: Int {
         get { settingsService.current.sessionHandoffWindowPercentage }
         set { settingsService.update { $0.sessionHandoffWindowPercentage = newValue } }

@@ -5,6 +5,13 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     let id = UUID()
     let text: String
     let stagedContext: String?
+    let requiredPlanModeEnabled: Bool?
+
+    init(text: String, stagedContext: String?, requiredPlanModeEnabled: Bool? = nil) {
+        self.text = text
+        self.stagedContext = stagedContext
+        self.requiredPlanModeEnabled = requiredPlanModeEnabled
+    }
 }
 
 @MainActor
@@ -12,12 +19,20 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
 final class MessageQueue {
     private(set) var pending: [QueuedMessage] = []
 
-    func enqueue(_ message: String, stagedContext: String? = nil) {
-        pending.append(QueuedMessage(text: message, stagedContext: stagedContext))
+    func enqueue(_ message: String, stagedContext: String? = nil, requiredPlanModeEnabled: Bool? = nil) {
+        pending.append(QueuedMessage(
+            text: message,
+            stagedContext: stagedContext,
+            requiredPlanModeEnabled: requiredPlanModeEnabled
+        ))
     }
 
-    func prepend(_ message: String, stagedContext: String? = nil) {
-        pending.insert(QueuedMessage(text: message, stagedContext: stagedContext), at: 0)
+    func prepend(_ message: String, stagedContext: String? = nil, requiredPlanModeEnabled: Bool? = nil) {
+        pending.insert(QueuedMessage(
+            text: message,
+            stagedContext: stagedContext,
+            requiredPlanModeEnabled: requiredPlanModeEnabled
+        ), at: 0)
     }
 
     func peekNext() -> QueuedMessage? {

@@ -7,6 +7,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
     init(
         location: BlockInputComposerLocation,
+        localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         limit: Int = 50,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill]
@@ -14,6 +15,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         self.limit = limit
         state = LockedState(CompletionProviderState(
             location: location,
+            localCommands: localCommands,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions
         ))
@@ -25,11 +27,13 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
     func update(
         location: BlockInputComposerLocation,
+        localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill]
     ) {
         state.withLock { state in
             state.location = location
+            state.localCommands = localCommands
             state.loadFileCompletions = loadFileCompletions
             state.loadSkillCompletions = loadSkillCompletions
         }
@@ -43,8 +47,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
             let skills = await state.loadSkillCompletions()
-            updateSkillArgumentHints(from: skills)
-            return skillSuggestions(for: context, skills: skills)
+            updateArgumentHints(localCommands: state.localCommands, skills: skills)
+            return slashCommandSuggestions(for: context, localCommands: state.localCommands, skills: skills)
         }
     }
 
@@ -56,15 +60,21 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         state.withLock { $0 }
     }
 
-    private func updateSkillArgumentHints(from skills: [Skill]) {
-        let skillArgumentHints = Self.skillArgumentHints(from: skills)
+    private func updateArgumentHints(localCommands: ComposerLocalCommandAvailability, skills: [Skill]) {
+        let skillArgumentHints = Self.argumentHints(localCommands: localCommands, skills: skills)
         state.withLock { state in
             state.skillArgumentHints = skillArgumentHints
         }
     }
 
-    private static func skillArgumentHints(from skills: [Skill]) -> BlockInputSlashCommandArgumentHints {
-        BlockInputSlashCommandArgumentHints(commandHints: skills.flatMap { skill in
+    private static func argumentHints(
+        localCommands: ComposerLocalCommandAvailability,
+        skills: [Skill]
+    ) -> BlockInputSlashCommandArgumentHints {
+        let localHints = localCommands.supportsSessionHandoff
+            ? [(command: ComposerLocalCommandKind.handoff.command, hint: "Optional steering prompt")]
+            : []
+        let skillHints = skills.flatMap { skill in
             guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !argumentHint.isEmpty else {
                 return [(command: String, hint: String)]()
@@ -73,7 +83,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
                 (command: skill.name, hint: argumentHint),
                 (command: skill.id, hint: argumentHint)
             ]
-        })
+        }
+        return BlockInputSlashCommandArgumentHints(commandHints: localHints + skillHints)
     }
 
     private func fileSuggestions(
@@ -131,17 +142,21 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             }
     }
 
-    private func skillSuggestions(
+    private func slashCommandSuggestions(
         for context: BlockInputCompletionContext,
+        localCommands: ComposerLocalCommandAvailability,
         skills: [Skill]
     ) -> [BlockInputCompletionSuggestion] {
-        let query = context.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return scoredMatches(candidates: skills, query: query) { skill, normalizedQuery in
+        let query = slashCommandQuery(for: context)
+        let localSuggestions = localCommandSuggestions(query: query, localCommands: localCommands)
+        let reservedCommands = Set(localCommands.enabledKinds.map(\.command))
+        let skillSuggestions = scoredMatches(candidates: skills, query: query) { skill, normalizedQuery in
             bestScore(
                 matchScore(candidate: skill.name, query: normalizedQuery, base: 0),
                 matchScore(candidate: skill.description, query: normalizedQuery, base: 220)
             )
-            }
+        }
+            .filter { !reservedCommands.contains($0.name.lowercased()) && !reservedCommands.contains($0.id.lowercased()) }
             .prefix(limit)
             .map { skill in
                 BlockInputCompletionSuggestion.slashCommand(
@@ -154,6 +169,47 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
                     detailText: skill.autocompleteScopeLabel
                 )
             }
+        return Array((localSuggestions + skillSuggestions).prefix(limit))
+    }
+
+    private func localCommandSuggestions(
+        query: String,
+        localCommands: ComposerLocalCommandAvailability
+    ) -> [BlockInputCompletionSuggestion] {
+        scoredMatches(candidates: localCommands.enabledKinds, query: query) { kind, normalizedQuery in
+            bestScore(
+                matchScore(candidate: kind.command, query: normalizedQuery, base: 0),
+                matchScore(candidate: localCommandDescription(kind), query: normalizedQuery, base: 220)
+            )
+        }
+        .map { kind in
+            BlockInputCompletionSuggestion.slashCommand(
+                id: "alveary://commands/\(kind.command)",
+                title: kind.command,
+                subtitle: localCommandDescription(kind),
+                uri: "alveary://commands/\(kind.command)",
+                label: kind.displayName,
+                insertionStyle: .rawToken,
+                detailText: "Alveary"
+            )
+        }
+    }
+
+    private func slashCommandQuery(for context: BlockInputCompletionContext) -> String {
+        let query = context.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.hasPrefix("/") {
+            return String(query.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        return query.lowercased()
+    }
+
+    private func localCommandDescription(_ kind: ComposerLocalCommandKind) -> String {
+        switch kind {
+        case .plan:
+            "Toggle plan mode"
+        case .handoff:
+            "Start session handoff"
+        }
     }
 
     private func completionScope(
@@ -342,6 +398,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
 private struct CompletionProviderState {
     var location: BlockInputComposerLocation
+    var localCommands: ComposerLocalCommandAvailability
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
     var skillArgumentHints = BlockInputSlashCommandArgumentHints(commandHints: [])

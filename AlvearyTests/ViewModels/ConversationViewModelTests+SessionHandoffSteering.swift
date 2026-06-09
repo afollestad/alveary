@@ -47,6 +47,67 @@ extension ConversationViewModelTests {
         XCTAssertTrue(try fixture.userMessages().isEmpty)
     }
 
+    func testCommandHandoffWithExplicitSteeringHonorsSteeringWhenAutomaticSteeringIsDisabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.contextManagementEnabled = false
+            $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand(steeringPrompt: "Focus on tests."))
+
+        try await waitUntil("command handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertTrue(hiddenPrompt.contains("## User Handoff Steering"))
+        XCTAssertTrue(hiddenPrompt.hasSuffix("Focus on tests."))
+    }
+
+    func testCommandHandoffPromptsForSteeringWhenAutomaticSteeringIsDisabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.contextManagementEnabled = false
+            $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand())
+
+        try await waitUntil("command handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertNil(fixture.viewModel.state.handoffSteeringCountdownRemaining)
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testCommandHandoffDoesNotStartWhenCommandIsDisabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.sessionHandoffCommandEnabled = false
+        }
+
+        XCTAssertFalse(fixture.viewModel.triggerSessionHandoffFromCommand())
+
+        await Task.yield()
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertFalse(fixture.viewModel.state.hasActiveSessionHandoff)
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testCommandHandoffBlockedByActiveTurnShowsError() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.turnState.beginTurn()
+
+        XCTAssertFalse(fixture.viewModel.triggerSessionHandoffFromCommand())
+
+        XCTAssertEqual(
+            fixture.viewModel.lastTurnError,
+            "Wait for the current conversation action to finish before triggering session handoff."
+        )
+    }
+
     func testHandoffSteeringSubmitStartsHiddenPromptWithSteering() async throws {
         let fixture = try ConversationViewModelTestFixture()
         triggerAutomaticSessionHandoffThreshold(fixture: fixture)

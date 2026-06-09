@@ -52,12 +52,20 @@ extension ConversationViewModel {
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) -> Bool {
-        trigger == .automatic &&
-            !retryingFailedHandoff &&
-            settingsService.current.handoffSteeringEnabled
+        guard !retryingFailedHandoff else {
+            return false
+        }
+        switch trigger {
+        case .automatic:
+            return settingsService.current.handoffSteeringEnabled
+        case .command:
+            return true
+        case .manual:
+            return false
+        }
     }
 
-    func beginSessionHandoffSteeringPrompt() {
+    func beginSessionHandoffSteeringPrompt(startsCountdown: Bool = true) {
         sessionHandoffCountdownTask?.cancel()
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()
@@ -79,7 +87,9 @@ extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.sessionContinuityNotice = nil
-        startSessionHandoffSteeringCountdown()
+        if startsCountdown {
+            startSessionHandoffSteeringCountdown()
+        }
     }
 
     func startSessionHandoffSteeringCountdown() {

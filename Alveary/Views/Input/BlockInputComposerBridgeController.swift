@@ -13,6 +13,7 @@ struct BlockInputComposerBridgeConfiguration {
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: BlockInputEditorChromeCorners
     var location: BlockInputComposerLocation
+    var localCommands: ComposerLocalCommandAvailability
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
@@ -32,6 +33,7 @@ struct BlockInputComposerBridgeConfiguration {
         editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
         location: BlockInputComposerLocation,
+        localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
@@ -50,6 +52,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.editorVerticalInset = editorVerticalInset
         self.editorRoundedCorners = editorRoundedCorners
         self.location = location
+        self.localCommands = localCommands
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.keyboardShortcuts = keyboardShortcuts
@@ -203,6 +206,7 @@ final class BlockInputComposerBridgeController {
     ) -> BlockInputComposerCompletionProvider {
         BlockInputComposerCompletionProvider(
             location: configuration.location,
+            localCommands: configuration.localCommands,
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions
         )
@@ -212,6 +216,7 @@ final class BlockInputComposerBridgeController {
         if completionProvider.location == configuration.location {
             completionProvider.update(
                 location: configuration.location,
+                localCommands: configuration.localCommands,
                 loadFileCompletions: configuration.loadFileCompletions,
                 loadSkillCompletions: configuration.loadSkillCompletions
             )
@@ -231,6 +236,7 @@ final class BlockInputComposerBridgeController {
             editorVerticalInset: configuration.editorVerticalInset,
             editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
             location: configuration.location,
+            localCommands: configuration.localCommands,
             keyboardShortcuts: Set(configuration.keyboardShortcuts.keys)
         )
     }
@@ -244,5 +250,6 @@ private struct BridgeViewConfigKey: Equatable {
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: Int
     var location: BlockInputComposerLocation
+    var localCommands: ComposerLocalCommandAvailability
     var keyboardShortcuts: Set<BlockInputKeyboardShortcut>
 }

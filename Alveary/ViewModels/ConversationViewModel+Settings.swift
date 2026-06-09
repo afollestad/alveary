@@ -283,6 +283,24 @@ extension ConversationViewModel {
         }
     }
 
+    func togglePlanModeForOutbound() async throws -> Bool {
+        let target = !(pendingPlanModeForDisplay() ?? effectivePlanModeEnabled)
+        try await ensurePlanModeForOutbound(target)
+        return target
+    }
+
+    func ensurePlanModeEnabledForOutbound() async throws {
+        try await ensurePlanModeForOutbound(true)
+    }
+
+    func ensurePlanModeForOutbound(_ isEnabled: Bool) async throws {
+        await applyPlanModeChange(isEnabled).value
+        guard (pendingPlanModeForDisplay() ?? effectivePlanModeEnabled) == isEnabled else {
+            let action = isEnabled ? "enable" : "disable"
+            throw AgentError.spawnFailed(lastTurnError ?? "Failed to \(action) plan mode")
+        }
+    }
+
     func applyWorktreePreferenceChange(_ newValue: Bool) {
         guard canApplyPreStartupSettingChange,
               let dbThread = activeSettingsThread(),

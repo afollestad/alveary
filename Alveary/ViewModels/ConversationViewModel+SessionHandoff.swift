@@ -6,16 +6,11 @@ private let sessionHandoffLogger = Logger(subsystem: Bundle.main.bundleIdentifie
 
 enum SessionHandoffTrigger: Sendable {
     case automatic
+    case command
     case manual
 }
 
 extension ConversationViewModel {
-    func triggerSessionHandoffFromCommand() {
-        Task { @MainActor [self] in
-            await startSessionHandoff(trigger: .automatic)
-        }
-    }
-
     func startSessionHandoff(
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool = false
@@ -26,11 +21,11 @@ extension ConversationViewModel {
 
         clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: retryingFailedHandoff)
         if shouldRequestHandoffSteering(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) {
-            beginSessionHandoffSteeringPrompt()
+            beginSessionHandoffSteeringPrompt(startsCountdown: trigger == .automatic)
             return
         }
 
-        preserveVisibleDraftForAutomaticHandoffIfNeeded(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff)
+        preserveVisibleDraftForPromptedHandoffIfNeeded(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff)
         await startHiddenSessionHandoff()
     }
 
@@ -213,15 +208,12 @@ extension ConversationViewModel {
         get { state.sessionHandoffCountdownTask }
         set { state.sessionHandoffCountdownTask = newValue }
     }
-}
 
-private extension ConversationViewModel {
     func canStartSessionHandoff(
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) -> Bool {
-        let settings = settingsService.current
-        guard settings.contextManagementEnabled else {
+        guard canUseSessionHandoff(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) else {
             return false
         }
         let hasBlockingHandoff = state.isHandingOffSession ||
@@ -239,19 +231,21 @@ private extension ConversationViewModel {
               !state.isReconfiguringSession,
               state.pendingToolApproval == nil,
               !hasUnansweredPrompt else {
-            if trigger == .manual {
+            if trigger != .automatic {
                 state.lastTurnError = "Wait for the current conversation action to finish before triggering session handoff."
             }
             return false
         }
         return true
     }
+}
 
+private extension ConversationViewModel {
     func makeHiddenSessionHandoffPrompt() -> String {
         SessionHandoffPromptBuilder.hiddenPrompt(
             configuredPrompt: settingsService.current.sessionHandoffPrompt,
             steeringPrompt: state.submittedHandoffSteeringPrompt,
-            isSteeringEnabled: settingsService.current.handoffSteeringEnabled
+            isSteeringEnabled: shouldIncludeSubmittedHandoffSteering
         )
     }
 
@@ -259,8 +253,12 @@ private extension ConversationViewModel {
         SessionHandoffPromptBuilder.outgoingMessage(
             handoffOutput: output,
             steeringPrompt: state.submittedHandoffSteeringPrompt,
-            isSteeringEnabled: settingsService.current.handoffSteeringEnabled
+            isSteeringEnabled: shouldIncludeSubmittedHandoffSteering
         )
+    }
+
+    var shouldIncludeSubmittedHandoffSteering: Bool {
+        settingsService.current.handoffSteeringEnabled || state.submittedHandoffSteeringPrompt != nil
     }
 
     func handleHiddenSessionHandoffTokens(_ payload: TokenEventPayload) {
@@ -436,12 +434,13 @@ private extension ConversationViewModel {
         state.sessionHandoffRestorableDraft = nil
     }
 
-    func preserveVisibleDraftForAutomaticHandoffIfNeeded(
+    func preserveVisibleDraftForPromptedHandoffIfNeeded(
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) {
         let draft = flushDraftFromEditor()
-        guard trigger == .automatic,
+        let shouldPreserveDraft = trigger == .automatic || trigger == .command
+        guard shouldPreserveDraft,
               !retryingFailedHandoff,
               !draft.text.isEmpty else {
             return

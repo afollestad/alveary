@@ -423,7 +423,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Seed immediately."])
     }
 
-    func testSessionHandoffCommandUsesAutomaticFlowAndDoesNotRetriggerWhileActive() async throws {
+    func testSessionHandoffCommandPromptsForSteeringAndDoesNotRetriggerWhileActive() async throws {
         let fixture = try ConversationViewModelTestFixture()
 
         fixture.viewModel.triggerSessionHandoffFromCommand()

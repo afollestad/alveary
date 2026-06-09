@@ -21,6 +21,7 @@ extension SettingsServiceTests {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertFalse(service.current.contextManagementEnabled)
+        XCTAssertTrue(service.current.sessionHandoffCommandEnabled)
         XCTAssertEqual(
             service.current.sessionHandoffWindowPercentage,
             AppSettings.defaultSessionHandoffWindowPercentage

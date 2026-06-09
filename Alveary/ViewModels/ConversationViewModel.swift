@@ -161,7 +161,7 @@ final class ConversationViewModel {
         }
     }
 
-    func queueOrSend(_ message: String) async throws {
+    func queueOrSend(_ message: String, requiredPlanModeEnabled: Bool? = nil) async throws {
         guard !state.hasActiveSessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
@@ -170,12 +170,19 @@ final class ConversationViewModel {
         }
 
         if isAgentActivelyWorking || state.isSendingMessage || state.messageQueue.peekNext() != nil {
-            state.messageQueue.enqueue(message, stagedContext: state.stagedContext)
+            state.messageQueue.enqueue(
+                message,
+                stagedContext: state.stagedContext,
+                requiredPlanModeEnabled: requiredPlanModeEnabled
+            )
             state.stagedContext = nil
             return
         }
 
         guard needsSetup else {
+            if let requiredPlanModeEnabled {
+                try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+            }
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
                 try await deliverMessageReserved(message)
@@ -186,6 +193,9 @@ final class ConversationViewModel {
         // Wrap the initial-setup path in an unstructured Task so `cancel()` can abort it
         // (and trigger the existing rollback) even though the setup phase predates the turn.
         let task = Task { [self] in
+            if let requiredPlanModeEnabled {
+                try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+            }
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             try await withOutboundReservation {
                 try await deliverMessageReserved(message)

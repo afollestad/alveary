@@ -52,6 +52,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
     var contextManagementEnabled = false
+    var sessionHandoffCommandEnabled = true
     var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
     var handoffSteeringEnabled = true
     var handoffSteeringCountdownSeconds = Self.defaultHandoffSteeringCountdownSeconds
@@ -262,6 +263,7 @@ extension AppSettings {
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
         case contextManagementEnabled
+        case sessionHandoffCommandEnabled
         case sessionHandoffWindowPercentage
         case handoffSteeringEnabled
         case handoffSteeringCountdownSeconds
@@ -358,6 +360,10 @@ extension AppSettings {
             Bool.self,
             forKey: .contextManagementEnabled
         ) ?? contextManagementEnabled
+        sessionHandoffCommandEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .sessionHandoffCommandEnabled
+        ) ?? sessionHandoffCommandEnabled
         sessionHandoffWindowPercentage = try container.decodeIfPresent(
             Int.self,
             forKey: .sessionHandoffWindowPercentage

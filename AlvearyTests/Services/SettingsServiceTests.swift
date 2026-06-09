@@ -32,6 +32,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
             $0.contextManagementEnabled = false
+            $0.sessionHandoffCommandEnabled = false
             $0.sessionHandoffWindowPercentage = 75
             $0.handoffSteeringEnabled = false
             $0.handoffSteeringCountdownSeconds = 15
@@ -59,6 +60,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
         XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
         XCTAssertFalse(reloadedService.current.contextManagementEnabled)
+        XCTAssertFalse(reloadedService.current.sessionHandoffCommandEnabled)
         XCTAssertEqual(reloadedService.current.sessionHandoffWindowPercentage, 75)
         XCTAssertFalse(reloadedService.current.handoffSteeringEnabled)
         XCTAssertEqual(reloadedService.current.handoffSteeringCountdownSeconds, 15)

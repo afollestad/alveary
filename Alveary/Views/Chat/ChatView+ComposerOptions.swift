@@ -15,6 +15,17 @@ extension ChatView {
         )
     }
 
+    var localCommandAvailability: ComposerLocalCommandAvailability {
+        guard !viewModel.state.hasActiveSessionHandoff else {
+            return ComposerLocalCommandAvailability()
+        }
+
+        return ComposerLocalCommandAvailability(
+            supportsPlanMode: composerCapabilities.supportsPlanMode,
+            supportsSessionHandoff: viewModel.settingsService.current.sessionHandoffCommandEnabled
+        )
+    }
+
     var canUseOutboundComposerActions: Bool {
         if isProjectTrustBlocked {
             return false

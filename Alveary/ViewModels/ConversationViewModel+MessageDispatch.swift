@@ -17,6 +17,7 @@ extension ConversationViewModel {
             return
         }
 
+        state.turnState.endTurn()
         Task { @MainActor in
             guard state.inFlightQueuedMessageID == nil else {
                 return
@@ -96,9 +97,7 @@ extension ConversationViewModel {
         guard state.inFlightQueuedMessageID == nil else {
             throw AgentError.spawnFailed("Wait for the current queued message action to finish")
         }
-        guard let queuedMessage = state.messageQueue.pending.first(where: { $0.id == id }) else {
-            throw AgentError.spawnFailed("That queued message is no longer available")
-        }
+        let queuedMessage = try queuedMessageForSteering(id: id)
 
         var localMessageID: String?
         state.inFlightQueuedMessageID = id
@@ -146,9 +145,22 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
+    func queuedMessageForSteering(id: UUID) throws -> QueuedMessage {
+        guard let queuedMessage = state.messageQueue.pending.first(where: { $0.id == id }) else {
+            throw AgentError.spawnFailed("That queued message is no longer available")
+        }
+        guard queuedMessage.requiredPlanModeEnabled == nil else {
+            throw AgentError.spawnFailed("Plan-mode queued messages send on the next turn")
+        }
+        return queuedMessage
+    }
+
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
 
+        if let requiredPlanModeEnabled = next.requiredPlanModeEnabled {
+            try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+        }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
             if await needsRespawn() {

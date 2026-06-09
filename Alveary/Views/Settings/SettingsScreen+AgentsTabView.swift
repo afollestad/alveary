@@ -7,6 +7,7 @@ struct AgentsSettingsTabView: View {
     let providerExtraArgsBinding: (String) -> Binding<String>
 
     @Binding var contextManagementEnabled: Bool
+    @Binding var sessionHandoffCommandEnabled: Bool
     @Binding var sessionHandoffWindowPercentage: Int
     @Binding var handoffSteeringEnabled: Bool
     @Binding var handoffSteeringCountdownSeconds: Int
@@ -65,8 +66,18 @@ struct AgentsSettingsTabView: View {
 }
 
 private extension AgentsSettingsTabView {
+    var isSessionHandoffEnabled: Bool {
+        contextManagementEnabled || sessionHandoffCommandEnabled
+    }
+
     var contextManagementSection: some View {
         SettingsFormSection("Context management") {
+            SettingsToggleRow(
+                "Enable /handoff command",
+                helpText: ContextManagementHelp.sessionHandoffCommandEnabled,
+                isOn: $sessionHandoffCommandEnabled
+            )
+
             SettingsToggleRow(
                 "Enable automatic session handoff",
                 helpText: ContextManagementHelp.contextManagementEnabled,
@@ -103,10 +114,10 @@ private extension AgentsSettingsTabView {
                         isPromptEditorPresented = true
                     }
                     .secondaryActionButtonStyle()
-                    .disabled(!contextManagementEnabled)
+                    .disabled(!isSessionHandoffEnabled)
                 }
             }
-            .disabled(!contextManagementEnabled)
+            .disabled(!isSessionHandoffEnabled)
 
             SettingsToggleRow(
                 "Enable handoff steering",
@@ -137,7 +148,7 @@ private extension AgentsSettingsTabView {
                 "Allow handoff context customization",
                 helpText: ContextManagementHelp.handoffContextCustomization,
                 isOn: $handoffContextCustomizationEnabled,
-                isDisabled: !contextManagementEnabled
+                isDisabled: !isSessionHandoffEnabled
             )
 
             SettingsFormRow(showsDivider: false) {
@@ -156,7 +167,7 @@ private extension AgentsSettingsTabView {
                     )
                 }
             }
-            .disabled(!contextManagementEnabled)
+            .disabled(!isSessionHandoffEnabled)
         }
     }
 
@@ -256,8 +267,10 @@ private extension AgentsSettingsTabView {
 }
 
 private enum ContextManagementHelp {
+    static let sessionHandoffCommandEnabled =
+        "Shows Alveary's local /handoff slash command for manually starting a session handoff."
     static let contextManagementEnabled =
-        "Alveary's Amp-inspired version of compaction. Uses a stored prompt to gather focused context for a follow-up session."
+        "Automatically starts session handoff when the context window crosses the configured threshold."
     static let sessionHandoffWindowPercentage =
         "Triggers session handoff when the context window reaches this percentage."
     static let defaultSessionHandoffPrompt =

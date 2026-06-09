@@ -26,6 +26,7 @@ extension AppKitChatComposerEditorController {
             editorVerticalInset: Self.editorVerticalPadding,
             editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
+            localCommands: configuration.localCommands,
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions,
             keyboardShortcuts: blockInputKeyboardShortcuts(),

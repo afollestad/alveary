@@ -114,6 +114,24 @@ final class BlockInputComposerArgumentHintTests: XCTestCase {
         XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/deploy"))?.text, " Environment")
     }
 
+    func testLocalHandoffCommandProvidesArgumentHint() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportsSessionHandoff: true),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] }
+        )
+        _ = await provider.suggestions(for: completionContext(
+            trigger: .slashCommand,
+            query: "handoff",
+            rawQuery: "handoff"
+        ))
+
+        let hint = provider.inlineHint(for: inlineHintContext(text: "/handoff"))
+
+        XCTAssertEqual(hint?.text, " Optional steering prompt")
+    }
+
     private func makeConfiguration(
         markdown: String,
         loadSkillCompletions: @escaping @Sendable () async -> [Skill] = { [] }
