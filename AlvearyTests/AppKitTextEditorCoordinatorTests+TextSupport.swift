@@ -48,6 +48,15 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertTrue(chips.isEmpty)
     }
 
+    func testModelLabelsUseFriendlyNames() {
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "default"), "Default")
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "fable"), "Fable")
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "opus"), "Opus")
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "sonnet"), "Sonnet")
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "haiku"), "Haiku")
+        XCTAssertEqual(ChatComposerTextSupport.modelLabel(for: "custom-model"), "custom-model")
+    }
+
     func testEffortLabelsUseBareLevelNames() {
         XCTAssertEqual(ChatComposerTextSupport.effortLabel(for: "low"), "Low")
         XCTAssertEqual(ChatComposerTextSupport.effortLabel(for: "medium"), "Medium")

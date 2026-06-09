@@ -26,6 +26,7 @@ enum AgentModelOptionTestFixtures {
     )
 
     static let claudeSonnetEfforts = [low, medium, high, max]
+    static let claudeFableEfforts = [low, medium, high, xhigh, max]
     static let claudeOpusEfforts = [low, medium, high, xhigh, max]
     static let claudeHaikuEfforts = [low, medium, high]
     static let codexDefaultEfforts = [low, medium, high, xhigh]
@@ -38,6 +39,14 @@ enum AgentModelOptionTestFixtures {
             label: "Sonnet",
             isDefault: true,
             supportedEffortOptions: claudeSonnetEfforts,
+            defaultEffortOption: high
+        ),
+        AgentCLIKit.AgentModelOption(
+            providerId: .claude,
+            id: "fable",
+            model: "fable",
+            label: "Fable",
+            supportedEffortOptions: claudeFableEfforts,
             defaultEffortOption: high
         ),
         AgentCLIKit.AgentModelOption(

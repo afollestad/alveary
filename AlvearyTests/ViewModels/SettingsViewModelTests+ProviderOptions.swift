@@ -17,7 +17,7 @@ extension SettingsViewModelTests {
         await viewModel.refreshProviderStatuses()
 
         XCTAssertEqual(viewModel.availableProviderIDs, ["claude", "codex"])
-        XCTAssertEqual(viewModel.supportedModels, ["sonnet", "opus", "haiku"])
+        XCTAssertEqual(viewModel.supportedModels, ["sonnet", "fable", "opus", "haiku"])
         XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes(forProvider: "claude"))
         XCTAssertEqual(viewModel.permissionModeOptions(for: "codex"), AppSettings.supportedPermissionModes(forProvider: "codex"))
         let claudePermissionLabels = ["default", "acceptEdits", "auto"].map { viewModel.permissionModeLabel(for: $0, providerId: "claude") }
@@ -35,6 +35,10 @@ extension SettingsViewModelTests {
         XCTAssertEqual(
             viewModel.effortOptions(for: "claude", model: "default").map(\.value),
             ["low", "medium", "high", "max"]
+        )
+        XCTAssertEqual(
+            viewModel.effortOptions(for: "claude", model: "fable").map(\.value),
+            ["low", "medium", "high", "xhigh", "max"]
         )
         XCTAssertEqual(
             viewModel.effortOptions(for: "claude", model: "haiku").map(\.value),

@@ -82,6 +82,8 @@ enum ChatComposerTextSupport {
         switch value {
         case "default":
             return "Default"
+        case "fable":
+            return "Fable"
         case "opus":
             return "Opus"
         case "sonnet":
