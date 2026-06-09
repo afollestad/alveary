@@ -61,11 +61,16 @@ extension ChatComposerActionRowTests {
             selectedSpeedMode: .fast,
             supportsSpeedMode: true
         ))
+        row.layoutSubtreeIfNeeded()
 
         #if DEBUG
         XCTAssertTrue(reasoningButton.debugShowsFastIcon)
         XCTAssertEqual(reasoningButton.debugFastIconSlotSize, permissionButton.debugIconSlotSize)
         XCTAssertEqual(reasoningButton.debugFastIconTextSpacing, permissionButton.debugIconTextSpacing)
+        let fastIconFrame = try XCTUnwrap(reasoningButton.debugFastIconFrame)
+        let modelFrame = try XCTUnwrap(reasoningButton.debugModelFrame)
+        XCTAssertEqual(fastIconFrame.minX, reasoningButton.contentDrawingRect.minX, accuracy: 0.5)
+        XCTAssertEqual(modelFrame.minX - fastIconFrame.maxX, reasoningButton.debugFastIconTextSpacing, accuracy: 0.5)
         #endif
         XCTAssertEqual(reasoningButton.accessibilityValue() as? String, "Sonnet, Medium, Fast")
     }

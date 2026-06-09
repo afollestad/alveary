@@ -32,6 +32,15 @@ extension SnapshotTests {
         )
     }
 
+    func testChatComposerReasoningButtonTruncatedModelSpacing() {
+        assertMacSnapshot(
+            reasoningButtonTruncatedModelSpacing,
+            size: CGSize(width: 260, height: 64),
+            named: "chat_composer_reasoning_button_truncated_model_spacing",
+            colorScheme: .dark
+        )
+    }
+
     private var nativeActionControlInteractionStates: some View {
         HStack(spacing: 16) {
             ComposerReasoningButtonSnapshot(state: .hovered)
@@ -54,6 +63,14 @@ extension SnapshotTests {
                 .frame(width: 140, height: 24)
             ComposerWorktreeLocationButtonSnapshot(useWorktree: true, state: .pressed)
                 .frame(width: 150, height: 24)
+        }
+        .padding(20)
+    }
+
+    private var reasoningButtonTruncatedModelSpacing: some View {
+        HStack {
+            ReasoningButtonTruncationSnapshot()
+                .frame(width: ComposerReasoningButton.maxWidth, height: 24)
         }
         .padding(20)
     }
@@ -95,6 +112,50 @@ private struct ComposerReasoningButtonSnapshot: NSViewRepresentable {
             view.mouseEntered(with: Self.event)
             view.mouseDown(with: Self.event)
         }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
+}
+
+private struct ReasoningButtonTruncationSnapshot: NSViewRepresentable {
+    func makeNSView(context: Context) -> ComposerReasoningButton {
+        let view = ComposerReasoningButton()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerReasoningButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerReasoningButton) {
+        view.configure(
+            selection: makeReasoningConfiguration(
+                modelOptions: [.init(value: "codex-spark", title: "GPT-5.3-Codex-Spark-Extended-Context")],
+                effortOptions: [.init(value: "high", title: "High")],
+                selectedModel: "codex-spark",
+                selectedEffort: "high",
+                selectedSpeedMode: .fast,
+                supportsSpeedMode: true
+            ).selection,
+            height: ChatComposerActionRowView.defaultSettingsControlHeight,
+            isEnabled: true,
+            showsProgress: false,
+            actionHandler: {}
+        )
+        view.mouseEntered(with: Self.event)
     }
 
     private static var event: NSEvent {
