@@ -5,21 +5,29 @@ enum ToolApprovalSessionScope: String, CaseIterable, Sendable, Equatable {
 
     /// Button title while the approval is still pending.
     var pendingTitle: String {
+        pendingTitle(isPlural: false)
+    }
+
+    func pendingTitle(isPlural: Bool) -> String {
         switch self {
         case .exact:
             return "Approve exactly"
         case .group:
-            return "Approve group"
+            return isPlural ? "Approve groups" : "Approve group"
         }
     }
 
     /// Button title after the approval resolves.
     var resolvedTitle: String {
+        resolvedTitle(isPlural: false)
+    }
+
+    func resolvedTitle(isPlural: Bool) -> String {
         switch self {
         case .exact:
             return "Approved exactly"
         case .group:
-            return "Approved group"
+            return isPlural ? "Approved groups" : "Approved group"
         }
     }
 }

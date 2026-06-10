@@ -77,6 +77,44 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve for session"])
     }
 
+    func testBatchBashApprovalUsesPluralGroupCopyWhenEveryCommandSupportsGroupApproval() {
+        let first = approval(toolUseId: "bash-1", toolName: "Bash", input: #"{"command":"git log --oneline -5"}"#)
+        let second = approval(toolUseId: "bash-2", toolName: "Bash", input: #"{"command":"git branch"}"#)
+        let block = AppKitTranscriptToolApprovalBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                approval: first,
+                approvals: [first, second],
+                status: .pending,
+                selectedApprovalSelection: .sessionGroup
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve groups")
+        XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve exactly", "Approve groups"])
+    }
+
+    func testBatchBashApprovalHidesGroupCopyWhenAnyCommandCannotUseGroupApproval() {
+        let first = approval(toolUseId: "bash-1", toolName: "Bash", input: #"{"command":"git log --oneline -5"}"#)
+        let second = approval(toolUseId: "bash-2", toolName: "Bash", input: #"{"command":"date"}"#)
+        let block = AppKitTranscriptToolApprovalBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                approval: first,
+                approvals: [first, second],
+                status: .pending,
+                selectedApprovalSelection: .sessionGroup
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve for session")
+        XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve for session"])
+    }
+
     func testSelectingSessionModeRoutesApproveCallback() throws {
         let block = AppKitTranscriptToolApprovalBlockView()
         var approvedOnce = false
@@ -290,7 +328,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         block.frame = NSRect(x: 0, y: 0, width: 150, height: 1_000)
         block.configure(
             .init(
-                approval: approval(toolName: "Read", input: #"{"file_path":"AGENTS.md"}"#),
+                approval: approval(toolName: "Grep", input: #"{"pattern":"needle","path":"../outside"}"#),
                 status: .pending
             )
         )
@@ -325,7 +363,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(
             .init(
-                approval: approval(toolName: "Read", input: #"{"file_path":"AGENTS.md"}"#),
+                approval: approval(toolName: "Grep", input: #"{"pattern":"needle","path":"../outside"}"#),
                 status: .pending
             )
         )

@@ -3,7 +3,11 @@ import AppKit
 @MainActor
 extension AppKitTranscriptToolApprovalBlockView {
     func updateApprovalSplitControl(scopes: [ToolApprovalSessionScope]) {
-        let title = pendingApprovalMenuTitle(for: selectedApprovalSelection, scopes: scopes)
+        let title = pendingApprovalMenuTitle(
+            for: selectedApprovalSelection,
+            scopes: scopes,
+            approvalCount: configuration?.approvals.count ?? 1
+        )
         approvalSplitControl.setLabel(title, forSegment: 0)
         approvalSplitControl.setImage(NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil), forSegment: 0)
         approvalSplitControl.setImage(NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil), forSegment: 1)
@@ -31,7 +35,10 @@ extension AppKitTranscriptToolApprovalBlockView {
             let title = scopes.count == 1 ? "Approved for session" : ToolApprovalSessionScope.exact.resolvedTitle
             return resolvedApproveState(title: title, symbol: "clock.badge.checkmark")
         case .approvingForSessionGroup, .approvedForSessionGroup:
-            return resolvedApproveState(title: ToolApprovalSessionScope.group.resolvedTitle, symbol: "clock.badge.checkmark")
+            return resolvedApproveState(
+                title: ToolApprovalSessionScope.group.resolvedTitle(isPlural: configuration.approvals.count > 1),
+                symbol: "clock.badge.checkmark"
+            )
         case .pending:
             return pendingState(for: configuration, scopes: scopes, actionsAreDisabled: actionsAreDisabled)
         case nil:
@@ -43,10 +50,18 @@ extension AppKitTranscriptToolApprovalBlockView {
         if scopes.isEmpty {
             return configuration.approval.approvalPromptCopy.approveTitle
         }
-        return pendingApprovalMenuTitle(for: selectedApprovalSelection, scopes: scopes)
+        return pendingApprovalMenuTitle(
+            for: selectedApprovalSelection,
+            scopes: scopes,
+            approvalCount: configuration.approvals.count
+        )
     }
 
-    func pendingApprovalMenuTitle(for selection: ToolApprovalSelection, scopes: [ToolApprovalSessionScope]) -> String {
+    func pendingApprovalMenuTitle(
+        for selection: ToolApprovalSelection,
+        scopes: [ToolApprovalSessionScope],
+        approvalCount: Int
+    ) -> String {
         switch selection.normalized(for: scopes) {
         case .once:
             return "Approve once"
@@ -54,7 +69,7 @@ extension AppKitTranscriptToolApprovalBlockView {
             guard let scope = selection.sessionScope else {
                 return "Approve for session"
             }
-            return scopes.count == 1 ? "Approve for session" : scope.pendingTitle
+            return scopes.count == 1 ? "Approve for session" : scope.pendingTitle(isPlural: approvalCount > 1)
         }
     }
 
@@ -114,7 +129,11 @@ extension AppKitTranscriptToolApprovalBlockView {
         let selections = [.once] + scopes.map(ToolApprovalSelection.init(sessionScope:))
         for selection in selections {
             let item = NSMenuItem(
-                title: pendingApprovalMenuTitle(for: selection, scopes: scopes),
+                title: pendingApprovalMenuTitle(
+                    for: selection,
+                    scopes: scopes,
+                    approvalCount: configuration?.approvals.count ?? 1
+                ),
                 action: #selector(handleApprovalSelectionMenuItem(_:)),
                 keyEquivalent: ""
             )
