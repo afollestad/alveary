@@ -1,0 +1,9 @@
+{
+  "actions" : [
+    {
+      "command" : "scripts\/run.sh -b",
+      "icon" : "play",
+      "name" : "Build & run"
+    }
+  ]
+}
