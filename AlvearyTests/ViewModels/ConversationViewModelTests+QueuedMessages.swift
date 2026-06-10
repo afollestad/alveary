@@ -22,6 +22,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true
         )
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimePlanModeEnabled = false
         fixture.viewModel.turnState.beginTurn()
 
@@ -64,6 +65,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: true,
             initialAgentIsRunning: true
         )
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimePlanModeEnabled = true
         fixture.viewModel.turnState.beginTurn()
 
@@ -192,8 +194,89 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
     }
 
+    func testQueuedMessageDrainsAfterStaleBusyStatusRefreshesIdle() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+        await fixture.agentsManager.enqueueRefreshStatus(.idle)
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("queued message sent after stale busy refresh") {
+            await fixture.agentsManager.sentMessages() == ["Follow-up"] &&
+                fixture.viewModel.messageQueue.peekNext() == nil
+        }
+        let refreshStatusCalls = await fixture.agentsManager.refreshStatusCalls()
+        XCTAssertEqual(refreshStatusCalls, [fixture.conversation.id])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+    }
+
+    func testQueuedMessageDrainsAfterPostEnqueueStaleBusyRefreshesIdle() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+        await fixture.agentsManager.enqueueRefreshStatus(.idle)
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+
+        try await waitUntil("queued message sent after post-enqueue stale busy refresh") {
+            await fixture.agentsManager.sentMessages() == ["Follow-up"] &&
+                fixture.viewModel.messageQueue.peekNext() == nil
+        }
+        let refreshStatusCalls = await fixture.agentsManager.refreshStatusCalls()
+        XCTAssertEqual(refreshStatusCalls, [fixture.conversation.id])
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+    }
+
+    func testQueuedMessageDoesNotDrainUntilViewLifecycleActivates() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+        fixture.viewModel.handleTurnCompleted()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, [])
+        XCTAssertEqual(fixture.viewModel.messageQueue.peekNext()?.text, "Follow-up")
+
+        fixture.viewModel.activateViewLifecycle()
+
+        try await waitUntil("queued message sent after activation") {
+            await fixture.agentsManager.sentMessages() == ["Follow-up"] &&
+                fixture.viewModel.messageQueue.peekNext() == nil
+        }
+    }
+
+    func testQueuedMessageDoesNotDrainWhenLifecycleDeactivatesDuringStatusRefresh() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+        await fixture.agentsManager.enqueueRefreshStatus(.idle)
+        await fixture.agentsManager.pauseNextRefreshStatus()
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("status refresh starts before lifecycle deactivation") {
+            await fixture.agentsManager.refreshStatusCalls() == [fixture.conversation.id]
+        }
+
+        fixture.viewModel.deactivateViewLifecycle()
+        await fixture.agentsManager.resumePausedRefreshStatus()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, [])
+        XCTAssertEqual(fixture.viewModel.messageQueue.peekNext()?.text, "Follow-up")
+    }
+
     func testQueuedMessageFailureMovesRetryToTranscriptMessage() async throws {
         let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.stagedContext = "Context block"
         fixture.viewModel.turnState.beginTurn()
 
@@ -231,6 +314,7 @@ extension ConversationViewModelTests {
 
     func testQueuedMessageSendsAfterPermissionDeniedTurnCompletes() async throws {
         let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.turnState.beginTurn()
 
         try await fixture.viewModel.queueOrSend("Follow-up")

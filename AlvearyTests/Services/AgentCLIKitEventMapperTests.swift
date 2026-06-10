@@ -55,7 +55,8 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
                 costUsd: 0.01,
                 providerModelId: "sonnet",
                 contextWindowSize: 200_000,
-                permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")]
+                permissionDenials: [PermissionDenialSummary(toolName: "Bash", toolUseId: "tool-1")],
+                isTerminal: true
             )
         ])
     }
@@ -68,7 +69,7 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
             metadata: ["stop_reason": .string("tool_deferred")]
         ))))
 
-        guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _)? = events.first else {
+        guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _, _)? = events.first else {
             return XCTFail("Expected token event")
         }
         XCTAssertEqual(stopReason, "tool_deferred")
@@ -81,7 +82,7 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
             outputTokens: 2
         ))))
 
-        guard case let .tokens(_, _, _, _, _, _, _, costUsd, _, _, _)? = events.first else {
+        guard case let .tokens(_, _, _, _, _, _, _, costUsd, _, _, _, _)? = events.first else {
             return XCTFail("Expected token event")
         }
         XCTAssertNil(costUsd)
@@ -330,7 +331,7 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
             AgentCLIKitEventMapper().conversationEvents(from: envelope($0))
         }
         let tokenEvents = conversationEvents.compactMap { event -> String? in
-            guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _) = event else {
+            guard case let .tokens(_, _, _, _, _, stopReason, _, _, _, _, _, _) = event else {
                 return nil
             }
             return stopReason
@@ -407,7 +408,7 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         ])
     }
 
-    private func envelope(
+    func envelope(
         _ event: AgentCLIKit.AgentEvent,
         providerSessionId: AgentSessionID? = nil
     ) -> AgentCLIKit.AgentEventEnvelope {

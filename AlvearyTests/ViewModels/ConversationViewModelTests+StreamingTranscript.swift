@@ -217,7 +217,8 @@ extension ConversationViewModelTests {
                 stopReason: nil,
                 durationMs: 5,
                 costUsd: 0,
-                permissionDenials: []
+                permissionDenials: [],
+                isTerminal: true
             )
         )
 
@@ -269,7 +270,8 @@ extension ConversationViewModelTests {
                 stopReason: nil,
                 durationMs: 5,
                 costUsd: 0,
-                permissionDenials: []
+                permissionDenials: [],
+                isTerminal: true
             )
         )
 
@@ -309,7 +311,8 @@ extension ConversationViewModelTests {
                 stopReason: nil,
                 durationMs: 5,
                 costUsd: 0,
-                permissionDenials: []
+                permissionDenials: [],
+                isTerminal: true
             )
         )
 

@@ -96,22 +96,36 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func usageEvents(from event: AgentCLIKit.AgentUsageEvent) -> [ConversationEvent] {
-        [.tokens(
+        let stopReason = event.stopReason ?? event.metadata.stringValue("stop_reason")
+        let permissionDenials = event.permissionDenials.map {
+            PermissionDenialSummary(toolName: $0.toolName ?? "Unknown tool", toolUseId: $0.toolUseId)
+        }
+        let tokenEvent = ConversationEvent.tokens(
             input: event.inputTokens ?? 0,
             output: event.outputTokens ?? 0,
             // `cachedInputTokens` is already included in input tokens; only additive cache-read tokens persist here.
             cacheRead: event.cacheReadInputTokens ?? 0,
             cacheCreation: event.cacheCreationInputTokens ?? 0,
             isError: event.isError,
-            stopReason: event.stopReason ?? event.metadata.stringValue("stop_reason"),
+            stopReason: stopReason,
             durationMs: event.durationMs ?? 0,
             costUsd: event.costUSD,
             providerModelId: event.model,
             contextWindowSize: event.contextWindow,
-            permissionDenials: event.permissionDenials.map {
-                PermissionDenialSummary(toolName: $0.toolName ?? "Unknown tool", toolUseId: $0.toolUseId)
-            }
-        )]
+            permissionDenials: permissionDenials,
+            isTerminal: event.isTerminal || Self.isTerminalStopReason(stopReason)
+        )
+        return [tokenEvent]
+    }
+
+    private static func isTerminalStopReason(_ stopReason: String?) -> Bool {
+        guard let stopReason,
+              stopReason != AgentCLIKit.AgentUsageEvent.interimUsageStopReason,
+              stopReason != "tool_use",
+              stopReason != "tool_deferred" else {
+            return false
+        }
+        return true
     }
 
     private func taskEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {

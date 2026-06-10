@@ -105,7 +105,8 @@ enum ConversationEvent: Sendable, Equatable {
         costUsd: Double?,
         providerModelId: String? = nil,
         contextWindowSize: Int? = nil,
-        permissionDenials: [PermissionDenialSummary]
+        permissionDenials: [PermissionDenialSummary],
+        isTerminal: Bool = false
     )
     case toolApprovalRequested(ToolApprovalRequest)
     case toolApprovalFailed(ToolApprovalFailure)
@@ -257,6 +258,7 @@ private extension ConversationEvent {
             costUsd,
             providerModelId,
             contextWindowSize,
+            _,
             _
         ) = self else {
             preconditionFailure("Unexpected event case")

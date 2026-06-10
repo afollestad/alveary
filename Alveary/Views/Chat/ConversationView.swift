@@ -15,6 +15,7 @@ struct ConversationView: View {
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
+    let runtimeStatus: ActivitySignal
     let projectTrustPrompt: ProjectTrustPrompt?
     let isProjectTrustBlocked: Bool
     let onTrustProject: (ProjectTrustPrompt) -> Void
@@ -24,28 +25,8 @@ struct ConversationView: View {
     @Bindable var appState: AppState
 
     @State var viewModel: ConversationViewModel
-    @State private var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
-    @State private var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
-
-    private var activeWorkingDirectory: String? {
-        conversation.thread?.worktreePath ?? conversation.thread?.project?.path
-    }
-
-    private var providerDiscoveryProjectURL: URL? {
-        conversation.thread?.project.map { URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true) }
-    }
-
-    private var activeProviderID: String {
-        conversation.provider ?? settingsService.current.defaultProvider
-    }
-
-    private var activeAgentProviderID: AgentCLIKit.AgentProviderID? {
-        AgentCLIKit.AgentProviderID(rawValue: activeProviderID)
-    }
-
-    private var activeProviderStatus: AgentCLIKit.AgentProviderStatus? {
-        activeAgentProviderID.flatMap { composerProviderStatuses[$0] }
-    }
+    @State var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
+    @State var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
 
     var composerCapabilities: ComposerCapabilities {
         let provider = providerRegistry.provider(for: activeProviderID)
@@ -76,6 +57,7 @@ struct ConversationView: View {
         providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
         fileListManager: FileListManager,
+        runtimeStatus: ActivitySignal,
         projectTrustPrompt: ProjectTrustPrompt? = nil,
         isProjectTrustBlocked: Bool = false,
         onTrustProject: @escaping (ProjectTrustPrompt) -> Void = { _ in },
@@ -96,6 +78,7 @@ struct ConversationView: View {
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
         self.fileListManager = fileListManager
+        self.runtimeStatus = runtimeStatus
         self.projectTrustPrompt = projectTrustPrompt
         self.isProjectTrustBlocked = isProjectTrustBlocked
         self.onTrustProject = onTrustProject
@@ -137,7 +120,7 @@ struct ConversationView: View {
             reasoningConfiguration: composerReasoningConfiguration,
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
-            runtimeStatus: agentsManager.status(for: conversation.id),
+            runtimeStatus: runtimeStatus,
             contextWindowCache: contextWindowCache,
             workingDirectory: activeWorkingDirectory,
             projectTrustPrompt: projectTrustPrompt,
@@ -168,6 +151,12 @@ struct ConversationView: View {
         }
         .onDisappear {
             viewModel.deactivateViewLifecycle()
+        }
+        .onChange(of: runtimeStatus) { _, newStatus in
+            guard newStatus == .idle else {
+                return
+            }
+            viewModel.scheduleQueueDrainIfNeeded()
         }
         .onChange(of: activeWorkingDirectory) { _, newPath in
             guard let newPath,

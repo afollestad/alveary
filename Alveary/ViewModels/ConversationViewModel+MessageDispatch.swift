@@ -2,49 +2,8 @@ import Foundation
 
 extension ConversationViewModel {
     func handleTurnCompleted() {
-        guard state.pendingToolApproval == nil else {
-            state.turnState.endTurn()
-            return
-        }
-
-        guard !state.isAwaitingExitPlanModeFollowUp else {
-            state.turnState.endTurn()
-            return
-        }
-
-        guard state.messageQueue.peekNext() != nil else {
-            state.turnState.endTurn()
-            return
-        }
-
         state.turnState.endTurn()
-        Task { @MainActor in
-            guard state.inFlightQueuedMessageID == nil else {
-                return
-            }
-            guard let next = state.messageQueue.peekNext() else {
-                state.turnState.endTurn()
-                return
-            }
-            guard let dbConversation = dbConversation() else {
-                state.turnState.endTurn()
-                return
-            }
-
-            state.inFlightQueuedMessageID = next.id
-            defer {
-                if state.inFlightQueuedMessageID == next.id {
-                    state.inFlightQueuedMessageID = nil
-                }
-            }
-
-            do {
-                try await sendNextQueuedMessage(next, in: dbConversation)
-            } catch {
-                state.lastTurnError = "Queued message failed to send: \(error.localizedDescription)"
-                state.turnState.endTurn()
-            }
-        }
+        scheduleQueueDrainIfNeeded()
     }
 
     func sendReserved(
@@ -66,6 +25,7 @@ extension ConversationViewModel {
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
         state.activeRuntimeActivityTurnId = nil
+        state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
         try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
@@ -144,7 +104,90 @@ extension ConversationViewModel {
     }
 }
 
+extension ConversationViewModel {
+    func scheduleQueueDrainIfNeeded() {
+        guard queueDrainTask == nil,
+              state.messageQueue.peekNext() != nil,
+              !state.turnState.isActive,
+              hasActivatedViewLifecycle else {
+            return
+        }
+
+        queueDrainTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer { self.queueDrainTask = nil }
+            await self.drainNextQueuedMessageIfReady()
+        }
+    }
+}
+
 private extension ConversationViewModel {
+    func drainNextQueuedMessageIfReady() async {
+        guard canDrainNextQueuedMessageLocally() else {
+            return
+        }
+
+        let runtimeStatus = await runtimeStatusForQueueDrain()
+        guard !Task.isCancelled,
+              canDrainNextQueuedMessageLocally() else {
+            return
+        }
+        guard runtimeStatus == .idle || runtimeStatus == .neutral || runtimeStatus == .stopped else {
+            return
+        }
+        guard let next = state.messageQueue.peekNext(),
+              let dbConversation = dbConversation() else {
+            return
+        }
+
+        state.inFlightQueuedMessageID = next.id
+        defer {
+            if state.inFlightQueuedMessageID == next.id {
+                state.inFlightQueuedMessageID = nil
+            }
+        }
+
+        do {
+            try await sendNextQueuedMessage(next, in: dbConversation)
+        } catch {
+            state.lastTurnError = "Queued message failed to send: \(error.localizedDescription)"
+            state.turnState.endTurn()
+        }
+    }
+
+    func canDrainNextQueuedMessageLocally() -> Bool {
+        hasActivatedViewLifecycle &&
+            !needsSetup &&
+            initialSetupTask == nil &&
+            state.setupPhase == nil &&
+            !state.isCancellingInitialSetup &&
+            !state.isSendingMessage &&
+            !state.turnState.isActive &&
+            state.inFlightQueuedMessageID == nil &&
+            state.pendingToolApproval == nil &&
+            !hasUnansweredPrompt &&
+            state.pendingExitPlanModeFollowUp == nil &&
+            !state.hasActiveSessionHandoff &&
+            !state.isAutomaticSessionHandoffPending &&
+            !state.isCancellingTurn &&
+            !state.lastTurnInterrupted &&
+            state.lastTurnError == nil &&
+            state.failedSessionHandoffMessage == nil &&
+            !state.isReconfiguringSession
+    }
+
+    func runtimeStatusForQueueDrain() async -> ActivitySignal {
+        let cachedStatus = agentsManager.status(for: conversation.id)
+        guard cachedStatus == .busy,
+              !state.turnState.isActive,
+              state.messageQueue.peekNext() != nil else {
+            return cachedStatus
+        }
+        return await agentsManager.refreshStatus(conversationId: conversation.id)
+    }
+
     func queuedMessageForSteering(id: UUID) throws -> QueuedMessage {
         guard let queuedMessage = state.messageQueue.pending.first(where: { $0.id == id }) else {
             throw AgentError.spawnFailed("That queued message is no longer available")

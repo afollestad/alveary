@@ -126,7 +126,10 @@ struct ChatView: View {
         let conversationID = conversation.id
         _events = Query(
             filter: #Predicate { $0.conversationId == conversationID },
-            sort: \.timestamp
+            sort: [
+                SortDescriptor(\.timestamp),
+                SortDescriptor(\.id)
+            ]
         )
     }
 

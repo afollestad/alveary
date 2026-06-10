@@ -97,8 +97,7 @@ extension ConversationViewModel {
     func markPendingExitPlanModeFollowUpReadyAfterTerminalToken(_ payload: TokenEventPayload) -> Bool {
         guard let followUp = state.pendingExitPlanModeFollowUp,
               followUp.phase == .awaitingDeniedExitTurn,
-              payload.stopReason != ConversationEvent.interimUsageStopReason,
-              payload.stopReason != "tool_deferred",
+              payload.completesTurn,
               terminalTokenMatchesPendingExitPlanModeFollowUp(payload, followUp: followUp) else {
             return false
         }

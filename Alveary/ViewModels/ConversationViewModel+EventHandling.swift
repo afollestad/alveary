@@ -54,8 +54,8 @@ private extension ConversationViewModel {
         case .messageChunk(let text, let parentToolUseId):
             return handleMessageChunk(text, parentToolUseId: parentToolUseId)
 
-        case .message(let role, _, _):
-            return shouldPersistMessageEvent(role: role)
+        case .message(let role, let content, _):
+            return shouldPersistMessageEvent(role: role, content: content)
 
         case .tokens:
             guard let payload = TokenEventPayload(event) else { return true }
@@ -169,9 +169,13 @@ private extension ConversationViewModel {
         return false
     }
 
-    func shouldPersistMessageEvent(role: String) -> Bool {
+    func shouldPersistMessageEvent(role: String, content: String) -> Bool {
         if role == "assistant" {
             state.clearStreamingText()
+            if state.pendingSyntheticAssistantDuplicateText == content {
+                state.pendingSyntheticAssistantDuplicateText = nil
+                return false
+            }
             return true
         }
         return false
@@ -191,6 +195,7 @@ private extension ConversationViewModel {
         state.clearStreamingText()
         guard payload.stopReason != ConversationEvent.interimUsageStopReason else { return .persistTokens }
         guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
+        guard payload.completesTurn else { return .persistTokens }
         state.activeRuntimeActivityTurnId = nil
         clearResolvedPendingToolApprovalIfNeeded()
         let didQueueExitPlanModeFollowUp = markPendingExitPlanModeFollowUpReadyAfterTerminalToken(payload)
@@ -233,6 +238,7 @@ private extension ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnInterrupted = false
             state.lastTurnError = nil
+            state.pendingSyntheticAssistantDuplicateText = slashCommandNotice
             handleTurnCompleted()
             return .persistSyntheticAssistant(message: slashCommandNotice)
         }

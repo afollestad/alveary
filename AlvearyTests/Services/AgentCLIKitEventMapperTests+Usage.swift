@@ -40,7 +40,8 @@ extension AgentCLIKitEventMapperTests {
                 costUsd: 0.01,
                 providerModelId: "gpt-5-codex",
                 contextWindowSize: 121_600,
-                permissionDenials: []
+                permissionDenials: [],
+                isTerminal: true
             )
         ])
     }

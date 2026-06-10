@@ -53,6 +53,9 @@ actor MockAgentsManager: AgentsManager {
     private let sessionApprovalEffective: Bool
     private let statusStore = MockAgentsManagerStatusStore()
     private var queuedSendResults: [Result<Void, MockError>] = []
+    private var queuedRefreshStatuses: [ActivitySignal] = []
+    private var pausesNextRefreshStatus = false
+    private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
@@ -60,6 +63,7 @@ actor MockAgentsManager: AgentsManager {
     private var recordedMarkPersistedCalls: [MarkPersistedCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var recordedCancelCalls: [String] = []
+    private var recordedRefreshStatusCalls: [String] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
     private var pausesApprovalResolution = false
     private var approvalResolutionContinuation: CheckedContinuation<Void, Never>?
@@ -173,6 +177,20 @@ actor MockAgentsManager: AgentsManager {
         queuedSendResults.append(result)
     }
 
+    func enqueueRefreshStatus(_ status: ActivitySignal) {
+        queuedRefreshStatuses.append(status)
+    }
+
+    func pauseNextRefreshStatus() {
+        pausesNextRefreshStatus = true
+    }
+
+    func resumePausedRefreshStatus() {
+        pausesNextRefreshStatus = false
+        refreshStatusContinuation?.resume()
+        refreshStatusContinuation = nil
+    }
+
     func pauseApprovalResolution() {
         pausesApprovalResolution = true
     }
@@ -265,6 +283,20 @@ actor MockAgentsManager: AgentsManager {
         recordedMarkPersistedCalls.append((conversationId, generation, index))
     }
 
+    func refreshStatus(conversationId: String) async -> ActivitySignal {
+        recordedRefreshStatusCalls.append(conversationId)
+        if pausesNextRefreshStatus {
+            pausesNextRefreshStatus = false
+            await withCheckedContinuation { continuation in
+                refreshStatusContinuation = continuation
+            }
+        }
+        if !queuedRefreshStatuses.isEmpty {
+            statusStore.set(queuedRefreshStatuses.removeFirst(), for: conversationId)
+        }
+        return statusStore.status(for: conversationId)
+    }
+
     nonisolated func status(for conversationId: String) -> ActivitySignal {
         statusStore.status(for: conversationId)
     }
@@ -305,6 +337,10 @@ actor MockAgentsManager: AgentsManager {
 
     func cancelCalls() -> [String] {
         recordedCancelCalls
+    }
+
+    func refreshStatusCalls() -> [String] {
+        recordedRefreshStatusCalls
     }
 
     private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {
@@ -419,63 +455,5 @@ actor MockWorktreeManager: WorktreeManager {
 
     func enqueueCreateResult(_ result: Result<WorktreeInfo, MockError>) {
         queuedCreateResults.append(result)
-    }
-}
-
-actor MockProviderSetupService: ProviderSetupService {
-    struct Call: Sendable, Equatable {
-        let providerId: String
-        let workingDirectory: String
-        let autoTrust: Bool
-    }
-
-    private var recordedCalls: [Call] = []
-    private var trustedProjectPaths: Set<String> = []
-    private nonisolated let cachedTrust = MockProviderSetupTrustCache()
-
-    nonisolated func cachedProjectTrustStatus(providerId: String, workingDirectory: String) -> Bool? {
-        providerId != "claude" || cachedTrust.isTrusted(workingDirectory)
-    }
-
-    func projectTrustUpdates() async -> AsyncStream<Void> {
-        AsyncStream { continuation in
-            continuation.finish()
-        }
-    }
-
-    func prepareForSpawn(providerId: String, workingDirectory: String, autoTrust: Bool) async {
-        recordedCalls.append(
-            Call(
-                providerId: providerId,
-                workingDirectory: workingDirectory,
-                autoTrust: autoTrust
-            )
-        )
-    }
-
-    func isTrustedProject(providerId: String, workingDirectory: String) async -> Bool {
-        providerId != "claude" || trustedProjectPaths.contains(CanonicalPath.normalize(workingDirectory))
-    }
-
-    func trustProject(providerId: String, workingDirectory: String) async {
-        guard providerId == "claude" else {
-            return
-        }
-        trustedProjectPaths.insert(CanonicalPath.normalize(workingDirectory))
-        cachedTrust.setTrustedProject(workingDirectory, isTrusted: true)
-    }
-
-    func setTrustedProject(_ workingDirectory: String, isTrusted: Bool) {
-        let normalizedPath = CanonicalPath.normalize(workingDirectory)
-        if isTrusted {
-            trustedProjectPaths.insert(normalizedPath)
-        } else {
-            trustedProjectPaths.remove(normalizedPath)
-        }
-        cachedTrust.setTrustedProject(workingDirectory, isTrusted: isTrusted)
-    }
-
-    func calls() -> [Call] {
-        recordedCalls
     }
 }

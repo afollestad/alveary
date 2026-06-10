@@ -69,6 +69,7 @@ struct ThreadDetailView: View {
 
         return Group {
             if let conversation = selectedConversation {
+                let selectedRuntimeStatus = agentsManager.status(for: conversation.id)
                 VStack(spacing: 0) {
                     if let conversationActionError {
                         InlineBanner(
@@ -110,6 +111,7 @@ struct ThreadDetailView: View {
                         providerSetup: providerSetup,
                         contextWindowCache: contextWindowCache,
                         fileListManager: fileListManager,
+                        runtimeStatus: selectedRuntimeStatus,
                         projectTrustPrompt: visibleProjectTrustPrompt,
                         isProjectTrustBlocked: isProjectTrustBlocked,
                         onTrustProject: { prompt in

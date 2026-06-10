@@ -23,6 +23,7 @@ extension ConversationViewModelTests {
             initialAgentIsRunning: true,
             providerId: "codex"
         )
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimeSpeedMode = .standard
         fixture.viewModel.state.turnState.beginTurn()
 
@@ -136,6 +137,7 @@ extension ConversationViewModelTests {
             initialAgentIsRunning: true,
             providerId: "codex"
         )
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.runtimeSpeedMode = .standard
         fixture.viewModel.state.turnState.beginTurn()
 

@@ -458,6 +458,14 @@ extension DefaultAgentsManager {
         }
     }
 
+    func refreshStatus(conversationId: String) async -> ActivitySignal {
+        let runtimeConversationId = agentCLIKitServices.hostAdapter.conversationId(conversationId)
+        if let status = await agentCLIKitServices.runtime.status(conversationId: runtimeConversationId) {
+            applyAgentCLIKitStatus(status, conversationId: conversationId)
+        }
+        return self.status(for: conversationId)
+    }
+
     private func syncRuntimeSettingsStatus(_ status: AgentCLIKit.AgentRuntimeStatus, conversationId: String) {
         Task { @MainActor [weak self] in
             guard let self else {

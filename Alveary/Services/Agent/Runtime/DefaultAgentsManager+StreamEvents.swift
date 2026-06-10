@@ -46,15 +46,13 @@ extension DefaultAgentsManager {
         conversationId: String
     ) async {
         switch event {
-        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
-            await handleTokenStatus(
-                isError: isError,
-                stopReason: stopReason,
-                permissionDenials: permissionDenials,
-                conversationId: conversationId
-            )
+        case .tokens:
+            guard let payload = TokenEventPayload(event) else {
+                return
+            }
+            await handleTokenStatus(payload, conversationId: conversationId)
             handleToolDeferredStopIfNeeded(
-                stopReason: stopReason,
+                stopReason: payload.stopReason,
                 conversationId: conversationId
             )
         case .toolApprovalFailed(let failure):
@@ -120,12 +118,10 @@ extension DefaultAgentsManager {
     }
 
     private func handleTokenStatus(
-        isError: Bool,
-        stopReason: String?,
-        permissionDenials: [PermissionDenialSummary],
+        _ payload: TokenEventPayload,
         conversationId: String
     ) async {
-        guard stopReason != ConversationEvent.interimUsageStopReason else {
+        guard payload.stopReason != ConversationEvent.interimUsageStopReason else {
             return
         }
 
@@ -134,17 +130,21 @@ extension DefaultAgentsManager {
             return
         }
 
-        let isWaitingOnDeferredPrompt = stopReason == "tool_deferred" &&
-            !isError &&
-            permissionDenials.isEmpty
+        let isWaitingOnDeferredPrompt = payload.stopReason == "tool_deferred" &&
+            !payload.isError &&
+            payload.permissionDenials.isEmpty
         if isWaitingOnDeferredPrompt {
             updateStatus(.waitingForUser, for: conversationId)
             return
         }
 
+        guard payload.completesTurn else {
+            return
+        }
+
         if await isAgentCLIKitTurnStillActive(
-            isError: isError,
-            permissionDenials: permissionDenials,
+            isError: payload.isError,
+            permissionDenials: payload.permissionDenials,
             conversationId: conversationId
         ) {
             updateStatus(.busy, for: conversationId)
@@ -152,7 +152,11 @@ extension DefaultAgentsManager {
         }
 
         updateStatus(
-            tokenStatusSignal(isError: isError, stopReason: stopReason, permissionDenials: permissionDenials),
+            tokenStatusSignal(
+                isError: payload.isError,
+                stopReason: payload.stopReason,
+                permissionDenials: payload.permissionDenials
+            ),
             for: conversationId
         )
     }

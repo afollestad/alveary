@@ -26,7 +26,7 @@ extension DefaultAgentsManager {
         notificationEvent: ConversationEvent,
         conversationId: String
     ) async -> Bool {
-        if case .tokens(_, _, _, _, true, let stopReason, _, _, _, _, let permissionDenials) = event,
+        if case .tokens(_, _, _, _, true, let stopReason, _, _, _, _, let permissionDenials, _) = event,
            permissionDenials.isEmpty,
            ConversationInterruption.isRequestInterruptedByUserReason(stopReason) {
             return false
@@ -47,9 +47,9 @@ extension DefaultAgentsManager {
         }
 
         guard notificationEvent == event,
-              case .tokens(_, _, _, _, let isError, _, _, _, _, _, let permissionDenials) = event,
-              !isError,
-              permissionDenials.isEmpty else {
+              let payload = TokenEventPayload(event),
+              !payload.isError,
+              payload.permissionDenials.isEmpty else {
             return true
         }
 
@@ -64,22 +64,18 @@ extension DefaultAgentsManager {
         notificationEvent: ConversationEvent
     ) -> Bool {
         guard notificationEvent == event,
-              case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials) = event else {
+              let payload = TokenEventPayload(event) else {
             return false
         }
 
-        // Usage updates and deferred-tool stops are progress/waiting states, not completed turns.
-        if stopReason == ConversationEvent.interimUsageStopReason {
-            return true
-        }
-        return stopReason == "tool_deferred" && !isError && permissionDenials.isEmpty
+        return !payload.completesTurn
     }
 
     private func shouldSuppressResolvedPermissionDenialNotification(
         for event: ConversationEvent,
         conversationId: String
     ) -> Bool {
-        guard case .tokens(_, _, _, _, _, _, _, _, _, _, let permissionDenials) = event,
+        guard case .tokens(_, _, _, _, _, _, _, _, _, _, let permissionDenials, _) = event,
               !permissionDenials.isEmpty,
               var deniedToolUseIds = deniedToolUseIdsByConversation[conversationId] else {
             return false
@@ -110,11 +106,8 @@ extension DefaultAgentsManager {
         switch event {
         case .stop, .error:
             return true
-        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
-            if isError || !permissionDenials.isEmpty {
-                return true
-            }
-            return stopReason != ConversationEvent.interimUsageStopReason && stopReason != "tool_deferred"
+        case .tokens:
+            return TokenEventPayload(event)?.completesTurn == true
         default:
             return false
         }

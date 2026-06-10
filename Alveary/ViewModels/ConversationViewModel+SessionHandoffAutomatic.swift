@@ -55,13 +55,6 @@ private extension ConversationViewModel {
     }
 
     func isCompletedTurnForAutomaticSessionHandoff(_ payload: TokenEventPayload) -> Bool {
-        guard !payload.isError,
-              payload.permissionDenials.isEmpty,
-              let stopReason = payload.stopReason?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !stopReason.isEmpty else {
-            return false
-        }
-
-        return stopReason != ConversationEvent.interimUsageStopReason
+        !payload.isError && payload.permissionDenials.isEmpty && payload.completesTurn
     }
 }

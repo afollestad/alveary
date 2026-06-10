@@ -110,8 +110,15 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     nonisolated func updateStatus(_ signal: ActivitySignal, for conversationId: String) {
-        statusSnapshot.withLock { $0[conversationId] = signal }
+        let didChange = statusSnapshot.withLock { statuses in
+            let didChange = statuses[conversationId] != signal
+            statuses[conversationId] = signal
+            return didChange
+        }
         syncKeepAwakeRuntimeActivity()
+        guard didChange else {
+            return
+        }
         Task { @MainActor in
             NotificationCenter.default.post(
                 name: .agentStatusChanged,

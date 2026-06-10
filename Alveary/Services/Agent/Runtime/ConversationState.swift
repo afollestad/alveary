@@ -123,6 +123,7 @@ final class ConversationState {
     var pendingSessionSettingsChange: PendingSessionSettingsChange?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
+    var pendingSyntheticAssistantDuplicateText: String?
 
     var hasActiveSessionHandoff: Bool {
         isAwaitingHandoffSteering

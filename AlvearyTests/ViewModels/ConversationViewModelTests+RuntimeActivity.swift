@@ -64,6 +64,7 @@ extension ConversationViewModelTests {
 
     func testRuntimeActivityCompletedIdleDrainsQueuedMessage() async throws {
         let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.state.turnState.beginTurn()
 
         try await fixture.viewModel.queueOrSend("Follow-up")

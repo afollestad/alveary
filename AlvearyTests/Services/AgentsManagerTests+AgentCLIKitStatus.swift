@@ -143,6 +143,43 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testRefreshStatusPublishesAgentStatusChangedWhenCachedSignalChanges() async throws {
+        let executable = try makeScript(named: "refresh-idle-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let manager = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        ).manager
+        let conversationId = "agentclikit-refresh-status-posts"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        try await waitUntil("expected AgentCLIKit runtime to settle idle") {
+            manager.status(for: conversationId) == .idle
+        }
+
+        let expectation = expectation(description: "idle status notification posted")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .agentStatusChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?["conversationId"] as? String == conversationId,
+                  notification.userInfo?["signal"] as? ActivitySignal == .idle else {
+                return
+            }
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        manager.updateStatus(.busy, for: conversationId)
+        let refreshedStatus = await manager.refreshStatus(conversationId: conversationId)
+
+        XCTAssertEqual(refreshedStatus, .idle)
+        await fulfillment(of: [expectation], timeout: 1)
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitActiveTurnStatusControlsBusyState() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: TurnStatusAgentCLIKitAdapter(),

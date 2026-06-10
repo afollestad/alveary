@@ -43,6 +43,7 @@ protocol AgentsManager: Actor {
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws
     func markPersisted(conversationId: String, generation: UUID, upTo index: Int)
+    func refreshStatus(conversationId: String) async -> ActivitySignal
     nonisolated func status(for conversationId: String) -> ActivitySignal
     nonisolated var allStatuses: [String: ActivitySignal] { get }
     nonisolated func beginShutdown()
@@ -52,6 +53,10 @@ protocol AgentsManager: Actor {
 extension AgentsManager {
     func spawn(id: String, config: AgentSpawnConfig) async throws {
         try await spawn(id: id, config: config, forkSession: false)
+    }
+
+    func refreshStatus(conversationId: String) async -> ActivitySignal {
+        status(for: conversationId)
     }
 }
 

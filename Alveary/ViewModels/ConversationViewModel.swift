@@ -26,6 +26,7 @@ final class ConversationViewModel {
     var saveTaskID: UUID?
     var needsFollowUpSave = false
     var initialSetupTask: Task<Void, Error>?
+    var queueDrainTask: Task<Void, Never>?
     @ObservationIgnored var composerDraftSnapshotProvider: ComposerDraftSnapshotProvider?
     @ObservationIgnored var promptDismissalsResolving: Set<String> = []
 
@@ -113,29 +114,6 @@ final class ConversationViewModel {
         }
     }
 
-    func activateViewLifecycle() {
-        guard !hasActivatedViewLifecycle else {
-            return
-        }
-
-        hasActivatedViewLifecycle = true
-        hydratePendingRestoreContextIfNeeded()
-        hydratePendingToolApprovalIfNeeded()
-        subscribe()
-        schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
-    }
-
-    func deactivateViewLifecycle() {
-        guard hasActivatedViewLifecycle else {
-            return
-        }
-
-        hasActivatedViewLifecycle = false
-        subscriptionTask?.cancel()
-        subscriptionTask = nil
-        cancelPendingExitPlanModeFollowUpQuietTaskForViewDeactivation()
-    }
-
     var needsSetup: Bool {
         !(dbThread()?.hasCompletedInitialSetup ?? true)
     }
@@ -184,6 +162,7 @@ final class ConversationViewModel {
                 requiredSpeedMode: requiredSpeedMode
             )
             state.stagedContext = nil
+            scheduleQueueDrainIfNeeded()
             return
         }
 
@@ -464,6 +443,8 @@ final class ConversationViewModel {
         state.inputDraftPublishTask?.cancel()
         state.inputDraftPublishTask = nil
         state.hasPendingBlockInputDocumentChange = false
+        queueDrainTask?.cancel()
+        queueDrainTask = nil
         if let activeKeepAwakeSource {
             keepAwakeService.setActive(false, for: activeKeepAwakeSource)
         }

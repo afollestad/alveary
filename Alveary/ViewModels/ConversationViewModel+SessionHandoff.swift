@@ -273,6 +273,7 @@ private extension ConversationViewModel {
         guard payload.stopReason != ConversationEvent.interimUsageStopReason else {
             return
         }
+        guard payload.completesTurn else { return }
         guard !payload.isError, payload.permissionDenials.isEmpty else {
             state.turnState.endTurn()
             failSessionHandoff(payload.stopReason ?? "Session handoff failed.")

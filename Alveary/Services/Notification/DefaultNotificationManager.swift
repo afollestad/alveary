@@ -149,7 +149,7 @@ final class DefaultNotificationManager: NotificationManager {
             return stopMessage ?? "Your agent has finished working"
         case .notification(let type, let notificationText):
             return notificationMessage(for: type, text: notificationText)
-        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
+        case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials, _):
             return tokenNotificationMessage(
                 isError: isError,
                 stopReason: stopReason,
