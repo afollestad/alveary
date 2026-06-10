@@ -79,6 +79,14 @@ extension ChatComposerActionRowTests {
     }
 
     func testOpenReasoningPopoverContentSizeTracksConfigurationChanges() throws {
+        // Resizing a *shown* popover on macOS 26 schedules an `_NSWindowTransformAnimation` even with
+        // `animates == false`; AppKit over-releases it after the popover window dies, crashing whichever
+        // later test pumps the run loop (xcodebuild then silently relaunches the host, so suite results
+        // look green while the host crashes). `testReasoningPopoverContentSizeUpdatesEvenWhenPopoverIsNotReportedShown`
+        // keeps the contentSize-tracking coverage without showing the popover.
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 {
+            throw XCTSkip("Shown-popover resize crashes the test host on macOS 26 (AppKit window-transform animation over-release).")
+        }
         let largeEffortOptions: [ChatComposerActionRowView.MenuOption] = [
             .init(value: "low", title: "Low"),
             .init(value: "medium", title: "Medium"),
