@@ -17,7 +17,7 @@ struct AppSelectionRowBackground: View {
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
             .animation(.easeOut(duration: 0.22), value: isPressed)
-            .animation(.easeOut(duration: 0.22), value: isSelected)
+            .animation(.easeOut(duration: 0.08), value: isSelected)
     }
 
     private var fillColor: Color {

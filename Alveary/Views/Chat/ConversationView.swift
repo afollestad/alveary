@@ -177,7 +177,8 @@ struct ConversationView: View {
                     newPath,
                     baseRef: baseRef,
                     remoteName: remoteName,
-                    conversationIds: conversationIds
+                    conversationIds: conversationIds,
+                    scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
                 )
             }
         }

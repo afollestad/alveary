@@ -58,7 +58,11 @@ enum ProjectActionTerminalPresentation {
 }
 
 extension ContentView {
-    func runProjectAction(thread: AgentThread, action: AlvearyProjectConfig.ProjectAction) {
+    func runProjectAction(threadID: PersistentIdentifier, action: AlvearyProjectConfig.ProjectAction) {
+        guard let thread = uiModelContext.resolveThread(id: threadID),
+              thread.archivedAt == nil else {
+            return
+        }
         guard let context = ProjectActionExecutionContext(thread: thread, action: action) else {
             return
         }

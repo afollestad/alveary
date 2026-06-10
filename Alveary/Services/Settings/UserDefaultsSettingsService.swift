@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 @MainActor
 @Observable
@@ -30,11 +31,30 @@ final class UserDefaultsSettingsService: SettingsService {
         transform(&updated)
         updated = updated.normalized()
 
+        persist(updated, notify: true)
+    }
+
+    func updateRestoreSelection(threadID: PersistentIdentifier?, conversationID: PersistentIdentifier?) {
+        guard current.lastOpenThreadID != threadID || current.lastOpenConversationID != conversationID else {
+            return
+        }
+
+        var updated = current
+        updated.lastOpenThreadID = threadID
+        updated.lastOpenConversationID = conversationID
+        updated = updated.normalized()
+
+        persist(updated, notify: false)
+    }
+
+    private func persist(_ updated: AppSettings, notify: Bool) {
         do {
             let data = try encode(updated)
             defaults.set(data, forKey: Self.storageKey)
             current = updated
-            NotificationCenter.default.post(name: .appSettingsChanged, object: self)
+            if notify {
+                NotificationCenter.default.post(name: .appSettingsChanged, object: self)
+            }
         } catch {
             print("[SettingsService] Failed to persist app settings: \(error)")
         }

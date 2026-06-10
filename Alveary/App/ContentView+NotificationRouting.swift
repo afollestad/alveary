@@ -17,8 +17,8 @@ func openConversationInAppState(
         return
     }
 
-    // Marking the conversation read is handled by ContentView's `.onChange(of: activeConversationId)`
-    // observer, which fires on the SwiftUI pass after the selection mutation propagates.
+    // Marking the conversation read is handled by `ThreadDetailView` after
+    // the selected conversation mounts.
     appState.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
     appState.selectedSidebarItem = .thread(thread)
 }

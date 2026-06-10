@@ -101,9 +101,11 @@ final class DefaultNotificationManager: NotificationManager {
     }
 
     func markConversationRead(conversationId: String) {
-        setConversationUnread(conversationId: conversationId, isUnread: false)
+        let didChangeUnreadState = setConversationUnread(conversationId: conversationId, isUnread: false)
         dismissDeliveredNotifications(conversationId: conversationId)
-        refreshBadgeCount()
+        if didChangeUnreadState {
+            refreshBadgeCount()
+        }
     }
 
     func handleAppVisibilityChanged() {
@@ -208,10 +210,10 @@ final class DefaultNotificationManager: NotificationManager {
     }
 
     private func markConversationUnread(conversationId: String) {
-        setConversationUnread(conversationId: conversationId, isUnread: true)
+        _ = setConversationUnread(conversationId: conversationId, isUnread: true)
     }
 
-    private func setConversationUnread(conversationId: String, isUnread: Bool) {
+    private func setConversationUnread(conversationId: String, isUnread: Bool) -> Bool {
         let context = modelContainer.mainContext
         let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { conversation in
             conversation.id == conversationId
@@ -219,7 +221,7 @@ final class DefaultNotificationManager: NotificationManager {
 
         guard let conversation = try? context.fetch(descriptor).first,
               conversation.isUnread != isUnread else {
-            return
+            return false
         }
 
         conversation.isUnread = isUnread
@@ -231,6 +233,7 @@ final class DefaultNotificationManager: NotificationManager {
             object: nil,
             userInfo: ["conversationId": conversationId]
         )
+        return true
     }
 
     private func unreadConversationCount() -> Int {

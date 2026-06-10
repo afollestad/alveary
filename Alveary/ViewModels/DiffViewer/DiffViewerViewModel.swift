@@ -56,6 +56,9 @@ final class DiffViewerViewModel {
     }
 
     private var activeConversationIds: Set<String> = []
+    // True while the active target has only loaded toolbar stats; revealing the
+    // pane must upgrade to a full refresh instead of deduping the same target.
+    private var needsFullPaneRefresh = false
     let gitService: GitService
     let diffStore: DiffWorkspaceStore
     private let fileListManager: FileListManager
@@ -186,7 +189,8 @@ final class DiffViewerViewModel {
         _ directory: String,
         baseRef: String = "main",
         remoteName: String?,
-        conversationIds: Set<String>
+        conversationIds: Set<String>,
+        scope: DiffViewerSwitchScope = .full
     ) async {
         await switchToTarget(
             DiffViewerSwitchTarget(
@@ -196,13 +200,20 @@ final class DiffViewerViewModel {
                 baseRef: baseRef,
                 remoteName: remoteName,
                 conversationIds: conversationIds
-            )
+            ),
+            scope: scope
         )
     }
 
-    func switchToTarget(_ target: DiffViewerSwitchTarget) async {
+    func switchToTarget(_ target: DiffViewerSwitchTarget, scope: DiffViewerSwitchScope = .full) async {
         activeConversationIds = target.conversationIds
         guard target.workspaceTarget != diffStore.activeTarget else {
+            // Same workspace: the only outstanding work is upgrading a
+            // stats-only target to the full pane payload once the pane shows.
+            guard scope == .full, needsFullPaneRefresh else {
+                return
+            }
+            await refresh(in: target.directory, reason: .threadSwitch)
             return
         }
 
@@ -212,13 +223,16 @@ final class DiffViewerViewModel {
         }
         contextualAction = .none
         clearCommitState()
+        // Set eagerly so a pane reveal that lands before the scheduled refresh
+        // completes still upgrades instead of deduping the same target.
+        needsFullPaneRefresh = scope == .toolbarStatsOnly
 
         contextualActionResolver.invalidatePRCache()
         refreshScheduler.clearPending()
 
         if watchingEnabled { watchController.startWatching(target.directory) }
 
-        await refresh(in: target.directory, reason: .threadSwitch)
+        await refresh(in: target.directory, reason: .threadSwitch, scope: scope)
     }
 
     func setWatchingEnabled(_ enabled: Bool) {
@@ -241,6 +255,7 @@ final class DiffViewerViewModel {
     func clear() {
         watchController.stopWatching()
         activeConversationIds = []
+        needsFullPaneRefresh = false
         diffStore.clear()
         workspaceRefreshRevision &+= 1
         contextualAction = .none
@@ -253,13 +268,14 @@ final class DiffViewerViewModel {
 
     func presentGitError(_ message: String) { diffStore.presentGitError(message) }
 
-    func refresh(in directory: String, reason: RefreshReason) async {
+    func refresh(in directory: String, reason: RefreshReason, scope: DiffViewerSwitchScope = .full) async {
         await refreshScheduler.enqueue(
             RefreshRequest(
                 directory: directory,
                 reason: reason,
                 invalidateFileListCache: false,
-                invalidatePRCache: false
+                invalidatePRCache: false,
+                scope: scope
             )
         )
     }
@@ -270,7 +286,8 @@ final class DiffViewerViewModel {
                 directory: directory,
                 reason: reason,
                 invalidateFileListCache: true,
-                invalidatePRCache: reason != .localGitMutation
+                invalidatePRCache: reason != .localGitMutation,
+                scope: .full
             )
         )
     }
@@ -347,48 +364,6 @@ final class DiffViewerViewModel {
         diffStore.selectedFileKeys.contains(DiffViewerFileSelectionKey(file))
     }
 
-    func stage(files: [FileStatus], in directory: String) async throws {
-        try await stage(paths: DiffViewerPathSupport.uniquePaths(files.map(\.path)), in: directory)
-    }
-
-    func stage(paths: [String], in directory: String) async throws {
-        try await gitService.stage(paths: paths, in: directory)
-        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
-    }
-
-    func unstage(files: [FileStatus], in directory: String) async throws {
-        try await unstage(paths: DiffViewerPathSupport.uniquePaths(files.map(\.path)), in: directory)
-    }
-
-    func unstage(paths: [String], in directory: String) async throws {
-        try await gitService.unstage(paths: paths, in: directory)
-        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
-    }
-
-    func discard(files: [FileStatus], in directory: String) async throws {
-        let stagedFiles = files.filter(\.isStaged)
-        let stagedPaths = DiffViewerPathSupport.discardPaths(for: stagedFiles)
-        let stagedPathSet = Set(stagedPaths)
-
-        let unstagedPaths = DiffViewerPathSupport.discardPaths(for: files.filter { !$0.isStaged })
-            .filter { !stagedPathSet.contains($0) }
-
-        if !stagedPaths.isEmpty {
-            try await gitService.discard(paths: stagedPaths, scope: .all, in: directory)
-        }
-
-        if !unstagedPaths.isEmpty {
-            try await gitService.discard(paths: unstagedPaths, scope: .worktreeOnly, in: directory)
-        }
-
-        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
-    }
-
-    func discard(paths: [String], in directory: String) async throws {
-        try await gitService.discard(paths: paths, scope: .all, in: directory)
-        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
-    }
-
     func tearDown() {
         if let agentStatusObserver {
             NotificationCenter.default.removeObserver(agentStatusObserver)
@@ -427,6 +402,7 @@ private extension DiffViewerViewModel {
         guard let snapshot = await diffStore.refreshStatusAndStartStats(for: request.directory) else {
             return
         }
+        needsFullPaneRefresh = request.scope == .toolbarStatsOnly
         if shouldMarkCommitListStaleAfterInactiveRefresh(snapshot: snapshot, reason: request.reason) {
             isCommitListRefreshNeeded = true
         }
@@ -440,6 +416,10 @@ private extension DiffViewerViewModel {
         if !snapshot.isGitRepository {
             contextualAction = .none
             diffStore.applyContextualRefreshErrorIfCurrent(snapshot)
+            return
+        }
+
+        guard request.scope == .full else {
             return
         }
 

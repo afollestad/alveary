@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 @testable import Alveary
 
@@ -18,5 +19,15 @@ final class InMemorySettingsService: SettingsService {
         transform(&current)
         current = current.normalized()
         NotificationCenter.default.post(name: .appSettingsChanged, object: self)
+    }
+
+    func updateRestoreSelection(threadID: PersistentIdentifier?, conversationID: PersistentIdentifier?) {
+        guard current.lastOpenThreadID != threadID || current.lastOpenConversationID != conversationID else {
+            return
+        }
+
+        current.lastOpenThreadID = threadID
+        current.lastOpenConversationID = conversationID
+        current = current.normalized()
     }
 }

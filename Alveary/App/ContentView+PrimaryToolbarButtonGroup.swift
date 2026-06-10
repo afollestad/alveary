@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct PrimaryToolbarButtonGroup: View {
-    let selectedThread: AgentThread?
+    let selectedThreadID: PersistentIdentifier?
     let projectActions: [AlvearyProjectConfig.ProjectAction]
+    let projectActionsThreadID: PersistentIdentifier?
     let terminalTitle: String
     let terminalDisplayState: TerminalToolbarDisplayState
     let terminalHelpText: String
@@ -10,7 +12,7 @@ struct PrimaryToolbarButtonGroup: View {
     let diffHelpText: String
     let diffAccessibilityLabel: String
     let diffAccessibilityValue: String
-    let onProjectAction: (AgentThread, AlvearyProjectConfig.ProjectAction) -> Void
+    let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
     let onToggleTerminal: () -> Void
     let onToggleDiffViewer: () -> Void
     let onOpenSettings: () -> Void
@@ -20,8 +22,9 @@ struct PrimaryToolbarButtonGroup: View {
     @State private var areProjectActionsVisible: Bool
 
     init(
-        selectedThread: AgentThread?,
+        selectedThreadID: PersistentIdentifier?,
         projectActions: [AlvearyProjectConfig.ProjectAction],
+        projectActionsThreadID: PersistentIdentifier?,
         terminalTitle: String,
         terminalDisplayState: TerminalToolbarDisplayState,
         terminalHelpText: String,
@@ -29,13 +32,14 @@ struct PrimaryToolbarButtonGroup: View {
         diffHelpText: String,
         diffAccessibilityLabel: String,
         diffAccessibilityValue: String,
-        onProjectAction: @escaping (AgentThread, AlvearyProjectConfig.ProjectAction) -> Void,
+        onProjectAction: @escaping (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void,
         onToggleTerminal: @escaping () -> Void,
         onToggleDiffViewer: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void
     ) {
-        self.selectedThread = selectedThread
+        self.selectedThreadID = selectedThreadID
         self.projectActions = projectActions
+        self.projectActionsThreadID = projectActionsThreadID
         self.terminalTitle = terminalTitle
         self.terminalDisplayState = terminalDisplayState
         self.terminalHelpText = terminalHelpText
@@ -50,8 +54,9 @@ struct PrimaryToolbarButtonGroup: View {
 
         let initialProjectActionsSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(
             actionCount: Self.projectActionButtonCount(
-                selectedThread: selectedThread,
-                projectActions: projectActions
+                selectedThreadID: selectedThreadID,
+                projectActions: projectActions,
+                projectActionsThreadID: projectActionsThreadID
             )
         )
         _animatedProjectActionsSlotWidth = State(initialValue: initialProjectActionsSlotWidth)
@@ -73,8 +78,9 @@ struct PrimaryToolbarButtonGroup: View {
         // capsule follows the animated action and diff slots on the same layout pass.
         HStack(spacing: 0) {
             PrimaryToolbarProjectActionsSlot(
-                selectedThread: selectedThread,
+                selectedThreadID: selectedThreadID,
                 projectActions: projectActions,
+                projectActionsThreadID: projectActionsThreadID,
                 width: animatedProjectActionsSlotWidth,
                 areActionsVisible: areProjectActionsVisible,
                 onProjectAction: onProjectAction
@@ -130,8 +136,9 @@ struct PrimaryToolbarButtonGroup: View {
 
     private var projectActionButtonCount: Int {
         Self.projectActionButtonCount(
-            selectedThread: selectedThread,
-            projectActions: projectActions
+            selectedThreadID: selectedThreadID,
+            projectActions: projectActions,
+            projectActionsThreadID: projectActionsThreadID
         )
     }
 
@@ -142,11 +149,19 @@ struct PrimaryToolbarButtonGroup: View {
         }
     }
 
+    // While a thread switch's action refresh is in flight, the previously
+    // loaded actions stay rendered (their buttons keep targeting the thread
+    // they were loaded for) so same-project switches do not collapse and
+    // re-expand the slot on every selection change.
     private static func projectActionButtonCount(
-        selectedThread: AgentThread?,
-        projectActions: [AlvearyProjectConfig.ProjectAction]
+        selectedThreadID: PersistentIdentifier?,
+        projectActions: [AlvearyProjectConfig.ProjectAction],
+        projectActionsThreadID: PersistentIdentifier?
     ) -> Int {
-        selectedThread == nil ? 0 : projectActions.count
+        guard selectedThreadID != nil, projectActionsThreadID != nil else {
+            return 0
+        }
+        return projectActions.count
     }
 }
 
@@ -200,11 +215,12 @@ enum PrimaryToolbarMetrics {
 }
 
 private struct PrimaryToolbarProjectActionsSlot: View {
-    let selectedThread: AgentThread?
+    let selectedThreadID: PersistentIdentifier?
     let projectActions: [AlvearyProjectConfig.ProjectAction]
+    let projectActionsThreadID: PersistentIdentifier?
     let width: CGFloat
     let areActionsVisible: Bool
-    let onProjectAction: (AgentThread, AlvearyProjectConfig.ProjectAction) -> Void
+    let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
 
     var body: some View {
         // Project actions are an animated leading slot so inserting toolbar
@@ -224,10 +240,15 @@ private struct PrimaryToolbarProjectActionsSlot: View {
 
     @ViewBuilder
     private var projectActionButtons: some View {
-        if let selectedThread, !projectActions.isEmpty {
+        // Buttons act on the thread their actions were loaded for, so actions
+        // rendered while a newer thread's refresh resolves cannot run another
+        // project's command against the newly selected thread.
+        if selectedThreadID != nil,
+           let projectActionsThreadID,
+           !projectActions.isEmpty {
             ForEach(Array(projectActions.enumerated()), id: \.offset) { _, action in
                 Button {
-                    onProjectAction(selectedThread, action)
+                    onProjectAction(projectActionsThreadID, action)
                 } label: {
                     Label(action.name, systemImage: action.icon ?? "terminal")
                         .labelStyle(.iconOnly)
@@ -239,7 +260,9 @@ private struct PrimaryToolbarProjectActionsSlot: View {
     }
 
     private var slotTrailingPadding: CGFloat {
-        projectActions.isEmpty || selectedThread == nil ? 0 : PrimaryToolbarMetrics.buttonSpacing
+        projectActions.isEmpty || selectedThreadID == nil || projectActionsThreadID == nil
+            ? 0
+            : PrimaryToolbarMetrics.buttonSpacing
     }
 }
 

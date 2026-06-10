@@ -3,6 +3,9 @@ import SwiftData
 
 extension ContentView {
     func updateDiffViewer(item: SidebarItem?) {
+        diffViewerSwitchGeneration &+= 1
+        let generation = diffViewerSwitchGeneration
+
         let target: DiffViewerSwitchTarget?
 
         switch item {
@@ -21,8 +24,15 @@ extension ContentView {
             return
         }
 
+        // The toolbar diff summary must stay fresh even while the pane is
+        // hidden; only the heavy pane payload waits for the pane to show.
+        let scope: DiffViewerSwitchScope = appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+
         Task {
-            await diffViewModel.switchToTarget(target)
+            guard generation == diffViewerSwitchGeneration else {
+                return
+            }
+            await diffViewModel.switchToTarget(target, scope: scope)
         }
     }
 

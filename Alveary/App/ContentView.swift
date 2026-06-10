@@ -41,6 +41,8 @@ struct ContentView: View {
     @State private var settingsViewModel: SettingsViewModel
     @State var terminalManager: TerminalManager
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
+    @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
+    @State var diffViewerSwitchGeneration = 0
     @State private var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
     @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
     @State private var terminalToolbarResetTask: Task<Void, Never>?
@@ -86,6 +88,7 @@ struct ContentView: View {
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _terminalManager = State(initialValue: TerminalManager())
         _toolbarProjectActions = State(initialValue: [])
+        _toolbarProjectActionsThreadID = State(initialValue: nil)
     }
 
     private static func makeSidebarViewModel(dependencies: ContentViewDependencies, appState: AppState) -> SidebarViewModel {
@@ -213,8 +216,9 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 PrimaryToolbarButtonGroup(
-                    selectedThread: selectedThread,
+                    selectedThreadID: selectedThreadID,
                     projectActions: toolbarProjectActions,
+                    projectActionsThreadID: toolbarProjectActionsThreadID,
                     terminalTitle: terminalToggleTitle,
                     terminalDisplayState: terminalToolbarDisplayState,
                     terminalHelpText: "\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))",
@@ -223,8 +227,8 @@ struct ContentView: View {
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
                     diffAccessibilityLabel: appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
                     diffAccessibilityValue: diffViewerToggleAccessibilityValue,
-                    onProjectAction: { thread, action in
-                        runProjectAction(thread: thread, action: action)
+                    onProjectAction: { threadID, action in
+                        runProjectAction(threadID: threadID, action: action)
                     },
                     onToggleTerminal: toggleTerminalPane,
                     onToggleDiffViewer: {
@@ -246,7 +250,6 @@ struct ContentView: View {
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             updateDiffViewer(item: selection)
             cancelPendingDiffActionIfNeeded()
-            persistLastOpenThreadSelection(for: selection)
         }
         .onChange(of: appState.previousSelection) { _, _ in
             guard appState.selectedSidebarItem == .settings else {
@@ -256,16 +259,14 @@ struct ContentView: View {
         }
         .onChange(of: appState.isRightPaneVisible) { _, isVisible in
             diffViewModel.setWatchingEnabled(isVisible)
+            // Hiding keeps the loaded workspace so toolbar stats stay visible;
+            // showing upgrades a stats-only workspace to the full pane payload.
+            if isVisible {
+                updateDiffViewer(item: appState.selectedSidebarItem)
+            }
         }
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
-        }
-        .onChange(of: appState.selectedConversationIDs) { _, _ in
-            persistLastOpenThreadSelection(for: appState.selectedSidebarItem)
-        }
-        .onChange(of: activeConversationId) { _, newValue in
-            guard let newValue else { return }
-            notificationManager.markConversationRead(conversationId: newValue)
         }
         .onChange(of: notificationRouter.pendingConversationId) { _, newValue in
             guard let newValue else { return }
@@ -284,7 +285,7 @@ struct ContentView: View {
             content: addProjectSheetContent
         )
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
-        .task(id: selectedThread?.project?.path) {
+        .task(id: selectedThreadID) {
             await refreshToolbarProjectActions()
         }
         .onAppear {
@@ -296,8 +297,8 @@ struct ContentView: View {
                 openConversation(with: pending)
                 notificationRouter.clearPendingIfMatches(pending)
             }
-            // Mark-read of the active conversation is handled by the `onChange(of: activeConversationId)`
-            // observer once the restored selection propagates; just sync the dock badge on launch.
+            // Mark-read of the active conversation is handled by `ThreadDetailView` once
+            // the restored selection mounts; just sync the dock badge on launch.
             notificationManager.refreshBadgeCount()
         }
         // Publish the terminal-toggle action so the ⇧⌘T menu item in
@@ -317,23 +318,8 @@ private extension ContentView {
         return thread.persistentModelID
     }
 
-    var selectedThread: AgentThread? {
-        guard let selectedThreadID else {
-            return nil
-        }
-
-        return uiModelContext.resolveThread(id: selectedThreadID)
-    }
-
     var visibleThreadID: PersistentIdentifier? {
         selectedThreadID
-    }
-
-    var activeConversationId: String? {
-        guard let selectedThread else {
-            return nil
-        }
-        return selectedConversation(in: selectedThread, modelContext: uiModelContext, appState: appState)?.id
     }
 
     var terminalToggleTitle: String {
@@ -420,19 +406,33 @@ private extension ContentView {
     }
 
     func refreshToolbarProjectActions() async {
-        guard let thread = selectedThread,
-              let projectPath = thread.project?.path else {
+        guard let threadID = selectedThreadID else {
             toolbarProjectActions = []
+            toolbarProjectActionsThreadID = nil
+            return
+        }
+
+        await Task.yield()
+
+        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+              selectedThread.persistentModelID == threadID,
+              let thread = uiModelContext.resolveThread(id: threadID),
+              thread.archivedAt == nil,
+              let projectPath = thread.project?.path else {
+            guard selectedThreadID == threadID else { return }
+            toolbarProjectActions = []
+            toolbarProjectActionsThreadID = nil
             return
         }
 
         let config = await AlvearyProjectConfig(projectPath: projectPath)
 
-        guard selectedThread?.persistentModelID == thread.persistentModelID else {
+        guard selectedThreadID == threadID else {
             return
         }
 
         toolbarProjectActions = config.actions ?? []
+        toolbarProjectActionsThreadID = threadID
     }
 
     var diffViewerToggleHelpText: String {

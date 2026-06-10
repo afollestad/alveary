@@ -130,7 +130,32 @@ struct ThreadDetailView: View {
                     appState.repairSelectedConversationIfNeeded(for: thread, conversations: conversations)
                 }
                 .task(id: selectedConversationID) {
+                    let threadID = thread.persistentModelID
+                    let conversationIDString = conversation.id
+
                     cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
+                    // Defer persistence and mark-read one cycle so the selection
+                    // switch itself renders without synchronous side effects.
+                    await Task.yield()
+
+                    // A nil entry means no explicit selection was recorded, so the
+                    // default pick this body rendered is still the selected one.
+                    let currentSelectedConversationID = appState.selectedConversationIDs[threadID]
+                    let isStillSelectedConversation = currentSelectedConversationID == selectedConversationID ||
+                        currentSelectedConversationID == nil
+                    guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+                          selectedThread.persistentModelID == threadID,
+                          isStillSelectedConversation else {
+                        return
+                    }
+
+                    if thread.archivedAt == nil {
+                        settingsService.updateRestoreSelection(
+                            threadID: threadID,
+                            conversationID: selectedConversationID
+                        )
+                    }
+                    notificationManager.markConversationRead(conversationId: conversationIDString)
                 }
                 .task(id: projectTrustTaskID(for: conversation)) {
                     await refreshProjectTrustPrompt(for: conversation)
@@ -188,6 +213,14 @@ struct ThreadDetailView: View {
                 }
                 .task(id: selectedConversationID) {
                     cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
+                    let threadID = thread.persistentModelID
+                    await Task.yield()
+                    guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+                          selectedThread.persistentModelID == threadID,
+                          thread.archivedAt == nil else {
+                        return
+                    }
+                    settingsService.updateRestoreSelection(threadID: threadID, conversationID: nil)
                 }
             }
         }
@@ -277,7 +310,8 @@ private extension ThreadDetailView {
                     path,
                     baseRef: baseRef,
                     remoteName: remoteName,
-                    conversationIds: conversationIds
+                    conversationIds: conversationIds,
+                    scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
                 )
             }
         } catch {
@@ -339,18 +373,7 @@ private extension ThreadDetailView {
             }
 
             appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
-
-            if let path = liveThread.worktreePath ?? liveThread.project?.path {
-                let baseRef = liveThread.project?.baseRef ?? "main"
-                let remoteName = liveThread.project?.remoteName
-                let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
-                await diffViewModel.switchToDirectory(
-                    path,
-                    baseRef: baseRef,
-                    remoteName: remoteName,
-                    conversationIds: conversationIds
-                )
-            }
+            await refreshDiffAfterRemovingConversation(from: liveThread, excluding: conversationIDString)
 
             do {
                 try await agentsManager.destroyRuntime(conversationId: conversationIDString)
@@ -360,6 +383,23 @@ private extension ThreadDetailView {
         } catch {
             conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
         }
+    }
+
+    func refreshDiffAfterRemovingConversation(from thread: AgentThread, excluding conversationIDString: String) async {
+        guard let path = thread.worktreePath ?? thread.project?.path else {
+            return
+        }
+
+        let baseRef = thread.project?.baseRef ?? "main"
+        let remoteName = thread.project?.remoteName
+        let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
+        await diffViewModel.switchToDirectory(
+            path,
+            baseRef: baseRef,
+            remoteName: remoteName,
+            conversationIds: conversationIds,
+            scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+        )
     }
 
     // Before deleting the selected tab, pick its visual neighbor (next, falling

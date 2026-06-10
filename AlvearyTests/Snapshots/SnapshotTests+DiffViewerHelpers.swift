@@ -9,9 +9,11 @@ extension SnapshotTests {
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
         diffDisplayState: DiffViewerToolbarDisplayState
     ) -> some View {
-        PrimaryToolbarButtonGroup(
-            selectedThread: selectedThread,
+        let selectedThreadID = selectedThread?.persistentModelID
+        return PrimaryToolbarButtonGroup(
+            selectedThreadID: selectedThreadID,
             projectActions: projectActions,
+            projectActionsThreadID: selectedThreadID,
             terminalTitle: "Show Terminal",
             terminalDisplayState: terminalDisplayState,
             terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",

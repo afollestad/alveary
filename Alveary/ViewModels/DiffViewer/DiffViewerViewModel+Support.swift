@@ -102,11 +102,21 @@ enum DiffViewerRefreshReason: Equatable {
     }
 }
 
+// How much of the diff workspace a target switch or refresh should load.
+// `.toolbarStatsOnly` keeps the toolbar diff summary fresh while the pane is
+// hidden, skipping contextual-action (PR lookup) and selected-diff work until
+// the pane is revealed.
+enum DiffViewerSwitchScope {
+    case full
+    case toolbarStatsOnly
+}
+
 struct DiffViewerRefreshRequest {
     let directory: String
     let reason: DiffViewerRefreshReason
     let invalidateFileListCache: Bool
     let invalidatePRCache: Bool
+    let scope: DiffViewerSwitchScope
 
     func merged(with newer: DiffViewerRefreshRequest) -> DiffViewerRefreshRequest {
         guard directory == newer.directory else {
@@ -117,7 +127,8 @@ struct DiffViewerRefreshRequest {
             directory: directory,
             reason: reason.merged(with: newer.reason),
             invalidateFileListCache: invalidateFileListCache || newer.invalidateFileListCache,
-            invalidatePRCache: invalidatePRCache || newer.invalidatePRCache
+            invalidatePRCache: invalidatePRCache || newer.invalidatePRCache,
+            scope: scope == .full || newer.scope == .full ? .full : .toolbarStatsOnly
         )
     }
 }

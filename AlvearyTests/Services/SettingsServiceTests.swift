@@ -439,7 +439,7 @@ final class SettingsServiceTests: XCTestCase {
         return defaults
     }
 
-    private func makeModelContainer() throws -> ModelContainer {
+    func makeModelContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Project.self,
             AgentThread.self,

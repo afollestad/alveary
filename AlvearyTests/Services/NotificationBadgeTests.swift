@@ -44,6 +44,33 @@ final class NotificationBadgeTests: XCTestCase {
         XCTAssertEqual(spy.badgeCounts.last, 0)
     }
 
+    func testMarkConversationReadDismissesWithoutBadgeRefreshWhenAlreadyRead() async throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(
+            in: context.container,
+            threadName: "Thread",
+            isUnread: false
+        )
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: true,
+            activeConversationId: conversation.id,
+            spy: spy
+        )
+
+        manager.markConversationRead(conversationId: conversation.id)
+        await manager.awaitPendingBadgeUpdate()
+
+        XCTAssertFalse(
+            NotificationManagerTestFactory.fetchConversation(id: conversation.id, in: context.container)?.isUnread ?? true
+        )
+        XCTAssertEqual(spy.dismissedConversationIds, [conversation.id])
+        XCTAssertTrue(spy.badgeCounts.isEmpty)
+    }
+
     func testRefreshBadgeCountReflectsUnreadCount() async throws {
         let service = InMemorySettingsService()
         let spy = NotificationSpy()
