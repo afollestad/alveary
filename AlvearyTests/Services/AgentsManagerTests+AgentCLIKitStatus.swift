@@ -280,7 +280,7 @@ extension AgentsManagerTests {
         }
     }
 
-    func testRuntimeActivityOnlySetsManagerStatusForFailureFallback() async throws {
+    func testRuntimeActivityMapsActivityStateIntoStatus() async throws {
         let executable = try makeScript(named: "idle-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
         let manager = makeAgentCLIKitFixture(
@@ -288,7 +288,58 @@ extension AgentsManagerTests {
             detectedPath: executable.path,
             basePath: "/usr/bin:/bin"
         ).manager
-        let conversationId = "agentclikit-runtime-activity-status-fallback"
+        let conversationId = "agentclikit-runtime-activity-status-mapping"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        try await waitUntil("expected AgentCLIKit runtime to settle idle") {
+            manager.status(for: conversationId) == .idle
+        }
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+
+        let busyNotification = expectation(description: "busy status notification posted")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .agentStatusChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?["conversationId"] as? String == conversationId,
+                  notification.userInfo?["signal"] as? ActivitySignal == .busy else {
+                return
+            }
+            busyNotification.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .busy)
+        await fulfillment(of: [busyNotification], timeout: 1)
+
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .idle)
+
+        await manager.kill(conversationId: conversationId)
+    }
+
+    func testRuntimeActivityFailureMapsToErrorAndIdlePreservesIt() async throws {
+        let executable = try makeScript(named: "idle-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let manager = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin"
+        ).manager
+        let conversationId = "agentclikit-runtime-activity-failure-status"
 
         try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
         try await waitUntil("expected AgentCLIKit runtime to settle idle") {
@@ -298,15 +349,16 @@ extension AgentsManagerTests {
         let generation = try XCTUnwrap(maybeGeneration)
 
         await manager.handleStreamEvent(
-            .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
+            .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .failed(message: "Codex turn failed.")),
             conversationId: conversationId,
             generation: generation,
             providerId: "codex"
         )
-        XCTAssertEqual(manager.status(for: conversationId), .idle)
+        XCTAssertEqual(manager.status(for: conversationId), .error)
 
+        // Idle activity only releases a busy status; it must not clear an error.
         await manager.handleStreamEvent(
-            .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .failed(message: "Codex turn failed.")),
+            .runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed),
             conversationId: conversationId,
             generation: generation,
             providerId: "codex"
@@ -316,7 +368,7 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
-    func testRuntimeActivityFailureDoesNotOverwriteWaitingForUserStatus() async throws {
+    func testRuntimeActivityDoesNotOverwriteWaitingForUserStatus() async throws {
         let executable = try makeScript(named: "idle-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
         let manager = makeAgentCLIKitFixture(
@@ -341,6 +393,15 @@ extension AgentsManagerTests {
 
         await manager.handleStreamEvent(
             .toolApprovalRequested(approval),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "codex"
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
+
+        // Parallel tool activity must not flip a waiting conversation back to busy.
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
             conversationId: conversationId,
             generation: generation,
             providerId: "codex"

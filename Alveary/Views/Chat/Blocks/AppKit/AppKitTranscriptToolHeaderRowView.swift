@@ -229,7 +229,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
 @MainActor
 final class AppKitTranscriptToolStatusIndicatorView: NSView {
     private let symbolView = AppKitDynamicTintImageView()
-    private let progressView = NSProgressIndicator()
+    private let spinnerView = AppKitStatusIndicatorSpinner()
     private var phase: ToolStatusPhase?
     private var displayedPhase: ToolStatusPhase?
     private var typography = TranscriptTypography()
@@ -296,17 +296,14 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         switch phase {
         case .loading:
             symbolView.isHidden = true
-            progressView.isHidden = false
-            progressView.startAnimation(nil)
+            spinnerView.isHidden = false
         case .success:
-            progressView.stopAnimation(nil)
-            progressView.isHidden = true
+            spinnerView.isHidden = true
             symbolView.isHidden = false
             symbolView.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
             symbolView.setDynamicContentTintColor(.systemGreen)
         case .error:
-            progressView.stopAnimation(nil)
-            progressView.isHidden = true
+            spinnerView.isHidden = true
             symbolView.isHidden = false
             symbolView.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
             symbolView.setDynamicContentTintColor(.systemRed)
@@ -317,19 +314,17 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         super.layout()
         let frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
         symbolView.frame = frame
-        progressView.frame = frame
+        spinnerView.frame = frame
     }
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         symbolView.translatesAutoresizingMaskIntoConstraints = true
-        progressView.translatesAutoresizingMaskIntoConstraints = true
+        spinnerView.translatesAutoresizingMaskIntoConstraints = true
         updateSymbolConfiguration()
-        progressView.style = .spinning
-        progressView.controlSize = .small
-        progressView.isDisplayedWhenStopped = false
+        spinnerView.isHidden = true
         addSubview(symbolView)
-        addSubview(progressView)
+        addSubview(spinnerView)
     }
 
     private func updateSymbolConfiguration() {

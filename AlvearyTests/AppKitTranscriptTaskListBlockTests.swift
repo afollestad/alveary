@@ -73,10 +73,9 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
     func testStatusIndicatorsUseFixedSlotsAndAppKitProgress() throws {
         let block = configuredBlock(tasks: mixedTasks())
 
-        let progress = try XCTUnwrap(block.descendants(of: NSProgressIndicator.self).first)
-        XCTAssertEqual(progress.controlSize, .mini)
-        XCTAssertEqual(progress.frame.size, NSSize(width: 14, height: 14))
-        XCTAssertEqual(progress.accessibilityLabel(), "In progress")
+        let spinner = try XCTUnwrap(block.descendants(of: AppKitStatusIndicatorSpinner.self).first)
+        XCTAssertEqual(spinner.frame.size, NSSize(width: 14, height: 14))
+        XCTAssertEqual(spinner.accessibilityLabel(), "In progress")
 
         let imageViews = block.descendants(of: NSImageView.self)
         XCTAssertEqual(imageViews.count, 2)

@@ -80,10 +80,7 @@ struct TabChipStatusIndicatorView: View {
             Circle()
                 .fill(color)
         case .spinner(let color):
-            ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.5)
-                .tint(color)
+            StatusIndicatorSpinner(color: color)
         }
     }
 }

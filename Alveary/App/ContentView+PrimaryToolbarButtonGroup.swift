@@ -209,7 +209,6 @@ enum PrimaryToolbarMetrics {
     static let diffSummarySpacing: CGFloat = 6
     static let diffSummaryTrailingPadding: CGFloat = 4
     static let progressIndicatorSize: CGFloat = 16
-    static let progressScale: CGFloat = 0.95
     static let statusAnimation = Animation.spring(response: 0.24, dampingFraction: 0.9)
     static let interactionAnimation = Animation.easeOut(duration: 0.12)
 }
@@ -298,18 +297,15 @@ struct PrimaryToolbarProgressSlot: View {
     var body: some View {
         // Progress-only toolbar states occupy the same footprint as icon buttons,
         // so loading states do not change hit target or visual alignment.
-        ProgressView()
-            .controlSize(.small)
-            .tint(.blue)
-            .scaleEffect(PrimaryToolbarMetrics.progressScale)
-            .frame(
-                width: PrimaryToolbarMetrics.progressIndicatorSize,
-                height: PrimaryToolbarMetrics.progressIndicatorSize
-            )
-            .frame(
-                width: PrimaryToolbarMetrics.iconButtonSize,
-                height: PrimaryToolbarMetrics.iconButtonSize
-            )
+        StatusIndicatorSpinner(
+            color: .secondary,
+            diameter: PrimaryToolbarMetrics.progressIndicatorSize,
+            lineWidth: 2
+        )
+        .frame(
+            width: PrimaryToolbarMetrics.iconButtonSize,
+            height: PrimaryToolbarMetrics.iconButtonSize
+        )
     }
 }
 

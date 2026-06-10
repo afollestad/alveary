@@ -337,10 +337,10 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
 
         let statusView = try XCTUnwrap(group.descendants(of: AppKitTranscriptToolStatusIndicatorView.self).first)
 
-        XCTAssertFalse(statusView.descendants(of: NSProgressIndicator.self).first?.isHidden ?? true)
+        XCTAssertFalse(statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? true)
 
         try await waitUntil("expected terminal tool-group status after debounce", timeout: .seconds(1)) {
-            let progressHidden = statusView.descendants(of: NSProgressIndicator.self).first?.isHidden ?? false
+            let progressHidden = statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? false
             let hasSymbol = !statusView.descendants(of: NSImageView.self).filter { $0.image != nil }.isEmpty
             return progressHidden && hasSymbol
         }

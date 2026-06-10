@@ -8,7 +8,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 
 - Render tabs through `SelectableTabChip` in `Alveary/Views/Components/TabChips/`.
 - Keep chip fills `.standard` so inline-code color does not change on selection.
-- Use `TabChipStatusIndicator.spinner(.blue)` for `.busy` in the same fixed 8x8 slot as dots.
+- Use `TabChipStatusIndicator.spinner(.secondary)` for `.busy` in the same fixed 8x8 slot as dots.
 - Inline rename uses `editingConversationID` in `ConversationTabChip`; do not replace it with a modal.
 - Editing chips use the Finder-style text background plus 1pt accent stroke.
 - Suppress the close button with `.tabChipShell(..., showsCloseButton: false)` so width stays stable.

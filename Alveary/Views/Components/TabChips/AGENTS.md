@@ -9,7 +9,7 @@ Rules for `SelectableTabChip.swift` and `TabChipButtonStyle.swift`.
 - `SelectableTabChip` is the shared shell for conversation tabs and terminal session chips.
 - Build new tab/chip surfaces on `SelectableTabChip`; layer rename or context-menu affordances around it instead of forking structure.
 - Route rename VoiceOver actions through `renameAccessibilityAction:` so the action binds to the select button.
-- Use `TabChipStatusIndicator.spinner(...)` / `TabChipStatusIndicatorView` for spinner states in the fixed 8x8 status slot.
+- Use `TabChipStatusIndicator.spinner(...)` / `TabChipStatusIndicatorView` for spinner states in the fixed 8x8 status slot; the spinner renders through the shared `StatusIndicatorSpinner`.
 - Reuse `.tabChipContentLayout()` and `.tabChipShell(...)` for editing variants or non-button inner content.
 - Pass `showsCloseButton: false` to hide `x` while preserving the 36pt trailing reserve.
 - Keep the private close button's hover behavior and optional `closeHelpText`; nil suppresses `.help` through `OptionalHelp`.

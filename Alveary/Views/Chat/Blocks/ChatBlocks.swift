@@ -18,7 +18,6 @@ let approvalCommandChipHPadding: CGFloat = 3
 let approvalCommandChipVPadding: CGFloat = 1
 let toolApprovalSummaryTopSpacing: CGFloat = 8
 let toolApprovalActionsTopSpacing: CGFloat = 12
-let transcriptToolStatusSpinnerScale: CGFloat = 0.72
 let transcriptToolRowVerticalPadding: CGFloat = 4
 let transcriptToolExpandedContentTopSpacing: CGFloat = 8
 let toolExpandedContentBottomSpacing: CGFloat = 8

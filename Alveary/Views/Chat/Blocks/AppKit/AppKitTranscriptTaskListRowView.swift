@@ -85,13 +85,9 @@ extension AppKitTranscriptTaskListRowView {
         let view: NSView
         switch configuration.task.status {
         case .inProgress:
-            let indicator = NSProgressIndicator()
+            let indicator = AppKitStatusIndicatorSpinner()
             indicator.translatesAutoresizingMaskIntoConstraints = true
-            indicator.style = .spinning
-            indicator.controlSize = .mini
-            indicator.isIndeterminate = true
             indicator.setAccessibilityLabel(configuration.task.status.taskListAccessibilityLabel)
-            indicator.startAnimation(nil)
             view = indicator
         case .pending:
             view = statusImageView(systemName: "square", color: .secondaryLabelColor, status: configuration.task.status)
@@ -150,7 +146,7 @@ extension AppKitTranscriptTaskListRowView {
     }
 
     private func statusViewFrame() -> NSRect {
-        guard statusView is NSProgressIndicator else {
+        guard statusView is AppKitStatusIndicatorSpinner else {
             return statusSlot.bounds
         }
         let inset = (taskStatusSlotSize - taskProgressIndicatorSize) / 2

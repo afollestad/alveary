@@ -112,7 +112,13 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(clipView.visibleHeightForTesting, collapsedClipHeight, accuracy: 0.5)
         XCTAssertGreaterThan(nestedToolRow.intrinsicContentSize.height, collapsedClipHeight)
 
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.4))
+        // Poll instead of a single fixed deadline: under load the animation's
+        // completion (NSAnimationContext completion -> MainActor task) can land
+        // later than duration + a fixed margin, which made this assert flaky.
+        let deadline = Date(timeIntervalSinceNow: appExpansionAnimationDuration + 2)
+        while clipView.isAnimatingVisibleHeight, Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        }
 
         XCTAssertFalse(clipView.isAnimatingVisibleHeight)
         XCTAssertEqual(clipView.visibleHeightForTesting, nestedToolRow.intrinsicContentSize.height, accuracy: 0.5)

@@ -3,6 +3,8 @@ import SnapshotTesting
 import SwiftUI
 import XCTest
 
+@testable import Alveary
+
 /// Default precision parameters applied to every `assertMacSnapshot` call. `0.99`
 /// corresponds to the Delta-E threshold SnapshotTesting documents as "mimics the
 /// precision of the human eye". The library's hard default of `1.0`/`1.0` requires a
@@ -95,6 +97,10 @@ func assertMacSnapshot<V: View>(
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
         .environment(\.layoutDirection, .leftToRight)
         .environment(\.colorScheme, colorScheme)
+        // Spinner animations start from `onAppear` and would capture a
+        // time-dependent arc angle; the outer `transaction` override cannot
+        // suppress the spinner's own `.animation(_:value:)` modifier.
+        .environment(\.statusSpinnerAnimationsDisabled, true)
         .frame(width: size.width, height: size.height, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
 

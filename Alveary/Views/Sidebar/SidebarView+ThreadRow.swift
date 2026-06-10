@@ -155,10 +155,7 @@ struct SidebarThreadRow: View {
     @ViewBuilder
     private var statusIndicator: some View {
         if status == .busy {
-            ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.5)
-                .tint(.blue)
+            StatusIndicatorSpinner(color: .secondary)
         } else {
             Circle()
                 .fill(statusColor)

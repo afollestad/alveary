@@ -432,6 +432,7 @@ private final class MountedMacSnapshotHost<Content: View> {
                 .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
                 .environment(\.layoutDirection, .leftToRight)
                 .environment(\.colorScheme, colorScheme)
+                .environment(\.statusSpinnerAnimationsDisabled, true)
                 .frame(width: size.width, height: size.height, alignment: .topLeading)
                 .background(Color(nsColor: .windowBackgroundColor))
         )

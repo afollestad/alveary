@@ -110,6 +110,17 @@ extension AgentsManagerTests {
             config: spawnConfig(workingDirectory: "/tmp")
         ))
 
+        // Stale activity from the cancelled turn must not mark the thread busy again.
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+        await manager.handleStreamEvent(
+            .runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude"
+        )
+        XCTAssertNotEqual(manager.status(for: conversationId), .busy)
+
         try await waitUntil("expected denied plan exit to stay idle") {
             manager.status(for: conversationId) == .idle
         }

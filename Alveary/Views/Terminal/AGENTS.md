@@ -4,7 +4,7 @@ These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The p
 
 ## Session Chips
 
-- Terminal session chips render through the shared `SelectableTabChip` shell. Keep `.running` on `TabChipStatusIndicator.spinner(.blue)` in the same fixed `8×8` status slot as terminal success/failure dots so a session starting or finishing does not change chip height.
+- Terminal session chips render through the shared `SelectableTabChip` shell. Keep `.running` on `TabChipStatusIndicator.spinner(.secondary)` in the same fixed `8×8` status slot as terminal success/failure dots so a session starting or finishing does not change chip height.
 
 ## Unified Pane Background
 

@@ -24,7 +24,7 @@ private extension TerminalSessionChip {
     var statusIndicator: TabChipStatusIndicator {
         switch session.status {
         case .running:
-            return .spinner(.blue)
+            return .spinner(.secondary)
         case .succeeded:
             return .dot(.green)
         case .failed:

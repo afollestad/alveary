@@ -65,28 +65,53 @@ extension DefaultAgentsManager {
             } else {
                 updateStatus(.error, for: conversationId)
             }
-        case .runtimeActivity(_, _, let outcome):
-            handleRuntimeActivityStatus(outcome, conversationId: conversationId)
+        case .runtimeActivity(let state, _, let outcome):
+            handleRuntimeActivityStatus(state, outcome: outcome, conversationId: conversationId)
         default:
             break
         }
     }
 
     private func handleRuntimeActivityStatus(
-        _ outcome: ConversationRuntimeActivityOutcome,
+        _ state: ConversationRuntimeActivityState,
+        outcome: ConversationRuntimeActivityOutcome,
         conversationId: String
     ) {
-        if case .failed = outcome,
-           cancelledInteractionsByConversation[conversationId] != nil {
+        // Cancelled interactions stay idle; activity from the cancelled turn must
+        // not reopen busy or error state. Do not clear the marker here — only new
+        // sends, generations, or approval requests may do that.
+        if cancelledInteractionsByConversation[conversationId] != nil {
+            if case .failed = outcome {
+                updateStatus(.idle, for: conversationId)
+            }
+            return
+        }
+        guard eventBuffers[conversationId]?.acceptsLiveEvents == true else {
+            return
+        }
+        if case .failed = outcome {
+            guard status(for: conversationId) != .waitingForUser else {
+                return
+            }
+            updateStatus(.error, for: conversationId)
+            return
+        }
+        switch state {
+        case .active:
+            // Pending approvals own the waiting state; parallel tool activity must
+            // not flip a waiting conversation back to busy.
+            guard status(for: conversationId) != .waitingForUser else {
+                return
+            }
+            updateStatus(.busy, for: conversationId)
+        case .idle:
+            // Terminal token rows own the final idle/stopped/error signal; only
+            // release a busy set by activity so error/waiting states are preserved.
+            guard status(for: conversationId) == .busy else {
+                return
+            }
             updateStatus(.idle, for: conversationId)
-            return
         }
-        guard case .failed = outcome,
-              eventBuffers[conversationId]?.acceptsLiveEvents == true,
-              status(for: conversationId) != .waitingForUser else {
-            return
-        }
-        updateStatus(.error, for: conversationId)
     }
 
     private func handleToolApprovalFailureStatus(
