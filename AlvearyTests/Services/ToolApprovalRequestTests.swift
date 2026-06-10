@@ -112,6 +112,8 @@ final class ToolApprovalRequestTests: XCTestCase {
 
         XCTAssertEqual(approval.conciseSummary, "git log --oneline -5")
         XCTAssertEqual(approval.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(approval.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(approval.recommendedApprovalSelection, .sessionGroup)
         XCTAssertEqual(
             approval.sessionApprovalGrant(
                 conversationId: "conversation-1",
@@ -140,6 +142,21 @@ final class ToolApprovalRequestTests: XCTestCase {
                 matchValue: "git log"
             )
         )
+    }
+
+    func testBashSessionRecommendationsFollowAgentCLIKitPolicy() {
+        let gitAdd = request(toolName: "Bash", toolInput: #"{"command":"git add foo.swift"}"#)
+        let sqliteReadOnly = request(
+            toolName: "Bash",
+            toolInput: #"{"command":"sqlite3 -readonly ~/Library/App.store \"SELECT 1\""}"#
+        )
+        let unsafePipeline = request(toolName: "Bash", toolInput: #"{"command":"rg token Sources | xargs rm"}"#)
+
+        XCTAssertEqual(gitAdd.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertNil(gitAdd.recommendedSessionApprovalScope)
+        XCTAssertEqual(sqliteReadOnly.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(sqliteReadOnly.sessionApprovalMatch(for: .group)?.value, "sqlite3 -readonly ~/Library/App.store")
+        XCTAssertNil(unsafePipeline.recommendedSessionApprovalScope)
     }
 
     func testNativeReadOnlySessionScopesOnlyOfferExactPathGrantsForPathExactTools() {

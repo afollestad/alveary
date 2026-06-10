@@ -77,7 +77,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve for session"])
     }
 
-    func testBatchBashApprovalUsesPluralGroupCopyWhenEveryCommandSupportsGroupApproval() {
+    func testBatchBashApprovalUsesRecommendedGroupPrimaryCopyWhenEveryCommandRecommendsGroupApproval() {
         let first = approval(toolUseId: "bash-1", toolName: "Bash", input: #"{"command":"git log --oneline -5"}"#)
         let second = approval(toolUseId: "bash-2", toolName: "Bash", input: #"{"command":"git branch"}"#)
         let block = AppKitTranscriptToolApprovalBlockView()
@@ -92,7 +92,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         )
         block.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve groups")
+        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve similar")
         XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve exactly", "Approve groups"])
     }
 
@@ -131,7 +131,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         )
         block.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve group")
+        XCTAssertEqual(block.visibleSplitControls.first?.label(forSegment: 0), "Approve similar")
         block.handleApprove()
 
         XCTAssertFalse(approvedOnce)

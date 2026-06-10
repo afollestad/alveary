@@ -69,6 +69,7 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(ChatComposerTextSupport.permissionModeLabel(for: "plan"), "Plan")
         XCTAssertEqual(ChatComposerTextSupport.permissionModeLabel(for: "acceptEdits"), "Accept edits")
         XCTAssertEqual(ChatComposerTextSupport.permissionModeLabel(for: "auto"), "Automatic")
+        XCTAssertEqual(ChatComposerTextSupport.permissionModeLabel(for: "bypassPermissions"), "Bypass permissions")
     }
 
     func testWorktreeLocationLabelsUseFriendlyNames() {

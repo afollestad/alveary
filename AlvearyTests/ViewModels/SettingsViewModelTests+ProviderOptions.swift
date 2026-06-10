@@ -20,9 +20,11 @@ extension SettingsViewModelTests {
         XCTAssertEqual(viewModel.supportedModels, ["sonnet", "fable", "opus", "haiku"])
         XCTAssertEqual(viewModel.permissionModeOptions(for: "claude"), AppSettings.supportedPermissionModes(forProvider: "claude"))
         XCTAssertEqual(viewModel.permissionModeOptions(for: "codex"), AppSettings.supportedPermissionModes(forProvider: "codex"))
-        let claudePermissionLabels = ["default", "acceptEdits", "auto"].map { viewModel.permissionModeLabel(for: $0, providerId: "claude") }
+        let claudePermissionLabels = ["default", "acceptEdits", "auto", "bypassPermissions"].map {
+            viewModel.permissionModeLabel(for: $0, providerId: "claude")
+        }
         let codexPermissionLabels = ["untrusted", "on-request", "never"].map { viewModel.permissionModeLabel(for: $0, providerId: "codex") }
-        XCTAssertEqual(claudePermissionLabels, ["Default", "Accept edits", "Automatic"])
+        XCTAssertEqual(claudePermissionLabels, ["Default", "Accept edits", "Automatic", "Bypass permissions"])
         XCTAssertEqual(codexPermissionLabels, ["Ask for approval", "Approve for me", "Full access"])
         XCTAssertEqual(
             viewModel.effortOptions(for: "claude", model: "opus").map(\.value),

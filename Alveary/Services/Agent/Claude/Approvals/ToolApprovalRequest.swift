@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 /// Composer copy shown while a deferred tool or prompt is waiting for a user decision.
@@ -163,21 +164,17 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
 
     /// Session approval scopes currently supported by this request.
     var supportedSessionApprovalScopes: [ToolApprovalSessionScope] {
-        switch toolName {
-        case "Bash":
-            var scopes: [ToolApprovalSessionScope] = []
-            if sessionApprovalMatch(for: .exact) != nil {
-                scopes.append(.exact)
-            }
-            if sessionApprovalMatch(for: .group) != nil {
-                scopes.append(.group)
-            }
-            return scopes
-        case "Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "LS", "NotebookRead":
-            return sessionApprovalMatch(for: .exact) == nil ? [] : [.exact]
-        default:
-            return []
-        }
+        agentCLIKitSessionApprovalRequest.supportedSessionApprovalScopes.compactMap(Self.toolApprovalSessionScope)
+    }
+
+    /// Session approval scope that can be safely preselected for this request.
+    var recommendedSessionApprovalScope: ToolApprovalSessionScope? {
+        agentCLIKitSessionApprovalRequest.recommendedSessionApprovalScope.flatMap(Self.toolApprovalSessionScope)
+    }
+
+    /// Approval selection implied by the provider-owned recommendation, if any.
+    var recommendedApprovalSelection: ToolApprovalSelection? {
+        recommendedSessionApprovalScope.map(ToolApprovalSelection.init(sessionScope:))
     }
 
     /// Returns the prompt title for one or more same-family approval requests.
@@ -205,16 +202,22 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         providerId: String,
         scope: ToolApprovalSessionScope
     ) -> AgentSessionApprovalGrant? {
-        guard let match = sessionApprovalMatch(for: scope) else {
+        guard let agentProviderId = AgentCLIKit.AgentProviderID(rawValue: providerId),
+              let agentScope = Self.agentCLIKitScope(scope),
+              let grant = agentCLIKitSessionApprovalRequest(
+                conversationId: conversationId,
+                providerId: agentProviderId
+              ).sessionApprovalGrant(for: agentScope),
+              let matchKind = Self.agentSessionApprovalRuleKind(grant.matchKind) else {
             return nil
         }
 
         return AgentSessionApprovalGrant(
-            providerId: providerId,
-            conversationId: conversationId,
-            sessionId: sessionId,
-            matchKind: match.kind,
-            matchValue: match.value
+            providerId: grant.providerId.rawValue,
+            conversationId: grant.conversationId.rawValue,
+            sessionId: grant.sessionId.rawValue,
+            matchKind: matchKind,
+            matchValue: grant.matchValue
         )
     }
 
@@ -253,26 +256,12 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     func sessionApprovalMatch(
         for scope: ToolApprovalSessionScope
     ) -> (kind: AgentSessionApprovalRuleKind, value: String)? {
-        switch (toolName, scope) {
-        case ("Bash", .exact):
-            guard let command = normalizedBashCommand else {
-                return nil
-            }
-            return (.bashExact, command)
-        case ("Bash", .group):
-            guard let commandGroup = bashCommandGroup else {
-                return nil
-            }
-            return (.bashCommandGroup, commandGroup)
-        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact),
-             ("Read", .exact), ("LS", .exact), ("NotebookRead", .exact):
-            guard let path = normalizedApprovalPath else {
-                return nil
-            }
-            return (.filePathExact, path)
-        default:
+        guard let agentScope = Self.agentCLIKitScope(scope),
+              let grant = agentCLIKitSessionApprovalRequest.sessionApprovalGrant(for: agentScope),
+              let matchKind = Self.agentSessionApprovalRuleKind(grant.matchKind) else {
             return nil
         }
+        return (matchKind, grant.matchValue)
     }
 
     private func approvalPromptTitle(isPlural: Bool) -> String {
@@ -341,44 +330,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     }
 
     private var normalizedBashCommand: String? {
-        guard let command = parsedInput["command"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty else {
-            return nil
-        }
-        return Self.approvalIdentityCommand(for: command)
-    }
-
-    private var normalizedApprovalPath: String? {
-        (parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"])?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
-    }
-
-    private var bashCommandGroup: String? {
-        guard let command = normalizedBashCommand else {
-            return nil
-        }
-        guard !Self.containsShellControlOperator(command) else {
-            return nil
-        }
-
-        let tokens = (try? parseExtraArgs(command)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.fallbackCommandTokens(command)
-        guard let executable = tokens.first?.nilIfEmpty else {
-            return nil
-        }
-
-        guard tokens.count >= 2 else {
-            return nil
-        }
-
-        let groupToken = tokens[1]
-        guard Self.isCommandGroupToken(groupToken) else {
-            return nil
-        }
-        return [executable, groupToken]
-            .joined(separator: " ")
-            .nilIfEmpty
+        agentCLIKitSessionApprovalRequest.sessionApprovalGrant(for: .exact)?.matchValue
     }
 
     private static func parseInput(_ input: String) -> [String: String] {
@@ -420,75 +372,58 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         return String(value.prefix(limit - 1)) + "..."
     }
 
-    private static func fallbackCommandTokens(_ command: String) -> [String] {
-        command
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
+    private var agentCLIKitSessionApprovalRequest: AgentCLIKit.AgentSessionApprovalRequest {
+        // Scope, recommendation, and match-value lookups do not depend on the
+        // conversation, so a placeholder ID is safe here; real grants thread
+        // actual IDs through the parameterized variant below.
+        agentCLIKitSessionApprovalRequest(conversationId: "", providerId: .claude)
     }
 
-    private static func approvalIdentityCommand(for command: String) -> String {
-        let tokens = (try? parseExtraArgs(command)).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackCommandTokens(command)
-        guard tokens.first == "rtk", tokens.count >= 2 else {
-            return command
-        }
-        let prefixEndIndex = command.index(command.startIndex, offsetBy: "rtk".count)
-        guard command.hasPrefix("rtk"),
-              prefixEndIndex < command.endIndex,
-              command[prefixEndIndex].isWhitespace else {
-            return command
-        }
-
-        // RTK wraps the original command as `rtk <command>`; approval rules
-        // should match the original command rather than the wrapper process.
-        return String(command[prefixEndIndex...])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty ?? command
+    private func agentCLIKitSessionApprovalRequest(
+        conversationId: String,
+        providerId: AgentCLIKit.AgentProviderID
+    ) -> AgentCLIKit.AgentSessionApprovalRequest {
+        AgentCLIKit.AgentSessionApprovalRequest(
+            providerId: providerId,
+            conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
+            sessionId: AgentCLIKit.AgentSessionID(rawValue: sessionId),
+            toolName: toolName,
+            toolInput: agentCLIKitToolInput
+        )
     }
 
-    private static func isCommandGroupToken(_ token: String) -> Bool {
-        guard !token.isEmpty, !token.hasPrefix("-") else {
-            return false
+    private var agentCLIKitToolInput: AgentCLIKit.JSONValue {
+        guard let data = toolInput.data(using: .utf8),
+              let value = try? JSONDecoder().decode(AgentCLIKit.JSONValue.self, from: data) else {
+            return .object([:])
         }
-
-        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./")) == nil
+        return value
     }
 
-    private static func containsShellControlOperator(_ command: String) -> Bool {
-        let controlCharacters = CharacterSet(charactersIn: "&;|<>")
-        var activeQuote: Character?
-        var isEscaping = false
-
-        for character in command {
-            if isEscaping {
-                isEscaping = false
-                continue
-            }
-
-            if character == "\\" {
-                isEscaping = true
-                continue
-            }
-
-            if character == "\"" || character == "'" {
-                if activeQuote == character {
-                    activeQuote = nil
-                } else if activeQuote == nil {
-                    activeQuote = character
-                }
-                continue
-            }
-
-            guard activeQuote == nil else {
-                continue
-            }
-
-            if let scalar = character.unicodeScalars.first,
-               controlCharacters.contains(scalar) {
-                return true
-            }
+    private static func agentCLIKitScope(_ scope: ToolApprovalSessionScope) -> AgentCLIKit.AgentToolApprovalSessionScope? {
+        switch scope {
+        case .exact:
+            return .exact
+        case .group:
+            return .group
         }
+    }
 
-        return false
+    private static func toolApprovalSessionScope(
+        _ scope: AgentCLIKit.AgentToolApprovalSessionScope
+    ) -> ToolApprovalSessionScope? {
+        switch scope {
+        case .exact:
+            return .exact
+        case .group:
+            return .group
+        }
+    }
+
+    private static func agentSessionApprovalRuleKind(
+        _ kind: AgentCLIKit.AgentSessionApprovalMatchKind
+    ) -> AgentSessionApprovalRuleKind? {
+        AgentSessionApprovalRuleKind(rawValue: kind.rawValue)
     }
 }
 

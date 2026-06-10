@@ -120,6 +120,51 @@ extension ChatComposerActionRowTests {
         #endif
     }
 
+    func testBypassPermissionsShowsPlanOverrideTooltipWhilePlanModeIsActive() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                supportedPermissionModes: [
+                    .init(
+                        value: "bypassPermissions",
+                        title: "Bypass permissions",
+                        symbolName: "exclamationmark.shield",
+                        isWarning: true
+                    )
+                ],
+                selectedPermissionMode: "bypassPermissions",
+                isPlanModeEnabled: true
+            )
+        )
+
+        let expectedTooltip = "Plan mode is active, so Claude still asks for permission until Plan is turned off."
+        XCTAssertEqual(row.permissionButton.toolTip, expectedTooltip)
+        XCTAssertEqual(row.permissionButton.accessibilityValue() as? String, "Bypass permissions. \(expectedTooltip)")
+    }
+
+    func testBypassPermissionsDoesNotShowPlanOverrideTooltipOutsidePlanMode() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                supportedPermissionModes: [
+                    .init(
+                        value: "bypassPermissions",
+                        title: "Bypass permissions",
+                        symbolName: "exclamationmark.shield",
+                        isWarning: true
+                    )
+                ],
+                selectedPermissionMode: "bypassPermissions",
+                isPlanModeEnabled: false
+            )
+        )
+
+        XCTAssertNil(row.permissionButton.toolTip)
+        XCTAssertEqual(row.permissionButton.accessibilityValue() as? String, "Bypass permissions")
+    }
+
     func testPlanModeButtonHoverAndClickUpdateSymbolAndRouteExit() {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         var changes: [Bool] = []

@@ -314,13 +314,13 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: false,
             initialAgentIsRunning: false
         )
-        try fixture.dbThread().permissionMode = "acceptEdits"
+        try fixture.dbThread().permissionMode = "bypassPermissions"
         try fixture.context.save()
 
         await fixture.viewModel.applyPlanModeChange(true).value
         let config = try fixture.viewModel.makeSpawnConfig()
 
-        XCTAssertEqual(config.permissionMode, "acceptEdits")
+        XCTAssertEqual(config.permissionMode, "bypassPermissions")
         XCTAssertEqual(config.planModeEnabled, true)
     }
 

@@ -250,6 +250,22 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.notifications.soundName, "Glass")
     }
 
+    func testUserDefaultsSettingsServicePreservesClaudeBypassPermissionsMode() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "defaultProvider": "claude",
+            "permissionMode": "bypassPermissions"
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        XCTAssertEqual(service.current.permissionMode, "bypassPermissions")
+    }
+
     func testUserDefaultsSettingsServiceUsesDefaultThreadCleanupActionWhenStoredJSONPredatesField() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [

@@ -127,6 +127,8 @@ enum ChatComposerTextSupport {
             return "Accept edits"
         case "auto":
             return "Automatic"
+        case "bypassPermissions":
+            return "Bypass permissions"
         case "untrusted":
             return "Untrusted"
         case "on-request":

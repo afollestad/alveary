@@ -105,7 +105,7 @@ final class AppComponentTests: XCTestCase {
         let config = try adapter.spawnConfig(from: AgentSpawnConfig(
             providerId: "claude",
             workingDirectory: "/tmp/project",
-            permissionMode: "acceptEdits",
+            permissionMode: "bypassPermissions",
             planModeEnabled: true,
             model: "sonnet",
             effort: "high",
@@ -115,7 +115,7 @@ final class AppComponentTests: XCTestCase {
 
         XCTAssertEqual(config.providerId.rawValue, "claude")
         XCTAssertEqual(config.workingDirectory.path, "/tmp/project")
-        XCTAssertEqual(config.permissionMode, "acceptEdits")
+        XCTAssertEqual(config.permissionMode, "bypassPermissions")
         XCTAssertEqual(config.collaborationMode, .plan)
         XCTAssertEqual(config.model, "sonnet")
         XCTAssertEqual(config.effort, "high")

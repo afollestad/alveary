@@ -3,11 +3,16 @@ import AppKit
 @MainActor
 extension AppKitTranscriptToolApprovalBlockView {
     func updateApprovalSplitControl(scopes: [ToolApprovalSessionScope]) {
-        let title = pendingApprovalMenuTitle(
-            for: selectedApprovalSelection,
-            scopes: scopes,
-            approvalCount: configuration?.approvals.count ?? 1
-        )
+        let title: String
+        if let configuration {
+            title = pendingApprovalTitle(for: configuration, scopes: scopes)
+        } else {
+            title = pendingApprovalMenuTitle(
+                for: selectedApprovalSelection,
+                scopes: scopes,
+                approvalCount: 1
+            )
+        }
         approvalSplitControl.setLabel(title, forSegment: 0)
         approvalSplitControl.setImage(NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil), forSegment: 0)
         approvalSplitControl.setImage(NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil), forSegment: 1)
@@ -50,6 +55,9 @@ extension AppKitTranscriptToolApprovalBlockView {
         if scopes.isEmpty {
             return configuration.approval.approvalPromptCopy.approveTitle
         }
+        if usesRecommendedGroupTitle(configuration: configuration, scopes: scopes) {
+            return "Approve similar"
+        }
         return pendingApprovalMenuTitle(
             for: selectedApprovalSelection,
             scopes: scopes,
@@ -71,6 +79,15 @@ extension AppKitTranscriptToolApprovalBlockView {
             }
             return scopes.count == 1 ? "Approve for session" : scope.pendingTitle(isPlural: approvalCount > 1)
         }
+    }
+
+    private func usesRecommendedGroupTitle(
+        configuration: Configuration,
+        scopes: [ToolApprovalSessionScope]
+    ) -> Bool {
+        selectedApprovalSelection.normalized(for: scopes) == .sessionGroup &&
+            scopes.contains(.group) &&
+            configuration.approvals.allSatisfy { $0.recommendedSessionApprovalScope == .group }
     }
 
     func sessionApprovalScopes(for configuration: Configuration) -> [ToolApprovalSessionScope] {

@@ -19,14 +19,20 @@ extension ChatComposerActionRowView {
             }
         )
         if !configuration.supportedPermissionModes.isEmpty {
+            let permissionOption = selectedPermissionOption(for: configuration)
             permissionButton.configure(
-                option: selectedPermissionOption(for: configuration),
+                option: permissionOption,
                 height: Self.defaultSettingsControlHeight,
                 isEnabled: !configuration.areControlsDisabled,
                 actionHandler: { [weak self] in
                     self?.togglePermissionMenu()
                 }
             )
+            let overrideTooltip = permissionOverrideTooltip(for: configuration)
+            permissionButton.toolTip = overrideTooltip
+            if let overrideTooltip {
+                permissionButton.setAccessibilityValue("\(permissionOption.title). \(overrideTooltip)")
+            }
         }
         planModeButton.configure(
             height: Self.defaultSettingsControlHeight,
@@ -62,5 +68,14 @@ extension ChatComposerActionRowView {
                 value: configuration.selectedPermissionMode
             )
         )
+    }
+
+    func permissionOverrideTooltip(for configuration: Configuration) -> String? {
+        guard configuration.reasoning.selection.providerID == "claude",
+              configuration.isPlanModeEnabled,
+              configuration.selectedPermissionMode == "bypassPermissions" else {
+            return nil
+        }
+        return "Plan mode is active, so Claude still asks for permission until Plan is turned off."
     }
 }

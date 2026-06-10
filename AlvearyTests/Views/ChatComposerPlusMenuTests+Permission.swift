@@ -79,11 +79,19 @@ extension ChatComposerPlusMenuTests {
                     value: "auto",
                     label: "Automatic",
                     description: "Automatically approve most actions with safety checks."
+                ),
+                PermissionModeOption(
+                    value: "bypassPermissions",
+                    label: "Bypass permissions",
+                    description: ""
                 )
             ]
         )
 
-        XCTAssertEqual(options.map(\.title), ["Default", "Accept edits", "Automatic"])
+        XCTAssertEqual(options.map(\.title), ["Default", "Accept edits", "Automatic", "Bypass permissions"])
+        XCTAssertEqual(options[3].description, "Bypass all permission checks. Use only in sandboxed environments.")
+        XCTAssertEqual(options[3].symbolName, "exclamationmark.shield")
+        XCTAssertTrue(options[3].isWarning)
 
         let button = ComposerPermissionButton()
         button.configure(
@@ -95,6 +103,39 @@ extension ChatComposerPlusMenuTests {
         XCTAssertEqual(button.accessibilityValue() as? String, "Default")
         #if DEBUG
         XCTAssertEqual(button.debugTitle, "Default")
+        #endif
+    }
+
+    func testClaudeBypassPermissionsUsesWarningTreatmentInPermissionMenu() throws {
+        let options = ChatComposerPermissionPresentation.options(
+            providerID: "claude",
+            permissionModes: [
+                PermissionModeOption(value: "bypassPermissions", label: "Bypass permissions", description: "")
+            ]
+        )
+        let controller = ComposerPermissionMenuViewController(
+            options: options,
+            selectedValue: "bypassPermissions",
+            onPermissionSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+        controller.loadViewIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+
+        let bypassRow = try XCTUnwrap(
+            controller.view.permissionDescendants(of: ComposerReasoningMenuRowView.self).first {
+                $0.accessibilityLabel() == "Bypass permissions"
+            }
+        )
+        XCTAssertEqual(bypassRow.accessibilityValue() as? String, "Selected")
+        #if DEBUG
+        XCTAssertEqual(bypassRow.debugIconName, "exclamationmark.shield")
+        XCTAssertEqual(bypassRow.debugTrailingIconName, "checkmark")
+        XCTAssertEqual(
+            bypassRow.debugSubtitle,
+            "Bypass all permission checks. Use only in sandboxed environments."
+        )
+        XCTAssertTrue(bypassRow.debugIsWarning)
         #endif
     }
 

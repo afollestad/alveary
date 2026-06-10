@@ -86,7 +86,9 @@ extension ChatTranscriptView {
 
     func configureAppKitApprovalRows(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {
         configuration.selectedApprovalSelection = { approval in
-            appKitToolApprovalSelectionsBySessionID[approval.sessionId] ?? .once
+            appKitToolApprovalSelectionsBySessionID[approval.sessionId]
+                ?? approval.recommendedApprovalSelection
+                ?? .once
         }
         configuration.onApprove = { approval in
             resolveAppKitToolApproval(approval, approve: true)

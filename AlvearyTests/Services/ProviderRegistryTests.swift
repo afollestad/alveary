@@ -32,6 +32,11 @@ final class ProviderRegistryTests: XCTestCase {
                     value: "auto",
                     label: "Automatic",
                     description: "Automatically approve most actions with safety checks."
+                ),
+                PermissionModeOption(
+                    value: "bypassPermissions",
+                    label: "Bypass permissions",
+                    description: "Bypass all permission checks. Use only in sandboxed environments."
                 )
             ]
         )

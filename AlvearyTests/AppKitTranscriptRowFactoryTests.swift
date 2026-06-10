@@ -91,7 +91,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         approvalBlock.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         approvalBlock.layoutSubtreeIfNeeded()
 
-        XCTAssertNotNil(approvalBlock.descendants(of: NSButton.self).first { $0.title == "Approve group" })
+        XCTAssertNotNil(approvalBlock.descendants(of: NSSegmentedControl.self).first { $0.label(forSegment: 0) == "Approve similar" })
     }
 
     func testPromptBusyStateIsPromptSpecific() {

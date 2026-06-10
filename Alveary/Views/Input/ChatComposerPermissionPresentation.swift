@@ -25,6 +25,8 @@ extension ChatComposerActionRowView {
 }
 
 enum ChatComposerPermissionPresentation {
+    private static let bypassPermissionsDescription = "Bypass all permission checks. Use only in sandboxed environments."
+
     static func options(
         providerID: String,
         permissionModes: [PermissionModeOption]
@@ -46,7 +48,7 @@ enum ChatComposerPermissionPresentation {
             return "hand.raised"
         case ("claude", "acceptEdits"), ("codex", "on-request"):
             return "lock.shield"
-        case ("claude", "auto"), ("codex", "never"):
+        case ("claude", "auto"), ("claude", "bypassPermissions"), ("codex", "never"):
             return "exclamationmark.shield"
         default:
             return "hand.raised"
@@ -54,7 +56,8 @@ enum ChatComposerPermissionPresentation {
     }
 
     static func isWarning(providerID: String, value: String) -> Bool {
-        providerID == "codex" && value == "never"
+        (providerID == "claude" && value == "bypassPermissions")
+            || (providerID == "codex" && value == "never")
     }
 
     private static func title(for option: PermissionModeOption) -> String {
@@ -62,6 +65,11 @@ enum ChatComposerPermissionPresentation {
     }
 
     private static func description(for option: PermissionModeOption) -> String {
+        // Provider discovery supplies its own bypass copy; Alveary always shows
+        // this shorter warning instead.
+        if option.value == "bypassPermissions" {
+            return bypassPermissionsDescription
+        }
         let description = option.description.trimmingCharacters(in: .whitespacesAndNewlines)
         if !description.isEmpty {
             return description
