@@ -229,7 +229,10 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let textWidth = max(0, actionsX - textX - 16)
         let textHeight = measuredTextHeight(width: textWidth)
         // Single-line Markdown glyphs sit optically high inside their measured bounds; align them with the clock symbol.
-        let compactTextYOffset: CGFloat = 2
+        // Wrapped text fills the row, so keep it truly centered or the bottom inset visibly shrinks.
+        // One measured line is ~20pt (the `measuredTextHeight` floor); two lines are ~33pt+.
+        let singleLineHeightThreshold: CGFloat = 26
+        let compactTextYOffset: CGFloat = textHeight <= singleLineHeightThreshold ? 2 : 0
         let textY = contextField.isHidden ?
             floor((bounds.height - textHeight) / 2 + compactTextYOffset) :
             verticalPadding

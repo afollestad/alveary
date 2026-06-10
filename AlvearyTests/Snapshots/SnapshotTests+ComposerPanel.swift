@@ -70,52 +70,6 @@ extension SnapshotTests {
         )
     }
 
-    func testAppKitComposerPanelWithNativeQueuedMessages() {
-        assertMacSnapshot(
-            AppKitComposerPanelNativeRowSnapshot(
-                queuedMessages: [
-                    QueuedMessage(
-                        text: "Follow with the snapshot cleanup once the diff finishes loading.",
-                        stagedContext: "Restoring context from local history."
-                    )
-                ]
-            ),
-            size: CGSize(width: 1000, height: 220),
-            named: "appkit_composer_panel_native_queued_messages",
-            colorScheme: .dark
-        )
-    }
-
-    func testAppKitComposerPanelWithNativeQueuedMessagesLight() {
-        assertMacSnapshot(
-            AppKitComposerPanelNativeRowSnapshot(
-                queuedMessages: [
-                    QueuedMessage(
-                        text: "Follow with the snapshot cleanup once the diff finishes loading.",
-                        stagedContext: "Restoring context from local history."
-                    )
-                ]
-            ),
-            size: CGSize(width: 1000, height: 220),
-            named: "appkit_composer_panel_native_queued_messages_light",
-            colorScheme: .light
-        )
-    }
-
-    func testAppKitComposerPanelWithNativeQueuedMessagesWithoutContext() {
-        assertMacSnapshot(
-            AppKitComposerPanelNativeRowSnapshot(
-                queuedMessages: [
-                    QueuedMessage(text: "Test", stagedContext: nil),
-                    QueuedMessage(text: "Hi", stagedContext: nil)
-                ]
-            ),
-            size: CGSize(width: 1000, height: 200),
-            named: "appkit_composer_panel_native_queued_messages_without_context",
-            colorScheme: .dark
-        )
-    }
-
     func testComposerPlusMenuCompactContent() {
         assertMacSnapshot(
             ComposerPlusMenuSnapshot(),
@@ -264,7 +218,8 @@ extension SnapshotTests {
     }
 }
 
-private struct AppKitComposerPanelNativeRowSnapshot: View {
+// Shared with `SnapshotTests+ComposerQueuedMessages.swift`.
+struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessages: [QueuedMessage]
     let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
