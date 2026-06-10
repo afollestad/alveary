@@ -18,7 +18,7 @@ extension DefaultAgentsManager {
         managedBuffer.observedEventCount += 1
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
-        await handleRuntimeStatusEvent(event, conversationId: conversationId, generation: generation)
+        await handleRuntimeStatusEvent(event, conversationId: conversationId)
 
         guard canTriggerNotification(event) else {
             return
@@ -43,8 +43,7 @@ extension DefaultAgentsManager {
 
     private func handleRuntimeStatusEvent(
         _ event: ConversationEvent,
-        conversationId: String,
-        generation: UUID
+        conversationId: String
     ) async {
         switch event {
         case .tokens(_, _, _, _, let isError, let stopReason, _, _, _, _, let permissionDenials):
@@ -56,8 +55,7 @@ extension DefaultAgentsManager {
             )
             handleToolDeferredStopIfNeeded(
                 stopReason: stopReason,
-                conversationId: conversationId,
-                generation: generation
+                conversationId: conversationId
             )
         case .toolApprovalFailed(let failure):
             handleToolApprovalFailureStatus(failure, conversationId: conversationId)
@@ -178,23 +176,19 @@ extension DefaultAgentsManager {
 
     private func handleToolDeferredStopIfNeeded(
         stopReason: String?,
-        conversationId: String,
-        generation: UUID
+        conversationId: String
     ) {
         guard stopReason == "tool_deferred",
               eventBuffers[conversationId]?.hasDeferredToolStop != true else {
             return
         }
 
+        // AgentCLIKit owns deferred-stop teardown: it closes stdin so the provider can flush its
+        // deferred-tool session records before exiting, then force kills after a grace period.
+        // Killing from here raced those writes and broke deferred-approval resumes.
         eventBuffers[conversationId]?.hasDeferredToolStop = true
         eventBuffers[conversationId]?.acceptsLiveEvents = false
         eventBuffers[conversationId]?.allowsReplay = true
-        Task { [weak self] in
-            await self?.stopAgentCLIKitDeferredRuntimeIfCurrent(
-                conversationId: conversationId,
-                generation: generation
-            )
-        }
     }
 
     private func handleConversationLifecycleEvent(

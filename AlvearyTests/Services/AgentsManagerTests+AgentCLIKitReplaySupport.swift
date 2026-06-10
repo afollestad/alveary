@@ -138,7 +138,8 @@ struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
         let launch = await counter.next()
         let output = launch == 1 ? "approval" : "message:resumed"
-        let command = launch == 1 ? "printf '%s\\n' \"$1\"; sleep 5" : "printf '%s\\n' \"$1\""
+        // The deferred launch idles on stdin like the real CLI so the runtime's stdin-close teardown ends it.
+        let command = launch == 1 ? "printf '%s\\n' \"$1\"; cat > /dev/null" : "printf '%s\\n' \"$1\""
         return AgentCLIKit.AgentLaunchConfiguration(
             executable: "/bin/sh",
             arguments: ["-c", command, "agent", output],

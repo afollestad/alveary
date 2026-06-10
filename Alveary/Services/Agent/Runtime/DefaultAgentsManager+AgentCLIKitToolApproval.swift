@@ -71,6 +71,11 @@ extension DefaultAgentsManager {
                 approvals: approvals,
                 services: services
             )
+            // Off the resolution path: the nudge does transcript file I/O and a stdin write, and the
+            // approval result must not wait on either.
+            Task { [weak self] in
+                await self?.nudgeRespawnIfClaudeDeferredReplayUnavailable(request, services: services)
+            }
         } catch {
             if didSpawn {
                 await services.runtime.kill(conversationId: services.hostAdapter.conversationId(request.conversationId))
@@ -80,6 +85,51 @@ extension DefaultAgentsManager {
                 conversationState(for: request.conversationId).turnState.endTurn()
             }
             throw error
+        }
+    }
+
+    /// Claude only re-runs a deferred tool on resume when its session transcript kept the deferred-tool
+    /// marker. A teardown that raced that write resumes as an idle session, so without a nudge the approved
+    /// turn would spin forever waiting on a replay that never starts. Best-effort: the approval itself has
+    /// already resolved, so a send racing process exit must not fail the resolution.
+    private func nudgeRespawnIfClaudeDeferredReplayUnavailable(
+        _ request: AgentToolApprovalResolutionRequest,
+        services: AgentCLIKitHostServices
+    ) async {
+        guard request.config.providerId == "claude" else {
+            return
+        }
+        // App-native prompts deliver their answer through the resolution path; a "run it again"
+        // user message would inject noise into prompt flows instead of recovering a tool replay.
+        guard !Self.isAppNativeInteractionPrompt(toolName: request.approval.toolName) else {
+            return
+        }
+        let reader = AgentCLIKit.ClaudeHookTranscriptReader()
+        guard !reader.hasDeferredToolMarker(
+            forToolUseId: AgentCLIKit.AgentInteractionID(rawValue: request.approval.toolUseId),
+            sessionId: AgentCLIKit.AgentSessionID(rawValue: request.approval.sessionId),
+            workingDirectoryPath: request.config.workingDirectory
+        ) else {
+            return
+        }
+        let runtimeConversationId = services.hostAdapter.conversationId(request.conversationId)
+        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+            return
+        }
+        try? await services.runtime.send(
+            .userMessage(AgentCLIKit.AgentMessageInput(text: Self.deferredReplayRecoveryMessage(for: request))),
+            conversationId: runtimeConversationId
+        )
+    }
+
+    private static func deferredReplayRecoveryMessage(for request: AgentToolApprovalResolutionRequest) -> String {
+        switch request.resolution.decision {
+        case .allow:
+            return "The pending \(request.approval.toolName) tool use was approved in Alveary, but this session "
+                + "could not replay it automatically. Run that tool use again now."
+        case .deny:
+            return "The pending \(request.approval.toolName) tool use was denied in Alveary. "
+                + "Do not retry it; continue without it."
         }
     }
 
@@ -104,39 +154,51 @@ extension DefaultAgentsManager {
         conversationId: String,
         services: AgentCLIKitHostServices
     ) async throws {
+        // AgentCLIKit tears a deferred-stopped process down by closing stdin and only force kills after its
+        // grace period. Killing earlier here can race Claude's deferred-tool transcript writes, so wait past
+        // that window before escalating.
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-        if await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true {
-            await services.runtime.kill(conversationId: runtimeConversationId)
+        if try await waitForAgentCLIKitProcessStop(
+            runtimeConversationId,
+            conversationId: conversationId,
+            timeout: .seconds(7),
+            services: services
+        ) {
+            return
         }
 
-        let clock = ContinuousClock()
-        let deadline = clock.now + .seconds(2)
-        while clock.now < deadline {
-            if let status = await services.runtime.status(conversationId: runtimeConversationId) {
-                agentCLIKitStatuses[conversationId] = status
-                if !status.isProcessRunning {
-                    return
-                }
-            } else {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(25))
+        await services.runtime.kill(conversationId: runtimeConversationId)
+        if try await waitForAgentCLIKitProcessStop(
+            runtimeConversationId,
+            conversationId: conversationId,
+            timeout: .seconds(2),
+            services: services
+        ) {
+            return
         }
         throw AgentError.spawnFailed("Timed out waiting for deferred approval runtime to stop for \(conversationId)")
     }
 
-    func stopAgentCLIKitDeferredRuntimeIfCurrent(conversationId: String, generation: UUID) async {
-        let services = agentCLIKitServices
-        guard let managedBuffer = eventBuffers[conversationId],
-              managedBuffer.generation == generation,
-              managedBuffer.hasDeferredToolStop else {
-            return
+    private func waitForAgentCLIKitProcessStop(
+        _ runtimeConversationId: AgentCLIKit.AgentConversationID,
+        conversationId: String,
+        timeout: Duration,
+        services: AgentCLIKitHostServices
+    ) async throws -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while clock.now < deadline {
+            if let status = await services.runtime.status(conversationId: runtimeConversationId) {
+                agentCLIKitStatuses[conversationId] = status
+                if !status.isProcessRunning {
+                    return true
+                }
+            } else {
+                return true
+            }
+            try await Task.sleep(for: .milliseconds(25))
         }
-        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
-            return
-        }
-        await services.runtime.kill(conversationId: runtimeConversationId)
+        return false
     }
 
     private func recordAgentCLIKitTransientDecisions(

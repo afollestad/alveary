@@ -16,8 +16,9 @@ struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentProviderAdapter {
         resumedSession: AgentCLIKit.AgentSessionRecord?
     ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
         let launch = await counter.next()
+        // The deferred launch idles on stdin like the real CLI so the runtime's stdin-close teardown ends it.
         let script = launch == 1
-            ? "printf 'approval:tool-1\\napproval:tool-2\\ndeferred\\n'; sleep 5"
+            ? "printf 'approval:tool-1\\napproval:tool-2\\ndeferred\\n'; cat > /dev/null"
             : """
             first=
             second=
