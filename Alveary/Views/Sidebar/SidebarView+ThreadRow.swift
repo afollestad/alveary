@@ -27,6 +27,7 @@ struct SidebarThreadRow: View {
     let onConfirmCleanup: () -> Void
 
     @State private var editText = ""
+    @State private var initialEditText = ""
     @State private var isHovering = false
     @State private var isCleanupConfirmationArmed = false
     @State private var isCleanupControlCollapsing = false
@@ -124,6 +125,7 @@ struct SidebarThreadRow: View {
         .onChange(of: isEditing) { _, editing in
             if editing {
                 editText = displayName
+                initialEditText = displayName
                 isFieldFocused = true
             }
         }
@@ -421,9 +423,11 @@ struct SidebarThreadRow: View {
     }
 
     private func commitRename() {
-        let trimmed = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            onCommitRename(trimmed)
+        if let committedName = sidebarThreadRenameCommitValue(
+            initialValue: initialEditText,
+            submittedValue: editText
+        ) {
+            onCommitRename(committedName)
         }
         editingThreadID = nil
     }
@@ -431,4 +435,16 @@ struct SidebarThreadRow: View {
     private func cancelRename() {
         editingThreadID = nil
     }
+}
+
+/// Returns the trimmed name to commit, or `nil` when the submission is empty or unchanged from
+/// the name shown when editing began. Skipping unchanged submissions matters because committing
+/// sets `hasCustomName`, which would pin an auto-generated title (see `renameThread`).
+func sidebarThreadRenameCommitValue(initialValue: String, submittedValue: String) -> String? {
+    let trimmedInitial = initialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedSubmitted = submittedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedSubmitted.isEmpty, trimmedSubmitted != trimmedInitial else {
+        return nil
+    }
+    return trimmedSubmitted
 }

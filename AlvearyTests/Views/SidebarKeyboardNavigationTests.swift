@@ -344,6 +344,44 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testSidebarThreadRenameCommitValueIgnoresEmptySubmission() {
+        XCTAssertNil(sidebarThreadRenameCommitValue(
+            initialValue: "Generated Provider Title",
+            submittedValue: "   "
+        ))
+    }
+
+    func testSidebarThreadRenameCommitValueIgnoresUnchangedDefaultName() {
+        XCTAssertNil(sidebarThreadRenameCommitValue(
+            initialValue: "New thread",
+            submittedValue: "New thread"
+        ))
+    }
+
+    func testSidebarThreadRenameCommitValueIgnoresUnchangedNonDefaultName() {
+        XCTAssertNil(sidebarThreadRenameCommitValue(
+            initialValue: "Generated Provider Title",
+            submittedValue: "Generated Provider Title"
+        ))
+    }
+
+    func testSidebarThreadRenameCommitValueIgnoresWhitespaceOnlyDifference() {
+        XCTAssertNil(sidebarThreadRenameCommitValue(
+            initialValue: "Generated Provider Title",
+            submittedValue: "  Generated Provider Title  "
+        ))
+    }
+
+    func testSidebarThreadRenameCommitValueReturnsTrimmedChangedName() {
+        XCTAssertEqual(
+            sidebarThreadRenameCommitValue(
+                initialValue: "Generated Provider Title",
+                submittedValue: "  Manual Title  "
+            ),
+            "Manual Title"
+        )
+    }
+
     // MARK: - Helpers
 
     @discardableResult
