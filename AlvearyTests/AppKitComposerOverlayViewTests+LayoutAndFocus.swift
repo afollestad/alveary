@@ -183,6 +183,36 @@ extension AppKitComposerOverlayViewTests {
         )
     }
 
+    func testOverlayPromotesRootFocusToFirstOptionRow() throws {
+        let overlay = AppKitComposerOverlayView(frame: NSRect(x: 0, y: 0, width: 360, height: 220))
+        overlay.configure(makeOverlayConfiguration(id: "overlay", rowCount: 2))
+        let window = NSWindow(contentRect: overlay.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = overlay
+        overlay.layoutSubtreeIfNeeded()
+        window.makeFirstResponder(overlay)
+
+        overlay.ensureFocusIfNeeded()
+
+        let firstRow = try XCTUnwrap(views(in: overlay, ofType: AppKitComposerOverlayOptionRowView.self).first)
+        XCTAssertTrue(window.firstResponder === firstRow)
+    }
+
+    func testOverlayDoesNotStealFocusFromCustomInput() throws {
+        let placeholder = "No, and tell the agent what to do differently"
+        let overlay = AppKitComposerOverlayView(frame: NSRect(x: 0, y: 0, width: 480, height: 180))
+        overlay.configure(makeCustomInputOverlayConfiguration(id: "custom", placeholder: placeholder, customText: ""))
+        let window = NSWindow(contentRect: overlay.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = overlay
+        overlay.layoutSubtreeIfNeeded()
+        let customField = try XCTUnwrap(textField(in: overlay, placeholder: placeholder))
+        window.makeFirstResponder(customField)
+        customField.selectText(nil)
+
+        overlay.ensureFocusIfNeeded()
+
+        XCTAssertTrue(customField.currentEditor() === window.firstResponder)
+    }
+
     func testDownArrowUsesConfiguredFocusWhenFirstResponderIsOutsidePanel() throws {
         let panel = AppKitComposerOverlayPanelView(frame: NSRect(x: 0, y: 0, width: 420, height: 180))
         var selectedID: String?

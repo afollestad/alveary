@@ -46,12 +46,11 @@ extension AppKitComposerOverlayPanelView {
         return row.configurationIsFocused
     }
 
-    var containsKeyboardFocus: Bool {
+    var containsInteractiveKeyboardFocus: Bool {
         guard let firstResponder = window?.firstResponder else {
             return false
         }
-        return firstResponder === self ||
-            rowViews.contains(where: \.containsKeyboardFocus) ||
+        return rowViews.contains(where: \.containsKeyboardFocus) ||
             focusableKeyViews.contains {
                 firstResponder === $0 ||
                     (firstResponder as? NSView)?.isDescendant(of: $0) == true

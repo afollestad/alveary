@@ -210,14 +210,16 @@ final class AppKitComposerOverlayView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? { nil }
 
     func ensureFocusIfNeeded() {
+        // Intentionally ignores focus on this root view so a stuck root first
+        // responder gets promoted into the first option row; the fallback below
+        // keeps key events captured when no row can take focus.
         guard !isHidden,
               window != nil,
-              !containsKeyboardFocus else {
+              !panelView.containsInteractiveKeyboardFocus else {
             return
         }
-        window?.makeFirstResponder(self)
         panelView.focusInitialOption()
-        if !containsKeyboardFocus {
+        if !panelView.containsInteractiveKeyboardFocus {
             window?.makeFirstResponder(self)
         }
     }
@@ -244,14 +246,5 @@ final class AppKitComposerOverlayView: NSView {
             self.layoutSubtreeIfNeeded()
             self.ensureFocusIfNeeded()
         }
-    }
-
-    private var containsKeyboardFocus: Bool {
-        guard let firstResponder = window?.firstResponder else {
-            return false
-        }
-        return firstResponder === self ||
-            panelView.containsKeyboardFocus ||
-            (firstResponder as? NSView)?.isDescendant(of: self) == true
     }
 }
