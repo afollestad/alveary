@@ -8,6 +8,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 - Production composer editing is BlockInputKit-owned. Do not reimplement editor projection, completion UI, drops, undo, selection, IME behavior, copy/paste, or sizing behavior in Alveary.
 - `AppKitChatComposerEditorController` owns Alveary's non-view BlockInput bridge: focus-token consumption, stop confirmation, preferred-height invalidation, and draft snapshot lifecycle. Editor fill, border, radius, and clipping belong to BlockInputKit style config.
+- BlockInputKit owns editor visible-line height animation. Editor-driven surface relayout must be immediate so the editor and action-row bottoms stay fixed while the editor grows upward.
 - Keep `BlockInputComposerCompletionProvider` identity stable across ordinary composer updates. BlockInputKit treats provider replacement as a semantic completion reset and dismisses the active popup.
 - Keyboard behavior for Enter, Shift+Enter, Option+Enter, and Escape must use `BlockInputConfiguration.keyboardShortcuts`. Do not add composer key interception outside BlockInputKit APIs.
 - Composer visible height must use BlockInputKit visible-line sizing. Keep Alveary-side layout as preferred-height invalidation only; do not reintroduce custom grow/shrink min/max-height logic.

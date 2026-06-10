@@ -44,6 +44,18 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertEqual(controller.bridgeController?.currentMarkdown(), "Second")
     }
 
+    func testConfigureInvalidatesPreferredSizeWithSurfaceAnimationEnabled() {
+        let controller = AppKitChatComposerEditorController()
+        var invalidationAnimationFlags: [Bool] = []
+        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
+            invalidationAnimationFlags.append(animateSurfaceHeight)
+        }
+
+        controller.configure(makeConfiguration(text: "First"))
+
+        XCTAssertEqual(invalidationAnimationFlags, [true])
+    }
+
     func testBlockInputViewIsHostedDirectlyWithComposerChrome() throws {
         let controller = AppKitChatComposerEditorController()
 
@@ -100,13 +112,19 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
 
     func testBlockInputInitialHeightUsesPreferredEditorHeightAfterWidthArrives() throws {
         let controller = AppKitChatComposerEditorController()
+        var invalidationAnimationFlags: [Bool] = []
+        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
+            invalidationAnimationFlags.append(animateSurfaceHeight)
+        }
 
         controller.configure(makeConfiguration(text: "ss\ns"))
+        invalidationAnimationFlags.removeAll()
         _ = controller.measuredHeight(width: 400)
 
         let editor = try XCTUnwrap(controller.view)
         XCTAssertEqual(controller.measuredEditorHeight, editor.preferredHeight(forWidth: 400), accuracy: 0.5)
         XCTAssertGreaterThan(controller.measuredEditorHeight, 0)
+        XCTAssertEqual(invalidationAnimationFlags, [false])
     }
 
     func testFocusRequestAfterClearRevisionConsumesToken() throws {
@@ -259,9 +277,9 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
 
     func testPreferredHeightTransitionAppliesInitialHeightImmediately() {
         let controller = AppKitChatComposerEditorController()
-        var invalidationCount = 0
-        controller.onPreferredSizeInvalidated = {
-            invalidationCount += 1
+        var invalidationAnimationFlags: [Bool] = []
+        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
+            invalidationAnimationFlags.append(animateSurfaceHeight)
         }
 
         controller.handlePreferredHeightTransition(BlockInputEditorHeightTransition(
@@ -272,15 +290,15 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         ))
 
         XCTAssertEqual(controller.measuredEditorHeight, 92)
-        XCTAssertEqual(invalidationCount, 1)
+        XCTAssertEqual(invalidationAnimationFlags, [false])
     }
 
     func testPreferredHeightTransitionInterpolatesNonInitialChanges() async throws {
         let controller = AppKitChatComposerEditorController()
-        var invalidationCount = 0
+        var invalidationAnimationFlags: [Bool] = []
         controller.measuredEditorHeight = 80
-        controller.onPreferredSizeInvalidated = {
-            invalidationCount += 1
+        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
+            invalidationAnimationFlags.append(animateSurfaceHeight)
         }
 
         controller.handlePreferredHeightTransition(BlockInputEditorHeightTransition(
@@ -295,7 +313,8 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         XCTAssertEqual(controller.measuredEditorHeight, 120, accuracy: 0.5)
-        XCTAssertGreaterThan(invalidationCount, 1)
+        XCTAssertFalse(invalidationAnimationFlags.isEmpty)
+        XCTAssertTrue(invalidationAnimationFlags.allSatisfy { !$0 })
     }
 
     func testPreferredHeightTransitionRelayoutsComposerSurfaceImmediately() throws {
@@ -465,13 +484,8 @@ private func assertFilled(
     line: UInt = #line
 ) {
     let resolved = color.usingColorSpace(.deviceRGB) ?? color
-    XCTAssertGreaterThan(
-        resolved.alphaComponent,
-        0.02,
-        "Expected \(corner) to be filled for attached queued composer, got alpha \(resolved.alphaComponent)",
-        file: file,
-        line: line
-    )
+    let message = "Expected \(corner) to be filled for attached queued composer, got alpha \(resolved.alphaComponent)"
+    XCTAssertGreaterThan(resolved.alphaComponent, 0.02, message, file: file, line: line)
 }
 
 private func assertClipped(
@@ -481,11 +495,6 @@ private func assertClipped(
     line: UInt = #line
 ) {
     let resolved = color.usingColorSpace(.deviceRGB) ?? color
-    XCTAssertLessThan(
-        resolved.alphaComponent,
-        0.01,
-        "Expected \(corner) to be clipped for attached queued composer, got alpha \(resolved.alphaComponent)",
-        file: file,
-        line: line
-    )
+    let message = "Expected \(corner) to be clipped for attached queued composer, got alpha \(resolved.alphaComponent)"
+    XCTAssertLessThan(resolved.alphaComponent, 0.01, message, file: file, line: line)
 }

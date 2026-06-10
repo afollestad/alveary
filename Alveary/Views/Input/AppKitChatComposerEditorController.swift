@@ -9,7 +9,7 @@ final class AppKitChatComposerEditorController {
     var configuration: AppKitChatComposerBodyConfiguration?
     var measuredEditorHeight: CGFloat = AppKitChatComposerEditorController.editorBaseHeight
     var stopConfirmationResetTask: Task<Void, Never>?
-    var onPreferredSizeInvalidated: (() -> Void)?
+    var onPreferredSizeInvalidated: ((Bool) -> Void)?
     private var lastConsumedFocusRequestToken: UUID?
     private var hasSeededInitialBlockInputHeight = false
     private var preferredHeightAnimationTimer: Timer?
@@ -31,7 +31,7 @@ final class AppKitChatComposerEditorController {
         configureBlockInput(configuration)
         installDraftSnapshotProvider(configuration)
         consumeFocusRequestIfNeeded(configuration.requestFirstResponder)
-        invalidatePreferredSize()
+        invalidatePreferredSize(animateSurfaceHeight: true)
     }
 
     func detach() {
@@ -178,8 +178,10 @@ extension AppKitChatComposerEditorController {
     private func applyPreferredEditorHeight(_ nextHeight: CGFloat) {
         measuredEditorHeight = nextHeight
         view?.needsDisplay = true
-        invalidatePreferredSize()
-        layoutPreferredHeightHostIfNeeded()
+        // BlockInputKit owns editor visible-line animation; the surface must
+        // track each editor height frame immediately so controls stay pinned.
+        invalidatePreferredSize(animateSurfaceHeight: false)
+        layoutPreferredHeightHostIfNeeded(animateSurfaceHeight: false)
     }
 
     private func seedInitialBlockInputHeightIfPossible(width: CGFloat) {
@@ -195,12 +197,12 @@ extension AppKitChatComposerEditorController {
         }
         measuredEditorHeight = preferredHeight
         view?.needsDisplay = true
-        invalidatePreferredSize()
+        invalidatePreferredSize(animateSurfaceHeight: false)
     }
 
-    private func layoutPreferredHeightHostIfNeeded() {
+    private func layoutPreferredHeightHostIfNeeded(animateSurfaceHeight: Bool) {
         if let surface = enclosingChatSurfaceView() {
-            surface.layoutPreferredComposerHeightChange()
+            surface.layoutPreferredComposerHeightChange(animated: animateSurfaceHeight)
         } else if let parent = view?.superview {
             parent.layoutSubtreeIfNeeded()
         } else {
@@ -208,11 +210,11 @@ extension AppKitChatComposerEditorController {
         }
     }
 
-    func invalidatePreferredSize() {
+    func invalidatePreferredSize(animateSurfaceHeight: Bool) {
         view?.invalidateIntrinsicContentSize()
         view?.needsLayout = true
         view?.superview?.needsLayout = true
-        onPreferredSizeInvalidated?()
+        onPreferredSizeInvalidated?(animateSurfaceHeight)
     }
 
     func consumeFocusRequest(_ token: UUID?) {

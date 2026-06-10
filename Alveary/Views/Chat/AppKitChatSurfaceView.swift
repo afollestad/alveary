@@ -12,7 +12,7 @@ final class AppKitChatSurfaceView: NSView {
     private let composerHeightAnimationDuration: TimeInterval = 0.18
 
 #if DEBUG
-    var disableHeightAnimationForTesting = false
+    var heightAnimationEnabledForTesting: Bool?
 #endif
 
     override var isFlipped: Bool {
@@ -158,8 +158,8 @@ final class AppKitChatSurfaceView: NSView {
 
     private var shouldAnimateHeightChange: Bool {
 #if DEBUG
-        guard !disableHeightAnimationForTesting else {
-            return false
+        if let heightAnimationEnabledForTesting {
+            return heightAnimationEnabledForTesting
         }
 #endif
         return window != nil && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion

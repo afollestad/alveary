@@ -140,8 +140,8 @@ final class AppKitChatComposerPanelView: NSView {
 
         addSubview(topContentView)
         addSubview(queuedMessagesView)
-        editorController.onPreferredSizeInvalidated = { [weak self] in
-            self?.invalidatePreferredHeight()
+        editorController.onPreferredSizeInvalidated = { [weak self] animateSurfaceHeight in
+            self?.invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
         }
         actionRow.isHidden = true
         addSubview(actionRow)
@@ -417,11 +417,11 @@ final class AppKitChatComposerPanelView: NSView {
         return max(0, ceil(view.fittingSize.height))
     }
 
-    private func invalidatePreferredHeight() {
+    private func invalidatePreferredHeight(animateSurfaceHeight: Bool = true) {
         invalidateIntrinsicContentSize()
         needsLayout = true
         if let surfaceView = superview as? AppKitChatSurfaceView {
-            surfaceView.layoutPreferredComposerHeightChange()
+            surfaceView.layoutPreferredComposerHeightChange(animated: animateSurfaceHeight)
         } else {
             superview?.needsLayout = true
         }
