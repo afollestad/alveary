@@ -6,12 +6,18 @@ import XCTest
 extension ChatItemGrouperTests {
     func testClassificationRoutesMCPReadOnlyToGroupable() {
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Read"), .groupable)
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Grep"), .groupable)
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Glob"), .groupable)
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "LS"), .groupable)
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "NotebookRead"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "WebSearch"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "ToolSearch"), .groupable)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "Skill"), .standalone)
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "CommandExecution"), .standalone)
-        for toolName in ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"] {
+        for toolName in ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "Grep", "Glob", "LS", "NotebookRead"] {
             XCTAssertTrue(ClaudeApprovalDisplayPolicy.canRenderToolApproval(toolName))
+        }
+        for toolName in ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit"] {
             XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: toolName), .standalone)
         }
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "mcp__linear__search_issues"), .groupable)

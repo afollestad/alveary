@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 extension ConversationViewModel {
@@ -32,7 +33,8 @@ extension ConversationViewModel {
                 completedToolIds: completedToolIds,
                 approvalToolIds: approvalToolIds,
                 existingRelatedToolIds: Set(relatedApprovals.map(\.toolUseId)),
-                approvalToolNames: [approval.toolName] + relatedApprovals.map(\.toolName)
+                approvalToolNames: [approval.toolName] + relatedApprovals.map(\.toolName),
+                workingDirectory: approvalBatchWorkingDirectory()
             )
         ))
         return relatedApprovals
@@ -44,6 +46,7 @@ private struct ApprovalBatchToolCallContext {
     let approvalToolIds: Set<String>
     let existingRelatedToolIds: Set<String>
     let approvalToolNames: [String]
+    let workingDirectory: URL?
 }
 
 private extension ConversationViewModel {
@@ -156,8 +159,13 @@ private extension ConversationViewModel {
                   !context.approvalToolIds.contains(toolUseId),
                   !context.existingRelatedToolIds.contains(toolUseId),
                   let toolName = record.toolName,
-                  shouldBatchToolCallApproval(toolName: toolName, with: context.approvalToolNames),
-                  let toolInput = record.toolInput else {
+                  let toolInput = record.toolInput,
+                  shouldBatchToolCallApproval(
+                      toolName: toolName,
+                      toolInput: toolInput,
+                      with: context.approvalToolNames,
+                      workingDirectory: context.workingDirectory
+                  ) else {
                 return nil
             }
             return ToolApprovalRequest(
@@ -169,11 +177,39 @@ private extension ConversationViewModel {
         }
     }
 
-    func shouldBatchToolCallApproval(toolName: String, with approvalToolNames: [String]) -> Bool {
-        ClaudeApprovalDisplayPolicy.shouldBatchDeferredToolCall(
+    func shouldBatchToolCallApproval(
+        toolName: String,
+        toolInput: String,
+        with approvalToolNames: [String],
+        workingDirectory: URL?
+    ) -> Bool {
+        guard let toolInput = agentCLIKitJSONValueForBatching(from: toolInput) else {
+            return false
+        }
+        return ClaudeApprovalDisplayPolicy.shouldBatchDeferredToolCall(
             toolName: toolName,
+            toolInput: toolInput,
             with: approvalToolNames,
-            permissionMode: effectivePlanModeEnabled ? "plan" : effectivePermissionMode
+            permissionMode: effectivePlanModeEnabled ? "plan" : effectivePermissionMode,
+            workingDirectory: workingDirectory
         )
+    }
+
+    func approvalBatchWorkingDirectory() -> URL? {
+        let workingDirectory = state.pendingSessionSettingsChange?.liveSessionConfig?.workingDirectory
+            ?? state.liveSessionConfig?.workingDirectory
+            ?? dbConversation()?.thread?.worktreePath
+            ?? dbConversation()?.thread?.project?.path
+        guard let workingDirectory, !workingDirectory.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: workingDirectory, isDirectory: true)
+    }
+
+    func agentCLIKitJSONValueForBatching(from string: String) -> AgentCLIKit.JSONValue? {
+        guard let data = string.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(AgentCLIKit.JSONValue.self, from: data)
     }
 }

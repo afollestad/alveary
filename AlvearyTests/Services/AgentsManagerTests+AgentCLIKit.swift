@@ -104,6 +104,7 @@ extension AgentsManagerTests {
         XCTAssertTrue(allowsApproval)
         await manager.kill(conversationId: conversationId)
     }
+
     func testAgentCLIKitApprovalStoreScopesTransientDecisionsBySession() async {
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: DisabledClaudeApprovalPersistenceStore())
         let scopedKey = AgentCLIKit.ClaudeTransientDecisionKey(sessionId: "session-1", interactionId: "tool-1")
@@ -448,8 +449,7 @@ struct PathResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         Data()
     }
 }
-
-private struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let definition = AgentCLIKit.AgentProviderDefinition(
         id: .claude,
         displayName: "Claude",

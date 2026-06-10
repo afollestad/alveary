@@ -28,10 +28,19 @@ enum ClaudeApprovalDisplayPolicy {
     /// Returns whether a deferred tool event should join the current approval batch.
     static func shouldBatchDeferredToolCall(
         toolName: String,
+        toolInput: AgentCLIKit.JSONValue,
         with approvalToolNames: [String],
-        permissionMode: String?
+        permissionMode: String?,
+        workingDirectory: URL?,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> Bool {
-        guard AgentCLIKit.ClaudeHookPolicy.shouldDefer(toolName: toolName, permissionMode: permissionMode) else {
+        guard AgentCLIKit.ClaudeHookPolicy.shouldDeferToolUse(
+            toolName: toolName,
+            toolInput: toolInput,
+            permissionMode: permissionMode,
+            workingDirectory: workingDirectory,
+            homeDirectory: homeDirectory
+        ) else {
             return false
         }
         return canBatchPotentialApprovalToolCall(

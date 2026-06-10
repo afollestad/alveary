@@ -104,10 +104,14 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         switch toolName {
         case "Bash":
             candidate = normalizedBashCommand
-        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+        case "Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "LS", "NotebookRead":
             candidate = Self.displayApprovalPath(
                 parsedInput["file_path"] ?? parsedInput["path"] ?? parsedInput["notebook_path"]
             )
+        case "Grep":
+            candidate = Self.searchSummary(pattern: parsedInput["pattern"], path: parsedInput["path"])
+        case "Glob":
+            candidate = Self.searchSummary(pattern: parsedInput["pattern"], path: parsedInput["path"])
         case "EnterPlanMode":
             candidate = "Switch the session into plan mode"
         case "ExitPlanMode":
@@ -169,7 +173,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
                 scopes.append(.group)
             }
             return scopes
-        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+        case "Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "LS", "NotebookRead":
             return sessionApprovalMatch(for: .exact) == nil ? [] : [.exact]
         default:
             return []
@@ -260,7 +264,8 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
                 return nil
             }
             return (.bashCommandGroup, commandGroup)
-        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact):
+        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact),
+             ("Read", .exact), ("LS", .exact), ("NotebookRead", .exact):
             guard let path = normalizedApprovalPath else {
                 return nil
             }
@@ -271,6 +276,10 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     }
 
     private func approvalPromptTitle(isPlural: Bool) -> String {
+        if let title = nativeReadOnlyApprovalPromptTitle(isPlural: isPlural) {
+            return title
+        }
+
         switch toolName {
         case "Bash":
             return "Approve Bash \(isPlural ? "commands" : "command")?"
@@ -286,6 +295,21 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return approvalPromptCopy.title
         default:
             return genericApprovalPromptTitle(isPlural: isPlural)
+        }
+    }
+
+    private func nativeReadOnlyApprovalPromptTitle(isPlural: Bool) -> String? {
+        switch toolName {
+        case "Read":
+            return "Approve reading \(isPlural ? "files" : "a file")?"
+        case "LS":
+            return "Approve listing \(isPlural ? "directories" : "a directory")?"
+        case "NotebookRead":
+            return "Approve reading \(isPlural ? "notebooks" : "a notebook")?"
+        case "Grep", "Glob":
+            return "Approve searching \(isPlural ? "paths" : "a path")?"
+        default:
+            return nil
         }
     }
 
@@ -377,6 +401,16 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return nil
         }
         return CanonicalPath.displayMentionPath(path, relativeTo: nil)
+    }
+
+    private static func searchSummary(pattern: String?, path: String?) -> String? {
+        guard let pattern = pattern?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty else {
+            return nil
+        }
+        guard let path = displayApprovalPath(path) else {
+            return pattern
+        }
+        return "\(pattern) in \(path)"
     }
 
     private static func truncated(_ value: String, limit: Int = 140) -> String {

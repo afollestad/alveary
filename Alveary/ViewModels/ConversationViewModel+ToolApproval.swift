@@ -102,11 +102,24 @@ extension ConversationViewModel {
 
     func toolApprovalSelection(for approval: ToolApprovalRequest) async -> ToolApprovalSelection? {
         let providerId = toolApprovalProviderId()
-        return await agentsManager.toolApprovalSelection(
+        guard let storedSelection = await agentsManager.toolApprovalSelection(
             providerId: providerId,
             conversationId: conversation.id,
             sessionId: approval.sessionId
-        )
+        ) else {
+            return nil
+        }
+
+        let normalizedSelection = storedSelection.normalized(for: approval.supportedSessionApprovalScopes)
+        if normalizedSelection != storedSelection {
+            await agentsManager.recordToolApprovalSelection(
+                normalizedSelection,
+                providerId: providerId,
+                conversationId: conversation.id,
+                sessionId: approval.sessionId
+            )
+        }
+        return normalizedSelection
     }
 
     func recordToolApprovalSelection(_ selection: ToolApprovalSelection, for approval: ToolApprovalRequest) {

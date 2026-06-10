@@ -9,6 +9,11 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(title(for: ["Edit"]), "Approve editing a file?")
         XCTAssertEqual(title(for: ["MultiEdit"]), "Approve editing a file?")
         XCTAssertEqual(title(for: ["NotebookEdit"]), "Approve editing a notebook?")
+        XCTAssertEqual(title(for: ["Read"]), "Approve reading a file?")
+        XCTAssertEqual(title(for: ["LS"]), "Approve listing a directory?")
+        XCTAssertEqual(title(for: ["NotebookRead"]), "Approve reading a notebook?")
+        XCTAssertEqual(title(for: ["Grep"]), "Approve searching a path?")
+        XCTAssertEqual(title(for: ["Glob"]), "Approve searching a path?")
         XCTAssertEqual(title(for: ["EnterPlanMode"]), "Approve entering plan mode?")
         XCTAssertEqual(title(for: ["ExitPlanMode"]), "Ready to leave plan mode?")
         XCTAssertEqual(title(for: ["mcp__filesystem__write_file"]), "Approve MCP tool use?")
@@ -21,6 +26,11 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(title(for: ["Edit", "Edit"]), "Approve editing files?")
         XCTAssertEqual(title(for: ["MultiEdit", "MultiEdit"]), "Approve editing files?")
         XCTAssertEqual(title(for: ["NotebookEdit", "NotebookEdit"]), "Approve editing notebooks?")
+        XCTAssertEqual(title(for: ["Read", "Read"]), "Approve reading files?")
+        XCTAssertEqual(title(for: ["LS", "LS"]), "Approve listing directories?")
+        XCTAssertEqual(title(for: ["NotebookRead", "NotebookRead"]), "Approve reading notebooks?")
+        XCTAssertEqual(title(for: ["Grep", "Grep"]), "Approve searching paths?")
+        XCTAssertEqual(title(for: ["Glob", "Glob"]), "Approve searching paths?")
         XCTAssertEqual(title(for: ["mcp__filesystem__write_file", "mcp__filesystem__write_file"]), "Approve MCP tool uses?")
         XCTAssertEqual(title(for: ["CustomTool", "CustomTool"]), "Approve CustomTool tool uses?")
     }
@@ -51,6 +61,33 @@ final class ToolApprovalRequestTests: XCTestCase {
         XCTAssertEqual(
             request(toolName: "Write", toolInput: #"{"file_path":"/tmp/test_parallel.txt","content":"test"}"#).conciseSummary,
             "/tmp/test_parallel.txt"
+        )
+        XCTAssertEqual(
+            request(toolName: "Read", toolInput: #"{"file_path":"Sources/Auth.swift"}"#).conciseSummary,
+            "Sources/Auth.swift"
+        )
+        XCTAssertEqual(
+            request(toolName: "LS", toolInput: #"{"path":"Sources"}"#).conciseSummary,
+            "Sources"
+        )
+        XCTAssertEqual(
+            request(toolName: "NotebookRead", toolInput: #"{"notebook_path":"Analysis.ipynb"}"#).conciseSummary,
+            "Analysis.ipynb"
+        )
+    }
+
+    func testConciseSummaryUsesSearchPatternAndOptionalPathForNativeSearchApprovals() {
+        XCTAssertEqual(
+            request(toolName: "Grep", toolInput: #"{"pattern":"APIKey","path":"../other"}"#).conciseSummary,
+            "APIKey in ../other"
+        )
+        XCTAssertEqual(
+            request(toolName: "Grep", toolInput: #"{"pattern":"APIKey","glob":"../**/*.swift"}"#).conciseSummary,
+            "APIKey"
+        )
+        XCTAssertEqual(
+            request(toolName: "Glob", toolInput: #"{"pattern":"../**/*.swift","path":"../other"}"#).conciseSummary,
+            "../**/*.swift in ../other"
         )
     }
 
@@ -103,6 +140,26 @@ final class ToolApprovalRequestTests: XCTestCase {
                 matchValue: "git log"
             )
         )
+    }
+
+    func testNativeReadOnlySessionScopesOnlyOfferExactPathGrantsForPathExactTools() {
+        let read = request(toolName: "Read", toolInput: #"{"file_path":"/tmp/project/README.md"}"#)
+        let list = request(toolName: "LS", toolInput: #"{"path":"/tmp/project/Sources"}"#)
+        let notebookRead = request(toolName: "NotebookRead", toolInput: #"{"notebook_path":"/tmp/project/Analysis.ipynb"}"#)
+        let grep = request(toolName: "Grep", toolInput: #"{"pattern":"token","path":"/tmp/project"}"#)
+        let glob = request(toolName: "Glob", toolInput: #"{"pattern":"/tmp/project/**/*.swift"}"#)
+
+        XCTAssertEqual(read.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(list.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(notebookRead.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(grep.supportedSessionApprovalScopes, [])
+        XCTAssertEqual(glob.supportedSessionApprovalScopes, [])
+        XCTAssertEqual(read.sessionApprovalMatch(for: .exact)?.kind, .filePathExact)
+        XCTAssertEqual(read.sessionApprovalMatch(for: .exact)?.value, "/tmp/project/README.md")
+        XCTAssertEqual(list.sessionApprovalMatch(for: .exact)?.value, "/tmp/project/Sources")
+        XCTAssertEqual(notebookRead.sessionApprovalMatch(for: .exact)?.value, "/tmp/project/Analysis.ipynb")
+        XCTAssertNil(grep.sessionApprovalMatch(for: .exact))
+        XCTAssertNil(glob.sessionApprovalMatch(for: .exact))
     }
 
     func testQuotedRTKCommandIsNotTreatedAsWrapperPrefix() {

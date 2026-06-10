@@ -11,22 +11,21 @@ extension ChatItemGrouper {
     /// should render as a `standaloneTool` row.
     ///
     /// Groupable: read-only, informational tools whose repeated rendering would clutter the
-    /// transcript (Read/Grep/Glob/WebFetch/WebSearch and MCP lookup-style calls).
+    /// transcript (Read/Grep/Glob/LS/NotebookRead/WebFetch/WebSearch and MCP lookup-style calls).
     /// Standalone: mutating, output-heavy, or lifecycle tools the user wants to see per-row
     /// (anything that can render an Alveary approval prompt, plus Skill invocations).
     /// Unknown tools default to standalone so a tool that actually mutates state never gets
     /// silently folded into a group header.
     static func groupability(forToolNamed name: String) -> ToolGroupability {
-        if ClaudeApprovalDisplayPolicy.canRenderToolApproval(name) {
-            return .standalone
-        }
-
         switch name {
         case "Skill", "CommandExecution":
             return .standalone
-        case "Read", "Grep", "Glob", "WebFetch", "WebSearch", "ToolSearch":
+        case "Read", "Grep", "Glob", "LS", "NotebookRead", "WebFetch", "WebSearch", "ToolSearch":
             return .groupable
         default:
+            if ClaudeApprovalDisplayPolicy.canRenderToolApproval(name) {
+                return .standalone
+            }
             return isMCPReadOnly(toolName: name) ? .groupable : .standalone
         }
     }
