@@ -201,7 +201,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         XCTAssertEqual(row.accessibilityLabel(), "Assistant is thinking")
     }
 
-    func testThinkingIndicatorAlignsDotsWithRowLeadingEdge() throws {
+    func testThinkingIndicatorOffsetsDotsFromRowLeadingEdge() throws {
         let row = AppKitTranscriptThinkingIndicatorView()
         row.frame = NSRect(x: 0, y: 0, width: 260, height: 80)
 
@@ -209,7 +209,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         row.layoutSubtreeIfNeeded()
 
         let firstDotFrame = try XCTUnwrap(row.dotFramesForTesting.first)
-        XCTAssertEqual(firstDotFrame.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(firstDotFrame.minX, 10, accuracy: 0.5)
     }
 
     func testThinkingIndicatorAnimatesWhenAttachedToWindow() throws {

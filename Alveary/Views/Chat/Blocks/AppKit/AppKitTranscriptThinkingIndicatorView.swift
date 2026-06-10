@@ -48,8 +48,8 @@ final class AppKitTranscriptThinkingIndicatorView: NSView {
 
     override func layout() {
         super.layout()
-        // Match transcript row content, where tool-row icons start at the row leading edge.
-        let startX: CGFloat = 0
+        // Keep the standalone indicator near row-leading content without hugging the transcript edge.
+        let startX: CGFloat = 10
         let centerY = chatVerticalPadding + 3.5
         for (index, dotView) in dotViews.enumerated() {
             dotView.frame = NSRect(x: startX + CGFloat(index) * 13, y: centerY - 3.5, width: 7, height: 7)
