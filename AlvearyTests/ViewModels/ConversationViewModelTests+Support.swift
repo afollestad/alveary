@@ -53,6 +53,7 @@ actor MockAgentsManager: AgentsManager {
     private let sessionApprovalEffective: Bool
     private let statusStore = MockAgentsManagerStatusStore()
     private var queuedSendResults: [Result<Void, MockError>] = []
+    private var queuedOutboundReadiness: [AgentOutboundReadiness] = []
     private var queuedRefreshStatuses: [ActivitySignal] = []
     private var pausesNextRefreshStatus = false
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
@@ -177,6 +178,10 @@ actor MockAgentsManager: AgentsManager {
         queuedSendResults.append(result)
     }
 
+    func enqueueOutboundReadiness(_ readiness: AgentOutboundReadiness) {
+        queuedOutboundReadiness.append(readiness)
+    }
+
     func enqueueRefreshStatus(_ status: ActivitySignal) {
         queuedRefreshStatuses.append(status)
     }
@@ -252,6 +257,13 @@ actor MockAgentsManager: AgentsManager {
 
     func isRunning(conversationId: String) -> Bool {
         isRunningValue
+    }
+
+    func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness {
+        if !queuedOutboundReadiness.isEmpty {
+            return queuedOutboundReadiness.removeFirst()
+        }
+        return .ready
     }
 
     func hasTrackedProcess(conversationId: String) -> Bool {

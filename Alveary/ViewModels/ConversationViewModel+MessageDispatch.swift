@@ -106,10 +106,23 @@ extension ConversationViewModel {
 
 extension ConversationViewModel {
     func scheduleQueueDrainIfNeeded() {
+        scheduleQueueDrainIfNeeded(allowInactiveBeforeFirstActivation: false, allowInitialSetup: false)
+    }
+
+    func scheduleExitPlanModeFollowUpDrainIfNeeded() {
+        // Denied-plan follow-ups may be staged before the view ever activates, but
+        // explicit deactivation must still keep them parked until the view returns.
+        scheduleQueueDrainIfNeeded(allowInactiveBeforeFirstActivation: true, allowInitialSetup: true)
+    }
+
+    private func scheduleQueueDrainIfNeeded(
+        allowInactiveBeforeFirstActivation: Bool,
+        allowInitialSetup: Bool
+    ) {
         guard queueDrainTask == nil,
               state.messageQueue.peekNext() != nil,
               !state.turnState.isActive,
-              hasActivatedViewLifecycle else {
+              canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation) else {
             return
         }
 
@@ -118,20 +131,32 @@ extension ConversationViewModel {
                 return
             }
             defer { self.queueDrainTask = nil }
-            await self.drainNextQueuedMessageIfReady()
+            await self.drainNextQueuedMessageIfReady(
+                allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation,
+                allowInitialSetup: allowInitialSetup
+            )
         }
     }
 }
 
 private extension ConversationViewModel {
-    func drainNextQueuedMessageIfReady() async {
-        guard canDrainNextQueuedMessageLocally() else {
+    func drainNextQueuedMessageIfReady(
+        allowInactiveBeforeFirstActivation: Bool = false,
+        allowInitialSetup: Bool = false
+    ) async {
+        guard canDrainNextQueuedMessageLocally(
+            allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation,
+            allowInitialSetup: allowInitialSetup
+        ) else {
             return
         }
 
         let runtimeStatus = await runtimeStatusForQueueDrain()
         guard !Task.isCancelled,
-              canDrainNextQueuedMessageLocally() else {
+              canDrainNextQueuedMessageLocally(
+                  allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation,
+                  allowInitialSetup: allowInitialSetup
+              ) else {
             return
         }
         guard runtimeStatus == .idle || runtimeStatus == .neutral || runtimeStatus == .stopped else {
@@ -157,9 +182,12 @@ private extension ConversationViewModel {
         }
     }
 
-    func canDrainNextQueuedMessageLocally() -> Bool {
-        hasActivatedViewLifecycle &&
-            !needsSetup &&
+    func canDrainNextQueuedMessageLocally(
+        allowInactiveBeforeFirstActivation: Bool = false,
+        allowInitialSetup: Bool = false
+    ) -> Bool {
+        canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation) &&
+            (!needsSetup || allowInitialSetup) &&
             initialSetupTask == nil &&
             state.setupPhase == nil &&
             !state.isCancellingInitialSetup &&
@@ -176,6 +204,10 @@ private extension ConversationViewModel {
             state.lastTurnError == nil &&
             state.failedSessionHandoffMessage == nil &&
             !state.isReconfiguringSession
+    }
+
+    func canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: Bool) -> Bool {
+        hasActivatedViewLifecycle || (allowInactiveBeforeFirstActivation && !hasEverActivatedViewLifecycle)
     }
 
     func runtimeStatusForQueueDrain() async -> ActivitySignal {
@@ -212,14 +244,8 @@ private extension ConversationViewModel {
         }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
-            if await needsRespawn() {
-                guard state.respawnAttempts < Self.maxRespawnAttempts else {
-                    state.lastTurnError = "Agent process keeps crashing — queued message paused"
-                    state.respawnAttempts = 0
-                    state.turnState.endTurn()
-                    return
-                }
-                state.respawnAttempts += 1
+            guard try await prepareRuntimeForQueuedMessage() else {
+                return
             }
 
             guard let queuedMessage = state.messageQueue.remove(id: next.id) else {
@@ -251,6 +277,25 @@ private extension ConversationViewModel {
                 }
                 throw error
             }
+        }
+    }
+
+    func prepareRuntimeForQueuedMessage() async throws -> Bool {
+        switch await agentsManager.outboundReadiness(conversationId: conversation.id) {
+        case .ready:
+            return true
+        case .respawnRequired:
+            guard state.respawnAttempts < Self.maxRespawnAttempts else {
+                state.lastTurnError = "Agent process keeps crashing — queued message paused"
+                state.respawnAttempts = 0
+                state.turnState.endTurn()
+                return false
+            }
+            state.respawnAttempts += 1
+            try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
+            return true
+        case .blocked(let reason):
+            throw AgentError.spawnFailed(reason)
         }
     }
 

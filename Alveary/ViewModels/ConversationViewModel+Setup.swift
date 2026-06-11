@@ -188,6 +188,10 @@ extension ConversationViewModel {
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn
     ) async throws {
         try repairMissingWorktreeIfNeeded()
+        if !needsSetup {
+            try await prepareRuntimeForOutbound(settingsSource: respawnSettingsSource)
+        }
+
         let attempt = try localUserMessageAttempt(
             message: message,
             stagedContextOverride: stagedContextOverride,
@@ -207,18 +211,12 @@ extension ConversationViewModel {
                 return
             }
 
-            if await needsRespawn() {
-                try await startAgentReserved(config: makeSpawnConfig(
-                    settingsSource: respawnSettingsSource
-                ))
-                state.respawnAttempts = 0
-            }
-
-            try await sendReserved(
+            try await sendAttemptWithSingleRespawnRecovery(
                 message,
                 stagedContextOverride: stagedContextOverride ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
-                existingLocalUserMessageID: attempt.id
+                existingLocalUserMessageID: attempt.id,
+                respawnSettingsSource: respawnSettingsSource
             )
         } catch is CancellationError {
             if attempt.insertedMessage {

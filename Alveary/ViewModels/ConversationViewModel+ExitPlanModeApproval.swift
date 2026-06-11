@@ -38,6 +38,7 @@ extension ConversationViewModel {
         cancelPendingExitPlanModeFollowUpQuietTask()
         state.pendingExitPlanModeFollowUp = nil
         state.messageQueue.prepend(followUp.message, stagedContext: nil)
+        scheduleExitPlanModeFollowUpDrainIfNeeded()
         return true
     }
 

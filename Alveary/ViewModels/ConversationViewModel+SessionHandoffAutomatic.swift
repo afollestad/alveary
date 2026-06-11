@@ -1,21 +1,25 @@
 import Foundation
 
 extension ConversationViewModel {
-    func shouldTriggerAutomaticSessionHandoff(for payload: TokenEventPayload) -> Bool {
+    func markAutomaticSessionHandoffPendingIfNeeded(for payload: TokenEventPayload) {
         let settings = settingsService.current
         guard settings.contextManagementEnabled else {
             state.isAutomaticSessionHandoffPending = false
-            return false
+            return
         }
         guard !state.hasActiveSessionHandoff,
               !state.isSendingMessage,
               !state.isReconfiguringSession,
               state.pendingToolApproval == nil,
               !hasUnansweredPrompt else {
-            return false
+            return
         }
 
         markAutomaticSessionHandoffPendingIfNeeded(payload, settings: settings)
+    }
+
+    func shouldTriggerAutomaticSessionHandoff(for payload: TokenEventPayload) -> Bool {
+        markAutomaticSessionHandoffPendingIfNeeded(for: payload)
         return consumeCompletedAutomaticSessionHandoffIfNeeded(payload)
     }
 

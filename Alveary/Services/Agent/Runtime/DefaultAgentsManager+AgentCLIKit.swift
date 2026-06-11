@@ -43,7 +43,9 @@ extension DefaultAgentsManager {
             throw AgentError.stdinClosed
         }
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+        guard let status = await services.runtime.status(conversationId: runtimeConversationId),
+              !status.isTerminal,
+              status.isProcessRunning else {
             throw AgentError.stdinClosed
         }
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
@@ -53,7 +55,9 @@ extension DefaultAgentsManager {
                 conversationId: runtimeConversationId
             )
         } catch {
-            guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+            guard let status = await services.runtime.status(conversationId: runtimeConversationId),
+                  !status.isTerminal,
+                  status.isProcessRunning else {
                 throw AgentError.stdinClosed
             }
             throw error
@@ -226,8 +230,8 @@ extension DefaultAgentsManager {
         if let runtimeStatus {
             agentCLIKitStatuses[id] = runtimeStatus
         }
-        guard agentCLIKitStatuses[id]?.isProcessRunning != true,
-              runtimeStatus?.isProcessRunning != true else {
+        guard agentCLIKitStatuses[id]?.isActiveRuntimePreventingReplacement != true,
+              runtimeStatus?.isActiveRuntimePreventingReplacement != true else {
             throw AgentError.spawnFailed("Agent already running for \(id). Use reconfigureSession() or kill() before spawning again")
         }
     }
@@ -483,15 +487,6 @@ extension DefaultAgentsManager {
             if let collaborationMode = status.collaborationMode {
                 state.runtimePlanModeEnabled = collaborationMode == .plan
             }
-        }
-    }
-
-    func handleAgentCLIKitDeferredKillAfterSpawn(for conversationId: String) {
-        guard pendingKillIds.remove(conversationId) != nil else {
-            return
-        }
-        Task {
-            await tearDownAgentCLIKitRuntime(conversationId: conversationId, removeSession: true)
         }
     }
 

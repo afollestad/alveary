@@ -7,6 +7,7 @@ extension ConversationViewModel {
         }
 
         hasActivatedViewLifecycle = true
+        hasEverActivatedViewLifecycle = true
         hydratePendingRestoreContextIfNeeded()
         hydratePendingToolApprovalIfNeeded()
         subscribe()

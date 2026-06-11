@@ -195,6 +195,9 @@ private extension ConversationViewModel {
         state.clearStreamingText()
         guard payload.stopReason != ConversationEvent.interimUsageStopReason else { return .persistTokens }
         guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
+        if !payload.isError && payload.permissionDenials.isEmpty {
+            markAutomaticSessionHandoffPendingIfNeeded(for: payload)
+        }
         guard payload.completesTurn else { return .persistTokens }
         state.activeRuntimeActivityTurnId = nil
         clearResolvedPendingToolApprovalIfNeeded()

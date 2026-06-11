@@ -9,6 +9,7 @@ final class ConversationViewModel {
 
     private(set) var state: ConversationState
     var hasActivatedViewLifecycle = false
+    var hasEverActivatedViewLifecycle = false
     var activeKeepAwakeSource: KeepAwakeActivitySource?
 
     let agentsManager: any AgentsManager

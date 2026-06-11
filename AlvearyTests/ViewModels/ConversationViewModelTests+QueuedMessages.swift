@@ -312,6 +312,25 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.lastTurnError)
     }
 
+    func testQueuedMessageBlockedReadinessLeavesMessageQueued() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.activateViewLifecycle()
+        fixture.viewModel.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Follow-up")
+        await fixture.agentsManager.enqueueOutboundReadiness(.blocked(reason: "Waiting for approval."))
+
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("queued blocked readiness reported") {
+            fixture.viewModel.lastTurnError == "Queued message failed to send: Waiting for approval."
+        }
+
+        XCTAssertEqual(fixture.viewModel.messageQueue.peekNext()?.text, "Follow-up")
+        XCTAssertTrue(try fixture.userMessages().isEmpty)
+        XCTAssertTrue(fixture.viewModel.state.retryableFailedMessageIDs.isEmpty)
+    }
+
     func testQueuedMessageSendsAfterPermissionDeniedTurnCompletes() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.activateViewLifecycle()

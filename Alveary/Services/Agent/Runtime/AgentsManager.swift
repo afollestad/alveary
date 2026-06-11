@@ -20,6 +20,12 @@ enum AgentSessionReconfigureResult: Sendable, Equatable {
     case nextTurnRequired
 }
 
+enum AgentOutboundReadiness: Sendable, Equatable {
+    case ready
+    case respawnRequired
+    case blocked(reason: String)
+}
+
 protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
@@ -37,6 +43,7 @@ protocol AgentsManager: Actor {
     func kill(conversationId: String)
     func killAll()
     func isRunning(conversationId: String) -> Bool
+    func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness
     func hasTrackedProcess(conversationId: String) -> Bool
     func hasInflightLifecycle(conversationId: String) -> Bool
     @discardableResult
@@ -57,6 +64,10 @@ extension AgentsManager {
 
     func refreshStatus(conversationId: String) async -> ActivitySignal {
         status(for: conversationId)
+    }
+
+    func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness {
+        isRunning(conversationId: conversationId) ? .ready : .respawnRequired
     }
 }
 
