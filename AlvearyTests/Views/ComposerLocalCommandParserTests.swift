@@ -51,4 +51,15 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertNil(ComposerLocalCommandParser.parse("/fast Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/handoff Focus", availability: ComposerLocalCommandAvailability()))
     }
+
+    func testCompactIsNotInterceptedAsLocalCommand() {
+        let availability = ComposerLocalCommandAvailability(
+            supportsPlanMode: true,
+            supportsSpeedMode: true,
+            supportsSessionHandoff: true
+        )
+
+        XCTAssertNil(ComposerLocalCommandParser.parse("/compact", availability: availability))
+        XCTAssertNil(ComposerLocalCommandParser.parse("/compact focus on recent work", availability: availability))
+    }
 }

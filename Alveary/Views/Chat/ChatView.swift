@@ -346,6 +346,7 @@ extension ChatView {
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
             localCommands: localCommandAvailability,
+            passthroughSlashCommands: passthroughSlashCommands,
             requestFirstResponder: appState.pendingComposerFocusToken,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,

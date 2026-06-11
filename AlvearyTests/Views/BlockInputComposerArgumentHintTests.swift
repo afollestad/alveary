@@ -148,6 +148,31 @@ final class BlockInputComposerArgumentHintTests: XCTestCase {
         XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/fast")))
     }
 
+    func testPassthroughCompactCommandProvidesArgumentHint() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            passthroughSlashCommands: [
+                ComposerPassthroughSlashCommand(
+                    command: "compact",
+                    subtitle: "Compact context",
+                    detailText: "Claude",
+                    uri: "alveary://provider-commands/claude/compact",
+                    argumentHint: "Optional compact instructions"
+                )
+            ],
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] }
+        )
+        _ = await provider.suggestions(for: completionContext(
+            trigger: .slashCommand,
+            query: "compact",
+            rawQuery: "compact"
+        ))
+
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/compact"))?.text, " Optional compact instructions")
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/compact "))?.text, "Optional compact instructions")
+    }
+
     private func makeConfiguration(
         markdown: String,
         loadSkillCompletions: @escaping @Sendable () async -> [Skill] = { [] }

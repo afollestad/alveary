@@ -25,6 +25,7 @@ struct AppKitChatComposerBodyConfiguration {
     let hasTopContent: Bool
     let workingDirectory: String?
     let localCommands: ComposerLocalCommandAvailability
+    let passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     let requestFirstResponder: UUID?
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
@@ -56,6 +57,7 @@ struct AppKitChatComposerBodyConfiguration {
         hasTopContent: Bool,
         workingDirectory: String?,
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
+        passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         requestFirstResponder: UUID?,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
@@ -86,6 +88,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory
         self.localCommands = localCommands
+        self.passthroughSlashCommands = passthroughSlashCommands
         self.requestFirstResponder = requestFirstResponder
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions

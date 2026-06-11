@@ -27,6 +27,23 @@ extension ChatView {
         )
     }
 
+    var passthroughSlashCommands: [ComposerPassthroughSlashCommand] {
+        guard providerID == "claude",
+              !viewModel.state.hasActiveSessionHandoff else {
+            return []
+        }
+
+        return [
+            ComposerPassthroughSlashCommand(
+                command: "compact",
+                subtitle: "Compact context",
+                detailText: "Claude",
+                uri: "alveary://provider-commands/claude/compact",
+                argumentHint: "Optional compact instructions"
+            )
+        ]
+    }
+
     var canUseOutboundComposerActions: Bool {
         if isProjectTrustBlocked {
             return false

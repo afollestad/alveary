@@ -142,6 +142,45 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
     }
 
+    func testCompactCommandSendsAsNormalText() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let appState = AppState()
+        fixture.viewModel.replaceInputDraft("/compact focus on recent work", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsPlanMode: true,
+            supportsSpeedMode: true,
+            providerID: "claude"
+        )
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNotNil(appState.pendingComposerFocusToken)
+        try await waitUntil("expected compact command to send as user text") {
+            await fixture.agentsManager.sentMessages() == ["/compact focus on recent work"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+    }
+
+    func testCompactCommandQueuesAsNormalVisibleMessageWhileBusy() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let appState = AppState()
+        fixture.viewModel.turnState.beginTurn()
+        fixture.viewModel.replaceInputDraft("/compact", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState, providerID: "claude")
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        try await waitUntil("expected compact command to queue as visible text") {
+            fixture.viewModel.messageQueue.pending.map(\.text) == ["/compact"]
+        }
+        XCTAssertNotNil(appState.pendingComposerFocusToken)
+    }
+
     func testLocalHandoffCommandAvailabilityDoesNotDependOnAutomaticHandoffSetting() throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()
@@ -157,6 +196,20 @@ final class ChatComposerDraftTests: XCTestCase {
             ComposerLocalCommandParser.parse("/handoff Focus on the next session.", availability: availability),
             ComposerLocalCommand(kind: .handoff, argument: "Focus on the next session.")
         )
+    }
+
+    func testCompactPassthroughCommandAvailabilityIsClaudeOnlyOutsideHandoff() throws {
+        let claudeFixture = try ConversationViewModelTestFixture(providerId: "claude")
+        let appState = AppState()
+        let claudeView = makeChatView(fixture: claudeFixture, appState: appState, providerID: "claude")
+        XCTAssertEqual(claudeView.passthroughSlashCommands.map(\.command), ["compact"])
+
+        let codexFixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let codexView = makeChatView(fixture: codexFixture, appState: appState, providerID: "codex")
+        XCTAssertTrue(codexView.passthroughSlashCommands.isEmpty)
+
+        claudeFixture.viewModel.state.isAwaitingHandoffSteering = true
+        XCTAssertTrue(claudeView.passthroughSlashCommands.isEmpty)
     }
 
     func testEmptySendDraftDoesNotRequestComposerFocus() throws {

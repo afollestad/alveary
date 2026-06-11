@@ -35,6 +35,17 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
     }
 }
 
+/// Suggested locally but submitted as raw provider text, not intercepted by `ComposerLocalCommandParser`.
+struct ComposerPassthroughSlashCommand: Sendable, Equatable {
+    let command: String
+    let subtitle: String
+    let detailText: String
+    let uri: String
+    let argumentHint: String?
+
+    var displayName: String { "/\(command)" }
+}
+
 enum ComposerLocalCommandParser {
     static func parse(_ text: String, availability: ComposerLocalCommandAvailability) -> ComposerLocalCommand? {
         guard text.hasPrefix("/") else {

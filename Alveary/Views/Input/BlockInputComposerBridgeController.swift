@@ -14,6 +14,7 @@ struct BlockInputComposerBridgeConfiguration {
     var editorRoundedCorners: BlockInputEditorChromeCorners
     var location: BlockInputComposerLocation
     var localCommands: ComposerLocalCommandAvailability
+    var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
@@ -34,6 +35,7 @@ struct BlockInputComposerBridgeConfiguration {
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
         location: BlockInputComposerLocation,
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
+        passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
@@ -53,6 +55,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.editorRoundedCorners = editorRoundedCorners
         self.location = location
         self.localCommands = localCommands
+        self.passthroughSlashCommands = passthroughSlashCommands
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.keyboardShortcuts = keyboardShortcuts
@@ -207,6 +210,7 @@ final class BlockInputComposerBridgeController {
         BlockInputComposerCompletionProvider(
             location: configuration.location,
             localCommands: configuration.localCommands,
+            passthroughSlashCommands: configuration.passthroughSlashCommands,
             loadFileCompletions: configuration.loadFileCompletions,
             loadSkillCompletions: configuration.loadSkillCompletions
         )
@@ -217,6 +221,7 @@ final class BlockInputComposerBridgeController {
             completionProvider.update(
                 location: configuration.location,
                 localCommands: configuration.localCommands,
+                passthroughSlashCommands: configuration.passthroughSlashCommands,
                 loadFileCompletions: configuration.loadFileCompletions,
                 loadSkillCompletions: configuration.loadSkillCompletions
             )
@@ -237,6 +242,7 @@ final class BlockInputComposerBridgeController {
             editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
             location: configuration.location,
             localCommands: configuration.localCommands,
+            passthroughSlashCommands: configuration.passthroughSlashCommands,
             keyboardShortcuts: Set(configuration.keyboardShortcuts.keys)
         )
     }
@@ -251,5 +257,6 @@ private struct BridgeViewConfigKey: Equatable {
     var editorRoundedCorners: Int
     var location: BlockInputComposerLocation
     var localCommands: ComposerLocalCommandAvailability
+    var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     var keyboardShortcuts: Set<BlockInputKeyboardShortcut>
 }
