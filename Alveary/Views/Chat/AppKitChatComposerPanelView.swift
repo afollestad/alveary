@@ -68,6 +68,7 @@ final class AppKitChatComposerPanelView: NSView {
 
     private var configuration: AppKitChatComposerPanelConfiguration?
     private var showsTopDivider = false
+    private var deferredPreferredHeightAnimation: Bool?
 
     override var isFlipped: Bool {
         true
@@ -96,6 +97,8 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     func configure(_ configuration: AppKitChatComposerPanelConfiguration) {
+        let previousEditorTopOffset = currentEditorTopOffset()
+        deferredPreferredHeightAnimation = true
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
         configureQueuedMessages(configuration.queuedMessagesConfiguration)
@@ -103,7 +106,13 @@ final class AppKitChatComposerPanelView: NSView {
         configureActionRow(configuration.actionRowConfiguration)
         configureInteractionOverlay(configuration.interactionOverlayConfiguration)
         configureDividerVisibility(configuration.showsTopDivider)
-        invalidatePreferredHeight()
+        // Queue and top-content insertions move the editor's y-origin. Apply
+        // those structural height changes immediately so the editor and action
+        // row stay bottom-pinned instead of riding the outer height animation.
+        let editorTopOffsetChanged = didEditorTopOffsetChange(from: previousEditorTopOffset)
+        let animateSurfaceHeight = (deferredPreferredHeightAnimation ?? true) && !editorTopOffsetChanged
+        deferredPreferredHeightAnimation = nil
+        invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -141,7 +150,7 @@ final class AppKitChatComposerPanelView: NSView {
         addSubview(topContentView)
         addSubview(queuedMessagesView)
         editorController.onPreferredSizeInvalidated = { [weak self] animateSurfaceHeight in
-            self?.invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
+            self?.handlePreferredSizeInvalidated(animateSurfaceHeight: animateSurfaceHeight)
         }
         actionRow.isHidden = true
         addSubview(actionRow)
@@ -370,6 +379,37 @@ final class AppKitChatComposerPanelView: NSView {
         topContentView.hasContent ? configuration.layout.topContentSpacing : 0
     }
 
+    private func currentEditorTopOffset() -> CGFloat? {
+        guard let configuration else {
+            return nil
+        }
+        return editorTopOffset(for: bounds.width, configuration: configuration)
+    }
+
+    private func editorTopOffset(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
+        let contentWidth = contentWidth(for: width, layout: configuration.layout)
+        var offset = topPadding(for: configuration)
+        if topContentView.hasContent {
+            offset += measuredHeight(of: topContentView, width: contentWidth) + configuration.layout.topContentSpacing
+        }
+        if let queuedMessagesConfiguration = configuration.queuedMessagesConfiguration,
+           !queuedMessagesConfiguration.queuedMessages.isEmpty {
+            if !topContentView.hasContent {
+                offset += configuration.layout.queuedMessagesTopPadding
+            }
+            offset += queuedMessagesView.measuredHeight(width: contentWidth)
+        }
+        return offset + editorController.topPadding
+    }
+
+    private func didEditorTopOffsetChange(from previousOffset: CGFloat?) -> Bool {
+        guard let previousOffset,
+              let currentOffset = currentEditorTopOffset() else {
+            return false
+        }
+        return abs(previousOffset - currentOffset) > 0.5
+    }
+
     private func updateColors() {
         dividerView.layer?.backgroundColor = NSColor.separatorColor.resolved(for: appKitRenderingAppearance).cgColor
     }
@@ -415,6 +455,14 @@ final class AppKitChatComposerPanelView: NSView {
         }
         view.layoutSubtreeIfNeeded()
         return max(0, ceil(view.fittingSize.height))
+    }
+
+    private func handlePreferredSizeInvalidated(animateSurfaceHeight: Bool) {
+        guard let deferredPreferredHeightAnimation else {
+            invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
+            return
+        }
+        self.deferredPreferredHeightAnimation = deferredPreferredHeightAnimation && animateSurfaceHeight
     }
 
     private func invalidatePreferredHeight(animateSurfaceHeight: Bool = true) {

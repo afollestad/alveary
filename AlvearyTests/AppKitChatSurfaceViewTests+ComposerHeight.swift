@@ -89,6 +89,64 @@ extension AppKitChatSurfaceViewTests {
             initialMetrics: initialMetrics
         )
     }
+
+    func testQueuedMessagesAboveComposerKeepEditorAndActionRowBottomPinnedWhenSurfaceAnimationIsAvailable() async throws {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
+        surface.heightAnimationEnabledForTesting = true
+        let window = NSWindow(contentRect: surface.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        let content = NSView()
+        let panel = AppKitChatComposerPanelView()
+        let layout = AppKitChatComposerPanelView.Layout(
+            horizontalPadding: NSEdgeInsetsZero,
+            topContentSpacing: 0,
+            actionRowSpacing: 14,
+            bottomPadding: 16
+        )
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeHeightTestComposerBodyConfiguration(),
+            actionRowConfiguration: makeActionRowConfiguration(),
+            showsTopDivider: false,
+            layout: layout
+        ))
+        window.contentView = surface
+        surface.configure(contentView: content, composerView: panel)
+        surface.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(heightTestViews(in: panel, ofType: BlockInputView.self).first)
+        let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
+        let initialMetrics = PinnedComposerMetrics(
+            editorBottom: surfaceBottomY(of: editor, in: surface),
+            actionRowBottom: surfaceBottomY(of: actionRow, in: surface)
+        )
+
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeHeightTestComposerBodyConfiguration(hasQueuedMessages: true),
+            queuedMessagesConfiguration: makeHeightTestQueuedMessagesConfiguration([
+                QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+            ]),
+            actionRowConfiguration: makeActionRowConfiguration(),
+            showsTopDivider: false,
+            layout: layout
+        ))
+
+        assertEditorHeightChangePinned(
+            surface: surface,
+            panel: panel,
+            editor: editor,
+            actionRow: actionRow,
+            initialMetrics: initialMetrics
+        )
+
+        try await Task.sleep(nanoseconds: 30_000_000)
+
+        assertEditorHeightChangePinned(
+            surface: surface,
+            panel: panel,
+            editor: editor,
+            actionRow: actionRow,
+            initialMetrics: initialMetrics
+        )
+    }
 }
 
 private struct PinnedComposerMetrics {
@@ -121,7 +179,7 @@ private func surfaceBottomY(of view: NSView, in surface: NSView) -> CGFloat {
     return surface.convert(view.frame, from: superview).maxY
 }
 
-private func makeHeightTestComposerBodyConfiguration() -> AppKitChatComposerBodyConfiguration {
+private func makeHeightTestComposerBodyConfiguration(hasQueuedMessages: Bool = false) -> AppKitChatComposerBodyConfiguration {
     AppKitChatComposerBodyConfiguration(
         text: "Panel body",
         mode: .idle,
@@ -133,7 +191,7 @@ private func makeHeightTestComposerBodyConfiguration() -> AppKitChatComposerBody
         isHandoffOutputPromptActive: false,
         handoffSteeringCountdown: nil,
         sendCountdown: nil,
-        hasQueuedMessages: false,
+        hasQueuedMessages: hasQueuedMessages,
         hasTopContent: false,
         workingDirectory: "/tmp/alveary",
         requestFirstResponder: nil,
@@ -144,6 +202,20 @@ private func makeHeightTestComposerBodyConfiguration() -> AppKitChatComposerBody
         onStop: {},
         onStopConfirmationChange: { _ in },
         onFocusRequestConsumed: { _ in }
+    )
+}
+
+@MainActor
+private func makeHeightTestQueuedMessagesConfiguration(_ messages: [QueuedMessage]) -> AppKitChatQueuedMessagesConfiguration {
+    AppKitChatQueuedMessagesConfiguration(
+        queuedMessages: messages,
+        supportsMidTurnSteering: true,
+        isTurnActive: true,
+        inFlightQueuedMessageID: nil,
+        borderWidth: 1,
+        onSteer: { _ in },
+        onEdit: { _ in },
+        onDismiss: { _ in }
     )
 }
 
