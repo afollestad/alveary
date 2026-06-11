@@ -14,6 +14,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Expanded rows keep `transcriptToolExpandedContentTopSpacing` between header and content.
 - Single tools use current tense while running and past tense when complete.
 - Skill invocation rows use the `book` SF Symbol, stay standalone, and do not expand.
+- Completed no-output rows that would render empty details should not show disclosure state or button accessibility; use a static icon instead.
 - Group headers stay current tense until all children complete, then switch every category summary to past tense.
 - Preserve `TranscriptToolSummaryFormatter` so inline-code, slash-command, and file-mention chips render together.
 
@@ -66,6 +67,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; the transient AppKit thinking indicator is the only thinking affordance.
 - Tune tool dimensions only in `ChatBlocks.swift`.
 - Use platform progress controls over custom spinners; a prior custom spinner caused blank thread-open renders until scrolling.
+- Transcript tool-row loading spinners are intentionally smaller than the fixed status slot; do not change task-list/sidebar/tab spinner sizing when tuning tool rows.
 - Multi-entry group headers debounce terminal status indicators.
     - Terminal states wait 250ms.
     - Loading applies immediately when a new child streams in.

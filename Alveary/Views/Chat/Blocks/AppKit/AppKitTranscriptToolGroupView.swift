@@ -6,15 +6,18 @@ final class AppKitTranscriptToolGroupView: NSView {
     struct Configuration: Equatable {
         let tools: [ToolEntry]
         let initiallyExpanded: Bool
+        let maxWidth: CGFloat
         let typography: TranscriptTypography
 
         init(
             tools: [ToolEntry],
             initiallyExpanded: Bool = false,
+            maxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.tools = tools
             self.initiallyExpanded = initiallyExpanded
+            self.maxWidth = maxWidth
             self.typography = typography
         }
     }
@@ -71,6 +74,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         let shouldResetExpansion = previousIDs != configuration.tools.map(\.id)
         let shouldRebuild = shouldResetExpansion ||
             previousConfiguration?.tools != configuration.tools ||
+            previousConfiguration?.maxWidth != configuration.maxWidth ||
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
@@ -137,7 +141,13 @@ final class AppKitTranscriptToolGroupView: NSView {
             singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             singleToolRow.onExpansionChanged = onExpansionChanged
             singleToolRow.configure(
-                .init(tool: only, initiallyExpanded: isExpanded, typography: configuration.typography)
+                .init(
+                    tool: only,
+                    initiallyExpanded: isExpanded,
+                    canExpand: only.appKitRendersDetails,
+                    maxWidth: configuration.maxWidth,
+                    typography: configuration.typography
+                )
             )
             return
         }
@@ -172,7 +182,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         guard let configuration else {
             return
         }
-        let width = max(bounds.width, 0)
+        let width = contentWidth(for: configuration)
         guard !configuration.tools.isEmpty else {
             clipView.updateFrame(width: width, targetHeight: 0)
             return
@@ -202,6 +212,15 @@ final class AppKitTranscriptToolGroupView: NSView {
         nestedRowsView.layoutSubtreeIfNeeded()
         nestedRowsView.frame.size.height = nestedRowsView.intrinsicContentSize.height
         clipView.updateFrame(width: width, targetHeight: measuredHeight())
+    }
+
+    private func contentWidth(for configuration: Configuration?) -> CGFloat {
+        let availableWidth = max(bounds.width, 0)
+        guard let configuration else {
+            return availableWidth
+        }
+        let maxWidth = configuration.maxWidth.isFinite ? configuration.maxWidth : availableWidth
+        return min(max(maxWidth, 0), availableWidth)
     }
 
     private func measuredHeight() -> CGFloat {
@@ -289,7 +308,8 @@ final class AppKitTranscriptToolGroupView: NSView {
 
 extension AppKitTranscriptToolGroupView: AppKitTranscriptFrameAnimatable {
     func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
-        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetFrame.width)
+        let targetWidth = min(contentWidth(for: configuration), targetFrame.width)
+        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetWidth)
     }
 
     func animateSynchronizedFrameChange() {

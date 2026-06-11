@@ -67,7 +67,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
-            row.configure(.init(agent: agent, typography: configuration.typography))
+            row.configure(.init(agent: agent, canExpand: agent.appKitRendersDetails, typography: configuration.typography))
             if row.superview == nil {
                 addSubview(row)
             }
@@ -127,6 +127,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
 private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     struct Configuration: Equatable {
         let agent: SubAgentEntry
+        let canExpand: Bool
         let typography: TranscriptTypography
     }
 
@@ -188,6 +189,8 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         self.configuration = configuration
         if shouldResetExpansion {
             isExpanded = false
+        } else if !configuration.canExpand {
+            isExpanded = false
         }
         rebuildAndPrelayoutExpandedContent()
         needsLayout = true
@@ -195,7 +198,8 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     }
 
     func setExpanded(_ expanded: Bool) {
-        guard isExpanded != expanded else {
+        guard configuration?.canExpand == true,
+              isExpanded != expanded else {
             return
         }
         let previousHeight = measuredHeight()
@@ -236,16 +240,16 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         guard let configuration else {
             return
         }
-        headerView.onToggle = { [weak self] in
+        headerView.onToggle = configuration.canExpand ? { [weak self] in
             guard let self else {
                 return
             }
             self.setExpanded(!self.isExpanded)
-        }
+        } : nil
         headerView.configure(
             .init(
                 summary: configuration.agent.description,
-                leadingIcon: .disclosure(isExpanded: isExpanded),
+                leadingIcon: configuration.canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "magnifyingglass"),
                 phase: ToolStatusPhase(isError: configuration.agent.appKitHasFailedTool, isComplete: configuration.agent.isComplete),
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding

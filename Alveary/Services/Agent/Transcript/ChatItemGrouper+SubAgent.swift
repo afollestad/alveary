@@ -7,12 +7,13 @@ extension ChatItemGrouper {
             handleSubAgentStarted(id: toolUseId, description: description, taskType: taskType)
         case .subAgentProgress:
             handleSubAgentProgress(event)
-        case .subAgentCompleted(let toolUseId, _, let toolUses, let totalTokens, let durationMs):
+        case .subAgentCompleted(let toolUseId, let status, let toolUses, let totalTokens, let durationMs):
             handleSubAgentCompleted(
                 id: toolUseId,
                 toolUses: toolUses,
                 totalTokens: totalTokens,
-                durationMs: durationMs
+                durationMs: durationMs,
+                disposition: SubAgentCompletionDisposition(status: status)
             )
         default:
             break
@@ -26,6 +27,7 @@ extension ChatItemGrouper {
         }
 
         if let parentToolUseId = event.parentToolUseId, evictedSubAgentIds.contains(parentToolUseId) {
+            patchRenderedSubAgentChild(parentId: parentToolUseId, event: event)
             return true
         }
 
@@ -46,18 +48,14 @@ extension ChatItemGrouper {
         case "tool_call":
             let toolId = event.toolId ?? event.id
             mutateSubAgent(id: parentId) { subAgent in
-                subAgent.tools.append(makePendingToolEntry(id: toolId, event: event))
+                upsertPendingSubAgentTool(toolId: toolId, event: event, subAgent: &subAgent)
             }
         case "tool_result":
             guard let toolId = event.toolId else {
                 return
             }
             mutateSubAgent(id: parentId) { subAgent in
-                guard let toolIndex = subAgent.tools.firstIndex(where: { $0.id == toolId }) else {
-                    return
-                }
-                let tool = subAgent.tools[toolIndex]
-                subAgent.tools[toolIndex] = completedToolEntry(from: tool, event: event)
+                patchSubAgentToolResult(toolId: toolId, event: event, subAgent: &subAgent)
             }
         default:
             break
@@ -147,7 +145,7 @@ extension ChatItemGrouper {
     }
 }
 
-private extension ChatItemGrouper {
+extension ChatItemGrouper {
     func handleSubAgentStarted(id: String, description: String, taskType: String?) {
         if activeSubAgents[id] == nil {
             activeSubAgents[id] = makeSubAgentEntry(
@@ -185,12 +183,40 @@ private extension ChatItemGrouper {
         scheduleSubAgentProgressRefresh()
     }
 
-    func handleSubAgentCompleted(id: String, toolUses: Int, totalTokens: Int, durationMs: Int) {
+    func handleSubAgentCompletedMarker(_ event: ConversationEventRecord) {
+        guard let toolId = event.toolId else {
+            return
+        }
+        let payload: SubAgentCompletionMarkerPayload?
+        if let content = event.content?.data(using: .utf8),
+           let decodedPayload = try? JSONDecoder().decode(SubAgentCompletionMarkerPayload.self, from: content) {
+            payload = decodedPayload
+        } else {
+            payload = nil
+        }
+        handleSubAgentCompleted(
+            id: toolId,
+            toolUses: payload?.toolUses ?? 0,
+            totalTokens: payload?.totalTokens ?? 0,
+            durationMs: event.durationMs,
+            disposition: payload.map { SubAgentCompletionDisposition(status: $0.status) } ?? .neutral
+        )
+    }
+
+    func handleSubAgentCompleted(
+        id: String,
+        toolUses: Int,
+        totalTokens: Int,
+        durationMs: Int,
+        disposition: SubAgentCompletionDisposition
+    ) {
         let completion = PendingSubAgentCompletion(
             toolUses: toolUses,
             totalTokens: totalTokens,
-            durationMs: durationMs
+            durationMs: durationMs,
+            disposition: disposition
         )
+        terminalizeVisibleToolIfNeeded(id: id, completion: completion)
         if activeSubAgents[id] != nil {
             completeSubAgent(id: id, completion: completion)
         } else if evictedSubAgentIds.contains(id) {
@@ -221,6 +247,7 @@ private extension ChatItemGrouper {
                 subAgent.toolUseCount = completion.toolUses
                 subAgent.totalTokens = completion.totalTokens
                 subAgent.durationMs = completion.durationMs
+                subAgent.completionDisposition = completion.disposition
             }
             if let resultEvent {
                 subAgent.result = resultEvent.toolOutput ?? resultEvent.content
@@ -255,6 +282,81 @@ private extension ChatItemGrouper {
         )
     }
 
+    func patchRenderedSubAgentChild(parentId: String, event: ConversationEventRecord) {
+        updateRenderedSubAgent(id: parentId) { subAgent in
+            switch event.type {
+            case "tool_call":
+                let toolId = event.toolId ?? event.id
+                upsertPendingSubAgentTool(toolId: toolId, event: event, subAgent: &subAgent)
+            case "tool_result":
+                guard let toolId = event.toolId else {
+                    return
+                }
+                patchSubAgentToolResult(toolId: toolId, event: event, subAgent: &subAgent)
+            default:
+                break
+            }
+        }
+    }
+
+    func upsertPendingSubAgentTool(toolId: String, event: ConversationEventRecord, subAgent: inout SubAgentEntry) {
+        if subAgent.tools.contains(where: { $0.id == toolId }) {
+            return
+        }
+        subAgent.tools.append(makePendingToolEntry(id: toolId, event: event))
+    }
+
+    func patchSubAgentToolResult(toolId: String, event: ConversationEventRecord, subAgent: inout SubAgentEntry) {
+        guard let toolIndex = subAgent.tools.firstIndex(where: { $0.id == toolId }) else {
+            return
+        }
+        let tool = subAgent.tools[toolIndex]
+        subAgent.tools[toolIndex] = completedToolEntry(from: tool, event: event)
+    }
+
+    func terminalizeVisibleToolIfNeeded(id: String, completion: PendingSubAgentCompletion) {
+        if let pendingIndex = pendingGroupTools.firstIndex(where: { $0.id == id }),
+           !pendingGroupTools[pendingIndex].isComplete {
+            pendingGroupTools[pendingIndex] = terminalizedToolEntry(from: pendingGroupTools[pendingIndex], completion: completion)
+            return
+        }
+
+        for index in items.indices.reversed() {
+            switch items[index] {
+            case .toolGroup(let blockId, var tools):
+                guard let toolIndex = tools.firstIndex(where: { $0.id == id }),
+                      !tools[toolIndex].isComplete else {
+                    continue
+                }
+                tools[toolIndex] = terminalizedToolEntry(from: tools[toolIndex], completion: completion)
+                items[index] = .toolGroup(id: blockId, tools: tools)
+                return
+            case .standaloneTool(let rowId, let tool) where tool.id == id && !tool.isComplete:
+                items[index] = .standaloneTool(id: rowId, tool: terminalizedToolEntry(from: tool, completion: completion))
+                return
+            default:
+                continue
+            }
+        }
+    }
+
+    func terminalizedToolEntry(from tool: ToolEntry, completion: PendingSubAgentCompletion) -> ToolEntry {
+        ToolEntry(
+            id: tool.id,
+            name: tool.name,
+            summary: tool.summary,
+            input: tool.input,
+            output: tool.output,
+            stderr: tool.stderr,
+            isComplete: true,
+            isInterrupted: completion.disposition == .interrupted || tool.isInterrupted,
+            isImage: tool.isImage,
+            noOutputExpected: true,
+            isError: completion.disposition == .failed || tool.isError,
+            previewOverride: tool.previewOverride
+        )
+    }
+
     func patchRenderedSubAgentMetadata(id: String, agentType: String, description: String) {
         updateRenderedSubAgent(id: id) { agent in
             agent.agentType = agentType
@@ -270,6 +372,7 @@ private extension ChatItemGrouper {
             agent.toolUseCount = completion.toolUses
             agent.totalTokens = completion.totalTokens
             agent.durationMs = completion.durationMs
+            agent.completionDisposition = completion.disposition
         }
     }
 

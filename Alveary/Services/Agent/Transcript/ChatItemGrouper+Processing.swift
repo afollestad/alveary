@@ -26,6 +26,8 @@ extension ChatItemGrouper {
             handleToolCall(event)
         case "tool_result":
             handleToolResult(event)
+        case ConversationEventRecord.subAgentCompletedType:
+            handleSubAgentCompletedMarker(event)
         case "tool_approval":
             handleToolApproval(event)
         case "error":
@@ -107,19 +109,15 @@ extension ChatItemGrouper {
         if handleAgentTaskToolResultIfNeeded(event) {
             return
         }
+        let updatedTool = makeCompletedToolEntry(for: toolId, event: event)
+        let patchedVisibleTool = patchPendingOrRenderedTool(id: toolId, entry: updatedTool)
+
         guard !handleSubAgentToolResult(toolId: toolId, event: event) else {
             return
         }
-
-        let updatedTool = makeCompletedToolEntry(for: toolId, event: event)
-        if let pendingIndex = pendingGroupTools.firstIndex(where: { $0.id == toolId }) {
-            if let updatedTool {
-                pendingGroupTools[pendingIndex] = updatedTool
-            }
-            return
+        if !patchedVisibleTool {
+            patchPendingOrRenderedTool(id: toolId, entry: updatedTool)
         }
-
-        patchRenderedToolResult(id: toolId, entry: updatedTool)
     }
 
     func makePendingToolEntry(id: String, event: ConversationEventRecord) -> ToolEntry {
@@ -165,6 +163,18 @@ extension ChatItemGrouper {
 
     func interruptedToolEntry(from tool: ToolEntry) -> ToolEntry {
         tool.terminalizingAsInterruptedIfNeeded
+    }
+
+    @discardableResult
+    func patchPendingOrRenderedTool(id: String, entry: ToolEntry?) -> Bool {
+        guard let entry else {
+            return false
+        }
+        if let pendingIndex = pendingGroupTools.firstIndex(where: { $0.id == id }) {
+            pendingGroupTools[pendingIndex] = entry
+            return true
+        }
+        return patchRenderedToolResult(id: id, entry: entry)
     }
 }
 
@@ -219,7 +229,10 @@ private extension ChatItemGrouper {
     func handleGenericToolCall(_ event: ConversationEventRecord) {
         let toolName = event.toolName ?? "Tool"
         let toolId = event.toolId ?? event.id
-        let pendingTool = makePendingToolEntry(id: toolId, event: event)
+        var pendingTool = makePendingToolEntry(id: toolId, event: event)
+        if let completion = pendingSubAgentCompletions[toolId] {
+            pendingTool = terminalizedToolEntry(from: pendingTool, completion: completion)
+        }
 
         switch ChatItemGrouper.groupability(forToolNamed: toolName) {
         case .groupable:
@@ -310,9 +323,10 @@ private extension ChatItemGrouper {
         }
     }
 
-    func patchRenderedToolResult(id: String, entry: ToolEntry?) {
+    @discardableResult
+    func patchRenderedToolResult(id: String, entry: ToolEntry?) -> Bool {
         guard let entry else {
-            return
+            return false
         }
 
         for index in items.indices.reversed() {
@@ -323,14 +337,15 @@ private extension ChatItemGrouper {
                 }
                 tools[toolIndex] = entry
                 items[index] = .toolGroup(id: blockId, tools: tools)
-                return
+                return true
             case .standaloneTool(let rowId, let tool) where tool.id == id:
                 items[index] = .standaloneTool(id: rowId, tool: entry)
-                return
+                return true
             default:
                 continue
             }
         }
+        return false
     }
 
     func markEarlierPendingToolsComplete(excluding excludedToolId: String) {

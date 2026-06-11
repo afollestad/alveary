@@ -6,16 +6,26 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
     struct Configuration: Equatable {
         let agents: [SubAgentEntry]
         let initiallyExpanded: Bool
+        let canExpand: Bool
+        let maxWidth: CGFloat
         let typography: TranscriptTypography
 
         init(
             agents: [SubAgentEntry],
             initiallyExpanded: Bool = false,
+            canExpand: Bool? = nil,
+            maxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.agents = agents
             self.initiallyExpanded = initiallyExpanded
+            self.canExpand = canExpand ?? Self.defaultCanExpand(agents)
+            self.maxWidth = maxWidth
             self.typography = typography
+        }
+
+        private static func defaultCanExpand(_ agents: [SubAgentEntry]) -> Bool {
+            agents.appKitSubAgentBlockRendersDetails
         }
     }
 
@@ -67,10 +77,14 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         let shouldResetExpansion = previousAgentIDs != configuration.agents.map(\.id)
         let shouldRebuild = shouldResetExpansion ||
             previousConfiguration?.agents != configuration.agents ||
+            previousConfiguration?.canExpand != configuration.canExpand ||
+            previousConfiguration?.maxWidth != configuration.maxWidth ||
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
-            isExpanded = configuration.initiallyExpanded
+            isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
+        } else if !configuration.canExpand {
+            isExpanded = false
         }
         guard shouldRebuild else {
             return
@@ -81,7 +95,8 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
     }
 
     func setExpanded(_ expanded: Bool) {
-        guard isExpanded != expanded else {
+        guard configuration?.canExpand == true,
+              isExpanded != expanded else {
             return
         }
         onUserInitiatedHeightChange?()
@@ -123,16 +138,16 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
 
         singleAgentContentView.removeFromSuperview()
         nestedAgentsView.removeFromSuperview()
-        headerView.onToggle = { [weak self] in
+        headerView.onToggle = configuration.canExpand ? { [weak self] in
             guard let self else {
                 return
             }
             self.setExpanded(!self.isExpanded)
-        }
+        } : nil
         headerView.configure(
             .init(
                 summary: headerSummary(for: configuration.agents),
-                leadingIcon: .disclosure(isExpanded: isExpanded),
+                leadingIcon: configuration.canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "magnifyingglass"),
                 phase: aggregateStatusPhase(for: configuration.agents),
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
@@ -160,7 +175,7 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         guard let configuration else {
             return
         }
-        let width = max(bounds.width, 0)
+        let width = contentWidth(for: configuration)
         headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
@@ -180,6 +195,15 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         expandedView.layoutSubtreeIfNeeded()
         expandedView.frame.size.height = expandedView.intrinsicContentSize.height
         clipView.updateFrame(width: width, targetHeight: measuredHeight())
+    }
+
+    private func contentWidth(for configuration: Configuration?) -> CGFloat {
+        let availableWidth = max(bounds.width, 0)
+        guard let configuration else {
+            return availableWidth
+        }
+        let maxWidth = configuration.maxWidth.isFinite ? configuration.maxWidth : availableWidth
+        return min(max(maxWidth, 0), availableWidth)
     }
 
     private func measuredHeight() -> CGFloat {
@@ -244,7 +268,8 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
 
 extension AppKitTranscriptSubAgentBlockView: AppKitTranscriptFrameAnimatable {
     func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
-        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetFrame.width)
+        let targetWidth = min(contentWidth(for: configuration), targetFrame.width)
+        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetWidth)
     }
 
     func animateSynchronizedFrameChange() {
@@ -432,6 +457,6 @@ final class AppKitSubAgentExpandedContentView: NSView {
 
 extension SubAgentEntry {
     var appKitHasFailedTool: Bool {
-        tools.contains(where: \.isError)
+        completionDisposition == .failed || tools.contains(where: \.isError)
     }
 }

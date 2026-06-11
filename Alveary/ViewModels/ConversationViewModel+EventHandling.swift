@@ -186,6 +186,10 @@ private extension ConversationViewModel {
     }
 
     func handleSubAgentControlEvent(_ event: ConversationEvent) -> Bool {
+        if case .subAgentCompleted = event {
+            persistSubAgentCompletionMarker(for: event)
+            return false
+        }
         state.grouper.handleSubAgentControl(event)
         return false
     }

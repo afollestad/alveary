@@ -16,9 +16,10 @@ final class AppKitStatusIndicatorSpinner: NSView {
     private let trackLayer = CAShapeLayer()
     private let arcLayer = CAShapeLayer()
     private let color: NSColor = .secondaryLabelColor
-    private let lineWidth: CGFloat = 2
+    private let lineWidth: CGFloat
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect = .zero, lineWidth: CGFloat = 2) {
+        self.lineWidth = lineWidth
         super.init(frame: frameRect)
         wantsLayer = true
         for shape in [trackLayer, arcLayer] {

@@ -178,6 +178,38 @@ enum ToolContentPreviewOrigin: Equatable {
     case exitPlanModeFollowUp
 }
 
+struct SubAgentCompletionMarkerPayload: Codable, Equatable {
+    let status: String?
+    let toolUses: Int
+    let totalTokens: Int
+}
+
+enum SubAgentCompletionDisposition: Equatable {
+    case success
+    case failed
+    case interrupted
+    case neutral
+
+    init(status: String?) {
+        guard let status = status?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !status.isEmpty else {
+            self = .success
+            return
+        }
+
+        switch status {
+        case "completed", "success", "succeeded":
+            self = .success
+        case "failed", "error":
+            self = .failed
+        case "cancelled", "canceled", "interrupted":
+            self = .interrupted
+        default:
+            self = .neutral
+        }
+    }
+}
+
 struct ToolContentPreview: Equatable {
     let content: String
     let language: String
@@ -337,12 +369,14 @@ struct SubAgentEntry: Identifiable, Equatable {
     var toolUseCount: Int
     var totalTokens: Int = 0
     var durationMs: Int = 0
+    var completionDisposition: SubAgentCompletionDisposition = .success
 }
 
 struct PendingSubAgentCompletion: Equatable {
     let toolUses: Int
     let totalTokens: Int
     let durationMs: Int
+    let disposition: SubAgentCompletionDisposition
 }
 
 struct TaskEntry: Identifiable, Equatable {

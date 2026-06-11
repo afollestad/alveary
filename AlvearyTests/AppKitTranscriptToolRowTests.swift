@@ -422,6 +422,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertEqual(openedURL?.lastPathComponent, "GUIDE.md")
     }
 }
+
 @MainActor
 private func markdownReadRow(id: String) -> AppKitTranscriptInlineToolRowView {
     let row = AppKitTranscriptInlineToolRowView()

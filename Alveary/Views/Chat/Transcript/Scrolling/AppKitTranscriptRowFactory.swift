@@ -151,7 +151,7 @@ final class AppKitTranscriptRowFactory {
         view.configure(
             .init(
                 tools: tools,
-                initiallyExpanded: configuration.expandedRowIDs.contains(id),
+                initiallyExpanded: configuration.expandedRowIDs.contains(id), maxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography
             )
         )
@@ -184,7 +184,8 @@ final class AppKitTranscriptRowFactory {
         view.configure(
             .init(
                 tool: tool,
-                initiallyExpanded: configuration.expandedRowIDs.contains(id),
+                initiallyExpanded: configuration.expandedRowIDs.contains(id) && tool.appKitRendersDetails,
+                canExpand: tool.appKitRendersDetails, maxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography
             )
         )
@@ -227,7 +228,8 @@ final class AppKitTranscriptRowFactory {
         view.configure(
             .init(
                 agents: agents,
-                initiallyExpanded: configuration.expandedRowIDs.contains(id),
+                initiallyExpanded: configuration.expandedRowIDs.contains(id) && agents.appKitSubAgentBlockRendersDetails,
+                canExpand: agents.appKitSubAgentBlockRendersDetails, maxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography
             )
         )

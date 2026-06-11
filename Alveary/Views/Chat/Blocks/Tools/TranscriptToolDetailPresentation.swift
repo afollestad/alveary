@@ -44,6 +44,73 @@ enum MinimalToolContent {
     }
 }
 
+extension ToolEntry {
+    var appKitRendersDetails: Bool {
+        if name == "Skill" {
+            return false
+        }
+        if let stderr, !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        if let snapshot = MinimalToolContent.snapshot(for: self) {
+            if isError,
+               let output,
+               !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return true
+            }
+            if isImage {
+                return true
+            }
+            guard let content = snapshot.content,
+                  !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return !noOutputExpected
+            }
+            return true
+        }
+        return true
+    }
+}
+
+extension SubAgentEntry {
+    var appKitRendersDetails: Bool {
+        !tools.isEmpty || result?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+}
+
+extension Array where Element == SubAgentEntry {
+    var appKitSubAgentBlockRendersDetails: Bool {
+        count > 1 || first?.appKitRendersDetails == true
+    }
+}
+
+extension ChatItem {
+    var appKitExpandableRowId: String? {
+        switch self {
+        case .toolGroup(let id, let tools):
+            if tools.count > 1 {
+                return id
+            }
+            guard let tool = tools.first, tool.appKitRendersDetails else {
+                return nil
+            }
+            return id
+        case .standaloneTool(let id, let tool):
+            return tool.appKitRendersDetails ? id : nil
+        case .subAgentBlock(let id, let agents):
+            return agents.appKitSubAgentBlockRendersDetails ? id : nil
+        case .userMessage,
+             .assistantMessage,
+             .taskListBlock,
+             .promptBlock,
+             .toolApproval,
+             .toolApprovalBatch,
+             .centeredNote,
+             .error:
+            return nil
+        }
+    }
+}
+
 /// Extracts the target path and bounded content preview from `Write` input JSON.
 enum WriteToolContent {
     struct Preview: Equatable {

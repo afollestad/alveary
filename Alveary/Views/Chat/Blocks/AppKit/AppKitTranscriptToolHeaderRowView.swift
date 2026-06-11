@@ -2,6 +2,7 @@
 import Foundation
 
 private let appKitToolGroupStatusIndicatorDebounce: Duration = .milliseconds(250)
+private let appKitToolStatusSpinnerSize: CGFloat = 12
 
 @MainActor
 final class AppKitTranscriptToolHeaderRowView: NSView {
@@ -105,7 +106,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         iconView.translatesAutoresizingMaskIntoConstraints = true
         iconView.wantsLayer = true
         summaryField.translatesAutoresizingMaskIntoConstraints = true
-        summaryField.lineBreakMode = .byTruncatingTail
+        summaryField.lineBreakMode = .byTruncatingMiddle
         summaryField.maximumNumberOfLines = 1
         statusView.translatesAutoresizingMaskIntoConstraints = true
         addSubview(iconView)
@@ -229,7 +230,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
 @MainActor
 final class AppKitTranscriptToolStatusIndicatorView: NSView {
     private let symbolView = AppKitDynamicTintImageView()
-    private let spinnerView = AppKitStatusIndicatorSpinner()
+    private let spinnerView = AppKitStatusIndicatorSpinner(lineWidth: 1.5)
     private var phase: ToolStatusPhase?
     private var displayedPhase: ToolStatusPhase?
     private var typography = TranscriptTypography()
@@ -314,7 +315,9 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         super.layout()
         let frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
         symbolView.frame = frame
-        spinnerView.frame = frame
+        let spinnerInsetX = max((bounds.width - appKitToolStatusSpinnerSize) / 2, 0)
+        let spinnerInsetY = max((bounds.height - appKitToolStatusSpinnerSize) / 2, 0)
+        spinnerView.frame = bounds.insetBy(dx: spinnerInsetX, dy: spinnerInsetY)
     }
 
     private func setup() {

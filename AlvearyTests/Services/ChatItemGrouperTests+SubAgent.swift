@@ -385,4 +385,5 @@ extension ChatItemGrouperTests {
             return false
         }.count
     }
+
 }

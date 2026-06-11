@@ -89,7 +89,7 @@ private func userHeightAgent(id: String) -> SubAgentEntry {
         agentType: "explorer",
         description: "Inspect code",
         tools: [],
-        result: nil,
+        result: "Expandable result",
         isComplete: false,
         toolUseCount: 0
     )

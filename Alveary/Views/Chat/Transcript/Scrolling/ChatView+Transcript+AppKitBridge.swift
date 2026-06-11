@@ -45,11 +45,19 @@ extension ChatTranscriptView {
     }
 
     func appKitRowConfiguration() -> AppKitTranscriptRowFactory.Configuration {
+        let expandableRowIDs = Set(appKitTranscriptItems.compactMap(\.appKitExpandableRowId))
+        let validExpandedRowIDs = expandedTranscriptRows.intersection(expandableRowIDs)
+        if validExpandedRowIDs != expandedTranscriptRows {
+            Task { @MainActor in
+                expandedTranscriptRows = expandedTranscriptRows.intersection(expandableRowIDs)
+            }
+        }
+
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth)
         configuration.typography = transcriptTypography
         configuration.markdownBaseURL = workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        configuration.expandedRowIDs = expandedTranscriptRows
+        configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt

@@ -24,6 +24,25 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("Reading AGENTS.md"))
     }
 
+    func testSubAgentBlockClampsVisibleContentToMaxWidth() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 900, height: 1_000)
+        block.configure(
+            .init(
+                agents: [
+                    agent(description: "Read \(longScreenshotPath)")
+                ],
+                maxWidth: 360
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+
+        let clipView = try XCTUnwrap(block.descendants(of: AppKitTranscriptExpandableClipView.self).first)
+        let header = try XCTUnwrap(block.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        XCTAssertEqual(clipView.frame.width, 360, accuracy: 0.5)
+        XCTAssertEqual(header.frame.width, 360, accuracy: 0.5)
+    }
+
     func testMultiAgentBlockStartsNestedAgentsCollapsedWhenExpanded() {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
@@ -389,6 +408,9 @@ final class AppKitTranscriptSubAgentBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("Result"))
     }
 }
+
+private let longScreenshotPath = "/var/folders/q3/fgp9x7g90_j_8ln525h_5hyw0000gn/" +
+    "T/TemporaryItems/NSIRD_screencaptureui/Screenshot.png"
 
 private func agent(
     id: String = "agent-one",

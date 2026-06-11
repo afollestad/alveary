@@ -145,7 +145,7 @@ struct AgentCLIKitEventMapper: Sendable {
                 totalTokens: event.totalTokens ?? 0,
                 durationMs: event.durationMs ?? 0
             )]
-        case .notification where isCompletedTaskStatus(event.status):
+        case .notification where isTerminalTaskStatus(event.status):
             return completedSubAgentEvents(from: event)
         case .notification:
             return [.notification(type: event.status ?? "task", message: event.description)]
@@ -165,24 +165,56 @@ struct AgentCLIKitEventMapper: Sendable {
             )
         ]
         if let output = taskResultOutput(from: event) {
+            let resultMetadata = terminalTaskResultMetadata(status: event.status)
             events.append(.toolResult(
                 id: event.id,
                 output: output,
-                isError: false,
+                isError: isFailedTaskStatus(event.status),
                 parentToolUseId: nil,
-                metadata: ToolResultMetadata(
-                    stderr: nil,
-                    interrupted: false,
-                    isImage: false,
-                    noOutputExpected: false
-                )
+                metadata: resultMetadata
             ))
         }
         return events
     }
 
-    private func isCompletedTaskStatus(_ status: String?) -> Bool {
-        status?.caseInsensitiveCompare("completed") == .orderedSame
+    private func isTerminalTaskStatus(_ status: String?) -> Bool {
+        switch normalizedTaskStatus(status) {
+        case "completed", "success", "succeeded", "failed", "error", "cancelled", "canceled", "interrupted":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isFailedTaskStatus(_ status: String?) -> Bool {
+        switch normalizedTaskStatus(status) {
+        case "failed", "error":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isInterruptedTaskStatus(_ status: String?) -> Bool {
+        switch normalizedTaskStatus(status) {
+        case "cancelled", "canceled", "interrupted":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func normalizedTaskStatus(_ status: String?) -> String? {
+        status?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func terminalTaskResultMetadata(status: String?) -> ToolResultMetadata {
+        ToolResultMetadata(
+            stderr: nil,
+            interrupted: isInterruptedTaskStatus(status),
+            isImage: false,
+            noOutputExpected: false
+        )
     }
 
     private func taskResultOutput(from event: AgentCLIKit.AgentTaskEvent) -> String? {

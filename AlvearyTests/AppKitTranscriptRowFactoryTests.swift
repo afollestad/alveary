@@ -448,7 +448,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
             agentType: "explorer",
             description: "Inspect code",
             tools: [],
-            result: nil,
+            result: "Found details",
             isComplete: false,
             toolUseCount: 0
         )

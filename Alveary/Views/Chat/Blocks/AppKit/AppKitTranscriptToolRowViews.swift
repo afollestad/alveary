@@ -7,15 +7,21 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     struct Configuration: Equatable {
         let tool: ToolEntry
         let initiallyExpanded: Bool
+        let canExpand: Bool
+        let maxWidth: CGFloat
         let typography: TranscriptTypography
 
         init(
             tool: ToolEntry,
             initiallyExpanded: Bool = false,
+            canExpand: Bool? = nil,
+            maxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.tool = tool
             self.initiallyExpanded = initiallyExpanded
+            self.canExpand = canExpand ?? tool.appKitRendersDetails
+            self.maxWidth = maxWidth
             self.typography = typography
         }
     }
@@ -76,10 +82,14 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         let shouldResetExpansion = previousToolID != configuration.tool.id
         let shouldRebuild = shouldResetExpansion ||
             previousConfiguration?.tool != configuration.tool ||
+            previousConfiguration?.canExpand != configuration.canExpand ||
+            previousConfiguration?.maxWidth != configuration.maxWidth ||
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
-            isExpanded = configuration.tool.name == "Skill" ? false : configuration.initiallyExpanded
+            isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
+        } else if !configuration.canExpand {
+            isExpanded = false
         }
         // Local expansion changes echo back through SwiftUI as persisted
         // `initiallyExpanded`; avoid rebuilding the already-updated row mid-animation.
@@ -92,7 +102,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     }
 
     func setExpanded(_ expanded: Bool) {
-        guard configuration?.tool.name != "Skill",
+        guard configuration?.canExpand == true,
               isExpanded != expanded else {
             return
         }
@@ -136,8 +146,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         guard let configuration else {
             return
         }
-        let canExpand = configuration.tool.name != "Skill"
-        headerView.onToggle = canExpand ? { [weak self] in
+        headerView.onToggle = configuration.canExpand ? { [weak self] in
             guard let self else {
                 return
             }
@@ -146,7 +155,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         headerView.configure(
             .init(
                 summary: configuration.tool.transcriptDisplaySummary,
-                leadingIcon: leadingIconKind(for: configuration.tool, isExpanded: isExpanded),
+                leadingIcon: leadingIconKind(for: configuration.tool, canExpand: configuration.canExpand, isExpanded: isExpanded),
                 phase: configuration.tool.transcriptStatusPhase,
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
@@ -164,7 +173,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     }
 
     private func layoutContent() {
-        let width = max(bounds.width, 0)
+        let width = contentWidth(for: configuration)
         headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
@@ -182,6 +191,15 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         detailsView.layoutSubtreeIfNeeded()
         detailsView.frame.size.height = detailsView.intrinsicContentSize.height
         clipView.updateFrame(width: width, targetHeight: measuredHeight())
+    }
+
+    private func contentWidth(for configuration: Configuration?) -> CGFloat {
+        let availableWidth = max(bounds.width, 0)
+        guard let configuration else {
+            return availableWidth
+        }
+        let maxWidth = configuration.maxWidth.isFinite ? configuration.maxWidth : availableWidth
+        return min(max(maxWidth, 0), availableWidth)
     }
 
     private func measuredHeight() -> CGFloat {
@@ -231,13 +249,14 @@ final class AppKitTranscriptInlineToolRowView: NSView {
               bounds.width > 0 else {
             return
         }
+        let width = contentWidth(for: configuration)
         let targetHeight = measuredHeight()
         guard previousHeight > 0,
               targetHeight > 0,
               abs(previousHeight - targetHeight) > 0.5 else {
             return
         }
-        clipView.prepareVisibleHeightAnimation(from: previousHeight, to: targetHeight, width: bounds.width)
+        clipView.prepareVisibleHeightAnimation(from: previousHeight, to: targetHeight, width: width)
         localClipAnimationToken = UUID()
         let token = localClipAnimationToken
         DispatchQueue.main.async { [weak self] in
@@ -268,7 +287,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     }
 
     private func scheduleDetailsPrewarm(for configuration: Configuration) {
-        guard configuration.tool.name != "Skill" else {
+        guard configuration.canExpand else {
             return
         }
         let detailsConfiguration = AppKitTranscriptToolDetailsView.Configuration(
@@ -295,7 +314,8 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     }
 
     private func prewarmDetailsLayoutIfPossible() {
-        let detailsWidth = max(bounds.width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
+        let width = contentWidth(for: configuration)
+        let detailsWidth = max(width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
         guard detailsWidth > 0 else {
             return
         }
@@ -309,21 +329,22 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         detailsView.frame.size.height = detailsView.intrinsicContentSize.height
     }
 
-    private func leadingIconKind(for tool: ToolEntry, isExpanded: Bool) -> TranscriptToolLeadingIconKind {
+    private func leadingIconKind(for tool: ToolEntry, canExpand: Bool, isExpanded: Bool) -> TranscriptToolLeadingIconKind {
         switch tool.name {
         case let name where CommandToolPresentation.isCommandToolName(name):
             return .bash
         case "Skill":
             return .symbol(systemName: "book")
         default:
-            return .disclosure(isExpanded: isExpanded)
+            return canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "gearshape")
         }
     }
 }
 
 extension AppKitTranscriptInlineToolRowView: AppKitTranscriptFrameAnimatable {
     func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
-        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetFrame.width)
+        let targetWidth = min(contentWidth(for: configuration), targetFrame.width)
+        clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetWidth)
     }
 
     func animateSynchronizedFrameChange() {
@@ -347,7 +368,7 @@ extension AppKitTranscriptInlineToolRowView {
 
     func prewarmDetailsIfNeededForTesting() {
         guard let configuration,
-              configuration.tool.name != "Skill",
+              configuration.canExpand,
               !isExpanded else {
             return
         }
