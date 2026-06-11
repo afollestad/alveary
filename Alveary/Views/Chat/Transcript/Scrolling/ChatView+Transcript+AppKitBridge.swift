@@ -145,9 +145,9 @@ extension ChatTranscriptView {
         Task {
             do {
                 if approve {
-                    try await viewModel.approveToolUse(toolUseId: approval.toolUseId)
+                    try await viewModel.approveToolUse(approval)
                 } else {
-                    try await viewModel.denyToolUse(toolUseId: approval.toolUseId)
+                    try await viewModel.denyToolUse(approval)
                 }
             } catch {
                 if viewModel.lastTurnError == nil {
@@ -160,10 +160,7 @@ extension ChatTranscriptView {
     func resolveAppKitToolApprovalForSession(_ approval: ToolApprovalRequest, scope: ToolApprovalSessionScope) {
         Task {
             do {
-                try await viewModel.approveToolUseForSession(
-                    toolUseId: approval.toolUseId,
-                    scope: scope
-                )
+                try await viewModel.approveToolUseForSession(approval, scope: scope)
             } catch {
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription

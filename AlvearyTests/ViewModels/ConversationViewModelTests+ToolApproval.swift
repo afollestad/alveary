@@ -41,14 +41,14 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, approval)
     }
 
-    func testNewDeferredApprovalSupersedesOlderUnresolvedApprovalRow() throws {
+    func testNewDeferredApprovalLeavesOlderUnrelatedApprovalRowActionable() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let oldApproval = ToolApprovalRequest(
             sessionId: "session-123",
-            toolUseId: "tool-1",
-            toolName: "Bash",
-            toolInput: "{\"command\":\"ls old.txt\"}"
+            toolUseId: "tool-read",
+            toolName: "Read",
+            toolInput: "{\"file_path\":\"Sources/Old.swift\"}"
         )
         let oldApprovalRecord = ConversationEventRecord(
             conversationId: conversation.id,
@@ -65,15 +65,15 @@ extension ConversationViewModelTests {
 
         let newApproval = ToolApprovalRequest(
             sessionId: "session-123",
-            toolUseId: "tool-2",
-            toolName: "Write",
-            toolInput: "{\"file_path\":\"test-permission-2.txt\"}"
+            toolUseId: "tool-bash",
+            toolName: "Bash",
+            toolInput: "{\"command\":\"swift test\"}"
         )
 
         fixture.viewModel.handleEvent(.toolApprovalRequested(newApproval))
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, newApproval)
-        XCTAssertEqual(oldApprovalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
+        XCTAssertNil(oldApprovalRecord.toolApprovalStatus)
         let approvalItems = fixture.viewModel.state.grouper.items.compactMap { item -> (String, ToolApprovalStatus?)? in
             guard case .toolApproval(_, let approval, let status) = item else {
                 return nil
@@ -81,8 +81,8 @@ extension ConversationViewModelTests {
             return (approval.toolUseId, status)
         }
         XCTAssertEqual(approvalItems.count, 2)
-        XCTAssertEqual(approvalItems.first(where: { $0.0 == "tool-1" })?.1, .superseded)
-        XCTAssertNil(approvalItems.first(where: { $0.0 == "tool-2" })?.1)
+        XCTAssertNil(approvalItems.first(where: { $0.0 == "tool-read" })?.1)
+        XCTAssertNil(approvalItems.first(where: { $0.0 == "tool-bash" })?.1)
     }
 
     func testLiveParallelApprovalKeepsOlderUnresolvedApprovalRowAvailableForBatchApproval() throws {

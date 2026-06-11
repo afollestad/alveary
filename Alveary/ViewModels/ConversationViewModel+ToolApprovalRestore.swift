@@ -14,6 +14,37 @@ extension ConversationViewModel {
             return nil
         }
 
+        return unresolvedToolApproval(from: approvalRecord, conversationID: conversationID)
+    }
+
+    func unresolvedToolApproval(toolUseId: String, sessionId: String? = nil) -> ToolApprovalRequest? {
+        let conversationID = conversation.id
+        let approvalRecords = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.type == "tool_approval" &&
+                        $0.toolApprovalStatus == nil
+                },
+                sortBy: [
+                    SortDescriptor(\.timestamp, order: .reverse),
+                    SortDescriptor(\.id, order: .reverse)
+                ]
+            )
+        )) ?? []
+
+        return approvalRecords.filter {
+            ($0.toolId == toolUseId || $0.id == toolUseId) &&
+                (sessionId == nil || $0.content == sessionId)
+        }.compactMap {
+            unresolvedToolApproval(from: $0, conversationID: conversationID)
+        }.first
+    }
+
+    private func unresolvedToolApproval(
+        from approvalRecord: ConversationEventRecord,
+        conversationID: String
+    ) -> ToolApprovalRequest? {
         let toolUseId = approvalRecord.toolId ?? approvalRecord.id
         guard approvalRecord.toolApprovalStatus == nil else {
             return nil

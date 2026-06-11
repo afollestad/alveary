@@ -35,5 +35,6 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Preserve fallback batches.** Fallback `tool_deferred` ends the local turn before delayed sibling approvals can arrive.
     Same-session same-family pending approvals should stay unresolved for batch resolution instead of being superseded only because `turnState.isActive` is false.
     Interleaved read-only tool results should not break same-family approval discovery; exclude approval rows only when their own tool result has arrived.
+  - **Keep unrelated approvals actionable.** A new approval should not blanket-supersede older unresolved approvals; resolving one approval should rehydrate the next unresolved approval so the composer stays blocked until all actionable approvals are handled.
   - **Do not reopen completed approvals.** A matching tool result terminalizes unresolved approval rows, and late approval events for that tool ID must not recreate pending approval UI.
 - Thread removal must route through `SidebarViewModel` lifecycle methods so runtime teardown, notification cleanup, provider-native Codex archive, worktree cleanup, and branch cleanup stay coordinated. Views that need to delete a thread, including project-trust denial flows, should receive a focused delete closure instead of calling `ModelContext.delete(_:)` on `AgentThread` directly.

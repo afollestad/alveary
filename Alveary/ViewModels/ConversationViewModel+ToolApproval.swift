@@ -24,6 +24,14 @@ extension ConversationViewModel {
         try await resolveToolUseApproval(toolUseId: toolUseId, decision: .allow)
     }
 
+    func approveToolUse(_ approval: ToolApprovalRequest) async throws {
+        try await resolveToolUseApproval(
+            toolUseId: approval.toolUseId,
+            sessionId: approval.sessionId,
+            decision: .allow
+        )
+    }
+
     func approveToolUseForSession(toolUseId: String, scope: ToolApprovalSessionScope) async throws {
         try await resolveToolUseApproval(
             toolUseId: toolUseId,
@@ -32,8 +40,25 @@ extension ConversationViewModel {
         )
     }
 
+    func approveToolUseForSession(_ approval: ToolApprovalRequest, scope: ToolApprovalSessionScope) async throws {
+        try await resolveToolUseApproval(
+            toolUseId: approval.toolUseId,
+            sessionId: approval.sessionId,
+            decision: .allow,
+            sessionApprovalScope: scope
+        )
+    }
+
     func denyToolUse(toolUseId: String) async throws {
         try await resolveToolUseApproval(toolUseId: toolUseId, decision: .deny)
+    }
+
+    func denyToolUse(_ approval: ToolApprovalRequest) async throws {
+        try await resolveToolUseApproval(
+            toolUseId: approval.toolUseId,
+            sessionId: approval.sessionId,
+            decision: .deny
+        )
     }
 
     func resolveExitPlanModeToolUseApproval(
@@ -177,6 +202,7 @@ extension ConversationViewModel {
 
         state.pendingToolApproval = nil
         clearPendingExitPlanModeFollowUpIfNeeded(toolUseId: pendingApproval.request.toolUseId)
+        hydratePendingToolApprovalIfNeeded()
         refreshTranscriptForToolApprovalStatusChanges()
         return true
     }
@@ -190,6 +216,7 @@ extension ConversationViewModel {
         restorePermissionModeAfterPlanExitIfNeeded(pendingApproval)
         persistResolvedToolApproval(pendingApproval)
         state.pendingToolApproval = nil
+        hydratePendingToolApprovalIfNeeded()
         _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: pendingApproval.request.toolUseId)
     }
 
@@ -208,9 +235,6 @@ extension ConversationViewModel {
             )
         }
 
-        if !shouldPreservePendingToolApprovalBatch(replacingWith: approval) {
-            supersedeUnresolvedToolApprovalRecords(refreshTranscript: false)
-        }
         refreshTranscriptForToolApprovalStatusChanges()
         state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
     }
@@ -229,6 +253,7 @@ extension ConversationViewModel {
             refreshTranscript: false
         )
         state.pendingToolApproval = nil
+        hydratePendingToolApprovalIfNeeded()
         refreshTranscriptForToolApprovalStatusChanges()
     }
 
@@ -274,8 +299,12 @@ extension ConversationViewModel {
             sessionId: approval.sessionId,
             refreshTranscript: refreshTranscript
         )
-        state.pendingToolApproval = nil
-        _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: approval.toolUseId)
+        if state.pendingToolApproval?.request.toolUseId == approval.toolUseId,
+           state.pendingToolApproval?.request.sessionId == approval.sessionId {
+            state.pendingToolApproval = nil
+            hydratePendingToolApprovalIfNeeded()
+            _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: approval.toolUseId)
+        }
         return resolvedStatus
     }
 }
@@ -283,14 +312,14 @@ extension ConversationViewModel {
 private extension ConversationViewModel {
     func resolveToolUseApproval(
         toolUseId: String,
+        sessionId: String? = nil,
         decision: ClaudeToolApprovalDecision,
         sessionApprovalScope: ToolApprovalSessionScope? = nil
     ) async throws {
         guard !hasUnansweredPrompt else {
             throw AgentError.spawnFailed("Answer the pending question before resolving tool approval")
         }
-        guard var pendingApproval = state.pendingToolApproval,
-              pendingApproval.request.toolUseId == toolUseId else {
+        guard var pendingApproval = pendingToolApprovalForResolution(toolUseId: toolUseId, sessionId: sessionId) else {
             return
         }
         guard pendingApproval.status == .pending else {
@@ -320,6 +349,18 @@ private extension ConversationViewModel {
             state.lastTurnError = "Tool approval failed: \(error.localizedDescription)"
             throw error
         }
+    }
+
+    func pendingToolApprovalForResolution(toolUseId: String, sessionId: String?) -> PendingToolApproval? {
+        if let pendingApproval = state.pendingToolApproval,
+           pendingApproval.request.toolUseId == toolUseId,
+           sessionId == nil || pendingApproval.request.sessionId == sessionId {
+            return pendingApproval
+        }
+        guard let approval = unresolvedToolApproval(toolUseId: toolUseId, sessionId: sessionId) else {
+            return nil
+        }
+        return PendingToolApproval(request: approval, status: .pending)
     }
 
     func resumeDeferredToolUse(
@@ -392,6 +433,7 @@ private extension ConversationViewModel {
         persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
         persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
         state.pendingToolApproval = nil
+        hydratePendingToolApprovalIfNeeded()
         refreshTranscriptForToolApprovalStatusChanges()
     }
 
@@ -410,21 +452,6 @@ private extension ConversationViewModel {
                 refreshTranscript: false
             )
         }
-    }
-
-    func shouldPreservePendingToolApprovalBatch(replacingWith approval: ToolApprovalRequest) -> Bool {
-        // Fallback deferral ends the local turn before delayed sibling hooks arrive.
-        // Same-session, same-family approvals still belong to one user decision batch.
-        guard let pendingApproval = state.pendingToolApproval,
-              pendingApproval.status == .pending,
-              pendingApproval.request.sessionId == approval.sessionId,
-              ClaudeApprovalDisplayPolicy.canBatchPotentialApprovalToolCall(
-                  toolName: approval.toolName,
-                  with: [pendingApproval.request.toolName]
-              ) else {
-            return false
-        }
-        return true
     }
 
     func approvalStatus(
@@ -455,38 +482,5 @@ private extension ConversationViewModel {
 
     func toolApprovalProviderId() -> String {
         conversation.provider ?? settingsService.current.defaultProvider
-    }
-
-    func supersedeUnresolvedToolApprovalRecords() {
-        supersedeUnresolvedToolApprovalRecords(refreshTranscript: true)
-    }
-
-    func supersedeUnresolvedToolApprovalRecords(refreshTranscript: Bool) {
-        let conversationID = conversation.id
-        let unresolvedApprovalRecords = (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate {
-                    $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
-                        $0.toolApprovalStatus == nil
-                }
-            )
-        )) ?? []
-        guard !unresolvedApprovalRecords.isEmpty else {
-            return
-        }
-
-        for approvalRecord in unresolvedApprovalRecords {
-            approvalRecord.toolApprovalStatus = ToolApprovalStatus.superseded.rawValue
-        }
-        do {
-            try modelContext.save()
-            if refreshTranscript {
-                refreshTranscriptForToolApprovalStatusChanges()
-            }
-        } catch {
-            // Best-effort: transcript history is still preserved even if superseded
-            // rows stay unresolved until the next successful save.
-        }
     }
 }

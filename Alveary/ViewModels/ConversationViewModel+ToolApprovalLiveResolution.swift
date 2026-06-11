@@ -139,6 +139,7 @@ extension ConversationViewModel {
             try modelContext.save()
             if state.pendingToolApproval?.request.toolUseId == toolUseId {
                 state.pendingToolApproval = nil
+                hydratePendingToolApprovalIfNeeded()
                 if enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: toolUseId),
                    !state.turnState.isActive {
                     handleTurnCompleted()
