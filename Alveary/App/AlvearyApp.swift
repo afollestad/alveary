@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -15,6 +16,12 @@ struct AlvearyApp: App {
         }
         .defaultSize(width: 1440, height: 920)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Alveary") {
+                    showAboutPanel()
+                }
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("Add Project...") {
                     appState.openNewProjectFlow()
@@ -58,6 +65,51 @@ struct AlvearyApp: App {
             #endif
         }
         .modelContainer(AppDI.component.modelContainer)
+    }
+
+    @MainActor
+    private func showAboutPanel() {
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [
+            .credits: Self.aboutCredits
+        ])
+    }
+
+    private static var aboutCredits: NSAttributedString {
+        let text = "\nMade with ❤️ by Aidan Follestad\n\nWebsite | Ko-fi"
+        let attributed = NSMutableAttributedString(string: text)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        attributed.addAttribute(
+            .font,
+            value: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+            range: NSRange(location: 0, length: attributed.length)
+        )
+        attributed.addAttribute(
+            .paragraphStyle,
+            value: paragraphStyle,
+            range: NSRange(location: 0, length: attributed.length)
+        )
+        addLink(to: attributed, label: "Website", urlString: "https://af.codes")
+        addLink(to: attributed, label: "Ko-fi", urlString: "https://ko-fi.com/aidan1995")
+        return attributed
+    }
+
+    private static func addLink(to attributed: NSMutableAttributedString, label: String, urlString: String) {
+        guard
+            let url = URL(string: urlString),
+            let range = attributed.string.range(of: label)
+        else {
+            return
+        }
+
+        attributed.addAttributes(
+            [
+                .foregroundColor: NSColor.linkColor,
+                .link: url,
+                .underlineStyle: NSUnderlineStyle.single.rawValue
+            ],
+            range: NSRange(range, in: attributed.string)
+        )
     }
 }
 
