@@ -179,7 +179,12 @@ struct ContentView: View {
                             )
                             DiffViewerPane(
                                 viewModel: diffViewModel,
-                                areAgentActionsEnabled: activeDiffActionTarget() != nil,
+                                // Gate on observation-tracked selection state only. The
+                                // fetch-backed `activeDiffActionTarget()` resolution is not
+                                // observation-tracked, so using it here latches a stale value
+                                // until an unrelated body re-render; the request handlers
+                                // re-run the full resolution at action time.
+                                areAgentActionsEnabled: appState.selectedSidebarItem?.isThread == true,
                                 mode: $diffViewerMode,
                                 onModeCommit: persistDiffViewerMode,
                                 topSectionFraction: activeDiffViewerTopSectionFraction,

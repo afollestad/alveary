@@ -185,6 +185,13 @@ enum SidebarItem: Hashable {
     case thread(AgentThread)
     case settings
 
+    var isThread: Bool {
+        if case .thread = self {
+            return true
+        }
+        return false
+    }
+
     func hash(into hasher: inout Hasher) {
         switch self {
         case .skills:

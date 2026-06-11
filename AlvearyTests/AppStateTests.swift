@@ -23,6 +23,19 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.previousSelection, AppState.SidebarBookmark.threadId(fixture.primaryThread.persistentModelID))
     }
 
+    func testSidebarItemIsThreadOnlyForThreadCase() throws {
+        let fixture = try makeFixture(
+            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+        )
+        let project = try XCTUnwrap(fixture.primaryThread.project)
+
+        XCTAssertTrue(SidebarItem.thread(fixture.primaryThread).isThread)
+        XCTAssertFalse(SidebarItem.project(project).isThread)
+        XCTAssertFalse(SidebarItem.skills.isThread)
+        XCTAssertFalse(SidebarItem.mcp.isThread)
+        XCTAssertFalse(SidebarItem.settings.isThread)
+    }
+
     func testSelectedConversationIsPureRead() throws {
         let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true, displayOrder: 1)
         let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
