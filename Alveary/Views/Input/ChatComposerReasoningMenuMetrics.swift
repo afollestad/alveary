@@ -61,6 +61,7 @@ enum ComposerReasoningMenuMetrics {
     static let maxModelHeight: CGFloat = 360
     static let horizontalInset: CGFloat = 6
     static let verticalInset: CGFloat = 8
+    static let headerlessModelMenuTopInset: CGFloat = 14
     static let headerInset: CGFloat = 18
     // Headers bottom-align within their own rows; this spacing is the visual
     // inset before the selectable rows that follow.
@@ -137,10 +138,15 @@ enum ComposerReasoningMenuMetrics {
         let modelCount = max(1, groups.flatMap(\.options).count)
         let headerCount = showsProviderHeaders ? groups.filter { $0.providerTitle != nil }.count : 0
         let dividerCount = showsProviderHeaders ? max(0, groups.count - 1) : 0
-        return verticalInset * 2 +
+        return modelMenuTopInset(showsProviderHeaders: showsProviderHeaders) +
+            verticalInset +
             rowHeight * CGFloat(modelCount) +
             (headerHeight + headerBottomSpacing) * CGFloat(headerCount) +
             (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
+    }
+
+    static func modelMenuTopInset(showsProviderHeaders: Bool) -> CGFloat {
+        showsProviderHeaders ? verticalInset : headerlessModelMenuTopInset
     }
 }
 

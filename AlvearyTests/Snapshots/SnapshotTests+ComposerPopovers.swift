@@ -49,9 +49,31 @@ extension SnapshotTests {
         let size = ComposerReasoningMenuMetrics.modelContentSize(groups: groups, showsProviderHeaders: true)
 
         assertMacSnapshot(
-            ComposerReasoningModelMenuSnapshot(),
+            ComposerReasoningModelMenuSnapshot(
+                groups: groups,
+                selectedProviderID: "claude",
+                selectedModelID: "sonnet",
+                showsProviderHeaders: true
+            ),
             size: size,
             named: "composer_reasoning_model_menu_grouped_content",
+            colorScheme: .dark
+        )
+    }
+
+    func testComposerReasoningModelMenuHeaderlessContent() {
+        let groups = makeHeaderlessReasoningModelGroups()
+        let size = ComposerReasoningMenuMetrics.modelContentSize(groups: groups, showsProviderHeaders: false)
+
+        assertMacSnapshot(
+            ComposerReasoningModelMenuSnapshot(
+                groups: groups,
+                selectedProviderID: "claude",
+                selectedModelID: "fable",
+                showsProviderHeaders: false
+            ),
+            size: size,
+            named: "composer_reasoning_model_menu_headerless_content",
             colorScheme: .dark
         )
     }
@@ -127,11 +149,40 @@ private struct ComposerReasoningSpeedMenuSnapshot: NSViewControllerRepresentable
 }
 
 private struct ComposerReasoningModelMenuSnapshot: NSViewControllerRepresentable {
+    let groups: [ChatComposerActionRowView.ReasoningModelGroup]
+    let selectedProviderID: String
+    let selectedModelID: String
+    let showsProviderHeaders: Bool
+
     func makeNSViewController(context: Context) -> ComposerReasoningModelMenuViewController {
-        makeGroupedReasoningModelMenu()
+        ComposerReasoningModelMenuViewController(
+            groups: groups,
+            selectedProviderID: selectedProviderID,
+            selectedModelID: selectedModelID,
+            showsProviderHeaders: showsProviderHeaders,
+            onModelSelected: { _ in },
+            onHoverChanged: { _ in },
+            onCancel: {}
+        )
     }
 
     func updateNSViewController(_ controller: ComposerReasoningModelMenuViewController, context: Context) {}
+}
+
+@MainActor
+private func makeHeaderlessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+    [
+        .init(
+            providerID: "claude",
+            providerTitle: nil,
+            options: [
+                .init(providerID: "claude", value: "sonnet", title: "Sonnet"),
+                .init(providerID: "claude", value: "fable", title: "Fable"),
+                .init(providerID: "claude", value: "opus", title: "Opus"),
+                .init(providerID: "claude", value: "haiku", title: "Haiku")
+            ]
+        )
+    ]
 }
 
 @MainActor

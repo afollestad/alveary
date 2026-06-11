@@ -301,7 +301,7 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
             height: max(bounds.height, contentHeight)
         )
 
-        var nextY = ComposerReasoningMenuMetrics.verticalInset
+        var nextY = ComposerReasoningMenuMetrics.modelMenuTopInset(showsProviderHeaders: showsProviderHeaders)
         for rowView in rowViews {
             let height: CGFloat
             let originX: CGFloat
