@@ -239,6 +239,8 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
     var onHeightInvalidated: (() -> Void)?
 
     private let markdownView: AppKitMarkdownView
+    private let document: AppMarkdownDocument
+    private let typography: TranscriptTypography
     private var lastMeasuredHeight: CGFloat = -1
 
     var onOpenMarkdownLink: ((URL) -> Void)? {
@@ -265,6 +267,8 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
         ) {
             AppMarkdownParser().documentPreservingSource(for: markdown)
         }
+        self.document = document
+        self.typography = typography
         markdownView = AppKitMarkdownView(
             document: document,
             inlineCodeStyle: .standard,
@@ -291,14 +295,15 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
     }
 
     override func layout() {
+        let markdownWidth = max(bounds.width - 24, 0)
+        let markdownHeight = measuredMarkdownHeight(width: markdownWidth)
         markdownView.frame = NSRect(
             x: 12,
             y: 10,
-            width: max(bounds.width - 24, 0),
-            height: CGFloat.greatestFiniteMagnitude / 2
+            width: markdownWidth,
+            height: markdownHeight
         )
         markdownView.layoutSubtreeIfNeeded()
-        markdownView.frame.size.height = markdownView.intrinsicContentSize.height
         super.layout()
         invalidateTranscriptHeight(force: false)
     }
@@ -311,8 +316,10 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
+        clipsToBounds = true
         layer?.cornerRadius = 8
         layer?.borderWidth = 1
+        layer?.masksToBounds = true
         markdownView.translatesAutoresizingMaskIntoConstraints = true
         markdownView.onHeightInvalidated = { [weak self] in
             self?.invalidateTranscriptHeight(force: true)
@@ -327,7 +334,17 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
     }
 
     private func measuredHeight() -> CGFloat {
-        ceil((markdownView.frame.height > 0 ? markdownView.frame.height : markdownView.intrinsicContentSize.height) + 20)
+        ceil(measuredMarkdownHeight(width: bounds.width - 24) + 20)
+    }
+
+    private func measuredMarkdownHeight(width: CGFloat) -> CGFloat {
+        AppKitMarkdownLayoutMeasurer(
+            document: document,
+            inlineCodeStyle: .standard,
+            typography: typography.appKitMarkdownTypography
+        )
+        .measure(width: max(width, 0))
+        .contentHeight
     }
 
     private func invalidateTranscriptHeight(force: Bool) {

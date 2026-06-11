@@ -128,6 +128,48 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertTrue(row.markdownMutationRenderedText.contains("Follow-up"))
     }
 
+    func testMarkdownEditPreviewKeepsRenderedTextInsideChrome() throws {
+        let row = AppKitTranscriptInlineToolRowView()
+        let input = try markdownEditInput(
+            filePath: "/tmp/AGENTS.md",
+            oldString: "- Old guidance",
+            newString: """
+            - Bounded preview text should stay below the rounded surface border even when the line wraps in the summary column.
+            - Second list item
+            """
+        )
+        row.frame = NSRect(x: 0, y: 0, width: 720, height: 1_000)
+        row.configure(
+            .init(
+                tool: markdownMutationTool(
+                    name: "Edit",
+                    summary: "Edit `AGENTS.md`",
+                    input: input,
+                    output: "Updated",
+                    isComplete: true
+                ),
+                initiallyExpanded: true
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let markdownView = try XCTUnwrap(row.markdownMutationDescendants(of: AppKitMarkdownView.self).first)
+        let chromeView = try XCTUnwrap(markdownView.superview)
+        let textViews = chromeView.markdownMutationDescendants(of: AppKitMarkdownTextView.self)
+
+        XCTAssertFalse(textViews.isEmpty)
+        XCTAssertTrue(chromeView.clipsToBounds)
+        XCTAssertTrue(chromeView.layer?.masksToBounds ?? false)
+        XCTAssertEqual(markdownView.frame.minY, 10, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(chromeView.bounds.height, markdownView.frame.maxY + 10 - 0.5)
+
+        for textView in textViews {
+            let textFrame = chromeView.convert(textView.bounds, from: textView)
+            XCTAssertGreaterThanOrEqual(textFrame.minY, -0.5)
+            XCTAssertLessThanOrEqual(textFrame.maxY, chromeView.bounds.height + 0.5)
+        }
+    }
+
     func testMarkdownEditDetailsRefreshWhenPreviewOverrideArrivesForReusedCollapsedRow() throws {
         let row = AppKitTranscriptInlineToolRowView()
         let input = #"{"file_path":"/tmp/plan.md","old_string":"- Existing","new_string":"- Existing\n- Follow-up"}"#
@@ -208,6 +250,18 @@ private func markdownMutationTool(
         isError: false,
         previewOverride: previewOverride
     )
+}
+
+private func markdownEditInput(filePath: String, oldString: String, newString: String) throws -> String {
+    let data = try JSONSerialization.data(
+        withJSONObject: [
+            "file_path": filePath,
+            "old_string": oldString,
+            "new_string": newString
+        ],
+        options: [.sortedKeys]
+    )
+    return try XCTUnwrap(String(data: data, encoding: .utf8))
 }
 
 private extension NSView {
