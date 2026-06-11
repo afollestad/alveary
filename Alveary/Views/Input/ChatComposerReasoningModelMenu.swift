@@ -61,6 +61,18 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
         selectedModelID: String,
         showsProviderHeaders: Bool
     ) {
+        let previousVisualState = ReasoningModelMenuVisualState(
+            groups: self.groups,
+            selectedProviderID: self.selectedProviderID,
+            selectedModelID: self.selectedModelID,
+            showsProviderHeaders: self.showsProviderHeaders
+        )
+        let visualState = ReasoningModelMenuVisualState(
+            groups: groups,
+            selectedProviderID: selectedProviderID,
+            selectedModelID: selectedModelID,
+            showsProviderHeaders: showsProviderHeaders
+        )
         let previousGroups = self.groups
         let previousShowsProviderHeaders = self.showsProviderHeaders
         let previousContentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
@@ -79,6 +91,9 @@ final class ComposerReasoningModelMenuViewController: NSViewController {
         self.selectedProviderID = selectedProviderID
         self.selectedModelID = selectedModelID
         self.showsProviderHeaders = showsProviderHeaders
+        guard previousVisualState != visualState else {
+            return
+        }
         modelView?.update(
             groups: groups,
             selectedProviderID: selectedProviderID,
@@ -330,6 +345,13 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
             }
         }
     }
+}
+
+private struct ReasoningModelMenuVisualState: Equatable {
+    let groups: [ChatComposerActionRowView.ReasoningModelGroup]
+    let selectedProviderID: String
+    let selectedModelID: String
+    let showsProviderHeaders: Bool
 }
 
 private final class ComposerReasoningModelDocumentView: NSView {

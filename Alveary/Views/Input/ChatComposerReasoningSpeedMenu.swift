@@ -38,7 +38,11 @@ final class ComposerReasoningSpeedMenuViewController: NSViewController {
     }
 
     func update(selectedSpeedMode: AgentSpeedMode) {
+        let previousSpeedMode = self.selectedSpeedMode
         self.selectedSpeedMode = selectedSpeedMode
+        guard previousSpeedMode != selectedSpeedMode else {
+            return
+        }
         speedView?.update(selectedSpeedMode: selectedSpeedMode)
     }
 }
@@ -71,6 +75,9 @@ private final class ComposerReasoningSpeedMenuView: AppKitComposerPopoverSurface
     }
 
     func update(selectedSpeedMode: AgentSpeedMode) {
+        guard self.selectedSpeedMode != selectedSpeedMode else {
+            return
+        }
         self.selectedSpeedMode = selectedSpeedMode
         rebuildRows()
         needsLayout = true

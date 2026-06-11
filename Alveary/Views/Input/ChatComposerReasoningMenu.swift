@@ -1,5 +1,4 @@
 import AppKit
-
 @MainActor
 final class ComposerReasoningMenuViewController: NSViewController {
     private var configuration: ChatComposerActionRowView.ReasoningConfiguration
@@ -50,9 +49,13 @@ final class ComposerReasoningMenuViewController: NSViewController {
     }
 
     func update(configuration: ChatComposerActionRowView.ReasoningConfiguration) {
+        let previousVisualState = ReasoningMenuVisualState(configuration: self.configuration)
         self.configuration = configuration
-        menuView?.update(configuration: configuration)
-        applyContentSize(for: configuration)
+        let visualState = ReasoningMenuVisualState(configuration: configuration)
+        if previousVisualState != visualState {
+            menuView?.update(configuration: configuration)
+            applyContentSize(for: configuration)
+        }
         modelMenuController?.update(
             groups: configuration.modelGroups,
             selectedProviderID: configuration.selection.providerID,
@@ -158,13 +161,11 @@ final class ComposerReasoningMenuViewController: NSViewController {
             closeModelMenu()
             onRequestCloseMainMenu()
         case .unchanged(let selection):
-            configuration.selection = selection
             closeModelMenu()
-            update(configuration: configuration)
+            update(configuration: configuration.updatingSelection(selection))
         case .applied(let selection):
-            configuration.selection = selection
             closeModelMenu()
-            update(configuration: configuration)
+            update(configuration: configuration.updatingSelection(selection))
         }
     }
 

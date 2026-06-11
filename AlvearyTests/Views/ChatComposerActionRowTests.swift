@@ -349,6 +349,10 @@ func makeConfiguration(
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
     onPlanModeChange: @escaping (Bool) -> Void = { _ in },
+    onEffortChange: @escaping (String) -> Bool = { _ in true },
+    onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
+    onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
+        -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected },
     onSubmit: @escaping () -> Void = {},
     onStop: @escaping () -> Void = {},
     onAddPhotosAndFiles: @escaping () -> Void = {}
@@ -359,7 +363,10 @@ func makeConfiguration(
             modelOptions: modelOptions,
             effortOptions: effortOptions,
             selectedSpeedMode: selectedSpeedMode,
-            supportsSpeedMode: supportsSpeedMode
+            supportsSpeedMode: supportsSpeedMode,
+            onEffortChange: onEffortChange,
+            onSpeedChange: onSpeedChange,
+            onModelChange: onModelChange
         ),
         supportedPermissionModes: supportedPermissionModes,
         selectedPermissionMode: selectedPermissionMode,
