@@ -45,6 +45,31 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertLessThanOrEqual(imageView.displaySizeForTesting.width, row.markdownClipFrameForTesting.width + 0.5)
     }
 
+    func testUserBubbleImageStaysLeadingAlignedNextToWiderText() throws {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 760, height: 800)
+        row.configure(
+            .init(
+                id: "user-text-and-image",
+                role: .user,
+                markdown: """
+                A long enough first paragraph that the bubble grows wider than the pasted image below it.
+
+                <img src="file:///tmp/photo.jpg" alt="Photo" width="426" height="128" />
+                """
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let imageView = try XCTUnwrap(row.descendants(of: AppKitMarkdownImageBlockView.self).first)
+        let markdownView = try XCTUnwrap(row.markdownView)
+        let imageContentView = try XCTUnwrap(imageView.subviews.first)
+        let imageContentFrame = imageContentView.convert(imageContentView.bounds, to: markdownView)
+        XCTAssertEqual(imageView.displaySizeForTesting, CGSize(width: 426, height: 128))
+        XCTAssertGreaterThan(markdownView.bounds.width, imageView.displaySizeForTesting.width)
+        XCTAssertEqual(imageContentFrame.minX, 0, accuracy: 0.5)
+    }
+
     func testImageBaseURLDoesNotResolveFragmentOnlyLinks() throws {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 600)

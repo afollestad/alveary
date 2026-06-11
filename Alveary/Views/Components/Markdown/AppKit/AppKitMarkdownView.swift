@@ -124,7 +124,15 @@ final class AppKitMarkdownView: NSView {
                 self?.invalidateMarkdownHeight()
             }
         )
-        renderer.views(for: document.blocks).forEach(stackView.addArrangedSubview)
+        renderer.views(for: document.blocks).forEach { view in
+            stackView.addArrangedSubview(view)
+            // Image blocks hug their display size instead of stretching to the
+            // stack width, which leaves their horizontal position ambiguous;
+            // AppKit resolves that to the trailing edge, so pin them leading.
+            if view is AppKitMarkdownImageBlockView {
+                view.leadingAnchor.constraint(equalTo: stackView.leadingAnchor).isActive = true
+            }
+        }
         updateImageDisplayWidths()
         invalidateMarkdownHeight()
     }
