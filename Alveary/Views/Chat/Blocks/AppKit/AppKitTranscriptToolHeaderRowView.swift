@@ -155,8 +155,8 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         iconView.isHidden = !configuration.showsLeadingIcon
         let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
         iconView.image = NSImage(systemSymbolName: systemSymbolName(for: configuration.leadingIcon), accessibilityDescription: nil)
-        iconView.setDynamicContentTintColor(transcriptInlineToolRowColor)
-        iconView.symbolConfiguration = .init(pointSize: metrics.leadingIconSize, weight: .regular)
+        iconView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
+        iconView.symbolConfiguration = .init(pointSize: metrics.leadingIconSize, weight: .heavy)
         iconView.layer?.setAffineTransform(.identity)
     }
 

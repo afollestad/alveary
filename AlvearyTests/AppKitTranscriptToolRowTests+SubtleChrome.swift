@@ -31,13 +31,13 @@ extension AppKitTranscriptToolRowTests {
         let plainColor = try XCTUnwrap(textStorage.attribute(.foregroundColor, at: plainRange.location, effectiveRange: nil) as? NSColor)
         let codeColor = try XCTUnwrap(textStorage.attribute(.foregroundColor, at: codeRange.location, effectiveRange: nil) as? NSColor)
         let codeBackground = try XCTUnwrap(textStorage.attribute(.backgroundColor, at: codeRange.location, effectiveRange: nil) as? NSColor)
-        let expectedColor = transcriptInlineToolRowColor.appKitResolvedColor(in: header)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
         let expectedBackground = transcriptInlineToolRowColor.appKitResolvedColor(in: header, alpha: 0.08)
 
         XCTAssertEqual(plainFont.pointSize, typography.size(for: .inlineToolText))
         XCTAssertEqual(codeFont.pointSize, typography.size(for: .inlineToolText))
-        XCTAssertEqual(plainColor.appKitResolvedColor(in: header), expectedColor)
-        XCTAssertEqual(codeColor.appKitResolvedColor(in: header), expectedColor)
+        XCTAssertEqual(plainColor.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(codeColor.resolved(for: header.appKitRenderingAppearance), expectedColor)
         XCTAssertEqual(codeBackground.resolved(for: header.appKitRenderingAppearance), expectedBackground)
     }
 
@@ -62,7 +62,7 @@ extension AppKitTranscriptToolRowTests {
 
         let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
         let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
-        let expectedColor = transcriptInlineToolRowColor.appKitResolvedColor(in: header)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
 
         XCTAssertEqual(icon.frame.width, metrics.controlSize)
         XCTAssertEqual(metrics.iconTextSpacing, 3)
@@ -70,14 +70,14 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(metrics.leadingIconSize, typography.size(for: .inlineToolIndicator) + 2)
         XCTAssertEqual(metrics.statusIconSize, typography.size(for: .inlineToolIndicator) - 2)
         XCTAssertEqual(header.leadingIconSystemNameForTesting, "doc.text")
-        XCTAssertEqual(icon.contentTintColor?.appKitResolvedColor(in: header), expectedColor)
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedColor)
         XCTAssertEqual(statusView.frame.width, metrics.controlSize)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
         XCTAssertEqual(statusView.statusSymbolPointSizeForTesting, metrics.statusIconSize)
 
         header.setDisclosureHoveredForTesting(true)
         XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.appKitResolvedColor(in: header), expectedColor)
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedColor)
     }
 
     func testHeaderChromeUsesBrighterSharedColorInDarkMode() throws {
@@ -98,11 +98,11 @@ extension AppKitTranscriptToolRowTests {
         let plainColor = try XCTUnwrap(textStorage.attribute(.foregroundColor, at: plainRange.location, effectiveRange: nil) as? NSColor)
         let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
         let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
-        let expectedColor = transcriptInlineToolRowColor.appKitResolvedColor(in: header)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
 
-        XCTAssertEqual(expectedColor, NSColor.secondaryLabelColor.appKitResolvedColor(in: header))
-        XCTAssertEqual(plainColor.appKitResolvedColor(in: header), expectedColor)
-        XCTAssertEqual(icon.contentTintColor?.appKitResolvedColor(in: header), expectedColor)
+        XCTAssertEqual(expectedColor, NSColor.secondaryLabelColor.resolved(for: header.appKitRenderingAppearance))
+        XCTAssertEqual(plainColor.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedColor)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
     }
 

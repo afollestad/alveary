@@ -122,7 +122,7 @@ final class AppKitDynamicColorTextField: NSTextField {
 /// effective-appearance changes.
 final class AppKitDynamicTintImageView: NSImageView {
     private var dynamicTintColor: NSColor?
-    private var dynamicTintAlpha: CGFloat = 1
+    private var dynamicTintAlpha: CGFloat? = 1
 
     override var image: NSImage? {
         didSet {
@@ -143,6 +143,13 @@ final class AppKitDynamicTintImageView: NSImageView {
         refreshDynamicTintColor()
     }
 
+    /// Use for semantic label colors whose resolved alpha must match adjacent text.
+    func setDynamicContentTintColorPreservingAlpha(_ color: NSColor?) {
+        dynamicTintColor = color
+        dynamicTintAlpha = nil
+        refreshDynamicTintColor()
+    }
+
     func setDynamicContentTintColor(_ color: NSColor?, alpha: CGFloat) {
         dynamicTintColor = color
         dynamicTintAlpha = alpha
@@ -160,7 +167,12 @@ final class AppKitDynamicTintImageView: NSImageView {
     }
 
     private func refreshDynamicTintColor() {
-        contentTintColor = dynamicTintColor?.appKitResolvedColor(in: self, alpha: dynamicTintAlpha)
+        guard let dynamicTintColor else {
+            contentTintColor = nil
+            return
+        }
+        let resolved = dynamicTintColor.resolved(for: appKitRenderingAppearance)
+        contentTintColor = dynamicTintAlpha.map { resolved.withAlphaComponent($0) } ?? resolved
     }
 }
 
