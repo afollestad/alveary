@@ -78,41 +78,38 @@ final class AppKitTranscriptCenteredNoteView: NSView {
 
     private func layoutContent() {
         let iconSize = centeredNoteIconSize()
-        let textMaxWidth = max(bounds.width - iconSize - centeredNoteSpacing, 0)
-        let textWidth = min(textNaturalWidth(), textMaxWidth)
+        let naturalTextWidth = textNaturalWidth()
+        let textHorizontalInset = centeredNoteTextHorizontalInset(naturalTextWidth: naturalTextWidth)
+        let textLeadingInset = textHorizontalInset / 2
+        let frameSpacing = max(centeredNoteSpacing - textLeadingInset, 0)
+        let textMaxWidth = max(bounds.width - iconSize - frameSpacing, 0)
+        let textWidth = min(naturalTextWidth, textMaxWidth)
         textField.frame = NSRect(x: 0, y: 0, width: textWidth, height: textHeight(for: textWidth))
 
         iconView.frame = NSRect(x: 0, y: 0, width: iconSize, height: iconSize)
-        let contentWidth = iconSize + centeredNoteSpacing + textField.frame.width
+        let textVisibleWidth = max(textField.frame.width - textHorizontalInset, 0)
+        let contentWidth = iconSize + centeredNoteSpacing + textVisibleWidth
         let originX = max((bounds.width - contentWidth) / 2, 0)
         let contentHeight = max(iconSize, textField.frame.height)
         let originY = centeredNoteVerticalPadding + max((contentHeight - iconSize) / 2, 0)
         iconView.frame.origin = NSPoint(x: originX, y: originY)
         textField.frame.origin = NSPoint(
-            x: iconView.frame.maxX + centeredNoteSpacing,
+            x: iconView.frame.maxX + centeredNoteSpacing - textLeadingInset,
             y: centeredNoteVerticalPadding + max((contentHeight - textField.frame.height) / 2, 0)
         )
     }
 
     private func updateAppearance() {
-        textField.textColor = centeredNoteForegroundColor()
+        textField.textColor = transcriptInlineToolRowColor
         updateIconSymbolConfiguration()
     }
 
     private func updateIconSymbolConfiguration() {
         let pointSize = configuration?.typography.size(for: .body) ?? TranscriptTypography().size(for: .body)
-        let iconColor = textField.textColor ?? centeredNoteForegroundColor()
-        // SwiftUI applies `.transcriptFont(.body, weight: .medium)` and
-        // `.foregroundStyle(.secondary)` to both the label and `info.circle`.
-        // AppKit's template tint alone can leave SF Symbols brighter in dark
-        // mode, so also pin the symbol hierarchy to the label's resolved color.
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium, scale: .medium)
-            .applying(.init(hierarchicalColor: iconColor))
-        iconView.setDynamicContentTintColor(.labelColor, alpha: centeredNoteForegroundAlpha)
-    }
-
-    private func centeredNoteForegroundColor() -> NSColor {
-        NSColor.labelColor.appKitResolvedColor(in: self, alpha: centeredNoteForegroundAlpha)
+        // The centered note label stays medium-weight, while the leading symbol
+        // uses the requested heavier monochrome SF Symbol treatment.
+        iconView.symbolConfiguration = centeredNoteSymbolConfiguration(pointSize: pointSize)
+        iconView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
     }
 
     private func measuredHeight() -> CGFloat {
@@ -125,11 +122,15 @@ final class AppKitTranscriptCenteredNoteView: NSView {
 
     private func centeredNoteIconSize() -> CGFloat {
         let pointSize = configuration?.typography.size(for: .body) ?? TranscriptTypography().size(for: .body)
-        let configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium, scale: .medium)
         let imageSize = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)?
+            .withSymbolConfiguration(centeredNoteSymbolConfiguration(pointSize: pointSize))?
             .size
         return ceil(max(imageSize?.width ?? pointSize, imageSize?.height ?? pointSize))
+    }
+
+    private func centeredNoteSymbolConfiguration(pointSize: CGFloat) -> NSImage.SymbolConfiguration {
+        NSImage.SymbolConfiguration(pointSize: pointSize, weight: centeredNoteIconWeight, scale: .medium)
+            .applying(.preferringMonochrome())
     }
 
     private func textNaturalWidth() -> CGFloat {
@@ -143,6 +144,18 @@ final class AppKitTranscriptCenteredNoteView: NSView {
         // padding. Plain attributed-string width is a few points too narrow and
         // can wrap "Session handoff" after the first word, clipping "handoff".
         return ceil(textField.cell?.cellSize(forBounds: unconstrainedBounds).width ?? textField.fittingSize.width)
+    }
+
+    private func centeredNoteTextHorizontalInset(naturalTextWidth: CGFloat) -> CGFloat {
+        max(naturalTextWidth - attributedTextNaturalWidth(), 0)
+    }
+
+    private func attributedTextNaturalWidth() -> CGFloat {
+        let rect = textField.attributedStringValue.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude / 2, height: CGFloat.greatestFiniteMagnitude / 2),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        return ceil(rect.width)
     }
 
     private func textHeight(for width: CGFloat) -> CGFloat {
@@ -167,6 +180,6 @@ final class AppKitTranscriptCenteredNoteView: NSView {
     }
 }
 
-private let centeredNoteSpacing: CGFloat = 8
+private let centeredNoteSpacing: CGFloat = 6
 private let centeredNoteVerticalPadding: CGFloat = 16
-private let centeredNoteForegroundAlpha: CGFloat = 0.62
+private let centeredNoteIconWeight: NSFont.Weight = .heavy

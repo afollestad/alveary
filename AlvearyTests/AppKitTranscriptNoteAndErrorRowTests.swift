@@ -15,11 +15,15 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertEqual(label.stringValue, "Entered plan mode")
         XCTAssertEqual(label.accessibilityLabel(), "Entered plan mode")
         let icon = try XCTUnwrap(note.descendants(of: NSImageView.self).first)
-        XCTAssertEqual(note.intrinsicContentSize.height, 49)
-        XCTAssertEqual(icon.frame.union(label.frame).midX, note.bounds.midX, accuracy: 1)
-        XCTAssertEqual(icon.contentTintColor, label.textColor)
-        XCTAssertEqual(icon.frame.size, NSSize(width: 17, height: 17))
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: note.appKitRenderingAppearance)
+        XCTAssertEqual(note.intrinsicContentSize.height, 48)
+        XCTAssertEqual((icon.frame.minX + label.visibleTextMaxX) / 2, note.bounds.midX, accuracy: 1)
+        XCTAssertEqual(label.textColor?.resolved(for: note.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: note.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(label.visibleTextMinX - icon.frame.maxX, 6, accuracy: 0.5)
+        XCTAssertEqual(icon.frame.size, NSSize(width: 16, height: 16))
         XCTAssertEqual(icon.frame.midY, label.frame.midY, accuracy: 1)
+        XCTAssertTrue(String(describing: icon.symbolConfiguration).contains("rendering style: Monochrome"))
     }
 
     func testCenteredNoteIconTintMatchesLabelInDarkMode() throws {
@@ -31,10 +35,12 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
 
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
         let icon = try XCTUnwrap(note.descendants(of: NSImageView.self).first)
-        let labelColor = try XCTUnwrap(label.textColor?.usingColorSpace(.sRGB))
-        let iconColor = try XCTUnwrap(icon.contentTintColor?.usingColorSpace(.sRGB))
-        XCTAssertEqual(iconColor, labelColor)
-        XCTAssertEqual(iconColor.alphaComponent, 0.62, accuracy: 0.01)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: note.appKitRenderingAppearance)
+        let labelColor = try XCTUnwrap(label.textColor?.resolved(for: note.appKitRenderingAppearance).usingColorSpace(.sRGB))
+        let iconColor = try XCTUnwrap(icon.contentTintColor?.resolved(for: note.appKitRenderingAppearance).usingColorSpace(.sRGB))
+        let expectedSRGBColor = try XCTUnwrap(expectedColor.usingColorSpace(.sRGB))
+        XCTAssertEqual(labelColor, expectedSRGBColor)
+        XCTAssertEqual(iconColor, expectedSRGBColor)
     }
 
     func testCenteredNoteRendersFullSessionHandoffText() throws {
@@ -148,5 +154,37 @@ private extension NSView {
             }
             return matches
         }
+    }
+}
+
+private extension NSTextField {
+    var visibleTextMinX: CGFloat {
+        frame.minX + textHorizontalInset / 2
+    }
+
+    var visibleTextMaxX: CGFloat {
+        frame.maxX - textHorizontalInset / 2
+    }
+
+    var textHorizontalInset: CGFloat {
+        max(naturalCellWidth - attributedNaturalWidth, 0)
+    }
+
+    var naturalCellWidth: CGFloat {
+        let unconstrainedBounds = NSRect(
+            x: 0,
+            y: 0,
+            width: CGFloat.greatestFiniteMagnitude / 2,
+            height: CGFloat.greatestFiniteMagnitude / 2
+        )
+        return ceil(cell?.cellSize(forBounds: unconstrainedBounds).width ?? fittingSize.width)
+    }
+
+    var attributedNaturalWidth: CGFloat {
+        let rect = attributedStringValue.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude / 2, height: CGFloat.greatestFiniteMagnitude / 2),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        return ceil(rect.width)
     }
 }
