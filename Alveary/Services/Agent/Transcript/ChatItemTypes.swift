@@ -410,7 +410,7 @@ extension ChatItem {
             return true
         }
         guard let submittedSummary = prompt.submittedSummary else {
-            return false
+            return true
         }
         return submittedSummary != ChatItemGrouper.handledPromptSummary
     }

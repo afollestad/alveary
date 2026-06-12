@@ -13,6 +13,7 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
     var onUserInitiatedHeightChange: (() -> Void)? {
         didSet {
             toolRowsByID.values.forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
+            promptRowsByID.values.forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
             subAgentRowsByID.values.forEach { $0.onUserInitiatedHeightChange = onUserInitiatedHeightChange }
         }
     }
@@ -27,6 +28,7 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
     private let connectorView = AppKitTranscriptElbowConnectorView()
     private var childViews: [NSView] = []
     private var toolRowsByID: [String: AppKitTranscriptInlineToolRowView] = [:]
+    private var promptRowsByID: [String: AppKitTranscriptPromptUsageRowView] = [:]
     private var subAgentRowsByID: [String: AppKitTranscriptSubAgentInlineRowView] = [:]
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -92,6 +94,13 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
             row.removeFromSuperview()
             return false
         }
+        promptRowsByID = promptRowsByID.filter { childID, row in
+            if liveIDs.contains(childID) {
+                return true
+            }
+            row.removeFromSuperview()
+            return false
+        }
         subAgentRowsByID = subAgentRowsByID.filter { childID, row in
             if liveIDs.contains(childID) {
                 return true
@@ -108,6 +117,8 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         switch child {
         case .tool(_, let expansionID, let tool):
             return toolRow(id: child.id, expansionID: expansionID, tool: tool, configuration: configuration)
+        case .prompt(_, let expansionID, let prompt):
+            return promptRow(id: child.id, expansionID: expansionID, prompt: prompt, configuration: configuration)
         case .subAgent(_, let expansionID, let agent):
             return subAgentRow(id: child.id, expansionID: expansionID, agent: agent, configuration: configuration)
         }
@@ -167,6 +178,32 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         return row
     }
 
+    private func promptRow(
+        id: String,
+        expansionID: String?,
+        prompt: PromptEntry,
+        configuration: Configuration
+    ) -> AppKitTranscriptPromptUsageRowView {
+        let row = promptRowsByID[id] ?? AppKitTranscriptPromptUsageRowView()
+        promptRowsByID[id] = row
+        row.usesLocalClipAnimationForExpansion = true
+        row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
+        row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        row.onExpansionChanged = expansionHandler(for: expansionID)
+        row.configure(
+            .init(
+                prompt: prompt,
+                initiallyExpanded: expansionID.map { configuration.expandedChildIDs.contains($0) } ?? false,
+                showsLeadingIcon: false,
+                typography: configuration.typography
+            )
+        )
+        if row.superview == nil {
+            addSubview(row)
+        }
+        return row
+    }
+
     private func expansionHandler(for expansionID: String?) -> ((Bool) -> Void)? {
         expansionID.map { expansionID in
             { [weak self] expanded in self?.onChildExpansionChanged?(expansionID, expanded) }
@@ -176,6 +213,9 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
     private func headerCenterY(for row: NSView) -> CGFloat? {
         if let toolRow = row as? AppKitTranscriptInlineToolRowView {
             return row.frame.minY + toolRow.headerVisualCenterY
+        }
+        if let promptRow = row as? AppKitTranscriptPromptUsageRowView {
+            return row.frame.minY + promptRow.headerVisualCenterY
         }
         if let subAgentRow = row as? AppKitTranscriptSubAgentInlineRowView {
             return row.frame.minY + subAgentRow.headerVisualCenterY

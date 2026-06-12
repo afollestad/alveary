@@ -2,12 +2,15 @@ import Foundation
 
 enum AppKitTranscriptActivityChild: Equatable {
     case tool(rowID: String, expansionID: String?, tool: ToolEntry)
+    case prompt(rowID: String, expansionID: String?, prompt: PromptEntry)
     case subAgent(rowID: String, expansionID: String?, agent: SubAgentEntry)
 
     var id: String {
         switch self {
         case .tool(_, _, let tool):
             "tool-\(tool.id)"
+        case .prompt(_, _, let prompt):
+            "prompt-\(prompt.id)"
         case .subAgent(_, _, let agent):
             "subagent-\(agent.id)"
         }
@@ -15,14 +18,14 @@ enum AppKitTranscriptActivityChild: Equatable {
 
     var rowID: String {
         switch self {
-        case .tool(let rowID, _, _), .subAgent(let rowID, _, _):
+        case .tool(let rowID, _, _), .prompt(let rowID, _, _), .subAgent(let rowID, _, _):
             rowID
         }
     }
 
     var expansionID: String? {
         switch self {
-        case .tool(_, let expansionID, _), .subAgent(_, let expansionID, _):
+        case .tool(_, let expansionID, _), .prompt(_, let expansionID, _), .subAgent(_, let expansionID, _):
             expansionID
         }
     }
@@ -31,6 +34,8 @@ enum AppKitTranscriptActivityChild: Equatable {
         switch self {
         case .tool(_, _, let tool):
             tool.isComplete
+        case .prompt(_, _, let prompt):
+            prompt.submittedSummary != nil
         case .subAgent(_, _, let agent):
             agent.isComplete
         }
@@ -40,6 +45,8 @@ enum AppKitTranscriptActivityChild: Equatable {
         switch self {
         case .tool(_, _, let tool):
             tool.isError
+        case .prompt:
+            false
         case .subAgent(_, _, let agent):
             agent.appKitHasFailedTool
         }
@@ -49,6 +56,8 @@ enum AppKitTranscriptActivityChild: Equatable {
         switch self {
         case .tool(_, _, let tool):
             tool.appKitRendersDetails
+        case .prompt(_, _, let prompt):
+            prompt.appKitRendersSubmittedDetails
         case .subAgent(_, _, let agent):
             agent.appKitRendersDetails
         }
@@ -179,10 +188,11 @@ enum AppKitTranscriptActivityGrouping {
             return !tool.appKitRendersExitPlanModeFollowUpPreview
         case .subAgentBlock(_, let agents):
             return !agents.isEmpty
+        case .promptBlock:
+            return true
         case .userMessage,
              .assistantMessage,
              .taskListBlock,
-             .promptBlock,
              .toolApproval,
              .toolApprovalBatch,
              .centeredNote,
@@ -201,10 +211,11 @@ enum AppKitTranscriptActivityGrouping {
         case .subAgentBlock(let id, let agents):
             let expansionID = agents.count == 1 ? id : nil
             return agents.map { .subAgent(rowID: id, expansionID: expansionID, agent: $0) }
+        case .promptBlock(let id, let prompt):
+            return [.prompt(rowID: id, expansionID: prompt.appKitRendersSubmittedDetails ? id : nil, prompt: prompt)]
         case .userMessage,
              .assistantMessage,
              .taskListBlock,
-             .promptBlock,
              .toolApproval,
              .toolApprovalBatch,
              .centeredNote,

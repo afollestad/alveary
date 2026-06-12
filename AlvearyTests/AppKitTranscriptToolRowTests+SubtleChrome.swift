@@ -133,6 +133,7 @@ extension AppKitTranscriptToolRowTests {
         assertHeaderIcon(.search, summary: "Searched for pattern", renders: "magnifyingglass")
         assertHeaderIcon(.edit, summary: "Edited AGENTS.md", renders: "pencil")
         assertHeaderIcon(.write, summary: "Wrote notes.md", renders: "pencil")
+        assertHeaderIcon(.subAgent, summary: "Explored 1 sub-agent", renders: "hat.widebrim")
     }
 }
 

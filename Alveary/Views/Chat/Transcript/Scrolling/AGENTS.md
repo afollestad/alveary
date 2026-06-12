@@ -42,9 +42,9 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
     - `.triple`: immediate, next-runloop, and 150ms AppKit request increments plus watchdog. Use for thread entry and content-growth callers.
     - `.single`: immediate AppKit request plus watchdog. Use container-shrink preserve-follow; metrics reissues cover the animation.
 - Keep retry requests as `appKitScrollToBottomRequest` increments so the representable coordinator owns the actual scroll command.
-- Active `AskUserQuestion` prompts render as composer interaction overlays, not transcript rows.
-  Keep unresolved and internally handled prompt blocks out of the AppKit transcript input, and let composer-height changes use the normal
-  follow/anchor preservation path. Submitted prompt summaries still render as transcript cards.
+- Active `AskUserQuestion` prompts keep answer controls in composer interaction overlays, but unresolved prompts also render passive
+  AppKit transcript usage rows. Keep internally handled prompt blocks out of the transcript input; composer-height changes still use the
+  normal follow/anchor preservation path.
 
 ## Pending Scroll Watchdog
 

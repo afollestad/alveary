@@ -96,4 +96,11 @@ enum TranscriptToolGroupSummaryFormatter {
             ? (isComplete ? "Explored 1 sub-agent" : "Exploring 1 sub-agent")
             : (isComplete ? "Explored \(count) sub-agents" : "Exploring \(count) sub-agents")
     }
+
+    static func promptQuestionSummary(count: Int, isComplete: Bool) -> String {
+        let displayCount = max(count, 1)
+        return displayCount == 1
+            ? (isComplete ? "Asked 1 question" : "Asking 1 question")
+            : (isComplete ? "Asked \(displayCount) questions" : "Asking \(displayCount) questions")
+    }
 }

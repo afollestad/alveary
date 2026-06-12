@@ -41,6 +41,9 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Collapsed visual activity-group headers use generic grouping copy like `Read 2 files, searched code, and edited 1 file`.
 - Groups of size 1 render the single tool row directly with specific text.
 - Standalone tools use the same inline row primitive and stay specific when alone; adjacent standalone tools may be visually wrapped in an activity group.
+- `AskUserQuestion` prompt usage rows participate in the same visual activity grouping as tool and sub-agent rows.
+    - Pending prompts summarize as `Asking N question(s)` and are not expandable.
+    - Submitted prompts summarize as `Asked N question(s)` and expand to question/answer details.
 - Expanded visual activity-group children keep their specific row text, file names, commands, and nested details.
 - A single-agent sub-agent block expands directly to that agent's tool rows.
 - Multi-agent expanded sub-agent blocks show nested sub-agent rows collapsed until explicitly opened.

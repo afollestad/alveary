@@ -23,11 +23,13 @@ extension AppKitTranscriptToolRowTests {
         header.layoutSubtreeIfNeeded()
 
         let spinner = try XCTUnwrap(header.descendants(of: AppKitStatusIndicatorSpinner.self).first)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: spinner.appKitRenderingAppearance)
         XCTAssertEqual(spinner.frame.width, metrics.statusIconSize)
         XCTAssertEqual(spinner.frame.height, metrics.statusIconSize)
+        XCTAssertEqual(spinner.arcStrokeColorForTesting, expectedColor)
         XCTAssertEqual(
-            spinner.arcStrokeColorForTesting,
-            transcriptInlineToolRowColor.appKitResolvedColor(in: spinner)
+            spinner.trackStrokeColorForTesting,
+            expectedColor.withAlphaComponent(expectedColor.alphaComponent * 0.25)
         )
     }
 }

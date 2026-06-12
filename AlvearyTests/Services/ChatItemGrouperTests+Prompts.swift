@@ -35,7 +35,7 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(prompt.submittedSummary, "A")
     }
 
-    func testPromptTranscriptVisibilityHidesPendingAndHandledPromptsButKeepsSubmittedSummaries() {
+    func testPromptTranscriptVisibilityKeepsPendingAndSubmittedPromptsButHidesHandledPrompts() {
         let question = PromptEntry.PromptQuestion(
             question: "Pick one",
             header: nil,
@@ -57,8 +57,7 @@ extension ChatItemGrouperTests {
 
         let visibleItems = [pendingPrompt, submittedPrompt, handledPrompt].visibleTranscriptItems
 
-        XCTAssertEqual(visibleItems.count, 1)
-        XCTAssertEqual(visibleItems.first?.id, "submitted")
+        XCTAssertEqual(visibleItems.map(\.id), ["pending", "submitted"])
     }
 
     func testNewPromptReplacesUnansweredPromptAndDropsRetryChatter() {

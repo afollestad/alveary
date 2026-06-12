@@ -109,16 +109,26 @@ extension ChatItem {
             return tool.appKitRendersDetails ? id : nil
         case .subAgentBlock(let id, let agents):
             return agents.appKitSubAgentBlockRendersDetails ? id : nil
+        case .promptBlock(let id, let prompt):
+            return prompt.appKitRendersSubmittedDetails ? id : nil
         case .userMessage,
              .assistantMessage,
              .taskListBlock,
-             .promptBlock,
              .toolApproval,
              .toolApprovalBatch,
              .centeredNote,
              .error:
             return nil
         }
+    }
+}
+
+extension PromptEntry {
+    var appKitRendersSubmittedDetails: Bool {
+        guard let submittedSummary else {
+            return false
+        }
+        return !submittedSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

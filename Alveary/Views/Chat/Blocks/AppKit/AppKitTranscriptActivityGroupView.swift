@@ -258,6 +258,11 @@ final class AppKitTranscriptActivityGroupView: NSView {
                     order.append(key)
                 }
                 counts[key, default: 0] += 1
+            case .prompt(_, _, let prompt):
+                if counts["PromptQuestion"] == nil {
+                    order.append("PromptQuestion")
+                }
+                counts["PromptQuestion", default: 0] += max(prompt.questions.count, 1)
             case .subAgent:
                 if subAgentCount == 0 {
                     order.append("SubAgent")
@@ -270,6 +275,9 @@ final class AppKitTranscriptActivityGroupView: NSView {
             if key == "SubAgent" {
                 return TranscriptToolGroupSummaryFormatter.subAgentSummary(count: subAgentCount, isComplete: isComplete)
             }
+            if key == "PromptQuestion" {
+                return TranscriptToolGroupSummaryFormatter.promptQuestionSummary(count: counts[key] ?? 0, isComplete: isComplete)
+            }
             return TranscriptToolGroupSummaryFormatter.toolCategorySummary(for: key, count: counts[key] ?? 0, isComplete: isComplete)
         }
         return TranscriptToolGroupSummaryFormatter.joinedSummaries(summaries)
@@ -280,6 +288,8 @@ final class AppKitTranscriptActivityGroupView: NSView {
             switch child {
             case .tool(_, _, let tool):
                 tool.transcriptLeadingIconKind
+            case .prompt:
+                TranscriptToolLeadingIconKind.question
             case .subAgent:
                 TranscriptToolLeadingIconKind.subAgent
             }
@@ -293,6 +303,7 @@ final class AppKitTranscriptActivityGroupView: NSView {
             .edit,
             .write,
             .skill,
+            .question,
             .subAgent,
             .genericTool
         ] where icons.contains(preferred) {

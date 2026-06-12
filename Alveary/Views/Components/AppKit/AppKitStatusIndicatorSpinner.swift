@@ -17,10 +17,17 @@ final class AppKitStatusIndicatorSpinner: NSView {
     private let arcLayer = CAShapeLayer()
     private let color: NSColor
     private let lineWidth: CGFloat
+    private let preservesResolvedColorAlpha: Bool
 
-    init(frame frameRect: NSRect = .zero, lineWidth: CGFloat = 2, color: NSColor = .secondaryLabelColor) {
+    init(
+        frame frameRect: NSRect = .zero,
+        lineWidth: CGFloat = 2,
+        color: NSColor = .secondaryLabelColor,
+        preservesResolvedColorAlpha: Bool = false
+    ) {
         self.color = color
         self.lineWidth = lineWidth
+        self.preservesResolvedColorAlpha = preservesResolvedColorAlpha
         super.init(frame: frameRect)
         wantsLayer = true
         for shape in [trackLayer, arcLayer] {
@@ -71,8 +78,11 @@ final class AppKitStatusIndicatorSpinner: NSView {
     }
 
     private func refreshColors() {
-        let resolved = color.appKitResolvedColor(in: self)
-        trackLayer.strokeColor = resolved.withAlphaComponent(0.25).cgColor
+        let resolved = preservesResolvedColorAlpha ?
+            color.resolved(for: appKitRenderingAppearance) :
+            color.appKitResolvedColor(in: self)
+        let trackAlpha = preservesResolvedColorAlpha ? resolved.alphaComponent * 0.25 : 0.25
+        trackLayer.strokeColor = resolved.withAlphaComponent(trackAlpha).cgColor
         arcLayer.strokeColor = resolved.cgColor
         trackLayer.lineWidth = lineWidth
         arcLayer.lineWidth = lineWidth
@@ -100,6 +110,13 @@ final class AppKitStatusIndicatorSpinner: NSView {
 
 #if DEBUG
 extension AppKitStatusIndicatorSpinner {
+    var trackStrokeColorForTesting: NSColor? {
+        guard let strokeColor = trackLayer.strokeColor else {
+            return nil
+        }
+        return NSColor(cgColor: strokeColor)
+    }
+
     var arcStrokeColorForTesting: NSColor? {
         guard let strokeColor = arcLayer.strokeColor else {
             return nil

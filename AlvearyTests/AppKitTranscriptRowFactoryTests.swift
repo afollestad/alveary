@@ -92,21 +92,21 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertNotNil(approvalBlock.descendants(of: NSSegmentedControl.self).first { $0.label(forSegment: 0) == "Approve similar" })
     }
 
-    func testPromptBusyStateIsPromptSpecific() {
+    func testPendingPromptBuildsPassiveUsageRow() throws {
         let factory = AppKitTranscriptRowFactory()
-        let prompt = PromptEntry(id: "prompt", questions: [], submittedSummary: nil)
-        var checkedPromptID: String?
+        let prompt = PromptEntry(id: "prompt", questions: [promptQuestion()], submittedSummary: nil)
 
         let rows = factory.makeRows(
             for: [.promptBlock(id: "prompt-row", prompt: prompt)],
-            configuration: .init(isPromptBusy: { prompt in
-                checkedPromptID = prompt.id
-                return true
-            })
+            configuration: .init()
         )
+        let row = try XCTUnwrap(rows.first?.view as? AppKitTranscriptPromptUsageRowView)
+        row.frame = NSRect(x: 0, y: 0, width: 520, height: 400)
+        row.layoutSubtreeIfNeeded()
 
-        XCTAssertEqual(checkedPromptID, "prompt")
-        XCTAssertTrue(rows[0].view is AppKitTranscriptPromptBlockView)
+        XCTAssertEqual(rows.map(\.id), ["prompt-row"])
+        XCTAssertTrue(row.renderedText.contains("Asking 1 question"))
+        XCTAssertFalse(row.renderedText.contains("Pick one"))
     }
 
     func testTransientRowsAppendAfterChatItems() {
@@ -460,9 +460,23 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
     private func task(id: String) -> TaskEntry {
         TaskEntry(id: id, content: "Review", activeForm: nil, status: .pending)
     }
+
+    private func promptQuestion(_ question: String = "Pick one") -> PromptEntry.PromptQuestion {
+        PromptEntry.PromptQuestion(
+            question: question,
+            header: nil,
+            options: [PromptEntry.PromptOption(label: "A", description: "First")],
+            multiSelect: false
+        )
+    }
 }
 
 private extension NSView {
+    var renderedText: String {
+        descendants(of: NSTextField.self).map(\.stringValue).joined(separator: "\n") + "\n"
+            + descendants(of: AppKitMarkdownTextView.self).map(\.string).joined(separator: "\n")
+    }
+
     func descendants<ViewType: NSView>(of type: ViewType.Type) -> [ViewType] {
         subviews.flatMap { child -> [ViewType] in
             var matches = child.descendants(of: type)

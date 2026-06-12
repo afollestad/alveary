@@ -317,8 +317,10 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             return "book"
         case .checklist:
             return "checklist"
+        case .question:
+            return "questionmark"
         case .subAgent:
-            return "person.crop.circle"
+            return "hat.widebrim"
         case .toolGroup:
             return "wrench.and.screwdriver"
         case .genericTool:

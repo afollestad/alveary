@@ -37,6 +37,151 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertTrue(headers.dropFirst().allSatisfy { !$0.showsLeadingIconForTesting })
     }
 
+    func testPendingPromptParticipatesInActivityGroupSummaryWithoutChildExpansion() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let prompt = PromptEntry(
+            id: "prompt-1",
+            questions: [
+                activityPromptQuestion("Choose syntax?"),
+                activityPromptQuestion("Choose preview location?")
+            ],
+            submittedSummary: nil
+        )
+        let items: [ChatItem] = [
+            .toolGroup(
+                id: "tools",
+                tools: [activityTool(id: "read-1", name: "Read", summary: "Reading AGENTS.md", isComplete: true)]
+            ),
+            .promptBlock(id: "prompt-row", prompt: prompt),
+            .standaloneTool(
+                id: "edit-row",
+                tool: activityTool(id: "edit-1", name: "Edit", summary: "Edit `Sources/Foo.swift`", isComplete: true)
+            )
+        ]
+
+        let rows = factory.makeRows(for: items, configuration: .init(expandedRowIDs: ["activity-tools"]))
+        let expandableRowIDs = AppKitTranscriptActivityGrouping.expandableRowIDs(for: items)
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(rows.map(\.id), ["activity-tools"])
+        XCTAssertTrue(expandableRowIDs.contains("activity-tools"))
+        XCTAssertFalse(expandableRowIDs.contains("prompt-row"))
+        XCTAssertTrue(group.renderedText.contains("Reading 1 file, asking 2 questions, and editing 1 file"))
+        XCTAssertTrue(group.renderedText.contains("Asking 2 questions"))
+        XCTAssertFalse(group.renderedText.contains("Choose syntax?"))
+    }
+
+    func testPromptWithNoParsedQuestionsStillContributesOneQuestionToActivitySummary() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let prompt = PromptEntry(id: "prompt-1", questions: [], submittedSummary: nil)
+        let items: [ChatItem] = [
+            .standaloneTool(id: "read-row", tool: activityTool(id: "read-1", summary: "Read `AGENTS.md`", isComplete: false)),
+            .promptBlock(id: "prompt-row", prompt: prompt),
+            .promptBlock(
+                id: "parsed-prompt-row",
+                prompt: PromptEntry(id: "prompt-2", questions: [activityPromptQuestion("Parsed?")], submittedSummary: nil)
+            )
+        ]
+
+        let rows = factory.makeRows(for: items, configuration: .init(expandedRowIDs: ["activity-read-row"]))
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(rows.map(\.id), ["activity-read-row"])
+        XCTAssertTrue(group.renderedText.contains("Reading 1 file and asking 2 questions"))
+        XCTAssertTrue(group.renderedText.contains("Asking 1 question"))
+    }
+
+    func testSubmittedPromptUsageRowExpandsToQuestionAnswers() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let prompt = PromptEntry(
+            id: "prompt-1",
+            questions: [
+                activityPromptQuestion("When images are inserted as text, which Markdown source should the editor insert?"),
+                activityPromptQuestion("Where should the horizontal image preview strip live?")
+            ],
+            submittedSummary: """
+            Q: When images are inserted as text, which Markdown source should the editor insert?
+            A: Image Syntax (Recommended)
+
+            Q: Where should the horizontal image preview strip live?
+            A: Inside Editor (Recommended)
+            """
+        )
+
+        let rows = factory.makeRows(for: [.promptBlock(id: "prompt-row", prompt: prompt)], configuration: .init(expandedRowIDs: ["prompt-row"]))
+        let row = try XCTUnwrap(rows.first?.view as? AppKitTranscriptPromptUsageRowView)
+        row.frame = NSRect(x: 0, y: 0, width: 720, height: 1_000)
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(rows.map(\.id), ["prompt-row"])
+        XCTAssertEqual(AppKitTranscriptActivityGrouping.expandableRowIDs(for: [.promptBlock(id: "prompt-row", prompt: prompt)]), ["prompt-row"])
+        XCTAssertTrue(row.renderedText.contains("Asked 2 questions"))
+        XCTAssertTrue(row.renderedText.contains("When images are inserted as text"))
+        XCTAssertTrue(row.renderedText.contains("Image Syntax (Recommended)"))
+        XCTAssertTrue(row.renderedText.contains("Where should the horizontal image preview strip live?"))
+        XCTAssertTrue(row.renderedText.contains("Inside Editor (Recommended)"))
+    }
+
+    func testSubmittedPromptChildExpansionPersistsInsideMixedActivityGroup() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let prompt = PromptEntry(
+            id: "prompt-1",
+            questions: [activityPromptQuestion("Choose syntax?")],
+            submittedSummary: "Q: Choose syntax?\nA: Image Syntax"
+        )
+        let items: [ChatItem] = [
+            .standaloneTool(id: "read-row", tool: activityTool(id: "read-1", summary: "Read `AGENTS.md`")),
+            .promptBlock(id: "prompt-row", prompt: prompt)
+        ]
+        let migrated = AppKitTranscriptActivityGrouping.migratedExpandedRowIDs(["prompt-row"], for: items)
+
+        let rows = factory.makeRows(for: items, configuration: .init(expandedRowIDs: migrated))
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(migrated, ["activity-read-row", "prompt-row"])
+        XCTAssertTrue(group.renderedText.contains("Read 1 file and asked 1 question"))
+        XCTAssertTrue(group.renderedText.contains("Asked 1 question"))
+        XCTAssertTrue(group.renderedText.contains("Choose syntax?"))
+        XCTAssertTrue(group.renderedText.contains("Image Syntax"))
+        XCTAssertEqual(group.descendants(of: AppKitTranscriptPromptUsageRowView.self).first?.usesLocalClipAnimationForExpansion, true)
+    }
+
+    func testPromptReplacementKeepsActivityGroupCacheFresh() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let firstItems: [ChatItem] = [
+            .standaloneTool(id: "read-row", tool: activityTool(id: "read-1", summary: "Read `AGENTS.md`")),
+            .promptBlock(
+                id: "prompt-row",
+                prompt: PromptEntry(id: "prompt-1", questions: [activityPromptQuestion("First?")], submittedSummary: nil)
+            )
+        ]
+        let secondItems: [ChatItem] = [
+            .standaloneTool(id: "read-row", tool: activityTool(id: "read-1", summary: "Read `AGENTS.md`")),
+            .promptBlock(
+                id: "prompt-row",
+                prompt: PromptEntry(id: "prompt-2", questions: [activityPromptQuestion("Second?")], submittedSummary: "Q: Second?\nA: B")
+            )
+        ]
+
+        _ = factory.makeRows(for: firstItems, configuration: .init(expandedRowIDs: ["activity-read-row"]))
+        let rows = factory.makeRows(for: secondItems, configuration: .init(expandedRowIDs: ["activity-read-row", "prompt-row"]))
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(rows.map(\.id), ["activity-read-row"])
+        XCTAssertTrue(group.renderedText.contains("Asked 1 question"))
+        XCTAssertFalse(group.renderedText.contains("First?"))
+        XCTAssertTrue(group.renderedText.contains("Second?"))
+        XCTAssertTrue(group.renderedText.contains("B"))
+    }
+
     func testSingleFlattenedToolStaysSpecificAndUngrouped() throws {
         let factory = AppKitTranscriptRowFactory()
         let rows = factory.makeRows(
@@ -199,6 +344,15 @@ private func activityAgent(id: String) -> SubAgentEntry {
         result: "Found details",
         isComplete: false,
         toolUseCount: 0
+    )
+}
+
+private func activityPromptQuestion(_ question: String) -> PromptEntry.PromptQuestion {
+    PromptEntry.PromptQuestion(
+        question: question,
+        header: nil,
+        options: [PromptEntry.PromptOption(label: "A", description: "First")],
+        multiSelect: false
     )
 }
 

@@ -13,6 +13,7 @@ enum TranscriptToolLeadingIconKind: Equatable {
     case write
     case skill
     case checklist
+    case question
     case subAgent
     case toolGroup
     case genericTool

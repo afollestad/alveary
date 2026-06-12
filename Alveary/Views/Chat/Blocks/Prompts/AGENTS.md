@@ -3,14 +3,15 @@
 Rules for `AskUserQuestion` transcript artifacts.
 
 - Active unresolved `AskUserQuestion` prompts render as composer interaction
-  overlays, not prompt cards inside the transcript. Keep new active-prompt UI
-  behavior in the composer overlay path documented by `Alveary/Views/Chat/AGENTS.md`.
-- Transcript prompt blocks are for submitted-response summaries and any
-  compatibility display of already-handled prompt artifacts.
+  overlays for answering, plus passive transcript usage rows. Do not put answer
+  controls inside transcript rows.
+- Transcript prompt usage rows show pending `Asking N question(s)` copy and
+  become expandable submitted `Asked N question(s)` rows after responses are
+  saved.
 - Dismissed prompts are handled without a submitted-response card; normal
   interruption display is owned by the centered-note path.
 - Answered prompts render as structured Q/A rows.
-    - Title: `Submitted responses`.
+    - Use passive usage-row expansion in the transcript, not prompt-card chrome.
     - Put each question and answer on separate lines.
     - Keep 8pt between Q/A pairs.
     - Measure submitted Q/A labels with wrapped text height; `sizeToFit()` can clip long questions after width is constrained.

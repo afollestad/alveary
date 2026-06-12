@@ -19,7 +19,6 @@ final class AppKitTranscriptRowFactory {
         var hasUnansweredPrompt = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
-        var isPromptBusy: (PromptEntry) -> Bool = { _ in false }
         var suppressesApprovalControls: (ToolApprovalRequest) -> Bool = { _ in false }
         var selectedApprovalSelection: (ToolApprovalRequest) -> ToolApprovalSelection = { _ in .once }
         // Row-specific invalidation lets the AppKit container keep rows mounted
@@ -35,7 +34,6 @@ final class AppKitTranscriptRowFactory {
         var onApproveForSession: (ToolApprovalRequest, ToolApprovalSessionScope) -> Void = { _, _ in }
         var onDeny: (ToolApprovalRequest) -> Void = { _ in }
         var onSelectApprovalSelection: (ToolApprovalRequest, ToolApprovalSelection) -> Void = { _, _ in }
-        var onSubmitPrompt: (PromptEntry, [(question: String, answer: String)]) async -> String? = { _, _ in nil }
     }
 
     private var cachedViewsByRowID: [String: NSView] = [:]
@@ -256,15 +254,17 @@ final class AppKitTranscriptRowFactory {
         prompt: PromptEntry,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
-        let view = cachedView(for: id, as: AppKitTranscriptPromptBlockView.self)
+        let view = cachedView(for: id, as: AppKitTranscriptPromptUsageRowView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
-        view.onSubmit = { answers in
-            await configuration.onSubmitPrompt(prompt, answers)
+        view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
+        view.onExpansionChanged = { expanded in
+            configuration.onRowExpansionChanged(id, expanded)
         }
         view.configure(
             .init(
                 prompt: prompt,
-                isBusy: configuration.isPromptBusy(prompt),
+                initiallyExpanded: configuration.expandedRowIDs.contains(id) && prompt.appKitRendersSubmittedDetails,
+                canExpand: prompt.appKitRendersSubmittedDetails,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography
             )

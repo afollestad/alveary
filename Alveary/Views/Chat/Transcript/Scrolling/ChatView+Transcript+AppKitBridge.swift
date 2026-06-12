@@ -66,7 +66,6 @@ extension ChatTranscriptView {
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
-        configuration.isPromptBusy = { !viewModel.canSubmitPromptAnswer(promptId: $0.id) }
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
         configuration.onUserInitiatedHeightChange = {
             cancelPendingScrollForUserLocalHeightChange()
@@ -83,16 +82,6 @@ extension ChatTranscriptView {
             }
         }
         configureAppKitApprovalRows(&configuration)
-        configuration.onSubmitPrompt = { prompt, answers in
-            do {
-                return try await viewModel.answerPrompt(promptId: prompt.id, answers: answers)
-            } catch {
-                if viewModel.lastTurnError == nil {
-                    viewModel.lastTurnError = "Failed to send answer: \(error.localizedDescription)"
-                }
-                return nil
-            }
-        }
         return configuration
     }
 

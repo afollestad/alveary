@@ -233,18 +233,8 @@ private struct AppKitTranscriptPreparedUpdate {
             retryableFailedMessageIDs: rowConfiguration.retryableFailedMessageIDs,
             hasUnansweredPrompt: rowConfiguration.hasUnansweredPrompt,
             actionContextID: rowConfiguration.actionContextID,
-            promptBusyStates: promptBusyStates,
             approvalSelections: approvalSelections
         )
-    }
-
-    private var promptBusyStates: [String: Bool] {
-        Dictionary(items.compactMap { item in
-            guard case .promptBlock(_, let prompt) = item else {
-                return nil
-            }
-            return (prompt.id, rowConfiguration.isPromptBusy(prompt))
-        }, uniquingKeysWith: { _, latest in latest })
     }
 
     private var approvalSelections: [String: ToolApprovalSelection] {
@@ -279,7 +269,6 @@ private struct AppKitTranscriptPreparedUpdate {
         let retryableFailedMessageIDs: Set<String>
         let hasUnansweredPrompt: Bool
         let actionContextID: String
-        let promptBusyStates: [String: Bool]
         let approvalSelections: [String: ToolApprovalSelection]
     }
 }

@@ -11,7 +11,11 @@ private let appKitToolDisclosureExpandedRotation = -CGFloat.pi / 2
 @MainActor
 final class AppKitTranscriptToolStatusIndicatorView: NSView {
     private let symbolView = AppKitDynamicTintImageView()
-    private let spinnerView = AppKitStatusIndicatorSpinner(lineWidth: 1.5, color: transcriptInlineToolRowColor)
+    private let spinnerView = AppKitStatusIndicatorSpinner(
+        lineWidth: 1.5,
+        color: transcriptInlineToolRowColor,
+        preservesResolvedColorAlpha: true
+    )
     private var phase: ToolStatusPhase?
     private var displayedPhase: ToolStatusPhase?
     private var symbolSystemName: String?
