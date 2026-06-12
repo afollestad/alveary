@@ -306,8 +306,6 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.theme = "system"
         settings.codeFontFamily = "SF Mono"
-        settings.codeFontSize = 13
-        settings.chatFontSize = 14
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
 
@@ -327,8 +325,6 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.theme = "system"
         settings.codeFontFamily = "SF Mono"
-        settings.codeFontSize = 13
-        settings.chatFontSize = 14
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
 

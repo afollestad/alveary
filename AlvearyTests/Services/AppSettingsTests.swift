@@ -24,6 +24,13 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().defaultEnterBehavior, .queue)
     }
 
+    func testDefaultFontSizes() {
+        let settings = AppSettings()
+
+        XCTAssertEqual(settings.codeFontSize, 12)
+        XCTAssertEqual(settings.chatFontSize, 13)
+    }
+
     func testDefaultContextManagementSettings() {
         let settings = AppSettings()
 
@@ -132,6 +139,29 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.handoffPromptSendCountdownSeconds, AppSettings.defaultHandoffPromptSendCountdownSeconds)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertEqual(settings.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
+    func testDecodeDefaultsFontSizesWhenFieldsAreMissing() throws {
+        let json = Data(#"{"theme":"dark"}"#.utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.codeFontSize, 12)
+        XCTAssertEqual(settings.chatFontSize, 13)
+    }
+
+    func testDecodePreservesExplicitStoredOldDefaultFontSizes() throws {
+        let json = Data(
+            #"""
+            {
+              "codeFontSize": 13,
+              "chatFontSize": 14
+            }
+            """#.utf8
+        )
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.codeFontSize, 13)
+        XCTAssertEqual(settings.chatFontSize, 14)
     }
 
     func testDecodeDefaultsEnterBehaviorWhenFieldIsMissing() throws {

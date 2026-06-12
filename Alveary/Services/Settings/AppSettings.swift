@@ -43,8 +43,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var createWorktreeByDefault = false
     var theme = "system"
     var codeFontFamily = Self.defaultCodeFontFamily
-    var codeFontSize = 13
-    var chatFontSize = 14
+    var codeFontSize = 12
+    var chatFontSize = 13
     var diffViewerWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerCommitsTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
