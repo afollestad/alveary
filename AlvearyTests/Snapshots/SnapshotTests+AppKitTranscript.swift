@@ -292,7 +292,7 @@ extension SnapshotTests {
     func testAppKitTranscriptFullSurface() {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 560
-        configuration.expandedRowIDs = ["tools"]
+        configuration.expandedRowIDs = ["activity-tools"]
         configuration.pendingToolApproval = PendingToolApproval(request: sampleWriteApproval, status: .pending)
 
         assertMacSnapshot(

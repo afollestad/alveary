@@ -45,11 +45,15 @@ extension ChatTranscriptView {
     }
 
     func appKitRowConfiguration() -> AppKitTranscriptRowFactory.Configuration {
-        let expandableRowIDs = Set(appKitTranscriptItems.compactMap(\.appKitExpandableRowId))
-        let validExpandedRowIDs = expandedTranscriptRows.intersection(expandableRowIDs)
+        let expandableRowIDs = AppKitTranscriptActivityGrouping.expandableRowIDs(for: appKitTranscriptItems)
+        let migratedExpandedRowIDs = AppKitTranscriptActivityGrouping.migratedExpandedRowIDs(
+            expandedTranscriptRows,
+            for: appKitTranscriptItems
+        )
+        let validExpandedRowIDs = migratedExpandedRowIDs.intersection(expandableRowIDs)
         if validExpandedRowIDs != expandedTranscriptRows {
             Task { @MainActor in
-                expandedTranscriptRows = expandedTranscriptRows.intersection(expandableRowIDs)
+                expandedTranscriptRows = validExpandedRowIDs
             }
         }
 

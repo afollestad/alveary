@@ -26,7 +26,7 @@ extension AppKitTranscriptScrollContainerView {
         }
         guard let visibleAnchor,
               visibleAnchor.generation == paginationGeneration,
-              let rowFrame = transcriptDocumentView.rowFrame(for: visibleAnchor.rowID)
+              let rowFrame = rowFrame(for: visibleAnchor.rowID)
         else {
             return min(max(0, scrollOffsetY), maxY)
         }

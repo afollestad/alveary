@@ -104,8 +104,7 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
 
     override func layout() {
         super.layout()
-        let frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
-        symbolView.frame = frame
+        symbolView.frame = bounds
         positionSymbolLayer(rotation: symbolRotation)
         let spinnerSize = transcriptInlineToolRowMetrics(for: typography).statusIconSize
         let spinnerInsetX = max((bounds.width - spinnerSize) / 2, 0)

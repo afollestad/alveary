@@ -58,7 +58,7 @@ extension AppKitTranscriptToolRowTests {
 
         XCTAssertGreaterThan(summaryField.fittingSize.width, maxSummaryWidth)
         XCTAssertLessThan(summaryField.frame.width, maxSummaryWidth - 40)
-        XCTAssertEqual(statusView.frame.minX, summaryField.frame.maxX + metrics.textStatusSpacing, accuracy: 0.5)
+        XCTAssertEqual(statusView.frame.minX, summaryField.frame.maxX + metrics.textStatusSpacing - 4, accuracy: 0.5)
         XCTAssertLessThan(statusView.frame.minX, width - metrics.controlSize - 40)
     }
 

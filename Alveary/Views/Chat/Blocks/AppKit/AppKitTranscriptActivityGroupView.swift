@@ -2,21 +2,24 @@
 import Foundation
 
 @MainActor
-final class AppKitTranscriptToolGroupView: NSView {
+final class AppKitTranscriptActivityGroupView: NSView {
     struct Configuration: Equatable {
-        let tools: [ToolEntry]
+        let children: [AppKitTranscriptActivityChild]
         let initiallyExpanded: Bool
+        let expandedChildIDs: Set<String>
         let maxWidth: CGFloat
         let typography: TranscriptTypography
 
         init(
-            tools: [ToolEntry],
+            children: [AppKitTranscriptActivityChild],
             initiallyExpanded: Bool = false,
+            expandedChildIDs: Set<String> = [],
             maxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
-            self.tools = tools
+            self.children = children
             self.initiallyExpanded = initiallyExpanded
+            self.expandedChildIDs = expandedChildIDs
             self.maxWidth = maxWidth
             self.typography = typography
         }
@@ -25,26 +28,24 @@ final class AppKitTranscriptToolGroupView: NSView {
     var onHeightInvalidated: (() -> Void)?
     var onUserInitiatedHeightChange: (() -> Void)? {
         didSet {
-            singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-        }
-    }
-    var onExpansionChanged: ((Bool) -> Void)? {
-        didSet {
-            singleToolRow.onExpansionChanged = onExpansionChanged
         }
     }
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
-            singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
             nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        }
+    }
+    var onExpansionChanged: ((Bool) -> Void)?
+    var onChildExpansionChanged: ((String, Bool) -> Void)? {
+        didSet {
+            nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         }
     }
 
     private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
-    private let singleToolRow = AppKitTranscriptInlineToolRowView()
-    private let nestedRowsView = AppKitTranscriptNestedToolRowsView()
+    private let nestedRowsView = AppKitTranscriptMixedActivityRowsView()
     private var configuration: Configuration?
     private var isExpanded = false
     private var lastMeasuredHeight: CGFloat = -1
@@ -70,18 +71,23 @@ final class AppKitTranscriptToolGroupView: NSView {
 
     func configure(_ configuration: Configuration) {
         let previousConfiguration = self.configuration
-        let previousIDs = self.configuration?.tools.map(\.id)
-        let shouldResetExpansion = previousIDs != configuration.tools.map(\.id)
+        let previousChildIDs = self.configuration?.children.map(\.id)
+        let shouldResetExpansion = previousChildIDs != configuration.children.map(\.id)
+        let shouldSyncExpansion = !shouldResetExpansion &&
+            previousConfiguration?.initiallyExpanded != configuration.initiallyExpanded &&
+            isExpanded != configuration.initiallyExpanded
         let shouldRebuild = shouldResetExpansion ||
-            previousConfiguration?.tools != configuration.tools ||
+            shouldSyncExpansion ||
+            previousConfiguration?.children != configuration.children ||
+            previousConfiguration?.expandedChildIDs != configuration.expandedChildIDs ||
             previousConfiguration?.maxWidth != configuration.maxWidth ||
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
             isExpanded = configuration.initiallyExpanded
+        } else if shouldSyncExpansion {
+            isExpanded = configuration.initiallyExpanded
         }
-        // Local expansion changes echo back through SwiftUI as persisted
-        // `initiallyExpanded`; avoid rebuilding the already-updated group mid-animation.
         guard shouldRebuild else {
             return
         }
@@ -113,16 +119,12 @@ final class AppKitTranscriptToolGroupView: NSView {
         clipsToBounds = true
         clipView.translatesAutoresizingMaskIntoConstraints = true
         headerView.translatesAutoresizingMaskIntoConstraints = true
-        singleToolRow.translatesAutoresizingMaskIntoConstraints = true
         nestedRowsView.translatesAutoresizingMaskIntoConstraints = true
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
-        singleToolRow.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedRowsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
-        singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
-        singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-        singleToolRow.onExpansionChanged = onExpansionChanged
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         addSubview(clipView)
     }
 
@@ -132,27 +134,6 @@ final class AppKitTranscriptToolGroupView: NSView {
         }
 
         clipView.subviews.forEach { $0.removeFromSuperview() }
-        guard !configuration.tools.isEmpty else {
-            return
-        }
-        if configuration.tools.count <= 1, let only = configuration.tools.first {
-            clipView.addSubview(singleToolRow)
-            singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
-            singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-            singleToolRow.onExpansionChanged = onExpansionChanged
-            singleToolRow.configure(
-                .init(
-                    tool: only,
-                    initiallyExpanded: isExpanded,
-                    canExpand: only.appKitRendersDetails,
-                    maxWidth: configuration.maxWidth,
-                    typography: configuration.typography
-                )
-            )
-            return
-        }
-
-        clipView.addSubview(headerView)
         headerView.onToggle = { [weak self] in
             guard let self else {
                 return
@@ -161,22 +142,32 @@ final class AppKitTranscriptToolGroupView: NSView {
         }
         headerView.configure(
             .init(
-                summary: summary(for: configuration.tools),
-                leadingIcon: ToolEntry.transcriptGroupLeadingIconKind(for: configuration.tools),
-                phase: aggregateStatusPhase(for: configuration.tools),
+                summary: Self.summary(for: configuration.children),
+                leadingIcon: Self.leadingIcon(for: configuration.children),
+                phase: Self.aggregateStatusPhase(for: configuration.children),
                 isExpanded: isExpanded,
                 debounceStatus: true,
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )
         )
+        clipView.addSubview(headerView)
 
-        if isExpanded {
-            clipView.addSubview(nestedRowsView)
-            nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
-            nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-            nestedRowsView.configure(.init(tools: configuration.tools, typography: configuration.typography))
+        guard isExpanded else {
+            return
         }
+
+        clipView.addSubview(nestedRowsView)
+        nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
+        nestedRowsView.configure(
+            .init(
+                children: configuration.children,
+                expandedChildIDs: configuration.expandedChildIDs,
+                typography: configuration.typography
+            )
+        )
     }
 
     private func layoutContent() {
@@ -184,18 +175,6 @@ final class AppKitTranscriptToolGroupView: NSView {
             return
         }
         let width = contentWidth(for: configuration)
-        guard !configuration.tools.isEmpty else {
-            clipView.updateFrame(width: width, targetHeight: 0)
-            return
-        }
-        if configuration.tools.count <= 1 {
-            singleToolRow.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
-            singleToolRow.layoutSubtreeIfNeeded()
-            singleToolRow.frame.size.height = singleToolRow.intrinsicContentSize.height
-            clipView.updateFrame(width: width, targetHeight: singleToolRow.frame.height)
-            return
-        }
-
         headerView.frame = NSRect(x: 0, y: 0, width: width, height: CGFloat.greatestFiniteMagnitude / 2)
         headerView.layoutSubtreeIfNeeded()
         headerView.frame.size.height = headerView.intrinsicContentSize.height
@@ -204,6 +183,7 @@ final class AppKitTranscriptToolGroupView: NSView {
             clipView.updateFrame(width: width, targetHeight: headerView.frame.height)
             return
         }
+
         nestedRowsView.frame = NSRect(
             x: 0,
             y: headerView.frame.maxY,
@@ -225,21 +205,11 @@ final class AppKitTranscriptToolGroupView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        guard let configuration else {
-            return 0
-        }
-        guard !configuration.tools.isEmpty else {
-            return 0
-        }
-        if configuration.tools.count <= 1 {
-            return ceil(singleToolRow.intrinsicContentSize.height)
-        }
         let headerHeight = headerView.frame.height > 0 ? headerView.frame.height : headerView.intrinsicContentSize.height
         guard isExpanded else {
             return ceil(headerHeight)
         }
-        let nestedHeight = nestedRowsView.intrinsicContentSize.height
-        return ceil(headerHeight + nestedHeight)
+        return ceil(headerHeight + nestedRowsView.intrinsicContentSize.height)
     }
 
     private func invalidateTranscriptHeight(force: Bool) {
@@ -274,35 +244,72 @@ final class AppKitTranscriptToolGroupView: NSView {
         layoutContent()
     }
 
-    private func summary(for tools: [ToolEntry]) -> String {
-        TranscriptToolGroupSummaryFormatter.joinedSummaries(categorySummaries(for: tools))
-    }
-
-    private func aggregateStatusPhase(for tools: [ToolEntry]) -> ToolStatusPhase {
-        ToolStatusPhase(
-            isError: tools.contains(where: \.isError),
-            isComplete: !tools.isEmpty && tools.allSatisfy(\.isComplete)
-        )
-    }
-
-    private func categorySummaries(for tools: [ToolEntry]) -> [String] {
-        let isComplete = !tools.isEmpty && tools.allSatisfy(\.isComplete)
+    private static func summary(for children: [AppKitTranscriptActivityChild]) -> String {
+        let isComplete = !children.isEmpty && children.allSatisfy(\.isComplete)
         var order: [String] = []
         var counts: [String: Int] = [:]
-        for tool in tools {
-            let key = TranscriptToolGroupSummaryFormatter.toolCategoryKey(for: tool.name)
-            if counts[key] == nil {
-                order.append(key)
+        var subAgentCount = 0
+
+        for child in children {
+            switch child {
+            case .tool(_, _, let tool):
+                let key = TranscriptToolGroupSummaryFormatter.toolCategoryKey(for: tool.name)
+                if counts[key] == nil {
+                    order.append(key)
+                }
+                counts[key, default: 0] += 1
+            case .subAgent:
+                if subAgentCount == 0 {
+                    order.append("SubAgent")
+                }
+                subAgentCount += 1
             }
-            counts[key, default: 0] += 1
         }
-        return order.map { key in
-            TranscriptToolGroupSummaryFormatter.toolCategorySummary(for: key, count: counts[key] ?? 0, isComplete: isComplete)
+
+        let summaries = order.map { key in
+            if key == "SubAgent" {
+                return TranscriptToolGroupSummaryFormatter.subAgentSummary(count: subAgentCount, isComplete: isComplete)
+            }
+            return TranscriptToolGroupSummaryFormatter.toolCategorySummary(for: key, count: counts[key] ?? 0, isComplete: isComplete)
         }
+        return TranscriptToolGroupSummaryFormatter.joinedSummaries(summaries)
+    }
+
+    private static func leadingIcon(for children: [AppKitTranscriptActivityChild]) -> TranscriptToolLeadingIconKind {
+        let icons = children.map { child in
+            switch child {
+            case .tool(_, _, let tool):
+                tool.transcriptLeadingIconKind
+            case .subAgent:
+                TranscriptToolLeadingIconKind.subAgent
+            }
+        }
+        for preferred in [
+            TranscriptToolLeadingIconKind.terminal,
+            .search,
+            .folder,
+            .read,
+            .document,
+            .edit,
+            .write,
+            .skill,
+            .subAgent,
+            .genericTool
+        ] where icons.contains(preferred) {
+            return preferred
+        }
+        return .toolGroup
+    }
+
+    private static func aggregateStatusPhase(for children: [AppKitTranscriptActivityChild]) -> ToolStatusPhase {
+        ToolStatusPhase(
+            isError: children.contains(where: \.isError),
+            isComplete: !children.isEmpty && children.allSatisfy(\.isComplete)
+        )
     }
 }
 
-extension AppKitTranscriptToolGroupView: AppKitTranscriptFrameAnimatable {
+extension AppKitTranscriptActivityGroupView: AppKitTranscriptFrameAnimatable {
     func prepareSynchronizedFrameAnimation(from previousFrame: NSRect, to targetFrame: NSRect) {
         let targetWidth = min(contentWidth(for: configuration), targetFrame.width)
         clipView.prepareVisibleHeightAnimation(from: previousFrame.height, to: targetFrame.height, width: targetWidth)

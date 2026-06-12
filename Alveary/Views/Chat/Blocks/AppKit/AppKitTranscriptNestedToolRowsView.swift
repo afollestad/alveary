@@ -67,7 +67,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
-            row.configure(.init(tool: tool, typography: configuration.typography))
+            row.configure(.init(tool: tool, showsLeadingIcon: false, typography: configuration.typography))
             if row.superview == nil {
                 addSubview(row)
             }
@@ -127,7 +127,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
 }
 
 @MainActor
-private final class AppKitTranscriptElbowConnectorView: NSView {
+final class AppKitTranscriptElbowConnectorView: NSView {
     var metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography()) {
         didSet {
             needsDisplay = true

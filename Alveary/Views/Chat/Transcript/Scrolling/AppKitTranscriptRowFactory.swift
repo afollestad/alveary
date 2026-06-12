@@ -45,7 +45,7 @@ final class AppKitTranscriptRowFactory {
         transientRows: AppKitTranscriptTransientRows = .init(),
         configuration: Configuration
     ) -> [AppKitTranscriptLayoutRow] {
-        let rows = items.flatMap { layoutRows(for: $0, configuration: configuration) }
+        let rows = AppKitTranscriptActivityGrouping.visualRows(for: items).flatMap { layoutRows(for: $0, configuration: configuration) }
             + layoutRows(for: transientRows, configuration: configuration)
         let liveRowIDs = Set(rows.map(\.id))
         cachedViewsByRowID = cachedViewsByRowID.filter { rowID, _ in liveRowIDs.contains(rowID) }
@@ -55,7 +55,7 @@ final class AppKitTranscriptRowFactory {
     // `ChatItem` is the transcript sum type; keeping this dispatch here makes
     // row coverage exhaustive while the row-specific builders stay small.
     // swiftlint:disable:next cyclomatic_complexity
-    private func layoutRows(for item: ChatItem, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
+    func layoutRows(for item: ChatItem, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
         switch item {
         case .userMessage(let id, let text):
             return [textBubbleRow(id: id, role: .user, markdown: text, configuration: configuration)]
@@ -197,11 +197,9 @@ final class AppKitTranscriptRowFactory {
         tool: ToolEntry,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow? {
-        guard tool.previewOverride?.origin == .exitPlanModeFollowUp,
+        guard tool.appKitRendersExitPlanModeFollowUpPreview,
               let snapshot = MinimalToolContent.snapshot(for: tool),
-              snapshot.language == "markdown",
-              let content = snapshot.content,
-              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+              let content = snapshot.content else {
             return nil
         }
         return textBubbleRow(
@@ -425,7 +423,7 @@ final class AppKitTranscriptRowFactory {
         return approvals.first?.planMarkdown ?? actionableApproval.planMarkdown
     }
 
-    private func cachedView<View: NSView>(for rowID: String, as type: View.Type) -> View {
+    func cachedView<View: NSView>(for rowID: String, as type: View.Type) -> View {
         if let existing = cachedViewsByRowID[rowID] as? View {
             return existing
         }
@@ -434,7 +432,7 @@ final class AppKitTranscriptRowFactory {
         return view
     }
 
-    private func heightInvalidationHandler(
+    func heightInvalidationHandler(
         for rowID: String,
         animatesLayoutChanges: Bool = true,
         configuration: Configuration

@@ -21,14 +21,12 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         let firstRows = factory.makeRows(for: items, configuration: .init())
         let secondRows = factory.makeRows(for: items, configuration: .init())
 
-        XCTAssertEqual(firstRows.map(\.id), ["user", "assistant", "tools", "standalone", "agents", "tasks", "note", "error"])
+        XCTAssertEqual(firstRows.map(\.id), ["user", "assistant", "activity-tools", "tasks", "note", "error"])
         XCTAssertTrue(firstRows[0].view is AppKitTranscriptTextBubbleRowView)
-        XCTAssertTrue(firstRows[2].view is AppKitTranscriptToolGroupView)
-        XCTAssertTrue(firstRows[3].view is AppKitTranscriptInlineToolRowView)
-        XCTAssertTrue(firstRows[4].view is AppKitTranscriptSubAgentBlockView)
-        XCTAssertTrue(firstRows[5].view is AppKitTranscriptTaskListBlockView)
-        XCTAssertTrue(firstRows[6].view is AppKitTranscriptCenteredNoteView)
-        XCTAssertTrue(firstRows[7].view is AppKitTranscriptErrorBannerView)
+        XCTAssertTrue(firstRows[2].view is AppKitTranscriptActivityGroupView)
+        XCTAssertTrue(firstRows[3].view is AppKitTranscriptTaskListBlockView)
+        XCTAssertTrue(firstRows[4].view is AppKitTranscriptCenteredNoteView)
+        XCTAssertTrue(firstRows[5].view is AppKitTranscriptErrorBannerView)
         XCTAssertTrue(firstRows[0].view === secondRows[0].view)
     }
 
@@ -333,11 +331,11 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
                 expansionChanges.append((rowID, isExpanded))
             })
         )
-        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptToolGroupView)
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
 
         group.setExpanded(true)
 
-        XCTAssertEqual(expansionChanges.map(\.rowID), ["tools"])
+        XCTAssertEqual(expansionChanges.map(\.rowID), ["activity-tools"])
         XCTAssertEqual(expansionChanges.map(\.isExpanded), [true])
     }
 
@@ -410,15 +408,20 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(invalidatedRowIDs.isEmpty)
     }
 
-    private func tool(id: String) -> ToolEntry {
+    private func tool(
+        id: String,
+        name: String = "Read",
+        summary: String = "Read file",
+        isComplete: Bool = true
+    ) -> ToolEntry {
         ToolEntry(
             id: id,
-            name: "Read",
-            summary: "Read file",
+            name: name,
+            summary: summary,
             input: "{}",
             output: nil,
             stderr: nil,
-            isComplete: true,
+            isComplete: isComplete,
             isInterrupted: false,
             isImage: false,
             noOutputExpected: false,

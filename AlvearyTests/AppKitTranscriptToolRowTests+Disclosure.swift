@@ -25,6 +25,11 @@ extension AppKitTranscriptToolRowTests {
         header.setDisclosureHoveredForTesting(true)
         XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
         XCTAssertEqual(statusView.statusSymbolRotationForTesting, 0)
+        XCTAssertEqual(
+            try XCTUnwrap(statusView.statusSymbolLayerPositionForTesting).x,
+            statusView.bounds.width / 2,
+            accuracy: 0.5
+        )
 
         header.setDisclosureHoveredForTesting(false, animated: true)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)

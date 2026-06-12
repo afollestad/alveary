@@ -9,6 +9,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
     private(set) var paginationGeneration = 0
     var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)?
     var shouldForceBottomAfterCurrentMeasurement = false
+    private var rowIDAliases: [String: String] = [:]
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -36,11 +37,13 @@ final class AppKitTranscriptScrollContainerView: NSView {
     func configure(
         rows: [AppKitTranscriptLayoutRow],
         dirtyRowIDs: Set<String> = [],
+        rowIDAliases: [String: String] = [:],
         preserveBottomIfFollowing: Bool
     ) {
         let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
         let visibleAnchor = captureVisibleAnchor()
-        transcriptDocumentView.configure(rows: rows, dirtyRowIDs: dirtyRowIDs)
+        self.rowIDAliases = rowIDAliases
+        transcriptDocumentView.configure(rows: rows, dirtyRowIDs: Set(dirtyRowIDs.map(canonicalRowID(for:))))
         needsLayout = true
         layoutSubtreeIfNeeded()
         restoreScrollPosition(shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
@@ -73,7 +76,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
             return
         }
         if let rowID {
-            transcriptDocumentView.markRowHeightDirty(rowID)
+            transcriptDocumentView.markRowHeightDirty(canonicalRowID(for: rowID))
         } else {
             transcriptDocumentView.markAllRowHeightsDirty()
         }
@@ -119,7 +122,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
     @discardableResult
     func restoreVisibleAnchor(_ anchor: AppKitTranscriptVisibleAnchor) -> Bool {
         guard anchor.generation == paginationGeneration,
-              let rowFrame = transcriptDocumentView.rowFrame(for: anchor.rowID)
+              let rowFrame = rowFrame(for: anchor.rowID)
         else {
             return false
         }
@@ -158,7 +161,13 @@ final class AppKitTranscriptScrollContainerView: NSView {
     var documentHeight: CGFloat { transcriptDocumentView.frame.height }
 
     func rowFrame(for id: String) -> CGRect? {
-        transcriptDocumentView.rowFrame(for: id)
+        // Raw `ChatItem` row IDs can collapse into an activity group, so external
+        // row lookups stay on this path to follow the visual row after grouping.
+        transcriptDocumentView.rowFrame(for: canonicalRowID(for: id))
+    }
+
+    private func canonicalRowID(for rowID: String) -> String {
+        rowIDAliases[rowID] ?? rowID
     }
 
     private var isAtBottom: Bool {

@@ -9,6 +9,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         let initiallyExpanded: Bool
         let canExpand: Bool
         let maxWidth: CGFloat
+        let showsLeadingIcon: Bool
         let typography: TranscriptTypography
 
         init(
@@ -16,12 +17,14 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             initiallyExpanded: Bool = false,
             canExpand: Bool? = nil,
             maxWidth: CGFloat = .infinity,
+            showsLeadingIcon: Bool = true,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.tool = tool
             self.initiallyExpanded = initiallyExpanded
             self.canExpand = canExpand ?? tool.appKitRendersDetails
             self.maxWidth = maxWidth
+            self.showsLeadingIcon = showsLeadingIcon
             self.typography = typography
         }
     }
@@ -80,13 +83,19 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         let previousConfiguration = self.configuration
         let previousToolID = self.configuration?.tool.id
         let shouldResetExpansion = previousToolID != configuration.tool.id
+        let shouldSyncExpansion = !shouldResetExpansion &&
+            previousConfiguration?.initiallyExpanded != configuration.initiallyExpanded &&
+            isExpanded != configuration.initiallyExpanded
         let shouldRebuild = shouldResetExpansion ||
+            shouldSyncExpansion ||
             previousConfiguration?.tool != configuration.tool ||
             previousConfiguration?.canExpand != configuration.canExpand ||
             previousConfiguration?.maxWidth != configuration.maxWidth ||
             previousConfiguration?.typography != configuration.typography
         self.configuration = configuration
         if shouldResetExpansion {
+            isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
+        } else if shouldSyncExpansion {
             isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
         } else if !configuration.canExpand {
             isExpanded = false
@@ -158,6 +167,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
                 leadingIcon: configuration.tool.transcriptLeadingIconKind,
                 phase: configuration.tool.transcriptStatusPhase,
                 isExpanded: configuration.canExpand ? isExpanded : nil,
+                showsLeadingIcon: configuration.showsLeadingIcon,
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )

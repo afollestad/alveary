@@ -1,6 +1,8 @@
 @preconcurrency import AppKit
 import Foundation
 
+private let appKitTranscriptToolStatusSlotTextOffset: CGFloat = -4
+
 @MainActor
 final class AppKitTranscriptToolHeaderRowView: NSView {
     struct Configuration: Equatable {
@@ -8,6 +10,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         let leadingIcon: TranscriptToolLeadingIconKind
         let phase: ToolStatusPhase
         let isExpanded: Bool?
+        let showsLeadingIcon: Bool
         let debounceStatus: Bool
         let typography: TranscriptTypography
         let bottomPadding: CGFloat
@@ -17,6 +20,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             leadingIcon: TranscriptToolLeadingIconKind,
             phase: ToolStatusPhase,
             isExpanded: Bool? = nil,
+            showsLeadingIcon: Bool = true,
             debounceStatus: Bool = false,
             typography: TranscriptTypography = TranscriptTypography(),
             bottomPadding: CGFloat = transcriptInlineToolRowVerticalPadding
@@ -25,6 +29,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             self.leadingIcon = leadingIcon
             self.phase = phase
             self.isExpanded = isExpanded
+            self.showsLeadingIcon = showsLeadingIcon
             self.debounceStatus = debounceStatus
             self.typography = typography
             self.bottomPadding = bottomPadding
@@ -147,6 +152,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         guard let configuration else {
             return
         }
+        iconView.isHidden = !configuration.showsLeadingIcon
         let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
         iconView.image = NSImage(systemSymbolName: systemSymbolName(for: configuration.leadingIcon), accessibilityDescription: nil)
         iconView.setDynamicContentTintColor(transcriptInlineToolRowColor)
@@ -215,24 +221,29 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             metrics.controlSize,
             ceil(summaryField.fittingSize.height)
         )
-        iconView.frame = NSRect(
-            x: 0,
-            y: contentY + ((contentHeight - metrics.controlSize) / 2),
-            width: metrics.controlSize,
-            height: metrics.controlSize
-        )
+        if configuration.showsLeadingIcon {
+            iconView.frame = NSRect(
+                x: 0,
+                y: contentY + ((contentHeight - metrics.controlSize) / 2),
+                width: metrics.controlSize,
+                height: metrics.controlSize
+            )
+        } else {
+            iconView.frame = .zero
+        }
 
+        let leadingTextInset = configuration.showsLeadingIcon ? metrics.leadingTextInset : 0
         let availableSummaryWidth = max(
-            bounds.width - metrics.leadingTextInset - metrics.textStatusSpacing - metrics.controlSize,
+            bounds.width - leadingTextInset - metrics.textStatusSpacing - metrics.controlSize,
             0
         )
         let summaryWidth = measuredSummaryWidth(maxWidth: availableSummaryWidth, height: contentHeight)
         let statusX = max(0, min(
-            metrics.leadingTextInset + summaryWidth + metrics.textStatusSpacing,
+            leadingTextInset + summaryWidth + metrics.textStatusSpacing + appKitTranscriptToolStatusSlotTextOffset,
             bounds.width - metrics.controlSize
         ))
         summaryField.frame = NSRect(
-            x: metrics.leadingTextInset,
+            x: leadingTextInset,
             y: contentY + ((contentHeight - ceil(summaryField.fittingSize.height)) / 2),
             width: summaryWidth,
             height: ceil(summaryField.fittingSize.height)
@@ -320,6 +331,10 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
 extension AppKitTranscriptToolHeaderRowView {
     var leadingIconSystemNameForTesting: String? {
         configuration.map { systemSymbolName(for: $0.leadingIcon) }
+    }
+
+    var showsLeadingIconForTesting: Bool {
+        configuration?.showsLeadingIcon == true
     }
 
     func setDisclosureHoveredForTesting(_ hovered: Bool, animated: Bool = false) {

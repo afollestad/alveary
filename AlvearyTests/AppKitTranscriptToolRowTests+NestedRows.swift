@@ -30,6 +30,7 @@ extension AppKitTranscriptToolRowTests {
 
         let nestedRows = try XCTUnwrap(descendants(of: AppKitTranscriptNestedToolRowsView.self, in: group).first)
         let firstNestedHeader = try XCTUnwrap(descendants(of: AppKitTranscriptToolHeaderRowView.self, in: nestedRows).first)
+        XCTAssertFalse(firstNestedHeader.showsLeadingIconForTesting)
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         group.layoutSubtreeIfNeeded()
         let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview?.superview as? AppKitTranscriptInlineToolRowView)

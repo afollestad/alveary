@@ -472,11 +472,11 @@ private extension AppKitTranscriptScrollContainerView {
     }
 }
 
-private func bridgeTool() -> ToolEntry {
+private func bridgeTool(id: String = "tool-use", name: String = "Bash", summary: String = "Running `swift test`") -> ToolEntry {
     ToolEntry(
-        id: "tool-use",
-        name: "Bash",
-        summary: "Running `swift test`",
+        id: id,
+        name: name,
+        summary: summary,
         input: #"{"command":"swift test"}"#,
         output: (1...20).map { "line \($0)" }.joined(separator: "\n"),
         stderr: nil,

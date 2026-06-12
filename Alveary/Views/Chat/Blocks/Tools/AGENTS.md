@@ -32,17 +32,18 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Keep pressed feedback routed through the AppKit header control.
 - Do not move row toggling to scroll-view hit dispatch or bubble-wide gestures.
 - Expanded details stay as a sibling below the header so output selection and horizontal scrolling still work.
-- `ChatTranscriptView` owns top-level expansion bindings keyed by `ChatItem.id`.
+- `ChatTranscriptView` owns top-level expansion bindings keyed by visible row ids; visual activity groups use prefixed ids such as `activity-...`.
 - Row-local state is only for previews, snapshots, and nested rows.
 - Single-entry groups pass the parent-owned expansion state into the inline row.
 
 ## Groups And Sub-Agents
 
-- Tool group rows own grouping copy like `Reading 3 files, searching for 2 patterns`.
-- Groups of size 1 render the single tool row directly.
-- Standalone tools use the same inline row primitive; never wrap standalone rows in a parent group.
+- Collapsed visual activity-group headers use generic grouping copy like `Read 2 files, searched code, and edited 1 file`.
+- Groups of size 1 render the single tool row directly with specific text.
+- Standalone tools use the same inline row primitive and stay specific when alone; adjacent standalone tools may be visually wrapped in an activity group.
+- Expanded visual activity-group children keep their specific row text, file names, commands, and nested details.
 - A single-agent sub-agent block expands directly to that agent's tool rows.
-- Multi-agent expanded sub-agent blocks open each nested sub-agent row by default.
+- Multi-agent expanded sub-agent blocks show nested sub-agent rows collapsed until explicitly opened.
 - Sub-agent blocks use the same explicit animation pattern as tool rows.
 
 ## Details And Connectors

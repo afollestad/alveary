@@ -67,7 +67,14 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
-            row.configure(.init(agent: agent, canExpand: agent.appKitRendersDetails, typography: configuration.typography))
+            row.configure(
+                .init(
+                    agent: agent,
+                    canExpand: agent.appKitRendersDetails,
+                    showsLeadingIcon: false,
+                    typography: configuration.typography
+                )
+            )
             if row.superview == nil {
                 addSubview(row)
             }
@@ -127,14 +134,31 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
 }
 
 @MainActor
-private final class AppKitTranscriptSubAgentInlineRowView: NSView {
+final class AppKitTranscriptSubAgentInlineRowView: NSView {
     struct Configuration: Equatable {
         let agent: SubAgentEntry
         let canExpand: Bool
+        let initiallyExpanded: Bool
+        let showsLeadingIcon: Bool
         let typography: TranscriptTypography
+
+        init(
+            agent: SubAgentEntry,
+            canExpand: Bool,
+            initiallyExpanded: Bool = false,
+            showsLeadingIcon: Bool = true,
+            typography: TranscriptTypography
+        ) {
+            self.agent = agent
+            self.canExpand = canExpand
+            self.initiallyExpanded = initiallyExpanded
+            self.showsLeadingIcon = showsLeadingIcon
+            self.typography = typography
+        }
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onExpansionChanged: ((Bool) -> Void)?
     var onUserInitiatedHeightChange: (() -> Void)? {
         didSet {
             contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
@@ -188,10 +212,16 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        let previousConfiguration = self.configuration
         let shouldResetExpansion = self.configuration?.agent.id != configuration.agent.id
+        let shouldSyncExpansion = !shouldResetExpansion &&
+            previousConfiguration?.initiallyExpanded != configuration.initiallyExpanded &&
+            isExpanded != configuration.initiallyExpanded
         self.configuration = configuration
         if shouldResetExpansion {
-            isExpanded = false
+            isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
+        } else if shouldSyncExpansion {
+            isExpanded = configuration.canExpand ? configuration.initiallyExpanded : false
         } else if !configuration.canExpand {
             isExpanded = false
         }
@@ -212,6 +242,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         prepareLocalClipAnimationIfNeeded(from: previousHeight)
         needsLayout = true
         invalidateTranscriptHeight(force: true)
+        onExpansionChanged?(expanded)
     }
 
     override func layout() {
@@ -255,6 +286,7 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
                 leadingIcon: .subAgent,
                 phase: ToolStatusPhase(isError: configuration.agent.appKitHasFailedTool, isComplete: configuration.agent.isComplete),
                 isExpanded: configuration.canExpand ? isExpanded : nil,
+                showsLeadingIcon: configuration.showsLeadingIcon,
                 typography: configuration.typography,
                 bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )

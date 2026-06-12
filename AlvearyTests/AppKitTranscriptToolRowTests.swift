@@ -188,7 +188,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         group.layoutSubtreeIfNeeded()
         let collapsedHeight = group.intrinsicContentSize.height
 
-        XCTAssertTrue(group.renderedText.contains("Reading 1 file, searching for 1 pattern"))
+        XCTAssertTrue(group.renderedText.contains("Reading 1 file and searching code"))
 
         group.setExpanded(true)
         group.layoutSubtreeIfNeeded()
@@ -313,7 +313,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         )
         group.layoutSubtreeIfNeeded()
 
-        XCTAssertTrue(group.renderedText.contains("Read 1 file, searched for 1 pattern"))
+        XCTAssertTrue(group.renderedText.contains("Read 1 file and searched code"))
     }
 
     func testToolGroupDebouncesTerminalStatusAfterLoading() async throws {

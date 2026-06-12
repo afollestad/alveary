@@ -158,12 +158,14 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             )
         }
 
+        let rowIDAliases = AppKitTranscriptActivityGrouping.rowIDAliases(for: update.items)
         let rows = rowFactory.makeRows(for: update.items, transientRows: update.transientRows, configuration: rowConfiguration)
         isBuildingRows = false
         let hasPendingRowTopScroll = shouldHonorRowTopRequest(update.scrollToRowTopRequest)
         container.configure(
             rows: rows,
             dirtyRowIDs: pendingDirtyRowIDs,
+            rowIDAliases: rowIDAliases,
             preserveBottomIfFollowing: update.isFollowing && !hasPendingRowTopScroll
         )
         lastAppliedContentSignature = update.contentSignature

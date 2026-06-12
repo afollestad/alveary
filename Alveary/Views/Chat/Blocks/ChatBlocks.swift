@@ -23,7 +23,7 @@ let transcriptToolExpandedContentTopSpacing: CGFloat = 8
 let toolExpandedContentBottomSpacing: CGFloat = 8
 let transcriptToolNestedTopSpacing: CGFloat = 4
 let transcriptToolNestedRowSpacing: CGFloat = 2
-let transcriptToolElbowGap: CGFloat = 10
+let transcriptToolElbowGap: CGFloat = 4
 let transcriptInlineToolRowColor = NSColor(name: nil, dynamicProvider: { appearance in
     switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
     case .darkAqua:
@@ -34,7 +34,7 @@ let transcriptInlineToolRowColor = NSColor(name: nil, dynamicProvider: { appeara
 })
 let transcriptScrollLeadingInset: CGFloat = 20
 let transcriptScrollTrailingInset: CGFloat = 21
-let transcriptToolConnectorOpacity: Double = 0.45
+let transcriptToolConnectorOpacity: Double = 0.28
 let transcriptToolDetailLeadingInset = transcriptToolIconFrameSize + transcriptToolLeadingTextSpacing
 // Keep the parent proposal on the narrow side for wrapped tool output.
 // The output blocks inset their own trailing chrome by the remaining 5pt so the

@@ -45,6 +45,17 @@ enum MinimalToolContent {
 }
 
 extension ToolEntry {
+    var appKitRendersExitPlanModeFollowUpPreview: Bool {
+        guard previewOverride?.origin == .exitPlanModeFollowUp,
+              let snapshot = MinimalToolContent.snapshot(for: self),
+              snapshot.language == "markdown",
+              let content = snapshot.content,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return true
+    }
+
     var appKitRendersDetails: Bool {
         if name == "Skill" {
             return false
