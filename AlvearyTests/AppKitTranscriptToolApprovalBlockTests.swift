@@ -24,6 +24,28 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         XCTAssertEqual(block.visibleSplitControls.first?.menu?.items.map(\.title), ["Approve once", "Approve exactly", "Approve group"])
     }
 
+    func testApprovalHeaderKeepsApprovalTypographyAndMetrics() throws {
+        let block = AppKitTranscriptToolApprovalBlockView()
+        var settings = AppSettings()
+        settings.chatFontSize = 18
+        let typography = TranscriptTypography(settings: settings)
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                approval: approval(toolName: "Bash", input: #"{"command":"date"}"#),
+                status: .pending,
+                typography: typography
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+
+        let title = try XCTUnwrap(block.descendants(of: NSTextField.self).first { $0.stringValue == "Approve Bash command?" })
+        let icon = try XCTUnwrap(block.descendants(of: NSImageView.self).first)
+
+        XCTAssertEqual(title.font?.pointSize, typography.size(for: .toolSummary))
+        XCTAssertEqual(icon.frame.size, NSSize(width: transcriptToolIconFrameSize, height: transcriptToolIconFrameSize))
+    }
+
     func testIdenticalApprovalConfigurationDoesNotInvalidateHeight() {
         let block = AppKitTranscriptToolApprovalBlockView()
         let configuration = AppKitTranscriptToolApprovalBlockView.Configuration(

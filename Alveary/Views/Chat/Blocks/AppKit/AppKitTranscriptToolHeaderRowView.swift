@@ -1,15 +1,13 @@
 @preconcurrency import AppKit
 import Foundation
 
-private let appKitToolGroupStatusIndicatorDebounce: Duration = .milliseconds(250)
-private let appKitToolStatusSpinnerSize: CGFloat = 12
-
 @MainActor
 final class AppKitTranscriptToolHeaderRowView: NSView {
     struct Configuration: Equatable {
         let summary: String
         let leadingIcon: TranscriptToolLeadingIconKind
         let phase: ToolStatusPhase
+        let isExpanded: Bool?
         let debounceStatus: Bool
         let typography: TranscriptTypography
         let bottomPadding: CGFloat
@@ -18,13 +16,15 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             summary: String,
             leadingIcon: TranscriptToolLeadingIconKind,
             phase: ToolStatusPhase,
+            isExpanded: Bool? = nil,
             debounceStatus: Bool = false,
             typography: TranscriptTypography = TranscriptTypography(),
-            bottomPadding: CGFloat = transcriptToolRowVerticalPadding
+            bottomPadding: CGFloat = transcriptInlineToolRowVerticalPadding
         ) {
             self.summary = summary
             self.leadingIcon = leadingIcon
             self.phase = phase
+            self.isExpanded = isExpanded
             self.debounceStatus = debounceStatus
             self.typography = typography
             self.bottomPadding = bottomPadding
@@ -38,6 +38,8 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
     private let summaryField = NSTextField(labelWithString: "")
     private let statusView = AppKitTranscriptToolStatusIndicatorView()
     private var configuration: Configuration?
+    private var isDisclosureHovered = false
+    private var trackingArea: NSTrackingArea?
     private var lastMeasuredHeight: CGFloat = -1
 
     override init(frame frameRect: NSRect) {
@@ -64,15 +66,15 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         }
         self.configuration = configuration
         updateIcon()
-        summaryField.attributedStringValue = TranscriptToolSummaryFormatter.nsAttributedString(
-            configuration.summary,
-            typography: configuration.typography
-        )
+        updateSummary()
         statusView.configure(
             phase: configuration.phase,
             debounceTerminal: configuration.debounceStatus,
-            typography: configuration.typography
+            typography: configuration.typography,
+            disclosureExpansionState: configuration.isExpanded,
+            disclosureHovered: isDisclosureHovered
         )
+        refreshDisclosureTrackingArea()
         updateAccessibility(for: configuration)
         needsLayout = true
         invalidateTranscriptHeight(force: true)
@@ -100,6 +102,24 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         return true
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateSummary()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        refreshDisclosureTrackingArea()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        setDisclosureHovered(true, animated: true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setDisclosureHovered(false, animated: true)
+    }
+
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
         setAccessibilityElement(true)
@@ -109,6 +129,9 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         summaryField.lineBreakMode = .byTruncatingMiddle
         summaryField.maximumNumberOfLines = 1
         statusView.translatesAutoresizingMaskIntoConstraints = true
+        statusView.onPress = { [weak self] in
+            self?.onToggle?()
+        }
         addSubview(iconView)
         addSubview(summaryField)
         addSubview(statusView)
@@ -117,58 +140,122 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
     private func updateAccessibility(for configuration: Configuration) {
         setAccessibilityRole(onToggle == nil ? .group : .button)
         setAccessibilityLabel(configuration.summary)
-        setAccessibilityValue(accessibilityValue(for: configuration.leadingIcon))
+        setAccessibilityValue(configuration.isExpanded.map { $0 ? "expanded" : "collapsed" })
     }
 
     private func updateIcon() {
         guard let configuration else {
             return
         }
+        let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
         iconView.image = NSImage(systemSymbolName: systemSymbolName(for: configuration.leadingIcon), accessibilityDescription: nil)
-        iconView.setDynamicContentTintColor(.labelColor)
-        iconView.symbolConfiguration = .init(pointSize: configuration.typography.size(for: .toolIcon), weight: .regular)
-        iconView.layer?.setAffineTransform(CGAffineTransform(rotationAngle: rotationRadians(for: configuration.leadingIcon)))
+        iconView.setDynamicContentTintColor(transcriptInlineToolRowColor)
+        iconView.symbolConfiguration = .init(pointSize: metrics.leadingIconSize, weight: .regular)
+        iconView.layer?.setAffineTransform(.identity)
+    }
+
+    private func updateSummary() {
+        guard let configuration else {
+            return
+        }
+        summaryField.attributedStringValue = TranscriptToolSummaryFormatter.nsAttributedString(
+            configuration.summary,
+            typography: configuration.typography
+        )
+    }
+
+    private func setDisclosureHovered(_ hovered: Bool, animated: Bool) {
+        let normalizedHovered = configuration?.isExpanded != nil && hovered
+        guard isDisclosureHovered != normalizedHovered else {
+            return
+        }
+        isDisclosureHovered = normalizedHovered
+        updateStatusView(animated: animated)
+    }
+
+    private func updateStatusView(animated: Bool) {
+        guard let configuration else {
+            return
+        }
+        statusView.configure(
+            phase: configuration.phase,
+            debounceTerminal: configuration.debounceStatus,
+            typography: configuration.typography,
+            disclosureExpansionState: configuration.isExpanded,
+            disclosureHovered: isDisclosureHovered,
+            animateDisclosureChange: animated
+        )
+    }
+
+    private func refreshDisclosureTrackingArea() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+            self.trackingArea = nil
+        }
+        guard configuration?.isExpanded != nil else {
+            isDisclosureHovered = false
+            return
+        }
+        let newTrackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(newTrackingArea)
+        trackingArea = newTrackingArea
     }
 
     private func layoutContent() {
         guard let configuration else {
             return
         }
-        let contentY = transcriptToolRowVerticalPadding
+        let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
+        let contentY = transcriptInlineToolRowVerticalPadding
         let contentHeight = max(
-            transcriptToolIconFrameSize,
-            ceil(summaryField.fittingSize.height),
-            transcriptToolStatusFrameSize
+            metrics.controlSize,
+            ceil(summaryField.fittingSize.height)
         )
         iconView.frame = NSRect(
             x: 0,
-            y: contentY + ((contentHeight - transcriptToolIconFrameSize) / 2),
-            width: transcriptToolIconFrameSize,
-            height: transcriptToolIconFrameSize
+            y: contentY + ((contentHeight - metrics.controlSize) / 2),
+            width: metrics.controlSize,
+            height: metrics.controlSize
         )
 
-        let statusX = max(
-            transcriptToolIconTextSpacing,
-            min(
-                transcriptToolIconTextSpacing + ceil(summaryField.fittingSize.width) + transcriptToolTextStatusSpacing,
-                bounds.width - transcriptToolStatusFrameSize
-            )
+        let availableSummaryWidth = max(
+            bounds.width - metrics.leadingTextInset - metrics.textStatusSpacing - metrics.controlSize,
+            0
         )
-        let summaryWidth = max(statusX - transcriptToolIconTextSpacing - transcriptToolTextStatusSpacing, 0)
+        let summaryWidth = measuredSummaryWidth(maxWidth: availableSummaryWidth, height: contentHeight)
+        let statusX = max(0, min(
+            metrics.leadingTextInset + summaryWidth + metrics.textStatusSpacing,
+            bounds.width - metrics.controlSize
+        ))
         summaryField.frame = NSRect(
-            x: transcriptToolIconTextSpacing,
+            x: metrics.leadingTextInset,
             y: contentY + ((contentHeight - ceil(summaryField.fittingSize.height)) / 2),
             width: summaryWidth,
             height: ceil(summaryField.fittingSize.height)
         )
         statusView.frame = NSRect(
             x: statusX,
-            y: contentY + ((contentHeight - transcriptToolStatusFrameSize) / 2),
-            width: transcriptToolStatusFrameSize,
-            height: transcriptToolStatusFrameSize
+            y: contentY + ((contentHeight - metrics.controlSize) / 2),
+            width: metrics.controlSize,
+            height: metrics.controlSize
         )
 
         frame.size.height = measuredHeight(for: configuration)
+    }
+
+    private func measuredSummaryWidth(maxWidth: CGFloat, height: CGFloat) -> CGFloat {
+        guard maxWidth > 0 else {
+            return 0
+        }
+        let naturalWidth = ceil(summaryField.fittingSize.width)
+        let proposedWidth = min(naturalWidth, maxWidth)
+        let proposedBounds = NSRect(x: 0, y: 0, width: proposedWidth, height: height)
+        let cellWidth = summaryField.cell.map { ceil($0.cellSize(forBounds: proposedBounds).width) } ?? proposedWidth
+        return min(max(cellWidth, 0), proposedWidth)
     }
 
     private func measuredHeight() -> CGFloat {
@@ -179,8 +266,9 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
     }
 
     private func measuredHeight(for configuration: Configuration) -> CGFloat {
-        transcriptToolRowVerticalPadding
-            + max(transcriptToolIconFrameSize, ceil(summaryField.fittingSize.height), transcriptToolStatusFrameSize)
+        let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
+        return transcriptInlineToolRowVerticalPadding
+            + max(metrics.controlSize, ceil(summaryField.fittingSize.height))
             + configuration.bottomPadding
     }
 
@@ -194,151 +282,48 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         onHeightInvalidated?()
     }
 
+    // Keep this switch exhaustive so new semantic icon cases cannot silently fall back to a generic glyph.
+    // swiftlint:disable:next cyclomatic_complexity
     private func systemSymbolName(for kind: TranscriptToolLeadingIconKind) -> String {
         switch kind {
-        case .disclosure(let isExpanded):
-            // Use the native down-chevron instead of rotating the right-chevron
-            // layer. Layer rotation changes the drawn bounds and can make the
-            // expanded caret appear to jump toward the transcript edge.
-            return isExpanded ? "chevron.down" : "chevron.right"
-        case .bash:
-            return "dollarsign"
-        case .symbol(let systemName):
-            return systemName
+        case .terminal:
+            return "terminal"
+        case .search:
+            return "magnifyingglass"
+        case .folder:
+            return "folder"
+        case .read:
+            return "magnifyingglass"
+        case .book:
+            return "book"
+        case .document:
+            return "doc.text"
+        case .edit:
+            return "pencil"
+        case .write:
+            return "pencil"
+        case .skill:
+            return "book"
+        case .checklist:
+            return "checklist"
+        case .subAgent:
+            return "person.crop.circle"
+        case .toolGroup:
+            return "wrench.and.screwdriver"
+        case .genericTool:
+            return "gearshape"
         }
-    }
-
-    private func rotationRadians(for kind: TranscriptToolLeadingIconKind) -> CGFloat {
-        switch kind {
-        case .disclosure:
-            return 0
-        case .bash, .symbol:
-            return 0
-        }
-    }
-
-    private func accessibilityValue(for kind: TranscriptToolLeadingIconKind) -> String? {
-        switch kind {
-        case .disclosure(let isExpanded):
-            return isExpanded ? "expanded" : "collapsed"
-        case .bash, .symbol:
-            return nil
-        }
-    }
-}
-
-@MainActor
-final class AppKitTranscriptToolStatusIndicatorView: NSView {
-    private let symbolView = AppKitDynamicTintImageView()
-    private let spinnerView = AppKitStatusIndicatorSpinner(lineWidth: 1.5)
-    private var phase: ToolStatusPhase?
-    private var displayedPhase: ToolStatusPhase?
-    private var typography = TranscriptTypography()
-    private var pendingTask: Task<Void, Never>?
-    private var pendingPhaseVersion = 0
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    deinit {
-        pendingTask?.cancel()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func configure(
-        phase: ToolStatusPhase,
-        debounceTerminal: Bool = false,
-        typography: TranscriptTypography = TranscriptTypography()
-    ) {
-        let typographyChanged = self.typography != typography
-        self.typography = typography
-        updateSymbolConfiguration()
-
-        guard self.phase != phase else {
-            if typographyChanged {
-                needsLayout = true
-            }
-            return
-        }
-        self.phase = phase
-        pendingTask?.cancel()
-        pendingTask = nil
-        pendingPhaseVersion &+= 1
-        guard displayedPhase != nil, debounceTerminal, phase.isTerminal else {
-            apply(phase: phase)
-            return
-        }
-
-        let phaseVersion = pendingPhaseVersion
-        pendingTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(for: appKitToolGroupStatusIndicatorDebounce)
-            } catch {
-                return
-            }
-
-            guard let self,
-                  phaseVersion == self.pendingPhaseVersion else {
-                return
-            }
-            self.apply(phase: phase)
-            self.pendingTask = nil
-        }
-    }
-
-    private func apply(phase: ToolStatusPhase) {
-        displayedPhase = phase
-        switch phase {
-        case .loading:
-            symbolView.isHidden = true
-            spinnerView.isHidden = false
-        case .success:
-            spinnerView.isHidden = true
-            symbolView.isHidden = false
-            symbolView.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)
-            symbolView.setDynamicContentTintColor(.systemGreen)
-        case .error:
-            spinnerView.isHidden = true
-            symbolView.isHidden = false
-            symbolView.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
-            symbolView.setDynamicContentTintColor(.systemRed)
-        }
-    }
-
-    override func layout() {
-        super.layout()
-        let frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
-        symbolView.frame = frame
-        let spinnerInsetX = max((bounds.width - appKitToolStatusSpinnerSize) / 2, 0)
-        let spinnerInsetY = max((bounds.height - appKitToolStatusSpinnerSize) / 2, 0)
-        spinnerView.frame = bounds.insetBy(dx: spinnerInsetX, dy: spinnerInsetY)
-    }
-
-    private func setup() {
-        translatesAutoresizingMaskIntoConstraints = false
-        symbolView.translatesAutoresizingMaskIntoConstraints = true
-        spinnerView.translatesAutoresizingMaskIntoConstraints = true
-        updateSymbolConfiguration()
-        spinnerView.isHidden = true
-        addSubview(symbolView)
-        addSubview(spinnerView)
-    }
-
-    private func updateSymbolConfiguration() {
-        symbolView.symbolConfiguration = .init(pointSize: typography.size(for: .toolStatusIcon), weight: .regular)
     }
 }
 
 #if DEBUG
-extension AppKitTranscriptToolStatusIndicatorView {
-    var statusSymbolPointSizeForTesting: CGFloat {
-        typography.size(for: .toolStatusIcon)
+extension AppKitTranscriptToolHeaderRowView {
+    var leadingIconSystemNameForTesting: String? {
+        configuration.map { systemSymbolName(for: $0.leadingIcon) }
+    }
+
+    func setDisclosureHoveredForTesting(_ hovered: Bool, animated: Bool = false) {
+        setDisclosureHovered(hovered, animated: animated)
     }
 }
 #endif

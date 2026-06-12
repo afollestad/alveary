@@ -11,7 +11,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         header.configure(
             .init(
                 summary: "Running /compact in `pwd`",
-                leadingIcon: .disclosure(isExpanded: false),
+                leadingIcon: .genericTool,
                 phase: .loading
             )
         )
@@ -37,8 +37,9 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         header.configure(
             .init(
                 summary: "Running tool",
-                leadingIcon: .disclosure(isExpanded: false),
-                phase: .loading
+                leadingIcon: .genericTool,
+                phase: .loading,
+                isExpanded: false
             )
         )
 
@@ -47,40 +48,43 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertEqual(header.accessibilityValue() as? String, "collapsed")
     }
 
-    func testExpandedDisclosureDoesNotRotateIconLayerOutOfFrame() throws {
+    func testSemanticIconKeepsExpansionAccessibilityWithoutCaret() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
         header.configure(
             .init(
                 summary: "Reading file",
-                leadingIcon: .disclosure(isExpanded: true),
-                phase: .loading
+                leadingIcon: .read,
+                phase: .loading,
+                isExpanded: true
             )
         )
         header.layoutSubtreeIfNeeded()
 
         let icon = try XCTUnwrap(header.descendants(of: NSImageView.self).first)
+        XCTAssertEqual(header.leadingIconSystemNameForTesting, "magnifyingglass")
         XCTAssertEqual(icon.layer?.affineTransform(), .identity)
         XCTAssertEqual(header.accessibilityValue() as? String, "expanded")
     }
 
-    func testHeaderStatusIconUsesTranscriptTypography() throws {
+    func testHeaderStatusIconUsesInlineStatusMetric() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         var settings = AppSettings()
         settings.chatFontSize = 24
         let typography = TranscriptTypography(settings: settings)
+        let metrics = transcriptInlineToolRowMetrics(for: typography)
 
         header.configure(
             .init(
                 summary: "Read file",
-                leadingIcon: .disclosure(isExpanded: false),
+                leadingIcon: .book,
                 phase: .success,
                 typography: typography
             )
         )
 
         let statusView = try XCTUnwrap(header.descendants(of: AppKitTranscriptToolStatusIndicatorView.self).first)
-        XCTAssertEqual(statusView.statusSymbolPointSizeForTesting, typography.size(for: .toolStatusIcon))
+        XCTAssertEqual(statusView.statusSymbolPointSizeForTesting, metrics.statusIconSize)
     }
 
     func testSkillRowStaysNonExpandable() {
@@ -339,10 +343,9 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
 
         XCTAssertFalse(statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? true)
 
-        try await waitUntil("expected terminal tool-group status after debounce", timeout: .seconds(1)) {
+        try await waitUntil("expected terminal tool-group spinner to clear after debounce", timeout: .seconds(1)) {
             let progressHidden = statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? false
-            let hasSymbol = !statusView.descendants(of: NSImageView.self).filter { $0.image != nil }.isEmpty
-            return progressHidden && hasSymbol
+            return progressHidden && statusView.statusSymbolSystemNameForTesting == nil
         }
     }
 

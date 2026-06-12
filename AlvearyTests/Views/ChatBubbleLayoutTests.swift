@@ -28,7 +28,10 @@ final class ChatBubbleLayoutTests: XCTestCase {
         XCTAssertEqual(typography.size(for: .subheadline), 17)
         XCTAssertEqual(typography.size(for: .caption), 16)
         XCTAssertEqual(typography.size(for: .toolSummary), 17)
+        XCTAssertEqual(typography.size(for: .inlineToolText), 15)
+        XCTAssertEqual(typography.size(for: .inlineToolIndicator), 11)
         XCTAssertEqual(typography.size(for: .approvalBody), 16)
+        XCTAssertEqual(typography.inlineToolCodeNSFont.pointSize, 15)
     }
 
 }

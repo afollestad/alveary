@@ -11,7 +11,7 @@ extension AppKitTranscriptToolRowTests {
         header.configure(
             .init(
                 summary: "Reading \(longScreenshotPath)",
-                leadingIcon: .disclosure(isExpanded: false),
+                leadingIcon: .document,
                 phase: .loading
             )
         )
@@ -38,6 +38,30 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(header.frame.width, 360, accuracy: 0.5)
     }
 
+    func testHeaderStatusFollowsCompactedLongAttributedSummaryWidth() throws {
+        let header = AppKitTranscriptToolHeaderRowView()
+        let width: CGFloat = 1_000
+        header.frame = NSRect(x: 0, y: 0, width: width, height: 120)
+        header.configure(
+            .init(
+                summary: "Read `\(longSnapshotPath)`",
+                leadingIcon: .book,
+                phase: .success
+            )
+        )
+        header.layoutSubtreeIfNeeded()
+
+        let metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography())
+        let summaryField = try XCTUnwrap(header.descendants(of: NSTextField.self).first)
+        let statusView = try XCTUnwrap(header.descendants(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        let maxSummaryWidth = width - metrics.leadingTextInset - metrics.textStatusSpacing - metrics.controlSize
+
+        XCTAssertGreaterThan(summaryField.fittingSize.width, maxSummaryWidth)
+        XCTAssertLessThan(summaryField.frame.width, maxSummaryWidth - 40)
+        XCTAssertEqual(statusView.frame.minX, summaryField.frame.maxX + metrics.textStatusSpacing, accuracy: 0.5)
+        XCTAssertLessThan(statusView.frame.minX, width - metrics.controlSize - 40)
+    }
+
     func testToolGroupClampsVisibleContentToMaxWidth() throws {
         let group = AppKitTranscriptToolGroupView()
         group.frame = NSRect(x: 0, y: 0, width: 900, height: 1_000)
@@ -61,6 +85,9 @@ extension AppKitTranscriptToolRowTests {
 
 private let longScreenshotPath = "/var/folders/q3/fgp9x7g90_j_8ln525h_5hyw0000gn/" +
     "T/TemporaryItems/NSIRD_screencaptureui/Screenshot.png"
+
+private let longSnapshotPath = "/Users/afollestad/Development/alveary/AlvearyTests/Snapshots/__Snapshots__/" +
+    "SnapshotTests+AppKitTranscript/testAppKitTranscriptAssistantMarkdownBubble.appkit_transcript_assistant_markdown_bubble.png"
 
 private func widthTool(id: String = "tool-1", name: String, summary: String) -> ToolEntry {
     ToolEntry(

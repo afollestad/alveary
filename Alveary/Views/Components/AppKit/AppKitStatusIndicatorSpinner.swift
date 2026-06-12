@@ -15,10 +15,11 @@ final class AppKitStatusIndicatorSpinner: NSView {
     private let spinLayer = CALayer()
     private let trackLayer = CAShapeLayer()
     private let arcLayer = CAShapeLayer()
-    private let color: NSColor = .secondaryLabelColor
+    private let color: NSColor
     private let lineWidth: CGFloat
 
-    init(frame frameRect: NSRect = .zero, lineWidth: CGFloat = 2) {
+    init(frame frameRect: NSRect = .zero, lineWidth: CGFloat = 2, color: NSColor = .secondaryLabelColor) {
+        self.color = color
         self.lineWidth = lineWidth
         super.init(frame: frameRect)
         wantsLayer = true
@@ -96,3 +97,14 @@ final class AppKitStatusIndicatorSpinner: NSView {
         spinLayer.add(rotation, forKey: Self.spinAnimationKey)
     }
 }
+
+#if DEBUG
+extension AppKitStatusIndicatorSpinner {
+    var arcStrokeColorForTesting: NSColor? {
+        guard let strokeColor = arcLayer.strokeColor else {
+            return nil
+        }
+        return NSColor(cgColor: strokeColor)
+    }
+}
+#endif

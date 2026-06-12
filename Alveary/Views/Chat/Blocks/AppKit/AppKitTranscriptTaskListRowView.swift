@@ -85,7 +85,7 @@ extension AppKitTranscriptTaskListRowView {
         let view: NSView
         switch configuration.task.status {
         case .inProgress:
-            let indicator = AppKitStatusIndicatorSpinner()
+            let indicator = AppKitStatusIndicatorSpinner(lineWidth: 1.5)
             indicator.translatesAutoresizingMaskIntoConstraints = true
             indicator.setAccessibilityLabel(configuration.task.status.taskListAccessibilityLabel)
             view = indicator
@@ -195,5 +195,5 @@ extension AppKitTranscriptTaskListRowView {
 }
 
 private let taskStatusSlotSize: CGFloat = 16
-private let taskProgressIndicatorSize: CGFloat = 14
+private let taskProgressIndicatorSize: CGFloat = 12
 private let taskTextSpacing: CGFloat = 10

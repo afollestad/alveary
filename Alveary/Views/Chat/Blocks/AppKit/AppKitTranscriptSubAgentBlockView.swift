@@ -147,10 +147,11 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
         headerView.configure(
             .init(
                 summary: headerSummary(for: configuration.agents),
-                leadingIcon: configuration.canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "magnifyingglass"),
+                leadingIcon: .subAgent,
                 phase: aggregateStatusPhase(for: configuration.agents),
+                isExpanded: configuration.canExpand ? isExpanded : nil,
                 typography: configuration.typography,
-                bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
+                bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )
         )
 
@@ -407,10 +408,11 @@ final class AppKitSubAgentExpandedContentView: NSView {
         if let resultView = activeResultView,
            resultView.superview != nil {
             let resultTopSpacing = configuration.agent.tools.isEmpty ? transcriptToolExpandedContentTopSpacing : 0
+            let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
             resultView.frame = NSRect(
-                x: transcriptToolDetailLeadingInset,
+                x: metrics.detailLeadingInset,
                 y: currentY + resultTopSpacing,
-                width: max(width - transcriptToolDetailLeadingInset, 0),
+                width: max(width - metrics.detailLeadingInset, 0),
                 height: CGFloat.greatestFiniteMagnitude / 2
             )
             resultView.layoutSubtreeIfNeeded()

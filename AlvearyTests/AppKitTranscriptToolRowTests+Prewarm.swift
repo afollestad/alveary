@@ -25,7 +25,7 @@ extension AppKitTranscriptToolRowTests {
         let headerView = try XCTUnwrap(row.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
         let detailsView = try XCTUnwrap(row.descendants(of: AppKitTranscriptToolDetailsView.self).first)
         XCTAssertGreaterThan(detailsView.frame.minY, headerView.frame.maxY)
-        XCTAssertEqual(detailsView.frame.minX, transcriptToolDetailLeadingInset, accuracy: 0.5)
+        XCTAssertEqual(detailsView.frame.minX, transcriptInlineToolRowMetrics(for: TranscriptTypography()).detailLeadingInset, accuracy: 0.5)
     }
 
     func testExpandedToolDetailsClipToAnimatedRowBounds() throws {

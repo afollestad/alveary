@@ -74,7 +74,7 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
         let block = configuredBlock(tasks: mixedTasks())
 
         let spinner = try XCTUnwrap(block.descendants(of: AppKitStatusIndicatorSpinner.self).first)
-        XCTAssertEqual(spinner.frame.size, NSSize(width: 14, height: 14))
+        XCTAssertEqual(spinner.frame.size, NSSize(width: 12, height: 12))
         XCTAssertEqual(spinner.accessibilityLabel(), "In progress")
 
         let imageViews = block.descendants(of: NSImageView.self)

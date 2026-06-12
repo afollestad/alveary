@@ -3,9 +3,19 @@ import Foundation
 /// Leading glyph contract for AppKit tool headers. Keep this UI-neutral so the
 /// row factory can decide expansion state while header views only render it.
 enum TranscriptToolLeadingIconKind: Equatable {
-    case disclosure(isExpanded: Bool)
-    case bash
-    case symbol(systemName: String)
+    case terminal
+    case search
+    case folder
+    case read
+    case book
+    case document
+    case edit
+    case write
+    case skill
+    case checklist
+    case subAgent
+    case toolGroup
+    case genericTool
 }
 
 /// Stable status model shared by single tool rows, groups, and sub-agent rows.
@@ -36,6 +46,60 @@ extension ToolEntry {
     /// and error flags.
     var transcriptStatusPhase: ToolStatusPhase {
         ToolStatusPhase(isError: isError, isComplete: isComplete)
+    }
+
+    var transcriptLeadingIconKind: TranscriptToolLeadingIconKind {
+        switch name {
+        case let name where CommandToolPresentation.isCommandToolName(name):
+            return .terminal
+        case "LS":
+            return .folder
+        case "Read":
+            return .read
+        case "NotebookRead":
+            return .document
+        case "Grep", "Glob", "ToolSearch", "WebSearch", "WebFetch":
+            return .search
+        case "Edit", "MultiEdit", "NotebookEdit":
+            return .edit
+        case "Write":
+            return .write
+        case "Skill":
+            return .skill
+        case "TodoWrite":
+            return .checklist
+        default:
+            return .genericTool
+        }
+    }
+
+    static func transcriptGroupLeadingIconKind(for tools: [ToolEntry]) -> TranscriptToolLeadingIconKind {
+        let icons = tools.map(\.transcriptLeadingIconKind)
+        if icons.contains(.terminal) {
+            return .terminal
+        }
+        if icons.contains(.search) {
+            return .search
+        }
+        if icons.contains(.folder) {
+            return .folder
+        }
+        if icons.contains(.read) {
+            return .read
+        }
+        if icons.contains(.document) {
+            return .document
+        }
+        if icons.contains(.edit) {
+            return .edit
+        }
+        if icons.contains(.write) {
+            return .write
+        }
+        if icons.contains(.book) {
+            return .book
+        }
+        return icons.first ?? .toolGroup
     }
 
     /// User-facing summary text for transcript rows, normalized to present tense

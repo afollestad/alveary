@@ -79,10 +79,12 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
 
     override func layout() {
         var currentY = transcriptToolNestedTopSpacing
-        let rowWidth = max(bounds.width - transcriptToolNestedRowLeadingInset, 0)
+        let metrics = transcriptInlineToolRowMetrics(for: configuration?.typography ?? TranscriptTypography())
+        let rowLeadingInset = metrics.detailLeadingInset
+        let rowWidth = max(bounds.width - rowLeadingInset, 0)
         for row in rowViews {
             row.frame = NSRect(
-                x: transcriptToolNestedRowLeadingInset,
+                x: rowLeadingInset,
                 y: currentY,
                 width: rowWidth,
                 height: CGFloat.greatestFiniteMagnitude / 2
@@ -91,6 +93,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             row.frame.size.height = row.intrinsicContentSize.height
             currentY = row.frame.maxY + transcriptToolNestedRowSpacing
         }
+        connectorView.metrics = metrics
         connectorView.frame = bounds
         connectorView.centers = rowViews.map { $0.frame.minY + $0.headerVisualCenterY }
         super.layout()
@@ -125,6 +128,12 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
 
 @MainActor
 private final class AppKitTranscriptElbowConnectorView: NSView {
+    var metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography()) {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
     var centers: [CGFloat] = [] {
         didSet {
             needsDisplay = true
@@ -141,11 +150,11 @@ private final class AppKitTranscriptElbowConnectorView: NSView {
             return
         }
 
-        NSColor.secondaryLabelColor.withAlphaComponent(transcriptToolConnectorOpacity).setStroke()
+        transcriptInlineToolRowColor.withAlphaComponent(transcriptToolConnectorOpacity).setStroke()
         let path = NSBezierPath()
         path.lineWidth = 1
-        let verticalX = transcriptToolIconFrameSize / 2
-        let horizontalEndX = transcriptToolNestedRowLeadingInset - transcriptToolElbowGap
+        let verticalX = metrics.controlSize / 2
+        let horizontalEndX = metrics.detailLeadingInset - transcriptToolElbowGap
         path.move(to: CGPoint(x: verticalX, y: transcriptToolNestedTopSpacing))
         path.line(to: CGPoint(x: verticalX, y: lastCenter))
         for center in centers {

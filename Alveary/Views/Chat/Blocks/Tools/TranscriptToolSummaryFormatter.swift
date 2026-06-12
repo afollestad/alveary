@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 
 private let transcriptToolSummarySlashCommandPattern = #"(^|[\s\(\[\{<"'])(/[A-Za-z][A-Za-z0-9_-]*)(?=$|[\s\)\]\}>"'.,;:])"#
+private let toolSummaryInlineCodeFillOpacity: CGFloat = 0.08
 
 /// Shared tool-summary formatter for SwiftUI and AppKit rows. Keep chip detection here
 /// so the two transcript renderers stay aligned while rows migrate incrementally.
@@ -17,12 +18,25 @@ enum TranscriptToolSummaryFormatter {
     }
 
     static func nsAttributedString(_ text: String, typography: TranscriptTypography) -> NSAttributedString {
-        AppKitMarkdownAttributedStringBuilder.attributedString(
+        let attributed = NSMutableAttributedString(attributedString: AppKitMarkdownAttributedStringBuilder.attributedString(
             from: attributedString(text),
-            baseFont: typography.nsFont(.toolSummary),
-            inlineCodeFont: typography.codeNSFont,
+            baseFont: typography.nsFont(.inlineToolText),
+            inlineCodeFont: typography.inlineToolCodeNSFont,
             inlineCodeStyle: .standard
-        )
+        ))
+        let fullRange = NSRange(location: 0, length: attributed.length)
+        attributed.addAttribute(.foregroundColor, value: transcriptInlineToolRowColor, range: fullRange)
+        attributed.enumerateAttribute(.backgroundColor, in: fullRange) { value, range, _ in
+            guard value != nil else {
+                return
+            }
+            attributed.addAttribute(
+                .backgroundColor,
+                value: transcriptInlineToolRowColor.withAlphaComponent(toolSummaryInlineCodeFillOpacity),
+                range: range
+            )
+        }
+        return attributed
     }
 
     private static func attributedString(_ text: String) -> AttributedString {
@@ -48,7 +62,7 @@ enum TranscriptToolSummaryFormatter {
 
     private static func applyInlineChipStyle(to attributed: inout AttributedString) {
         for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            attributed[run.range].backgroundColor = Color.secondary.opacity(0.18)
+            attributed[run.range].backgroundColor = Color.secondary.opacity(Double(toolSummaryInlineCodeFillOpacity))
         }
     }
 

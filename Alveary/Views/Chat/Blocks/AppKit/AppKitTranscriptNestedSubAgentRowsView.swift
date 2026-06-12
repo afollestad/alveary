@@ -79,10 +79,12 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
 
     override func layout() {
         var currentY = transcriptToolNestedTopSpacing
-        let rowWidth = max(bounds.width - transcriptToolNestedRowLeadingInset, 0)
+        let metrics = transcriptInlineToolRowMetrics(for: configuration?.typography ?? TranscriptTypography())
+        let rowLeadingInset = metrics.detailLeadingInset
+        let rowWidth = max(bounds.width - rowLeadingInset, 0)
         for row in rowViews {
             row.frame = NSRect(
-                x: transcriptToolNestedRowLeadingInset,
+                x: rowLeadingInset,
                 y: currentY,
                 width: rowWidth,
                 height: CGFloat.greatestFiniteMagnitude / 2
@@ -91,6 +93,7 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             row.frame.size.height = row.intrinsicContentSize.height
             currentY = row.frame.maxY + transcriptToolNestedRowSpacing
         }
+        connectorView.metrics = metrics
         connectorView.frame = bounds
         connectorView.centers = rowViews.map { $0.frame.minY + $0.headerVisualCenterY }
         super.layout()
@@ -249,10 +252,11 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
         headerView.configure(
             .init(
                 summary: configuration.agent.description,
-                leadingIcon: configuration.canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "magnifyingglass"),
+                leadingIcon: .subAgent,
                 phase: ToolStatusPhase(isError: configuration.agent.appKitHasFailedTool, isComplete: configuration.agent.isComplete),
+                isExpanded: configuration.canExpand ? isExpanded : nil,
                 typography: configuration.typography,
-                bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
+                bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )
         )
 
@@ -335,19 +339,38 @@ private final class AppKitTranscriptSubAgentInlineRowView: NSView {
                 self.clipView.animateVisibleHeightChange()
             } completionHandler: { [weak self] in
                 Task { @MainActor [weak self] in
-                    guard let self,
-                          self.localClipAnimationToken == token else {
-                        return
-                    }
-                    self.clipView.finishVisibleHeightAnimation()
+                    self?.finishLocalClipAnimation(token: token)
                 }
             }
+            self.scheduleLocalClipAnimationFallback(token: token)
         }
+    }
+
+    private func scheduleLocalClipAnimationFallback(token: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + appExpansionAnimationDuration + 0.5) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.finishLocalClipAnimation(token: token)
+            }
+        }
+    }
+
+    private func finishLocalClipAnimation(token: UUID) {
+        guard localClipAnimationToken == token,
+              clipView.isAnimatingVisibleHeight else {
+            return
+        }
+        clipView.finishVisibleHeightAnimation()
     }
 }
 
 @MainActor
 private final class AppKitTranscriptSubAgentConnectorView: NSView {
+    var metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography()) {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
     var centers: [CGFloat] = [] {
         didSet {
             needsDisplay = true
@@ -364,11 +387,11 @@ private final class AppKitTranscriptSubAgentConnectorView: NSView {
             return
         }
 
-        NSColor.secondaryLabelColor.withAlphaComponent(transcriptToolConnectorOpacity).setStroke()
+        transcriptInlineToolRowColor.withAlphaComponent(transcriptToolConnectorOpacity).setStroke()
         let path = NSBezierPath()
         path.lineWidth = 1
-        let verticalX = transcriptToolIconFrameSize / 2
-        let horizontalEndX = transcriptToolNestedRowLeadingInset - transcriptToolElbowGap
+        let verticalX = metrics.controlSize / 2
+        let horizontalEndX = metrics.detailLeadingInset - transcriptToolElbowGap
         path.move(to: CGPoint(x: verticalX, y: transcriptToolNestedTopSpacing))
         path.line(to: CGPoint(x: verticalX, y: lastCenter))
         for center in centers {

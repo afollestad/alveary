@@ -20,7 +20,7 @@ extension AppKitTranscriptToolRowTests {
 
         XCTAssertTrue(runningRow.renderedTextForCommandToolTests.contains("Running swift test"))
         let header = try XCTUnwrap(runningRow.descendantsForCommandToolTests(of: AppKitTranscriptToolHeaderRowView.self).first)
-        XCTAssertNil(header.accessibilityValue(), "Command-like rows should use the dollarsign icon instead of disclosure state copy")
+        XCTAssertEqual(header.leadingIconSystemNameForTesting, "terminal")
 
         let completedRow = AppKitTranscriptInlineToolRowView()
         completedRow.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)

@@ -7,19 +7,28 @@ import XCTest
 extension AppKitTranscriptToolRowTests {
     func testHeaderLoadingSpinnerIsSmallerThanStatusSlot() throws {
         let header = AppKitTranscriptToolHeaderRowView()
+        var settings = AppSettings()
+        settings.chatFontSize = 18
+        let typography = TranscriptTypography(settings: settings)
+        let metrics = transcriptInlineToolRowMetrics(for: typography)
         header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
         header.configure(
             .init(
                 summary: "Running tool",
-                leadingIcon: .disclosure(isExpanded: false),
-                phase: .loading
+                leadingIcon: .genericTool,
+                phase: .loading,
+                typography: typography
             )
         )
         header.layoutSubtreeIfNeeded()
 
         let spinner = try XCTUnwrap(header.descendants(of: AppKitStatusIndicatorSpinner.self).first)
-        XCTAssertEqual(spinner.frame.width, 12)
-        XCTAssertEqual(spinner.frame.height, 12)
+        XCTAssertEqual(spinner.frame.width, metrics.statusIconSize)
+        XCTAssertEqual(spinner.frame.height, metrics.statusIconSize)
+        XCTAssertEqual(
+            spinner.arcStrokeColorForTesting,
+            transcriptInlineToolRowColor.appKitResolvedColor(in: spinner)
+        )
     }
 }
 

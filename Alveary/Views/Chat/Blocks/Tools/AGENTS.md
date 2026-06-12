@@ -5,13 +5,20 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 ## Row Anatomy
 
 - Tool transcript blocks render as inline rows, not bubble/pill chrome.
-- Use AppKit header rows with fixed leading slot, summary text column, and fixed status slot.
+- Use AppKit header rows with dynamic leading slot, summary text column, and dynamic status slot derived from `TranscriptTypography`.
 - Keep slots near glyph size so rows do not grow wider or taller than needed.
-- Command-like rows such as `Bash` and `CommandExecution` use `dollarsign`; generic tools, groups, and sub-agents use a disclosure chevron; static approval headers use `lock.fill`.
-- AppKit tool rows use native `chevron.right`/`chevron.down` symbols instead of layer rotation so SF Symbol bounds stay stable.
-- Keep status indicators inside the fixed status frame.
-- Use platform progress controls, green `checkmark`, or red `xmark`; do not tint summary text red.
+- Tool rows use semantic SF Symbols:
+    - Command-like rows such as `Bash` and `CommandExecution` use `terminal`.
+    - `LS` uses `folder`; grep/glob/search rows use `magnifyingglass`.
+    - `Read`, grep, glob, and search rows use `magnifyingglass`; `Skill` uses `book`; write/edit rows use `pencil`.
+- Static approval headers use `lock.fill`.
+- Do not use chevron/caret symbols as the leading inline tool-row icon. Expansion state is available through row accessibility state, not the visible glyph.
+- Keep status indicators inside the dynamic status frame.
+- Terminal tool rows do not show trailing success/error glyphs. Collapsed rows reveal the rotating disclosure chevron only on row hover; expanded rows may keep the chevron visible.
+- Inline tool rows use `transcriptInlineToolRowColor` for leading icons, summary text, loading spinners, and disclosure chevrons. Approval prompts keep separate approval typography and chrome.
+- Inline code and chip backgrounds inside tool summaries should stay lighter than regular markdown chips so they do not overpower muted row text.
 - Expanded rows keep `transcriptToolExpandedContentTopSpacing` between header and content.
+- Inline rows use `transcriptInlineToolRowVerticalPadding`; keep approval prompt spacing on its separate approval layout path.
 - Single tools use current tense while running and past tense when complete.
 - Skill invocation rows use the `book` SF Symbol, stay standalone, and do not expand.
 - Completed no-output rows that would render empty details should not show disclosure state or button accessibility; use a static icon instead.
@@ -46,7 +53,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Shared tool-content extraction and output paging live in `TranscriptToolDetailPresentation.swift`; keep it UI-free so AppKit rows and tests can reuse the same parsing behavior.
 - Markdown `Write`, `Edit`, and `MultiEdit` previews should also flow through `TranscriptToolDetailPresentation.swift`. Markdown mutation tool rows are manual-expansion-only; completed rows must not auto-expand. Known markdown `Edit` and `MultiEdit` rows should render reconstructed full-document previews from `ToolEntry.previewOverride`; unknown markdown edits should fall back to provider-supplied replacement snippets. `exitPlanModeFollowUp` previews replace the tool row with an assistant-style plan bubble, not a pre-expanded tool detail.
 - Do not dump raw text directly under a row.
-- Inline row details are indented by `transcriptToolDetailLeadingInset`.
+- Inline row details are indented by the dynamic inline tool-row summary-column inset.
 - Rounded code/output containers start under the summary column, not the leading icon.
 - Do not "fix" expanded-detail trailing alignment by changing transcript scroll insets; those also affect user bubble alignment.
 - Expanded details own bottom spacing; collapsed row padding must not change.
@@ -66,8 +73,8 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Keep command-tool tail-not-head behavior so streaming shows the latest line at the bottom.
 - Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; the transient AppKit thinking indicator is the only thinking affordance.
 - Tune tool dimensions only in `ChatBlocks.swift`.
-- Use platform progress controls over custom spinners; a prior custom spinner caused blank thread-open renders until scrolling.
-- Transcript tool-row loading spinners are intentionally smaller than the fixed status slot; do not change task-list/sidebar/tab spinner sizing when tuning tool rows.
+- Use `AppKitStatusIndicatorSpinner` for AppKit tool-row loading states; keep spinner construction centralized instead of adding one-off loading animations.
+- Transcript tool-row loading spinners are intentionally sized from inline tool-row metrics; do not change task-list/sidebar/tab spinner sizing when tuning tool rows.
 - Multi-entry group headers debounce terminal status indicators.
     - Terminal states wait 250ms.
     - Loading applies immediately when a new child streams in.

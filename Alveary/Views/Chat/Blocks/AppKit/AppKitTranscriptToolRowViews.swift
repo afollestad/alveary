@@ -155,10 +155,11 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         headerView.configure(
             .init(
                 summary: configuration.tool.transcriptDisplaySummary,
-                leadingIcon: leadingIconKind(for: configuration.tool, canExpand: configuration.canExpand, isExpanded: isExpanded),
+                leadingIcon: configuration.tool.transcriptLeadingIconKind,
                 phase: configuration.tool.transcriptStatusPhase,
+                isExpanded: configuration.canExpand ? isExpanded : nil,
                 typography: configuration.typography,
-                bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
+                bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )
         )
         if isExpanded {
@@ -181,9 +182,10 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             clipView.updateFrame(width: width, targetHeight: headerView.frame.height)
             return
         }
-        let detailsWidth = max(width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
+        let metrics = transcriptInlineToolRowMetrics(for: configuration?.typography ?? TranscriptTypography())
+        let detailsWidth = max(width - metrics.detailLeadingInset - metrics.detailTrailingInset, 0)
         detailsView.frame = NSRect(
-            x: transcriptToolDetailLeadingInset,
+            x: metrics.detailLeadingInset,
             y: headerView.frame.maxY + transcriptToolExpandedContentTopSpacing,
             width: detailsWidth,
             height: CGFloat.greatestFiniteMagnitude / 2
@@ -271,14 +273,27 @@ final class AppKitTranscriptInlineToolRowView: NSView {
                 self.clipView.animateVisibleHeightChange()
             } completionHandler: { [weak self] in
                 Task { @MainActor [weak self] in
-                    guard let self,
-                          self.localClipAnimationToken == token else {
-                        return
-                    }
-                    self.clipView.finishVisibleHeightAnimation()
+                    self?.finishLocalClipAnimation(token: token)
                 }
             }
+            self.scheduleLocalClipAnimationFallback(token: token)
         }
+    }
+
+    private func scheduleLocalClipAnimationFallback(token: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + appExpansionAnimationDuration + 0.5) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.finishLocalClipAnimation(token: token)
+            }
+        }
+    }
+
+    private func finishLocalClipAnimation(token: UUID) {
+        guard localClipAnimationToken == token,
+              clipView.isAnimatingVisibleHeight else {
+            return
+        }
+        clipView.finishVisibleHeightAnimation()
     }
 
     private func configureDetailsView(_ detailsConfiguration: AppKitTranscriptToolDetailsView.Configuration) {
@@ -315,12 +330,13 @@ final class AppKitTranscriptInlineToolRowView: NSView {
 
     private func prewarmDetailsLayoutIfPossible() {
         let width = contentWidth(for: configuration)
-        let detailsWidth = max(width - transcriptToolDetailLeadingInset - transcriptToolDetailTrailingInset, 0)
+        let metrics = transcriptInlineToolRowMetrics(for: configuration?.typography ?? TranscriptTypography())
+        let detailsWidth = max(width - metrics.detailLeadingInset - metrics.detailTrailingInset, 0)
         guard detailsWidth > 0 else {
             return
         }
         detailsView.frame = NSRect(
-            x: transcriptToolDetailLeadingInset,
+            x: metrics.detailLeadingInset,
             y: headerView.frame.maxY + transcriptToolExpandedContentTopSpacing,
             width: detailsWidth,
             height: CGFloat.greatestFiniteMagnitude / 2
@@ -329,16 +345,6 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         detailsView.frame.size.height = detailsView.intrinsicContentSize.height
     }
 
-    private func leadingIconKind(for tool: ToolEntry, canExpand: Bool, isExpanded: Bool) -> TranscriptToolLeadingIconKind {
-        switch tool.name {
-        case let name where CommandToolPresentation.isCommandToolName(name):
-            return .bash
-        case "Skill":
-            return .symbol(systemName: "book")
-        default:
-            return canExpand ? .disclosure(isExpanded: isExpanded) : .symbol(systemName: "gearshape")
-        }
-    }
 }
 
 extension AppKitTranscriptInlineToolRowView: AppKitTranscriptFrameAnimatable {

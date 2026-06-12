@@ -162,11 +162,12 @@ final class AppKitTranscriptToolGroupView: NSView {
         headerView.configure(
             .init(
                 summary: summary(for: configuration.tools),
-                leadingIcon: .disclosure(isExpanded: isExpanded),
+                leadingIcon: ToolEntry.transcriptGroupLeadingIconKind(for: configuration.tools),
                 phase: aggregateStatusPhase(for: configuration.tools),
+                isExpanded: isExpanded,
                 debounceStatus: true,
                 typography: configuration.typography,
-                bottomPadding: isExpanded ? 0 : transcriptToolRowVerticalPadding
+                bottomPadding: isExpanded ? 0 : transcriptInlineToolRowVerticalPadding
             )
         )
 

@@ -54,6 +54,16 @@ struct TranscriptTypography: Equatable {
         ) ?? NSFont.monospacedSystemFont(ofSize: codeFontSize, weight: .regular)
     }
 
+    var inlineToolCodeNSFont: NSFont {
+        let size = size(for: .inlineToolText)
+        return NSFontManager.shared.font(
+            withFamily: codeFontFamily,
+            traits: [],
+            weight: 5,
+            size: size
+        ) ?? NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+
     func size(for level: TranscriptFontLevel) -> CGFloat {
         switch level {
         case .body:
@@ -66,6 +76,10 @@ struct TranscriptTypography: Equatable {
             return max(chatFontSize - 1, 10)
         case .caption, .approvalBody:
             return max(chatFontSize - 2, 9)
+        case .inlineToolText:
+            return max(chatFontSize - 3, 10)
+        case .inlineToolIndicator:
+            return max(chatFontSize - 7, 9)
         case .toolIcon, .toolStatusIcon:
             return 11
         }
@@ -83,6 +97,8 @@ enum TranscriptFontLevel {
     case subheadline
     case caption
     case toolSummary
+    case inlineToolText
+    case inlineToolIndicator
     case approvalBody
     case toolIcon
     case toolStatusIcon
