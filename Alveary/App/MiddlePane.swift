@@ -17,6 +17,7 @@ struct MiddlePane: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let threadActivityRecorder: any ThreadActivityRecording
     let sidebarViewModel: SidebarViewModel
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -56,6 +57,7 @@ struct MiddlePane: View {
                 contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
+                threadActivityRecorder: threadActivityRecorder,
                 deleteThread: { thread in
                     try await sidebarViewModel.deleteThread(thread)
                 },

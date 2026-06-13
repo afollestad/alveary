@@ -13,6 +13,10 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?
+    var currentTurnActivityVisibility: AgentTurnActivityVisibility = .hidden
+    var hasRecordedTerminalThreadActivity = false
+    var lastKnownRuntimeTurnActive = false
+    var latestTerminalRuntimeEventIndex: Int?
     private var agentCLIKitEnvelopeIndexByObservedIndex: [Int: Int] = [:]
     let buffer: EventBuffer
 

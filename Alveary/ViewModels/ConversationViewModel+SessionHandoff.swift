@@ -50,7 +50,6 @@ extension ConversationViewModel {
         state.lastTurnError = nil
         state.sessionContinuityNotice = nil
         state.activeRuntimeActivityTurnId = nil
-
         do {
             if await needsRespawn() {
                 try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
@@ -58,8 +57,8 @@ extension ConversationViewModel {
                 state.respawnAttempts = 0
             }
 
-            try await agentsManager.sendMessage(makeHiddenSessionHandoffPrompt(), conversationId: conversation.id)
-            state.turnState.beginTurn()
+            try await agentsManager.sendMessage(makeHiddenSessionHandoffPrompt(), conversationId: conversation.id, activityVisibility: .hidden)
+            beginHiddenActivityTurn()
         } catch {
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
         }

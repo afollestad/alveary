@@ -17,6 +17,7 @@ struct ThreadDetailView: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let threadActivityRecorder: any ThreadActivityRecording
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -122,6 +123,7 @@ struct ThreadDetailView: View {
                         },
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,
+                        threadActivityRecorder: threadActivityRecorder,
                         appState: appState
                     )
                     .id(conversation.id)

@@ -69,6 +69,7 @@ extension ConversationViewModel {
         state.lastTurnError = nil
         state.clearStreamingText()
         state.turnState.endTurn()
+        recordLocalVisibleTurnEndedIfNeeded()
 
         schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
     }

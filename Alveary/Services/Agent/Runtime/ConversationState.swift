@@ -87,6 +87,8 @@ final class ConversationState {
     var activeBufferGeneration: UUID?
     var activeSubscriptionToken: UUID?
     var activeRuntimeActivityTurnId: String?
+    var currentTurnActivityVisibility: AgentTurnActivityVisibility = .hidden
+    var hasRecordedLocalTurnEndActivity = false
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
     var inputDraftRevision = 0

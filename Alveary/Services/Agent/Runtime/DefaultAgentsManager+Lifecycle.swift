@@ -1,8 +1,16 @@
 import Foundation
 
 extension DefaultAgentsManager {
-    func sendMessage(_ message: String, conversationId: String) async throws {
-        try await sendMessageWithAgentCLIKit(message, conversationId: conversationId)
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
+        try await sendMessageWithAgentCLIKit(
+            message,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility
+        )
     }
 
     func cancelTurn(conversationId: String) {

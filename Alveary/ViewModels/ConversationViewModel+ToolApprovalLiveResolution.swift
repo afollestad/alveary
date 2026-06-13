@@ -46,6 +46,7 @@ extension ConversationViewModel {
         // returns, but the UI must not stay locked in an active turn if that
         // trailing token is delayed or dropped.
         state.turnState.endTurn()
+        recordLocalVisibleTurnEndedIfNeeded()
         state.clearStreamingText()
         state.isAutomaticSessionHandoffPending = false
     }

@@ -380,7 +380,11 @@ actor DiffViewerMockAgentsManager: AgentsManager {
         nil
     }
 
-    func sendMessage(_ message: String, conversationId: String) async throws {}
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         false

@@ -21,6 +21,7 @@ final class ConversationViewModel {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
+    let threadActivityRecorder: any ThreadActivityRecording
     var subscriptionTask: Task<Void, Never>?
     static let maxRespawnAttempts = 2
     var saveTask: Task<Void, Never>?
@@ -90,7 +91,8 @@ final class ConversationViewModel {
         settingsService: SettingsService,
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
-        contextWindowCache: any ContextWindowCache
+        contextWindowCache: any ContextWindowCache,
+        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) {
         self.conversation = conversation
         self.agentsManager = agentsManager
@@ -102,6 +104,7 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
+        self.threadActivityRecorder = threadActivityRecorder
         self.state = runtimeStore.conversationState(for: conversation.id)
         if self.state.runtimePlanModeEnabled == nil {
             self.state.runtimePlanModeEnabled = conversation.thread?.planModeEnabled ?? false
@@ -215,6 +218,7 @@ final class ConversationViewModel {
             state.lastTurnError = nil
             state.activeRuntimeActivityTurnId = nil
             try await agentsManager.sendMessage(message, conversationId: conversation.id)
+            markVisibleTurnStarted()
             state.turnState.beginTurn()
             insertLocalUserMessage(message, into: dbConversation)
         }

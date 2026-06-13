@@ -7,6 +7,7 @@ extension DefaultAgentsManager {
         conversationId: String,
         generation: UUID,
         providerId: String,
+        runtimeEventIndex: Int? = nil,
         allowAfterDeferredStop: Bool = false
     ) async {
         guard let managedBuffer = eventBuffers[conversationId],
@@ -19,6 +20,8 @@ extension DefaultAgentsManager {
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
         await handleRuntimeStatusEvent(event, conversationId: conversationId)
+        noteTerminalRuntimeEventIfNeeded(event, conversationId: conversationId, runtimeEventIndex: runtimeEventIndex)
+        recordVisibleTurnEndedForTerminalEventIfNeeded(event, conversationId: conversationId)
 
         guard canTriggerNotification(event) else {
             return
@@ -32,6 +35,30 @@ extension DefaultAgentsManager {
         }
 
         await notificationManager.handleEvent(notificationEvent, conversationId: conversationId)
+    }
+
+    private func noteTerminalRuntimeEventIfNeeded(
+        _ event: ConversationEvent,
+        conversationId: String,
+        runtimeEventIndex: Int?
+    ) {
+        guard let runtimeEventIndex,
+              isTerminalRuntimeBoundary(event),
+              let managedBuffer = eventBuffers[conversationId] else {
+            return
+        }
+        managedBuffer.latestTerminalRuntimeEventIndex = max(
+            managedBuffer.latestTerminalRuntimeEventIndex ?? runtimeEventIndex,
+            runtimeEventIndex
+        )
+        refreshStatusAfterTerminalRuntimeBoundary(conversationId: conversationId)
+    }
+
+    private func refreshStatusAfterTerminalRuntimeBoundary(conversationId: String) {
+        Task { [weak self] in
+            await Task.yield()
+            _ = await self?.refreshStatus(conversationId: conversationId)
+        }
     }
 
     func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {
@@ -69,6 +96,27 @@ extension DefaultAgentsManager {
             handleRuntimeActivityStatus(state, outcome: outcome, conversationId: conversationId)
         default:
             break
+        }
+    }
+
+    private func isTerminalRuntimeBoundary(_ event: ConversationEvent) -> Bool {
+        switch event {
+        case .tokens:
+            return TokenEventPayload(event)?.completesTurn == true
+        case .stop, .error:
+            return true
+        case .runtimeActivity(let state, _, let outcome):
+            guard state == .idle else {
+                return false
+            }
+            switch outcome {
+            case .completed, .failed, .interrupted:
+                return true
+            case .unknown:
+                return false
+            }
+        default:
+            return false
         }
     }
 
@@ -167,15 +215,6 @@ extension DefaultAgentsManager {
             return
         }
 
-        if await isAgentCLIKitTurnStillActive(
-            isError: payload.isError,
-            permissionDenials: payload.permissionDenials,
-            conversationId: conversationId
-        ) {
-            updateStatus(.busy, for: conversationId)
-            return
-        }
-
         updateStatus(
             tokenStatusSignal(
                 isError: payload.isError,
@@ -184,23 +223,6 @@ extension DefaultAgentsManager {
             ),
             for: conversationId
         )
-    }
-
-    private func isAgentCLIKitTurnStillActive(
-        isError: Bool,
-        permissionDenials: [PermissionDenialSummary],
-        conversationId: String
-    ) async -> Bool {
-        guard !isError, permissionDenials.isEmpty else {
-            return false
-        }
-        let services = agentCLIKitServices
-        let status = await services.runtime.status(conversationId: services.hostAdapter.conversationId(conversationId))
-        if let status {
-            agentCLIKitStatuses[conversationId] = status
-            return status.isTurnActive
-        }
-        return agentCLIKitStatuses[conversationId]?.isTurnActive == true
     }
 
     private func handleToolDeferredStopIfNeeded(

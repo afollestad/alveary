@@ -95,6 +95,10 @@ extension AppComponent {
         }
     }
 
+    var threadActivityRecorder: any ThreadActivityRecording {
+        return shared { ThreadActivityRecorder(modelContext: modelContext) }
+    }
+
     var agentRegistry: AgentRegistry {
         return shared { DefaultAgentRegistry() }
     }
@@ -331,6 +335,7 @@ extension AppComponent {
                 settingsService: settingsService,
                 keepAwakeService: keepAwakeService,
                 notificationManager: notificationManager,
+                threadActivityRecorder: threadActivityRecorder,
                 claudeApprovalPersistenceStore: claudeApprovalPersistenceStore,
                 providerSessionBindingStore: providerSessionBindingStore
             )

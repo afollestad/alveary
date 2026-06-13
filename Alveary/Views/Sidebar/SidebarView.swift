@@ -6,6 +6,7 @@ struct SidebarView: View {
     @Bindable var appState: AppState
 
     @Environment(\.modelContext) var uiModelContext
+    @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
     @Query private var queriedProjects: [Project]
     @State var expandedProjects: Set<String> = []
     @State var editingThreadID: PersistentIdentifier?
@@ -19,8 +20,27 @@ struct SidebarView: View {
         queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    var threadOrderAnimation: Animation? {
+        guard !accessibilityReduceMotion,
+              editingThreadID == nil,
+              expandedThreadCount <= 200 else {
+            return nil
+        }
+        return .easeInOut(duration: 0.15)
+    }
+
+    private var expandedThreadCount: Int {
+        projects.reduce(0) { count, project in
+            guard expandedProjects.contains(project.path) else {
+                return count
+            }
+            return count + activeThreads(for: project).count
+        }
+    }
+
     var body: some View {
         let statusVersion = viewModel.statusVersion
+        let threadOrderVersion = viewModel.threadOrderVersion
 
         return VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
@@ -147,6 +167,12 @@ struct SidebarView: View {
                                         }
                                     }
                             }
+                            .transaction { transaction in
+                                if threadOrderAnimation == nil {
+                                    transaction.disablesAnimations = true
+                                    transaction.animation = nil
+                                }
+                            }
                         }
                     }
                 } header: {
@@ -182,6 +208,7 @@ struct SidebarView: View {
                 isKeyboardFocused = false
             }
         }
+        .animation(threadOrderAnimation, value: threadOrderVersion)
         .animation(nil, value: statusVersion)
         .confirmationDialog(
             "Archive thread?",

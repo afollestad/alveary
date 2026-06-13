@@ -139,6 +139,7 @@ private struct ThreadDetailProjectTrustFixture {
             contextWindowCache: MockContextWindowCache(),
             fileListManager: fileListManager,
             notificationManager: RecordingNotificationManager(),
+            threadActivityRecorder: NoopThreadActivityRecorder(),
             deleteThread: { thread in
                 try await recorder.delete(thread)
             },

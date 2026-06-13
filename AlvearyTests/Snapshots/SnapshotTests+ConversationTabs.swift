@@ -364,6 +364,7 @@ private struct ThreadDetailStatusFixture {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
+            threadActivityRecorder: NoopThreadActivityRecorder(),
             deleteThread: { _ in },
             loadSkillCompletions: { [] },
             diffViewModel: diffViewModel

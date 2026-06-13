@@ -60,7 +60,8 @@ extension DefaultAgentsManager {
             try await spawnWithAgentCLIKit(
                 id: request.conversationId,
                 config: request.config,
-                forkSession: false
+                forkSession: false,
+                initialTurnActivityVisibility: .visible
             )
             didSpawn = true
             // Transient hook decisions cover hook callbacks, but a deferred respawn can also leave the new

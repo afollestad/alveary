@@ -57,6 +57,7 @@ extension ConversationViewModel {
         markTranscriptToolsInterrupted()
         state.clearStreamingText()
         state.turnState.endTurn()
+        recordLocalVisibleTurnEndedIfNeeded()
     }
 
     func isConfirmedTurnInterruption(

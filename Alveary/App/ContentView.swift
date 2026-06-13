@@ -24,6 +24,7 @@ struct ContentView: View {
     private let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
+    let threadActivityRecorder: any ThreadActivityRecording
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State var isAddProjectSheetPresented = false
@@ -47,6 +48,7 @@ struct ContentView: View {
     @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
     @State private var terminalToolbarResetTask: Task<Void, Never>?
     @State var didAttemptLaunchSelectionRestore = false
+    @State var didStartThreadActivityBackfill = false
 
     init(component: AppComponent, appState: AppState) {
         self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
@@ -72,6 +74,7 @@ struct ContentView: View {
         self.fileListManager = dependencies.fileListManager
         self.notificationManager = dependencies.notificationManager
         self.notificationRouter = dependencies.notificationRouter
+        self.threadActivityRecorder = dependencies.threadActivityRecorder
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the container's main context so sidebar `@Query` reads
         // and imperative view-model saves stay in sync without requiring a relaunch.
@@ -103,7 +106,8 @@ struct ContentView: View {
             presentUnexpectedError: { message in
                 appState.presentUnexpectedError(message: message)
             },
-            notificationManager: dependencies.notificationManager
+            notificationManager: dependencies.notificationManager,
+            threadActivityRecorder: dependencies.threadActivityRecorder
         )
     }
 
@@ -143,6 +147,7 @@ struct ContentView: View {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
+            threadActivityRecorder: threadActivityRecorder,
             sidebarViewModel: sidebarViewModel,
             loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []
@@ -295,6 +300,7 @@ struct ContentView: View {
         }
         .onAppear {
             wireNotificationManager()
+            startThreadActivityBackfillIfNeeded()
             restoreLastOpenThreadSelectionIfNeeded()
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
@@ -312,6 +318,7 @@ struct ContentView: View {
         // `@State`, so the menu needs a `FocusedValue` hop to reach it.
         .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
     }
+
 }
 
 private extension ContentView {
@@ -480,21 +487,5 @@ private extension ContentView {
 
     func effectiveDiffViewerBounds(availableWidth: CGFloat) -> ClosedRange<Double> {
         ContentDiffViewerWidthPolicy.bounds(availableWidth: availableWidth)
-    }
-}
-
-extension ContentView {
-    static func diffViewerToolbarDisplayState(
-        stats: DiffStats,
-        isLoading: Bool,
-        paneMode _: DiffViewerMode
-    ) -> DiffViewerToolbarDisplayState {
-        // The global toolbar always summarizes working-tree changes; pane mode only affects
-        // the right-pane content so switching to commit inspection cannot change this source.
-        if isLoading {
-            return .loading
-        }
-
-        return .idle(stats)
     }
 }

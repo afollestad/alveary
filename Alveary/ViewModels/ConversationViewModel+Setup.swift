@@ -303,7 +303,9 @@ extension ConversationViewModel {
         state.lastTurnError = nil
         state.activeRuntimeActivityTurnId = nil
         clearConsumedPendingRestoreContext(using: stagedContext)
+        markVisibleTurnStarted()
         state.turnState.beginTurn()
+        recordInitialPromptOutboundActivity()
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
         }

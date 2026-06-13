@@ -214,7 +214,7 @@ extension AgentsManagerTests {
             return status.lastEventIndex >= 3 && !status.isTurnActive
         }
         try await waitUntil("expected AgentCLIKit terminal usage to map to idle") {
-            manager.status(for: conversationId) == .idle
+            await manager.refreshStatus(conversationId: conversationId) == .idle
         }
 
         await manager.kill(conversationId: conversationId)
@@ -420,7 +420,7 @@ extension AgentsManagerTests {
     }
 }
 
-private struct TurnStatusAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+struct TurnStatusAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let definition = AgentCLIKit.AgentProviderDefinition(
         id: .claude,
         displayName: "Claude",

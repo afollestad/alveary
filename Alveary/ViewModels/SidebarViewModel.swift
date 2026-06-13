@@ -15,10 +15,13 @@ final class SidebarViewModel {
     let providerSessionActionService: any ProviderSessionActionService
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
+    private let threadActivityRecorder: any ThreadActivityRecording
     private var statusObserver: NSObjectProtocol?
+    var threadActivityObserver: NSObjectProtocol?
 
     private(set) var sidebarError: String?
-    private(set) var statusVersion = 0
+    var statusVersion = 0
+    var threadOrderVersion = 0
 
     init(
         agentsManager: any AgentsManager,
@@ -29,7 +32,8 @@ final class SidebarViewModel {
         settingsService: SettingsService,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-        notificationManager: any NotificationManager
+        notificationManager: any NotificationManager,
+        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) {
         self.agentsManager = agentsManager
         self.modelContext = modelContext
@@ -40,6 +44,7 @@ final class SidebarViewModel {
         self.providerSessionActionService = providerSessionActions
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
+        self.threadActivityRecorder = threadActivityRecorder
 
         statusObserver = NotificationCenter.default.addObserver(
             forName: .agentStatusChanged,
@@ -50,12 +55,16 @@ final class SidebarViewModel {
                 self?.statusVersion += 1
             }
         }
+        installThreadActivityObserver()
     }
 
     deinit {
         MainActor.assumeIsolated {
             if let statusObserver {
                 NotificationCenter.default.removeObserver(statusObserver)
+            }
+            if let threadActivityObserver {
+                NotificationCenter.default.removeObserver(threadActivityObserver)
             }
         }
     }
@@ -273,17 +282,6 @@ final class SidebarViewModel {
         thread.displayStatus { agentsManager.status(for: $0.id) }
     }
 
-    func activeThreads(for project: Project) -> [AgentThread] {
-        let projectPath = project.path
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.project?.path == projectPath
-            }
-        )
-
-        let threads = (try? modelContext.fetch(descriptor)) ?? []
-        return threads.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
 }
 
 extension SidebarViewModel {

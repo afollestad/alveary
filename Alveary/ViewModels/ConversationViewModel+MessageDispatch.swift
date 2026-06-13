@@ -32,6 +32,7 @@ extension ConversationViewModel {
             state.stagedContext = nil
         }
         clearConsumedPendingRestoreContext(using: appliedContext)
+        markVisibleTurnStarted()
         state.turnState.beginTurn()
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
@@ -89,6 +90,7 @@ extension ConversationViewModel {
                 state.lastTurnError = nil
                 state.activeRuntimeActivityTurnId = nil
                 try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
+                markVisibleTurnStarted()
                 state.turnState.beginTurn()
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
                 state.clearRetryableFailedMessage(id: localMessage.id)

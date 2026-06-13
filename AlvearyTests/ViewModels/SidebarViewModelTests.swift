@@ -111,7 +111,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 0)
     }
 
-    func testActiveThreadsFetchesUnarchivedThreadsSortedByName() throws {
+    func testActiveThreadsFetchesUnarchivedThreadsSortedByNameWhenModifiedDatesAreNil() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let zulu = AgentThread(name: "Zulu", archivedAt: nil, project: project)

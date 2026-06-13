@@ -177,7 +177,11 @@ private extension ConversationViewModel {
                 return
             }
 
+            let wasActive = self.state.turnState.isActive
             self.state.turnState.endTurn()
+            if wasActive {
+                self.recordLocalVisibleTurnEndedIfNeeded()
+            }
             self.state.clearStreamingText()
             if self.drainPendingExitPlanModeFollowUpAfterSubscriptionFinish(token: token) {
                 self.handleTurnCompleted()

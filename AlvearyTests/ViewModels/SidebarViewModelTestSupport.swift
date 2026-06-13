@@ -88,7 +88,8 @@ struct SidebarTestFixture {
         provider: String = "claude",
         providerSessionId: String? = nil,
         providerSessionProviderId: String? = nil,
-        providerSessionWorkingDirectory: String? = nil
+        providerSessionWorkingDirectory: String? = nil,
+        modifiedAt: Date? = nil
     ) throws -> AgentThread {
         let project = Project(path: projectPath, name: projectName)
         let thread = AgentThread(
@@ -98,6 +99,7 @@ struct SidebarTestFixture {
             worktreePath: worktreePath,
             hasCompletedInitialSetup: hasCompletedInitialSetup,
             useWorktree: useWorktree,
+            modifiedAt: modifiedAt,
             archivedAt: archivedAt,
             project: project
         )
@@ -255,7 +257,11 @@ actor SidebarMockAgentsManager: AgentsManager {
         nil
     }
 
-    func sendMessage(_ message: String, conversationId: String) async throws {}
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
         false

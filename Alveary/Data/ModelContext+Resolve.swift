@@ -42,6 +42,10 @@ extension ModelContext {
         )
     }
 
+    func resolveThread(conversationID: String) -> AgentThread? {
+        resolveConversation(conversationID: conversationID)?.thread
+    }
+
     private func resolve<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) -> Model? {
         try? fetch(descriptor).first
     }

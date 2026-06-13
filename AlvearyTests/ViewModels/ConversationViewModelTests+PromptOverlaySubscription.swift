@@ -23,7 +23,7 @@ extension ConversationViewModelTests {
 
         XCTAssertNil(fixture.viewModel.state.streamingText)
         XCTAssertNil(fixture.viewModel.state.lastTurnError)
-        XCTAssertTrue(fixture.viewModel.state.grouper.items.visibleTranscriptItems.isEmpty)
+        assertNoPromptDismissalFallbackTranscriptItems(in: fixture)
         assertNoPromptDismissalFallbackRecords(in: fixture)
 
         await fixture.agentsManager.resumeApprovalResolution()
@@ -138,4 +138,23 @@ private func assertNoPromptDismissalFallbackRecords(
     } catch {
         XCTFail("Failed to fetch prompt overlay records: \(error)", file: file, line: line)
     }
+}
+
+@MainActor
+private func assertNoPromptDismissalFallbackTranscriptItems(
+    in fixture: ConversationViewModelTestFixture,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let visibleItems = fixture.viewModel.state.grouper.items.visibleTranscriptItems
+    XCTAssertFalse(visibleItems.contains { item in
+        switch item {
+        case .assistantMessage(_, let text):
+            text.contains("Permission denied") || text.contains("Fallback chunk")
+        case .centeredNote(_, .interrupted), .error:
+            true
+        default:
+            false
+        }
+    }, file: file, line: line)
 }

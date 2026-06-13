@@ -22,6 +22,7 @@ struct ConversationView: View {
     let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
+    let threadActivityRecorder: any ThreadActivityRecording
     @Bindable var appState: AppState
 
     @State var viewModel: ConversationViewModel
@@ -64,6 +65,7 @@ struct ConversationView: View {
         onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void = { _ in },
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
+        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         appState: AppState
     ) {
         self.conversation = conversation
@@ -85,6 +87,7 @@ struct ConversationView: View {
         self.onDenyProjectTrust = onDenyProjectTrust
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
+        self.threadActivityRecorder = threadActivityRecorder
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
             projectURL: conversation.thread?.project.map {
@@ -105,7 +108,8 @@ struct ConversationView: View {
             settingsService: settingsService,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
-            contextWindowCache: contextWindowCache
+            contextWindowCache: contextWindowCache,
+            threadActivityRecorder: threadActivityRecorder
         ))
     }
 

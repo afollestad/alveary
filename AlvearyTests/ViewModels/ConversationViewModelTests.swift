@@ -339,7 +339,8 @@ struct ConversationViewModelTestFixture {
         projectIsGitRepository: Bool = true,
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
-        providerId: String = "claude"
+        providerId: String = "claude",
+        threadActivityRecorder: (any ThreadActivityRecording)? = nil
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
 
@@ -382,7 +383,8 @@ struct ConversationViewModelTestFixture {
             settingsService: settingsService,
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
-            contextWindowCache: contextWindowCache
+            contextWindowCache: contextWindowCache,
+            threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder()
         )
 
         self.container = container; self.context = context; self.project = project; self.thread = thread

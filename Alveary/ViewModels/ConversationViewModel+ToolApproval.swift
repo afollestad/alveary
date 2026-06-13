@@ -278,6 +278,8 @@ extension ConversationViewModel {
                 sessionApprovalScope: nil,
                 updatedToolInput: updatedToolInput
             )
+            markVisibleTurnStarted()
+            threadActivityRecorder.recordVisibleOutbound(conversationId: conversation.id)
         } catch {
             state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
             state.lastTurnError = "Prompt answer failed: \(error.localizedDescription)"

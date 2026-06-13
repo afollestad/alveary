@@ -58,6 +58,7 @@ actor MockAgentsManager: AgentsManager {
     private var pausesNextRefreshStatus = false
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
+    private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
@@ -112,12 +113,17 @@ actor MockAgentsManager: AgentsManager {
         return AgentEventSubscription(generation: subscriptionGeneration, stream: stream)
     }
 
-    func sendMessage(_ message: String, conversationId: String) async throws {
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
         if !queuedSendResults.isEmpty {
             let result = queuedSendResults.removeFirst()
             switch result {
             case .success:
                 recordedSentMessages.append(message)
+                recordedSendVisibilities.append(activityVisibility)
                 return
             case .failure(let error):
                 throw error
@@ -128,6 +134,7 @@ actor MockAgentsManager: AgentsManager {
             throw sendError
         }
         recordedSentMessages.append(message)
+        recordedSendVisibilities.append(activityVisibility)
     }
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
@@ -325,6 +332,10 @@ actor MockAgentsManager: AgentsManager {
 
     func sentMessages() -> [String] {
         recordedSentMessages
+    }
+
+    func sendVisibilities() -> [AgentTurnActivityVisibility] {
+        recordedSendVisibilities
     }
 
     func spawnCalls() -> [SpawnCall] {
