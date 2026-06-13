@@ -69,6 +69,40 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertEqual(spy.badgeCounts.last, 1)
     }
 
+    func testGenericErrorTokenNotificationUsesFallbackCopy() async throws {
+        let service = InMemorySettingsService()
+        let spy = NotificationSpy()
+        let context = try NotificationManagerTestFactory.makeContext()
+        let conversation = NotificationManagerTestFactory.seedConversation(in: context.container, threadName: "Thread")
+        let manager = NotificationManagerTestFactory.makeManager(
+            settingsService: service,
+            modelContainer: context.container,
+            isAppInForeground: false,
+            activeConversationId: nil,
+            spy: spy
+        )
+
+        manager.handleEvent(
+            .tokens(
+                input: 1,
+                output: 1,
+                cacheRead: 0,
+                isError: true,
+                stopReason: "stop_sequence",
+                durationMs: 100,
+                costUsd: 0.01,
+                permissionDenials: []
+            ),
+            conversationId: conversation.id
+        )
+        await manager.awaitPendingBadgeUpdate()
+
+        let posted = try XCTUnwrap(spy.postedNotifications.first)
+        XCTAssertEqual(posted.message, "Your agent encountered an error in \"Thread\"")
+        XCTAssertFalse(posted.message.contains("stop_sequence"))
+        XCTAssertEqual(spy.badgeCounts.last, 1)
+    }
+
     func testBackgroundAppPostsEvenForActiveConversation() throws {
         let service = InMemorySettingsService()
         let spy = NotificationSpy()

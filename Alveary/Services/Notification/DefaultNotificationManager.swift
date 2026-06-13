@@ -189,8 +189,7 @@ final class DefaultNotificationManager: NotificationManager {
         }
 
         if isError {
-            let trimmedStopReason = stopReason?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmedStopReason.flatMap { $0.isEmpty ? nil : $0 } ?? "Your agent encountered an error"
+            return ConversationErrorDisplayPolicy.notificationErrorMessage(stopReason: stopReason)
         }
 
         guard stopReason != ConversationEvent.interimUsageStopReason,

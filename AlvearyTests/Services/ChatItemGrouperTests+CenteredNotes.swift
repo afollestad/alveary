@@ -273,4 +273,148 @@ extension ChatItemGrouperTests {
             .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionFailed)
         ])
     }
+
+    func testDuplicateAssistantThenErrorPrefersErrorBanner() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
+            messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "Selected model is unavailable."),
+            errorRecord(id: "error", conversationId: conversationId, message: "Selected model is unavailable.")
+        ])
+
+        XCTAssertEqual(grouper.items, [
+            .userMessage(id: "user", text: "Try bad model"),
+            .error(id: "error", message: "Selected model is unavailable.")
+        ])
+    }
+
+    func testDuplicateErrorThenAssistantPrefersExistingErrorBanner() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
+            errorRecord(id: "error", conversationId: conversationId, message: "Selected model is unavailable."),
+            messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "Selected model is unavailable.")
+        ])
+
+        XCTAssertEqual(grouper.items, [
+            .userMessage(id: "user", text: "Try bad model"),
+            .error(id: "error", message: "Selected model is unavailable.")
+        ])
+    }
+
+    func testDuplicateErrorRowsKeepFirstErrorIdentity() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
+            errorRecord(id: "error-1", conversationId: conversationId, message: "Selected model is unavailable."),
+            errorRecord(id: "error-2", conversationId: conversationId, message: " Selected   model is unavailable. ")
+        ])
+
+        XCTAssertEqual(grouper.items, [
+            .userMessage(id: "user", text: "Try bad model"),
+            .error(id: "error-1", message: "Selected model is unavailable.")
+        ])
+    }
+
+    func testNonDuplicateAssistantAndErrorBothRemainVisible() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
+            messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "I could not start."),
+            errorRecord(id: "error", conversationId: conversationId, message: "Provider authentication failed.")
+        ])
+
+        XCTAssertEqual(grouper.items, [
+            .userMessage(id: "user", text: "Try bad model"),
+            .assistantMessage(id: "assistant", text: "I could not start."),
+            .error(id: "error", message: "Provider authentication failed.")
+        ])
+    }
+
+    func testDuplicateErrorTextDoesNotSuppressAcrossTurns() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user-1", conversationId: conversationId, role: "user", content: "First turn"),
+            messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "Selected model is unavailable."),
+            messageRecord(id: "user-2", conversationId: conversationId, role: "user", content: "Second turn"),
+            errorRecord(id: "error", conversationId: conversationId, message: "Selected model is unavailable.")
+        ])
+
+        XCTAssertEqual(grouper.items, [
+            .userMessage(id: "user-1", text: "First turn"),
+            .assistantMessage(id: "assistant", text: "Selected model is unavailable."),
+            .userMessage(id: "user-2", text: "Second turn"),
+            .error(id: "error", message: "Selected model is unavailable.")
+        ])
+    }
+
+    func testDuplicateErrorSuppressionPreservesIncompleteTaskListPinning() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.update(events: [
+            messageRecord(id: "user", conversationId: conversationId, role: "user", content: "Try bad model"),
+            todoWriteRecord(id: "todo", conversationId: conversationId),
+            messageRecord(id: "assistant", conversationId: conversationId, role: "assistant", content: "Selected model is unavailable."),
+            errorRecord(id: "error", conversationId: conversationId, message: "Selected model is unavailable.")
+        ])
+
+        XCTAssertEqual(grouper.items.count, 3)
+        XCTAssertEqual(grouper.items[0], .userMessage(id: "user", text: "Try bad model"))
+        XCTAssertEqual(grouper.items[1], .error(id: "error", message: "Selected model is unavailable."))
+        guard case .taskListBlock(_, let tasks) = grouper.items[2] else {
+            return XCTFail("Expected the incomplete task list to remain pinned after the error")
+        }
+        XCTAssertEqual(tasks.first?.content, "Check model")
+        XCTAssertEqual(tasks.first?.status, .inProgress)
+    }
+
+    private func messageRecord(
+        id: String,
+        conversationId: String,
+        role: String,
+        content: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "message",
+            role: role,
+            content: content
+        )
+    }
+
+    private func errorRecord(
+        id: String,
+        conversationId: String,
+        message: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "error",
+            content: message
+        )
+    }
+
+    private func todoWriteRecord(id: String, conversationId: String) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: id,
+            toolName: "TodoWrite",
+            toolInput: #"{ "todos": [{ "content": "Check model", "status": "in_progress", "activeForm": "Checking model" }] }"#
+        )
+    }
 }

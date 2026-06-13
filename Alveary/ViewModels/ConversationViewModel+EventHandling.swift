@@ -372,7 +372,7 @@ private extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
-        state.lastTurnError = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+        state.lastTurnError = nil
         state.turnState.endTurn()
         return true
     }
@@ -422,7 +422,15 @@ private extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
         state.lastTurnInterrupted = false
-        state.lastTurnError = payload.permissionDenials.isEmpty ? payload.stopReason ?? "Agent turn failed" : nil
+        guard payload.permissionDenials.isEmpty else {
+            state.lastTurnError = nil
+            return
+        }
+        guard !shouldSuppressTokenErrorComposerMessage(payload) else {
+            state.lastTurnError = nil
+            return
+        }
+        state.lastTurnError = ConversationErrorDisplayPolicy.tokenErrorMessage(stopReason: payload.stopReason)
     }
 
     func shouldPersistStopEvent(message: String?) -> Bool {
@@ -478,5 +486,13 @@ private extension ConversationViewModel {
         state.grouper.append(event: record)
         scheduleContextWindowCacheUpdateIfNeeded(from: record)
         scheduleSave()
+    }
+
+    func shouldSuppressTokenErrorComposerMessage(_ payload: TokenEventPayload) -> Bool {
+        if state.grouper.items.containsCurrentTurnTranscriptError {
+            return true
+        }
+        return ConversationErrorDisplayPolicy.isGenericStopReason(payload.stopReason) &&
+            state.grouper.items.containsCurrentTurnAssistantMessage
     }
 }

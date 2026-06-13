@@ -306,6 +306,7 @@ extension AgentsManagerTests {
         detectedPath: String,
         basePath: String,
         replayLimit: Int = 500,
+        notificationManager: any NotificationManager = StubNotificationManager(),
         providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) -> AgentCLIKitManagerFixture {
@@ -337,7 +338,7 @@ extension AgentsManagerTests {
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             settingsService: makeSettings(),
             keepAwakeService: RecordingKeepAwakeService(),
-            notificationManager: StubNotificationManager(),
+            notificationManager: notificationManager,
             threadActivityRecorder: threadActivityRecorder,
             providerSessionBindingStore: providerSessionBindingStore
         )

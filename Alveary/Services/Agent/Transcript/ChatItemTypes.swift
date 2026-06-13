@@ -73,6 +73,53 @@ extension [ChatItem] {
             }
         }
     }
+
+    var currentTurnItems: ArraySlice<ChatItem> {
+        let startIndex = lastIndex(where: \.isUserMessage).map { index(after: $0) } ?? startIndex
+        return self[startIndex...]
+    }
+
+    var containsCurrentTurnTranscriptError: Bool {
+        currentTurnItems.contains {
+            if case .error = $0 {
+                return true
+            }
+            return false
+        }
+    }
+
+    var containsCurrentTurnAssistantMessage: Bool {
+        currentTurnItems.contains(where: \.isAssistantMessage)
+    }
+
+    func hasEquivalentCurrentTurnError(message: String) -> Bool {
+        currentTurnItems.contains { item in
+            guard case .error(_, let existingMessage) = item else {
+                return false
+            }
+            return ConversationErrorDisplayPolicy.messagesMatch(existingMessage, message)
+        }
+    }
+
+    mutating func removeEquivalentCurrentTurnAssistantMessages(message: String) {
+        let searchRange = currentTurnSearchRange()
+        let matchingIndices = indices.filter { index in
+            guard searchRange.contains(index),
+                  case .assistantMessage(_, let existingMessage) = self[index] else {
+                return false
+            }
+            return ConversationErrorDisplayPolicy.messagesMatch(existingMessage, message)
+        }
+
+        for index in matchingIndices.reversed() {
+            remove(at: index)
+        }
+    }
+
+    private func currentTurnSearchRange() -> Range<Array<ChatItem>.Index> {
+        let rangeStart = lastIndex(where: \.isUserMessage).map { index(after: $0) } ?? startIndex
+        return rangeStart..<endIndex
+    }
 }
 
 struct PromptEntry: Identifiable, Equatable {

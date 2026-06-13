@@ -10,18 +10,7 @@ extension ChatItemGrouper {
             flushSubAgents()
             appendTranscriptItem(.userMessage(id: event.id, text: event.content ?? ""))
         case "message" where event.role == "assistant":
-            currentToolApprovalBatch = nil
-            flushSubAgents()
-            // When every tool in the open group has already produced a result, the
-            // assistant message is summarizing the completed batch and should sit *below*
-            // the group. Close the group first. When some tools are still running, Claude
-            // is introducing the next batch mid-stream — leave the group open so the
-            // trailing `.toolGroup` (stripped by `removeTrailingPendingBlocksIfNeeded`)
-            // gets re-emitted by the outer `flushGroup()` *below* the message.
-            if pendingGroupTools.allSatisfy(\.isComplete) {
-                flushGroup()
-            }
-            appendTranscriptItem(.assistantMessage(id: event.id, text: event.content ?? ""))
+            handleAssistantMessage(event)
         case "tool_call":
             handleToolCall(event)
         case "tool_result":
@@ -31,10 +20,7 @@ extension ChatItemGrouper {
         case "tool_approval":
             handleToolApproval(event)
         case "error":
-            currentToolApprovalBatch = nil
-            flushGroup()
-            flushSubAgents()
-            appendTranscriptItem(.error(id: event.id, message: event.content ?? "Unknown error"))
+            handleError(event)
         case "stop",
              ConversationContextCompaction.startedType,
              ConversationContextCompaction.completedType,
@@ -46,6 +32,37 @@ extension ChatItemGrouper {
             // `ChatTranscriptView` covers the "something is happening" affordance.
             break
         }
+    }
+
+    func handleAssistantMessage(_ event: ConversationEventRecord) {
+        let message = event.content ?? ""
+        currentToolApprovalBatch = nil
+        flushSubAgents()
+        // When every tool in the open group has already produced a result, the
+        // assistant message is summarizing the completed batch and should sit *below*
+        // the group. Close the group first. When some tools are still running, Claude
+        // is introducing the next wave mid-stream — leave the group open so the
+        // trailing `.toolGroup` (stripped by `removeTrailingPendingBlocksIfNeeded`)
+        // gets re-emitted by the outer `flushGroup()` *below* the message.
+        if pendingGroupTools.allSatisfy(\.isComplete) {
+            flushGroup()
+        }
+        guard !items.hasEquivalentCurrentTurnError(message: message) else {
+            return
+        }
+        appendTranscriptItem(.assistantMessage(id: event.id, text: message))
+    }
+
+    func handleError(_ event: ConversationEventRecord) {
+        let message = event.content ?? "Unknown error"
+        currentToolApprovalBatch = nil
+        flushGroup()
+        flushSubAgents()
+        items.removeEquivalentCurrentTurnAssistantMessages(message: message)
+        guard !items.hasEquivalentCurrentTurnError(message: message) else {
+            return
+        }
+        appendTranscriptItem(.error(id: event.id, message: message))
     }
 
     func resetAllState() {

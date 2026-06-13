@@ -36,6 +36,10 @@ extension DefaultAgentsManager {
             return false
         }
 
+        if shouldSuppressDuplicateGenericTokenErrorNotification(for: event, conversationId: conversationId) {
+            return false
+        }
+
         if shouldSuppressResolvedPermissionDenialNotification(for: event, conversationId: conversationId) {
             return false
         }
@@ -45,6 +49,9 @@ extension DefaultAgentsManager {
         if case .toolApprovalRequested = event {
             return shouldNotifyPendingUserAction(conversationId: conversationId)
         }
+
+        markProviderErrorNotificationIfNeeded(for: event, conversationId: conversationId)
+        clearProviderErrorNotificationFlagAfterTerminalTokenIfNeeded(for: event, conversationId: conversationId)
 
         guard notificationEvent == event,
               let payload = TokenEventPayload(event),
@@ -69,6 +76,43 @@ extension DefaultAgentsManager {
         }
 
         return !payload.completesTurn
+    }
+
+    private func shouldSuppressDuplicateGenericTokenErrorNotification(
+        for event: ConversationEvent,
+        conversationId: String
+    ) -> Bool {
+        guard let payload = TokenEventPayload(event),
+              payload.isError,
+              payload.permissionDenials.isEmpty,
+              ConversationErrorDisplayPolicy.isGenericStopReason(payload.stopReason),
+              eventBuffers[conversationId]?.hasSentProviderErrorNotification == true else {
+            return false
+        }
+
+        eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
+        return true
+    }
+
+    private func markProviderErrorNotificationIfNeeded(
+        for event: ConversationEvent,
+        conversationId: String
+    ) {
+        guard case .error = event else {
+            return
+        }
+        eventBuffers[conversationId]?.hasSentProviderErrorNotification = true
+    }
+
+    private func clearProviderErrorNotificationFlagAfterTerminalTokenIfNeeded(
+        for event: ConversationEvent,
+        conversationId: String
+    ) {
+        guard let payload = TokenEventPayload(event),
+              payload.completesTurn else {
+            return
+        }
+        eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
     }
 
     private func shouldSuppressResolvedPermissionDenialNotification(

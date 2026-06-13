@@ -146,6 +146,7 @@ extension DefaultAgentsManager {
         }
         switch state {
         case .active:
+            eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
             // Pending approvals own the waiting state; parallel tool activity must
             // not flip a waiting conversation back to busy.
             guard status(for: conversationId) != .waitingForUser else {

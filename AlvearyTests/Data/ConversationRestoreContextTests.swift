@@ -48,6 +48,21 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("Agent turn failed after the permission denial"))
     }
 
+    func testRefreshPendingRestoreContextUsesFallbackForGenericTokenErrorNote() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Resume after the failed model turn")
+        fixture.addEvent(type: "tokens", isError: true, stopReason: "stop_sequence")
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Last session note:"))
+        XCTAssertTrue(pendingRestoreContext.contains("The previous run ended with an error."))
+        XCTAssertFalse(pendingRestoreContext.contains("stop_sequence"))
+    }
+
     func testRefreshPendingRestoreContextUsesLatestNotificationWhenNoErrorNoteExists() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation

@@ -10,6 +10,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var observedEventCount = 0
     var pendingLiveToolApprovals: Int
     var hasSentPendingUserActionNotification: Bool
+    var hasSentProviderErrorNotification = false
     var resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?

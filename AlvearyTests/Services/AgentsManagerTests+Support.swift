@@ -79,7 +79,12 @@ actor StubProviderDetectionService: ProviderDetectionService {
 
 @MainActor
 final class StubNotificationManager: NotificationManager {
-    func handleEvent(_ event: ConversationEvent, conversationId: String) {}
+    private(set) var handledEvents: [(event: ConversationEvent, conversationId: String)] = []
+
+    func handleEvent(_ event: ConversationEvent, conversationId: String) {
+        handledEvents.append((event, conversationId))
+    }
+
     func markConversationRead(conversationId: String) {}
     func handleAppVisibilityChanged() {}
     func refreshBadgeCount() {}

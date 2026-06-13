@@ -76,3 +76,72 @@ struct TokenEventPayload {
         }
     }
 }
+
+enum ConversationErrorDisplayPolicy {
+    static let genericAgentTurnFailureMessage = "Agent turn failed"
+    static let genericPreviousRunFailureMessage = "The previous run ended with an error."
+    static let genericNotificationFailureMessage = "Your agent encountered an error"
+    static let genericSessionHandoffFailureMessage = "Session handoff failed."
+
+    static func messagesMatch(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs = normalizedText(lhs),
+              let rhs = normalizedText(rhs) else {
+            return false
+        }
+        return lhs == rhs
+    }
+
+    static func isGenericStopReason(_ stopReason: String?) -> Bool {
+        guard let normalized = normalizedText(stopReason) else {
+            return true
+        }
+        return genericStopReasons.contains(normalized)
+    }
+
+    static func tokenErrorMessage(stopReason: String?, fallback: String = genericAgentTurnFailureMessage) -> String {
+        guard !isGenericStopReason(stopReason),
+              let displayText = collapsedDisplayText(stopReason) else {
+            return fallback
+        }
+        return displayText
+    }
+
+    static func notificationErrorMessage(stopReason: String?) -> String {
+        tokenErrorMessage(stopReason: stopReason, fallback: genericNotificationFailureMessage)
+    }
+
+    static func restoreErrorTokenMessage(stopReason: String?) -> String {
+        tokenErrorMessage(stopReason: stopReason, fallback: genericPreviousRunFailureMessage)
+    }
+
+    static func sessionHandoffTokenFailureMessage(stopReason: String?) -> String {
+        tokenErrorMessage(stopReason: stopReason, fallback: genericSessionHandoffFailureMessage)
+    }
+
+    static func normalizedText(_ text: String?) -> String? {
+        collapsedDisplayText(text)?.lowercased()
+    }
+
+    private static func collapsedDisplayText(_ text: String?) -> String? {
+        guard let text else {
+            return nil
+        }
+
+        let collapsed = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return collapsed.isEmpty ? nil : collapsed
+    }
+}
+
+private let genericStopReasons: Set<String> = [
+    ConversationEvent.interimUsageStopReason,
+    "end_turn",
+    "max_tokens",
+    "pause_turn",
+    "refusal",
+    "stop_sequence",
+    "tool_deferred",
+    "tool_use"
+]

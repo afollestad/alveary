@@ -54,6 +54,33 @@ extension ConversationViewModelTests {
         XCTAssertTrue(freshSessionCalls.isEmpty)
     }
 
+    func testHiddenSessionHandoffGenericTokenFailureUsesFallbackCopy() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+        try await waitUntil("handoff prompt sent") {
+            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        }
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: true,
+            stopReason: "stop_sequence",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: [],
+            isTerminal: true
+        ))
+
+        XCTAssertFalse(fixture.viewModel.state.isHandingOffSession)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Session handoff failed.")
+        XCTAssertEqual(fixture.viewModel.state.failedSessionHandoffMessage, "Session handoff failed.")
+        XCTAssertTrue(fixture.viewModel.canRetryFailedSessionHandoff)
+    }
+
     func testFailedSessionHandoffSuppressesTrailingRuntimeActivityAndError() async throws {
         let fixture = try ConversationViewModelTestFixture()
 

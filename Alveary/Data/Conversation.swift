@@ -178,7 +178,8 @@ private extension Conversation {
             guard record.isError else {
                 return nil
             }
-            return normalizedRestoreSnippet(record.stopReason) ?? "The previous run ended with an error."
+            let note = ConversationErrorDisplayPolicy.restoreErrorTokenMessage(stopReason: record.stopReason)
+            return normalizedRestoreSnippet(note) ?? ConversationErrorDisplayPolicy.genericPreviousRunFailureMessage
         case "error", ConversationContextCompaction.failedType:
             return restoreErrorSessionNote(for: record)
         case "stop":

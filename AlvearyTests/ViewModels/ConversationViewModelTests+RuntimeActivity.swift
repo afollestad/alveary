@@ -130,13 +130,114 @@ extension ConversationViewModelTests {
 
         XCTAssertFalse(fixture.viewModel.turnState.isActive)
         XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
-        XCTAssertEqual(fixture.viewModel.lastTurnError, "Agent process crashed unexpectedly")
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertTrue(fixture.viewModel.state.grouper.items.visibleTranscriptItems.contains { item in
+            if case .error(_, "Agent process crashed unexpectedly") = item {
+                return true
+            }
+            return false
+        })
 
         let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
         let stopRecords = records.filter { $0.type == "stop" }
         let errorRecords = records.filter { $0.type == "error" }
         XCTAssertEqual(stopRecords.count, 1)
         XCTAssertEqual(errorRecords.map(\.content), ["Agent process crashed unexpectedly"])
+    }
+
+    func testProviderErrorDeduplicatesAssistantFailureAndSuppressesGenericComposerError() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let failureMessage = """
+        There's an issue with the selected model (claude-fable-5). It may not exist or you may not have access to it.
+        """
+
+        fixture.viewModel.state.turnState.beginTurn()
+        _ = fixture.viewModel.insertLocalUserMessage("Use claude-fable-5", into: conversation)
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: failureMessage, parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.error(message: failureMessage))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: true,
+            stopReason: "stop_sequence",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.filter { $0.role == "assistant" }.map(\.content), [failureMessage])
+        XCTAssertEqual(persistedEvents.filter { $0.type == "error" }.map(\.content), [failureMessage])
+        XCTAssertEqual(persistedEvents.filter { $0.type == "tokens" }.map(\.stopReason), ["stop_sequence"])
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+
+        let visibleItems = fixture.viewModel.state.grouper.items.visibleTranscriptItems
+        let userRecord = try XCTUnwrap(persistedEvents.first { $0.role == "user" })
+        XCTAssertTrue(visibleItems.contains(.userMessage(id: userRecord.id, text: "Use claude-fable-5")))
+        XCTAssertFalse(visibleItems.contains { item in
+            if case .assistantMessage = item {
+                return true
+            }
+            return false
+        })
+        XCTAssertEqual(
+            visibleItems.compactMap { item -> String? in
+                guard case .error(_, let message) = item else {
+                    return nil
+                }
+                return message
+            },
+            [failureMessage]
+        )
+    }
+
+    func testAssistantOnlyFailureSuppressesGenericTokenComposerError() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        _ = fixture.viewModel.insertLocalUserMessage("Use claude-fable-5", into: conversation)
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "Selected model is unavailable.", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: true,
+            stopReason: "stop_sequence",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertTrue(fixture.viewModel.state.grouper.items.visibleTranscriptItems.contains { item in
+            if case .assistantMessage(_, "Selected model is unavailable.") = item {
+                return true
+            }
+            return false
+        })
+    }
+
+    func testTokenOnlyGenericFailureUsesComposerFallbackCopy() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: true,
+            stopReason: "stop_sequence",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Agent turn failed")
     }
 
     func testRuntimeActivityCompletedIdleDuringCancellationSynthesizesInterruption() throws {
