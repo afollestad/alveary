@@ -202,9 +202,9 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         symbolView.setAccessibilityLabel(accessibilityDescription)
         if symbolChanged {
             symbolView.image = NSImage(systemSymbolName: systemName, accessibilityDescription: accessibilityDescription)
-            symbolView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
             symbolSystemName = systemName
         }
+        symbolView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowForegroundColor(isHovered: isDisclosureHovered))
         symbolRotation = rotation
         positionSymbolLayer(rotation: rotation)
         addSymbolTransitionIfNeeded(

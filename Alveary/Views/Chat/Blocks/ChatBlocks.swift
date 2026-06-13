@@ -32,6 +32,16 @@ let transcriptInlineToolRowColor = NSColor(name: nil, dynamicProvider: { appeara
         return NSColor.tertiaryLabelColor.resolved(for: appearance)
     }
 })
+let inlineToolRowHoverAlphaMultiplier: CGFloat = 1.2
+func transcriptInlineToolRowForegroundColor(isHovered: Bool) -> NSColor {
+    guard isHovered else {
+        return transcriptInlineToolRowColor
+    }
+    return NSColor(name: nil, dynamicProvider: { appearance in
+        let resolved = transcriptInlineToolRowColor.resolved(for: appearance)
+        return resolved.withAlphaComponent(min(resolved.alphaComponent * inlineToolRowHoverAlphaMultiplier, 1))
+    })
+}
 let transcriptScrollLeadingInset: CGFloat = 20
 let transcriptScrollTrailingInset: CGFloat = 21
 let transcriptToolConnectorOpacity: Double = 0.28

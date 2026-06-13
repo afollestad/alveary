@@ -43,9 +43,17 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
     private let summaryField = NSTextField(labelWithString: "")
     private let statusView = AppKitTranscriptToolStatusIndicatorView()
     private var configuration: Configuration?
-    private var isDisclosureHovered = false
+    private var isRowHovered = false
     private var trackingArea: NSTrackingArea?
     private var lastMeasuredHeight: CGFloat = -1
+
+    private var isDisclosureHovered: Bool {
+        configuration?.isExpanded != nil && isRowHovered
+    }
+
+    private var currentForegroundColor: NSColor {
+        transcriptInlineToolRowForegroundColor(isHovered: isRowHovered)
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -79,7 +87,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             disclosureExpansionState: configuration.isExpanded,
             disclosureHovered: isDisclosureHovered
         )
-        refreshDisclosureTrackingArea()
+        refreshHoverTrackingArea()
         updateAccessibility(for: configuration)
         needsLayout = true
         invalidateTranscriptHeight(force: true)
@@ -114,15 +122,15 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        refreshDisclosureTrackingArea()
+        refreshHoverTrackingArea()
     }
 
     override func mouseEntered(with event: NSEvent) {
-        setDisclosureHovered(true, animated: true)
+        setRowHovered(true, animated: true)
     }
 
     override func mouseExited(with event: NSEvent) {
-        setDisclosureHovered(false, animated: true)
+        setRowHovered(false, animated: true)
     }
 
     private func setup() {
@@ -155,9 +163,13 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         iconView.isHidden = !configuration.showsLeadingIcon
         let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
         iconView.image = NSImage(systemSymbolName: systemSymbolName(for: configuration.leadingIcon), accessibilityDescription: nil)
-        iconView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
+        updateIconTint()
         iconView.symbolConfiguration = .init(pointSize: metrics.leadingIconSize, weight: .heavy)
         iconView.layer?.setAffineTransform(.identity)
+    }
+
+    private func updateIconTint() {
+        iconView.setDynamicContentTintColorPreservingAlpha(currentForegroundColor)
     }
 
     private func updateSummary() {
@@ -166,16 +178,18 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         }
         summaryField.attributedStringValue = TranscriptToolSummaryFormatter.nsAttributedString(
             configuration.summary,
-            typography: configuration.typography
+            typography: configuration.typography,
+            foregroundColor: currentForegroundColor
         )
     }
 
-    private func setDisclosureHovered(_ hovered: Bool, animated: Bool) {
-        let normalizedHovered = configuration?.isExpanded != nil && hovered
-        guard isDisclosureHovered != normalizedHovered else {
+    private func setRowHovered(_ hovered: Bool, animated: Bool) {
+        guard isRowHovered != hovered else {
             return
         }
-        isDisclosureHovered = normalizedHovered
+        isRowHovered = hovered
+        updateIconTint()
+        updateSummary()
         updateStatusView(animated: animated)
     }
 
@@ -193,13 +207,13 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         )
     }
 
-    private func refreshDisclosureTrackingArea() {
+    private func refreshHoverTrackingArea() {
         if let trackingArea {
             removeTrackingArea(trackingArea)
             self.trackingArea = nil
         }
-        guard configuration?.isExpanded != nil else {
-            isDisclosureHovered = false
+        guard configuration != nil else {
+            isRowHovered = false
             return
         }
         let newTrackingArea = NSTrackingArea(
@@ -339,8 +353,12 @@ extension AppKitTranscriptToolHeaderRowView {
         configuration?.showsLeadingIcon == true
     }
 
+    func setRowHoveredForTesting(_ hovered: Bool, animated: Bool = false) {
+        setRowHovered(hovered, animated: animated)
+    }
+
     func setDisclosureHoveredForTesting(_ hovered: Bool, animated: Bool = false) {
-        setDisclosureHovered(hovered, animated: animated)
+        setRowHovered(hovered, animated: animated)
     }
 }
 #endif

@@ -17,7 +17,11 @@ enum TranscriptToolSummaryFormatter {
         return attributed
     }
 
-    static func nsAttributedString(_ text: String, typography: TranscriptTypography) -> NSAttributedString {
+    static func nsAttributedString(
+        _ text: String,
+        typography: TranscriptTypography,
+        foregroundColor: NSColor = transcriptInlineToolRowColor
+    ) -> NSAttributedString {
         let attributed = NSMutableAttributedString(attributedString: AppKitMarkdownAttributedStringBuilder.attributedString(
             from: attributedString(text),
             baseFont: typography.nsFont(.inlineToolText),
@@ -25,7 +29,7 @@ enum TranscriptToolSummaryFormatter {
             inlineCodeStyle: .standard
         ))
         let fullRange = NSRange(location: 0, length: attributed.length)
-        attributed.addAttribute(.foregroundColor, value: transcriptInlineToolRowColor, range: fullRange)
+        attributed.addAttribute(.foregroundColor, value: foregroundColor, range: fullRange)
         attributed.enumerateAttribute(.backgroundColor, in: fullRange) { value, range, _ in
             guard value != nil else {
                 return

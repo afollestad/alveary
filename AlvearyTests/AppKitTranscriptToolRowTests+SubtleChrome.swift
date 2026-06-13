@@ -76,8 +76,11 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(statusView.statusSymbolPointSizeForTesting, metrics.statusIconSize)
 
         header.setDisclosureHoveredForTesting(true)
+        let expectedHoverColor = transcriptInlineToolRowForegroundColor(isHovered: true).resolved(
+            for: header.appKitRenderingAppearance
+        )
         XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
     }
 
     func testHeaderChromeUsesBrighterSharedColorInDarkMode() throws {
@@ -103,6 +106,129 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(expectedColor, NSColor.secondaryLabelColor.resolved(for: header.appKitRenderingAppearance))
         XCTAssertEqual(plainColor.resolved(for: header.appKitRenderingAppearance), expectedColor)
         XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+    }
+
+    func testHeaderHoverIncreasesIconSummaryAndDisclosureAlpha() throws {
+        let header = AppKitTranscriptToolHeaderRowView()
+        header.appearance = NSAppearance(named: .aqua)
+        header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
+        header.configure(
+            .init(
+                summary: "Notebook `read`",
+                leadingIcon: .document,
+                phase: .success,
+                isExpanded: true
+            )
+        )
+        header.layoutSubtreeIfNeeded()
+
+        let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
+        let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
+        let expectedHoverColor = transcriptInlineToolRowForegroundColor(isHovered: true).resolved(
+            for: header.appKitRenderingAppearance
+        )
+        let expectedCodeBackground = transcriptInlineToolRowColor.appKitResolvedColor(in: header, alpha: 0.08)
+
+        XCTAssertGreaterThan(expectedHoverColor.alphaComponent, expectedColor.alphaComponent)
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(
+            try summaryForegroundColor(in: header, matching: "Notebook").resolved(for: header.appKitRenderingAppearance),
+            expectedColor
+        )
+        XCTAssertEqual(
+            try summaryBackgroundColor(in: header, matching: "read").resolved(for: header.appKitRenderingAppearance),
+            expectedCodeBackground
+        )
+        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+
+        header.setRowHoveredForTesting(true)
+
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
+        XCTAssertEqual(
+            try summaryForegroundColor(in: header, matching: "Notebook").resolved(for: header.appKitRenderingAppearance),
+            expectedHoverColor
+        )
+        XCTAssertEqual(
+            try summaryBackgroundColor(in: header, matching: "read").resolved(for: header.appKitRenderingAppearance),
+            expectedCodeBackground
+        )
+        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
+
+        header.setRowHoveredForTesting(false)
+
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+        XCTAssertEqual(
+            try summaryForegroundColor(in: header, matching: "Notebook").resolved(for: header.appKitRenderingAppearance),
+            expectedColor
+        )
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedColor)
+    }
+
+    func testHeaderHoverBrightensNonExpandableRowsWithoutDisclosure() throws {
+        let header = AppKitTranscriptToolHeaderRowView()
+        header.appearance = NSAppearance(named: .aqua)
+        header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
+        header.configure(
+            .init(
+                summary: "Notebook read",
+                leadingIcon: .document,
+                phase: .success
+            )
+        )
+        header.layoutSubtreeIfNeeded()
+
+        let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
+        let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        let expectedHoverColor = transcriptInlineToolRowForegroundColor(isHovered: true).resolved(
+            for: header.appKitRenderingAppearance
+        )
+
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+
+        header.setRowHoveredForTesting(true)
+
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
+        XCTAssertEqual(
+            try summaryForegroundColor(in: header, matching: "Notebook").resolved(for: header.appKitRenderingAppearance),
+            expectedHoverColor
+        )
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+    }
+
+    func testHeaderHoverLeavesLoadingSpinnerMuted() throws {
+        let header = AppKitTranscriptToolHeaderRowView()
+        header.appearance = NSAppearance(named: .aqua)
+        header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
+        header.configure(
+            .init(
+                summary: "Running tool",
+                leadingIcon: .genericTool,
+                phase: .loading,
+                isExpanded: false
+            )
+        )
+        header.layoutSubtreeIfNeeded()
+
+        let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
+        let spinner = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitStatusIndicatorSpinner.self).first)
+        let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
+        let expectedHoverColor = transcriptInlineToolRowForegroundColor(isHovered: true).resolved(
+            for: header.appKitRenderingAppearance
+        )
+
+        header.setRowHoveredForTesting(true)
+
+        XCTAssertEqual(icon.contentTintColor?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
+        XCTAssertEqual(
+            try summaryForegroundColor(in: header, matching: "Running").resolved(for: header.appKitRenderingAppearance),
+            expectedHoverColor
+        )
+        XCTAssertEqual(spinner.arcStrokeColorForTesting, expectedColor)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
     }
 
@@ -135,6 +261,34 @@ extension AppKitTranscriptToolRowTests {
         assertHeaderIcon(.write, summary: "Wrote notes.md", renders: "pencil")
         assertHeaderIcon(.subAgent, summary: "Explored 1 sub-agent", renders: "hat.widebrim")
     }
+}
+
+@MainActor
+private func summaryForegroundColor(
+    in header: AppKitTranscriptToolHeaderRowView,
+    matching substring: String
+) throws -> NSColor {
+    try summaryAttribute(.foregroundColor, in: header, matching: substring)
+}
+
+@MainActor
+private func summaryBackgroundColor(
+    in header: AppKitTranscriptToolHeaderRowView,
+    matching substring: String
+) throws -> NSColor {
+    try summaryAttribute(.backgroundColor, in: header, matching: substring)
+}
+
+@MainActor
+private func summaryAttribute(
+    _ key: NSAttributedString.Key,
+    in header: AppKitTranscriptToolHeaderRowView,
+    matching substring: String
+) throws -> NSColor {
+    let textStorage = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSTextField.self).first?.attributedStringValue)
+    let range = (textStorage.string as NSString).range(of: substring)
+    let location = try XCTUnwrap(range.location == NSNotFound ? nil : range.location)
+    return try XCTUnwrap(textStorage.attribute(key, at: location, effectiveRange: nil) as? NSColor)
 }
 
 @MainActor
