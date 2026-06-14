@@ -225,8 +225,29 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
         XCTAssertEqual(overlay?.frame, NSRect(x: 13, y: 14, width: 15, height: 16))
     }
 
+    func testImagePresentationChangeReconfiguresBlockInputView() {
+        let markdown = "![Cat](cat.png)"
+        let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: markdown))
+        #if DEBUG
+        let initialConfigureCount = controller.viewConfigureCountForTesting
+        #endif
+
+        controller.configure(makeConfiguration(markdown: markdown, imagePresentation: .textLinksWithPreviewStrip))
+        let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(
+            markdown: markdown,
+            imagePresentation: .textLinksWithPreviewStrip
+        ))
+
+        XCTAssertEqual(blockInputConfiguration.imagePresentation, .textLinksWithPreviewStrip)
+        XCTAssertEqual(controller.currentMarkdown(), markdown)
+        #if DEBUG
+        XCTAssertEqual(controller.viewConfigureCountForTesting, initialConfigureCount + 1)
+        #endif
+    }
+
     private func makeConfiguration(
         markdown: String,
+        imagePresentation: BlockInputImagePresentation = .inlineBlocks,
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
@@ -234,6 +255,7 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
     ) -> BlockInputComposerBridgeConfiguration {
         BlockInputComposerBridgeConfiguration(
             markdown: markdown,
+            imagePresentation: imagePresentation,
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },

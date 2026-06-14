@@ -9,6 +9,8 @@ struct BlockInputComposerBridgeConfiguration {
     var placeholder: String?
     var isEditable: Bool
     var disabledCursor: NSCursor?
+    /// Composer image handling for both draft Markdown import and editor presentation.
+    var imagePresentation: BlockInputImagePresentation
     var editorHorizontalInset: CGFloat
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: BlockInputEditorChromeCorners
@@ -30,6 +32,7 @@ struct BlockInputComposerBridgeConfiguration {
         placeholder: String? = nil,
         isEditable: Bool = true,
         disabledCursor: NSCursor? = nil,
+        imagePresentation: BlockInputImagePresentation = .inlineBlocks,
         editorHorizontalInset: CGFloat = BlockInputConfiguration.defaultEditorHorizontalInset,
         editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
@@ -50,6 +53,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.placeholder = placeholder
         self.isEditable = isEditable
         self.disabledCursor = disabledCursor
+        self.imagePresentation = imagePresentation
         self.editorHorizontalInset = editorHorizontalInset
         self.editorVerticalInset = editorVerticalInset
         self.editorRoundedCorners = editorRoundedCorners
@@ -81,17 +85,22 @@ final class BlockInputComposerBridgeController {
     private var currentConfiguration: BlockInputComposerBridgeConfiguration
     private var appliedViewConfigurationKey: BridgeViewConfigKey
     private var lastConfiguredMarkdownRevision: Int
+    private var lastConfiguredImagePresentation: BlockInputImagePresentation
     #if DEBUG
     private(set) var viewConfigureCountForTesting = 0
     #endif
 
     init(configuration: BlockInputComposerBridgeConfiguration) {
-        let document = BlockInputDocument(markdown: configuration.markdown)
+        let document = BlockInputDocument(
+            markdown: configuration.markdown,
+            imageParsingMode: Self.imageParsingMode(for: configuration.imagePresentation)
+        )
         documentStore = BlockInputMemoryDocumentStore(document: document)
         completionProvider = Self.makeCompletionProvider(configuration)
         currentConfiguration = configuration
         appliedViewConfigurationKey = Self.viewConfigurationKey(for: configuration)
         lastConfiguredMarkdownRevision = configuration.markdownRevision
+        lastConfiguredImagePresentation = configuration.imagePresentation
         configureBlockInputView(for: configuration)
     }
 
@@ -108,10 +117,15 @@ final class BlockInputComposerBridgeController {
     }
 
     private func replaceExternalMarkdownIfNeeded(_ configuration: BlockInputComposerBridgeConfiguration) -> Bool {
-        if configuration.markdownRevision != lastConfiguredMarkdownRevision {
+        let imagePresentationChanged = configuration.imagePresentation != lastConfiguredImagePresentation
+        if configuration.markdownRevision != lastConfiguredMarkdownRevision || imagePresentationChanged {
             lastConfiguredMarkdownRevision = configuration.markdownRevision
-            if configuration.markdown != documentStore.document.markdown {
-                documentStore.replaceDocument(BlockInputDocument(markdown: configuration.markdown))
+            lastConfiguredImagePresentation = configuration.imagePresentation
+            if configuration.markdown != documentStore.document.markdown || imagePresentationChanged {
+                documentStore.replaceDocument(BlockInputDocument(
+                    markdown: configuration.markdown,
+                    imageParsingMode: Self.imageParsingMode(for: configuration.imagePresentation)
+                ))
                 undoController = BlockInputUndoController()
                 return true
             }
@@ -121,6 +135,15 @@ final class BlockInputComposerBridgeController {
 
     func currentMarkdown() -> String {
         documentStore.document.markdown
+    }
+
+    var containsTextualImagePreviewSource: Bool {
+        guard currentConfiguration.imagePresentation == .textLinksWithPreviewStrip else {
+            return false
+        }
+        return documentStore.document.blocks.contains { block in
+            Self.containsTextualImageSource(in: block.text)
+        }
     }
 
     func blockInputConfiguration(
@@ -151,6 +174,7 @@ final class BlockInputComposerBridgeController {
                     self?.currentConfiguration.onPreferredHeightTransition(transition)
                 }
             ),
+            imagePresentation: configuration.imagePresentation,
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,
             undoController: undoController,
@@ -204,6 +228,22 @@ final class BlockInputComposerBridgeController {
         #endif
     }
 
+    private static func imageParsingMode(
+        for imagePresentation: BlockInputImagePresentation
+    ) -> BlockInputMarkdownImageParsingMode {
+        switch imagePresentation {
+        case .inlineBlocks:
+            return .imageBlocks
+        case .textLinksWithPreviewStrip:
+            return .preserveSourceText
+        }
+    }
+
+    private static func containsTextualImageSource(in text: String) -> Bool {
+        // This is an animation hint only. Exact preview parsing remains BlockInputKit-owned.
+        text.contains("![") || text.range(of: "<img", options: [.caseInsensitive]) != nil
+    }
+
     private static func makeCompletionProvider(
         _ configuration: BlockInputComposerBridgeConfiguration
     ) -> BlockInputComposerCompletionProvider {
@@ -237,6 +277,7 @@ final class BlockInputComposerBridgeController {
             placeholder: configuration.placeholder,
             isEditable: configuration.isEditable,
             disabledCursor: configuration.disabledCursor.map { ObjectIdentifier($0) },
+            imagePresentation: configuration.imagePresentation,
             editorHorizontalInset: configuration.editorHorizontalInset,
             editorVerticalInset: configuration.editorVerticalInset,
             editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
@@ -252,6 +293,7 @@ private struct BridgeViewConfigKey: Equatable {
     var placeholder: String?
     var isEditable: Bool
     var disabledCursor: ObjectIdentifier?
+    var imagePresentation: BlockInputImagePresentation
     var editorHorizontalInset: CGFloat
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: Int

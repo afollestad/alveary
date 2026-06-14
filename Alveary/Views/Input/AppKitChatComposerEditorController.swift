@@ -12,11 +12,15 @@ final class AppKitChatComposerEditorController {
     var onPreferredSizeInvalidated: ((Bool) -> Void)?
     private var lastConsumedFocusRequestToken: UUID?
     private var hasSeededInitialBlockInputHeight = false
+    private var lastTextualImagePreviewPresence = false
     private var preferredHeightAnimationTimer: Timer?
     private var preferredHeightAnimationState: PreferredHeightAnimationState?
 
     func configure(_ configuration: AppKitChatComposerBodyConfiguration) {
         let previousConfiguration = self.configuration
+        let shouldRefreshImagePreviewPresence = previousConfiguration == nil
+            || previousConfiguration?.draftIdentity != configuration.draftIdentity
+            || previousConfiguration?.inputDraftRevision != configuration.inputDraftRevision
         previousConfiguration?.onDraftSnapshotProviderChange(nil)
         if let previousConfiguration,
            previousConfiguration.draftIdentity != configuration.draftIdentity {
@@ -24,11 +28,15 @@ final class AppKitChatComposerEditorController {
             bridgeController = nil
             lastConsumedFocusRequestToken = nil
             hasSeededInitialBlockInputHeight = false
+            lastTextualImagePreviewPresence = false
             cancelPreferredHeightAnimation()
         }
         self.configuration = configuration
 
         configureBlockInput(configuration)
+        if shouldRefreshImagePreviewPresence {
+            lastTextualImagePreviewPresence = currentTextualImagePreviewPresence()
+        }
         installDraftSnapshotProvider(configuration)
         consumeFocusRequestIfNeeded(configuration.requestFirstResponder)
         invalidatePreferredSize(animateSurfaceHeight: true)
@@ -47,7 +55,7 @@ final class AppKitChatComposerEditorController {
 }
 
 extension AppKitChatComposerEditorController {
-    nonisolated static let editorHorizontalPadding: CGFloat = 10
+    nonisolated static let editorHorizontalPadding: CGFloat = 14
     nonisolated static let editorVerticalPadding: CGFloat = 10
     nonisolated static let editorBaseHeight: CGFloat = 68
     nonisolated static let editorCornerRadius: CGFloat = 18
@@ -108,13 +116,17 @@ extension AppKitChatComposerEditorController {
 extension AppKitChatComposerEditorController {
     func handlePreferredHeightTransition(_ transition: BlockInputEditorHeightTransition) {
         hasSeededInitialBlockInputHeight = true
+        let hasTextualImagePreview = currentTextualImagePreviewPresence()
+        let isFirstTextualImagePreviewReveal = hasTextualImagePreview && !lastTextualImagePreviewPresence
+        lastTextualImagePreviewPresence = hasTextualImagePreview
         let nextHeight = max(0, ceil(transition.targetHeight))
         guard abs(measuredEditorHeight - nextHeight) > 0.5 else {
             cancelPreferredHeightAnimation()
             return
         }
         guard let animation = transition.animation,
-              !transition.isInitial else {
+              !transition.isInitial,
+              !isFirstTextualImagePreviewReveal else {
             cancelPreferredHeightAnimation()
             applyPreferredEditorHeight(nextHeight)
             return
@@ -215,6 +227,10 @@ extension AppKitChatComposerEditorController {
         view?.needsLayout = true
         view?.superview?.needsLayout = true
         onPreferredSizeInvalidated?(animateSurfaceHeight)
+    }
+
+    private func currentTextualImagePreviewPresence() -> Bool {
+        bridgeController?.containsTextualImagePreviewSource == true
     }
 
     func consumeFocusRequest(_ token: UUID?) {

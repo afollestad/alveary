@@ -78,6 +78,18 @@ final class AppKitChatComposerPanelView: NSView {
         false
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        guard hit === self,
+              let editorView = editorController.view,
+              !editorView.isHidden,
+              editorView.frame.contains(point) else {
+            return hit
+        }
+        let editorPoint = convert(point, to: editorView)
+        return editorView.hitTest(editorPoint) ?? editorView
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight(for: bounds.width))
     }
@@ -321,6 +333,7 @@ final class AppKitChatComposerPanelView: NSView {
         guard let configuration else {
             interactionOverlayView.configure(nil)
             interactionOverlayView.isHidden = true
+            interactionOverlayView.frame = .zero
             setNormalComposerOverlayHidden(false)
             return
         }
@@ -478,8 +491,7 @@ final class AppKitChatComposerPanelView: NSView {
 
 #if DEBUG
 extension AppKitChatComposerPanelView {
-    var editorControllerForTesting: AppKitChatComposerEditorController {
-        editorController
-    }
+    var editorControllerForTesting: AppKitChatComposerEditorController { editorController }
+    var interactionOverlayViewForTesting: AppKitComposerOverlayView { interactionOverlayView }
 }
 #endif

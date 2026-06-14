@@ -22,6 +22,7 @@ extension AppKitChatComposerEditorController {
             placeholder: presentation.placeholder,
             isEditable: !presentation.isTextEditorDisabled,
             disabledCursor: configuration.isProjectTrustBlocked ? .operationNotAllowed : nil,
+            imagePresentation: .textLinksWithPreviewStrip,
             editorHorizontalInset: Self.editorHorizontalPadding,
             editorVerticalInset: Self.editorVerticalPadding,
             editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,

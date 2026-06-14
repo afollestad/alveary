@@ -41,6 +41,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(blockInputConfiguration.selectAllBehavior, .document)
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, BlockInputConfiguration.defaultEditorHorizontalInset)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, BlockInputConfiguration.defaultEditorVerticalInset)
+        XCTAssertEqual(blockInputConfiguration.imagePresentation, .inlineBlocks)
         XCTAssertEqual(BlockInputComposerBridgeController.blockVerticalInsetMultiplier, 0.7)
         XCTAssertEqual(blockInputConfiguration.blockVerticalInsetMultiplier, BlockInputComposerBridgeController.blockVerticalInsetMultiplier)
         XCTAssertEqual(blockInputConfiguration.fileBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-project"))
@@ -428,6 +429,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
     private func makeConfiguration(
         markdown: String,
         markdownRevision: Int = 0,
+        imagePresentation: BlockInputImagePresentation = .inlineBlocks,
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         location: BlockInputComposerLocation = BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
@@ -437,6 +439,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         BlockInputComposerBridgeConfiguration(
             markdown: markdown,
             markdownRevision: markdownRevision,
+            imagePresentation: imagePresentation,
             location: location,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,

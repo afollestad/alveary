@@ -5,6 +5,15 @@ enum BlockInputComposerStyle {
     static let chipCornerRadius: CGFloat = 4
     static let completionPopupCornerRadius: CGFloat = 18
     static let completionPopupBorderWidth: CGFloat = 1
+    static let imagePreviewThumbnailSize = NSSize(width: 76, height: 76)
+    static let imagePreviewVerticalPadding: CGFloat = 8
+    static let imagePreviewHorizontalPadding: CGFloat = 8
+    static let imagePreviewInterItemSpacing: CGFloat = 12
+    static let imagePreviewCornerRadius: CGFloat = 12
+    static let imagePreviewBorderWidth: CGFloat = 1
+    static let imagePreviewRemoveButtonBorderWidth: CGFloat = 1
+    static let imagePreviewRemoveButtonShadowOpacity: Float = 0.22
+    static let imagePreviewRemoveButtonShadowRadius: CGFloat = 4
 
     static let completionPopupBackgroundColor = AppPopupSurfaceStyle.backgroundNSColor
 
@@ -12,6 +21,26 @@ enum BlockInputComposerStyle {
     static let completionPopupHighlightColor = dynamicLabelColor(.labelColor, opacity: 0.1)
     static let editorFillColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.08)
     static let editorBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
+    static let imagePreviewStripBackgroundColor = NSColor(name: nil) { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(calibratedWhite: 0.1568627451, alpha: 1)
+        default:
+            return NSColor.underPageBackgroundColor.resolved(for: appearance)
+        }
+    }
+    static let imagePreviewBorderColor = dynamicLabelColor(.separatorColor, opacity: 0.85)
+    static let imagePreviewRemoveButtonBackgroundColor = NSColor(name: nil) { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(calibratedWhite: 0.95, alpha: 0.94)
+        default:
+            return NSColor(calibratedWhite: 1, alpha: 0.96)
+        }
+    }
+    static let imagePreviewRemoveButtonBorderColor = dynamicLabelColor(.labelColor, opacity: 0.22)
+    static let imagePreviewRemoveButtonSymbolColor = NSColor(calibratedWhite: 0.08, alpha: 1)
+    static let imagePreviewRemoveButtonShadowColor = NSColor.black
     static let selectionBackgroundColor = NSColor(name: nil) { appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
@@ -28,6 +57,7 @@ enum BlockInputComposerStyle {
                 foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor,
                 backgroundColor: AppMarkdownCodeBlockPalette.composerChipFillNSColor
             ),
+            imagePreviewStrip: imagePreviewStripStyle(),
             editorSurface: BlockInputEditorSurfaceStyle(
                 editorBackgroundColor: nil,
                 scrollBackgroundColor: nil,
@@ -63,6 +93,34 @@ enum BlockInputComposerStyle {
             strokeColor: nil,
             foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor,
             cornerRadius: chipCornerRadius
+        )
+    }
+
+    private static func imagePreviewStripStyle() -> BlockInputImagePreviewStripStyle {
+        BlockInputImagePreviewStripStyle(
+            thumbnailSize: imagePreviewThumbnailSize,
+            contentInsets: NSEdgeInsets(
+                top: imagePreviewVerticalPadding,
+                left: imagePreviewHorizontalPadding,
+                bottom: imagePreviewVerticalPadding,
+                right: imagePreviewHorizontalPadding
+            ),
+            interItemSpacing: imagePreviewInterItemSpacing,
+            backgroundColor: imagePreviewStripBackgroundColor,
+            borderColor: imagePreviewBorderColor,
+            borderWidth: imagePreviewBorderWidth,
+            cornerRadius: imagePreviewCornerRadius,
+            removeButton: BlockInputImagePreviewRemoveButtonStyle(
+                isVisible: true,
+                backgroundColor: imagePreviewRemoveButtonBackgroundColor,
+                borderColor: imagePreviewRemoveButtonBorderColor,
+                borderWidth: imagePreviewRemoveButtonBorderWidth,
+                symbolColor: imagePreviewRemoveButtonSymbolColor,
+                shadowColor: imagePreviewRemoveButtonShadowColor,
+                shadowOpacity: imagePreviewRemoveButtonShadowOpacity,
+                shadowRadius: imagePreviewRemoveButtonShadowRadius,
+                shadowOffset: NSSize(width: 0, height: -1)
+            )
         )
     }
 
