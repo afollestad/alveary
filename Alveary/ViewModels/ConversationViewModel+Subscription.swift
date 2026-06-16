@@ -2,11 +2,35 @@ import Foundation
 
 private let streamingChunkBatchEventThreshold = 8
 private let streamingChunkBatchCharacterThreshold = 160
+private let streamingChunkMaxDelayNanos: UInt64 = 100_000_000
+
+private enum SubscriptionLoopInput: Sendable {
+    case event(ConversationEvent)
+    case flushDeadline
+    case finished
+}
+
+// `runSubscription` owns this reader and creates at most one pending `next()` task at a time.
+private final class SubscriptionEventReader: @unchecked Sendable {
+    private var iterator: AsyncStream<ConversationEvent>.Iterator
+
+    init(stream: AsyncStream<ConversationEvent>) {
+        iterator = stream.makeAsyncIterator()
+    }
+
+    func next() async -> ConversationEvent? {
+        await iterator.next()
+    }
+}
 
 private struct SubscriptionChunkBuffer {
     var text = ""
     var eventCount = 0
     var hasPublishedRootChunk = false
+
+    var hasPendingText: Bool {
+        !text.isEmpty
+    }
 
     var shouldFlush: Bool {
         eventCount >= streamingChunkBatchEventThreshold || text.count >= streamingChunkBatchCharacterThreshold
@@ -79,22 +103,104 @@ private extension ConversationViewModel {
             return
         }
 
+        let reader = SubscriptionEventReader(stream: subscription.stream)
+        var pendingEventTask: Task<ConversationEvent?, Never>?
+        defer {
+            pendingEventTask?.cancel()
+        }
+
         var chunkBuffer = SubscriptionChunkBuffer()
 
-        for await event in subscription.stream {
-            guard await processSubscriptionEvent(
-                event,
+        while !Task.isCancelled {
+            if pendingEventTask == nil {
+                pendingEventTask = Task {
+                    await reader.next()
+                }
+            }
+            guard let eventTask = pendingEventTask else {
+                return
+            }
+
+            let input = await nextSubscriptionInput(
+                pendingEventTask: eventTask,
+                flushAfterDelay: chunkBuffer.hasPendingText
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            if case .event = input {
+                pendingEventTask = nil
+            } else if case .finished = input {
+                pendingEventTask = nil
+            }
+            guard await processSubscriptionInput(
+                input,
                 chunkBuffer: &chunkBuffer,
                 token: token
             ) else {
                 return
             }
         }
+    }
 
-        guard await flushSubscriptionChunkBuffer(&chunkBuffer, token: token) else {
-            return
+    nonisolated func nextSubscriptionInput(
+        pendingEventTask: Task<ConversationEvent?, Never>,
+        flushAfterDelay: Bool
+    ) async -> SubscriptionLoopInput {
+        let race = AsyncStream<SubscriptionLoopInput>.makeStream()
+        let eventSignalTask = Task {
+            if let event = await pendingEventTask.value {
+                race.continuation.yield(.event(event))
+            } else {
+                race.continuation.yield(.finished)
+            }
         }
-        await finishSubscription(token: token)
+        let deadlineSignalTask: Task<Void, Never>?
+        if flushAfterDelay {
+            deadlineSignalTask = Task {
+                do {
+                    try await Task.sleep(nanoseconds: streamingChunkMaxDelayNanos)
+                    race.continuation.yield(.flushDeadline)
+                } catch {
+                    race.continuation.finish()
+                }
+            }
+        } else {
+            deadlineSignalTask = nil
+        }
+
+        return await withTaskCancellationHandler {
+            var iterator = race.stream.makeAsyncIterator()
+            let input = await iterator.next() ?? .finished
+            race.continuation.finish()
+            eventSignalTask.cancel()
+            deadlineSignalTask?.cancel()
+            return input
+        } onCancel: {
+            pendingEventTask.cancel()
+            eventSignalTask.cancel()
+            deadlineSignalTask?.cancel()
+            race.continuation.finish()
+        }
+    }
+
+    nonisolated func processSubscriptionInput(
+        _ input: SubscriptionLoopInput,
+        chunkBuffer: inout SubscriptionChunkBuffer,
+        token: UUID
+    ) async -> Bool {
+        switch input {
+        case .event(let event):
+            return await processSubscriptionEvent(event, chunkBuffer: &chunkBuffer, token: token)
+        case .flushDeadline:
+            return await flushSubscriptionChunkBuffer(&chunkBuffer, token: token)
+        case .finished:
+            guard await flushSubscriptionChunkBuffer(&chunkBuffer, token: token) else {
+                return false
+            }
+            await finishSubscription(token: token)
+            return false
+        }
     }
 
     nonisolated func publishSubscriptionGeneration(_ generation: UUID, token: UUID) async -> Bool {

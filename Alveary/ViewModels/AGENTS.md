@@ -20,6 +20,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Keep speed provider-scoped.** Route speed-mode UI through `applySpeedModeChange(_:supportsSpeedMode:)`; Fast is Codex-only until provider status reports support, and stale unsupported Fast must normalize to Standard before new sends.
   - **Keep plan separate.** Route plan-mode UI through `applyPlanModeChange(_:)`; do not encode plan as a permission dropdown value. Use runtime collaboration-mode events/status to sync `runtimePlanModeEnabled`, including clearing it after successful `ExitPlanMode`.
   - **Drain resume cursors.** Fallback approval resumes must wait for all queued debounced saves, including follow-up saves, before resetting subscription tracking.
+  - **Bound stream coalescing.** Live root-assistant chunk batching should use count/size thresholds plus a short max-latency flush so small provider deltas cannot sit buffered indefinitely, while preserving provider event order.
 - Keep automatic session handoff terminal-aware:
   - **Mark pending from usage.** Context-window token rows may mark handoff pending before the provider turn is complete.
   - **Trigger on completion.** Start handoff only from a successful terminal token stop, keep queued messages behind pending handoff, and clear pending state on errors, interruptions, explicit stops, or handoff start.

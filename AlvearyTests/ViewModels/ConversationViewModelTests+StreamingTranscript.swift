@@ -3,6 +3,8 @@ import XCTest
 
 @testable import Alveary
 
+// swiftlint:disable file_length
+
 @MainActor
 extension ConversationViewModelTests {
     func testViewLifecycleSubscribesOnceUntilDeactivatedAndThenResubscribes() async throws {
@@ -66,6 +68,83 @@ extension ConversationViewModelTests {
         state.appendStreamingChunk("lo")
 
         XCTAssertEqual(state.streamingText, "Hello")
+    }
+
+    func testSubscriptionFlushesBufferedRootChunksAfterDelay() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Hel", parentToolUseId: nil))
+        try await waitUntil("first chunk publishes immediately", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "Hel"
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "lo", parentToolUseId: nil))
+
+        try await waitUntil("buffered root chunk flushes after max delay", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "Hello"
+        }
+
+        await fixture.agentsManager.finishSubscription()
+    }
+
+    func testSubscriptionContinuesRootChunksInOrderAfterDelayedFlush() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "A", parentToolUseId: nil))
+        try await waitUntil("first chunk publishes immediately", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "A"
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "B", parentToolUseId: nil))
+        try await waitUntil("buffered chunk flushes after max delay", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "AB"
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "C", parentToolUseId: nil))
+        try await waitUntil("next chunk continues after delayed flush", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "ABC"
+        }
+
+        await fixture.agentsManager.finishSubscription()
+    }
+
+    func testSubscriptionFlushesBufferedRootChunksBeforeNonRootEvent() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Partial", parentToolUseId: nil))
+        try await waitUntil("first chunk publishes immediately", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "Partial"
+        }
+        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: " buffered", parentToolUseId: nil))
+        await fixture.agentsManager.yieldSubscriptionEvent(.runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown))
+
+        try await waitUntil("non-root event flushes pending root chunks first", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.streamingText == "Partial buffered" &&
+                fixture.viewModel.state.lastObservedEventIndex == 3
+        }
+
+        await fixture.agentsManager.finishSubscription()
     }
 
     func testSubscriptionEndsTurnAfterStreamingResponseFinishes() async throws {
