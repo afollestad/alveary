@@ -163,7 +163,14 @@ final class AppKitTranscriptSubAgentBlockView: NSView {
             clipView.addSubview(singleAgentContentView)
             singleAgentContentView.onOpenMarkdownLink = onOpenMarkdownLink
             singleAgentContentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-            singleAgentContentView.configure(.init(agent: agent, typography: configuration.typography))
+            let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
+            singleAgentContentView.configure(
+                .init(
+                    agent: agent,
+                    typography: configuration.typography,
+                    directContentLeadingInset: metrics.detailLeadingInset
+                )
+            )
         } else {
             clipView.addSubview(nestedAgentsView)
             nestedAgentsView.onOpenMarkdownLink = onOpenMarkdownLink
@@ -287,6 +294,7 @@ final class AppKitSubAgentExpandedContentView: NSView {
     struct Configuration: Equatable {
         let agent: SubAgentEntry
         let typography: TranscriptTypography
+        let directContentLeadingInset: CGFloat
     }
 
     var onHeightInvalidated: (() -> Void)?
@@ -408,11 +416,11 @@ final class AppKitSubAgentExpandedContentView: NSView {
         if let resultView = activeResultView,
            resultView.superview != nil {
             let resultTopSpacing = configuration.agent.tools.isEmpty ? transcriptToolExpandedContentTopSpacing : 0
-            let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
+            let leadingInset = configuration.directContentLeadingInset
             resultView.frame = NSRect(
-                x: metrics.detailLeadingInset,
+                x: leadingInset,
                 y: currentY + resultTopSpacing,
-                width: max(width - metrics.detailLeadingInset, 0),
+                width: max(width - leadingInset, 0),
                 height: CGFloat.greatestFiniteMagnitude / 2
             )
             resultView.layoutSubtreeIfNeeded()

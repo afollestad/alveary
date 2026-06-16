@@ -149,7 +149,12 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertTrue(group.renderedText.contains("Asked 1 question"))
         XCTAssertTrue(group.renderedText.contains("Choose syntax?"))
         XCTAssertTrue(group.renderedText.contains("Image Syntax"))
-        XCTAssertEqual(group.descendants(of: AppKitTranscriptPromptUsageRowView.self).first?.usesLocalClipAnimationForExpansion, true)
+        let promptRow = try XCTUnwrap(group.descendants(of: AppKitTranscriptPromptUsageRowView.self).first)
+        let detailsView = try XCTUnwrap(promptRow.descendants(of: AppKitTranscriptPromptUsageDetailsView.self).first)
+        let responseRow = try XCTUnwrap(detailsView.subviews.first { !($0 is AppKitTranscriptElbowConnectorView) })
+        XCTAssertEqual(promptRow.usesLocalClipAnimationForExpansion, true)
+        XCTAssertEqual(detailsView.frame.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(responseRow.frame.minX, transcriptInlineToolRowMetrics(for: TranscriptTypography()).detailLeadingInset, accuracy: 0.5)
     }
 
     func testPromptReplacementKeepsActivityGroupCacheFresh() throws {

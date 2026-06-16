@@ -298,7 +298,14 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
             }
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
             contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
-            contentView.configure(.init(agent: configuration.agent, typography: configuration.typography))
+            let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
+            contentView.configure(
+                .init(
+                    agent: configuration.agent,
+                    typography: configuration.typography,
+                    directContentLeadingInset: metrics.directDetailLeadingInset(showsLeadingIcon: configuration.showsLeadingIcon)
+                )
+            )
         } else {
             contentView.removeFromSuperview()
         }

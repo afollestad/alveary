@@ -74,6 +74,10 @@ struct TranscriptInlineToolRowMetrics: Equatable {
     var detailTrailingInset: CGFloat {
         max(detailLeadingInset - 5, 0)
     }
+
+    func directDetailLeadingInset(showsLeadingIcon: Bool) -> CGFloat {
+        showsLeadingIcon ? detailLeadingInset : 0
+    }
 }
 
 func transcriptInlineToolRowMetrics(for typography: TranscriptTypography) -> TranscriptInlineToolRowMetrics {

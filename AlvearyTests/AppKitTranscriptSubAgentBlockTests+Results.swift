@@ -54,7 +54,7 @@ extension AppKitTranscriptSubAgentBlockTests {
         XCTAssertLessThan(block.intrinsicContentSize.height, 360)
     }
 
-    func testCodeLikeAgentResultKeepsCodeSurface() {
+    func testCodeLikeAgentResultKeepsCodeSurface() throws {
         let block = AppKitTranscriptSubAgentBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(
@@ -76,8 +76,41 @@ extension AppKitTranscriptSubAgentBlockTests {
         block.layoutSubtreeIfNeeded()
 
         XCTAssertNil(block.descendants(of: AppKitMarkdownView.self).first)
-        XCTAssertNotNil(block.descendants(of: AppKitTranscriptDetailCodeBlockView.self).first)
+        let codeBlock = try XCTUnwrap(block.descendants(of: AppKitTranscriptDetailCodeBlockView.self).first)
+        XCTAssertEqual(codeBlock.frame.minX, transcriptInlineToolRowMetrics(for: TranscriptTypography()).detailLeadingInset, accuracy: 0.5)
         XCTAssertTrue(block.renderedText.contains("func helper()"))
+    }
+
+    func testNestedAgentResultAlignsWithIconlessHeaderText() throws {
+        let block = AppKitTranscriptSubAgentBlockView()
+        block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        block.configure(
+            .init(
+                agents: [
+                    resultAgent(
+                        description: "Inspect transcript rows",
+                        tools: [resultTool(name: "Read", summary: "Reading AGENTS.md")],
+                        result: "Nested result",
+                        isComplete: true
+                    ),
+                    resultAgent(id: "agent-two", description: "Search code paths", result: "Search result")
+                ],
+                initiallyExpanded: true
+            )
+        )
+        block.layoutSubtreeIfNeeded()
+        let nestedRows = try XCTUnwrap(block.descendants(of: AppKitTranscriptNestedSubAgentRowsView.self).first)
+        let firstNestedHeader = try XCTUnwrap(nestedRows.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        XCTAssertFalse(firstNestedHeader.showsLeadingIconForTesting)
+
+        XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
+        block.layoutSubtreeIfNeeded()
+
+        let nestedAgentRow = try XCTUnwrap(firstNestedHeader.superview?.superview as? AppKitTranscriptSubAgentInlineRowView)
+        let resultBlock = try XCTUnwrap(nestedAgentRow.descendants(of: AppKitTranscriptDetailCodeBlockView.self).first)
+        XCTAssertEqual(resultBlock.frame.minX, 0, accuracy: 0.5)
+        XCTAssertNotNil(nestedAgentRow.descendants(of: AppKitTranscriptNestedToolRowsView.self).first)
+        XCTAssertTrue(nestedAgentRow.renderedText.contains("Nested result"))
     }
 
     func testMarkdownAgentResultClampsHorizontalScrollWhenWidened() throws {
@@ -125,6 +158,7 @@ extension AppKitTranscriptSubAgentBlockTests {
 private func resultAgent(
     id: String = "agent-one",
     description: String,
+    tools: [ToolEntry] = [],
     result: String? = nil,
     isComplete: Bool = false
 ) -> SubAgentEntry {
@@ -134,10 +168,30 @@ private func resultAgent(
         description: description,
         statusDescription: nil,
         lastToolName: nil,
-        tools: [],
+        tools: tools,
         result: result,
         isComplete: isComplete,
-        toolUseCount: 0
+        toolUseCount: tools.count
+    )
+}
+
+private func resultTool(
+    id: String = "tool-one",
+    name: String,
+    summary: String
+) -> ToolEntry {
+    ToolEntry(
+        id: id,
+        name: name,
+        summary: summary,
+        input: #"{"path":"AGENTS.md"}"#,
+        output: nil,
+        stderr: nil,
+        isComplete: true,
+        isInterrupted: false,
+        isImage: false,
+        noOutputExpected: false,
+        isError: false
     )
 }
 

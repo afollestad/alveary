@@ -28,6 +28,48 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(detailsView.frame.minX, transcriptInlineToolRowMetrics(for: TranscriptTypography()).detailLeadingInset, accuracy: 0.5)
     }
 
+    func testPrewarmedDetailsRelayoutWhenLeadingIconVisibilityChanges() throws {
+        let row = AppKitTranscriptInlineToolRowView()
+        let tool = prewarmTool()
+        let metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography())
+        row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        row.configure(.init(tool: tool))
+        row.layoutSubtreeIfNeeded()
+
+        row.prewarmDetailsIfNeededForTesting()
+
+        XCTAssertEqual(row.prewarmedDetailsFrameForTesting.minX, metrics.detailLeadingInset, accuracy: 0.5)
+
+        row.configure(.init(tool: tool, showsLeadingIcon: false))
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(row.prewarmedDetailsFrameForTesting.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(row.prewarmedDetailsFrameForTesting.maxX, row.bounds.width - metrics.detailTrailingInset, accuracy: 0.5)
+
+        row.frame.size.width = 360
+        row.needsLayout = true
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(row.prewarmedDetailsFrameForTesting.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(row.prewarmedDetailsFrameForTesting.maxX, row.bounds.width - metrics.detailTrailingInset, accuracy: 0.5)
+    }
+
+    func testPrewarmedDetailsClearWhenRowBecomesNonExpandable() throws {
+        let row = AppKitTranscriptInlineToolRowView()
+        let tool = prewarmTool()
+        row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        row.configure(.init(tool: tool))
+        row.layoutSubtreeIfNeeded()
+        row.prewarmDetailsIfNeededForTesting()
+
+        XCTAssertEqual(row.prewarmedDetailsToolForTesting?.id, tool.id)
+
+        row.configure(.init(tool: tool, canExpand: false))
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertNil(row.prewarmedDetailsToolForTesting)
+    }
+
     func testExpandedToolDetailsClipToAnimatedRowBounds() throws {
         let row = AppKitTranscriptInlineToolRowView()
         row.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)

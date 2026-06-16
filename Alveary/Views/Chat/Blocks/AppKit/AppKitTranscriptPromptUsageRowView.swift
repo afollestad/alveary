@@ -173,12 +173,11 @@ final class AppKitTranscriptPromptUsageRowView: NSView {
             clipView.updateFrame(width: width, targetHeight: headerView.frame.height)
             return
         }
-        let metrics = transcriptInlineToolRowMetrics(for: configuration?.typography ?? TranscriptTypography())
-        let detailsWidth = max(width - metrics.detailLeadingInset - metrics.detailTrailingInset, 0)
+        let detailsFrame = directDetailsFrame(width: width, originY: headerView.frame.maxY + transcriptToolExpandedContentTopSpacing)
         detailsView.frame = NSRect(
-            x: metrics.detailLeadingInset,
-            y: headerView.frame.maxY + transcriptToolExpandedContentTopSpacing,
-            width: detailsWidth,
+            x: detailsFrame.minX,
+            y: detailsFrame.minY,
+            width: detailsFrame.width,
             height: CGFloat.greatestFiniteMagnitude / 2
         )
         detailsView.layoutSubtreeIfNeeded()
@@ -193,6 +192,18 @@ final class AppKitTranscriptPromptUsageRowView: NSView {
         }
         let maxWidth = configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth
         return min(max(maxWidth, 0), availableWidth)
+    }
+
+    private func directDetailsFrame(width: CGFloat, originY: CGFloat) -> NSRect {
+        let typography = configuration?.typography ?? TranscriptTypography()
+        let metrics = transcriptInlineToolRowMetrics(for: typography)
+        let leadingInset = metrics.directDetailLeadingInset(showsLeadingIcon: configuration?.showsLeadingIcon ?? true)
+        return NSRect(
+            x: leadingInset,
+            y: originY,
+            width: max(width - leadingInset - metrics.detailTrailingInset, 0),
+            height: CGFloat.greatestFiniteMagnitude / 2
+        )
     }
 
     private func measuredHeight() -> CGFloat {

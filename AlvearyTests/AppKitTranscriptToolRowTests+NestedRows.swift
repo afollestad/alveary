@@ -34,12 +34,16 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
         group.layoutSubtreeIfNeeded()
         let nestedToolRow = try XCTUnwrap(firstNestedHeader.superview?.superview as? AppKitTranscriptInlineToolRowView)
+        let detailsView = try XCTUnwrap(descendants(of: AppKitTranscriptToolDetailsView.self, in: nestedToolRow).first)
+        let metrics = transcriptInlineToolRowMetrics(for: TranscriptTypography())
         let expandedHeight = group.intrinsicContentSize.height
 
         XCTAssertTrue(invalidated)
         XCTAssertGreaterThan(expandedHeight, collapsedToolHeight)
         XCTAssertTrue(nestedToolRow.clipsToBounds)
         XCTAssertTrue(renderedText(in: group).contains("nested output line 17"))
+        XCTAssertEqual(detailsView.frame.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(detailsView.frame.maxX, nestedToolRow.bounds.width - metrics.detailTrailingInset, accuracy: 0.5)
 
         invalidated = false
         XCTAssertTrue(firstNestedHeader.accessibilityPerformPress())
