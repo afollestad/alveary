@@ -153,6 +153,8 @@ enum AppKitMarkdownAttributedStringBuilder {
         switch style {
         case .standard:
             return AppMarkdownCodeBlockPalette.inlineFillNSColor
+        case .assistantBubble:
+            return AppMarkdownCodeBlockPalette.assistantBubbleInlineFillNSColor
         case .userBubble:
             return AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor
         case .composer:
@@ -162,7 +164,7 @@ enum AppKitMarkdownAttributedStringBuilder {
 
     private static func inlineCodeForegroundColor(for style: AppMarkdownInlineCodeStyle) -> NSColor {
         switch style {
-        case .standard, .userBubble:
+        case .standard, .assistantBubble, .userBubble:
             return AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor
         case .composer:
             return AppMarkdownCodeBlockPalette.composerChipForegroundNSColor

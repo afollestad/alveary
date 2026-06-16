@@ -87,6 +87,7 @@ extension ChatItemGrouper {
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
         currentToolApprovalBatch = nil
+        pinnedPermissionApprovalItemIDs = []
         markdownSnapshotsByPath = [:]
         exitPlanModePlanMarkdowns = []
     }

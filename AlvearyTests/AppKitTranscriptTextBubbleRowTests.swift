@@ -295,6 +295,28 @@ final class AppKitTranscriptTextBubbleRowTests: XCTestCase {
         XCTAssertNil(textViews.first?.textStorage?.attribute(.underlineStyle, at: mentionRange.location, effectiveRange: nil))
     }
 
+    func testAssistantBubbleUsesAssistantInlineCodeStyle() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+        row.configure(
+            .init(role: .assistant, markdown: "Run `pwd`.")
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let textView = row.descendants(of: AppKitMarkdownTextView.self).first
+        let rendered = textView?.textStorage?.string ?? ""
+        let codeRange = (rendered as NSString).range(of: "pwd")
+        XCTAssertNotEqual(codeRange.location, NSNotFound)
+        XCTAssertEqual(
+            textView?.textStorage?.attribute(.backgroundColor, at: codeRange.location, effectiveRange: nil) as? NSColor,
+            AppMarkdownCodeBlockPalette.assistantBubbleInlineFillNSColor
+        )
+        XCTAssertEqual(
+            textView?.textStorage?.attribute(.foregroundColor, at: codeRange.location, effectiveRange: nil) as? NSColor,
+            AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor
+        )
+    }
+
     func testShortUserBubbleHugsContentAndStaysRightAligned() {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 700, height: 400)

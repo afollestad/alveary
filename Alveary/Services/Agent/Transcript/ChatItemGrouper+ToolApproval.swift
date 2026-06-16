@@ -22,6 +22,7 @@ extension ChatItemGrouper {
         }
 
         let item = items.remove(at: index)
+        unpinPermissionApprovalItem(id: item.id)
         let approvals: [ToolApprovalRequest]
         let itemId: String
         switch item {
@@ -144,6 +145,7 @@ extension ChatItemGrouper {
         )
 
         let approvalItem = items.remove(at: index)
+        unpinPermissionApprovalItem(id: approvalItem.id)
         appendTranscriptItem(.standaloneTool(id: "tool-\(tool.id)", tool: tool))
         return appendApproval(
             approval,
@@ -187,6 +189,7 @@ extension ChatItemGrouper {
                     approval: approvalByPreservingPlanFallbackIfNeeded(approval, from: existingApproval),
                     status: existingStatus ?? status
                 )
+                updatePinnedPermissionApprovalTracking(for: items[index])
                 return true
             case .toolApprovalBatch(let id, let approvals, let existingStatus)
                 where approvals.contains(where: { $0.toolUseId == approval.toolUseId }):
@@ -200,6 +203,7 @@ extension ChatItemGrouper {
                     approvals: updatedApprovals,
                     status: existingStatus ?? status
                 )
+                updatePinnedPermissionApprovalTracking(for: items[index])
                 return true
             default:
                 continue

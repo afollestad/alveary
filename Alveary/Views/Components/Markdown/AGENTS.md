@@ -31,8 +31,9 @@ Narrower scopes:
 
 ## Inline Code Palettes
 
-- Inline-code chips have three styles:
-    - `.standard`: neutral gray for assistant bubbles, unselected rows, tabs, and terminal chips.
+- Inline-code chips have four styles:
+    - `.standard`: neutral gray for unselected rows, tabs, and terminal chips.
+    - `.assistantBubble`: neutral gray tuned for assistant chat bubbles.
     - `.composer`: accent-backed fill for live typing, slash commands, mentions, and queued messages.
     - `.userBubble`: gray tuned for accent-tinted user bubbles.
 - `AppMarkdownInlineLabel` always renders `.standard`; selection must not recolor its chips.

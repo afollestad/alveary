@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension SidebarView {
@@ -6,11 +7,22 @@ extension SidebarView {
     }
 
     func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
-        Label(title, systemImage: systemImage)
+        let isSelected = appState.selectedSidebarItem == item
+
+        return HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .symbolRenderingMode(.monochrome)
+                .renderingMode(.template)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(topLevelIconColor(isSelected: isSelected))
+                .accessibilityHidden(true)
+
+            Text(title)
+        }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
             .appSelectableRow(
-                isSelected: appState.selectedSidebarItem == item,
+                isSelected: isSelected,
                 action: {
                     appState.selectedSidebarItem = item
                     claimSidebarFocus()
@@ -53,4 +65,20 @@ extension SidebarView {
             break
         }
     }
+
+    private func topLevelIconColor(isSelected: Bool) -> Color {
+        guard !isSelected else {
+            return Color(nsColor: sidebarTopLevelSelectedIconNSColor)
+        }
+        return AppAccentIcon.foreground
+    }
 }
+
+private let sidebarTopLevelSelectedIconNSColor = NSColor(name: nil, dynamicProvider: { appearance in
+    switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+    case .darkAqua:
+        return AppAccentIcon.foregroundNSColor.resolved(for: appearance)
+    default:
+        return NSColor.labelColor.resolved(for: appearance)
+    }
+})

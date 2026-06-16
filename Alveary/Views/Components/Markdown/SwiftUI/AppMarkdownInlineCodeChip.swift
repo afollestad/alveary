@@ -28,6 +28,8 @@ struct AppMarkdownInlineCodeChip: View {
         switch style {
         case .standard:
             return AppMarkdownCodeBlockPalette.inlineFillNSColor
+        case .assistantBubble:
+            return AppMarkdownCodeBlockPalette.assistantBubbleInlineFillNSColor
         case .userBubble:
             return AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor
         case .composer:
@@ -37,7 +39,7 @@ struct AppMarkdownInlineCodeChip: View {
 
     private var foregroundColor: NSColor {
         switch style {
-        case .standard, .userBubble:
+        case .standard, .assistantBubble, .userBubble:
             return AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor
         case .composer:
             return AppMarkdownCodeBlockPalette.composerChipForegroundNSColor

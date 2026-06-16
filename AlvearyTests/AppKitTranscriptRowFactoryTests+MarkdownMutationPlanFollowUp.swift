@@ -102,7 +102,7 @@ extension AppKitTranscriptRowFactoryTests {
 
         XCTAssertEqual(requests.map(\.rowID), ["edit-row-plan-preview"])
         XCTAssertEqual(requests.first?.markdown, "# Plan\n\n- Existing\n- Follow-up")
-        XCTAssertEqual(requests.first?.inlineCodeStyle, AppMarkdownInlineCodeStyle.standard)
+        XCTAssertEqual(requests.first?.inlineCodeStyle, AppMarkdownInlineCodeStyle.assistantBubble)
         XCTAssertEqual(requests.first?.composerChipMode, AppMarkdownComposerChipMode.none)
     }
 }

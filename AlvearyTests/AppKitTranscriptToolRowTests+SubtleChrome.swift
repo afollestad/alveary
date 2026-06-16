@@ -63,7 +63,10 @@ extension AppKitTranscriptToolRowTests {
         let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
         let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
         let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
+        let previousLightModeColor = NSColor.tertiaryLabelColor.resolved(for: header.appKitRenderingAppearance)
 
+        XCTAssertEqual(expectedColor, NSColor.secondaryLabelColor.resolved(for: header.appKitRenderingAppearance))
+        XCTAssertNotEqual(expectedColor, previousLightModeColor)
         XCTAssertEqual(icon.frame.width, metrics.controlSize)
         XCTAssertEqual(metrics.iconTextSpacing, 3)
         XCTAssertEqual(metrics.textStatusSpacing, 3)

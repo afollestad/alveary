@@ -241,8 +241,8 @@ extension SnapshotTests {
     }
 
     // Dark-mode coverage for the `.standard` chip palette. `AppMarkdownCodeBlockPalette`
-    // uses a theme-aware grayscale `inlineFillNSColor` (shared with assistant bubble
-    // inline code), so this locks in how the chip reads on a dark sidebar.
+    // uses a theme-aware grayscale `inlineFillNSColor`, so this locks in how the chip
+    // reads on a dark sidebar.
     func testSidebarThreadRowInlineCodeTitleDark() {
         let thread = AgentThread(name: "Test `code block`")
 

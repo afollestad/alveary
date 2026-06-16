@@ -28,9 +28,9 @@ extension AppKitTranscriptToolApprovalBlockView {
                 )
                 summaryView.layoutSubtreeIfNeeded()
                 summaryView.frame.size.height = summaryView.intrinsicContentSize.height
-                currentY = summaryView.frame.maxY + 2
+                currentY = summaryView.frame.maxY + toolApprovalSummaryLineSpacing
             }
-            currentY -= 2
+            currentY -= toolApprovalSummaryLineSpacing
         }
 
         currentY += toolApprovalActionsTopSpacing
@@ -65,7 +65,9 @@ extension AppKitTranscriptToolApprovalBlockView {
         let summaryHeight = summaryViews.reduce(CGFloat.zero) { partialResult, view in
             partialResult + ceil(view.intrinsicContentSize.height)
         }
-        let summarySpacing = summaryViews.isEmpty ? 0 : toolApprovalSummaryTopSpacing + (CGFloat(summaryViews.count - 1) * 2)
+        let summarySpacing = summaryViews.isEmpty ?
+            0 :
+            toolApprovalSummaryTopSpacing + (CGFloat(summaryViews.count - 1) * toolApprovalSummaryLineSpacing)
         let approvalHeight = approvalSplitControl.isHidden ? approveButton.fittingSize.height : approvalSplitControl.fittingSize.height
         let actionHeight = max(approvalHeight, denyButton.fittingSize.height)
         return ceil(

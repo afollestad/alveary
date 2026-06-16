@@ -155,6 +155,7 @@ extension AppMarkdownInlineCodeStyle {
     var cacheKey: String {
         switch self {
         case .standard: return "standard"
+        case .assistantBubble: return "assistantBubble"
         case .userBubble: return "userBubble"
         case .composer: return "composer"
         }

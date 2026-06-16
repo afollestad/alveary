@@ -18,8 +18,8 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 
-    // Neutral-gray chip background used on standard app chrome (unselected sidebar rows,
-    // unselected conversation tabs, assistant bubbles). Previously derived from
+    // Neutral-gray chip background used on standard app chrome (unselected sidebar rows
+    // and unselected conversation tabs). Previously derived from
     // `controlAccentColor`, which made the chip track the system accent — visually
     // noisy on the default amber accent and inconsistent with the code-block fill. The
     // grayscale swatch reads as a neutral "this is code" signal regardless of accent.
@@ -51,7 +51,19 @@ enum AppMarkdownCodeBlockPalette {
         }
     })
 
-    // Shared foreground for both `.standard` and `.userBubble` inline chips (both
+    // Assistant bubbles use a stronger light-mode fill than app chrome so inline code
+    // remains visible against the bubble's own neutral-gray background. Dark mode keeps
+    // the standard fill to preserve existing dark transcript contrast.
+    static let assistantBubbleInlineFillNSColor: NSColor = NSColor(name: nil, dynamicProvider: { appearance in
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return NSColor(white: 0.36, alpha: 1.0)
+        default:
+            return NSColor(white: 0.84, alpha: 1.0)
+        }
+    })
+
+    // Shared foreground for `.standard`, `.assistantBubble`, and `.userBubble` inline chips (all
     // sit on grayscale fills, so `.labelColor` adapts correctly to either scheme).
     // A single token replaces what used to be two identical `static let`s — keeping
     // them separate was duplication without divergence.

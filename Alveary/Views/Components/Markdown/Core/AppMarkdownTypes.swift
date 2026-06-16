@@ -13,6 +13,10 @@ func appMarkdownCodeDisplayContent(_ content: String) -> String {
 
 enum AppMarkdownInlineCodeStyle: Hashable, Sendable {
     case standard
+    /// Neutral palette tuned for assistant chat bubbles. It keeps the same dark-mode
+    /// treatment as `.standard`, while using a stronger light-mode fill so inline code
+    /// is distinct from the assistant bubble surface.
+    case assistantBubble
     case userBubble
     /// Accent-derived palette used by composer surfaces. The live input field draws
     /// chips directly from `AppMarkdownCodeBlockPalette.composerChip*`, and queue

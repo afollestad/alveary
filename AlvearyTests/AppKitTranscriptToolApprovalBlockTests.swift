@@ -305,22 +305,41 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         XCTAssertFalse(denied.isEnabled)
     }
 
-    func testCommandSummaryChipHugsCommandText() throws {
+    func testCommandSummariesUseMonospaceChipChromeAndVisibleSpacing() throws {
+        let first = approval(toolUseId: "bash-1", toolName: "Bash", input: #"{"command":"git status --short"}"#)
+        let second = approval(toolUseId: "bash-2", toolName: "Bash", input: #"{"command":"git branch --show-current"}"#)
         let block = AppKitTranscriptToolApprovalBlockView()
+        let typography = TranscriptTypography()
         block.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
         block.configure(
             .init(
-                approval: approval(toolName: "Bash", input: #"{"command":"date"}"#),
-                status: .pending
+                approval: first,
+                approvals: [first, second],
+                status: .pending,
+                typography: typography
             )
         )
         block.layoutSubtreeIfNeeded()
 
-        let summary = try XCTUnwrap(block.descendants(of: AppKitTranscriptApprovalSummaryLineView.self).first)
-        let chip = try XCTUnwrap(summary.descendants(of: NSTextField.self).first)
+        let summaries = block.summaryViews.sorted { $0.frame.minY < $1.frame.minY }
+        XCTAssertEqual(summaries.count, 2)
+        let firstSummary = try XCTUnwrap(summaries.first)
+        let firstCommand = try XCTUnwrap(summaries.first?.descendants(of: NSTextField.self).first)
+        let secondCommand = try XCTUnwrap(summaries.last?.descendants(of: NSTextField.self).first)
+        let firstBackgroundFrame = firstCommand.convert(firstCommand.bounds, to: block.bubbleView)
+        let secondBackgroundFrame = secondCommand.convert(secondCommand.bounds, to: block.bubbleView)
 
-        XCTAssertEqual(summary.frame.width, summary.naturalWidth, accuracy: 1)
-        XCTAssertLessThan(chip.frame.width, 80)
+        XCTAssertEqual(firstSummary.frame.width, firstSummary.naturalWidth, accuracy: 1)
+        XCTAssertEqual(firstCommand.font?.fontName, typography.codeNSFont.fontName)
+        XCTAssertEqual(firstCommand.font?.pointSize, typography.codeNSFont.pointSize)
+        XCTAssertEqual(firstCommand.textColor, AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor)
+        XCTAssertNotNil(firstCommand.layer?.backgroundColor)
+        XCTAssertNotNil(secondCommand.layer?.backgroundColor)
+        XCTAssertEqual(
+            secondBackgroundFrame.minY - firstBackgroundFrame.maxY,
+            toolApprovalSummaryLineSpacing + (approvalCommandChipVPadding * 2),
+            accuracy: 0.5
+        )
     }
 
     func testSummaryGrowthInvalidatesHeight() {

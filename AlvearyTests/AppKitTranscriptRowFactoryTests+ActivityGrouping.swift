@@ -222,6 +222,41 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertTrue(rows[2].view is AppKitTranscriptInlineToolRowView)
     }
 
+    func testPinnedApprovalBelowActivityRunDoesNotSplitActivityGroup() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let approval = ToolApprovalRequest(
+            sessionId: "session",
+            toolUseId: "tool-bash",
+            toolName: "Bash",
+            toolInput: #"{"command":"date"}"#
+        )
+        let items: [ChatItem] = [
+            .standaloneTool(
+                id: "tool-bash",
+                tool: activityTool(id: "tool-bash", name: "Bash", summary: "Executing `date`", isComplete: true)
+            ),
+            .toolGroup(
+                id: "tools",
+                tools: [activityTool(id: "read-1", name: "Read", summary: "Read `README.md`", isComplete: true)]
+            ),
+            .toolApproval(id: "approval-tool-bash", approval: approval, status: .approved)
+        ]
+        let rows = factory.makeRows(
+            for: items,
+            configuration: .init()
+        )
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        guard case .activityGroup(_, let children) = AppKitTranscriptActivityGrouping.visualRows(for: items).first else {
+            return XCTFail("Expected adjacent activity items to render as one visual group")
+        }
+        XCTAssertEqual(children.map(\.id), ["tool-tool-bash", "tool-read-1"])
+        XCTAssertEqual(rows.map(\.id), ["activity-tool-bash", "approval-tool-bash-approval"])
+        XCTAssertTrue(rows[1].view is AppKitTranscriptToolApprovalBlockView)
+    }
+
     func testActivityGroupIDDoesNotCollideWithRawRowID() {
         let factory = AppKitTranscriptRowFactory()
         let rows = factory.makeRows(

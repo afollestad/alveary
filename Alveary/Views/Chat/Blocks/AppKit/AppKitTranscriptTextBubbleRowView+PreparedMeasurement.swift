@@ -95,7 +95,7 @@ extension AppKitTranscriptTextBubbleRowView {
         case .user:
             return .userBubble
         case .assistant:
-            return .standard
+            return .assistantBubble
         }
     }
 }

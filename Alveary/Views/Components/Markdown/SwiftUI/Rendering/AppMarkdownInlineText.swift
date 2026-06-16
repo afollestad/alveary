@@ -44,6 +44,8 @@ struct AppMarkdownInlineText: View {
         switch inlineCodeStyle {
         case .standard:
             return Color(nsColor: AppMarkdownCodeBlockPalette.inlineFillNSColor)
+        case .assistantBubble:
+            return Color(nsColor: AppMarkdownCodeBlockPalette.assistantBubbleInlineFillNSColor)
         case .userBubble:
             return Color(nsColor: AppMarkdownCodeBlockPalette.userBubbleInlineFillNSColor)
         case .composer:
@@ -53,7 +55,7 @@ struct AppMarkdownInlineText: View {
 
     private var inlineCodeForegroundColor: Color {
         switch inlineCodeStyle {
-        case .standard, .userBubble:
+        case .standard, .assistantBubble, .userBubble:
             return Color(nsColor: AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor)
         case .composer:
             return Color(nsColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)

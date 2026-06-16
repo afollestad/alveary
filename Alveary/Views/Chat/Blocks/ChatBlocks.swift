@@ -12,10 +12,11 @@ let chatBlockCornerRadius: CGFloat = 12
 let transcriptToolIconFrameSize: CGFloat = 16
 let transcriptToolIconTextSpacing: CGFloat = 24
 let transcriptToolLeadingTextSpacing = transcriptToolIconTextSpacing - transcriptToolIconFrameSize
+let toolApprovalSummaryTopSpacing: CGFloat = 8
+let toolApprovalSummaryLineSpacing: CGFloat = 2
 let approvalCommandChipCornerRadius: CGFloat = 4
 let approvalCommandChipHPadding: CGFloat = 3
 let approvalCommandChipVPadding: CGFloat = 1
-let toolApprovalSummaryTopSpacing: CGFloat = 8
 let toolApprovalActionsTopSpacing: CGFloat = 12
 let transcriptToolRowVerticalPadding: CGFloat = 4
 let transcriptInlineToolRowVerticalPadding: CGFloat = 2
@@ -29,7 +30,7 @@ let transcriptInlineToolRowColor = NSColor(name: nil, dynamicProvider: { appeara
     case .darkAqua:
         return NSColor.secondaryLabelColor.resolved(for: appearance)
     default:
-        return NSColor.tertiaryLabelColor.resolved(for: appearance)
+        return NSColor.secondaryLabelColor.resolved(for: appearance)
     }
 })
 let inlineToolRowHoverAlphaMultiplier: CGFloat = 1.2

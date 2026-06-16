@@ -41,7 +41,7 @@ extension AppKitTranscriptRowFactory {
         AppKitTranscriptMarkdownPrepRequest(
             rowID: id,
             markdown: markdown,
-            inlineCodeStyle: role == .user ? .userBubble : .standard,
+            inlineCodeStyle: role == .user ? .userBubble : .assistantBubble,
             composerChipMode: role == .user ? .composer : .none
         )
     }

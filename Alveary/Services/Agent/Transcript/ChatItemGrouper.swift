@@ -26,6 +26,7 @@ final class ChatItemGrouper {
     var centeredNoteToolKinds: [String: CenteredTranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
     var currentToolApprovalBatch: ToolApprovalBatchState?
+    var pinnedPermissionApprovalItemIDs: Set<String> = []
     var markdownSnapshotsByPath: [String: MarkdownSnapshot] = [:]
     var exitPlanModePlanMarkdowns: [String] = []
     var subAgentProgressRefreshTask: Task<Void, Never>?
@@ -91,6 +92,7 @@ final class ChatItemGrouper {
         centeredNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
         currentToolApprovalBatch = nil
+        pinnedPermissionApprovalItemIDs = []
     }
 
     func markPromptAnswered(promptId: String, summary: String) {
@@ -226,14 +228,20 @@ final class ChatItemGrouper {
     }
 
     func appendTranscriptItem(_ item: ChatItem) {
-        guard !item.isTaskListBlock,
-              let latestTaskListIndex = items.lastIndex(where: \.isTaskListBlock),
-              items[latestTaskListIndex].isIncompleteTaskListBlock else {
+        releaseResolvedPinnedPermissionApprovalsIfNeeded(beforeAppending: item)
+
+        if item.isPinnablePermissionApproval {
+            items.append(item)
+            updatePinnedPermissionApprovalTracking(for: item)
+            return
+        }
+
+        guard let insertionIndex = transcriptPinnedTailInsertionIndex(for: item) else {
             items.append(item)
             return
         }
 
-        items.insert(item, at: latestTaskListIndex)
+        items.insert(item, at: insertionIndex)
     }
 
     func replaceOrAppendTranscriptItem(_ item: ChatItem) {
@@ -243,5 +251,152 @@ final class ChatItemGrouper {
         }
 
         items[index] = item
+        updatePinnedPermissionApprovalTracking(for: item)
+    }
+
+    func updatePinnedPermissionApprovalTracking(for item: ChatItem) {
+        if item.isPinnablePermissionApproval {
+            pinnedPermissionApprovalItemIDs.insert(item.id)
+        } else {
+            pinnedPermissionApprovalItemIDs.remove(item.id)
+        }
+    }
+
+    func unpinPermissionApprovalItem(id: String) {
+        pinnedPermissionApprovalItemIDs.remove(id)
+    }
+
+    private func releaseResolvedPinnedPermissionApprovalsIfNeeded(beforeAppending item: ChatItem) {
+        pruneMissingPinnedPermissionApprovals()
+
+        guard item.opensPinnedPermissionApprovalBoundary else {
+            return
+        }
+
+        let releasedIDs = Set(items.compactMap { existingItem -> String? in
+            guard pinnedPermissionApprovalItemIDs.contains(existingItem.id),
+                  existingItem.hasResolvedPermissionApprovalStatus else {
+                return nil
+            }
+            return existingItem.id
+        })
+        guard !releasedIDs.isEmpty else {
+            return
+        }
+
+        let releasedItems = items.filter { releasedIDs.contains($0.id) }
+        items.removeAll { releasedIDs.contains($0.id) }
+        pinnedPermissionApprovalItemIDs.subtract(releasedIDs)
+
+        guard let insertionIndex = transcriptActivePinnedTailInsertionIndex() else {
+            items.append(contentsOf: releasedItems)
+            return
+        }
+        items.insert(contentsOf: releasedItems, at: insertionIndex)
+    }
+
+    private func transcriptPinnedTailInsertionIndex(for item: ChatItem) -> Array<ChatItem>.Index? {
+        var candidates: [Array<ChatItem>.Index] = []
+        if !item.isTaskListBlock,
+           let latestTaskListIndex = items.lastIndex(where: \.isIncompleteTaskListBlock) {
+            candidates.append(latestTaskListIndex)
+        }
+        if let firstApprovalIndex = items.firstIndex(where: { pinnedPermissionApprovalItemIDs.contains($0.id) }) {
+            candidates.append(firstApprovalIndex)
+        }
+        return candidates.min()
+    }
+
+    private func transcriptActivePinnedTailInsertionIndex() -> Array<ChatItem>.Index? {
+        var candidates: [Array<ChatItem>.Index] = []
+        if let latestTaskListIndex = items.lastIndex(where: \.isIncompleteTaskListBlock) {
+            candidates.append(latestTaskListIndex)
+        }
+        if let firstApprovalIndex = items.firstIndex(where: { pinnedPermissionApprovalItemIDs.contains($0.id) }) {
+            candidates.append(firstApprovalIndex)
+        }
+        return candidates.min()
+    }
+
+    private func pruneMissingPinnedPermissionApprovals() {
+        pinnedPermissionApprovalItemIDs.formIntersection(Set(items.map(\.id)))
+    }
+}
+
+private extension ChatItem {
+    var isTranscriptActivityItem: Bool {
+        switch self {
+        case .toolGroup(_, let tools):
+            return !tools.isEmpty
+        case .standaloneTool:
+            return true
+        case .subAgentBlock(_, let agents):
+            return !agents.isEmpty
+        case .promptBlock:
+            return true
+        case .userMessage,
+             .assistantMessage,
+             .taskListBlock,
+             .toolApproval,
+             .toolApprovalBatch,
+             .centeredNote,
+             .error:
+            return false
+        }
+    }
+
+    var isPinnablePermissionApproval: Bool {
+        switch self {
+        case .toolApproval(_, let approval, _):
+            return approval.isPinnablePermissionApproval
+        case .toolApprovalBatch(_, let approvals, _):
+            return !approvals.isEmpty && approvals.allSatisfy(\.isPinnablePermissionApproval)
+        default:
+            return false
+        }
+    }
+
+    var hasResolvedPermissionApprovalStatus: Bool {
+        switch self {
+        case .toolApproval(_, _, let status),
+             .toolApprovalBatch(_, _, let status):
+            return status?.isResolvedPermissionApprovalStatus == true
+        default:
+            return false
+        }
+    }
+
+    var opensPinnedPermissionApprovalBoundary: Bool {
+        !isTranscriptActivityItem && !isPinnablePermissionApproval
+    }
+}
+
+private extension ToolApprovalRequest {
+    var isPinnablePermissionApproval: Bool {
+        switch toolName {
+        case "AskUserQuestion", "ExitPlanMode":
+            return false
+        default:
+            return true
+        }
+    }
+}
+
+private extension ToolApprovalStatus {
+    var isResolvedPermissionApprovalStatus: Bool {
+        switch self {
+        case .approved,
+             .approvedForSessionExact,
+             .approvedForSessionGroup,
+             .denied,
+             .superseded:
+            return true
+        case .pending,
+             .approving,
+             .denying,
+             .approvingForSessionExact,
+             .approvingForSessionGroup:
+            return false
+        }
     }
 }

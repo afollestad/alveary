@@ -45,10 +45,10 @@ final class AppKitTranscriptApprovalSummaryLineView: NSView {
     func configure(_ item: AppKitTranscriptApprovalSummaryItem, typography: TranscriptTypography) {
         self.item = item
         field.stringValue = item.summary
-        field.textColor = .secondaryLabelColor
+        field.textColor = item.isCommand ? AppMarkdownCodeBlockPalette.inlineChipForegroundNSColor : .secondaryLabelColor
         field.font = item.isCommand ? typography.codeNSFont : typography.nsFont(.approvalBody)
         field.layer?.cornerRadius = item.isCommand ? approvalCommandChipCornerRadius : 0
-        field.setLayerFillColor(item.isCommand ? .secondaryLabelColor : nil, alpha: 0.16)
+        field.setLayerFillColor(item.isCommand ? AppMarkdownCodeBlockPalette.assistantBubbleInlineFillNSColor : nil)
         needsLayout = true
         invalidateIntrinsicContentSize()
     }

@@ -168,7 +168,7 @@ private struct MCPServerRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: server.transport == .http ? "globe" : "terminal")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(AppAccentIcon.foreground)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(server.name)

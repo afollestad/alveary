@@ -32,8 +32,9 @@ enum AppAccentFill {
             // fills caused trouble for surfaces layered over non-background
             // content — the transcript's floating scroll-to-latest button used
             // to show ghost text from the transcript through its capsule.
-            // `0.50` balances saturation against legibility of `.primary` text.
-            return accent.blended(withFraction: 0.50, of: .white) ?? accent
+            // `0.35` keeps the original amber family while making selected fills
+            // read less washed out in light mode.
+            return accent.blended(withFraction: 0.35, of: .white) ?? accent
         }
     }
 
@@ -52,7 +53,46 @@ enum AppAccentFill {
         case .darkAqua:
             return accent.blended(withFraction: 0.35, of: .black) ?? accent
         default:
-            return accent.blended(withFraction: 0.30, of: .white) ?? accent
+            return accent.blended(withFraction: 0.25, of: .white) ?? accent
         }
     })
+}
+
+enum AppAccentIcon {
+    static let foreground: Color = Color(nsColor: foregroundNSColor)
+
+    static let foregroundNSColor = NSColor(name: nil, dynamicProvider: { appearance in
+        let accent = (NSColor(named: "AccentColor") ?? appAccentAssetFallback).resolved(for: appearance)
+        switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua:
+            return accent
+        default:
+            return accent.appLightModeIconVariant()
+        }
+    })
+}
+
+private let appAccentAssetFallback = NSColor(
+    srgbRed: CGFloat(0xF6) / 255,
+    green: CGFloat(0xC7) / 255,
+    blue: CGFloat(0x55) / 255,
+    alpha: 1
+)
+
+private extension NSColor {
+    func appLightModeIconVariant() -> NSColor {
+        let color = usingColorSpace(.sRGB) ?? self
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 1
+        color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+
+        return NSColor(
+            calibratedHue: hue,
+            saturation: min(1, saturation * 1.45),
+            brightness: min(brightness, 0.78),
+            alpha: alpha
+        )
+    }
 }

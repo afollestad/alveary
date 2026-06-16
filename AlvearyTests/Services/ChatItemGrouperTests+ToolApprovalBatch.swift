@@ -221,13 +221,13 @@ extension ChatItemGrouperTests {
         grouper.update(events: [bashCall, bashApproval, writeCall])
 
         XCTAssertEqual(grouper.items.count, 3)
-        guard case .toolApproval = grouper.items[1] else {
-            return XCTFail("Expected the Bash approval to stay separate")
-        }
-        guard case .standaloneTool(_, let tool) = grouper.items[2] else {
+        guard case .standaloneTool(_, let tool) = grouper.items[1] else {
             return XCTFail("Expected the later Write call to render as a tool row, not a synthetic approval")
         }
         XCTAssertEqual(tool.id, "tool-write")
+        guard case .toolApproval = grouper.items[2] else {
+            return XCTFail("Expected the Bash approval to stay separate below later activity")
+        }
     }
 
     func testToolApprovalRowsDoNotBatchDifferentToolFamilies() {
