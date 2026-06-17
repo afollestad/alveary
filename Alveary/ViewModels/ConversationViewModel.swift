@@ -31,9 +31,12 @@ final class ConversationViewModel {
     var queueDrainTask: Task<Void, Never>?
     @ObservationIgnored var composerDraftSnapshotProvider: ComposerDraftSnapshotProvider?
     @ObservationIgnored var promptDismissalsResolving: Set<String> = []
+    @ObservationIgnored var promptDismissalFalloutSuppressionActive = false
+    @ObservationIgnored var promptDismissalNewOutboundTurnStarted = false
+    @ObservationIgnored var promptDismissalTerminalFalloutSeen = false
+    @ObservationIgnored var promptDismissalSuppressedApprovals: [ToolApprovalRequest] = []
+    @ObservationIgnored var promptDismissalHandledApprovalKeys: Set<ClaudeToolApprovalKey> = []
 
-    var turnState: TurnState { state.turnState }
-    var messageQueue: MessageQueue { state.messageQueue }
     var streamingText: String? { state.streamingText }
 
     var isAgentActivelyWorking: Bool {
@@ -217,7 +220,7 @@ final class ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.activeRuntimeActivityTurnId = nil
-            try await agentsManager.sendMessage(message, conversationId: conversation.id)
+            try await sendVisibleAgentMessage(message)
             markVisibleTurnStarted()
             state.turnState.beginTurn()
             insertLocalUserMessage(message, into: dbConversation)
@@ -454,6 +457,11 @@ final class ConversationViewModel {
             keepAwakeService.setActive(false, for: activeKeepAwakeSource)
         }
     }
+}
+
+extension ConversationViewModel {
+    var turnState: TurnState { state.turnState }
+    var messageQueue: MessageQueue { state.messageQueue }
 }
 
 private extension ConversationViewModel {

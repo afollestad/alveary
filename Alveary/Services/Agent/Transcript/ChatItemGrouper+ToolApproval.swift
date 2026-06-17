@@ -3,6 +3,7 @@ import Foundation
 extension ChatItemGrouper {
     func appendToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
         let approval = approvalWithFallbackPlanIfNeeded(approval)
+        removeDuplicateExitPlanModeAssistantPlanIfNeeded(approval)
         rememberExitPlanModePlanMarkdownIfNeeded(approval)
 
         if updateExistingRenderedApproval(approval, status: status) {
@@ -60,6 +61,18 @@ extension ChatItemGrouper {
         // approval-local plan display without mutating the tool input sent to Claude.
         items.remove(at: planItemIndex)
         return approval.withPlanMarkdownFallback(fallbackPlanMarkdown)
+    }
+
+    private func removeDuplicateExitPlanModeAssistantPlanIfNeeded(_ approval: ToolApprovalRequest) {
+        guard approval.toolName == "ExitPlanMode",
+              let planMarkdown = approval.planMarkdown,
+              let planItemIndex = fallbackPlanItemIndexForExitPlanModeApproval(),
+              let assistantPlanMarkdown = fallbackPlanMarkdown(from: items[planItemIndex]),
+              assistantPlanMarkdown == planMarkdown else {
+            return
+        }
+
+        items.remove(at: planItemIndex)
     }
 
     private func fallbackPlanItemIndexForExitPlanModeApproval() -> Array<ChatItem>.Index? {

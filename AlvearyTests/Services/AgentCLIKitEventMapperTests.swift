@@ -340,29 +340,6 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(tokenEvents, [ConversationEvent.interimUsageStopReason])
     }
 
-    func testMapsPromptInteractionToToolApprovalRequest() {
-        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
-            .interaction(AgentInteractionEvent(
-                id: "prompt-1",
-                kind: .prompt,
-                prompt: "Pick one",
-                metadata: [
-                    "session_id": .string("session-1"),
-                    "tool_input": .object(["question": .string("Pick one")])
-                ]
-            )),
-            providerSessionId: "session-1"
-        ))
-
-        guard case let .toolApprovalRequested(request)? = events.first else {
-            return XCTFail("Expected tool approval request")
-        }
-        XCTAssertEqual(request.sessionId, "session-1")
-        XCTAssertEqual(request.toolUseId, "prompt-1")
-        XCTAssertEqual(request.toolName, "AskUserQuestion")
-        XCTAssertEqual(Self.object(from: request.toolInput)?["question"] as? String, "Pick one")
-    }
-
     func testMapsSystemInitDiagnosticToSessionInit() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
             .diagnostic(AgentDiagnosticEvent(

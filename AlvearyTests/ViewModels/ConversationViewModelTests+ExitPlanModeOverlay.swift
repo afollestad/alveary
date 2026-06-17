@@ -7,7 +7,11 @@ import XCTest
 extension ConversationViewModelTests {
     func testApproveExitPlanModeRoutesAllowDecisionForClaude() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "claude")
+        let conversation = try fixture.dbConversation()
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        let approvalRecord = exitPlanModeApprovalRecord(conversation: conversation, approval: approval)
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
 
         try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
@@ -18,6 +22,85 @@ extension ConversationViewModelTests {
         XCTAssertEqual(calls.first?.approval, approval)
         XCTAssertEqual(calls.first?.config.providerId, "claude")
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        XCTAssertNil(fixture.viewModel.latestUnresolvedToolApproval())
+        XCTAssertTrue(try fixture.userMessages().isEmpty)
+    }
+
+    func testApprovedExitPlanModeClearsWhenImplementationToolCallStarts() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false, providerId: "codex")
+        try fixture.dbThread().planModeEnabled = true
+        try fixture.dbThread().permissionMode = "plan"
+        try fixture.context.save()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+        fixture.viewModel.state.runtimePermissionMode = "plan"
+        fixture.viewModel.state.lastNonPlanPermissionMode = "default"
+        let conversation = try fixture.dbConversation()
+        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        let approvalRecord = exitPlanModeApprovalRecord(conversation: conversation, approval: approval)
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
+        fixture.viewModel.handleEvent(.toolCall(
+            id: "read-1",
+            name: "Read",
+            input: #"{"file_path":"index.html"}"#,
+            parentToolUseId: nil,
+            callerAgent: nil
+        ))
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(fixture.viewModel.state.runtimePlanModeEnabled, false)
+        XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, "default")
+        XCTAssertEqual(try fixture.dbThread().planModeEnabled, false)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        XCTAssertTrue(try fixture.userMessages().isEmpty)
+    }
+
+    func testApproveExitPlanModeDoesNotResubscribeInactiveRunningExitPlanModeTurn() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        let approvalRecord = exitPlanModeApprovalRecord(conversation: conversation, approval: approval)
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.endTurn()
+        fixture.viewModel.state.lastObservedEventIndex = 12
+        fixture.viewModel.state.lastPersistedEventIndex = 12
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
+
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .approving)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        let subscribeCalls = await fixture.agentsManager.subscribeCalls()
+        XCTAssertEqual(subscribeCalls, 0)
+        XCTAssertTrue(try fixture.userMessages().isEmpty)
+    }
+
+    func testApproveExitPlanModeDoesNotRecordImplementationRequestWhenApprovalFails() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            approvalError: .approvalFailed,
+            initialAgentIsRunning: false
+        )
+        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        do {
+            try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
+            XCTFail("Expected approval to fail")
+        } catch {}
+
+        XCTAssertTrue(try fixture.userMessages().isEmpty)
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .pending)
+    }
+
+    func testRuntimePlanImplementationMessagePersistsUserTranscriptRow() throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        fixture.viewModel.handleEvent(.runtimeUserMessage(content: "Implement plan"))
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Implement plan"])
     }
 
     func testDismissExitPlanModeRoutesDenyDecisionForCodex() async throws {
@@ -55,6 +138,7 @@ extension ConversationViewModelTests {
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(fixture.viewModel.state.pendingExitPlanModeFollowUp?.phase, .awaitingDeniedExitTurn)
+        XCTAssertEqual(fixture.viewModel.state.pendingExitPlanModeFollowUp?.message, exitPlanModeRevisionFollowUp())
         XCTAssertTrue(fixture.viewModel.state.isAwaitingExitPlanModeFollowUp)
         XCTAssertEqual(fixture.viewModel.state.messageQueue.pending.map(\.text), ["Older queued message"])
         XCTAssertEqual(fixture.viewModel.state.messageQueue.pending.first?.stagedContext, "Queued context")
@@ -71,7 +155,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.handleEvent(exitPlanModeTerminalToken(for: approval))
 
         try await waitUntil("custom plan follow-up sent after denied-turn terminal token") {
-            await fixture.agentsManager.sentMessages() == ["Please revise the plan first."]
+            await fixture.agentsManager.sentMessages() == [exitPlanModeRevisionFollowUp()]
         }
 
         let records = try conversationRecords(for: fixture)
@@ -79,12 +163,45 @@ extension ConversationViewModelTests {
             $0.role == "assistant" && $0.content == denialAcknowledgement
         })
         let followUpIndex = try XCTUnwrap(records.firstIndex {
-            $0.role == "user" && $0.content == "Please revise the plan first."
+            $0.role == "user" && $0.content == exitPlanModeRevisionFollowUp()
         })
         XCTAssertLessThan(acknowledgementIndex, followUpIndex)
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
         XCTAssertEqual(fixture.viewModel.state.stagedContext, "Live staged context")
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.denied.rawValue)
+    }
+
+    func testCustomDenyFollowUpDoesNotResubscribeInactiveRunningExitPlanModeTurn() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
+        let conversation = try fixture.dbConversation()
+        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        let approvalRecord = exitPlanModeApprovalRecord(conversation: conversation, approval: approval)
+        fixture.context.insert(approvalRecord)
+        try fixture.context.save()
+        fixture.viewModel.state.turnState.endTurn()
+        fixture.viewModel.state.lastObservedEventIndex = 12
+        fixture.viewModel.state.lastPersistedEventIndex = 12
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        try await fixture.viewModel.denyExitPlanMode(
+            toolUseId: approval.toolUseId,
+            followUp: "Please revise the plan first."
+        )
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.denied.rawValue)
+        let subscribeCalls = await fixture.agentsManager.subscribeCalls()
+        XCTAssertEqual(subscribeCalls, 0)
+
+        try await waitUntil("custom plan follow-up sent without replay subscription", timeout: .seconds(2)) {
+            await fixture.agentsManager.sentMessages() == [exitPlanModeRevisionFollowUp()]
+        }
+        XCTAssertEqual(try fixture.userMessages().map(\.content), [exitPlanModeRevisionFollowUp()])
+        XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
+    }
+
+    func testCustomDenyFollowUpSendsFeedbackVerbatim() {
+        XCTAssertEqual(exitPlanModeRevisionFollowUp("Make it smaller."), "Make it smaller.")
     }
 
     func testExitPlanModeToolResultAloneDoesNotDrainCustomDenyFollowUp() async throws {
@@ -115,6 +232,31 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
         XCTAssertEqual(fixture.viewModel.state.pendingExitPlanModeFollowUp?.phase, .awaitingDeniedExitTurn)
+        XCTAssertEqual(fixture.viewModel.state.pendingExitPlanModeFollowUp?.message, exitPlanModeRevisionFollowUp())
+    }
+
+    func testCustomDenyFollowUpQueuesRevisionPromptAndRequiresPlanMode() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
+        fixture.viewModel.activateViewLifecycle()
+        fixture.viewModel.deactivateViewLifecycle()
+        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+
+        try await fixture.viewModel.denyExitPlanMode(
+            toolUseId: approval.toolUseId,
+            followUp: "Please revise the plan first."
+        )
+
+        XCTAssertTrue(fixture.viewModel.markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
+            toolUseId: approval.toolUseId,
+            sessionId: approval.sessionId
+        ))
+
+        let queued = try XCTUnwrap(fixture.viewModel.state.messageQueue.peekNext())
+        XCTAssertEqual(queued.text, exitPlanModeRevisionFollowUp())
+        XCTAssertEqual(queued.requiredPlanModeEnabled, true)
+        XCTAssertNil(queued.stagedContext)
+        XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
     }
 
     func testCustomDenyFollowUpDrainsAfterMatchingRuntimeIdle() async throws {
@@ -141,7 +283,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: "turn-1", outcome: .completed))
 
         try await waitUntil("custom plan follow-up sent after matching runtime idle") {
-            await fixture.agentsManager.sentMessages() == ["Please revise the plan first."]
+            await fixture.agentsManager.sentMessages() == [exitPlanModeRevisionFollowUp()]
         }
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
     }
@@ -165,7 +307,7 @@ extension ConversationViewModelTests {
         await fixture.agentsManager.finishSubscription()
 
         try await waitUntil("custom plan follow-up sent after subscription finish") {
-            await fixture.agentsManager.sentMessages() == ["Please revise the plan first."]
+            await fixture.agentsManager.sentMessages() == [exitPlanModeRevisionFollowUp()]
         }
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
     }
@@ -239,13 +381,13 @@ extension ConversationViewModelTests {
         }
 
         let failedMessage = try XCTUnwrap(try fixture.userMessages().first)
-        XCTAssertEqual(failedMessage.content, "Please revise the plan first.")
+        XCTAssertEqual(failedMessage.content, exitPlanModeRevisionFollowUp())
         XCTAssertNil(fixture.viewModel.state.retryableFailedMessageStagedContexts[failedMessage.id])
 
         try await fixture.viewModel.retryFailedUserMessage(id: failedMessage.id)
 
         try await waitUntil("custom plan follow-up retry sent") {
-            await fixture.agentsManager.sentMessages() == ["Please revise the plan first."]
+            await fixture.agentsManager.sentMessages() == [exitPlanModeRevisionFollowUp()]
         }
         XCTAssertFalse(fixture.viewModel.state.retryableFailedMessageIDs.contains(failedMessage.id))
     }
@@ -269,12 +411,12 @@ extension ConversationViewModelTests {
 
         try await waitUntil("custom plan follow-up started without live staged context during setup") {
             let spawnCalls = await fixture.agentsManager.spawnCalls()
-            return spawnCalls.first?.config.initialPrompt == "Please revise the plan first."
+            return spawnCalls.first?.config.initialPrompt == exitPlanModeRevisionFollowUp()
         }
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Please revise the plan first."])
+        XCTAssertEqual(try fixture.userMessages().map(\.content), [exitPlanModeRevisionFollowUp()])
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(fixture.viewModel.state.stagedContext, "Live staged context")
     }
@@ -310,6 +452,10 @@ private func exitPlanModeApproval(toolUseId: String) -> ToolApprovalRequest {
     )
 }
 
+private func exitPlanModeRevisionFollowUp(_ feedback: String = "Please revise the plan first.") -> String {
+    ConversationViewModel.exitPlanModeRevisionFollowUpPrompt(feedback: feedback)
+}
+
 private func exitPlanModeTerminalToken(for approval: ToolApprovalRequest) -> ConversationEvent {
     .tokens(
         input: 1,
@@ -326,9 +472,7 @@ private func exitPlanModeTerminalToken(for approval: ToolApprovalRequest) -> Con
 }
 
 @MainActor
-private func conversationRecords(
-    for fixture: ConversationViewModelTestFixture
-) throws -> [ConversationEventRecord] {
+private func conversationRecords(for fixture: ConversationViewModelTestFixture) throws -> [ConversationEventRecord] {
     try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
         $0.conversationId == fixture.conversation.id
     }.sorted { lhs, rhs in

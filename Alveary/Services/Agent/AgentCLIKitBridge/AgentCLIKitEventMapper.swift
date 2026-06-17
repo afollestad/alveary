@@ -49,7 +49,11 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func messageEvents(from event: AgentCLIKit.AgentMessageEvent) -> [ConversationEvent] {
-        [.message(
+        if event.role == .user,
+           event.metadata.stringValue("agent_plan_exit_interaction_id") != nil {
+            return [.runtimeUserMessage(content: event.text)]
+        }
+        return [.message(
             role: event.role.rawValue,
             content: event.text,
             parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
@@ -249,7 +253,17 @@ struct AgentCLIKitEventMapper: Sendable {
             toolInput: toolInput,
             planMarkdownFallback: event.metadata.stringValue("plan")
         )
-        return [.toolApprovalRequested(request)]
+        var events: [ConversationEvent] = [.toolApprovalRequested(request)]
+        if toolName == "AskUserQuestion" {
+            events.append(.toolCall(
+                id: event.id.rawValue,
+                name: toolName,
+                input: toolInput,
+                parentToolUseId: event.metadata.stringValue("parent_tool_use_id"),
+                callerAgent: event.metadata.stringValue("caller_agent")
+            ))
+        }
+        return events
     }
 
     private func toolName(for kind: AgentCLIKit.AgentInteractionKind) -> String {

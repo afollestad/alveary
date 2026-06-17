@@ -27,7 +27,7 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
-        try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
+        try await sendVisibleAgentMessage(transportMessage)
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
@@ -49,6 +49,16 @@ extension ConversationViewModel {
             return context + "\n\n" + message
         }
         return message
+    }
+
+    func sendVisibleAgentMessage(_ message: String) async throws {
+        let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
+        do {
+            try await agentsManager.sendMessage(message, conversationId: conversation.id)
+        } catch {
+            restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
+            throw error
+        }
     }
 
     func steerQueuedMessage(id: UUID) async throws {
@@ -89,7 +99,7 @@ extension ConversationViewModel {
                 state.isCancellingTurn = false
                 state.lastTurnError = nil
                 state.activeRuntimeActivityTurnId = nil
-                try await agentsManager.sendMessage(transportMessage, conversationId: conversation.id)
+                try await sendVisibleAgentMessage(transportMessage)
                 markVisibleTurnStarted()
                 state.turnState.beginTurn()
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)

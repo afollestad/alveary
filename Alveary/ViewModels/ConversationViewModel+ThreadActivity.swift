@@ -1,5 +1,6 @@
 extension ConversationViewModel {
     func markVisibleTurnStarted() {
+        markPromptDismissalNewOutboundTurnStarted()
         state.currentTurnActivityVisibility = .visible
         state.hasRecordedLocalTurnEndActivity = false
     }

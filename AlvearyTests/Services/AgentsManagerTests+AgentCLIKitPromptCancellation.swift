@@ -45,6 +45,53 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitCancelledPromptAllowsReplacementPromptToWaitForUser() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: AskUserQuestionPromptAgentCLIKitAdapter(postResolutionScript: "sleep 1"),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-cancelled-prompt-replacement-waits"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let approvalEvent = try await nextEvent(from: subscription.stream, description: "AskUserQuestion prompt event")
+        guard case let .toolApprovalRequested(approval) = approvalEvent else {
+            return XCTFail("Expected AskUserQuestion approval request, got \(approvalEvent)")
+        }
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: approval,
+            resolution: ClaudeToolApprovalResolution(decision: .deny),
+            additionalApprovals: [],
+            sessionApproval: nil,
+            config: spawnConfig(workingDirectory: "/tmp")
+        ))
+        try await waitUntil("expected cancelled prompt to stay idle") {
+            manager.status(for: conversationId) == .idle
+        }
+
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+        let replacement = ToolApprovalRequest(
+            sessionId: approval.sessionId,
+            toolUseId: "prompt-2",
+            toolName: "AskUserQuestion",
+            toolInput: approval.toolInput
+        )
+        await manager.handleStreamEvent(
+            .toolApprovalRequested(replacement),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude"
+        )
+
+        XCTAssertEqual(manager.status(for: conversationId), .waitingForUser)
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitAskUserQuestionAllowStillMarksBusy() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: AskUserQuestionPromptAgentCLIKitAdapter(),

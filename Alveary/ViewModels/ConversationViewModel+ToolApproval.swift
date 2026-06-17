@@ -89,13 +89,13 @@ extension ConversationViewModel {
         defer { state.isSendingMessage = false }
 
         guard let promptPendingApproval else {
-            await dismissPromptWithoutApproval(promptId: promptId)
+            try await dismissPromptWithoutApproval(promptId: promptId)
             return
         }
 
         if approvalCandidate?.shouldCheckSessionResolution != false,
            clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil {
-            completePromptDismissal(promptId: promptId)
+            completePromptDismissal(promptId: promptId, suppressDelayedFallout: false)
             return
         }
 
@@ -114,7 +114,6 @@ extension ConversationViewModel {
                 sessionApprovalScope: nil,
                 updatedToolInput: nil
             )
-            completePromptDismissal(promptId: promptId)
         } catch {
             state.pendingToolApproval = PendingToolApproval(
                 request: promptPendingApproval.request,
@@ -123,6 +122,9 @@ extension ConversationViewModel {
             state.lastTurnError = "Prompt dismiss failed: \(error.localizedDescription)"
             throw error
         }
+
+        completePromptDismissal(promptId: promptId)
+        try await resolveSuppressedPromptDismissalApprovalsIfNeeded()
     }
 
     func toolApprovalSelection(for approval: ToolApprovalRequest) async -> ToolApprovalSelection? {
@@ -270,7 +272,7 @@ extension ConversationViewModel {
             status: .approving
         )
         state.pendingToolApproval = resolvingApproval
-
+        let continuation = beginPromptAnswerContinuation()
         do {
             try await resumeDeferredToolUse(
                 resolvingApproval,
@@ -281,6 +283,7 @@ extension ConversationViewModel {
             markVisibleTurnStarted()
             threadActivityRecorder.recordVisibleOutbound(conversationId: conversation.id)
         } catch {
+            restorePromptAnswerContinuation(continuation)
             state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
             state.lastTurnError = "Prompt answer failed: \(error.localizedDescription)"
             throw error
@@ -372,8 +375,9 @@ private extension ConversationViewModel {
         updatedToolInput: String?
     ) async throws {
         let hasActiveTurn = state.turnState.isActive
-        let hasRunningAgent = hasActiveTurn ? await agentsManager.isRunning(conversationId: conversation.id) : false
-        let isResolvingLiveHookApproval = hasActiveTurn && hasRunningAgent
+        let hasRunningAgent = await agentsManager.isRunning(conversationId: conversation.id)
+        let isResolvingLiveHookApproval = hasRunningAgent &&
+            (hasActiveTurn || shouldResolveInactiveLiveToolApproval(pendingApproval))
         let config = try makeSpawnConfig(settingsSource: .currentContinuation)
         let sessionApproval = sessionApprovalScope.flatMap {
             pendingApproval.request.sessionApprovalGrant(
@@ -428,6 +432,7 @@ private extension ConversationViewModel {
         relatedApprovalStatus: ToolApprovalStatus
     ) {
         guard pendingApproval.request.toolName != "ExitPlanMode" else {
+            persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
             persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
             return
         }
@@ -484,5 +489,12 @@ private extension ConversationViewModel {
 
     func toolApprovalProviderId() -> String {
         conversation.provider ?? settingsService.current.defaultProvider
+    }
+
+    func shouldResolveInactiveLiveToolApproval(_ pendingApproval: PendingToolApproval) -> Bool {
+        // `tool_deferred` ends Alveary's local turn while Codex may still be paused on this
+        // interaction. Keep the decision live so approving or denying the plan does not reset the
+        // replay cursor and resubscribe to the already-rendered plan turn.
+        pendingApproval.request.toolName == "ExitPlanMode"
     }
 }

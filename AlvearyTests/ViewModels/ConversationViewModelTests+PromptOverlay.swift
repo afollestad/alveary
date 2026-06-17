@@ -179,18 +179,46 @@ extension ConversationViewModelTests {
         })
     }
 
-    func testDismissPromptThenNewMessageSendsNormally() async throws {
+    func testDismissPromptSuppressesOldTurnFalloutAfterNextMessageStarts() async throws {
         let fixture = try await dismissedOverlayPromptFixture()
+        let model = fixture.viewModel
+        try await model.queueOrSend("Ask again")
+        let denial = [PermissionDenialSummary(toolName: "AskUserQuestion", toolUseId: "prompt-1")]
+        model.handleEvent(.tokens(
+            input: 0, output: 0, cacheRead: 0, isError: false, stopReason: nil, durationMs: 1, costUsd: nil, permissionDenials: denial
+        ))
+        model.handleEvent(.message(role: "assistant", content: "Old default proposal", parentToolUseId: nil))
+        model.handleEvent(.toolCall(id: "plan-exit-1", name: "ExitPlanMode", input: "{}", parentToolUseId: nil, callerAgent: nil))
+        model.handleEvent(.toolApprovalRequested(
+            ToolApprovalRequest(sessionId: "session-123", toolUseId: "plan-exit-1", toolName: "ExitPlanMode", toolInput: "{}")
+        ))
+        model.handleEvent(.tokens(
+            input: 1, output: 1, cacheRead: 0, isError: false, stopReason: "end_turn", durationMs: 2,
+            costUsd: nil, permissionDenials: [], isTerminal: true
+        ))
+        try await waitUntil("expected hidden plan exit prompt to be denied") {
+            await fixture.agentsManager.approvalCalls().map(\.approval.toolName) == ["AskUserQuestion", "ExitPlanMode"]
+        }
 
-        try await fixture.viewModel.queueOrSend("Continue after dismiss")
+        let promptInput = #"{"questions":[]}"#
+        let freshPromptApproval = ToolApprovalRequest(sessionId: "s", toolUseId: "p2", toolName: "AskUserQuestion", toolInput: promptInput)
+        model.handleEvent(.message(role: "assistant", content: "I'll ask a fresh set.", parentToolUseId: nil))
+        model.handleEvent(.toolCall(id: "prompt-2", name: "AskUserQuestion", input: promptInput, parentToolUseId: nil, callerAgent: nil))
+        model.handleEvent(.toolApprovalRequested(freshPromptApproval))
 
         let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertEqual(sentMessages, ["Continue after dismiss"])
-        XCTAssertNil(fixture.viewModel.state.messageQueue.peekNext())
-        XCTAssertTrue(fixture.viewModel.turnState.isActive)
-        XCTAssertFalse(fixture.viewModel.state.lastTurnInterrupted)
-        XCTAssertFalse(fixture.viewModel.state.shouldShowInterruptedCue)
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Continue after dismiss"])
+        let records = try promptOverlayRecords(in: fixture)
+        XCTAssertEqual(sentMessages, ["Ask again"])
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Ask again"])
+        XCTAssertEqual(model.state.pendingToolApproval?.request, freshPromptApproval)
+        XCTAssertTrue(model.hasUnansweredPrompt)
+        XCTAssertTrue(records.contains {
+            $0.type == "message" && $0.content == "I'll ask a fresh set."
+        })
+        XCTAssertFalse(records.contains {
+            ($0.type == "message" && $0.content == "Old default proposal") ||
+                $0.toolId == "plan-exit-1"
+        })
     }
 
     func testDismissPromptSuppressesProviderFallbackBeforeResolutionReturns() async throws {
@@ -216,19 +244,9 @@ extension ConversationViewModelTests {
             content: "Permission denied. Plan mode test blocked at AskUserQuestion. Nothing written.",
             parentToolUseId: nil
         ))
-        fixture.viewModel.handleEvent(.toolCall(
-            id: "plan-exit-1",
-            name: "ExitPlanMode",
-            input: "{}",
-            parentToolUseId: nil,
-            callerAgent: nil
-        ))
-        fixture.viewModel.handleEvent(.toolApprovalRequested(ToolApprovalRequest(
-            sessionId: "session-123",
-            toolUseId: "plan-exit-1",
-            toolName: "ExitPlanMode",
-            toolInput: "{}"
-        )))
+        let planExitApproval = ToolApprovalRequest(sessionId: "session-123", toolUseId: "plan-exit-1", toolName: "ExitPlanMode", toolInput: "{}")
+        fixture.viewModel.handleEvent(.toolCall(id: "plan-exit-1", name: "ExitPlanMode", input: "{}", parentToolUseId: nil, callerAgent: nil))
+        fixture.viewModel.handleEvent(.toolApprovalRequested(planExitApproval))
         fixture.viewModel.handleEvent(.stop(message: ConversationInterruption.displayMessage))
         await fixture.agentsManager.resumeApprovalResolution()
         try await dismissTask.value
@@ -244,6 +262,41 @@ extension ConversationViewModelTests {
                 ($0.type == "stop" && $0.content == ConversationInterruption.displayMessage) ||
                 $0.toolName == "ExitPlanMode"
         })
+        let approvalCalls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(approvalCalls.map(\.approval.toolName), ["AskUserQuestion", "ExitPlanMode"])
+        XCTAssertEqual(approvalCalls.map(\.decision), [.deny, .deny])
+        try await fixture.viewModel.queueOrSend("Ask again")
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "Fresh answer", parentToolUseId: nil))
+        XCTAssertTrue(try promptOverlayRecords(in: fixture).contains { $0.type == "message" && $0.content == "Fresh answer" })
+    }
+
+    func testDismissPromptDeniesLateSuppressedPlanExitBeforeNextSend() async throws {
+        let fixture = try await dismissedOverlayPromptFixture()
+
+        let planExitApproval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "plan-exit-1",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        fixture.viewModel.handleEvent(.toolApprovalRequested(planExitApproval))
+
+        try await waitUntil("expected late plan exit prompt to be denied") {
+            await fixture.agentsManager.approvalCalls().map(\.approval.toolName) == ["AskUserQuestion", "ExitPlanMode"]
+        }
+        fixture.viewModel.handleEvent(.toolApprovalRequested(planExitApproval))
+        try await Task.sleep(for: .milliseconds(50))
+
+        try await fixture.viewModel.queueOrSend("Ask again")
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Ask again"])
+        let approvalCalls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(approvalCalls.map(\.approval.toolName), ["AskUserQuestion", "ExitPlanMode"])
+        XCTAssertNil(fixture.viewModel.state.lastTurnError)
+        XCTAssertFalse(try promptOverlayRecords(in: fixture).contains {
+            $0.toolName == "ExitPlanMode"
+        })
     }
 
     func testDismissPromptIgnoresLateMatchingApprovalRequest() async throws {
@@ -257,6 +310,9 @@ extension ConversationViewModelTests {
         try await fixture.viewModel.dismissPrompt(promptId: "prompt-1")
         fixture.viewModel.handleEvent(.toolApprovalRequested(seededPrompt.approval))
 
+        try await Task.sleep(for: .milliseconds(50))
+        let approvalCalls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(approvalCalls.map(\.approval.toolName), ["AskUserQuestion"])
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertFalse(fixture.viewModel.hasUnansweredPrompt)
         XCTAssertEqual(seededPrompt.promptRecord.content, ChatItemGrouper.handledPromptSummary)
@@ -286,14 +342,14 @@ extension ConversationViewModelTests {
 }
 
 @MainActor
-private func promptOverlayRecords(in fixture: ConversationViewModelTestFixture) throws -> [ConversationEventRecord] {
+func promptOverlayRecords(in fixture: ConversationViewModelTestFixture) throws -> [ConversationEventRecord] {
     try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
         $0.conversationId == fixture.conversation.id
     }
 }
 
 @MainActor
-private func dismissedOverlayPromptFixture(
+func dismissedOverlayPromptFixture(
     queuedMessage: String? = nil
 ) async throws -> ConversationViewModelTestFixture {
     let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
@@ -386,15 +442,16 @@ private func seedOverlayPromptApproval(
     return (promptRecord, approval)
 }
 
-private func overlayAskUserQuestionToolCallRecord(
+func overlayAskUserQuestionToolCallRecord(
     conversation: Conversation,
+    promptId: String = "prompt-1",
     promptInput: String,
     timestamp: TimeInterval
 ) -> ConversationEventRecord {
     ConversationEventRecord(
         conversationId: conversation.id,
         type: "tool_call",
-        toolId: "prompt-1",
+        toolId: promptId,
         toolName: "AskUserQuestion",
         toolInput: promptInput,
         timestamp: Date(timeIntervalSince1970: timestamp),
@@ -402,7 +459,7 @@ private func overlayAskUserQuestionToolCallRecord(
     )
 }
 
-private func overlayToolApprovalRecord(
+func overlayToolApprovalRecord(
     conversation: Conversation,
     approval: ToolApprovalRequest,
     timestamp: TimeInterval

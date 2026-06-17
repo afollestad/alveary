@@ -90,6 +90,7 @@ enum ConversationEvent: Sendable, Equatable {
     case permissionModeChanged(String)
     case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)
+    case runtimeUserMessage(content: String)
     case messageChunk(text: String, parentToolUseId: String?)
     case toolCall(id: String, name: String, input: String, parentToolUseId: String?, callerAgent: String?)
     case toolResult(id: String, output: String, isError: Bool, parentToolUseId: String?, metadata: ToolResultMetadata?)
@@ -129,7 +130,8 @@ enum ConversationEvent: Sendable, Equatable {
     // swiftlint:disable:next cyclomatic_complexity
     func toRecord(conversation: Conversation) -> ConversationEventRecord? {
         switch self {
-        case .message:
+        case .message,
+             .runtimeUserMessage:
             return messageRecord(conversation: conversation)
         case .toolCall:
             return toolCallRecord(conversation: conversation)
@@ -173,7 +175,19 @@ enum ConversationEvent: Sendable, Equatable {
 private extension ConversationEvent {
     @MainActor
     func messageRecord(conversation: Conversation) -> ConversationEventRecord {
-        guard case let .message(role, content, parentToolUseId) = self else {
+        let role: String
+        let content: String
+        let parentToolUseId: String?
+        switch self {
+        case .message(let messageRole, let messageContent, let messageParentToolUseId):
+            role = messageRole
+            content = messageContent
+            parentToolUseId = messageParentToolUseId
+        case .runtimeUserMessage(let messageContent):
+            role = "user"
+            content = messageContent
+            parentToolUseId = nil
+        default:
             preconditionFailure("Unexpected event case")
         }
 

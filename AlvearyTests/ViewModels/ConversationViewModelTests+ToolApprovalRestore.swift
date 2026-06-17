@@ -200,6 +200,39 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
     }
 
+    func testHydrateMarksAcceptedExitPlanModeResolvedWhenImplementationAlreadyStarted() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let conversation = try fixture.dbConversation()
+        let approvalTime = Date()
+        let approval = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "exit-plan-1",
+            toolName: "ExitPlanMode",
+            toolInput: ##"{"plan":"# Plan\n\n- Do the work."}"##,
+            timestamp: approvalTime,
+            conversation: conversation
+        )
+        let implementationToolCall = ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "tool_call",
+            toolId: "read-1",
+            toolName: "Read",
+            toolInput: #"{"file_path":"index.html"}"#,
+            timestamp: approvalTime.addingTimeInterval(1),
+            conversation: conversation
+        )
+        fixture.context.insert(approval)
+        fixture.context.insert(implementationToolCall)
+        try fixture.context.save()
+
+        fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertEqual(approval.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+    }
+
     func testHydrateMarksApprovalResolvedWhenClaudeSessionAlreadyConsumedIt() throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()

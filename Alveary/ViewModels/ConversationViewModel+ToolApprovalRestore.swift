@@ -49,7 +49,19 @@ extension ConversationViewModel {
         guard approvalRecord.toolApprovalStatus == nil else {
             return nil
         }
-        guard !hasResolutionAfterApproval(conversationID: conversationID, toolUseId: toolUseId, approvalRecord: approvalRecord) else {
+        if approvalRecord.toolName == "ExitPlanMode",
+           hasExitPlanModeImplementationActivityAfterApproval(
+               conversationID: conversationID,
+               approvalTimestamp: approvalRecord.timestamp
+           ) {
+            markToolApprovalRecordResolved(approvalRecord, status: .approved, refreshTranscript: true)
+            return nil
+        }
+        guard !hasResolutionAfterApproval(
+            conversationID: conversationID,
+            toolUseId: toolUseId,
+            approvalRecord: approvalRecord
+        ) else {
             return nil
         }
 
@@ -204,6 +216,43 @@ extension ConversationViewModel {
             }
             return stopReason != "tool_deferred" &&
                 stopReason != ConversationEvent.interimUsageStopReason
+        }
+    }
+
+    private func hasExitPlanModeImplementationActivityAfterApproval(
+        conversationID: String,
+        approvalTimestamp: Date
+    ) -> Bool {
+        let laterRecords = (try? modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate {
+                    $0.conversationId == conversationID &&
+                        $0.timestamp > approvalTimestamp
+                }
+            )
+        )) ?? []
+        return laterRecords.contains { record in
+            guard record.type == "tool_call",
+                  let toolName = record.toolName else {
+                return false
+            }
+            return toolName != "ExitPlanMode"
+        }
+    }
+
+    private func markToolApprovalRecordResolved(
+        _ approvalRecord: ConversationEventRecord,
+        status: ToolApprovalStatus,
+        refreshTranscript: Bool
+    ) {
+        approvalRecord.toolApprovalStatus = status.rawValue
+        do {
+            try modelContext.save()
+            if refreshTranscript {
+                refreshTranscriptForToolApprovalStatusChanges()
+            }
+        } catch {
+            // Best-effort: restore will skip this row again if later activity proves it is stale.
         }
     }
 

@@ -149,7 +149,7 @@ extension DefaultAgentsManager {
 
     private func recordCancelledInteractionResolutionIfNeeded(_ request: AgentToolApprovalResolutionRequest) -> Bool {
         guard request.resolution.decision == .deny,
-              Self.isAppNativeInteractionPrompt(toolName: request.approval.toolName) else {
+              request.approval.isAppNativeInteractionPrompt else {
             cancelledInteractionsByConversation.removeValue(forKey: request.conversationId)
             return false
         }
@@ -160,11 +160,6 @@ extension DefaultAgentsManager {
                 ?? agentCLIKitGenerationByConversation[request.conversationId]
         )
         return true
-    }
-
-    /// Whether the tool is an app-native interaction prompt rather than a provider tool execution.
-    static func isAppNativeInteractionPrompt(toolName: String) -> Bool {
-        toolName == "AskUserQuestion" || toolName == "ExitPlanMode"
     }
 
     private func makeToolApprovalResolutionContext(

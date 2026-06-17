@@ -14,7 +14,10 @@ extension ConversationViewModel {
         if let trimmedFollowUp,
            let approval = state.pendingToolApproval?.request,
            approval.toolUseId == toolUseId {
-            stagePendingExitPlanModeFollowUp(message: trimmedFollowUp, approval: approval)
+            stagePendingExitPlanModeFollowUp(
+                message: Self.exitPlanModeRevisionFollowUpPrompt(feedback: trimmedFollowUp),
+                approval: approval
+            )
         }
 
         do {
@@ -37,9 +40,17 @@ extension ConversationViewModel {
 
         cancelPendingExitPlanModeFollowUpQuietTask()
         state.pendingExitPlanModeFollowUp = nil
-        state.messageQueue.prepend(followUp.message, stagedContext: nil)
+        state.messageQueue.prepend(
+            followUp.message,
+            stagedContext: nil,
+            requiredPlanModeEnabled: true
+        )
         scheduleExitPlanModeFollowUpDrainIfNeeded()
         return true
+    }
+
+    nonisolated static func exitPlanModeRevisionFollowUpPrompt(feedback: String) -> String {
+        feedback
     }
 
     func clearPendingExitPlanModeFollowUpIfNeeded(toolUseId: String) {

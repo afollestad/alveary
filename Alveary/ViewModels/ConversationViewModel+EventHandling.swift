@@ -28,13 +28,11 @@ private extension ConversationViewModel {
             return shouldPersistHiddenSessionHandoffEvent(event)
         }
 
-        if shouldSuppressPromptDismissalEvent(event) {
+        if shouldSuppressPromptDismissalEvent(event) || shouldSuppressPromptDismissalFallout(event) {
             return false
         }
 
-        if shouldSuppressInterruptedTurnFallout(event) {
-            return false
-        }
+        if shouldSuppressInterruptedTurnFallout(event) { return false }
 
         switch event {
         case .sessionInit,
@@ -47,10 +45,12 @@ private extension ConversationViewModel {
         case .collaborationModeChanged(let isPlanModeEnabled):
             return handleCollaborationModeChanged(isPlanModeEnabled)
 
+        case .toolCall(_, let name, _, _, _):
+            clearApprovedExitPlanModeApprovalAfterImplementationToolCall(toolName: name)
+            return true
         case .toolResult(let id, _, let isError, _, _):
             clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: id, isError: isError)
             return true
-
         case .messageChunk(let text, let parentToolUseId):
             return handleMessageChunk(text, parentToolUseId: parentToolUseId)
 
@@ -138,7 +138,7 @@ private extension ConversationViewModel {
               !state.turnState.isActive else {
             return false
         }
-
+        handleSuppressedPromptApproval(from: event, deferResolution: false)
         switch event {
         case .messageChunk,
              .message,

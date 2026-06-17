@@ -233,9 +233,7 @@ extension ChatView {
 
         updateExitPlanModeOverlayState(toolUseId: approval.request.toolUseId) { state in
             state.isSubmitting = true
-            if state.selection == .customDenial {
-                state.isHiddenAfterSubmit = true
-            }
+            state.isHiddenAfterSubmit = true
         }
         if state.selection == .customDenial {
             appState.requestComposerFocus()

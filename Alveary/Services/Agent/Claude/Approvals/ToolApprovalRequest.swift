@@ -88,6 +88,11 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Whether this request represents an app-native prompt instead of a provider tool execution.
+    var isAppNativeInteractionPrompt: Bool {
+        toolName == "AskUserQuestion" || toolName == "ExitPlanMode"
+    }
+
     /// Prompt copy for the transcript approval controls.
     var approvalPromptCopy: ToolApprovalPromptCopy {
         switch toolName {

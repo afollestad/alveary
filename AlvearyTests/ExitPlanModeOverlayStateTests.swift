@@ -78,6 +78,31 @@ final class ExitPlanModeOverlayStateTests: XCTestCase {
         )
     }
 
+    func testSubmittedImplementationSuppressesOverlayAndApprovalComposerStatus() {
+        let approval = ToolApprovalRequest(
+            sessionId: "session-123",
+            toolUseId: "exit-plan-1",
+            toolName: "ExitPlanMode",
+            toolInput: ##"{"plan":"# Plan\n\n- Do the work."}"##
+        )
+        let pendingApproval = PendingToolApproval(request: approval, status: .approving)
+        let hiddenState = ExitPlanModeOverlayState(
+            selection: .implement,
+            isSubmitting: true,
+            isHiddenAfterSubmit: true
+        )
+
+        XCTAssertNil(ExitPlanModeOverlayPresentation.activeApproval(
+            pendingApproval: pendingApproval,
+            hasActiveAskUserQuestionPrompt: false,
+            overlayState: hiddenState
+        ))
+        XCTAssertNil(ExitPlanModeOverlayPresentation.composerStatusText(
+            pendingApproval: pendingApproval,
+            overlayState: hiddenState
+        ))
+    }
+
     func testSubmittedCustomDenialAwaitingFollowUpShowsBusyComposer() {
         let approval = ToolApprovalRequest(
             sessionId: "session-123",

@@ -65,6 +65,13 @@ extension ConversationViewModel {
         clearApprovedExitPlanModeApprovalIfNeeded(toolUseId: toolUseId)
     }
 
+    func clearApprovedExitPlanModeApprovalAfterImplementationToolCall(toolName: String) {
+        guard toolName != "ExitPlanMode" else {
+            return
+        }
+        clearApprovedExitPlanModeApprovalIfNeeded()
+    }
+
     func persistResolvedToolApproval(_ pendingApproval: PendingToolApproval, refreshTranscript: Bool = true) {
         guard let resolvedStatus = resolvedStatus(for: pendingApproval.status) else {
             return

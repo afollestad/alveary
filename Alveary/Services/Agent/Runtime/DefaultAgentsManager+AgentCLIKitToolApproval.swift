@@ -102,7 +102,7 @@ extension DefaultAgentsManager {
         }
         // App-native prompts deliver their answer through the resolution path; a "run it again"
         // user message would inject noise into prompt flows instead of recovering a tool replay.
-        guard !Self.isAppNativeInteractionPrompt(toolName: request.approval.toolName) else {
+        guard !request.approval.isAppNativeInteractionPrompt else {
             return
         }
         let reader = AgentCLIKit.ClaudeHookTranscriptReader()

@@ -84,8 +84,8 @@ extension DefaultAgentsManager {
             )
         case .toolApprovalFailed(let failure):
             handleToolApprovalFailureStatus(failure, conversationId: conversationId)
-        case .toolApprovalRequested:
-            handleToolApprovalRequestedStatus(conversationId: conversationId)
+        case .toolApprovalRequested(let approval):
+            handleToolApprovalRequestedStatus(approval, conversationId: conversationId)
         case .error:
             if cancelledInteractionsByConversation[conversationId] != nil {
                 updateStatus(.idle, for: conversationId)
@@ -181,10 +181,16 @@ extension DefaultAgentsManager {
         }
     }
 
-    private func handleToolApprovalRequestedStatus(conversationId: String) {
-        if cancelledInteractionsByConversation[conversationId] != nil {
-            updateStatus(.idle, for: conversationId)
-            return
+    private func handleToolApprovalRequestedStatus(
+        _ approval: ToolApprovalRequest,
+        conversationId: String
+    ) {
+        if let cancelledInteraction = cancelledInteractionsByConversation[conversationId] {
+            guard approval.toolName == "AskUserQuestion",
+                  cancelledInteraction.toolUseId != approval.toolUseId else {
+                updateStatus(.idle, for: conversationId)
+                return
+            }
         }
 
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)

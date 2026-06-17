@@ -317,6 +317,44 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(request.toolInput, "{}")
     }
 
+    func testExitPlanModeApprovalRemovesDuplicateExplicitAssistantPlan() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let plan = "# Proposal\n\n- Tighten homepage positioning."
+        let assistantPlan = ConversationEventRecord(
+            id: "assistant-plan",
+            conversationId: conversationId,
+            type: "message",
+            role: "assistant",
+            content: plan
+        )
+        let exitPlanModeCall = ConversationEventRecord(
+            id: "exit-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+        let approval = ConversationEventRecord(
+            id: "approval",
+            conversationId: conversationId,
+            type: "tool_approval",
+            content: "session-123",
+            toolId: "tool-exit",
+            toolName: "ExitPlanMode",
+            toolInput: ##"{"plan":"# Proposal\n\n- Tighten homepage positioning."}"##
+        )
+
+        grouper.update(events: [assistantPlan, exitPlanModeCall, approval])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .toolApproval(_, let request, _) = grouper.items.first else {
+            return XCTFail("Expected one approval block with the explicit plan")
+        }
+        XCTAssertEqual(request.planMarkdown, plan)
+    }
+
     func testExitPlanModeApprovalUsesPreviousAssistantMessageAcrossToolSearchFallbackPlan() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
