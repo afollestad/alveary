@@ -201,7 +201,12 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         XCTAssertEqual(row.accessibilityLabel(), "Assistant is thinking")
     }
 
-    func testThinkingIndicatorOffsetsDotsFromRowLeadingEdge() throws {
+    func testThinkingIndicatorAlignsDotsWithAssistantBubbleLeadingEdge() throws {
+        let assistantBubble = AppKitTranscriptTextBubbleRowView()
+        assistantBubble.frame = NSRect(x: 0, y: 0, width: 260, height: 120)
+        assistantBubble.configure(.init(role: .assistant, markdown: "Assistant response", bubbleMaxWidth: 220))
+        assistantBubble.layoutSubtreeIfNeeded()
+
         let row = AppKitTranscriptThinkingIndicatorView()
         row.frame = NSRect(x: 0, y: 0, width: 260, height: 80)
 
@@ -209,7 +214,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         row.layoutSubtreeIfNeeded()
 
         let firstDotFrame = try XCTUnwrap(row.dotFramesForTesting.first)
-        XCTAssertEqual(firstDotFrame.minX, 10, accuracy: 0.5)
+        XCTAssertEqual(firstDotFrame.minX, assistantBubble.bubbleFrameForTesting.minX, accuracy: 0.5)
     }
 
     func testThinkingIndicatorAnimatesWhenAttachedToWindow() throws {

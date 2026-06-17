@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SidebarProjectsHeaderRow: View {
+    static let contentLeadingPadding: CGFloat = 8
+
     private static let actionButtonSize: CGFloat = 24
     private static let trailingPadding: CGFloat = 16
 
@@ -37,7 +39,7 @@ struct SidebarProjectsHeaderRow: View {
             .accessibilityLabel("Add Project")
             .help("Add Project... (\(KeyboardShortcut.addProject.displayString))")
         }
-        .padding(.leading, 8)
+        .padding(.leading, Self.contentLeadingPadding)
         .padding(.trailing, Self.trailingPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)

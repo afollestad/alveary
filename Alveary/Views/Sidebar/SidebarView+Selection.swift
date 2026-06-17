@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 
+// SF Symbols include leading side bearings; compensate so visible icon ink aligns with the header text.
+private let topIconOpticalInset: CGFloat = 4
+
 extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
         viewModel.activeThreads(for: project)
@@ -21,6 +24,7 @@ extension SidebarView {
         }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
+            .padding(.leading, SidebarProjectsHeaderRow.contentLeadingPadding - topIconOpticalInset)
             .appSelectableRow(
                 isSelected: isSelected,
                 action: {
