@@ -151,7 +151,7 @@ private func assertNoPromptDismissalFallbackTranscriptItems(
         switch item {
         case .assistantMessage(_, let text):
             text.contains("Permission denied") || text.contains("Fallback chunk")
-        case .centeredNote(_, .interrupted), .error:
+        case .transcriptNote(_, .interrupted), .error:
             true
         default:
             false

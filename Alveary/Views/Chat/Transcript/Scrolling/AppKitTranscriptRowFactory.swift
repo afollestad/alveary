@@ -73,8 +73,8 @@ final class AppKitTranscriptRowFactory {
             return approvalRows(id: id, approvals: [approval], persistedStatus: status, configuration: configuration)
         case .toolApprovalBatch(let id, let approvals, let status):
             return approvalRows(id: id, approvals: approvals, persistedStatus: status, configuration: configuration)
-        case .centeredNote(let id, let kind):
-            return [centeredNoteRow(id: id, kind: kind, configuration: configuration)]
+        case .transcriptNote(let id, let kind):
+            return [transcriptNoteRow(id: id, kind: kind, configuration: configuration)]
         case .error(let id, let message):
             return [errorRow(id: id, message: message, configuration: configuration)]
         }
@@ -93,7 +93,7 @@ final class AppKitTranscriptRowFactory {
         }
 
         if transientRows.showsInterruptedNote {
-            return [centeredNoteRow(id: AppKitTranscriptTransientRows.interruptedRowID, kind: .interrupted, configuration: configuration)]
+            return [transcriptNoteRow(id: AppKitTranscriptTransientRows.interruptedRowID, kind: .interrupted, configuration: configuration)]
         }
 
         return []
@@ -272,12 +272,12 @@ final class AppKitTranscriptRowFactory {
         return .init(id: id, view: view)
     }
 
-    private func centeredNoteRow(
+    private func transcriptNoteRow(
         id: String,
-        kind: CenteredTranscriptNoteKind,
+        kind: TranscriptNoteKind,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
-        let view = cachedView(for: id, as: AppKitTranscriptCenteredNoteView.self)
+        let view = cachedView(for: id, as: AppKitTranscriptNoteView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.configure(.init(kind: kind, typography: configuration.typography))
         return .init(id: id, view: view)

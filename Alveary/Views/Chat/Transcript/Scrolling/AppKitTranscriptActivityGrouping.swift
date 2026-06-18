@@ -195,7 +195,7 @@ enum AppKitTranscriptActivityGrouping {
              .taskListBlock,
              .toolApproval,
              .toolApprovalBatch,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return false
         }
@@ -218,7 +218,7 @@ enum AppKitTranscriptActivityGrouping {
              .taskListBlock,
              .toolApproval,
              .toolApprovalBatch,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return []
         }

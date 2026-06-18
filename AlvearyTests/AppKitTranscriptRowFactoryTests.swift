@@ -14,7 +14,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
             .standaloneTool(id: "standalone", tool: tool(id: "tool-2")),
             .subAgentBlock(id: "agents", agents: [agent(id: "agent-1")]),
             .taskListBlock(id: "tasks", tasks: [task(id: "task-1")]),
-            .centeredNote(id: "note", kind: .enteredPlanMode),
+            .transcriptNote(id: "note", kind: .enteredPlanMode),
             .error(id: "error", message: "Failed")
         ]
 
@@ -25,7 +25,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(firstRows[0].view is AppKitTranscriptTextBubbleRowView)
         XCTAssertTrue(firstRows[2].view is AppKitTranscriptActivityGroupView)
         XCTAssertTrue(firstRows[3].view is AppKitTranscriptTaskListBlockView)
-        XCTAssertTrue(firstRows[4].view is AppKitTranscriptCenteredNoteView)
+        XCTAssertTrue(firstRows[4].view is AppKitTranscriptNoteView)
         XCTAssertTrue(firstRows[5].view is AppKitTranscriptErrorBannerView)
         XCTAssertTrue(firstRows[0].view === secondRows[0].view)
     }
@@ -126,7 +126,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         let factory = AppKitTranscriptRowFactory()
 
         let rows = factory.makeRows(
-            for: [.centeredNote(id: "staying", kind: .stayingInPlanMode)],
+            for: [.transcriptNote(id: "staying", kind: .stayingInPlanMode)],
             transientRows: .init(isAwaitingExitPlanModeFollowUp: true),
             configuration: .init()
         )
@@ -148,7 +148,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(rows[0].view is AppKitTranscriptStreamingBubbleView)
     }
 
-    func testInterruptedTransientRowUsesCenteredNote() {
+    func testInterruptedTransientRowUsesTranscriptNote() {
         let factory = AppKitTranscriptRowFactory()
 
         let rows = factory.makeRows(
@@ -158,7 +158,7 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(rows.map(\.id), [AppKitTranscriptTransientRows.interruptedRowID])
-        XCTAssertTrue(rows[0].view is AppKitTranscriptCenteredNoteView)
+        XCTAssertTrue(rows[0].view is AppKitTranscriptNoteView)
     }
 
     func testRemovedRowsArePrunedFromViewCache() {
@@ -208,12 +208,12 @@ final class AppKitTranscriptRowFactoryTests: XCTestCase {
         XCTAssertTrue(invalidatedRowIDs.contains("assistant"))
     }
 
-    func testCenteredNoteHeightInvalidationReportsRowID() {
+    func testTranscriptNoteHeightInvalidationReportsRowID() {
         let factory = AppKitTranscriptRowFactory()
         var invalidatedRowIDs: [String] = []
 
         _ = factory.makeRows(
-            for: [.centeredNote(id: "note", kind: .enteredPlanMode)],
+            for: [.transcriptNote(id: "note", kind: .enteredPlanMode)],
             configuration: .init(onRowHeightInvalidated: { rowID, _ in
                 invalidatedRowIDs.append(rowID)
             })

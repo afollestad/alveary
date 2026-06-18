@@ -116,7 +116,7 @@ extension ChatItem {
              .taskListBlock,
              .toolApproval,
              .toolApprovalBatch,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return nil
         }

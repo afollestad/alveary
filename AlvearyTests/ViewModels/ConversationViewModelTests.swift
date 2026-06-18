@@ -140,7 +140,7 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertEqual(markers.count, 1)
         XCTAssertEqual(marker.id, "steering-\(localMessage.id)")
         XCTAssertEqual(marker.content, ConversationSteering.displayMessage)
-        XCTAssertEqual(fixture.viewModel.state.grouper.items.last, .centeredNote(id: marker.id, kind: .steeredConversation))
+        XCTAssertEqual(fixture.viewModel.state.grouper.items.last, .transcriptNote(id: marker.id, kind: .steeredConversation))
     }
 
     func testSetupAndStartCreatesWorktreeAndStartsInitialPrompt() async throws {

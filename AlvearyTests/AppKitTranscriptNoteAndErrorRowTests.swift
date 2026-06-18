@@ -5,8 +5,8 @@ import XCTest
 
 @MainActor
 final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
-    func testCenteredNoteRendersKindTextAndIsCentered() throws {
-        let note = AppKitTranscriptCenteredNoteView()
+    func testPlanModeTranscriptNoteRendersToolLeadingTextWithoutIcon() throws {
+        let note = AppKitTranscriptNoteView()
         note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
         note.configure(.init(kind: .enteredPlanMode))
         note.layoutSubtreeIfNeeded()
@@ -14,48 +14,84 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
         XCTAssertEqual(label.stringValue, "Entered plan mode")
         XCTAssertEqual(label.accessibilityLabel(), "Entered plan mode")
-        let icon = try XCTUnwrap(note.descendants(of: NSImageView.self).first)
         let expectedColor = transcriptInlineToolRowColor.resolved(for: note.appKitRenderingAppearance)
-        XCTAssertEqual(note.intrinsicContentSize.height, 48)
-        XCTAssertEqual((icon.frame.minX + label.visibleTextMaxX) / 2, note.bounds.midX, accuracy: 1)
-        XCTAssertEqual(label.textColor?.resolved(for: note.appKitRenderingAppearance), expectedColor)
-        XCTAssertEqual(icon.contentTintColor?.resolved(for: note.appKitRenderingAppearance), expectedColor)
-        XCTAssertEqual(label.visibleTextMinX - icon.frame.maxX, 6, accuracy: 0.5)
-        XCTAssertEqual(icon.frame.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(icon.frame.midY, label.frame.midY, accuracy: 1)
-        XCTAssertTrue(String(describing: icon.symbolConfiguration).contains("rendering style: Monochrome"))
+        let expectedFont = TranscriptTypography().nsFont(.inlineToolText)
+        let labelColor = try XCTUnwrap(label.foregroundColorForTesting?.resolved(for: note.appKitRenderingAppearance))
+        let labelFont = try XCTUnwrap(label.fontForTesting)
+        XCTAssertEqual(note.descendants(of: NSImageView.self).count, 0)
+        XCTAssertEqual(label.visibleTextMinX, 0, accuracy: 0.5)
+        XCTAssertEqual(label.frame.minY, transcriptInlineToolRowVerticalPadding, accuracy: 0.5)
+        XCTAssertEqual(labelColor, expectedColor)
+        XCTAssertEqual(labelFont.pointSize, expectedFont.pointSize, accuracy: 0.5)
+        XCTAssertEqual(labelFont.weightForTesting, expectedFont.weightForTesting)
     }
 
-    func testCenteredNoteIconTintMatchesLabelInDarkMode() throws {
-        let note = AppKitTranscriptCenteredNoteView()
+    func testTranscriptNoteTextColorMatchesToolRowsInDarkMode() throws {
+        let note = AppKitTranscriptNoteView()
         note.appearance = NSAppearance(named: .darkAqua)
         note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
         note.configure(.init(kind: .interrupted))
         note.layoutSubtreeIfNeeded()
 
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
-        let icon = try XCTUnwrap(note.descendants(of: NSImageView.self).first)
         let expectedColor = transcriptInlineToolRowColor.resolved(for: note.appKitRenderingAppearance)
-        let labelColor = try XCTUnwrap(label.textColor?.resolved(for: note.appKitRenderingAppearance).usingColorSpace(.sRGB))
-        let iconColor = try XCTUnwrap(icon.contentTintColor?.resolved(for: note.appKitRenderingAppearance).usingColorSpace(.sRGB))
+        let labelColor = try XCTUnwrap(label.foregroundColorForTesting?.resolved(for: note.appKitRenderingAppearance).usingColorSpace(.sRGB))
         let expectedSRGBColor = try XCTUnwrap(expectedColor.usingColorSpace(.sRGB))
         XCTAssertEqual(labelColor, expectedSRGBColor)
-        XCTAssertEqual(iconColor, expectedSRGBColor)
     }
 
-    func testCenteredNoteRendersFullSessionHandoffText() throws {
-        let note = AppKitTranscriptCenteredNoteView()
+    func testSessionHandoffTranscriptNoteStaysCentered() throws {
+        let note = AppKitTranscriptNoteView()
         note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
         note.configure(.init(kind: .sessionHandoff))
         note.layoutSubtreeIfNeeded()
 
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
         XCTAssertEqual(label.stringValue, "Session handoff")
-        XCTAssertGreaterThan(label.frame.width, 100)
+        XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
     }
 
-    func testCenteredNoteRendersContextCompactionText() throws {
-        let note = AppKitTranscriptCenteredNoteView()
+    func testInterruptedTranscriptNoteTrailsUserBubbleBoundary() throws {
+        let note = AppKitTranscriptNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        note.configure(.init(kind: .interrupted))
+        note.layoutSubtreeIfNeeded()
+
+        let userBubble = AppKitTranscriptTextBubbleRowView()
+        userBubble.frame = note.bounds
+        userBubble.configure(.init(role: .user, markdown: "Interrupted", bubbleMaxWidth: 320))
+        userBubble.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.visibleTextMaxX, userBubble.bubbleFrameForTesting.maxX, accuracy: 0.5)
+        XCTAssertEqual(label.frame.minY, transcriptInlineToolRowVerticalPadding, accuracy: 0.5)
+    }
+
+    func testTranscriptNoteRendersFullSessionHandoffText() throws {
+        let note = AppKitTranscriptNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        note.configure(.init(kind: .sessionHandoff))
+        note.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.stringValue, "Session handoff")
+        XCTAssertEqual(label.frame.width, label.naturalCellWidth, accuracy: 0.5)
+    }
+
+    func testSteeredConversationTranscriptNoteUsesToolLeadingAlignment() throws {
+        let note = AppKitTranscriptNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        note.configure(.init(kind: .steeredConversation))
+        note.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.stringValue, "Steered conversation")
+        XCTAssertEqual(label.visibleTextMinX, 0, accuracy: 0.5)
+        XCTAssertEqual(label.frame.minY, transcriptInlineToolRowVerticalPadding, accuracy: 0.5)
+    }
+
+    func testTranscriptNoteRendersContextCompactionText() throws {
+        let note = AppKitTranscriptNoteView()
         note.frame = NSRect(x: 0, y: 0, width: 360, height: 120)
         note.configure(.init(kind: .contextCompactionStarted))
         note.layoutSubtreeIfNeeded()
@@ -69,8 +105,8 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertEqual(label.stringValue, "Automatically compacted context")
     }
 
-    func testCenteredNoteHeightInvalidatesWhenTextWraps() {
-        let note = AppKitTranscriptCenteredNoteView()
+    func testTranscriptNoteHeightInvalidatesWhenTextWraps() {
+        let note = AppKitTranscriptNoteView()
         var invalidated = false
         note.onHeightInvalidated = {
             invalidated = true
@@ -158,6 +194,14 @@ private extension NSView {
 }
 
 private extension NSTextField {
+    var foregroundColorForTesting: NSColor? {
+        attributedStringValue.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+    }
+
+    var fontForTesting: NSFont? {
+        attributedStringValue.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+    }
+
     var visibleTextMinX: CGFloat {
         frame.minX + textHorizontalInset / 2
     }
@@ -186,5 +230,11 @@ private extension NSTextField {
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         return ceil(rect.width)
+    }
+}
+
+private extension NSFont {
+    var weightForTesting: Int {
+        NSFontManager.shared.weight(of: self)
     }
 }

@@ -27,7 +27,7 @@ extension AppKitTranscriptRowFactory {
              .subAgentBlock,
              .taskListBlock,
              .promptBlock,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return []
         }

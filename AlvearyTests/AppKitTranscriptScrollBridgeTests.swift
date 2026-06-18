@@ -13,7 +13,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             container: container,
             items: [
                 .assistantMessage(id: "assistant", text: "Hello"),
-                .centeredNote(id: "note", kind: .enteredPlanMode)
+                .transcriptNote(id: "note", kind: .enteredPlanMode)
             ],
             rowConfiguration: .init(),
             isFollowing: false,
@@ -51,7 +51,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         coordinator.update(
             container: container,
             items: [
-                .centeredNote(id: "note", kind: .enteredPlanMode)
+                .transcriptNote(id: "note", kind: .enteredPlanMode)
             ],
             rowConfiguration: .init(),
             isFollowing: false,
@@ -110,7 +110,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let items: [ChatItem] = [
-            .centeredNote(id: "note", kind: .enteredPlanMode)
+            .transcriptNote(id: "note", kind: .enteredPlanMode)
         ]
         var metricsCount = 0
 
@@ -147,7 +147,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let items: [ChatItem] = [
-            .centeredNote(id: "note", kind: .enteredPlanMode)
+            .transcriptNote(id: "note", kind: .enteredPlanMode)
         ]
         var metricsCount = 0
 
@@ -295,7 +295,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
 
             coordinator.update(
                 container: container,
-                items: [.centeredNote(id: "note", kind: .enteredPlanMode)],
+                items: [.transcriptNote(id: "note", kind: .enteredPlanMode)],
                 transientRows: .init(streamingText: "Streaming"),
                 rowConfiguration: .init(),
                 isFollowing: true,

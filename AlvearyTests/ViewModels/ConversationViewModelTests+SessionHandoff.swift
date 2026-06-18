@@ -72,7 +72,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(records.contains { $0.type == ConversationEventRecord.contextWindowInvalidatedType })
         XCTAssertTrue(records.contains { ConversationSessionHandoff.isDisplayMessage($0.content) })
         let noteRecord = try XCTUnwrap(records.first { ConversationSessionHandoff.isDisplayMessage($0.content) })
-        XCTAssertTrue(fixture.viewModel.state.grouper.items.contains(.centeredNote(id: noteRecord.id, kind: .sessionHandoff)))
+        XCTAssertTrue(fixture.viewModel.state.grouper.items.contains(.transcriptNote(id: noteRecord.id, kind: .sessionHandoff)))
     }
 
     func testSessionHandoffPromptSendCountdownUsesPromptSendSetting() async throws {

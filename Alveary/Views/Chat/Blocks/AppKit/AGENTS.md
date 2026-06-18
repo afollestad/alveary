@@ -24,7 +24,7 @@ AppKit-native transcript row primitives live here.
 - **Do not animate streaming frames.** Streaming bubbles update faster than AppKit frame animations finish; reveal text monotonically and update bubble/text/caret frames directly so stale animation frames cannot flash or rewind the row.
 - **Mirror prompts.** AppKit prompt blocks share submitted-response parsing and keep custom responses serialized as typed text.
 - **Mirror task lists.** AppKit task rows share SwiftUI ordering/accessibility labels and keep 16pt status slots stable across progress changes.
-- **Mirror notes and errors.** AppKit centered notes keep the `info.circle` treatment with compact vertical padding; error rows mirror inline-banner width caps and red chrome.
+- **Mirror notes and errors.** AppKit transcript notes are text-only and follow `TranscriptNoteAlignment`; error rows mirror inline-banner width caps and red chrome.
 - **Mirror transient rows.** AppKit streaming and thinking rows should stay lightweight, inherit transcript typography, report streaming height changes directly, and reveal appended streaming text over frames instead of swapping whole provider chunks.
 - **Align transient indicators.** Standalone working/thinking indicators align their dots with row-leading content, not text-bubble interior padding.
 - **Keep streaming monotonic.** Live streaming bubble text should only advance within a mounted stream; ignore stale shorter partials, and place the cursor at the final line's insertion advance rather than the full line width or the last glyph's ink bounds.

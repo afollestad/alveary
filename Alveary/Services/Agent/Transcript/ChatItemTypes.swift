@@ -10,7 +10,7 @@ enum ChatItem: Identifiable, Equatable {
     case promptBlock(id: String, prompt: PromptEntry)
     case toolApproval(id: String, approval: ToolApprovalRequest, status: ToolApprovalStatus?)
     case toolApprovalBatch(id: String, approvals: [ToolApprovalRequest], status: ToolApprovalStatus?)
-    case centeredNote(id: String, kind: CenteredTranscriptNoteKind)
+    case transcriptNote(id: String, kind: TranscriptNoteKind)
     case error(id: String, message: String)
 
     var id: String {
@@ -18,7 +18,7 @@ enum ChatItem: Identifiable, Equatable {
         case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
              .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
              .promptBlock(let id, _), .toolApproval(let id, _, _), .toolApprovalBatch(let id, _, _),
-             .centeredNote(let id, _), .error(let id, _):
+             .transcriptNote(let id, _), .error(let id, _):
             id
         }
     }
@@ -38,7 +38,7 @@ enum ChatItem: Identifiable, Equatable {
     }
 
     var isTurnInterruptedNote: Bool {
-        if case .centeredNote(_, .interrupted) = self {
+        if case .transcriptNote(_, .interrupted) = self {
             return true
         }
         return false
@@ -188,7 +188,7 @@ struct PromptEntry: Identifiable, Equatable {
     }
 }
 
-enum CenteredTranscriptNoteKind: Equatable {
+enum TranscriptNoteKind: Equatable {
     case interrupted
     case sessionHandoff
     case enteredPlanMode
@@ -198,6 +198,17 @@ enum CenteredTranscriptNoteKind: Equatable {
     case contextCompactionStarted
     case contextCompactionCompleted
     case contextCompactionFailed
+
+    var alignment: TranscriptNoteAlignment {
+        switch self {
+        case .sessionHandoff, .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+            return .centered
+        case .enteredPlanMode, .exitedPlanMode, .stayingInPlanMode, .steeredConversation:
+            return .toolUsageLeading
+        case .interrupted:
+            return .userBubbleTrailing
+        }
+    }
 
     var text: String {
         switch self {
@@ -221,6 +232,12 @@ enum CenteredTranscriptNoteKind: Equatable {
             return ConversationContextCompaction.failedDisplayMessage
         }
     }
+}
+
+enum TranscriptNoteAlignment: Equatable {
+    case centered
+    case toolUsageLeading
+    case userBubbleTrailing
 }
 
 enum ToolContentPreviewOrigin: Equatable {

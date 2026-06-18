@@ -1,26 +1,26 @@
 import Foundation
 
 extension ChatItemGrouper {
-    func handleCenteredNoteToolCall(_ event: ConversationEventRecord) {
+    func handleTranscriptNoteToolCall(_ event: ConversationEventRecord) {
         guard let toolName = event.toolName,
-              let noteKind = centeredTranscriptNoteKind(forToolNamed: toolName) else {
+              let noteKind = transcriptNoteKind(forToolNamed: toolName) else {
             return
         }
 
         let toolId = event.toolId ?? event.id
-        centeredNoteToolKinds[toolId] = noteKind
+        transcriptNoteToolKinds[toolId] = noteKind
     }
 
-    func handleCenteredNoteToolResult(
+    func handleTranscriptNoteToolResult(
         toolId: String,
-        kind: CenteredTranscriptNoteKind,
+        kind: TranscriptNoteKind,
         event: ConversationEventRecord
     ) {
         if kind == .exitedPlanMode,
            toolApprovalStatusesByToolId[toolId] == .denied {
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: .stayingInPlanMode))
+            appendTranscriptItem(.transcriptNote(id: "note-\(toolId)", kind: .stayingInPlanMode))
             return
         }
 
@@ -32,7 +32,7 @@ extension ChatItemGrouper {
                 conversationId: event.conversationId,
                 type: "tool_call",
                 toolId: toolId,
-                toolName: centeredToolName(for: kind),
+                toolName: transcriptNoteToolName(for: kind),
                 toolInput: "{}"
             ))
             appendTranscriptItem(
@@ -46,10 +46,10 @@ extension ChatItemGrouper {
 
         flushGroup()
         flushSubAgents()
-        appendTranscriptItem(.centeredNote(id: "note-\(toolId)", kind: kind))
+        appendTranscriptItem(.transcriptNote(id: "note-\(toolId)", kind: kind))
     }
 
-    func centeredTranscriptNoteKind(forToolNamed toolName: String) -> CenteredTranscriptNoteKind? {
+    func transcriptNoteKind(forToolNamed toolName: String) -> TranscriptNoteKind? {
         switch toolName {
         case "EnterPlanMode":
             return .enteredPlanMode
@@ -60,7 +60,7 @@ extension ChatItemGrouper {
         }
     }
 
-    func centeredToolName(for kind: CenteredTranscriptNoteKind) -> String {
+    func transcriptNoteToolName(for kind: TranscriptNoteKind) -> String {
         switch kind {
         case .enteredPlanMode:
             return "EnterPlanMode"
@@ -77,7 +77,7 @@ extension ChatItemGrouper {
         flushGroup()
         flushSubAgents()
         replaceOrAppendTranscriptItem(
-            .centeredNote(
+            .transcriptNote(
                 id: contextCompactionNoteId(for: event),
                 kind: contextCompactionNoteKind(for: event)
             )
@@ -88,7 +88,7 @@ extension ChatItemGrouper {
         "context-compaction-\(event.toolId ?? event.id)"
     }
 
-    private func contextCompactionNoteKind(for event: ConversationEventRecord) -> CenteredTranscriptNoteKind {
+    private func contextCompactionNoteKind(for event: ConversationEventRecord) -> TranscriptNoteKind {
         switch event.type {
         case ConversationContextCompaction.completedType:
             return .contextCompactionCompleted
@@ -109,18 +109,18 @@ extension ChatItemGrouper {
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: event.id, kind: .steeredConversation))
+            appendTranscriptItem(.transcriptNote(id: event.id, kind: .steeredConversation))
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             markIncompleteToolsInterrupted()
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: event.id, kind: .interrupted))
+            appendTranscriptItem(.transcriptNote(id: event.id, kind: .interrupted))
         case "stop" where ConversationSessionHandoff.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.centeredNote(id: event.id, kind: .sessionHandoff))
+            appendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoff))
         default:
             break
         }

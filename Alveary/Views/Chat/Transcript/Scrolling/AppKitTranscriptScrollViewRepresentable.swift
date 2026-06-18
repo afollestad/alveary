@@ -251,7 +251,7 @@ private struct AppKitTranscriptPreparedUpdate {
                  .subAgentBlock,
                  .taskListBlock,
                  .promptBlock,
-                 .centeredNote,
+                 .transcriptNote,
                  .error:
                 return []
             }

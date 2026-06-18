@@ -9,7 +9,7 @@ Rules for `AskUserQuestion` transcript artifacts.
   become expandable submitted `Asked N question(s)` rows after responses are
   saved.
 - Dismissed prompts are handled without a submitted-response card; normal
-  interruption display is owned by the centered-note path.
+  interruption display is owned by the transcript-note path.
 - Answered prompts render as structured Q/A rows.
     - Use passive usage-row expansion in the transcript, not prompt-card chrome.
     - Put each question and answer on separate lines.

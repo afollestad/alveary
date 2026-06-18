@@ -120,10 +120,10 @@ final class ChatItemGrouperTests: XCTestCase {
 
         grouper.update(events: [stop])
 
-        XCTAssertEqual(grouper.items, [.centeredNote(id: "stop-1", kind: .interrupted)])
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "stop-1", kind: .interrupted)])
     }
 
-    func testSteeredConversationEventRendersCenteredNote() {
+    func testSteeredConversationEventRendersTranscriptNote() {
         let grouper = ChatItemGrouper()
         let note = ConversationEventRecord(
             id: "steering-local-user-1",
@@ -134,7 +134,7 @@ final class ChatItemGrouperTests: XCTestCase {
 
         grouper.update(events: [note])
 
-        XCTAssertEqual(grouper.items, [.centeredNote(id: "steering-local-user-1", kind: .steeredConversation)])
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "steering-local-user-1", kind: .steeredConversation)])
     }
 
     func testInterruptedStopTerminalizesRunningToolGroup() {
@@ -165,18 +165,18 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertTrue(tool.isComplete)
         XCTAssertTrue(tool.isInterrupted)
         XCTAssertFalse(tool.isError)
-        XCTAssertEqual(grouper.items[1], .centeredNote(id: "stop-1", kind: .interrupted))
+        XCTAssertEqual(grouper.items[1], .transcriptNote(id: "stop-1", kind: .interrupted))
     }
 
     func testInterruptedNoteLookupOnlyConsidersCurrentTurn() {
         let items: [ChatItem] = [
             .userMessage(id: "user-1", text: "First turn"),
-            .centeredNote(id: "stop-1", kind: .interrupted),
+            .transcriptNote(id: "stop-1", kind: .interrupted),
             .userMessage(id: "user-2", text: "Second turn")
         ]
 
         XCTAssertFalse(items.hasInterruptedNoteAfterLatestUserMessage)
-        XCTAssertTrue((items + [.centeredNote(id: "stop-2", kind: .interrupted)]).hasInterruptedNoteAfterLatestUserMessage)
+        XCTAssertTrue((items + [.transcriptNote(id: "stop-2", kind: .interrupted)]).hasInterruptedNoteAfterLatestUserMessage)
     }
 
     func testStandaloneAfterGroupClosesAndStartsNewGroup() {

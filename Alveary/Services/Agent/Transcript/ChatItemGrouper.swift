@@ -23,7 +23,7 @@ final class ChatItemGrouper {
     var agentTaskToolIds: Set<String> = []
     var hiddenAgentTaskToolSearchIds: Set<String> = []
     var promptToolIds: Set<String> = []
-    var centeredNoteToolKinds: [String: CenteredTranscriptNoteKind] = [:]
+    var transcriptNoteToolKinds: [String: TranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
     var currentToolApprovalBatch: ToolApprovalBatchState?
     var pinnedPermissionApprovalItemIDs: Set<String> = []
@@ -89,7 +89,7 @@ final class ChatItemGrouper {
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []
         promptToolIds = []
-        centeredNoteToolKinds = [:]
+        transcriptNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
         currentToolApprovalBatch = nil
         pinnedPermissionApprovalItemIDs = []
@@ -339,7 +339,7 @@ private extension ChatItem {
              .taskListBlock,
              .toolApproval,
              .toolApprovalBatch,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return false
         }

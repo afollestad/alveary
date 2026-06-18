@@ -106,7 +106,7 @@ extension ChatItemGrouperTests {
         XCTAssertTrue(tool.isInterrupted)
         XCTAssertFalse(tool.isError)
         XCTAssertFalse(tool.transcriptDisplaySummary.hasPrefix("Running "))
-        XCTAssertEqual(grouper.items[1], .centeredNote(id: "stop-1", kind: .interrupted))
+        XCTAssertEqual(grouper.items[1], .transcriptNote(id: "stop-1", kind: .interrupted))
     }
 
     func testTerminalizingIncompleteToolsAsInterruptedUpdatesVisibleToolRows() {

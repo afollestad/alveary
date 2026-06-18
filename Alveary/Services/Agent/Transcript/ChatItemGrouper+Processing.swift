@@ -87,7 +87,7 @@ extension ChatItemGrouper {
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []
         promptToolIds = []
-        centeredNoteToolKinds = [:]
+        transcriptNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
         currentToolApprovalBatch = nil
         pinnedPermissionApprovalItemIDs = []
@@ -123,8 +123,8 @@ extension ChatItemGrouper {
         guard !promptToolIds.contains(toolId) else {
             return
         }
-        if let centeredNoteKind = centeredNoteToolKinds.removeValue(forKey: toolId) {
-            handleCenteredNoteToolResult(toolId: toolId, kind: centeredNoteKind, event: event)
+        if let transcriptNoteKind = transcriptNoteToolKinds.removeValue(forKey: toolId) {
+            handleTranscriptNoteToolResult(toolId: toolId, kind: transcriptNoteKind, event: event)
             return
         }
         if handleAgentTaskToolResultIfNeeded(event) {
@@ -207,7 +207,7 @@ private extension ChatItemGrouper {
         case "TodoWrite":
             handleTodoWriteToolCall(event)
         case "EnterPlanMode", "ExitPlanMode":
-            handleCenteredNoteToolCall(event)
+            handleTranscriptNoteToolCall(event)
         case "Agent":
             handleAgentToolCall(event)
         default:

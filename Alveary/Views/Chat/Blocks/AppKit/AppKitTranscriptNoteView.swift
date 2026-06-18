@@ -2,12 +2,12 @@
 import Foundation
 
 @MainActor
-final class AppKitTranscriptCenteredNoteView: NSView {
+final class AppKitTranscriptNoteView: NSView {
     struct Configuration: Equatable {
-        let kind: CenteredTranscriptNoteKind
+        let kind: TranscriptNoteKind
         let typography: TranscriptTypography
 
-        init(kind: CenteredTranscriptNoteKind, typography: TranscriptTypography = TranscriptTypography()) {
+        init(kind: TranscriptNoteKind, typography: TranscriptTypography = TranscriptTypography()) {
             self.kind = kind
             self.typography = typography
         }
@@ -15,7 +15,6 @@ final class AppKitTranscriptCenteredNoteView: NSView {
 
     var onHeightInvalidated: (() -> Void)?
 
-    private let iconView = AppKitDynamicTintImageView()
     private let textField = NSTextField(labelWithString: "")
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -43,10 +42,9 @@ final class AppKitTranscriptCenteredNoteView: NSView {
             return
         }
         self.configuration = configuration
-        textField.stringValue = configuration.kind.text
-        textField.font = configuration.typography.nsFont(.body, weight: .medium)
+        textField.alignment = textAlignment(for: configuration.kind.alignment)
         textField.setAccessibilityLabel(configuration.kind.text)
-        updateIconSymbolConfiguration()
+        updateAppearance()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
     }
@@ -64,73 +62,48 @@ final class AppKitTranscriptCenteredNoteView: NSView {
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
-        iconView.translatesAutoresizingMaskIntoConstraints = true
-        iconView.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-        iconView.setAccessibilityElement(false)
-        addSubview(iconView)
 
         textField.translatesAutoresizingMaskIntoConstraints = true
         textField.lineBreakMode = .byWordWrapping
         textField.maximumNumberOfLines = 0
         addSubview(textField)
-        updateAppearance()
     }
 
     private func layoutContent() {
-        let iconSize = centeredNoteIconSize()
         let naturalTextWidth = textNaturalWidth()
-        let textHorizontalInset = centeredNoteTextHorizontalInset(naturalTextWidth: naturalTextWidth)
+        let textHorizontalInset = transcriptNoteTextHorizontalInset(naturalTextWidth: naturalTextWidth)
         let textLeadingInset = textHorizontalInset / 2
-        let frameSpacing = max(centeredNoteSpacing - textLeadingInset, 0)
-        let textMaxWidth = max(bounds.width - iconSize - frameSpacing, 0)
+        let textMaxWidth = max(bounds.width, 0)
         let textWidth = min(naturalTextWidth, textMaxWidth)
         textField.frame = NSRect(x: 0, y: 0, width: textWidth, height: textHeight(for: textWidth))
-
-        iconView.frame = NSRect(x: 0, y: 0, width: iconSize, height: iconSize)
-        let textVisibleWidth = max(textField.frame.width - textHorizontalInset, 0)
-        let contentWidth = iconSize + centeredNoteSpacing + textVisibleWidth
-        let originX = max((bounds.width - contentWidth) / 2, 0)
-        let contentHeight = max(iconSize, textField.frame.height)
-        let originY = centeredNoteVerticalPadding + max((contentHeight - iconSize) / 2, 0)
-        iconView.frame.origin = NSPoint(x: originX, y: originY)
         textField.frame.origin = NSPoint(
-            x: iconView.frame.maxX + centeredNoteSpacing - textLeadingInset,
-            y: centeredNoteVerticalPadding + max((contentHeight - textField.frame.height) / 2, 0)
+            x: textOriginX(
+                alignment: configuration?.kind.alignment ?? .centered,
+                textWidth: textWidth,
+                textLeadingInset: textLeadingInset
+            ),
+            y: transcriptNoteVerticalPadding(for: configuration?.kind.alignment ?? .centered)
         )
     }
 
     private func updateAppearance() {
+        guard let configuration else {
+            return
+        }
         textField.textColor = transcriptInlineToolRowColor
-        updateIconSymbolConfiguration()
-    }
-
-    private func updateIconSymbolConfiguration() {
-        let pointSize = configuration?.typography.size(for: .body) ?? TranscriptTypography().size(for: .body)
-        // The centered note label stays medium-weight, while the leading symbol
-        // uses the requested heavier monochrome SF Symbol treatment.
-        iconView.symbolConfiguration = centeredNoteSymbolConfiguration(pointSize: pointSize)
-        iconView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
+        textField.attributedStringValue = TranscriptToolSummaryFormatter.nsAttributedString(
+            configuration.kind.text,
+            typography: configuration.typography,
+            foregroundColor: transcriptInlineToolRowColor
+        )
     }
 
     private func measuredHeight() -> CGFloat {
-        let iconSize = centeredNoteIconSize()
+        let verticalPadding = transcriptNoteVerticalPadding(for: configuration?.kind.alignment ?? .centered)
         if textField.frame.height > 0 {
-            return ceil((centeredNoteVerticalPadding * 2) + max(iconSize, textField.frame.height))
+            return ceil((verticalPadding * 2) + textField.frame.height)
         }
-        return ceil((centeredNoteVerticalPadding * 2) + max(iconSize, textHeight(for: textNaturalWidth())))
-    }
-
-    private func centeredNoteIconSize() -> CGFloat {
-        let pointSize = configuration?.typography.size(for: .body) ?? TranscriptTypography().size(for: .body)
-        let imageSize = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)?
-            .withSymbolConfiguration(centeredNoteSymbolConfiguration(pointSize: pointSize))?
-            .size
-        return ceil(max(imageSize?.width ?? pointSize, imageSize?.height ?? pointSize))
-    }
-
-    private func centeredNoteSymbolConfiguration(pointSize: CGFloat) -> NSImage.SymbolConfiguration {
-        NSImage.SymbolConfiguration(pointSize: pointSize, weight: centeredNoteIconWeight, scale: .medium)
-            .applying(.preferringMonochrome())
+        return ceil((verticalPadding * 2) + textHeight(for: textNaturalWidth()))
     }
 
     private func textNaturalWidth() -> CGFloat {
@@ -146,7 +119,7 @@ final class AppKitTranscriptCenteredNoteView: NSView {
         return ceil(textField.cell?.cellSize(forBounds: unconstrainedBounds).width ?? textField.fittingSize.width)
     }
 
-    private func centeredNoteTextHorizontalInset(naturalTextWidth: CGFloat) -> CGFloat {
+    private func transcriptNoteTextHorizontalInset(naturalTextWidth: CGFloat) -> CGFloat {
         max(naturalTextWidth - attributedTextNaturalWidth(), 0)
     }
 
@@ -169,6 +142,32 @@ final class AppKitTranscriptCenteredNoteView: NSView {
         return ceil(rect.height)
     }
 
+    private func textOriginX(
+        alignment: TranscriptNoteAlignment,
+        textWidth: CGFloat,
+        textLeadingInset: CGFloat
+    ) -> CGFloat {
+        switch alignment {
+        case .centered:
+            return (bounds.width - textWidth) / 2
+        case .toolUsageLeading:
+            return -textLeadingInset
+        case .userBubbleTrailing:
+            return bounds.width - textWidth + textLeadingInset
+        }
+    }
+
+    private func textAlignment(for alignment: TranscriptNoteAlignment) -> NSTextAlignment {
+        switch alignment {
+        case .centered:
+            return .center
+        case .toolUsageLeading:
+            return .left
+        case .userBubbleTrailing:
+            return .right
+        }
+    }
+
     private func invalidateTranscriptHeight(force: Bool) {
         let newHeight = measuredHeight()
         guard force || abs(newHeight - lastMeasuredHeight) > 0.5 else {
@@ -180,6 +179,13 @@ final class AppKitTranscriptCenteredNoteView: NSView {
     }
 }
 
-private let centeredNoteSpacing: CGFloat = 6
-private let centeredNoteVerticalPadding: CGFloat = 16
-private let centeredNoteIconWeight: NSFont.Weight = .heavy
+private let centeredTranscriptNoteVerticalPadding: CGFloat = 16
+
+private func transcriptNoteVerticalPadding(for alignment: TranscriptNoteAlignment) -> CGFloat {
+    switch alignment {
+    case .centered:
+        return centeredTranscriptNoteVerticalPadding
+    case .toolUsageLeading, .userBubbleTrailing:
+        return transcriptInlineToolRowVerticalPadding
+    }
+}

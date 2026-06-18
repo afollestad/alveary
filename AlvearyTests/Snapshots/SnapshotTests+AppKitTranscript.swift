@@ -199,7 +199,7 @@ extension SnapshotTests {
     func testAppKitTranscriptSessionHandoffNote() {
         assertMacSnapshot(
             appKitRowSnapshot {
-                let view = AppKitTranscriptCenteredNoteView()
+                let view = AppKitTranscriptNoteView()
                 view.configure(.init(kind: .sessionHandoff))
                 return view
             },
@@ -303,7 +303,7 @@ extension SnapshotTests {
                     .toolGroup(id: "tools", tools: sampleGroupTools),
                     .taskListBlock(id: "tasks", tasks: sampleTasks),
                     .toolApproval(id: "approval", approval: sampleWriteApproval, status: nil),
-                    .centeredNote(id: "note", kind: .enteredPlanMode),
+                    .transcriptNote(id: "note", kind: .enteredPlanMode),
                     .error(id: "error", message: "Snapshot fixture error message")
                 ],
                 transientRows: .init(isTurnActive: true, isThinkingAnimated: false),

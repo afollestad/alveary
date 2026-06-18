@@ -23,10 +23,10 @@ Shared transcript block constants and presentation helpers live here. Narrower s
 - Do not add raw SwiftUI `.font(...)` in any remaining transcript-adjacent SwiftUI wrappers; SwiftLint enforces this outside `TranscriptTypography.swift`.
 - Keep layout-critical icon sizes as named `TranscriptFontLevel` cases instead of ad hoc font constants.
 
-## Centered Notes
+## Transcript Notes
 
-- Subtle lifecycle text like `Interrupted`, plan-mode success, and denied `ExitPlanMode` renders through `AppKitTranscriptCenteredNoteView`.
-- Render these as centered `info.circle` + text with compact vertical padding, not as bubbles or tool rows.
+- Subtle lifecycle text like `Interrupted`, plan-mode success, and denied `ExitPlanMode` renders through `AppKitTranscriptNoteView`.
+- Render these as text-only transcript notes, not bubbles. Use `TranscriptNoteAlignment`: context compaction and session handoff stay centered, plan-mode and steering notes align with tool rows, and `Interrupted` aligns to the user-bubble trailing edge.
 
 ## Shared Expansion Controls
 

@@ -185,7 +185,7 @@ private extension ChatItem {
              .subAgentBlock,
              .taskListBlock,
              .promptBlock,
-             .centeredNote,
+             .transcriptNote,
              .error:
             return []
         }

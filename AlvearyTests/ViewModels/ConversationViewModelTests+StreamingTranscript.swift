@@ -227,7 +227,7 @@ extension ConversationViewModelTests {
 
         XCTAssertNil(fixture.viewModel.streamingText)
         XCTAssertEqual(fixture.viewModel.state.grouper.items, [
-            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
+            .transcriptNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
         ])
 
         await fixture.agentsManager.finishSubscription()
@@ -522,7 +522,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.turnState.isActive)
         XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
         XCTAssertNil(fixture.viewModel.lastTurnError)
-        guard case .centeredNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
+        guard case .transcriptNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
             return XCTFail("Expected an interrupted transcript note")
         }
         XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 1)
@@ -547,7 +547,7 @@ extension ConversationViewModelTests {
 
         XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
         XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 1)
-        guard case .centeredNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
+        guard case .transcriptNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
             return XCTFail("Expected only the interrupted transcript note")
         }
 

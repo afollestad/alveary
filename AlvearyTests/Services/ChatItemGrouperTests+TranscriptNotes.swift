@@ -3,7 +3,7 @@ import XCTest
 @testable import Alveary
 
 extension ChatItemGrouperTests {
-    func testEnterPlanModeToolRendersCenteredNoteOnSuccess() {
+    func testEnterPlanModeToolRendersTranscriptNoteOnSuccess() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
         let toolCall = ConversationEventRecord(
@@ -24,10 +24,10 @@ extension ChatItemGrouperTests {
 
         grouper.update(events: [toolCall, toolResult])
 
-        XCTAssertEqual(grouper.items, [.centeredNote(id: "note-tool-1", kind: .enteredPlanMode)])
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "note-tool-1", kind: .enteredPlanMode)])
     }
 
-    func testExitPlanModeToolRendersCenteredNoteOnSuccess() {
+    func testExitPlanModeToolRendersTranscriptNoteOnSuccess() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
         let toolCall = ConversationEventRecord(
@@ -48,10 +48,10 @@ extension ChatItemGrouperTests {
 
         grouper.update(events: [toolCall, toolResult])
 
-        XCTAssertEqual(grouper.items, [.centeredNote(id: "note-tool-1", kind: .exitedPlanMode)])
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "note-tool-1", kind: .exitedPlanMode)])
     }
 
-    func testDeniedExitPlanModeRendersCenteredStayingNote() {
+    func testDeniedExitPlanModeRendersStayingTranscriptNote() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
         let approval = ConversationEventRecord(
@@ -88,7 +88,7 @@ extension ChatItemGrouperTests {
             return XCTFail("Expected the resolved tool approval block to remain in transcript history")
         }
         XCTAssertEqual(status, .denied)
-        XCTAssertEqual(grouper.items[1], .centeredNote(id: "note-tool-1", kind: .stayingInPlanMode))
+        XCTAssertEqual(grouper.items[1], .transcriptNote(id: "note-tool-1", kind: .stayingInPlanMode))
     }
 
     func testRealExitPlanModeFailureStillFallsBackToStandaloneToolRow() {
@@ -179,10 +179,10 @@ extension ChatItemGrouperTests {
         grouper.update(events: [toolCall])
         grouper.resetInFlightStateForNewSession()
 
-        XCTAssertTrue(grouper.centeredNoteToolKinds.isEmpty)
+        XCTAssertTrue(grouper.transcriptNoteToolKinds.isEmpty)
     }
 
-    func testContextCompactionStartRendersCenteredNote() {
+    func testContextCompactionStartRendersTranscriptNote() {
         let grouper = ChatItemGrouper()
         let event = ConversationEventRecord(
             id: "compact-start",
@@ -194,7 +194,7 @@ extension ChatItemGrouperTests {
         grouper.update(events: [event])
 
         XCTAssertEqual(grouper.items, [
-            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
+            .transcriptNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted)
         ])
     }
 
@@ -217,11 +217,11 @@ extension ChatItemGrouperTests {
         grouper.update(events: [start, completed])
 
         XCTAssertEqual(grouper.items, [
-            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionCompleted)
+            .transcriptNote(id: "context-compaction-compact-1", kind: .contextCompactionCompleted)
         ])
     }
 
-    func testContextCompactionClosesOpenGroupBeforeCenteredNote() {
+    func testContextCompactionClosesOpenGroupBeforeTranscriptNote() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
         let read = ConversationEventRecord(
@@ -246,7 +246,7 @@ extension ChatItemGrouperTests {
             return XCTFail("Expected the pending tool group to close before compaction")
         }
         XCTAssertEqual(tools.map(\.id), ["read-1"])
-        XCTAssertEqual(grouper.items[1], .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted))
+        XCTAssertEqual(grouper.items[1], .transcriptNote(id: "context-compaction-compact-1", kind: .contextCompactionStarted))
     }
 
     func testContextCompactionFailureReplacesStartNote() {
@@ -270,7 +270,7 @@ extension ChatItemGrouperTests {
         grouper.update(events: [start, failed])
 
         XCTAssertEqual(grouper.items, [
-            .centeredNote(id: "context-compaction-compact-1", kind: .contextCompactionFailed)
+            .transcriptNote(id: "context-compaction-compact-1", kind: .contextCompactionFailed)
         ])
     }
 
