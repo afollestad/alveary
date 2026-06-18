@@ -95,6 +95,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
     var trackingArea: NSTrackingArea?
     var isHovering = false
     var isPressed = false
+    var indexToTextGap = Metrics.optionPadding
 
     var configurationID: String { configuration?.id ?? "" }
     var configurationIsFocused: Bool { configuration?.isFocused == true }
@@ -173,15 +174,9 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         }
     }
 
-    override func becomeFirstResponder() -> Bool {
-        needsDisplay = true
-        return true
-    }
+    override func becomeFirstResponder() -> Bool { needsDisplay = true; return true }
 
-    override func resignFirstResponder() -> Bool {
-        needsDisplay = true
-        return true
-    }
+    override func resignFirstResponder() -> Bool { needsDisplay = true; return true }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -205,10 +200,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         needsDisplay = true
     }
 
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-        needsDisplay = true
-    }
+    override func mouseExited(with event: NSEvent) { isHovering = false; needsDisplay = true }
 
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
@@ -243,15 +235,14 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
     override func layout() {
         super.layout()
         let contentWidth = bounds.width
-        let titleX = Metrics.optionTextX
-        let textWidth = max(contentWidth - titleX - Metrics.optionPadding - accessoryWidth, 0)
-        layoutIndexAndTextFields(titleX: titleX, textWidth: textWidth)
+        let layoutMetrics = optionLayoutMetrics(width: contentWidth)
+        layoutIndexAndTextFields(layoutMetrics: layoutMetrics)
         if !customField.isHidden {
             let customFieldHeight = configuration?.customFieldHeight ?? Metrics.customFieldHeight
             customField.frame = NSRect(
-                x: titleX,
+                x: layoutMetrics.textX,
                 y: floor((bounds.height - customFieldHeight) / 2),
-                width: max(contentWidth - titleX - Metrics.optionPadding, 0),
+                width: layoutMetrics.textWidth,
                 height: customFieldHeight
             )
         }
@@ -259,14 +250,19 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
     }
 
     private var accessoryWidth: CGFloat {
-        var width: CGFloat = 0
-        if !selectedChipView.isHidden {
-            width += selectedChipView.measuredWidth + Metrics.accessorySpacing
-        }
-        return width
+        selectedChipView.isHidden ? 0 : selectedChipView.measuredWidth + Metrics.accessorySpacing
     }
 
-    private func layoutIndexAndTextFields(titleX: CGFloat, textWidth: CGFloat) {
+    private func optionLayoutMetrics(width: CGFloat) -> OptionLayoutMetrics {
+        let indexVisibleWidth = ceil(indexField.attributedStringValue.size().width)
+        let indexFrameWidth = max(indexVisibleWidth, ceil(indexField.fittingSize.width))
+        let textX = Metrics.optionPadding + indexVisibleWidth + indexToTextGap
+        let textWidth = max(width - textX - Metrics.optionPadding - accessoryWidth, 0)
+        return OptionLayoutMetrics(indexFrameWidth: indexFrameWidth, textX: textX, textWidth: textWidth)
+    }
+
+    private func layoutIndexAndTextFields(layoutMetrics: OptionLayoutMetrics) {
+        let textWidth = layoutMetrics.textWidth
         let titleWidth = titleTextWidth(for: textWidth)
         let titleHeight = titleField.isHidden ? 0 : appKitPromptWrappedTextHeight(for: titleField, width: titleWidth)
         let descriptionHeight = descriptionField.isHidden ? 0 : appKitPromptWrappedTextHeight(for: descriptionField, width: textWidth)
@@ -278,7 +274,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
         indexField.frame = NSRect(
             x: Metrics.optionPadding,
             y: indexY,
-            width: Metrics.indexWidth,
+            width: layoutMetrics.indexFrameWidth,
             height: indexHeight
         )
 
@@ -287,18 +283,18 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             titleField.frame = .zero
         } else {
             titleField.frame = NSRect(
-                x: titleX,
+                x: layoutMetrics.textX,
                 y: currentY,
                 width: titleWidth,
                 height: titleHeight
             )
-            layoutInfoButton(titleX: titleX, titleWidth: titleWidth)
+            layoutInfoButton(titleX: layoutMetrics.textX, titleWidth: titleWidth)
             currentY = titleField.frame.maxY
         }
         if !descriptionField.isHidden {
             currentY += Metrics.descriptionSpacing
             descriptionField.frame = NSRect(
-                x: titleX,
+                x: layoutMetrics.textX,
                 y: currentY,
                 width: textWidth,
                 height: descriptionHeight
@@ -420,7 +416,7 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
 }
 extension AppKitComposerOverlayOptionRowView {
     func measuredHeight(width: CGFloat) -> CGFloat {
-        let textWidth = max(width - Metrics.optionTextX - Metrics.optionPadding - accessoryWidth, 0)
+        let textWidth = optionLayoutMetrics(width: width).textWidth
         let titleWidth = titleTextWidth(for: textWidth)
         let titleHeight = titleField.isHidden ? 0 : appKitPromptWrappedTextHeight(for: titleField, width: titleWidth)
         let descriptionHeight = descriptionField.isHidden ? 0 :
@@ -495,3 +491,5 @@ extension AppKitComposerOverlayOptionRowView {
         isPressed = false
     }
 }
+
+private struct OptionLayoutMetrics { let indexFrameWidth, textX, textWidth: CGFloat }

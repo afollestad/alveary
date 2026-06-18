@@ -30,7 +30,6 @@ enum AppKitComposerOverlayMetrics {
     static let buttonHeight: CGFloat = 30
     static let navigationButtonSize: CGFloat = 24
     static let optionPadding: CGFloat = 14
-    static let optionTextX: CGFloat = 50
     static let optionVerticalPadding: CGFloat = 10
     static let optionMinimumHeight: CGFloat = 42
     static let compactOptionFontSize: CGFloat = 11.5
@@ -38,7 +37,6 @@ enum AppKitComposerOverlayMetrics {
     static let compactOptionMinimumHeight: CGFloat = 34
     static let compactOptionVerticalPadding: CGFloat = 5
     static let optionCornerRadius: CGFloat = 8
-    static let indexWidth: CGFloat = 30
     static let descriptionSpacing: CGFloat = 3
     static let accessorySpacing: CGFloat = 8
     static let inlineInfoSpacing: CGFloat = 6

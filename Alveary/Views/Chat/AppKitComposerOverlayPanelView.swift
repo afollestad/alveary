@@ -82,9 +82,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var isFlipped: Bool {
-        true
-    }
+    override var isFlipped: Bool { true }
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: measuredHeight(width: bounds.width))
@@ -129,6 +127,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         let contentWidth = max(width - (density.panelPadding * 2), 0)
         let rowHeight = rowViews.enumerated().reduce(CGFloat.zero) { partialResult, item in
             let rowWidth = measuredRowWidth(at: item.offset, contentWidth: contentWidth)
+            item.element.indexToTextGap = density.panelPadding + Metrics.optionPadding
             item.element.frame.size.width = rowWidth
             return partialResult + item.element.measuredHeight(width: rowWidth)
         }
@@ -311,6 +310,7 @@ final class AppKitComposerOverlayPanelView: NSView {
                 }
                 configuration.onNavigateForward()
             }
+            row.indexToTextGap = (configuration?.density.panelPadding ?? Metrics.regularDensity.panelPadding) + Metrics.optionPadding
             row.configure(rowConfiguration)
             if row.superview !== backgroundView {
                 backgroundView.addSubview(row)
@@ -353,6 +353,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         var lastRowFrame = NSRect.zero
         for (index, row) in rowViews.enumerated() {
             let rowWidth = measuredRowWidth(at: index, contentWidth: contentWidth)
+            row.indexToTextGap = density.panelPadding + Metrics.optionPadding
             let height = row.measuredHeight(width: rowWidth)
             row.frame = NSRect(x: density.panelPadding, y: currentY, width: rowWidth, height: height)
             lastRowFrame = row.frame
@@ -433,9 +434,7 @@ private extension AppKitComposerOverlayPanelView {
         )
     }
 
-    var navigationWidth: CGFloat {
-        pageField.isHidden ? 0 : 112
-    }
+    var navigationWidth: CGFloat { pageField.isHidden ? 0 : 112 }
 
     func measuredRowWidth(at index: Int, contentWidth: CGFloat) -> CGFloat {
         guard let configuration,

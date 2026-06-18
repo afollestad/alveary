@@ -311,6 +311,142 @@ extension AppKitComposerOverlayViewTests {
 
         XCTAssertEqual(borderColor, expectedColor)
     }
+
+    func testPanelOptionRowsMatchContainerLeadingGapAfterIndex() throws {
+        let inlinePlaceholder = "No, and tell the agent what to do differently"
+        let customPlaceholder = "Write your own response."
+        let panel = makePromptOptionGapPanel(inlinePlaceholder: inlinePlaceholder, customPlaceholder: customPlaceholder)
+        panel.layoutSubtreeIfNeeded()
+        let rows = panel.rowViews
+        XCTAssertEqual(rows.count, 4)
+
+        try assertHelpRowSpacing(rows[0])
+        try assertInlineCustomRowSpacing(rows[1], placeholder: inlinePlaceholder)
+        try assertCustomInputRowSpacing(rows[2], placeholder: customPlaceholder)
+        try assertSelectedCustomInputRowSpacing(rows[3], placeholder: customPlaceholder)
+    }
+}
+
+@MainActor
+private func makePromptOptionGapPanel(
+    inlinePlaceholder: String,
+    customPlaceholder: String
+) -> AppKitComposerOverlayPanelView {
+    let panel = AppKitComposerOverlayPanelView(frame: NSRect(x: 0, y: 0, width: 700, height: 220))
+    panel.configure(
+        AppKitComposerOverlayPanelView.Configuration(
+            title: "Question",
+            rows: [
+                makeHelpGapRow(),
+                makeInlineCustomGapRow(placeholder: inlinePlaceholder),
+                makeCustomInputGapRow(indexText: "3.", placeholder: customPlaceholder, isSelected: false),
+                makeCustomInputGapRow(indexText: "10.", placeholder: customPlaceholder, isSelected: true)
+            ],
+            primaryTitle: "Continue",
+            onDismiss: {},
+            onPrimary: {}
+        )
+    )
+    return panel
+}
+
+private func makeHelpGapRow() -> AppKitComposerOverlayOptionRowView.Configuration {
+    AppKitComposerOverlayOptionRowView.Configuration(
+        id: "help",
+        indexText: "1.",
+        title: "Direct implementation",
+        description: "Make the smallest focused change.",
+        helpText: "Pick the direct path.",
+        onSelect: {}
+    )
+}
+
+private func makeInlineCustomGapRow(placeholder: String) -> AppKitComposerOverlayOptionRowView.Configuration {
+    AppKitComposerOverlayOptionRowView.Configuration(
+        id: "inline-custom",
+        indexText: "2.",
+        title: "",
+        customPlaceholder: placeholder,
+        usesInlineCustomPlaceholder: true,
+        onSelect: {}
+    )
+}
+
+private func makeCustomInputGapRow(
+    indexText: String,
+    placeholder: String,
+    isSelected: Bool
+) -> AppKitComposerOverlayOptionRowView.Configuration {
+    AppKitComposerOverlayOptionRowView.Configuration(
+        id: isSelected ? "selected-custom" : "custom-input",
+        indexText: indexText,
+        title: "",
+        isSelected: isSelected,
+        showsSelectedChip: isSelected,
+        customPlaceholder: placeholder,
+        customText: isSelected ? "Keep the selected chip clear." : "Use a smaller row slice.",
+        onSelect: {}
+    )
+}
+
+@MainActor
+private func assertHelpRowSpacing(_ row: AppKitComposerOverlayOptionRowView) throws {
+    let indexField = try XCTUnwrap(textField(in: row, stringValue: "1."))
+    let titleField = try XCTUnwrap(textField(in: row, stringValue: "Direct implementation"))
+    let descriptionField = try XCTUnwrap(textField(in: row, stringValue: "Make the smallest focused change."))
+    XCTAssertPromptOptionGapMatchesContainerLeading(row: row, indexField: indexField, textField: titleField)
+    XCTAssertEqual(descriptionField.frame.minX, titleField.frame.minX, accuracy: 0.5)
+
+    let infoButton = try XCTUnwrap(views(in: row, ofType: AppKitComposerOverlayInfoButton.self).first)
+    let expectedInfoButtonX = titleField.frame.minX +
+        ceil(titleField.attributedStringValue.size().width) +
+        AppKitComposerOverlayMetrics.inlineInfoSpacing
+    XCTAssertEqual(infoButton.frame.minX, expectedInfoButtonX, accuracy: 0.5)
+}
+
+@MainActor
+private func assertInlineCustomRowSpacing(
+    _ row: AppKitComposerOverlayOptionRowView,
+    placeholder: String
+) throws {
+    let indexField = try XCTUnwrap(textField(in: row, stringValue: "2."))
+    let titleField = try XCTUnwrap(textField(in: row, stringValue: placeholder))
+    XCTAssertPromptOptionGapMatchesContainerLeading(row: row, indexField: indexField, textField: titleField)
+}
+
+@MainActor
+private func assertCustomInputRowSpacing(
+    _ row: AppKitComposerOverlayOptionRowView,
+    placeholder: String
+) throws {
+    let indexField = try XCTUnwrap(textField(in: row, stringValue: "3."))
+    let customField = try XCTUnwrap(textField(in: row, placeholder: placeholder))
+    XCTAssertPromptOptionGapMatchesContainerLeading(row: row, indexField: indexField, textField: customField)
+}
+
+@MainActor
+private func assertSelectedCustomInputRowSpacing(
+    _ row: AppKitComposerOverlayOptionRowView,
+    placeholder: String
+) throws {
+    let indexField = try XCTUnwrap(textField(in: row, stringValue: "10."))
+    let customField = try XCTUnwrap(textField(in: row, placeholder: placeholder))
+    XCTAssertPromptOptionGapMatchesContainerLeading(row: row, indexField: indexField, textField: customField)
+    XCTAssertLessThanOrEqual(customField.frame.maxX, row.selectedChipView.frame.minX - AppKitComposerOverlayMetrics.accessorySpacing)
+}
+
+@MainActor
+private func XCTAssertPromptOptionGapMatchesContainerLeading(
+    row: AppKitComposerOverlayOptionRowView,
+    indexField: NSTextField,
+    textField: NSTextField,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let indexVisibleWidth = ceil(indexField.attributedStringValue.size().width)
+    let containerLeadingGap = row.frame.minX + indexField.frame.minX
+    let indexToTextGap = textField.frame.minX - (indexField.frame.minX + indexVisibleWidth)
+    XCTAssertEqual(indexToTextGap, containerLeadingGap, accuracy: 0.5, file: file, line: line)
 }
 
 func makeCustomInputOverlayConfiguration(
