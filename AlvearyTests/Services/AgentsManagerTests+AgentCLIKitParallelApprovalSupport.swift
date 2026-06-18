@@ -5,11 +5,24 @@ import Foundation
 
 struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentProviderAdapter {
     let counter = AgentCLIKitLaunchCounter()
-    let definition = AgentCLIKit.AgentProviderDefinition(
-        id: .claude,
-        displayName: "Claude",
-        executableNames: ["claude"]
-    )
+    let providerId: AgentCLIKit.AgentProviderID
+    let resolutionRecorder: AgentInteractionResolutionRecorder?
+
+    init(
+        providerId: AgentCLIKit.AgentProviderID = .claude,
+        resolutionRecorder: AgentInteractionResolutionRecorder? = nil
+    ) {
+        self.providerId = providerId
+        self.resolutionRecorder = resolutionRecorder
+    }
+
+    var definition: AgentCLIKit.AgentProviderDefinition {
+        AgentCLIKit.AgentProviderDefinition(
+            id: providerId,
+            displayName: providerId.rawValue.capitalized,
+            executableNames: [providerId.rawValue]
+        )
+    }
 
     func makeLaunchConfiguration(
         spawnConfig: AgentCLIKit.AgentSpawnConfig,
@@ -63,9 +76,10 @@ struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentProviderAdapter {
     func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
         switch input {
         case .interactionResolution(let resolution):
-            Data("resolution:\(resolution.id.rawValue):\(resolution.outcome.rawValue)\n".utf8)
+            await resolutionRecorder?.record(resolution)
+            return Data("resolution:\(resolution.id.rawValue):\(resolution.outcome.rawValue)\n".utf8)
         case .userMessage, .interrupt:
-            Data()
+            return Data()
         }
     }
 

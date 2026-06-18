@@ -40,7 +40,11 @@ extension DefaultAgentsManager {
 
             for approval in approvals {
                 try await services.runtime.resolveInteraction(
-                    try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),
+                    try agentCLIKitInteractionResolution(
+                        for: approval,
+                        resolution: request.resolution,
+                        sessionApproval: request.sessionApproval
+                    ),
                     conversationId: services.hostAdapter.conversationId(request.conversationId)
                 )
             }
@@ -93,11 +97,18 @@ extension DefaultAgentsManager {
 
     func agentCLIKitInteractionResolution(
         for approval: ToolApprovalRequest,
-        resolution: ClaudeToolApprovalResolution
+        resolution: ClaudeToolApprovalResolution,
+        sessionApproval: AgentSessionApprovalGrant? = nil
     ) throws -> AgentCLIKit.AgentInteractionResolution {
         var metadata: [String: AgentCLIKit.JSONValue] = [
             "approval_decision": .string(resolution.decision.rawValue)
         ]
+        if resolution.decision == .allow,
+           let sessionApproval {
+            metadata["approval_grant_kind"] = .string(AgentCLIKit.AgentApprovalGrantKind.session.rawValue)
+            metadata["approval_provider_id"] = .string(sessionApproval.providerId)
+            metadata["approval_operation"] = .string(approval.toolName)
+        }
         if let updatedInput = resolution.updatedInput {
             metadata["updated_input"] = try agentCLIKitJSONValue(from: updatedInput)
         }

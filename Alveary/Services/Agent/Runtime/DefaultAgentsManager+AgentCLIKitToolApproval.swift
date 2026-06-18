@@ -145,7 +145,11 @@ extension DefaultAgentsManager {
         }
         for approval in approvals {
             try await services.runtime.resolveInteraction(
-                try agentCLIKitInteractionResolution(for: approval, resolution: request.resolution),
+                try agentCLIKitInteractionResolution(
+                    for: approval,
+                    resolution: request.resolution,
+                    sessionApproval: request.sessionApproval
+                ),
                 conversationId: runtimeConversationId
             )
         }

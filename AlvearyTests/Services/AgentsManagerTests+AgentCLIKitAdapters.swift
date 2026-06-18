@@ -34,12 +34,37 @@ struct PathResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     }
 }
 
+actor AgentInteractionResolutionRecorder {
+    private var recordedResolutions: [AgentCLIKit.AgentInteractionResolution] = []
+
+    func record(_ resolution: AgentCLIKit.AgentInteractionResolution) {
+        recordedResolutions.append(resolution)
+    }
+
+    func resolutions() -> [AgentCLIKit.AgentInteractionResolution] {
+        recordedResolutions
+    }
+}
+
 struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
-    let definition = AgentCLIKit.AgentProviderDefinition(
-        id: .claude,
-        displayName: "Claude",
-        executableNames: ["claude"]
-    )
+    let providerId: AgentCLIKit.AgentProviderID
+    let resolutionRecorder: AgentInteractionResolutionRecorder?
+
+    init(
+        providerId: AgentCLIKit.AgentProviderID = .claude,
+        resolutionRecorder: AgentInteractionResolutionRecorder? = nil
+    ) {
+        self.providerId = providerId
+        self.resolutionRecorder = resolutionRecorder
+    }
+
+    var definition: AgentCLIKit.AgentProviderDefinition {
+        AgentCLIKit.AgentProviderDefinition(
+            id: providerId,
+            displayName: providerId.rawValue.capitalized,
+            executableNames: [providerId.rawValue]
+        )
+    }
 
     func makeLaunchConfiguration(
         spawnConfig: AgentCLIKit.AgentSpawnConfig,
@@ -79,6 +104,7 @@ struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         case .userMessage, .interrupt:
             return Data()
         case .interactionResolution(let resolution):
+            await resolutionRecorder?.record(resolution)
             return Data("\(resolution.outcome.rawValue)\n".utf8)
         }
     }

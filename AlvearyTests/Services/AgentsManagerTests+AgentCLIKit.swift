@@ -135,6 +135,49 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitCodexSessionApprovalMarksInteractionResolutionAsSession() async throws {
+        let resolutionRecorder = AgentInteractionResolutionRecorder()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ResolvingAgentCLIKitAdapter(
+                providerId: .codex,
+                resolutionRecorder: resolutionRecorder
+            ),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-codex-session-approval"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(providerId: "codex", workingDirectory: "/tmp"))
+        let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let approvalEvent = try await nextEvent(from: subscription.stream, description: "AgentCLIKit Codex session approval event")
+        guard case let .toolApprovalRequested(approval) = approvalEvent else {
+            return XCTFail("Expected tool approval request, got \(approvalEvent)")
+        }
+        let sessionApproval = try XCTUnwrap(approval.sessionApprovalGrant(
+            conversationId: conversationId,
+            providerId: "codex",
+            scope: .exact
+        ))
+
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: approval,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
+            additionalApprovals: [],
+            sessionApproval: sessionApproval,
+            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+        ))
+        let resolutions = await resolutionRecorder.resolutions()
+
+        XCTAssertEqual(resolutions.count, 1)
+        XCTAssertEqual(resolutions.first?.metadata["approval_grant_kind"], .string("session"))
+        XCTAssertEqual(resolutions.first?.metadata["approval_provider_id"], .string("codex"))
+        XCTAssertEqual(resolutions.first?.metadata["approval_operation"], .string("Bash"))
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitApprovalStoreScopesTransientDecisionsBySession() async {
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: DisabledClaudeApprovalPersistenceStore())
         let scopedKey = AgentCLIKit.ClaudeTransientDecisionKey(sessionId: "session-1", interactionId: "tool-1")

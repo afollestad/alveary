@@ -83,6 +83,62 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitFallbackSessionApprovalMarksRespawnedInteractionResolutionsAsSession() async throws {
+        let resolutionRecorder = AgentInteractionResolutionRecorder()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: ParallelApprovalResolutionAdapter(
+                providerId: .codex,
+                resolutionRecorder: resolutionRecorder
+            ),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-fallback-session-resolutions"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(providerId: "codex", workingDirectory: "/tmp"))
+        let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let firstEvent = try await nextEvent(from: subscription.stream, description: "first fallback session approval")
+        let secondEvent = try await nextEvent(from: subscription.stream, description: "second fallback session approval")
+        guard case let .toolApprovalRequested(firstApproval) = firstEvent,
+              case let .toolApprovalRequested(secondApproval) = secondEvent else {
+            return XCTFail("Expected two approval requests, got \(firstEvent) and \(secondEvent)")
+        }
+        let sessionApproval = try XCTUnwrap(firstApproval.sessionApprovalGrant(
+            conversationId: conversationId,
+            providerId: "codex",
+            scope: .exact
+        ))
+        try await waitUntil("expected fallback session approvals to wait for user") {
+            manager.status(for: conversationId) == .waitingForUser
+        }
+
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: firstApproval,
+            resolution: ClaudeToolApprovalResolution(decision: .allow),
+            additionalApprovals: [secondApproval],
+            sessionApproval: sessionApproval,
+            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+        ))
+        var resumedSubscription: Alveary.AgentEventSubscription?
+        try await waitUntil("expected fallback session approval to install resumed buffer") {
+            let candidate = await self.awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+            resumedSubscription = candidate?.generation == subscription.generation ? nil : candidate
+            return resumedSubscription != nil
+        }
+        let resolvedSubscription = try XCTUnwrap(resumedSubscription)
+        _ = try await nextEvent(
+            from: resolvedSubscription.stream,
+            description: "fallback session approval resumed event"
+        )
+        let resolutions = await resolutionRecorder.resolutions()
+
+        assertCodexSessionResolutionMetadata(resolutions, expectedCount: 2)
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitRestoredDeferredApprovalResumesWithoutTrackedProcess() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: RestoredApprovalCLIKitAdapter(),
@@ -203,6 +259,18 @@ extension AgentsManagerTests {
         XCTAssertEqual(messageEvent, .message(role: "assistant", content: "nudged", parentToolUseId: nil))
         await manager.kill(conversationId: conversationId)
     }
+}
+
+private func assertCodexSessionResolutionMetadata(
+    _ resolutions: [AgentCLIKit.AgentInteractionResolution],
+    expectedCount: Int,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    XCTAssertEqual(resolutions.count, expectedCount, file: file, line: line)
+    XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_grant_kind"] == .string("session") }, file: file, line: line)
+    XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_provider_id"] == .string("codex") }, file: file, line: line)
+    XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_operation"] == .string("Bash") }, file: file, line: line)
 }
 
 /// First launch defers a tool approval and idles on stdin like the real CLI; the resumed launch only
