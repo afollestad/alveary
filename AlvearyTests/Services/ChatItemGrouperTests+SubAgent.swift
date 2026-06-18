@@ -251,6 +251,39 @@ extension ChatItemGrouperTests {
         XCTAssertNil(agents.first(where: { $0.id == "agent-2" })?.result)
     }
 
+    func testDuplicateAgentCallAfterCompletionPatchesRenderedAgentWithoutPendingDrift() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentCall(
+            id: "agent-call-1",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Initial task"
+        ))
+        grouper.handleSubAgentControl(.subAgentCompleted(
+            toolUseId: "agent-1",
+            status: "completed",
+            toolUses: 1,
+            totalTokens: 100,
+            durationMs: 200
+        ))
+        grouper.append(event: agentCall(
+            id: "agent-call-1-replay",
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Updated task"
+        ))
+
+        let agents = subAgents(in: grouper)
+        XCTAssertEqual(agents.count, 1)
+        XCTAssertEqual(agents.first?.id, "agent-1")
+        XCTAssertEqual(agents.first?.description, "Updated task")
+        XCTAssertTrue(agents.first?.isComplete == true)
+        XCTAssertTrue(grouper.pendingSubAgentIds.isEmpty)
+        XCTAssertEqual(grouper.processedCount, 2)
+    }
+
     private func assertSingleCompletedParallelSubAgentBlock(in grouper: ChatItemGrouper) {
         let subAgentBlocks = grouper.items.compactMap { item -> [SubAgentEntry]? in
             guard case .subAgentBlock(_, let agents) = item else {

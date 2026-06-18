@@ -387,12 +387,13 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
 
     func envelope(
         _ event: AgentCLIKit.AgentEvent,
+        providerId: AgentProviderID = .claude,
         providerSessionId: AgentSessionID? = nil
     ) -> AgentCLIKit.AgentEventEnvelope {
         AgentCLIKit.AgentEventEnvelope(
             generation: 1,
             index: 0,
-            providerId: .claude,
+            providerId: providerId,
             conversationId: "conversation",
             providerSessionId: providerSessionId,
             source: .stdout,

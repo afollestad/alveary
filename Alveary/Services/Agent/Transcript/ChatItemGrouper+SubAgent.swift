@@ -117,6 +117,7 @@ extension ChatItemGrouper {
                 agentType: parsedInput.agentType,
                 description: parsedInput.description
             )
+            return
         } else {
             activeSubAgents[toolId] = makeSubAgentEntry(
                 id: toolId,

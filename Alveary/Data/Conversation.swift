@@ -74,16 +74,14 @@ private extension Conversation {
             return nil
         }
 
-        let toolNamesByID: [String: String] = Dictionary(
-            uniqueKeysWithValues: orderedEvents.compactMap { record in
-                guard record.type == "tool_call",
-                      let toolId = record.toolId,
-                      let toolName = normalizedRestoreSnippet(record.toolName) else {
-                    return nil
-                }
-                return (toolId, toolName)
+        var toolNamesByID: [String: String] = [:]
+        for record in orderedEvents where record.type == "tool_call" {
+            guard let toolId = record.toolId,
+                  let toolName = normalizedRestoreSnippet(record.toolName) else {
+                continue
             }
-        )
+            toolNamesByID[toolId] = toolName
+        }
 
         let transcriptEntries = Array(
             orderedEvents.compactMap(restoreTranscriptEntry).suffix(restoreTranscriptEntryLimit)

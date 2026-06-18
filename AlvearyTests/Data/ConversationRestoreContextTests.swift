@@ -193,6 +193,27 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("Read 4: succeeded. Output 4"))
     }
 
+    func testRefreshPendingRestoreContextToleratesDuplicateToolCallIds() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Continue after replay")
+        fixture.addEvent(type: "tool_call", toolId: "tool-1", toolName: "Read")
+        fixture.addEvent(type: "tool_call", toolId: "tool-1", toolName: "Agent")
+        fixture.addEvent(
+            type: "tool_result",
+            toolId: "tool-1",
+            toolOutput: "Replay output",
+            isError: false
+        )
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Agent: succeeded. Replay output"))
+        XCTAssertFalse(pendingRestoreContext.contains("Read: succeeded. Replay output"))
+    }
+
     func testRefreshPendingRestoreContextClearsExistingValueWhenNoSavedHistoryExists() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation

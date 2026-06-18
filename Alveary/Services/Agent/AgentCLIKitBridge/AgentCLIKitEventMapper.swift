@@ -167,6 +167,9 @@ struct AgentCLIKitEventMapper: Sendable {
         if isNonDurablePlanDelta(event) {
             return []
         }
+        if isCodexCollaborationTask(event, envelope: envelope) {
+            return codexCollaborationTaskEvents(from: event)
+        }
 
         switch event.phase {
         case .started:
@@ -404,6 +407,66 @@ struct AgentCLIKitEventMapper: Sendable {
             return "{}"
         }
         return string
+    }
+}
+
+private extension AgentCLIKitEventMapper {
+    func isCodexCollaborationTask(
+        _ event: AgentCLIKit.AgentTaskEvent,
+        envelope: AgentCLIKit.AgentEventEnvelope
+    ) -> Bool {
+        envelope.providerId == .codex && event.taskType == "collabAgentToolCall"
+    }
+
+    func codexCollaborationTaskEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {
+        guard isCodexSpawnAgentTool(event) else {
+            return []
+        }
+
+        switch event.phase {
+        case .started:
+            return [.toolCall(
+                id: event.id,
+                name: "Agent",
+                input: codexSpawnAgentToolInput(from: event),
+                parentToolUseId: nil,
+                callerAgent: nil
+            )]
+        case .notification where isTerminalTaskStatus(event.status),
+             .completed:
+            return completedSubAgentEvents(from: event)
+        case .progress,
+             .notification:
+            return []
+        }
+    }
+
+    func isCodexSpawnAgentTool(_ event: AgentCLIKit.AgentTaskEvent) -> Bool {
+        guard let tool = event.metadata.stringValue("codex_collab_tool") ?? event.lastToolName else {
+            return false
+        }
+        return normalizedCodexCollaborationTool(tool) == "spawnagent"
+    }
+
+    func normalizedCodexCollaborationTool(_ tool: String) -> String {
+        tool
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: "")
+            .lowercased()
+    }
+
+    func codexSpawnAgentToolInput(from event: AgentCLIKit.AgentTaskEvent) -> String {
+        let prompt = event.metadata.stringValue("prompt")
+        let description = event.description ?? prompt ?? "Codex sub-agent"
+        var input: [String: AgentCLIKit.JSONValue] = [
+            "codex_collab_tool": .string("spawnAgent"),
+            "description": .string(description),
+            "subagent_type": .string("codex")
+        ]
+        if let prompt {
+            input["prompt"] = .string(prompt)
+        }
+        return Self.serialized(.object(input))
     }
 }
 
