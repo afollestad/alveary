@@ -57,6 +57,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
     let toolUseId: String
     let toolName: String
     let toolInput: String
+    let approvalIdentityToolInput: String?
     let planMarkdownFallback: String?
 
     var id: String { toolUseId }
@@ -67,12 +68,14 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
         toolUseId: String,
         toolName: String,
         toolInput: String,
+        approvalIdentityToolInput: String? = nil,
         planMarkdownFallback: String? = nil
     ) {
         self.sessionId = sessionId
         self.toolUseId = toolUseId
         self.toolName = toolName
         self.toolInput = toolInput
+        self.approvalIdentityToolInput = approvalIdentityToolInput
         self.planMarkdownFallback = planMarkdownFallback
     }
 
@@ -254,6 +257,7 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             toolUseId: toolUseId,
             toolName: toolName,
             toolInput: toolInput,
+            approvalIdentityToolInput: approvalIdentityToolInput,
             planMarkdownFallback: fallback
         )
     }
@@ -393,7 +397,8 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
             sessionId: AgentCLIKit.AgentSessionID(rawValue: sessionId),
             toolName: toolName,
-            toolInput: agentCLIKitToolInput
+            toolInput: agentCLIKitToolInput,
+            approvalIdentityToolInput: agentCLIKitApprovalIdentityToolInput
         )
     }
 
@@ -403,6 +408,14 @@ struct ToolApprovalRequest: Sendable, Equatable, Identifiable {
             return .object([:])
         }
         return value
+    }
+
+    private var agentCLIKitApprovalIdentityToolInput: AgentCLIKit.JSONValue? {
+        guard let approvalIdentityToolInput,
+              let data = approvalIdentityToolInput.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(AgentCLIKit.JSONValue.self, from: data)
     }
 
     private static func agentCLIKitScope(_ scope: ToolApprovalSessionScope) -> AgentCLIKit.AgentToolApprovalSessionScope? {

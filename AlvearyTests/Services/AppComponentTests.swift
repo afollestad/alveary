@@ -1,3 +1,4 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
@@ -100,6 +101,19 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(registryIDs, adapterSetIDs)
     }
 
+    func testAgentCLIKitCodexAdapterUsesSharedSessionApprovalStore() throws {
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
+        let codexAdapter = try XCTUnwrap(
+            component.agentCLIKitProviderAdapterSet.adapters.first { $0.definition.id == .codex }
+        )
+        let codexConfiguration = try XCTUnwrap(codexConfiguration(from: codexAdapter))
+        let approvalStore = try XCTUnwrap(
+            codexConfiguration.sessionApprovalPolicyStore as? AgentCLIKitClaudeApprovalStoreAdapter
+        )
+
+        XCTAssertTrue(approvalStore === component.agentCLIKitClaudeApprovalPolicyStore)
+    }
+
     func testAgentCLIKitHostAdapterMapsSpawnConfig() throws {
         let adapter = AgentCLIKitHostAdapter()
         let config = try adapter.spawnConfig(from: AgentSpawnConfig(
@@ -162,5 +176,14 @@ final class AppComponentTests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertTrue((first as AnyObject) === (second as AnyObject), file: file, line: line)
+    }
+
+    private func codexConfiguration(
+        from adapter: any AgentCLIKit.AgentProviderAdapter
+    ) -> AgentCLIKit.CodexProviderAdapter.Configuration? {
+        guard let client = Mirror(reflecting: adapter).descendant("client") else {
+            return nil
+        }
+        return Mirror(reflecting: client).descendant("configuration") as? AgentCLIKit.CodexProviderAdapter.Configuration
     }
 }

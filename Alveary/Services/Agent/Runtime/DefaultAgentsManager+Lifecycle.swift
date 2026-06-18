@@ -60,6 +60,7 @@ extension DefaultAgentsManager {
         if await sessionManager.hasSession(for: conversationId) {
             let sessionId = await sessionManager.sessionId(for: conversationId)
             await claudeApprovalPersistenceStore.removeSessionApprovals(
+                providerId: "claude",
                 conversationId: conversationId,
                 sessionId: sessionId
             )
@@ -81,6 +82,7 @@ extension DefaultAgentsManager {
             let previousSessionId = await sessionManager.sessionId(for: conversationId)
             if previousSessionId != sessionId {
                 await claudeApprovalPersistenceStore.removeSessionApprovals(
+                    providerId: "claude",
                     conversationId: conversationId,
                     sessionId: previousSessionId
                 )

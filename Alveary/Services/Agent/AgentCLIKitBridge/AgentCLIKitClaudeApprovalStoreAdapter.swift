@@ -1,12 +1,12 @@
 import AgentCLIKit
 import Foundation
 
-/// Bridges `AgentCLIKit` Claude approval policy storage to Alveary's durable approval store.
+/// Bridges `AgentCLIKit` approval policy storage to Alveary's durable approval store.
 ///
-/// Session-scoped reusable approvals are persisted by Alveary so the UI can preserve
-/// approval selections across app launches. Transient one-shot and batch fallback
-/// decisions remain in `AgentCLIKit.ClaudeApprovalPolicyStore` because they belong to
-/// the provider hook runtime.
+/// Session-scoped reusable approvals are provider-scoped and persisted by Alveary so the
+/// UI can preserve approval selections across app launches. Claude transient one-shot
+/// and batch fallback decisions remain in `AgentCLIKit.ClaudeApprovalPolicyStore`
+/// because they belong to the hook runtime.
 actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicyStoring, AgentCLIKit.ClaudeTransientDecisionStoring {
     private let approvalPersistenceStore: any ClaudeApprovalPersistenceStore
     private let fallbackStore = AgentCLIKit.ClaudeApprovalPolicyStore()
@@ -52,11 +52,7 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
 
     func allowsSessionApproval(_ request: AgentCLIKit.AgentSessionApprovalRequest) async -> Bool {
         await approvalPersistenceStore.allowsSessionApproval(
-            providerId: request.providerId.rawValue,
-            conversationId: request.conversationId.rawValue,
-            sessionId: request.sessionId.rawValue,
-            toolName: request.toolName,
-            toolInput: Self.serialized(request.toolInput)
+            matching: request.sessionApprovalGrantCandidates.compactMap(alvearySessionApproval)
         )
     }
 
@@ -65,10 +61,8 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         conversationId: AgentCLIKit.AgentConversationID,
         sessionId: AgentCLIKit.AgentSessionID
     ) async {
-        guard providerId == .claude else {
-            return
-        }
         await approvalPersistenceStore.removeSessionApprovals(
+            providerId: providerId.rawValue,
             conversationId: conversationId.rawValue,
             sessionId: sessionId.rawValue
         )
@@ -127,11 +121,4 @@ actor AgentCLIKitClaudeApprovalStoreAdapter: AgentCLIKit.ClaudeApprovalPolicySto
         )
     }
 
-    private static func serialized(_ value: AgentCLIKit.JSONValue) -> String {
-        guard let data = try? JSONEncoder().encode(value),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return string
-    }
 }

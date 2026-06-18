@@ -77,7 +77,7 @@ extension DefaultClaudeApprovalPersistenceStore {
         try? context.save()
     }
 
-    /// Returns the user's last selected approval scope for a Claude session.
+    /// Returns the user's last selected approval scope for a provider session.
     func toolApprovalSelection(
         providerId: String,
         conversationId: String,
@@ -103,7 +103,7 @@ extension DefaultClaudeApprovalPersistenceStore {
         return ToolApprovalSelection(rawValue: record.selection)
     }
 
-    /// Records the user's last selected approval scope for a Claude session.
+    /// Records the user's last selected approval scope for a provider session.
     func recordToolApprovalSelection(
         _ selection: ToolApprovalSelection,
         providerId: String,
@@ -142,13 +142,12 @@ extension DefaultClaudeApprovalPersistenceStore {
         try? context.save()
     }
 
-    /// Removes reusable approvals and saved scope selection for a Claude session.
-    func removeSessionApprovals(conversationId: String, sessionId: String) {
+    /// Removes reusable approvals and saved scope selection for a provider session.
+    func removeSessionApprovals(providerId: String, conversationId: String, sessionId: String) {
         guard let context = sessionApprovalContext() else {
             return
         }
 
-        let providerId = "claude"
         let existingRules = (try? context.fetch(
             FetchDescriptor<AgentSessionApprovalRule>(
                 predicate: #Predicate {

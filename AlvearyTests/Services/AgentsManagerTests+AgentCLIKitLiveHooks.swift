@@ -91,6 +91,44 @@ extension AgentsManagerTests {
         XCTAssertEqual(decision.approval, .allow)
     }
 
+    func testAgentCLIKitLiveHookDecisionProviderPublishesApprovalIdentityMetadata() async throws {
+        let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
+        let recorder = LiveHookRequestRecorder()
+        await provider.setDeferredToolRequestHandler { request in
+            await recorder.append(request)
+        }
+        let hookRequest = AgentCLIKit.ClaudeHookRequest(
+            bearerToken: "token",
+            hookName: "PreToolUse",
+            conversationId: "conversation",
+            payload: .object([
+                "session_id": .string("session-1"),
+                "tool_name": .string("Bash"),
+                "tool_input": .object(["command": .string(#"/bin/zsh -lc 'git add README.md'"#)]),
+                "approval_identity_tool_input": .object(["command": .string("git add README.md")])
+            ])
+        )
+
+        let decisionTask = Task {
+            await provider.decision(for: hookRequest, interactionId: "tool-1")
+        }
+        try await waitUntil("expected live hook request to publish") {
+            (await recorder.requests()).isEmpty == false
+        }
+
+        let publishedRequests = await recorder.requests()
+        let published = try XCTUnwrap(publishedRequests.first)
+        _ = await provider.resolve(
+            ClaudeToolApprovalResolution(decision: .allow),
+            for: ClaudeToolApprovalKey(sessionId: "session-1", toolUseId: "tool-1")
+        )
+        _ = await decisionTask.value
+
+        XCTAssertEqual(published.request.toolInput, #"{"command":"\/bin\/zsh -lc 'git add README.md'"}"#)
+        XCTAssertEqual(published.request.approvalIdentityToolInput, #"{"command":"git add README.md"}"#)
+        XCTAssertEqual(published.request.conciseSummary, "git add README.md")
+    }
+
     func testAgentCLIKitLiveHookDecisionProviderResolvesFutureSiblingWithoutPublishing() async throws {
         let provider = AgentCLIKitLiveHookDecisionProvider(sleep: { _ in })
         let recorder = LiveHookRequestRecorder()

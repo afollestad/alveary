@@ -12,13 +12,7 @@ actor DisabledClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
     func discardSessionApproval(_ approval: AgentSessionApprovalGrant) async {}
 
     /// Always reports that no reusable approval covers the request.
-    func allowsSessionApproval(
-        providerId: String,
-        conversationId: String,
-        sessionId: String,
-        toolName: String,
-        toolInput: String
-    ) async -> Bool {
+    func allowsSessionApproval(matching candidates: [AgentSessionApprovalGrant]) async -> Bool {
         false
     }
 
@@ -36,5 +30,5 @@ actor DisabledClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
     ) async {}
 
     /// Ignores approval cleanup.
-    func removeSessionApprovals(conversationId: String, sessionId: String) async {}
+    func removeSessionApprovals(providerId: String, conversationId: String, sessionId: String) async {}
 }

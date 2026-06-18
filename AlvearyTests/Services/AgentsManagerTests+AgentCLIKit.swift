@@ -173,6 +173,7 @@ extension AgentsManagerTests {
 
         XCTAssertEqual(resolutions.count, 1)
         XCTAssertEqual(resolutions.first?.metadata["approval_grant_kind"], .string("session"))
+        XCTAssertEqual(resolutions.first?.metadata["approval_session_scope"], .string("exact"))
         XCTAssertEqual(resolutions.first?.metadata["approval_provider_id"], .string("codex"))
         XCTAssertEqual(resolutions.first?.metadata["approval_operation"], .string("Bash"))
         await manager.kill(conversationId: conversationId)

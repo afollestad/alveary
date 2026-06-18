@@ -1,4 +1,4 @@
-/// Supported matching modes for reusable Claude session approvals.
+/// Supported matching modes for reusable provider session approvals.
 enum AgentSessionApprovalRuleKind: String, Sendable, Equatable, Hashable {
     /// Match a single normalized Bash command exactly.
     case bashExact

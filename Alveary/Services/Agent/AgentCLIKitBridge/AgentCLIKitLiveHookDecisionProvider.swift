@@ -209,11 +209,13 @@ actor AgentCLIKitLiveHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProvidi
         }
         let toolName = payload.stringValue("tool_name") ?? payload.stringValue("toolName") ?? "tool"
         let toolInput = payload["tool_input"] ?? payload["toolInput"] ?? .object([:])
+        let approvalIdentityToolInput = payload["approval_identity_tool_input"] ?? payload["approvalIdentityToolInput"]
         return ToolApprovalRequest(
             sessionId: sessionId,
             toolUseId: interactionId.rawValue,
             toolName: toolName,
             toolInput: serialized(toolInput),
+            approvalIdentityToolInput: approvalIdentityToolInput.map(serialized),
             planMarkdownFallback: toolName == "ExitPlanMode" ? toolInput.stringValue("plan") : nil
         )
     }

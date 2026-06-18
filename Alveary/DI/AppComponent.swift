@@ -171,6 +171,9 @@ extension AppComponent {
                         isDirectory: true
                     ),
                     hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
+                ),
+                codex: AgentCLIKit.CodexProviderAdapter.Configuration(
+                    sessionApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore
                 )
             )
         }
@@ -186,9 +189,13 @@ extension AppComponent {
             ),
             hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
         )
+        let codexConfiguration = AgentCLIKit.CodexProviderAdapter.Configuration(
+            sessionApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore
+        )
         return AgentCLIKit.AgentProviderSessionActionRouter {
             AgentCLIKit.AgentProviderAdapterSet.default(
-                claude: claudeConfiguration
+                claude: claudeConfiguration,
+                codex: codexConfiguration
             )
         }
     }

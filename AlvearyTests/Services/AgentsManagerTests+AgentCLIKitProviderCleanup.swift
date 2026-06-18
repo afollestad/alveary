@@ -149,7 +149,7 @@ extension AgentsManagerTests {
         XCTAssertFalse(canTriggerNotification)
     }
 
-    func testClaudeApprovalStoreAdapterIgnoresNonClaudeSessionRemoval() async {
+    func testClaudeApprovalStoreAdapterRemovesProviderScopedSessionApprovals() async {
         let persistenceStore = RecordingClaudeApprovalPersistenceStore()
         let approvalStore = AgentCLIKitClaudeApprovalStoreAdapter(approvalPersistenceStore: persistenceStore)
 
@@ -165,9 +165,12 @@ extension AgentsManagerTests {
         )
 
         let removals = await persistenceStore.removedSessionApprovalIDs()
-        XCTAssertEqual(removals.count, 1)
+        XCTAssertEqual(removals.count, 2)
         XCTAssertEqual(removals.first?.conversationId, "conversation-1")
-        XCTAssertEqual(removals.first?.sessionId, "claude-session")
+        XCTAssertEqual(removals.first?.providerId, "codex")
+        XCTAssertEqual(removals.first?.sessionId, "shared-session")
+        XCTAssertEqual(removals.last?.providerId, "claude")
+        XCTAssertEqual(removals.last?.sessionId, "claude-session")
     }
 
     func testAgentCLIKitSessionRecordRemovalClearsClaudeSessionApprovals() async throws {
@@ -213,6 +216,7 @@ extension AgentsManagerTests {
 }
 
 private struct RemovedSessionApprovalID: Equatable {
+    let providerId: String
     let conversationId: String
     let sessionId: String
 }
@@ -226,13 +230,7 @@ private actor RecordingClaudeApprovalPersistenceStore: ClaudeApprovalPersistence
 
     func discardSessionApproval(_ approval: Alveary.AgentSessionApprovalGrant) async {}
 
-    func allowsSessionApproval(
-        providerId: String,
-        conversationId: String,
-        sessionId: String,
-        toolName: String,
-        toolInput: String
-    ) async -> Bool {
+    func allowsSessionApproval(matching candidates: [Alveary.AgentSessionApprovalGrant]) async -> Bool {
         false
     }
 
@@ -247,8 +245,8 @@ private actor RecordingClaudeApprovalPersistenceStore: ClaudeApprovalPersistence
         sessionId: String
     ) async {}
 
-    func removeSessionApprovals(conversationId: String, sessionId: String) async {
-        removals.append(RemovedSessionApprovalID(conversationId: conversationId, sessionId: sessionId))
+    func removeSessionApprovals(providerId: String, conversationId: String, sessionId: String) async {
+        removals.append(RemovedSessionApprovalID(providerId: providerId, conversationId: conversationId, sessionId: sessionId))
     }
 
     func removedSessionApprovalIDs() -> [RemovedSessionApprovalID] {

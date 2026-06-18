@@ -286,11 +286,13 @@ struct AgentCLIKitEventMapper: Sendable {
     ) -> [ConversationEvent] {
         let toolName = event.metadata.stringValue("tool_name") ?? toolName(for: event.kind)
         let toolInput = event.metadata["tool_input"].map(Self.serialized) ?? "{}"
+        let approvalIdentityToolInput = event.metadata["approval_identity_tool_input"].map(Self.serialized)
         let request = ToolApprovalRequest(
             sessionId: event.metadata.stringValue("session_id") ?? providerSessionId ?? "",
             toolUseId: event.id.rawValue,
             toolName: toolName,
             toolInput: toolInput,
+            approvalIdentityToolInput: approvalIdentityToolInput,
             planMarkdownFallback: event.metadata.stringValue("plan")
         )
         var events: [ConversationEvent] = [.toolApprovalRequested(request)]

@@ -106,6 +106,9 @@ extension DefaultAgentsManager {
         if resolution.decision == .allow,
            let sessionApproval {
             metadata["approval_grant_kind"] = .string(AgentCLIKit.AgentApprovalGrantKind.session.rawValue)
+            if let sessionScope = sessionApproval.sessionScope {
+                metadata["approval_session_scope"] = .string(sessionScope.rawValue)
+            }
             metadata["approval_provider_id"] = .string(sessionApproval.providerId)
             metadata["approval_operation"] = .string(approval.toolName)
         }

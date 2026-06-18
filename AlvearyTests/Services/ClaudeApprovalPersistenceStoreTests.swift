@@ -12,20 +12,12 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
 
         let firstRecord = await store.recordSessionApproval(approval)
         let duplicateRecord = await store.recordSessionApproval(approval)
-        let allowsExactCommand = await store.allowsSessionApproval(
-            providerId: "claude",
-            conversationId: "conversation-1",
-            sessionId: "session-1",
-            toolName: "Bash",
-            toolInput: #"{"command":"git status"}"#
-        )
-        let allowsDifferentCommand = await store.allowsSessionApproval(
-            providerId: "claude",
-            conversationId: "conversation-1",
-            sessionId: "session-1",
-            toolName: "Bash",
-            toolInput: #"{"command":"git diff"}"#
-        )
+        let allowsExactCommand = await store.allowsSessionApproval(matching: [
+            sessionApproval(matchValue: "git status")
+        ])
+        let allowsDifferentCommand = await store.allowsSessionApproval(matching: [
+            sessionApproval(matchValue: "git diff")
+        ])
 
         XCTAssertEqual(firstRecord, SessionApprovalRecordResult(isEffective: true, wasInserted: true))
         XCTAssertEqual(duplicateRecord, SessionApprovalRecordResult(isEffective: true, wasInserted: false))
@@ -50,14 +42,10 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
             sessionId: "session-1"
         )
 
-        await store.removeSessionApprovals(conversationId: "conversation-1", sessionId: "session-1")
-        let allowsAfterRemoval = await store.allowsSessionApproval(
-            providerId: "claude",
-            conversationId: "conversation-1",
-            sessionId: "session-1",
-            toolName: "Bash",
-            toolInput: #"{"command":"git status"}"#
-        )
+        await store.removeSessionApprovals(providerId: "claude", conversationId: "conversation-1", sessionId: "session-1")
+        let allowsAfterRemoval = await store.allowsSessionApproval(matching: [
+            sessionApproval(matchValue: "git status")
+        ])
         let selectionAfterRemoval = await store.toolApprovalSelection(
             providerId: "claude",
             conversationId: "conversation-1",
@@ -69,13 +57,13 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
         XCTAssertNil(selectionAfterRemoval)
     }
 
-    private func sessionApproval() -> AgentSessionApprovalGrant {
+    private func sessionApproval(matchValue: String = "git status") -> AgentSessionApprovalGrant {
         AgentSessionApprovalGrant(
             providerId: "claude",
             conversationId: "conversation-1",
             sessionId: "session-1",
             matchKind: .bashExact,
-            matchValue: "git status"
+            matchValue: matchValue
         )
     }
 

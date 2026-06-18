@@ -144,6 +144,32 @@ final class ToolApprovalRequestTests: XCTestCase {
         )
     }
 
+    func testApprovalIdentityToolInputDrivesWrappedCommandSummaryAndSessionApproval() {
+        let approval = request(
+            toolName: "Bash",
+            toolInput: #"{"command":"/bin/zsh -lc 'git add README.md'"}"#,
+            approvalIdentityToolInput: #"{"command":"git add README.md"}"#
+        )
+
+        XCTAssertEqual(approval.toolInput, #"{"command":"/bin/zsh -lc 'git add README.md'"}"#)
+        XCTAssertEqual(approval.conciseSummary, "git add README.md")
+        XCTAssertEqual(approval.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(
+            approval.sessionApprovalGrant(
+                conversationId: "conversation-1",
+                providerId: "codex",
+                scope: .group
+            ),
+            AgentSessionApprovalGrant(
+                providerId: "codex",
+                conversationId: "conversation-1",
+                sessionId: "session-1",
+                matchKind: .bashCommandGroup,
+                matchValue: "git add"
+            )
+        )
+    }
+
     func testBashSessionRecommendationsFollowAgentCLIKitPolicy() {
         let gitAdd = request(toolName: "Bash", toolInput: #"{"command":"git add foo.swift"}"#)
         let sqliteReadOnly = request(
@@ -249,11 +275,16 @@ final class ToolApprovalRequestTests: XCTestCase {
     }
 
     func testPlanMarkdownUsesFallbackWithoutChangingToolInput() {
-        let approval = request(toolName: "ExitPlanMode", toolInput: "{}")
+        let approval = request(
+            toolName: "ExitPlanMode",
+            toolInput: "{}",
+            approvalIdentityToolInput: #"{"command":"git add README.md"}"#
+        )
             .withPlanMarkdownFallback("# Plan\n\n- Use the assistant message.")
 
         XCTAssertEqual(approval.planMarkdown, "# Plan\n\n- Use the assistant message.")
         XCTAssertEqual(approval.toolInput, "{}")
+        XCTAssertEqual(approval.approvalIdentityToolInput, #"{"command":"git add README.md"}"#)
     }
 
     func testPlanMarkdownUsesFallbackWhenExplicitPlanIsEmpty() {
@@ -273,13 +304,15 @@ final class ToolApprovalRequestTests: XCTestCase {
     private func request(
         toolName: String,
         toolUseId: String = "tool-1",
-        toolInput: String = "{}"
+        toolInput: String = "{}",
+        approvalIdentityToolInput: String? = nil
     ) -> ToolApprovalRequest {
         ToolApprovalRequest(
             sessionId: "session-1",
             toolUseId: toolUseId,
             toolName: toolName,
-            toolInput: toolInput
+            toolInput: toolInput,
+            approvalIdentityToolInput: approvalIdentityToolInput
         )
     }
 }
