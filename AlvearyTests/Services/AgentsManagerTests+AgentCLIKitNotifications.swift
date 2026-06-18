@@ -80,6 +80,17 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testSteeredConversationDoesNotTriggerNotification() async {
+        let manager = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: "agent"),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        ).manager
+
+        let canTriggerNotification = await manager.canTriggerNotification(.steeredConversation(inputID: "local-user-1"))
+        XCTAssertFalse(canTriggerNotification)
+    }
+
     private func tokenError(stopReason: String) -> ConversationEvent {
         .tokens(
             input: 1,

@@ -194,6 +194,7 @@ enum CenteredTranscriptNoteKind: Equatable {
     case enteredPlanMode
     case exitedPlanMode
     case stayingInPlanMode
+    case steeredConversation
     case contextCompactionStarted
     case contextCompactionCompleted
     case contextCompactionFailed
@@ -210,6 +211,8 @@ enum CenteredTranscriptNoteKind: Equatable {
             return "Exited plan mode"
         case .stayingInPlanMode:
             return "Staying in plan mode"
+        case .steeredConversation:
+            return ConversationSteering.displayMessage
         case .contextCompactionStarted:
             return ConversationContextCompaction.startedDisplayMessage
         case .contextCompactionCompleted:

@@ -216,14 +216,21 @@ final class ConversationViewModel {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
+            let localMessage = insertLocalUserMessage(message, into: dbConversation)
             state.lastTurnInterrupted = false
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.activeRuntimeActivityTurnId = nil
-            try await sendVisibleAgentMessage(message)
-            markVisibleTurnStarted()
-            state.turnState.beginTurn()
-            insertLocalUserMessage(message, into: dbConversation)
+            do {
+                try await sendVisibleSteeringMessage(message, steeringInputID: localMessage.id)
+                markVisibleTurnStarted()
+                state.turnState.beginTurn()
+                state.clearRetryableFailedMessage(id: localMessage.id)
+            } catch {
+                state.markRetryableFailedMessage(id: localMessage.id, stagedContext: nil)
+                state.lastTurnError = "Steer failed: \(error.localizedDescription)"
+                throw error
+            }
         }
     }
 
@@ -464,7 +471,7 @@ extension ConversationViewModel {
     var messageQueue: MessageQueue { state.messageQueue }
 }
 
-private extension ConversationViewModel {
+extension ConversationViewModel {
     func userMessageRecord(id: String) -> ConversationEventRecord? {
         try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(

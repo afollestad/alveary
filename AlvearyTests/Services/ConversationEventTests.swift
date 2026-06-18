@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 final class ConversationEventTests: XCTestCase {
+    func testSteeredConversationToRecordPersistsDeterministicMarker() throws {
+        let conversation = Conversation(provider: "codex")
+
+        let record = try XCTUnwrap(
+            ConversationEvent.steeredConversation(inputID: "local-user-1")
+                .toRecord(conversation: conversation)
+        )
+
+        XCTAssertEqual(record.id, "steering-local-user-1")
+        XCTAssertEqual(record.type, ConversationEventRecord.steeredConversationType)
+        XCTAssertEqual(record.content, ConversationSteering.displayMessage)
+        XCTAssertEqual(record.conversationId, conversation.id)
+        XCTAssertEqual(record.conversation?.id, conversation.id)
+    }
+
     func testTaskListSnapshotToRecordPersistsJSONPayload() throws {
         let conversation = Conversation(provider: "codex")
         let snapshot = ConversationTaskListSnapshot(

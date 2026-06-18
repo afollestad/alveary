@@ -5,6 +5,8 @@ extension DefaultAgentsManager {
         switch event {
         case .tokens, .toolApprovalRequested, .stop, .notification, .error:
             return true
+        case .steeredConversation:
+            return false
         default:
             return false
         }

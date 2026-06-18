@@ -49,7 +49,8 @@ extension DefaultAgentsManager {
     func sendMessageWithAgentCLIKit(
         _ message: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        metadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let services = agentCLIKitServices
         guard !shutdownRequested.withLock({ $0 }),
@@ -65,7 +66,7 @@ extension DefaultAgentsManager {
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
         do {
             try await services.runtime.send(
-                .userMessage(AgentCLIKit.AgentMessageInput(text: message)),
+                .userMessage(AgentCLIKit.AgentMessageInput(text: message, metadata: metadata)),
                 conversationId: runtimeConversationId
             )
         } catch {

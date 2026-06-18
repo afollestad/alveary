@@ -57,6 +57,7 @@ private extension ConversationViewModel {
         case .message(let role, let content, _):
             return shouldPersistMessageEvent(role: role, content: content)
 
+        case .steeredConversation(let inputID): return shouldPersistSteeredConversation(inputID: inputID)
         case .tokens:
             guard let payload = TokenEventPayload(event) else { return true }
             return shouldPersistTokensEvent(payload)

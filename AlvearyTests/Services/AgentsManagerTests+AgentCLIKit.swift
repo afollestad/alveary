@@ -62,6 +62,36 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitSendSteeringMessageTagsRuntimeInput() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: SteeringEchoAgentCLIKitAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-steering-input"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+
+        try await manager.sendMessage("plain", conversationId: conversationId)
+        let plainEvent = try await nextEvent(from: subscription.stream, description: "AgentCLIKit plain input event")
+        XCTAssertEqual(plainEvent, .message(role: "assistant", content: "steering:false::plain", parentToolUseId: nil))
+
+        try await manager.sendSteeringMessage(
+            "focus",
+            conversationId: conversationId,
+            steeringInputID: "local-user-1"
+        )
+        let steeringEvent = try await nextEvent(from: subscription.stream, description: "AgentCLIKit steering input event")
+        XCTAssertEqual(
+            steeringEvent,
+            .message(role: "assistant", content: "steering:true:local-user-1:focus", parentToolUseId: nil)
+        )
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitSessionApprovalRecordsInAgentCLIKitStore() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: ResolvingAgentCLIKitAdapter(),

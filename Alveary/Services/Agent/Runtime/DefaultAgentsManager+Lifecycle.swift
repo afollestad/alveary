@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
@@ -10,6 +11,22 @@ extension DefaultAgentsManager {
             message,
             conversationId: conversationId,
             activityVisibility: activityVisibility
+        )
+    }
+
+    func sendSteeringMessage(
+        _ message: String,
+        conversationId: String,
+        steeringInputID: String
+    ) async throws {
+        try await sendMessageWithAgentCLIKit(
+            message,
+            conversationId: conversationId,
+            activityVisibility: .visible,
+            metadata: [
+                AgentCLIKit.AgentSteeringMetadata.isSteering: .bool(true),
+                AgentCLIKit.AgentSteeringMetadata.inputId: .string(steeringInputID)
+            ]
         )
     }
 

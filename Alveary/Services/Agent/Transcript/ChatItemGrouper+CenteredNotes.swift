@@ -66,7 +66,8 @@ extension ChatItemGrouper {
             return "EnterPlanMode"
         case .exitedPlanMode, .stayingInPlanMode:
             return "ExitPlanMode"
-        case .interrupted, .sessionHandoff, .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+        case .interrupted, .sessionHandoff, .steeredConversation,
+             .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return "Tool"
         }
     }
@@ -104,6 +105,11 @@ extension ChatItemGrouper {
              ConversationContextCompaction.completedType,
              ConversationContextCompaction.failedType:
             handleContextCompaction(event)
+        case ConversationEventRecord.steeredConversationType:
+            currentToolApprovalBatch = nil
+            flushGroup()
+            flushSubAgents()
+            appendTranscriptItem(.centeredNote(id: event.id, kind: .steeredConversation))
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             markIncompleteToolsInterrupted()

@@ -51,6 +51,10 @@ enum ConversationContextCompaction {
     static let failedDisplayMessage = "Context compaction failed"
 }
 
+enum ConversationSteering {
+    static let displayMessage = "Steered conversation"
+}
+
 struct ToolResultMetadata: Sendable, Equatable {
     let stderr: String?
     let interrupted: Bool
@@ -91,6 +95,7 @@ enum ConversationEvent: Sendable, Equatable {
     case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)
     case runtimeUserMessage(content: String)
+    case steeredConversation(inputID: String)
     case messageChunk(text: String, parentToolUseId: String?)
     case toolCall(id: String, name: String, input: String, parentToolUseId: String?, callerAgent: String?)
     case toolResult(id: String, output: String, isError: Bool, parentToolUseId: String?, metadata: ToolResultMetadata?)
@@ -134,6 +139,8 @@ enum ConversationEvent: Sendable, Equatable {
         case .message,
              .runtimeUserMessage:
             return messageRecord(conversation: conversation)
+        case .steeredConversation:
+            return steeredConversationRecord(conversation: conversation)
         case .toolCall:
             return toolCallRecord(conversation: conversation)
         case .toolResult:
@@ -203,6 +210,21 @@ private extension ConversationEvent {
         )
         record.parentToolUseId = parentToolUseId
         return record
+    }
+
+    @MainActor
+    func steeredConversationRecord(conversation: Conversation) -> ConversationEventRecord {
+        guard case .steeredConversation(let inputID) = self else {
+            preconditionFailure("Unexpected event case")
+        }
+
+        return ConversationEventRecord(
+            id: "steering-\(inputID)",
+            conversationId: conversation.id,
+            type: ConversationEventRecord.steeredConversationType,
+            content: ConversationSteering.displayMessage,
+            conversation: conversation
+        )
     }
 
     @MainActor

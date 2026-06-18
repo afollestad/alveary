@@ -30,6 +30,7 @@ protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
     func sendMessage(_ message: String, conversationId: String, activityVisibility: AgentTurnActivityVisibility) async throws
+    func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
     func recordToolApprovalSelection(
@@ -60,6 +61,10 @@ protocol AgentsManager: Actor {
 extension AgentsManager {
     func sendMessage(_ message: String, conversationId: String) async throws {
         try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible)
+    }
+
+    func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws {
+        try await sendMessage(message, conversationId: conversationId)
     }
 
     func spawn(id: String, config: AgentSpawnConfig) async throws {

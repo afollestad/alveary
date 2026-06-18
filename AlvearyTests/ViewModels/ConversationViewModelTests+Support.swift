@@ -30,6 +30,8 @@ actor MockAgentsManager: AgentsManager {
         let config: AgentSpawnConfig
     }
 
+    struct SteeringCall: Sendable, Equatable { let message: String; let conversationId: String; let steeringInputID: String }
+
     // swiftlint:disable:next large_tuple
     typealias MarkPersistedCall = (conversationId: String, generation: UUID, index: Int)
 
@@ -59,6 +61,7 @@ actor MockAgentsManager: AgentsManager {
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
     private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
+    private var recordedSteeringCalls: [SteeringCall] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
@@ -135,6 +138,19 @@ actor MockAgentsManager: AgentsManager {
         }
         recordedSentMessages.append(message)
         recordedSendVisibilities.append(activityVisibility)
+    }
+
+    func sendSteeringMessage(
+        _ message: String,
+        conversationId: String,
+        steeringInputID: String
+    ) async throws {
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible)
+        recordedSteeringCalls.append(SteeringCall(
+            message: message,
+            conversationId: conversationId,
+            steeringInputID: steeringInputID
+        ))
     }
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {
@@ -337,6 +353,8 @@ actor MockAgentsManager: AgentsManager {
     func sendVisibilities() -> [AgentTurnActivityVisibility] {
         recordedSendVisibilities
     }
+
+    func steeringCalls() -> [SteeringCall] { recordedSteeringCalls }
 
     func spawnCalls() -> [SpawnCall] {
         recordedSpawnCalls

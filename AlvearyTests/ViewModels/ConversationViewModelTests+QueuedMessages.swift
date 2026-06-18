@@ -127,7 +127,16 @@ extension ConversationViewModelTests {
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Steer now"])
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Steer now"])
+        let userMessages = try fixture.userMessages()
+        XCTAssertEqual(userMessages.map(\.content), ["Steer now"])
+        let steeringCalls = await fixture.agentsManager.steeringCalls()
+        XCTAssertEqual(steeringCalls, [
+            .init(
+                message: "Steer now",
+                conversationId: fixture.conversation.id,
+                steeringInputID: try XCTUnwrap(userMessages.first?.id)
+            )
+        ])
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
     }
 
@@ -167,7 +176,16 @@ extension ConversationViewModelTests {
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Steer now"])
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Steer now"])
+        let userMessages = try fixture.userMessages()
+        XCTAssertEqual(userMessages.map(\.content), ["Steer now"])
+        let steeringCalls = await fixture.agentsManager.steeringCalls()
+        XCTAssertEqual(steeringCalls, [
+            .init(
+                message: "Steer now",
+                conversationId: fixture.conversation.id,
+                steeringInputID: try XCTUnwrap(userMessages.first?.id)
+            )
+        ])
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
     }
 
@@ -382,7 +400,16 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Second context\n\nSecond queued"])
         XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["First queued", "Third queued"])
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Second queued"])
+        let userMessages = try fixture.userMessages()
+        XCTAssertEqual(userMessages.map(\.content), ["Second queued"])
+        let steeringCalls = await fixture.agentsManager.steeringCalls()
+        XCTAssertEqual(steeringCalls, [
+            .init(
+                message: "Second context\n\nSecond queued",
+                conversationId: fixture.conversation.id,
+                steeringInputID: try XCTUnwrap(userMessages.first?.id)
+            )
+        ])
         XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
     }
 
@@ -400,7 +427,16 @@ extension ConversationViewModelTests {
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertEqual(sentMessages, ["Queued context\n\nQueued steer"])
         XCTAssertTrue(fixture.viewModel.messageQueue.pending.isEmpty)
-        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Queued steer"])
+        let userMessages = try fixture.userMessages()
+        XCTAssertEqual(userMessages.map(\.content), ["Queued steer"])
+        let steeringCalls = await fixture.agentsManager.steeringCalls()
+        XCTAssertEqual(steeringCalls, [
+            .init(
+                message: "Queued context\n\nQueued steer",
+                conversationId: fixture.conversation.id,
+                steeringInputID: try XCTUnwrap(userMessages.first?.id)
+            )
+        ])
         XCTAssertTrue(fixture.viewModel.turnState.isActive)
         XCTAssertNil(fixture.viewModel.state.inFlightQueuedMessageID)
     }

@@ -123,6 +123,20 @@ final class ChatItemGrouperTests: XCTestCase {
         XCTAssertEqual(grouper.items, [.centeredNote(id: "stop-1", kind: .interrupted)])
     }
 
+    func testSteeredConversationEventRendersCenteredNote() {
+        let grouper = ChatItemGrouper()
+        let note = ConversationEventRecord(
+            id: "steering-local-user-1",
+            conversationId: "conversation-1",
+            type: ConversationEventRecord.steeredConversationType,
+            content: ConversationSteering.displayMessage
+        )
+
+        grouper.update(events: [note])
+
+        XCTAssertEqual(grouper.items, [.centeredNote(id: "steering-local-user-1", kind: .steeredConversation)])
+    }
+
     func testInterruptedStopTerminalizesRunningToolGroup() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

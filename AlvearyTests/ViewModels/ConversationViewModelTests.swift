@@ -121,6 +121,28 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.viewModel.state.isSendingMessage)
     }
 
+    func testSteeredConversationPersistsOnlyWhenInputMatchesLocalUserMessage() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.steeredConversation(inputID: "missing-user-message"))
+
+        XCTAssertTrue(try fixture.records(type: ConversationEventRecord.steeredConversationType).isEmpty)
+
+        let localMessage = fixture.viewModel.insertLocalUserMessage(
+            "Focus on tests",
+            into: try fixture.dbConversation()
+        )
+        fixture.viewModel.handleEvent(.steeredConversation(inputID: localMessage.id))
+        fixture.viewModel.handleEvent(.steeredConversation(inputID: localMessage.id))
+
+        let markers = try fixture.records(type: ConversationEventRecord.steeredConversationType)
+        let marker = try XCTUnwrap(markers.first)
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertEqual(marker.id, "steering-\(localMessage.id)")
+        XCTAssertEqual(marker.content, ConversationSteering.displayMessage)
+        XCTAssertEqual(fixture.viewModel.state.grouper.items.last, .centeredNote(id: marker.id, kind: .steeredConversation))
+    }
+
     func testSetupAndStartCreatesWorktreeAndStartsInitialPrompt() async throws {
         let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
         let fixture = try ConversationViewModelTestFixture(
@@ -434,6 +456,12 @@ struct ConversationViewModelTestFixture {
     func userMessages() throws -> [ConversationEventRecord] {
         try context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
             $0.conversationId == conversation.id && $0.role == "user"
+        }
+    }
+
+    func records(type: String) throws -> [ConversationEventRecord] {
+        try context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == conversation.id && $0.type == type
         }
     }
 }

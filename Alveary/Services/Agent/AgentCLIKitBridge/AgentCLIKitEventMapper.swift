@@ -49,6 +49,9 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func messageEvents(from event: AgentCLIKit.AgentMessageEvent) -> [ConversationEvent] {
+        if let steeredConversation = steeredConversationEvent(from: event) {
+            return [steeredConversation]
+        }
         if event.role == .user,
            event.metadata.stringValue("agent_plan_exit_interaction_id") != nil {
             return [.runtimeUserMessage(content: event.text)]
@@ -58,6 +61,28 @@ struct AgentCLIKitEventMapper: Sendable {
             content: event.text,
             parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
         )]
+    }
+
+    private func steeredConversationEvent(from event: AgentCLIKit.AgentMessageEvent) -> ConversationEvent? {
+        guard event.role == .user,
+              event.metadata.boolValue(AgentCLIKit.AgentSteeringMetadata.isSteering) == true,
+              let signal = event.metadata.stringValue(AgentCLIKit.AgentSteeringMetadata.signal),
+              Self.isSteeringSignal(signal),
+              let inputID = event.metadata.stringValue(AgentCLIKit.AgentSteeringMetadata.inputId) else {
+            return nil
+        }
+        return .steeredConversation(inputID: inputID)
+    }
+
+    private static func isSteeringSignal(_ signal: String) -> Bool {
+        switch signal {
+        case AgentCLIKit.AgentSteeringMetadata.signalCodexUserMessageStarted,
+             AgentCLIKit.AgentSteeringMetadata.signalCodexUserMessageCompleted,
+             AgentCLIKit.AgentSteeringMetadata.signalRuntimeInputAccepted:
+            return true
+        default:
+            return false
+        }
     }
 
     private func messageDeltaEvents(from event: AgentCLIKit.AgentMessageDeltaEvent) -> [ConversationEvent] {

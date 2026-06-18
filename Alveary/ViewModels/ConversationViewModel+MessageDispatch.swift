@@ -61,6 +61,20 @@ extension ConversationViewModel {
         }
     }
 
+    func sendVisibleSteeringMessage(_ message: String, steeringInputID: String) async throws {
+        let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
+        do {
+            try await agentsManager.sendSteeringMessage(
+                message,
+                conversationId: conversation.id,
+                steeringInputID: steeringInputID
+            )
+        } catch {
+            restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
+            throw error
+        }
+    }
+
     func steerQueuedMessage(id: UUID) async throws {
         guard canSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
@@ -99,7 +113,7 @@ extension ConversationViewModel {
                 state.isCancellingTurn = false
                 state.lastTurnError = nil
                 state.activeRuntimeActivityTurnId = nil
-                try await sendVisibleAgentMessage(transportMessage)
+                try await sendVisibleSteeringMessage(transportMessage, steeringInputID: localMessage.id)
                 markVisibleTurnStarted()
                 state.turnState.beginTurn()
                 clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)

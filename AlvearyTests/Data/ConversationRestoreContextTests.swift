@@ -118,6 +118,23 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertFalse(pendingRestoreContext.contains("Reduced context"))
     }
 
+    func testRefreshPendingRestoreContextExcludesSteeredConversationMarker() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Continue after steering")
+        fixture.addEvent(
+            type: ConversationEventRecord.steeredConversationType,
+            content: ConversationSteering.displayMessage
+        )
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Continue after steering"))
+        XCTAssertFalse(pendingRestoreContext.contains(ConversationSteering.displayMessage))
+    }
+
     func testRefreshPendingRestoreContextIncludesFailedContextCompactionError() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation

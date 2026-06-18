@@ -83,3 +83,51 @@ struct ResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         }
     }
 }
+
+struct SteeringEchoAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "while IFS= read -r line; do printf 'message:%s\\n' \"$line\"; done"],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        guard case .userMessage(let message) = input else {
+            return Data()
+        }
+
+        let isSteering: Bool
+        if case .bool(true)? = message.metadata[AgentCLIKit.AgentSteeringMetadata.isSteering] {
+            isSteering = true
+        } else {
+            isSteering = false
+        }
+
+        let inputID: String
+        if case .string(let value)? = message.metadata[AgentCLIKit.AgentSteeringMetadata.inputId] {
+            inputID = value
+        } else {
+            inputID = ""
+        }
+
+        return Data("steering:\(isSteering):\(inputID):\(message.text)\n".utf8)
+    }
+}
