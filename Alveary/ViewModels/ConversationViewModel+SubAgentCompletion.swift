@@ -2,16 +2,17 @@ import Foundation
 import SwiftData
 
 extension ConversationViewModel {
-    func persistCodexSubAgentStartIfNeeded(for event: ConversationEvent) -> Bool {
+    func persistSubAgentStartIfNeeded(for event: ConversationEvent) -> Bool {
         guard case .toolCall(let toolUseId, let name, let input, let parentToolUseId, let callerAgent) = event,
               name == "Agent",
-              Self.isCodexSubAgentStartInput(input),
+              Self.isPersistableSubAgentStartInput(input),
               let dbConversation = dbConversation() else {
             return false
         }
 
-        let recordId = Self.codexSubAgentStartRecordId(conversationId: dbConversation.id, toolUseId: toolUseId)
-        if existingConversationEventRecord(id: recordId) != nil {
+        let recordId = Self.subAgentStartRecordId(conversationId: dbConversation.id, toolUseId: toolUseId)
+        let legacyRecordId = Self.codexSubAgentStartRecordId(conversationId: dbConversation.id, toolUseId: toolUseId)
+        if existingConversationEventRecord(id: recordId) != nil || existingConversationEventRecord(id: legacyRecordId) != nil {
             scheduleSave()
             return true
         }
@@ -69,6 +70,10 @@ extension ConversationViewModel {
         "sub-agent-completed:\(conversationId):\(toolUseId)"
     }
 
+    static func subAgentStartRecordId(conversationId: String, toolUseId: String) -> String {
+        "sub-agent-start:\(conversationId):\(toolUseId)"
+    }
+
     static func codexSubAgentStartRecordId(conversationId: String, toolUseId: String) -> String {
         "codex-sub-agent-start:\(conversationId):\(toolUseId)"
     }
@@ -81,7 +86,19 @@ extension ConversationViewModel {
         ).first) ?? nil
     }
 
-    static func isCodexSubAgentStartInput(_ input: String) -> Bool {
+    static func isPersistableSubAgentStartInput(_ input: String) -> Bool {
+        isMarkedSubAgentStartInput(input) || isLegacyCodexSubAgentStartInput(input)
+    }
+
+    static func isMarkedSubAgentStartInput(_ input: String) -> Bool {
+        guard let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return json["agent_subagent_event"] as? Bool == true
+    }
+
+    static func isLegacyCodexSubAgentStartInput(_ input: String) -> Bool {
         guard let data = input.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tool = json["codex_collab_tool"] as? String else {

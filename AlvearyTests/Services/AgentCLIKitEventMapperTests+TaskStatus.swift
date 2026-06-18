@@ -5,18 +5,19 @@ import XCTest
 @testable import Alveary
 
 extension AgentCLIKitEventMapperTests {
-    func testMapsCodexSpawnAgentStartToMarkedAgentToolCall() throws {
+    func testMapsTypedSubAgentStartToMarkedAgentToolCall() throws {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
-            .task(AgentTaskEvent(
+            .subAgent(AgentSubAgentEvent(
                 id: "spawn-1",
                 phase: .started,
                 description: "Review the diff",
-                taskType: "collabAgentToolCall",
-                lastToolName: "spawnAgent",
-                metadata: [
-                    "codex_collab_tool": .string("spawnAgent"),
-                    "prompt": .string("Review the diff")
-                ]
+                prompt: "Review the diff",
+                agentType: "codex",
+                input: .object([
+                    "codex_collab_tool": .string("spawnAgent")
+                ]),
+                parentToolUseId: "parent-1",
+                callerAgent: "root"
             )),
             providerId: .codex
         ))
@@ -27,27 +28,24 @@ extension AgentCLIKitEventMapperTests {
         }
         XCTAssertEqual(id, "spawn-1")
         XCTAssertEqual(name, "Agent")
-        XCTAssertNil(parentToolUseId)
-        XCTAssertNil(callerAgent)
+        XCTAssertEqual(parentToolUseId, "parent-1")
+        XCTAssertEqual(callerAgent, "root")
 
         let json = try Self.jsonObject(from: input)
+        XCTAssertEqual(json["agent_subagent_event"] as? Bool, true)
         XCTAssertEqual(json["codex_collab_tool"] as? String, "spawnAgent")
         XCTAssertEqual(json["description"] as? String, "Review the diff")
         XCTAssertEqual(json["prompt"] as? String, "Review the diff")
         XCTAssertEqual(json["subagent_type"] as? String, "codex")
     }
 
-    func testMapsCodexSpawnAgentSnakeCaseStartToMarkedAgentToolCall() throws {
+    func testMapsTypedSubAgentStartDefaultsMissingInputFields() throws {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
-            .task(AgentTaskEvent(
-                id: "spawn-1",
+            .subAgent(AgentSubAgentEvent(
+                id: "agent-1",
                 phase: .started,
-                description: "Inspect scripts",
-                taskType: "collabAgentToolCall",
-                lastToolName: "spawn_agent",
-                metadata: ["codex_collab_tool": .string("spawn_agent")]
-            )),
-            providerId: .codex
+                description: "Inspect scripts"
+            ))
         ))
 
         guard case .toolCall(_, let name, let input, _, _) = try XCTUnwrap(events.first) else {
@@ -55,10 +53,13 @@ extension AgentCLIKitEventMapperTests {
         }
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(name, "Agent")
-        XCTAssertEqual(try Self.jsonObject(from: input)["codex_collab_tool"] as? String, "spawnAgent")
+        let json = try Self.jsonObject(from: input)
+        XCTAssertEqual(json["agent_subagent_event"] as? Bool, true)
+        XCTAssertEqual(json["description"] as? String, "Inspect scripts")
+        XCTAssertEqual(json["subagent_type"] as? String, "general-purpose")
     }
 
-    func testDoesNotMapNonCodexSpawnAgentTaskToCodexAgentToolCall() {
+    func testCodexCollaborationTaskNoLongerMapsThroughCodexSpecificHelper() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
             id: "spawn-1",
             phase: .started,
@@ -66,13 +67,24 @@ extension AgentCLIKitEventMapperTests {
             taskType: "collabAgentToolCall",
             lastToolName: "spawnAgent",
             metadata: ["codex_collab_tool": .string("spawnAgent")]
+        )), providerId: .codex))
+
+        XCTAssertTrue(events.isEmpty)
+    }
+
+    func testNonCodexTaskStillMapsThroughLegacySubAgentFallback() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
+            id: "agent-1",
+            phase: .started,
+            description: "Review the diff",
+            taskType: "external_subagent"
         ))))
 
         XCTAssertEqual(events, [
             .subAgentStarted(
-                toolUseId: "spawn-1",
+                toolUseId: "agent-1",
                 description: "Review the diff",
-                taskType: "collabAgentToolCall"
+                taskType: "external_subagent"
             )
         ])
     }
@@ -106,19 +118,17 @@ extension AgentCLIKitEventMapperTests {
         XCTAssertTrue(closeEvents.isEmpty)
     }
 
-    func testMapsCodexSpawnAgentCompletionToHiddenSubAgentCompletionOnly() {
+    func testMapsTypedSubAgentTerminalToHiddenSubAgentCompletionAndResult() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
-            .task(AgentTaskEvent(
+            .subAgent(AgentSubAgentEvent(
                 id: "spawn-1",
-                phase: .completed,
+                phase: .terminal,
                 description: "Review the diff",
-                taskType: "collabAgentToolCall",
-                lastToolName: "spawnAgent",
+                status: "completed",
+                result: "All done",
                 toolUses: 2,
                 totalTokens: 300,
-                durationMs: 400,
-                status: "completed",
-                metadata: ["codex_collab_tool": .string("spawnAgent")]
+                durationMs: 400
             )),
             providerId: .codex
         ))
@@ -130,6 +140,18 @@ extension AgentCLIKitEventMapperTests {
                 toolUses: 2,
                 totalTokens: 300,
                 durationMs: 400
+            ),
+            .toolResult(
+                id: "spawn-1",
+                output: "All done",
+                isError: false,
+                parentToolUseId: nil,
+                metadata: ToolResultMetadata(
+                    stderr: nil,
+                    interrupted: false,
+                    isImage: false,
+                    noOutputExpected: false
+                )
             )
         ])
     }

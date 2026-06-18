@@ -47,7 +47,7 @@ private extension ConversationViewModel {
 
         case .toolCall(_, let name, _, _, _):
             clearApprovedExitPlanModeApprovalAfterImplementationToolCall(toolName: name)
-            return !persistCodexSubAgentStartIfNeeded(for: event)
+            return !persistSubAgentStartIfNeeded(for: event)
         case .toolResult(let id, _, let isError, _, _):
             clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: id, isError: isError)
             return true

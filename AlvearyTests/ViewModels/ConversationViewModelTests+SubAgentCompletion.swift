@@ -6,9 +6,9 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testCodexSubAgentStartPersistsDeterministicAgentToolCallOnce() throws {
+    func testSubAgentStartPersistsDeterministicAgentToolCallOnce() throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
-        let startEvent = codexSubAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
+        let startEvent = subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
 
         fixture.viewModel.handleEvent(startEvent)
         fixture.viewModel.handleEvent(startEvent)
@@ -20,11 +20,11 @@ extension ConversationViewModelTests {
         let record = try XCTUnwrap(records.first)
         XCTAssertEqual(
             record.id,
-            ConversationViewModel.codexSubAgentStartRecordId(conversationId: fixture.conversation.id, toolUseId: "spawn-1")
+            ConversationViewModel.subAgentStartRecordId(conversationId: fixture.conversation.id, toolUseId: "spawn-1")
         )
         XCTAssertEqual(record.toolId, "spawn-1")
         XCTAssertEqual(record.toolName, "Agent")
-        XCTAssertEqual(record.toolInput, codexSubAgentInput(description: "Review the diff"))
+        XCTAssertEqual(record.toolInput, subAgentInput(description: "Review the diff"))
 
         let agents = subAgents(in: fixture.viewModel.state.grouper)
         XCTAssertEqual(agents.count, 1)
@@ -33,10 +33,32 @@ extension ConversationViewModelTests {
         XCTAssertEqual(agents.first?.description, "Review the diff")
     }
 
-    func testDuplicateCodexSubAgentStartAndCompletionStillAdvanceRuntimeCursor() async throws {
+    func testLegacyCodexSubAgentStartRecordSuppressesMigratedDuplicate() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let legacyRecord = ConversationEventRecord(
+            id: ConversationViewModel.codexSubAgentStartRecordId(conversationId: fixture.conversation.id, toolUseId: "spawn-1"),
+            conversationId: fixture.conversation.id,
+            type: "tool_call",
+            toolId: "spawn-1",
+            toolName: "Agent",
+            toolInput: legacyCodexSubAgentInput(description: "Review the diff"),
+            conversation: fixture.conversation
+        )
+        fixture.context.insert(legacyRecord)
+
+        fixture.viewModel.handleEvent(subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff"))
+
+        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == "tool_call"
+        }
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records.first?.id, legacyRecord.id)
+    }
+
+    func testDuplicateSubAgentStartAndCompletionStillAdvanceRuntimeCursor() async throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
         let generation = UUID()
-        let startEvent = codexSubAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
+        let startEvent = subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff")
         let completionEvent = ConversationEvent.subAgentCompleted(
             toolUseId: "spawn-1",
             status: "completed",
@@ -71,10 +93,10 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.records(type: ConversationEventRecord.subAgentCompletedType).count, 1)
     }
 
-    func testCodexSubAgentStartAndCompletionRebuildVisibleSubAgentBlock() throws {
+    func testSubAgentStartAndCompletionRebuildVisibleSubAgentBlock() throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
 
-        fixture.viewModel.handleEvent(codexSubAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff"))
+        fixture.viewModel.handleEvent(subAgentStartEvent(toolUseId: "spawn-1", description: "Review the diff"))
         fixture.viewModel.handleEvent(.subAgentCompleted(
             toolUseId: "spawn-1",
             status: "completed",
@@ -131,17 +153,23 @@ extension ConversationViewModelTests {
         XCTAssertEqual(payload.totalTokens, 300)
     }
 
-    private func codexSubAgentStartEvent(toolUseId: String, description: String) -> ConversationEvent {
+    private func subAgentStartEvent(toolUseId: String, description: String) -> ConversationEvent {
         .toolCall(
             id: toolUseId,
             name: "Agent",
-            input: codexSubAgentInput(description: description),
+            input: subAgentInput(description: description),
             parentToolUseId: nil,
             callerAgent: nil
         )
     }
 
-    private func codexSubAgentInput(description: String) -> String {
+    private func subAgentInput(description: String) -> String {
+        """
+        {"agent_subagent_event":true,"codex_collab_tool":"spawnAgent","description":"\(description)","subagent_type":"codex"}
+        """
+    }
+
+    private func legacyCodexSubAgentInput(description: String) -> String {
         """
         {"codex_collab_tool":"spawnAgent","description":"\(description)","subagent_type":"codex"}
         """

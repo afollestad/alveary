@@ -15,6 +15,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return toolCallEvents(from: event)
         case .toolResult(let event):
             return toolResultEvents(from: event)
+        case .subAgent(let event):
+            return subAgentEvents(from: event)
         case .usage(let event):
             return usageEvents(from: event)
         case .permissionMode(let event):
@@ -168,7 +170,7 @@ struct AgentCLIKitEventMapper: Sendable {
             return []
         }
         if isCodexCollaborationTask(event, envelope: envelope) {
-            return codexCollaborationTaskEvents(from: event)
+            return []
         }
 
         switch event.phase {
@@ -228,7 +230,7 @@ struct AgentCLIKitEventMapper: Sendable {
         }
     }
 
-    private func isFailedTaskStatus(_ status: String?) -> Bool {
+    func isFailedTaskStatus(_ status: String?) -> Bool {
         switch normalizedTaskStatus(status) {
         case "failed", "error":
             return true
@@ -237,7 +239,7 @@ struct AgentCLIKitEventMapper: Sendable {
         }
     }
 
-    private func isInterruptedTaskStatus(_ status: String?) -> Bool {
+    func isInterruptedTaskStatus(_ status: String?) -> Bool {
         switch normalizedTaskStatus(status) {
         case "cancelled", "canceled", "interrupted":
             return true
@@ -246,11 +248,11 @@ struct AgentCLIKitEventMapper: Sendable {
         }
     }
 
-    private func normalizedTaskStatus(_ status: String?) -> String? {
+    func normalizedTaskStatus(_ status: String?) -> String? {
         status?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private func terminalTaskResultMetadata(status: String?) -> ToolResultMetadata {
+    func terminalTaskResultMetadata(status: String?) -> ToolResultMetadata {
         ToolResultMetadata(
             stderr: nil,
             interrupted: isInterruptedTaskStatus(status),
@@ -401,7 +403,7 @@ struct AgentCLIKitEventMapper: Sendable {
         return [.sessionInit(sessionId: sessionId)]
     }
 
-    private static func serialized(_ value: AgentCLIKit.JSONValue) -> String {
+    static func serialized(_ value: AgentCLIKit.JSONValue) -> String {
         guard let data = try? JSONEncoder().encode(value),
               let string = String(data: data, encoding: .utf8) else {
             return "{}"
@@ -416,57 +418,6 @@ private extension AgentCLIKitEventMapper {
         envelope: AgentCLIKit.AgentEventEnvelope
     ) -> Bool {
         envelope.providerId == .codex && event.taskType == "collabAgentToolCall"
-    }
-
-    func codexCollaborationTaskEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {
-        guard isCodexSpawnAgentTool(event) else {
-            return []
-        }
-
-        switch event.phase {
-        case .started:
-            return [.toolCall(
-                id: event.id,
-                name: "Agent",
-                input: codexSpawnAgentToolInput(from: event),
-                parentToolUseId: nil,
-                callerAgent: nil
-            )]
-        case .notification where isTerminalTaskStatus(event.status),
-             .completed:
-            return completedSubAgentEvents(from: event)
-        case .progress,
-             .notification:
-            return []
-        }
-    }
-
-    func isCodexSpawnAgentTool(_ event: AgentCLIKit.AgentTaskEvent) -> Bool {
-        guard let tool = event.metadata.stringValue("codex_collab_tool") ?? event.lastToolName else {
-            return false
-        }
-        return normalizedCodexCollaborationTool(tool) == "spawnagent"
-    }
-
-    func normalizedCodexCollaborationTool(_ tool: String) -> String {
-        tool
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "_", with: "")
-            .lowercased()
-    }
-
-    func codexSpawnAgentToolInput(from event: AgentCLIKit.AgentTaskEvent) -> String {
-        let prompt = event.metadata.stringValue("prompt")
-        let description = event.description ?? prompt ?? "Codex sub-agent"
-        var input: [String: AgentCLIKit.JSONValue] = [
-            "codex_collab_tool": .string("spawnAgent"),
-            "description": .string(description),
-            "subagent_type": .string("codex")
-        ]
-        if let prompt {
-            input["prompt"] = .string(prompt)
-        }
-        return Self.serialized(.object(input))
     }
 }
 

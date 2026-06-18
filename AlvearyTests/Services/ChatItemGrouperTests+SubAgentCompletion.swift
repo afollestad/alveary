@@ -93,6 +93,39 @@ extension ChatItemGrouperTests {
         XCTAssertFalse(tool?.noOutputExpected == true)
     }
 
+    func testDuplicateAgentToolCallAfterCompletionPatchesRenderedSubAgentWithoutPendingDrift() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: agentCall(
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Original review",
+            agentType: "codex"
+        ))
+        grouper.append(event: subAgentCompletionMarker(
+            conversationId: conversationId,
+            toolId: "agent-1",
+            status: "completed"
+        ))
+        grouper.append(event: agentCall(
+            conversationId: conversationId,
+            toolId: "agent-1",
+            description: "Updated review",
+            agentType: "codex"
+        ))
+
+        let agents = subAgents(in: grouper)
+        XCTAssertEqual(agents.count, 1)
+        XCTAssertEqual(agents.first?.id, "agent-1")
+        XCTAssertEqual(agents.first?.description, "Updated review")
+        XCTAssertEqual(agents.first?.agentType, "codex")
+        XCTAssertTrue(agents.first?.isComplete == true)
+        XCTAssertTrue(grouper.pendingSubAgentIds.isEmpty)
+        XCTAssertTrue(grouper.activeSubAgents.isEmpty)
+        XCTAssertEqual(grouper.processedCount, 3)
+    }
+
     private func visibleTool(in grouper: ChatItemGrouper, id: String) -> ToolEntry? {
         for item in grouper.items.reversed() {
             switch item {
@@ -130,6 +163,22 @@ extension ChatItemGrouperTests {
         )
     }
 
+    private func agentCall(
+        conversationId: String,
+        toolId: String,
+        description: String,
+        agentType: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: "\(toolId)-agent-call-\(description)",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: toolId,
+            toolName: "Agent",
+            toolInput: #"{"agent_subagent_event":true,"description":"\#(description)","subagent_type":"\#(agentType)"}"#
+        )
+    }
+
     private func subAgentCompletionMarker(
         conversationId: String,
         toolId: String,
@@ -145,5 +194,14 @@ extension ChatItemGrouperTests {
             toolId: toolId,
             durationMs: 200
         )
+    }
+
+    private func subAgents(in grouper: ChatItemGrouper) -> [SubAgentEntry] {
+        grouper.items.compactMap { item -> [SubAgentEntry]? in
+            guard case .subAgentBlock(_, let agents) = item else {
+                return nil
+            }
+            return agents
+        }.flatMap { $0 }
     }
 }
