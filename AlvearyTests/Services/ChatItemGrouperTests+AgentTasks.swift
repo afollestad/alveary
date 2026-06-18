@@ -4,6 +4,54 @@ import XCTest
 
 @MainActor
 extension ChatItemGrouperTests {
+    func testTaskListSnapshotRecordRendersTaskListBlock() throws {
+        let grouper = ChatItemGrouper()
+        let record = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [
+                ConversationTaskListItem(id: "task-1", content: "Inspect", status: .completed),
+                ConversationTaskListItem(
+                    id: "task-2",
+                    content: "Implement",
+                    activeForm: "Implementing",
+                    status: .inProgress
+                ),
+                ConversationTaskListItem(id: "task-3", content: "Verify", status: .pending)
+            ]
+        )
+
+        grouper.update(events: [record])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        let taskBlock = try XCTUnwrap(firstTaskListBlock(in: grouper.items))
+        XCTAssertEqual(taskBlock.id, "tasks-codex-plan-turn-1")
+        XCTAssertEqual(taskBlock.tasks, [
+            TaskEntry(id: "task-1", content: "Inspect", activeForm: nil, status: .completed),
+            TaskEntry(id: "task-2", content: "Implement", activeForm: "Implementing", status: .inProgress),
+            TaskEntry(id: "task-3", content: "Verify", activeForm: nil, status: .pending)
+        ])
+    }
+
+    func testTaskListSnapshotRecordReplacesSameId() throws {
+        let grouper = ChatItemGrouper()
+        let firstRecord = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [ConversationTaskListItem(id: "task-1", content: "Inspect", status: .inProgress)]
+        )
+        let secondRecord = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [ConversationTaskListItem(id: "task-1", content: "Inspect", status: .completed)]
+        )
+
+        grouper.update(events: [firstRecord, secondRecord])
+
+        let taskBlocks = taskListBlocks(in: grouper.items)
+        XCTAssertEqual(taskBlocks.count, 1)
+        XCTAssertEqual(taskBlocks.first, [
+            TaskEntry(id: "task-1", content: "Inspect", activeForm: nil, status: .completed)
+        ])
+    }
+
     func testClaudeTaskToolsRebuildAsSingleTaskListBlock() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
@@ -272,5 +320,25 @@ extension ChatItemGrouperTests {
             }
             return tasks
         }
+    }
+
+    private func firstTaskListBlock(in items: [ChatItem]) -> (id: String, tasks: [TaskEntry])? {
+        for item in items {
+            guard case .taskListBlock(let id, let tasks) = item else {
+                continue
+            }
+            return (id, tasks)
+        }
+        return nil
+    }
+
+    private func taskListSnapshotRecord(
+        id: String,
+        items: [ConversationTaskListItem]
+    ) throws -> ConversationEventRecord {
+        let conversation = Conversation(provider: "codex")
+        return try XCTUnwrap(ConversationEvent.taskListSnapshot(
+            ConversationTaskListSnapshot(id: id, items: items)
+        ).toRecord(conversation: conversation))
     }
 }

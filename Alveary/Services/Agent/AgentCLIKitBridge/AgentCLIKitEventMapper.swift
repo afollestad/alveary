@@ -22,7 +22,7 @@ struct AgentCLIKitEventMapper: Sendable {
         case .collaborationMode(let event):
             return [.collaborationModeChanged(event.mode == .plan)]
         case .task(let event):
-            return taskEvents(from: event)
+            return taskEvents(from: event, envelope: envelope)
         case .contextCompaction(let event):
             return contextCompactionEvents(from: event)
         case .sessionMetadata(let event):
@@ -132,7 +132,17 @@ struct AgentCLIKitEventMapper: Sendable {
         return true
     }
 
-    private func taskEvents(from event: AgentCLIKit.AgentTaskEvent) -> [ConversationEvent] {
+    private func taskEvents(
+        from event: AgentCLIKit.AgentTaskEvent,
+        envelope: AgentCLIKit.AgentEventEnvelope
+    ) -> [ConversationEvent] {
+        if let taskListSnapshotEvent = taskListSnapshotEvent(from: envelope) {
+            return [taskListSnapshotEvent]
+        }
+        if isNonDurablePlanDelta(event) {
+            return []
+        }
+
         switch event.phase {
         case .started:
             return [.subAgentStarted(

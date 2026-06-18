@@ -17,6 +17,8 @@ extension ChatItemGrouper {
             handleToolResult(event)
         case ConversationEventRecord.subAgentCompletedType:
             handleSubAgentCompletedMarker(event)
+        case ConversationEventRecord.taskListType:
+            handleTaskListSnapshot(event)
         case "tool_approval":
             handleToolApproval(event)
         case "error":

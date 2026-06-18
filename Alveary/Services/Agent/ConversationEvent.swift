@@ -114,6 +114,7 @@ enum ConversationEvent: Sendable, Equatable {
     case subAgentStarted(toolUseId: String, description: String, taskType: String?)
     case subAgentProgress(toolUseId: String, description: String?, lastToolName: String?, toolUses: Int, totalTokens: Int, durationMs: Int)
     case subAgentCompleted(toolUseId: String, status: String, toolUses: Int, totalTokens: Int, durationMs: Int)
+    case taskListSnapshot(ConversationTaskListSnapshot)
     case contextCompactionStarted(id: String, trigger: String?)
     case contextCompactionCompleted(id: String, summary: String?)
     case contextCompactionFailed(id: String, error: String?)
@@ -145,6 +146,8 @@ enum ConversationEvent: Sendable, Equatable {
             return toolApprovalRecord(conversation: conversation)
         case .toolApprovalFailed:
             return toolApprovalFailureRecord(conversation: conversation)
+        case .taskListSnapshot:
+            return taskListSnapshotRecord(conversation: conversation)
         case .notification:
             return notificationRecord(conversation: conversation)
         case .stop:

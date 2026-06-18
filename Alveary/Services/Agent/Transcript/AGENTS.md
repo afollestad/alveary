@@ -21,6 +21,7 @@ These instructions cover transcript grouping under `Alveary/Services/Agent/Trans
     - **Pin only the latest incomplete list.** Once a newer task list arrives, older lists stay in transcript history behind it. If the latest task list is complete, later rows append below it in normal transcript order.
 - AgentCLIKit task-list tools:
     - **Use `AgentTaskListReducer`.** `TaskCreate`, `TaskUpdate`, `TaskList`, and `TaskGet` are provider task tools; do not parse their Claude wire shape locally in transcript grouping.
+    - **Render provider snapshots from records.** Full provider task-list snapshots should arrive as persisted `task_list` records and reuse the same `.taskListBlock` replacement/pinning helpers.
     - **Restore from persisted rows.** Rebuild reducer input from saved tool-call/tool-result records so existing conversations render as one updating `.taskListBlock`.
     - **Hide task-only discovery.** Suppress `ToolSearch(select:TaskCreate,TaskUpdate,TaskList,TaskGet)` rows, but keep mixed or unrelated `ToolSearch` rows visible.
 - `AskUserQuestion` prompt blocks:

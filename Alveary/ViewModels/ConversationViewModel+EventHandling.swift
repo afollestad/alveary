@@ -146,6 +146,7 @@ private extension ConversationViewModel {
              .toolResult,
              .toolApprovalRequested,
              .toolApprovalFailed,
+             .taskListSnapshot,
              .tokens,
              .stop,
              .runtimeActivity:

@@ -4,6 +4,44 @@ import XCTest
 
 @MainActor
 final class ConversationEventTests: XCTestCase {
+    func testTaskListSnapshotToRecordPersistsJSONPayload() throws {
+        let conversation = Conversation(provider: "codex")
+        let snapshot = ConversationTaskListSnapshot(
+            id: "tasks-codex-plan-turn-1",
+            items: [
+                ConversationTaskListItem(id: "task-1", content: "Inspect", status: .completed),
+                ConversationTaskListItem(
+                    id: "task-2",
+                    content: "Implement",
+                    activeForm: "Implementing",
+                    status: .inProgress
+                )
+            ]
+        )
+        let record = try XCTUnwrap(ConversationEvent.taskListSnapshot(snapshot).toRecord(conversation: conversation))
+
+        XCTAssertEqual(record.type, ConversationEventRecord.taskListType)
+        XCTAssertEqual(record.conversationId, conversation.id)
+        XCTAssertEqual(record.conversation?.id, conversation.id)
+
+        let decoded = try XCTUnwrap(ConversationTaskListSnapshot.decoded(from: record))
+        XCTAssertEqual(decoded, snapshot)
+
+        let legacyPayload = """
+        {
+          "id": "tasks-legacy",
+          "items": [
+            { "id": "task-1", "content": "Legacy in progress", "status": "inProgress" },
+            { "id": "task-2", "content": "Unknown status", "status": "blocked" },
+            { "id": "task-3", "content": "Missing status" }
+          ]
+        }
+        """
+        let legacyData = try XCTUnwrap(legacyPayload.data(using: .utf8))
+        let legacySnapshot = try JSONDecoder().decode(ConversationTaskListSnapshot.self, from: legacyData)
+        XCTAssertEqual(legacySnapshot.items.map(\.status), [.inProgress, .pending, .pending])
+    }
+
     func testToolResultToRecordPersistsMetadataAndConversationLink() throws {
         let conversation = Conversation(provider: "claude")
         let event = ConversationEvent.toolResult(

@@ -534,6 +534,29 @@ extension ConversationViewModelTests {
         XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
+    func testLateTaskListSnapshotIsSuppressedAfterInterruptedTurn() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(.stop(message: ConversationInterruption.displayMessage))
+        fixture.viewModel.handleEvent(.taskListSnapshot(ConversationTaskListSnapshot(
+            id: "tasks-codex-plan-turn-1",
+            items: [ConversationTaskListItem(id: "task-1", content: "Inspect", status: .inProgress)]
+        )))
+
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 1)
+        guard case .centeredNote(_, .interrupted) = fixture.viewModel.state.grouper.items.first else {
+            return XCTFail("Expected only the interrupted transcript note")
+        }
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.conversationId == fixture.conversation.id
+        }
+        XCTAssertEqual(persistedEvents.map(\.type), ["stop"])
+    }
+
     func testCancellationDoesNotMaskRealTurnFailures() throws {
         let fixture = try ConversationViewModelTestFixture()
 

@@ -88,7 +88,23 @@ extension ChatItemGrouper {
         return true
     }
 
+    func handleTaskListSnapshot(_ event: ConversationEventRecord) {
+        guard let snapshot = ConversationTaskListSnapshot.decoded(from: event) else {
+            return
+        }
+        renderTaskListSnapshot(snapshot)
+    }
+
     func renderAgentTaskListSnapshot(_ snapshot: AgentTaskListSnapshot) {
+        flushGroup()
+        currentTasks = snapshot.items.map(\.taskEntry)
+        if replaceMatchingTaskListBlock(id: snapshot.id, tasks: currentTasks) {
+            return
+        }
+        appendTranscriptItem(.taskListBlock(id: snapshot.id, tasks: currentTasks))
+    }
+
+    func renderTaskListSnapshot(_ snapshot: ConversationTaskListSnapshot) {
         flushGroup()
         currentTasks = snapshot.items.map(\.taskEntry)
         if replaceMatchingTaskListBlock(id: snapshot.id, tasks: currentTasks) {
@@ -153,7 +169,31 @@ private extension AgentTaskListItem {
     }
 }
 
+private extension ConversationTaskListItem {
+    var taskEntry: TaskEntry {
+        TaskEntry(
+            id: id,
+            content: content,
+            activeForm: activeForm,
+            status: status.taskEntryStatus
+        )
+    }
+}
+
 private extension AgentTaskListItem.Status {
+    var taskEntryStatus: TaskEntry.Status {
+        switch self {
+        case .pending:
+            return .pending
+        case .inProgress:
+            return .inProgress
+        case .completed:
+            return .completed
+        }
+    }
+}
+
+private extension ConversationTaskListStatus {
     var taskEntryStatus: TaskEntry.Status {
         switch self {
         case .pending:

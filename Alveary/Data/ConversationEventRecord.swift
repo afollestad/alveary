@@ -5,6 +5,7 @@ import SwiftData
 final class ConversationEventRecord {
     static let contextWindowInvalidatedType = "context_window_invalidated"
     static let subAgentCompletedType = "sub_agent_completed"
+    static let taskListType = "task_list"
 
     #Index<ConversationEventRecord>([\.conversationId, \.timestamp])
 
