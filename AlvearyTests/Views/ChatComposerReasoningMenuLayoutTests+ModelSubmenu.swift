@@ -33,6 +33,28 @@ extension ChatComposerReasoningMenuLayoutTests {
             accuracy: 1
         )
     }
+
+    func testReasoningModelSubmenuContentFrameCompensatesForPopoverHostTopInset() throws {
+        let controller = makeGroupedReasoningModelMenu()
+        controller.loadViewIfNeeded()
+        let contentSize = controller.preferredContentSize
+        let host = NSView(frame: NSRect(
+            x: 0,
+            y: 0,
+            width: contentSize.width,
+            height: contentSize.height + ComposerReasoningMenuMetrics.verticalInset
+        ))
+        host.addSubview(controller.view)
+
+        controller.alignContentViewToPopoverHost()
+
+        let scrollView = try XCTUnwrap(controller.view.modelSubmenuDescendants(of: NSScrollView.self).first)
+        let header = try XCTUnwrap(controller.view.modelSubmenuDescendants(of: ComposerReasoningHeaderView.self).first)
+        XCTAssertEqual(controller.view.frame.origin.y, 0, accuracy: 1)
+        XCTAssertEqual(controller.view.frame.maxY, contentSize.height, accuracy: 1)
+        XCTAssertEqual(scrollView.frame, controller.view.bounds)
+        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
+    }
 }
 
 @MainActor

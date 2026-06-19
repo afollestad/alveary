@@ -261,7 +261,7 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertEqual(listPRCallCount, 0)
     }
 
-    func testSelectFileCancelsSupersededDiffLoad() async {
+    func testSelectFileCancelsSupersededDiffLoad() async throws {
         let slowFile = FileStatus(path: "slow.swift", originalPath: nil, status: .modified, isStaged: false)
         let fastFile = FileStatus(path: "fast.swift", originalPath: nil, status: .modified, isStaged: false)
         let fixture = DiffViewerTestFixture(
@@ -282,6 +282,9 @@ final class DiffViewerViewModelTests: XCTestCase {
 
         let slowSelectionTask = Task {
             await fixture.viewModel.selectFile(slowFile, in: fixture.directory)
+        }
+        try await waitUntil("expected slow diff load to start") {
+            fixture.viewModel.selectedFile?.path == "slow.swift" && fixture.viewModel.isSelectedDiffPending
         }
         await fixture.diffStore.waitForLoadingIndicatorsForTesting()
 

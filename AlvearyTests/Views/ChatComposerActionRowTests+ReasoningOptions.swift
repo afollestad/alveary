@@ -122,52 +122,6 @@ extension ChatComposerActionRowTests {
         XCTAssertEqual(row.reasoningMenuController?.view.frame.size, popover.contentSize)
     }
 
-    func testOpenReasoningModelSubmenuContentTopAlignsToPopoverHost() throws {
-        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 720, height: 30))
-        row.configure(makeConfiguration(
-            mode: .idle,
-            providerOptions: [
-                .init(value: "claude", title: "Claude"),
-                .init(value: "codex", title: "Codex")
-            ],
-            modelOptions: [
-                .init(value: "sonnet", title: "Sonnet"),
-                .init(value: "opus", title: "Opus"),
-                .init(value: "haiku", title: "Haiku")
-            ]
-        ))
-        let window = NSWindow(contentRect: row.frame, styleMask: .borderless, backing: .buffered, defer: false)
-        window.contentView = row
-        window.orderFrontRegardless()
-        row.layoutSubtreeIfNeeded()
-        defer {
-            row.closeReasoningMenu()
-            window.close()
-        }
-
-        row.toggleReasoningMenu()
-        let controller = try XCTUnwrap(row.reasoningMenuController)
-        controller.view.layoutSubtreeIfNeeded()
-        let modelRow = try XCTUnwrap(controller.view.subviews.compactMap { $0 as? ComposerReasoningMenuRowView }.first {
-            $0.accessibilityLabel() == "Model"
-        })
-
-        XCTAssertTrue(modelRow.accessibilityPerformPress())
-        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-
-        let modelSurface = try XCTUnwrap(NSApp.windows.compactMap(\.contentView).flatMap {
-            var surfaces = $0.descendants(of: AppKitComposerPopoverSurfaceView.self)
-            if let surface = $0 as? AppKitComposerPopoverSurfaceView {
-                surfaces.insert(surface, at: 0)
-            }
-            return surfaces
-        }.first { !$0.descendants(of: NSScrollView.self).isEmpty })
-        let scrollView = try XCTUnwrap(modelSurface.descendants(of: NSScrollView.self).first)
-        XCTAssertEqual(scrollView.frame, modelSurface.bounds)
-        let header = try XCTUnwrap(scrollView.documentView?.subviews.compactMap { $0 as? ComposerReasoningHeaderView }.first)
-        XCTAssertEqual(header.frame.minY, ComposerReasoningMenuMetrics.verticalInset, accuracy: 1)
-    }
-
     func testReasoningModelSubmenuSourceRectTopAlignsTallContent() throws {
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(

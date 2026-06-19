@@ -5,7 +5,8 @@ These instructions apply to files under `AlvearyTests/`.
 - Run the smallest relevant test scope you can, typically with `./scripts/test.sh <focused identifier>`.
 - When updating UI, verify whether snapshot tests need to be updated and run the relevant snapshot checks before finishing.
 - Do not assert exact SPM dependency revisions in tests; dependency pins are configuration, and regressions should be covered by behavior-focused tests.
-- **Never resize a shown `NSPopover` in a test on macOS 26.** It schedules an `_NSWindowTransformAnimation` even with `animates == false`; AppKit over-releases it after the popover window dies and crashes whichever later test pumps the run loop. `xcodebuild` silently relaunches the crashed host and can still report success, so verify suspicious runs by checking for new `Alveary-*.ips` files in `~/Library/Logs/DiagnosticReports`. Test the not-shown contentSize path instead, or skip on macOS 26 like `testOpenReasoningPopoverContentSizeTracksConfigurationChanges`.
+- AppKit animation assertions must honor `NSWorkspace.shared.accessibilityDisplayShouldReduceMotion`; CI can disable animations even when local runs keep them enabled.
+- **Avoid live `NSPopover` host tests on macOS 26.** Resizing a shown popover or opening nested shown popovers can schedule `_NSWindowTransformAnimation`; AppKit over-releases it after the popover window dies and crashes whichever later test pumps the run loop. `xcodebuild` silently relaunches the crashed host and can still report success, so verify suspicious runs by checking for new `Alveary-*.ips` files in `~/Library/Logs/DiagnosticReports`. Prefer not-shown content/frame tests over OS-skipped live-popover coverage.
 
 ## Test File Organization
 

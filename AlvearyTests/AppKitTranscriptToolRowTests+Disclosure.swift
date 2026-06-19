@@ -34,9 +34,11 @@ extension AppKitTranscriptToolRowTests {
         header.setDisclosureHoveredForTesting(false, animated: true)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
         XCTAssertEqual(statusView.statusSymbolRotationForTesting, 0)
-        let fadeOutAnimation = try XCTUnwrap(statusView.statusSymbolFadeOutAnimationForTesting)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(fadeOutAnimation.fromValue)), 1, accuracy: 0.001)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(fadeOutAnimation.toValue)), 0, accuracy: 0.001)
+        try assertBasicAnimation(
+            statusView.statusSymbolFadeOutAnimationForTesting,
+            from: 1,
+            to: 0
+        )
     }
 
     func testExpandedHeaderKeepsDisclosureVisibleAfterHoverExitAndRotatesOnPress() throws {
@@ -64,34 +66,32 @@ extension AppKitTranscriptToolRowTests {
         header.setDisclosureHoveredForTesting(true)
         header.layoutSubtreeIfNeeded()
         let collapsedPosition = try XCTUnwrap(statusView.statusSymbolLayerPositionForTesting)
-        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolRotationForTesting, 0)
+        try assertDisclosureSymbol(statusView, rotation: 0)
 
         statusView.performDisclosurePressForTesting()
         XCTAssertTrue(isExpanded)
         XCTAssertEqual(header.accessibilityValue() as? String, "expanded")
-        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolRotationForTesting, -.pi / 2)
-        XCTAssertEqual(try XCTUnwrap(statusView.statusSymbolLayerPositionForTesting), collapsedPosition)
-        let expandAnimation = try XCTUnwrap(statusView.statusSymbolRotationAnimationForTesting)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(expandAnimation.fromValue)), 0, accuracy: 0.001)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(expandAnimation.toValue)), -.pi / 2, accuracy: 0.001)
+        try assertDisclosureSymbol(statusView, rotation: -.pi / 2, position: collapsedPosition)
+        try assertBasicAnimation(
+            statusView.statusSymbolRotationAnimationForTesting,
+            from: 0,
+            to: -.pi / 2
+        )
 
         header.setDisclosureHoveredForTesting(false, animated: true)
-        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolRotationForTesting, -.pi / 2)
+        try assertDisclosureSymbol(statusView, rotation: -.pi / 2)
         XCTAssertNil(statusView.statusSymbolFadeOutAnimationForTesting)
 
         header.setDisclosureHoveredForTesting(true)
         statusView.performDisclosurePressForTesting()
         XCTAssertFalse(isExpanded)
         XCTAssertEqual(header.accessibilityValue() as? String, "collapsed")
-        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
-        XCTAssertEqual(statusView.statusSymbolRotationForTesting, 0)
-        XCTAssertEqual(try XCTUnwrap(statusView.statusSymbolLayerPositionForTesting), collapsedPosition)
-        let collapseAnimation = try XCTUnwrap(statusView.statusSymbolRotationAnimationForTesting)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(collapseAnimation.fromValue)), -.pi / 2, accuracy: 0.001)
-        XCTAssertEqual(try XCTUnwrap(animationCGFloatValue(collapseAnimation.toValue)), 0, accuracy: 0.001)
+        try assertDisclosureSymbol(statusView, rotation: 0, position: collapsedPosition)
+        try assertBasicAnimation(
+            statusView.statusSymbolRotationAnimationForTesting,
+            from: -.pi / 2,
+            to: 0
+        )
     }
 }
 
@@ -105,6 +105,55 @@ private extension NSView {
             return matches
         }
     }
+}
+
+@MainActor
+private func assertDisclosureSymbol(
+    _ statusView: AppKitTranscriptToolStatusIndicatorView,
+    rotation expectedRotation: CGFloat,
+    position expectedPosition: CGPoint? = nil,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws {
+    XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right", file: file, line: line)
+    XCTAssertEqual(statusView.statusSymbolRotationForTesting, expectedRotation, file: file, line: line)
+    if let expectedPosition {
+        XCTAssertEqual(
+            try XCTUnwrap(statusView.statusSymbolLayerPositionForTesting, file: file, line: line),
+            expectedPosition,
+            file: file,
+            line: line
+        )
+    }
+}
+
+private func assertBasicAnimation(
+    _ animation: CABasicAnimation?,
+    from expectedFromValue: CGFloat,
+    to expectedToValue: CGFloat,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws {
+    if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        XCTAssertNil(animation, file: file, line: line)
+        return
+    }
+
+    let animation = try XCTUnwrap(animation, file: file, line: line)
+    XCTAssertEqual(
+        try XCTUnwrap(animationCGFloatValue(animation.fromValue), file: file, line: line),
+        expectedFromValue,
+        accuracy: 0.001,
+        file: file,
+        line: line
+    )
+    XCTAssertEqual(
+        try XCTUnwrap(animationCGFloatValue(animation.toValue), file: file, line: line),
+        expectedToValue,
+        accuracy: 0.001,
+        file: file,
+        line: line
+    )
 }
 
 private func animationCGFloatValue(_ value: Any?) -> CGFloat? {
