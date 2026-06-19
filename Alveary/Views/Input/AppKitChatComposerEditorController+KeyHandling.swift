@@ -10,11 +10,16 @@ extension AppKitChatComposerEditorController {
             performSubmit(configuration: configuration)
             return
         }
-        switch presentation(for: configuration).busyReturnAction(usesAlternateBehavior: usesAlternateBehavior) {
+        let presentation = presentation(for: configuration)
+        switch presentation.busyReturnAction(usesAlternateBehavior: usesAlternateBehavior) {
         case .submit:
             performSubmit(configuration: configuration)
         case .steer:
-            performSteer(configuration: configuration)
+            if presentation.canUseAlternateSteer(usesAlternateBehavior: usesAlternateBehavior) {
+                configuration.onAlternateSteer()
+            } else {
+                performSteer(configuration: configuration)
+            }
         }
     }
 

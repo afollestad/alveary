@@ -137,9 +137,9 @@ struct ComposerPresentation: Equatable, Sendable {
             if canStop, supportsMidTurnSteering, canSteerCurrentTurn {
                 switch defaultEnterBehavior {
                 case .queue:
-                    return "Enter to queue for the next turn, or Option+Enter to steer..."
+                    return "Enter to queue for the next turn, or Cmd+Enter to steer..."
                 case .steer:
-                    return "Enter to steer the current turn, or Option+Enter to queue..."
+                    return "Enter to steer the current turn, or Cmd+Enter to queue..."
                 }
             }
             return "Type a message to queue for the next turn..."
@@ -170,5 +170,14 @@ struct ComposerPresentation: Equatable, Sendable {
         case (.steer, false), (.queue, true):
             return .steer
         }
+    }
+
+    func canUseAlternateSteer(usesAlternateBehavior: Bool) -> Bool {
+        // The live draft is only authoritative after `ChatView` flushes the editor,
+        // so text emptiness is intentionally not part of this routing gate.
+        !isProjectTrustBlocked &&
+            defaultEnterBehavior == .queue &&
+            usesAlternateBehavior &&
+            busyReturnAction(usesAlternateBehavior: usesAlternateBehavior) == .steer
     }
 }

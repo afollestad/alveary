@@ -129,6 +129,13 @@ extension ConversationViewModel {
             throw error
         }
     }
+
+    func steerNextQueuedMessage() async throws {
+        guard let next = state.messageQueue.peekNext() else {
+            return
+        }
+        try await steerQueuedMessage(id: next.id)
+    }
 }
 
 extension ConversationViewModel {

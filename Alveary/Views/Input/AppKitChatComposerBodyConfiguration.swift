@@ -34,6 +34,7 @@ struct AppKitChatComposerBodyConfiguration {
     let onDraftSnapshotProviderChange: (ComposerDraftSnapshotProvider?) -> Void
     let onSubmit: () -> Void
     let onSteer: () -> Void
+    let onAlternateSteer: () -> Void
     let onStop: () -> Void
     let onStopConfirmationChange: (Bool) -> Void
     let onFocusRequestConsumed: (UUID?) -> Void
@@ -66,6 +67,7 @@ struct AppKitChatComposerBodyConfiguration {
         onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
+        onAlternateSteer: @escaping () -> Void = {},
         onStop: @escaping () -> Void,
         onStopConfirmationChange: @escaping (Bool) -> Void,
         onFocusRequestConsumed: @escaping (UUID?) -> Void
@@ -97,6 +99,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.onDraftSnapshotProviderChange = onDraftSnapshotProviderChange
         self.onSubmit = onSubmit
         self.onSteer = onSteer
+        self.onAlternateSteer = onAlternateSteer
         self.onStop = onStop
         self.onStopConfirmationChange = onStopConfirmationChange
         self.onFocusRequestConsumed = onFocusRequestConsumed

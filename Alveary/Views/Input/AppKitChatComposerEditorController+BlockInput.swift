@@ -119,7 +119,7 @@ extension AppKitChatComposerEditorController {
                 self?.handleBlockInputReturn(usesAlternateBehavior: false) ?? .handled
             },
             .shiftReturn: { _ in .ignored },
-            .optionReturn: { [weak self] _ in
+            BlockInputKeyboardShortcut(key: .return, modifiers: .command): { [weak self] _ in
                 self?.handleBlockInputReturn(usesAlternateBehavior: true) ?? .handled
             },
             BlockInputKeyboardShortcut(key: .escape): { [weak self] _ in

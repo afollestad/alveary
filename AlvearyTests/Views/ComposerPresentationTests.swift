@@ -98,6 +98,60 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertEqual(steerDefault.busyReturnAction(usesAlternateBehavior: true), .submit)
     }
 
+    func testBusyPlaceholdersUseCmdEnterCopy() {
+        let queueDefault = makePresentation(
+            text: "Steer or queue",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue
+        )
+        let steerDefault = makePresentation(
+            text: "Steer or queue",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer
+        )
+
+        XCTAssertEqual(queueDefault.placeholder, "Enter to queue for the next turn, or Cmd+Enter to steer...")
+        XCTAssertEqual(steerDefault.placeholder, "Enter to steer the current turn, or Cmd+Enter to queue...")
+    }
+
+    func testAlternateSteerRoutingIsOnlyForQueueDefaultAlternateSteer() {
+        let emptyQueueDefault = makePresentation(
+            text: "",
+            isTextEffectivelyEmpty: true,
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue
+        )
+        let queueDefaultPlainReturn = makePresentation(
+            text: "Queue",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue
+        )
+        let steerDefault = makePresentation(
+            text: "Steer",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .steer
+        )
+        let trustBlocked = makePresentation(
+            text: "Blocked",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue,
+            isProjectTrustBlocked: true
+        )
+        let unsupported = makePresentation(
+            text: "Unsupported",
+            mode: .busy(canStop: true),
+            defaultEnterBehavior: .queue,
+            supportsMidTurnSteering: false
+        )
+
+        XCTAssertTrue(emptyQueueDefault.canUseAlternateSteer(usesAlternateBehavior: true))
+        XCTAssertFalse(emptyQueueDefault.canSteer)
+        XCTAssertFalse(queueDefaultPlainReturn.canUseAlternateSteer(usesAlternateBehavior: false))
+        XCTAssertFalse(steerDefault.canUseAlternateSteer(usesAlternateBehavior: true))
+        XCTAssertFalse(trustBlocked.canUseAlternateSteer(usesAlternateBehavior: true))
+        XCTAssertFalse(unsupported.canUseAlternateSteer(usesAlternateBehavior: true))
+    }
+
     func testBusyReturnFallsBackToSubmitWhenSteeringIsUnavailable() {
         let cannotStop = makePresentation(
             text: "Queue this.",

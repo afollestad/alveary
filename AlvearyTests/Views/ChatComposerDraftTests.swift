@@ -62,6 +62,68 @@ final class ChatComposerDraftTests: XCTestCase {
         }
     }
 
+    func testAlternateSteerDraftWithNonEmptyDraftSteersCurrentTurn() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.replaceInputDraft("Steer via shortcut", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNotNil(appState.pendingComposerFocusToken)
+        try await waitUntil("expected alternate steering draft to send") {
+            await fixture.agentsManager.sentMessages() == ["Steer via shortcut"]
+        }
+    }
+
+    func testAlternateSteerDraftWithEmptyDraftSteersNextQueuedMessage() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.stagedContext = "Queued context"
+        try await fixture.viewModel.queueOrSend("Queued steer")
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+        try await waitUntil("expected queued message to steer") {
+            await fixture.agentsManager.sentMessages() == ["Queued context\n\nQueued steer"] &&
+                fixture.viewModel.messageQueue.peekNext() == nil
+        }
+    }
+
+    func testAlternateSteerDraftWithEmptyDraftAndNoQueueDoesNothing() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testTrustBlockedAlternateSteerDraftDoesNotClearOrRequestComposerFocus() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.replaceInputDraft("Do not steer while blocked", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState, isProjectTrustBlocked: true)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Do not steer while blocked")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+    }
+
     func testHandoffSteeringSubmitRequestsComposerFocusAfterClear() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()

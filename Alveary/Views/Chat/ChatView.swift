@@ -279,15 +279,40 @@ extension ChatView {
         }
 
         let draft = viewModel.flushDraftFromEditor()
-        let message = draft.text
         if handleLocalCommandIfNeeded(draft: draft) {
             return
         }
 
+        sendSteeringDraft(draft)
+    }
+
+    func alternateSteerDraft() {
+        guard canUseOutboundComposerActions else {
+            return
+        }
+
+        let draft = viewModel.flushDraftFromEditor()
+        if handleLocalCommandIfNeeded(draft: draft) {
+            return
+        }
+
+        if draft.isEffectivelyEmpty {
+            guard viewModel.messageQueue.peekNext() != nil else {
+                return
+            }
+            Task { try? await viewModel.steerNextQueuedMessage() }
+            return
+        }
+
+        sendSteeringDraft(draft)
+    }
+
+    func sendSteeringDraft(_ draft: ComposerDraft) {
         guard !draft.isEffectivelyEmpty else {
             return
         }
 
+        let message = draft.text
         let outboundMessage = draft.messageText
 
         requestScrollToBottom()
@@ -361,6 +386,7 @@ extension ChatView {
             },
             onSubmit: sendDraft,
             onSteer: steerDraft,
+            onAlternateSteer: alternateSteerDraft,
             onStop: {
                 isStopConfirmationArmed = false
                 Task { await viewModel.cancel() }
