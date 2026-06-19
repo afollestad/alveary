@@ -57,13 +57,24 @@ struct PendingExitPlanModeFollowUp: Equatable, Sendable {
 
     let toolUseId: String
     let sessionId: String
+    let providerId: String
+    let providerSessionId: String?
     let message: String
+    /// Provider-facing text for the next send; this must never be shown in transcript UI.
+    let transportText: String?
     let sourceTurnId: String?
     let sourceSubscriptionToken: UUID?
     let sourceBufferGeneration: UUID?
     let sourceEventIndex: Int
     var lastObservedEventIndex: Int
     var phase: Phase
+}
+
+struct PendingExitPlanModeRevisionGuidance: Equatable, Sendable {
+    let toolUseId: String
+    let sessionId: String
+    let providerId: String
+    let providerSessionId: String?
 }
 
 @MainActor
@@ -116,6 +127,7 @@ final class ConversationState {
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
+    var pendingExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     @ObservationIgnored var pendingExitPlanModeFollowUpQuietTask: Task<Void, Never>?
     var runtimePermissionMode: String?
     var runtimePlanModeEnabled: Bool?
@@ -125,6 +137,7 @@ final class ConversationState {
     var pendingSessionSettingsChange: PendingSessionSettingsChange?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
+    var retryableFailedMessageTransportTexts: [String: String] = [:]
     var pendingSyntheticAssistantDuplicateText: String?
 
     var hasActiveSessionHandoff: Bool {
@@ -155,17 +168,23 @@ final class ConversationState {
         streamingText = nil
     }
 
-    func markRetryableFailedMessage(id: String, stagedContext: String?) {
+    func markRetryableFailedMessage(id: String, stagedContext: String?, transportText: String? = nil) {
         retryableFailedMessageIDs.insert(id)
         if let stagedContext {
             retryableFailedMessageStagedContexts[id] = stagedContext
         } else {
             retryableFailedMessageStagedContexts.removeValue(forKey: id)
         }
+        if let transportText {
+            retryableFailedMessageTransportTexts[id] = transportText
+        } else {
+            retryableFailedMessageTransportTexts.removeValue(forKey: id)
+        }
     }
 
     func clearRetryableFailedMessage(id: String) {
         retryableFailedMessageIDs.remove(id)
         retryableFailedMessageStagedContexts.removeValue(forKey: id)
+        retryableFailedMessageTransportTexts.removeValue(forKey: id)
     }
 }

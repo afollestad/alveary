@@ -65,7 +65,11 @@ extension ConversationViewModel {
         toolUseId: String,
         decision: ClaudeToolApprovalDecision
     ) async throws {
-        try await resolveToolUseApproval(toolUseId: toolUseId, decision: decision)
+        try await resolveToolUseApproval(
+            toolUseId: toolUseId,
+            decision: decision,
+            responseText: decision == .deny ? ExitPlanModeDenialPolicy.deniedResponseText : nil
+        )
     }
 
     func dismissPrompt(promptId: String) async throws {
@@ -187,6 +191,9 @@ extension ConversationViewModel {
             return false
         }
 
+        if approval.toolName == "ExitPlanMode" {
+            clearPendingExitPlanModeDenialState()
+        }
         replacePendingToolApproval(with: approval)
         return true
     }
@@ -204,6 +211,7 @@ extension ConversationViewModel {
 
         state.pendingToolApproval = nil
         clearPendingExitPlanModeFollowUpIfNeeded(toolUseId: pendingApproval.request.toolUseId)
+        clearPendingExitPlanModeRevisionGuidanceIfNeeded(toolUseId: pendingApproval.request.toolUseId)
         hydratePendingToolApprovalIfNeeded()
         refreshTranscriptForToolApprovalStatusChanges()
         return true
@@ -311,190 +319,5 @@ extension ConversationViewModel {
             _ = enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: approval.toolUseId)
         }
         return resolvedStatus
-    }
-}
-
-private extension ConversationViewModel {
-    func resolveToolUseApproval(
-        toolUseId: String,
-        sessionId: String? = nil,
-        decision: ClaudeToolApprovalDecision,
-        sessionApprovalScope: ToolApprovalSessionScope? = nil
-    ) async throws {
-        guard !hasUnansweredPrompt else {
-            throw AgentError.spawnFailed("Answer the pending question before resolving tool approval")
-        }
-        guard var pendingApproval = pendingToolApprovalForResolution(toolUseId: toolUseId, sessionId: sessionId) else {
-            return
-        }
-        guard pendingApproval.status == .pending else {
-            return
-        }
-        guard !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Wait for the current approval to finish before resolving tool approval")
-        }
-
-        pendingApproval.status = approvalStatus(
-            for: decision,
-            sessionApprovalScope: sessionApprovalScope
-        )
-        state.pendingToolApproval = pendingApproval
-        state.isSendingMessage = true
-        defer { state.isSendingMessage = false }
-
-        do {
-            try await resumeDeferredToolUse(
-                pendingApproval,
-                decision: decision,
-                sessionApprovalScope: sessionApprovalScope,
-                updatedToolInput: nil
-            )
-        } catch {
-            state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
-            state.lastTurnError = "Tool approval failed: \(error.localizedDescription)"
-            throw error
-        }
-    }
-
-    func pendingToolApprovalForResolution(toolUseId: String, sessionId: String?) -> PendingToolApproval? {
-        if let pendingApproval = state.pendingToolApproval,
-           pendingApproval.request.toolUseId == toolUseId,
-           sessionId == nil || pendingApproval.request.sessionId == sessionId {
-            return pendingApproval
-        }
-        guard let approval = unresolvedToolApproval(toolUseId: toolUseId, sessionId: sessionId) else {
-            return nil
-        }
-        return PendingToolApproval(request: approval, status: .pending)
-    }
-
-    func resumeDeferredToolUse(
-        _ pendingApproval: PendingToolApproval,
-        decision: ClaudeToolApprovalDecision,
-        sessionApprovalScope: ToolApprovalSessionScope?,
-        updatedToolInput: String?
-    ) async throws {
-        let hasActiveTurn = state.turnState.isActive
-        let hasRunningAgent = await agentsManager.isRunning(conversationId: conversation.id)
-        let isResolvingLiveHookApproval = hasRunningAgent &&
-            (hasActiveTurn || shouldResolveInactiveLiveToolApproval(pendingApproval))
-        let config = try makeSpawnConfig(settingsSource: .currentContinuation)
-        let sessionApproval = sessionApprovalScope.flatMap {
-            pendingApproval.request.sessionApprovalGrant(
-                conversationId: conversation.id,
-                providerId: config.providerId,
-                scope: $0
-            )
-        }
-        if !isResolvingLiveHookApproval {
-            await prepareForSpawn(config: config)
-        }
-        await flushPendingSaveIfNeeded()
-        if !isResolvingLiveHookApproval {
-            resetSubscriptionTrackingForToolApprovalResume()
-        }
-        let liveResolution = try await resolveAgentToolApproval(
-            pendingApproval,
-            decision: decision,
-            updatedToolInput: updatedToolInput,
-            sessionApproval: sessionApproval,
-            config: config
-        )
-        var relatedApprovalStatus = pendingApproval.status
-        var resolvedPendingApproval = pendingApproval
-        if decision == .allow,
-           sessionApprovalScope != nil,
-           !liveResolution.sessionApprovalEffective {
-            relatedApprovalStatus = .approving
-            resolvedPendingApproval = PendingToolApproval(
-                request: pendingApproval.request,
-                status: .approving
-            )
-        }
-        updateResolvedToolApprovalState(
-            resolvedPendingApproval,
-            additionalApprovals: liveResolution.additionalApprovals,
-            relatedApprovalStatus: relatedApprovalStatus
-        )
-        finishLiveDeniedToolApprovalIfNeeded(
-            isResolvingLiveHookApproval: isResolvingLiveHookApproval,
-            decision: decision
-        )
-        state.lastTurnError = nil
-        if !isResolvingLiveHookApproval {
-            subscribe()
-        }
-    }
-
-    func updateResolvedToolApprovalState(
-        _ pendingApproval: PendingToolApproval,
-        additionalApprovals: [ToolApprovalRequest],
-        relatedApprovalStatus: ToolApprovalStatus
-    ) {
-        guard pendingApproval.request.toolName != "ExitPlanMode" else {
-            persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
-            persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
-            return
-        }
-
-        persistResolvedToolApproval(pendingApproval, refreshTranscript: false)
-        persistRelatedToolApprovalStatuses(additionalApprovals, pendingStatus: relatedApprovalStatus)
-        state.pendingToolApproval = nil
-        hydratePendingToolApprovalIfNeeded()
-        refreshTranscriptForToolApprovalStatusChanges()
-    }
-
-    func persistRelatedToolApprovalStatuses(
-        _ approvals: [ToolApprovalRequest],
-        pendingStatus: ToolApprovalStatus
-    ) {
-        guard let relatedStatus = resolvedStatus(for: pendingStatus) else {
-            return
-        }
-        for approval in approvals {
-            persistToolApprovalStatus(
-                relatedStatus,
-                toolUseId: approval.toolUseId,
-                sessionId: approval.sessionId,
-                refreshTranscript: false
-            )
-        }
-    }
-
-    func approvalStatus(
-        for decision: ClaudeToolApprovalDecision,
-        sessionApprovalScope: ToolApprovalSessionScope?
-    ) -> ToolApprovalStatus {
-        switch (decision, sessionApprovalScope) {
-        case (.allow, .exact):
-            return .approvingForSessionExact
-        case (.allow, .group):
-            return .approvingForSessionGroup
-        case (.allow, nil):
-            return .approving
-        case (.deny, _):
-            return .denying
-        }
-    }
-
-    func resetSubscriptionTrackingForToolApprovalResume() {
-        subscriptionTask?.cancel()
-        subscriptionTask = nil
-        state.lastObservedEventIndex = 0
-        state.lastPersistedEventIndex = 0
-        state.activeBufferGeneration = nil
-        state.activeSubscriptionToken = nil
-        state.activeRuntimeActivityTurnId = nil
-    }
-
-    func toolApprovalProviderId() -> String {
-        conversation.provider ?? settingsService.current.defaultProvider
-    }
-
-    func shouldResolveInactiveLiveToolApproval(_ pendingApproval: PendingToolApproval) -> Bool {
-        // `tool_deferred` ends Alveary's local turn while Codex may still be paused on this
-        // interaction. Keep the decision live so approving or denying the plan does not reset the
-        // replay cursor and resubscribe to the already-rendered plan turn.
-        pendingApproval.request.toolName == "ExitPlanMode"
     }
 }

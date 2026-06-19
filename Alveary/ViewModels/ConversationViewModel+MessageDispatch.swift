@@ -8,13 +8,14 @@ extension ConversationViewModel {
 
     func sendReserved(
         _ message: String,
+        transportText: String? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil
     ) async throws {
         let appliedContext = stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let transportMessage = buildTransportMessage(
-            message: message,
+            message: transportText ?? message,
             stagedContext: appliedContext
         )
 
@@ -256,13 +257,21 @@ private extension ConversationViewModel {
         guard queuedMessage.requiredSpeedMode == nil else {
             throw AgentError.spawnFailed("Speed-mode queued messages send on the next turn")
         }
+        guard queuedMessage.transportText == nil else {
+            throw AgentError.spawnFailed("Plan feedback queued messages send on the next turn")
+        }
         return queuedMessage
     }
 
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
+        let preflightTransportText = revisionTransportTextForQueuedMessage(next)
+        let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(
+            next,
+            transportText: preflightTransportText
+        )
 
-        if let requiredPlanModeEnabled = next.requiredPlanModeEnabled {
+        if let requiredPlanModeEnabled {
             try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
         }
         if let requiredSpeedMode = next.requiredSpeedMode {
@@ -278,6 +287,7 @@ private extension ConversationViewModel {
                 state.turnState.endTurn()
                 return
             }
+            let transportText = revisionTransportTextForQueuedMessage(queuedMessage)
 
             let localMessage = insertLocalUserMessage(
                 queuedMessage.text,
@@ -288,6 +298,8 @@ private extension ConversationViewModel {
             do {
                 try await deliverMessageReserved(
                     queuedMessage.text,
+                    transportTextOverride: transportText,
+                    consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
                     stagedContextOverride: queuedMessage.stagedContext,
                     useCurrentStagedContextWhenOverrideNil: false,
                     existingLocalUserMessageID: localMessage.id,
@@ -298,7 +310,8 @@ private extension ConversationViewModel {
                 if let localMessageID {
                     state.markRetryableFailedMessage(
                         id: localMessageID,
-                        stagedContext: queuedMessage.stagedContext
+                        stagedContext: queuedMessage.stagedContext,
+                        transportText: transportText
                     )
                 }
                 throw error

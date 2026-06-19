@@ -11,6 +11,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Provider status and model options come from `AgentCLIKit.AgentProviderDiscoveryService`. Keep settings and composer provider lists wired to that service instead of duplicating Claude/Codex availability or model lists in UI code.
 - Speed mode is provider-reported capability from `AgentCLIKit.AgentProviderCapabilities.supportsSpeedMode`. Do not add app-owned provider/model speed maps; Claude stays Standard unless AgentCLIKit reports otherwise.
 - Plan mode is collaboration state, not an approval policy. Alveary should pass it through `AgentSpawnConfig.planModeEnabled`/AgentCLIKit `collaborationMode` and keep `"plan"` out of permission-picker option sources.
+- Keep denied `ExitPlanMode` copy in shared `ExitPlanModeDenialPolicy`; add provider-specific transport guidance there only when a provider cannot reliably infer Alveary's host-side plan-mode state.
 - Provider task-list snapshots should persist through Alveary's provider-neutral `task_list` event records; keep provider-specific task parsing in `AgentCLIKit`.
 - Project trust policy is app-owned, but provider trust state comes from `AgentCLIKit.AgentProjectTrustService`. Keep prompt UI, auto-trust, first-thread gating, and denial cleanup in Alveary while avoiding direct provider config reads.
 - Provider MCP config reads/writes should route through AgentCLIKit config stores for providers that own their config format, including Claude `.claude.json` and Codex `.codex/config.toml`.

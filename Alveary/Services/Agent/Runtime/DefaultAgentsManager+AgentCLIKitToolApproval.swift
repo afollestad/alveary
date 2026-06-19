@@ -254,8 +254,20 @@ extension DefaultAgentsManager {
                 updatedInput: try agentCLIKitUpdatedInput(for: approval, resolution: resolution)
             )
         case .deny:
-            return .deny(reason: "The user denied this permission prompt in Alveary")
+            return .deny(reason: agentCLIKitDenyReason(for: approval, resolution: resolution))
         }
+    }
+
+    private func agentCLIKitDenyReason(
+        for approval: ToolApprovalRequest,
+        resolution: ClaudeToolApprovalResolution
+    ) -> String {
+        if approval.toolName == "ExitPlanMode",
+           let responseText = resolution.responseText?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !responseText.isEmpty {
+            return responseText
+        }
+        return "The user denied this permission prompt in Alveary"
     }
 
     private func agentCLIKitUpdatedInput(

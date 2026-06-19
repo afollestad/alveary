@@ -20,7 +20,7 @@ extension ConversationViewModel {
     }
 
     func sendAttemptWithSingleRespawnRecovery(
-        _ message: String,
+        _ outbound: OutboundMessageText,
         stagedContextOverride: String?,
         useCurrentStagedContextWhenOverrideNil: Bool,
         existingLocalUserMessageID: String,
@@ -28,7 +28,8 @@ extension ConversationViewModel {
     ) async throws {
         do {
             try await sendReserved(
-                message,
+                outbound.visibleText,
+                transportText: outbound.transportText,
                 stagedContextOverride: stagedContextOverride,
                 useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                 existingLocalUserMessageID: existingLocalUserMessageID
@@ -40,7 +41,8 @@ extension ConversationViewModel {
             try await startAgentReserved(config: makeSpawnConfig(settingsSource: respawnSettingsSource))
             state.respawnAttempts = 0
             try await sendReserved(
-                message,
+                outbound.visibleText,
+                transportText: outbound.transportText,
                 stagedContextOverride: stagedContextOverride,
                 useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                 existingLocalUserMessageID: existingLocalUserMessageID

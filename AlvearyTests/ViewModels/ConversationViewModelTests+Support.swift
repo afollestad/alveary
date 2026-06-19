@@ -8,11 +8,7 @@ enum FixtureError: Error {
 }
 
 actor MockAgentsManager: AgentsManager {
-    enum MockError: Error, Sendable, Equatable {
-        case sendFailed
-        case reconfigureFailed
-        case approvalFailed
-    }
+    enum MockError: Error, Sendable, Equatable { case sendFailed, stdinClosed, reconfigureFailed, approvalFailed }
 
     struct SpawnCall: Sendable, Equatable {
         let id: String
@@ -129,6 +125,9 @@ actor MockAgentsManager: AgentsManager {
                 recordedSendVisibilities.append(activityVisibility)
                 return
             case .failure(let error):
+                if error == .stdinClosed {
+                    throw AgentError.stdinClosed
+                }
                 throw error
             }
         }

@@ -113,9 +113,11 @@ extension ConversationViewModelTests {
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls.first?.decision, .deny)
+        XCTAssertEqual(calls.first?.resolution.responseText, ExitPlanModeDenialPolicy.deniedResponseText)
         XCTAssertEqual(calls.first?.approval, approval)
         XCTAssertEqual(calls.first?.config.providerId, "codex")
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
+        XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeRevisionGuidance)
         XCTAssertFalse(fixture.viewModel.state.turnState.isActive)
         XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
     }
@@ -237,11 +239,11 @@ extension ConversationViewModelTests {
 
     func testCustomDenyFollowUpQueuesRevisionPromptAndRequiresPlanMode() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        fixture.viewModel.state.runtimePlanModeEnabled = true
         let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.deactivateViewLifecycle()
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
-
         try await fixture.viewModel.denyExitPlanMode(
             toolUseId: approval.toolUseId,
             followUp: "Please revise the plan first."
@@ -482,7 +484,6 @@ private func conversationRecords(for fixture: ConversationViewModelTestFixture) 
         return lhs.timestamp < rhs.timestamp
     }
 }
-
 private func exitPlanModeApprovalRecord(
     conversation: Conversation,
     approval: ToolApprovalRequest

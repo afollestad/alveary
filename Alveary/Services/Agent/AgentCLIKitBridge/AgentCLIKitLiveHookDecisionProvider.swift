@@ -181,8 +181,20 @@ actor AgentCLIKitLiveHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProvidi
                 updatedInput: updatedInput(for: key, resolution: resolution)
             )
         case .deny:
-            return .deny(reason: "The user denied this permission prompt in Alveary")
+            return .deny(reason: denyReason(from: resolution, for: key))
         }
+    }
+
+    private func denyReason(
+        from resolution: ClaudeToolApprovalResolution,
+        for key: ClaudeToolApprovalKey
+    ) -> String {
+        if toolNames[key] == "ExitPlanMode",
+           let responseText = resolution.responseText?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !responseText.isEmpty {
+            return responseText
+        }
+        return "The user denied this permission prompt in Alveary"
     }
 
     private func updatedInput(
@@ -207,8 +219,8 @@ actor AgentCLIKitLiveHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProvidi
               let sessionId = payload.stringValue("session_id") ?? payload.stringValue("sessionId") else {
             return nil
         }
-        let toolName = payload.stringValue("tool_name") ?? payload.stringValue("toolName") ?? "tool"
-        let toolInput = payload["tool_input"] ?? payload["toolInput"] ?? .object([:])
+        let toolName = Self.toolName(from: request, payload: payload)
+        let toolInput = Self.toolInput(from: request)
         let approvalIdentityToolInput = payload["approval_identity_tool_input"] ?? payload["approvalIdentityToolInput"]
         return ToolApprovalRequest(
             sessionId: sessionId,
@@ -220,11 +232,20 @@ actor AgentCLIKitLiveHookDecisionProvider: AgentCLIKit.ClaudeHookDecisionProvidi
         )
     }
 
+    private static func toolName(
+        from request: AgentCLIKit.ClaudeHookRequest,
+        payload: [String: AgentCLIKit.JSONValue]
+    ) -> String {
+        payload.stringValue("tool_name")
+            ?? payload.stringValue("toolName")
+            ?? (request.hookName == "PlanModeExit" ? "ExitPlanMode" : "tool")
+    }
+
     private static func toolInput(from request: AgentCLIKit.ClaudeHookRequest) -> AgentCLIKit.JSONValue {
         guard case let .object(payload) = request.payload else {
             return .object([:])
         }
-        return payload["tool_input"] ?? payload["toolInput"] ?? .object([:])
+        return payload["tool_input"] ?? payload["toolInput"] ?? (request.hookName == "PlanModeExit" ? request.payload : .object([:]))
     }
 
     private static func requiresUpdatedInput(toolName: String) -> Bool {

@@ -43,6 +43,9 @@ extension ConversationViewModel {
 
     func syncRuntimePlanMode(_ isEnabled: Bool) {
         state.runtimePlanModeEnabled = isEnabled
+        if !isEnabled {
+            clearPendingExitPlanModeDenialState()
+        }
         guard state.pendingSessionSettingsChange?.hasPlanModeChange != true,
               let thread = dbThread(),
               thread.planModeEnabled != isEnabled else {

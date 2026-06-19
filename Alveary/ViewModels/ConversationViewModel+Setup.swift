@@ -17,6 +17,8 @@ private struct LocalUserMessageAttemptMetadata {
 private struct LocalUserMessageAttempt {
     let id: String
     let stagedContext: String?
+    let transportText: String?
+    let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     let insertedMessage: Bool
     let metadata: LocalUserMessageAttemptMetadata?
 }
@@ -58,6 +60,8 @@ extension ConversationViewModel {
 
     private func prepareLocalUserMessageAttempt(
         message: String,
+        transportText: String?,
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?,
         stagedContextOverride: String?,
         useCurrentStagedContextWhenOverrideNil: Bool
     ) throws -> LocalUserMessageAttempt {
@@ -83,13 +87,15 @@ extension ConversationViewModel {
         return LocalUserMessageAttempt(
             id: localUserMessageID,
             stagedContext: appliedContext,
+            transportText: transportText,
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
             insertedMessage: true,
             metadata: metadata
         )
     }
 
     private func localUserMessageAttempt(
-        message: String,
+        outbound: OutboundMessageText,
         stagedContextOverride: String?,
         useCurrentStagedContextWhenOverrideNil: Bool,
         existingLocalUserMessageID: String?
@@ -98,13 +104,17 @@ extension ConversationViewModel {
             return LocalUserMessageAttempt(
                 id: existingLocalUserMessageID,
                 stagedContext: stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil),
+                transportText: outbound.transportText,
+                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
                 insertedMessage: false,
                 metadata: nil
             )
         }
 
         return try prepareLocalUserMessageAttempt(
-            message: message,
+            message: outbound.visibleText,
+            transportText: outbound.transportText,
+            consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContextOverride,
             useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil
         )
@@ -118,7 +128,11 @@ extension ConversationViewModel {
             return
         }
 
-        state.markRetryableFailedMessage(id: attempt.id, stagedContext: attempt.stagedContext)
+        state.markRetryableFailedMessage(
+            id: attempt.id,
+            stagedContext: attempt.stagedContext,
+            transportText: attempt.transportText
+        )
         if state.lastTurnError == nil {
             state.lastTurnError = error.localizedDescription
         }
@@ -182,6 +196,8 @@ extension ConversationViewModel {
 
     func deliverMessageReserved(
         _ message: String,
+        transportTextOverride: String? = nil,
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -193,7 +209,11 @@ extension ConversationViewModel {
         }
 
         let attempt = try localUserMessageAttempt(
-            message: message,
+            outbound: OutboundMessageText(
+                visibleText: message,
+                transportText: transportTextOverride,
+                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            ),
             stagedContextOverride: stagedContextOverride,
             useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
             existingLocalUserMessageID: existingLocalUserMessageID
@@ -203,6 +223,7 @@ extension ConversationViewModel {
             if needsSetup {
                 try await setupAndStartReserved(
                     message,
+                    transportText: transportTextOverride,
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
@@ -212,7 +233,7 @@ extension ConversationViewModel {
             }
 
             try await sendAttemptWithSingleRespawnRecovery(
-                message,
+                OutboundMessageText(visibleText: message, transportText: transportTextOverride),
                 stagedContextOverride: stagedContextOverride ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
@@ -224,6 +245,7 @@ extension ConversationViewModel {
                     id: attempt.id,
                     restoring: attempt.metadata
                 )
+                restoreExitPlanModeRevisionGuidanceIfNeeded(attempt.consumedExitPlanModeRevisionGuidance)
             }
             throw CancellationError()
         } catch {
@@ -234,6 +256,7 @@ extension ConversationViewModel {
 
     private func setupAndStartReserved(
         _ message: String,
+        transportText: String?,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -263,7 +286,7 @@ extension ConversationViewModel {
                 message: message
             )
             let transportMessage = buildTransportMessage(
-                message: message,
+                message: transportText ?? message,
                 stagedContext: snapshot.stagedContext
             )
             setupPhase = .startingAgent

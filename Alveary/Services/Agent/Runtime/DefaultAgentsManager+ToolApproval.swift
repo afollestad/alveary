@@ -119,8 +119,19 @@ extension DefaultAgentsManager {
         return AgentCLIKit.AgentInteractionResolution(
             id: AgentCLIKit.AgentInteractionID(rawValue: approval.toolUseId),
             outcome: agentCLIKitOutcome(for: approval, decision: resolution.decision),
+            responseText: agentCLIKitResponseText(for: approval, resolution: resolution),
             metadata: metadata
         )
+    }
+
+    func agentCLIKitResponseText(
+        for approval: ToolApprovalRequest,
+        resolution: ClaudeToolApprovalResolution
+    ) -> String? {
+        guard approval.toolName == "ExitPlanMode" else {
+            return nil
+        }
+        return resolution.responseText
     }
 
     func agentCLIKitOutcome(

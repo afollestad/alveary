@@ -4,6 +4,7 @@ extension ChatItemGrouper {
     func appendToolApproval(_ approval: ToolApprovalRequest, status: ToolApprovalStatus?) {
         let approval = approvalWithFallbackPlanIfNeeded(approval)
         removeDuplicateExitPlanModeAssistantPlanIfNeeded(approval)
+        suppressDuplicateExitPlanModePlanPreviewIfNeeded(approval)
         rememberExitPlanModePlanMarkdownIfNeeded(approval)
 
         if updateExistingRenderedApproval(approval, status: status) {
@@ -75,6 +76,56 @@ extension ChatItemGrouper {
         items.remove(at: planItemIndex)
     }
 
+    private func suppressDuplicateExitPlanModePlanPreviewIfNeeded(_ approval: ToolApprovalRequest) {
+        guard approval.toolName == "ExitPlanMode",
+              let planMarkdown = normalizedPlanMarkdown(approval.planMarkdown),
+              let planItemIndex = duplicatePlanPreviewItemIndex(for: planMarkdown),
+              case .standaloneTool(let id, let tool) = items[planItemIndex] else {
+            return
+        }
+
+        items[planItemIndex] = .standaloneTool(id: id, tool: toolWithoutPreviewOverride(tool))
+    }
+
+    private func duplicatePlanPreviewItemIndex(for planMarkdown: String) -> Array<ChatItem>.Index? {
+        let searchStart = items.lastIndex(where: \.isUserMessage).map { items.index(after: $0) } ?? items.startIndex
+        var index = items.endIndex
+        while index > searchStart {
+            index = items.index(before: index)
+            guard planPreviewMarkdown(from: items[index]) == planMarkdown else {
+                continue
+            }
+            return index
+        }
+        return nil
+    }
+
+    private func planPreviewMarkdown(from item: ChatItem) -> String? {
+        guard case .standaloneTool(_, let tool) = item,
+              let preview = tool.previewOverride,
+              preview.origin == .exitPlanModeFollowUp,
+              preview.language == "markdown" else {
+            return nil
+        }
+        return normalizedPlanMarkdown(preview.content)
+    }
+
+    private func toolWithoutPreviewOverride(_ tool: ToolEntry) -> ToolEntry {
+        ToolEntry(
+            id: tool.id,
+            name: tool.name,
+            summary: tool.summary,
+            input: tool.input,
+            output: tool.output,
+            stderr: tool.stderr,
+            isComplete: tool.isComplete,
+            isInterrupted: tool.isInterrupted,
+            isImage: tool.isImage,
+            noOutputExpected: tool.noOutputExpected,
+            isError: tool.isError
+        )
+    }
+
     private func fallbackPlanItemIndexForExitPlanModeApproval() -> Array<ChatItem>.Index? {
         var index = items.endIndex
         while index > items.startIndex {
@@ -94,9 +145,7 @@ extension ChatItemGrouper {
         guard case .assistantMessage(_, let text) = item else {
             return nil
         }
-        return text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
+        return normalizedPlanMarkdown(text)
     }
 
     private func canSkipForExitPlanModeFallbackPlanSearch(_ item: ChatItem) -> Bool {
@@ -281,4 +330,10 @@ private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
     }
+}
+
+private func normalizedPlanMarkdown(_ markdown: String?) -> String? {
+    markdown?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .nilIfEmpty
 }

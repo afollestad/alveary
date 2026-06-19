@@ -9,8 +9,7 @@ struct ToolApprovalLiveResolutionResult {
 extension ConversationViewModel {
     func resolveAgentToolApproval(
         _ pendingApproval: PendingToolApproval,
-        decision: ClaudeToolApprovalDecision,
-        updatedToolInput: String?,
+        resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
         config: AgentSpawnConfig
     ) async throws -> ToolApprovalLiveResolutionResult {
@@ -19,10 +18,7 @@ extension ConversationViewModel {
             AgentToolApprovalResolutionRequest(
                 conversationId: conversation.id,
                 approval: pendingApproval.request,
-                resolution: ClaudeToolApprovalResolution(
-                    decision: decision,
-                    updatedInput: updatedToolInput
-                ),
+                resolution: resolution,
                 additionalApprovals: additionalApprovals,
                 sessionApproval: sessionApproval,
                 config: config

@@ -16,11 +16,13 @@ enum ClaudeToolApprovalDecision: String, Sendable, Equatable {
 struct ClaudeToolApprovalResolution: Sendable, Equatable {
     let decision: ClaudeToolApprovalDecision
     let updatedInput: String?
+    let responseText: String?
 
-    /// Creates a Claude approval resolution with an optional updated tool input payload.
-    init(decision: ClaudeToolApprovalDecision, updatedInput: String? = nil) {
+    /// Creates an approval resolution with optional updated input and host response text.
+    init(decision: ClaudeToolApprovalDecision, updatedInput: String? = nil, responseText: String? = nil) {
         self.decision = decision
         self.updatedInput = updatedInput
+        self.responseText = responseText
     }
 }
 

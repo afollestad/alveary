@@ -131,81 +131,6 @@ final class ConversationViewModel {
         }
     }
 
-    func setupAndStart(_ message: String) async throws {
-        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await withOutboundReservation {
-            try await deliverMessageReserved(message)
-        }
-    }
-
-    func send(_ message: String, stagedContextOverride: String? = nil) async throws {
-        guard state.messageQueue.peekNext() == nil else {
-            throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before sending a new one")
-        }
-
-        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await withOutboundReservation {
-            try await deliverMessageReserved(message, stagedContextOverride: stagedContextOverride)
-        }
-    }
-
-    func queueOrSend(
-        _ message: String,
-        requiredPlanModeEnabled: Bool? = nil,
-        requiredSpeedMode: AgentSpeedMode? = nil
-    ) async throws {
-        guard !state.hasActiveSessionHandoff else {
-            throw AgentError.spawnFailed("Session handoff is in progress")
-        }
-        guard !state.isAwaitingExitPlanModeFollowUp else {
-            throw AgentError.spawnFailed("Wait for the plan response to be sent before sending another message")
-        }
-
-        if isAgentActivelyWorking || state.isSendingMessage || state.messageQueue.peekNext() != nil {
-            state.messageQueue.enqueue(
-                message,
-                stagedContext: state.stagedContext,
-                requiredPlanModeEnabled: requiredPlanModeEnabled,
-                requiredSpeedMode: requiredSpeedMode
-            )
-            state.stagedContext = nil
-            scheduleQueueDrainIfNeeded()
-            return
-        }
-
-        guard needsSetup else {
-            if let requiredPlanModeEnabled {
-                try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
-            }
-            if let requiredSpeedMode {
-                try await ensureSpeedModeForOutbound(requiredSpeedMode)
-            }
-            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-            try await withOutboundReservation {
-                try await deliverMessageReserved(message)
-            }
-            return
-        }
-
-        // Wrap the initial-setup path in an unstructured Task so `cancel()` can abort it
-        // (and trigger the existing rollback) even though the setup phase predates the turn.
-        let task = Task { [self] in
-            if let requiredPlanModeEnabled {
-                try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
-            }
-            if let requiredSpeedMode {
-                try await ensureSpeedModeForOutbound(requiredSpeedMode)
-            }
-            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-            try await withOutboundReservation {
-                try await deliverMessageReserved(message)
-            }
-        }
-        initialSetupTask = task
-        defer { initialSetupTask = nil }
-        try await task.value
-    }
-
     func steer(_ message: String) async throws {
         guard canSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
@@ -368,37 +293,9 @@ final class ConversationViewModel {
            !state.messageQueue.pending.contains(where: { $0.stagedContext != nil }) {
             state.stagedContext = restoredContext
         }
+        restoreExitPlanModeRevisionGuidanceIfNeeded(removed.consumedExitPlanModeRevisionGuidance)
 
         appendToInputDraft(removed.text)
-    }
-
-    func retryFailedUserMessage(id: String) async throws {
-        guard !isAgentActivelyWorking, !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the message")
-        }
-        guard state.retryableFailedMessageIDs.contains(id) else {
-            return
-        }
-        guard let record = userMessageRecord(id: id),
-              let message = record.content,
-              !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            state.clearRetryableFailedMessage(id: id)
-            return
-        }
-
-        do {
-            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-            try await withOutboundReservation {
-                try await deliverMessageReserved(
-                    message,
-                    stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
-                    existingLocalUserMessageID: id
-                )
-            }
-        } catch {
-            state.lastTurnError = "Retry failed: \(error.localizedDescription)"
-            throw error
-        }
     }
 
     func cancel() async {

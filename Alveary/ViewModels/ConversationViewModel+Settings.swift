@@ -75,6 +75,7 @@ extension ConversationViewModel {
 
         do {
             try modelContext.save()
+            clearPendingExitPlanModeDenialState()
         } catch {
             snapshot.restore(conversation: dbConversation, thread: dbThread, state: state)
             state.lastTurnError = error.localizedDescription
@@ -137,6 +138,7 @@ extension ConversationViewModel {
 
         do {
             try modelContext.save()
+            if providerChanged { clearPendingExitPlanModeDenialState() }
             return true
         } catch {
             snapshot.restore(conversation: dbConversation, thread: dbThread, state: state)
@@ -284,6 +286,9 @@ extension ConversationViewModel {
             self.state.runtimePlanModeEnabled = previousRuntimePlanModeEnabled
         }) else {
             return .noop
+        }
+        if !newValue {
+            clearPendingExitPlanModeDenialState()
         }
         guard !finishStagedSettingsIfNeeded(dbThread: dbThread),
               shouldReconfigureOnSettingChange() else {

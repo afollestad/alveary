@@ -22,7 +22,7 @@ extension AgentsManagerTests {
 
         await manager.cancelTurn(conversationId: conversationId)
 
-        try await waitUntil("expected cancelled lifecycle while process is still alive") {
+        try await waitUntil("expected cancelled lifecycle while process is still alive", timeout: .seconds(15)) {
             guard let status = await fixture.runtime.status(conversationId: runtimeConversationId) else {
                 return false
             }

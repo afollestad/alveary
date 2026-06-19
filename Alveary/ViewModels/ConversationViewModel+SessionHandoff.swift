@@ -34,6 +34,7 @@ extension ConversationViewModel {
         sessionHandoffCountdownTask = nil
         sessionHandoffSteeringCountdownTask?.cancel()
         sessionHandoffSteeringCountdownTask = nil
+        clearPendingExitPlanModeDenialState()
         state.isAutomaticSessionHandoffPending = false
         stashVisibleDraftForHandoffIfNeeded()
         state.isAwaitingHandoffSteering = false

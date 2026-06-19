@@ -2,22 +2,31 @@ import Foundation
 import Observation
 
 struct QueuedMessage: Identifiable, Sendable, Equatable {
-    let id = UUID()
+    let id: UUID
     let text: String
     let stagedContext: String?
     let requiredPlanModeEnabled: Bool?
     let requiredSpeedMode: AgentSpeedMode?
+    /// Provider-facing text for delivery; local UI and transcript must keep using `text`.
+    let transportText: String?
+    let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
 
     init(
+        id: UUID = UUID(),
         text: String,
         stagedContext: String?,
         requiredPlanModeEnabled: Bool? = nil,
-        requiredSpeedMode: AgentSpeedMode? = nil
+        requiredSpeedMode: AgentSpeedMode? = nil,
+        transportText: String? = nil,
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
+        self.id = id
         self.text = text
         self.stagedContext = stagedContext
         self.requiredPlanModeEnabled = requiredPlanModeEnabled
         self.requiredSpeedMode = requiredSpeedMode
+        self.transportText = transportText
+        self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
     }
 }
 
@@ -30,13 +39,17 @@ final class MessageQueue {
         _ message: String,
         stagedContext: String? = nil,
         requiredPlanModeEnabled: Bool? = nil,
-        requiredSpeedMode: AgentSpeedMode? = nil
+        requiredSpeedMode: AgentSpeedMode? = nil,
+        transportText: String? = nil,
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.append(QueuedMessage(
             text: message,
             stagedContext: stagedContext,
             requiredPlanModeEnabled: requiredPlanModeEnabled,
-            requiredSpeedMode: requiredSpeedMode
+            requiredSpeedMode: requiredSpeedMode,
+            transportText: transportText,
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ))
     }
 
@@ -44,13 +57,17 @@ final class MessageQueue {
         _ message: String,
         stagedContext: String? = nil,
         requiredPlanModeEnabled: Bool? = nil,
-        requiredSpeedMode: AgentSpeedMode? = nil
+        requiredSpeedMode: AgentSpeedMode? = nil,
+        transportText: String? = nil,
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.insert(QueuedMessage(
             text: message,
             stagedContext: stagedContext,
             requiredPlanModeEnabled: requiredPlanModeEnabled,
-            requiredSpeedMode: requiredSpeedMode
+            requiredSpeedMode: requiredSpeedMode,
+            transportText: transportText,
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ), at: 0)
     }
 
@@ -68,6 +85,21 @@ final class MessageQueue {
             return nil
         }
         return pending.remove(at: index)
+    }
+
+    func clearExitPlanModeRevisionGuidance() {
+        pending = pending.map { message in
+            guard message.transportText != nil || message.consumedExitPlanModeRevisionGuidance != nil else {
+                return message
+            }
+            return QueuedMessage(
+                id: message.id,
+                text: message.text,
+                stagedContext: message.stagedContext,
+                requiredPlanModeEnabled: nil,
+                requiredSpeedMode: message.requiredSpeedMode
+            )
+        }
     }
 
     func clear() {

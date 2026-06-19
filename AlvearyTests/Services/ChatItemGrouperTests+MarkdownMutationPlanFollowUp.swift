@@ -73,6 +73,33 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(editTool.previewOverride?.origin, .exitPlanModeFollowUp)
     }
 
+    func testExitPlanModeApprovalSuppressesDuplicatePlanFollowUpPreview() throws {
+        let grouper = ChatItemGrouper()
+        let plan = "# Plan\n\n- Existing"
+        let revisedPlan = "# Plan\n\n- Existing\n- Follow-up"
+        let editCall = planFollowUpToolCall(
+            id: "edit-1",
+            name: "Edit",
+            input: try planFollowUpEditInput(oldString: "- Existing", newString: "- Existing\n- Follow-up")
+        )
+
+        grouper.update(events: [
+            try planFollowUpExitPlanApproval(toolId: "exit-plan-1", plan: plan),
+            editCall,
+            planFollowUpToolResult(id: "edit-1"),
+            try planFollowUpExitPlanApproval(
+                id: "approval-2",
+                toolId: "exit-plan-2",
+                plan: revisedPlan
+            )
+        ])
+
+        let editTool = try XCTUnwrap(planFollowUpStandaloneTool(in: grouper, id: "edit-1"))
+        XCTAssertNil(editTool.previewOverride)
+        let approvalPlans = planFollowUpApprovalPlans(in: grouper)
+        XCTAssertEqual(approvalPlans, [plan, revisedPlan])
+    }
+
     func testAmbiguousExitPlanModePlanSeedFallsBackToSnippetPreview() throws {
         let grouper = ChatItemGrouper()
         let editCall = planFollowUpToolCall(
@@ -147,6 +174,7 @@ private func planFollowUpToolResult(id: String) -> ConversationEventRecord {
 
 private func planFollowUpExitPlanApproval(
     id: String = "approval",
+    toolId: String = "exit-plan",
     plan: String?
 ) throws -> ConversationEventRecord {
     let input: String
@@ -161,7 +189,7 @@ private func planFollowUpExitPlanApproval(
         conversationId: "conversation-1",
         type: "tool_approval",
         content: "session-1",
-        toolId: "exit-plan",
+        toolId: toolId,
         toolName: "ExitPlanMode",
         toolInput: input,
         toolApprovalStatus: ToolApprovalStatus.denied.rawValue
@@ -177,4 +205,18 @@ private func planFollowUpStandaloneTool(in grouper: ChatItemGrouper, id: String)
         }
         return tool
     }.first
+}
+
+@MainActor
+private func planFollowUpApprovalPlans(in grouper: ChatItemGrouper) -> [String] {
+    grouper.items.flatMap { item -> [String] in
+        switch item {
+        case .toolApproval(_, let approval, _):
+            return approval.planMarkdown.map { [$0] } ?? []
+        case .toolApprovalBatch(_, let approvals, _):
+            return approvals.compactMap(\.planMarkdown)
+        default:
+            return []
+        }
+    }
 }

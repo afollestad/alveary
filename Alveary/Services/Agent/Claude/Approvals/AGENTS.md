@@ -8,3 +8,4 @@ These instructions cover Alveary-owned approval code under `Alveary/Services/Age
 - Use `ClaudeApprovalDisplayPolicy` for Alveary UI approval rendering and approval-batch decisions. It may wrap `AgentCLIKit.ClaudeHookPolicy`, but it must not duplicate provider tool lists or MCP mutating-tool detection.
 - Native read-only tool calls may be groupable transcript rows even when their escaping `tool_approval` rows render approval prompts.
 - Keep `ToolApprovalRequest` as the owner for user-facing approval copy, summaries, supported session scopes, and deferred-composer status text.
+- Treat `ClaudeToolApprovalResolution.responseText` as host-to-provider transport response text despite the legacy Claude type name; it is not transcript-visible UI copy.
