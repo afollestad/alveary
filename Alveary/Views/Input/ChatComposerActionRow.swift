@@ -17,7 +17,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
     @Binding var isPlanModeEnabled: Bool
     let isPlanModeToggleEnabled: Bool
     let planModeDisabledTooltip: String?
-    let sessionLocationLabel: String?
     let usageSummary: ConversationUsageSummary?
     let areControlsDisabled: Bool
     let mode: ComposerMode
@@ -53,7 +52,6 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isPlanModeEnabled: isPlanModeEnabled,
             isPlanModeToggleEnabled: isPlanModeToggleEnabled,
             planModeDisabledTooltip: planModeDisabledTooltip,
-            sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
             areControlsDisabled: areControlsDisabled,
             mode: mode,
@@ -150,7 +148,6 @@ final class ChatComposerActionRowView: NSView {
         var isPlanModeEnabled = false
         var isPlanModeToggleEnabled = false
         var planModeDisabledTooltip: String?
-        let sessionLocationLabel: String?
         let usageSummary: ConversationUsageSummary?
         let areControlsDisabled: Bool
         let mode: ComposerMode
@@ -172,7 +169,6 @@ final class ChatComposerActionRowView: NSView {
     let permissionButton = ComposerPermissionButton()
     let planModeButton = ComposerPlanModeButton()
     let worktreeButton = ComposerWorktreeLocationButton()
-    let sessionLocationField = NSTextField(labelWithString: "")
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
     // frame logic out of this already-large view type without widening behavior.
     let spacer = NSView()
@@ -269,11 +265,6 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func setupAccessoryViews() {
-        sessionLocationField.font = .preferredFont(forTextStyle: .callout)
-        sessionLocationField.textColor = .secondaryLabelColor
-        sessionLocationField.lineBreakMode = .byTruncatingTail
-        sessionLocationField.maximumNumberOfLines = 1
-
         contextIndicatorView.translatesAutoresizingMaskIntoConstraints = false
         contextIndicatorView.setContentHuggingPriority(.required, for: .horizontal)
     }
@@ -391,9 +382,6 @@ final class ChatComposerActionRowView: NSView {
     }
 
     private func applyAccessoryConfiguration(_ configuration: Configuration) {
-        sessionLocationField.stringValue = configuration.sessionLocationLabel ?? ""
-        sessionLocationField.toolTip = configuration.sessionLocationLabel
-
         contextIndicatorView.configure(summary: configuration.usageSummary)
     }
 
@@ -449,8 +437,6 @@ final class ChatComposerActionRowView: NSView {
         }
         if configuration.showWorktreePicker {
             views.append(worktreeButton)
-        } else if configuration.sessionLocationLabel != nil {
-            views.append(sessionLocationField)
         }
 
         views.append(spacer)

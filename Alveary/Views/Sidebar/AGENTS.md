@@ -22,6 +22,8 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Fill width:** Keep the row framed to `maxWidth: .infinity` so the trailing dot reaches the same action column as project-row icon buttons.
     - **Preserve title alignment:** Keep the invisible leading slot so thread titles stay aligned with project names.
     - **Match busy sizing:** `.busy` uses a spinner in the same fixed frame as the colored dot (`8×8` today) so status changes do not change row height or nudge the label vertically.
+    - **Show worktrees inline:** Threads with `useWorktree` show a rotated branch glyph before the status/cleanup frame with a 6pt explicit gap. Hovering the glyph uses the shared `AppHoverPopup` tooltip chrome to show the worktree path, or `Worktree path not created yet` before setup creates one.
+    - **Reserve trailing controls:** Keep the title gap, worktree glyph, and status/cleanup frame in a fixed-width trailing cluster so long thread names ellipsize before the glyph instead of overlapping or shifting it.
 - `SidebarThreadRow` cleanup action overlays the status dot:
     - **Keep hidden by default:** Show the archive/delete icon button only while the row is hovered or confirmation is armed.
     - **Anchor confirmation right:** Keep the red `Confirm` pill icon-height.
@@ -30,7 +32,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Pause confirmation deliberately:** Keep the confirmation timeout paused while the pointer is over the pill or the mouse is pressed on it.
       If press ends outside the pill and hover is gone, resume the timeout.
     - **Reserve spacing deliberately:** Keep an 8pt title gap before the plain status dot.
-      Use a 4pt title gap when the archive/delete cleanup icon or confirmation pill is visible.
+      Keep the same 8pt title gap when the archive/delete cleanup icon is visible so hover does not change title truncation.
 - Thread names are rendered via the shared `AppMarkdownInlineLabel`, which keeps plain rows and rows with inline-code or `@mention` chips at a uniform height. `testSidebarThreadRowChipAndPlainShareHeight` locks this in for inline-code chips — if you rework the label, keep every chip row's height matching a plain row. Mention-chip rendering is snapshot-locked separately by `testSidebarThreadRowMentionTitleRendersChip`.
 - Thread rows render chip colors through `AppMarkdownInlineLabel`, which always uses the `.standard` palette — chip fill stays uniform across selection transitions. The uniform-color contract is the product decision; do not reintroduce selection-aware chip swapping here by reaching past the label into `AppMarkdownInlineCodeChip(style: ...)`.
 - The thread row "Rename..." context menu entry and VoiceOver rotor action are both gated on `editingThreadID == nil`, matching the keyboard path in `renameThreadID(for:editingThreadID:)`. Swapping `editingThreadID` from one row to another mid-edit left the target row stuck in editing state without an input field — the simultaneous unmount of the in-flight row's TextField and mount of the target row's within a single SwiftUI update pass didn't converge. Force users to finish the in-flight rename (Enter / Escape / click away) before starting a new one.

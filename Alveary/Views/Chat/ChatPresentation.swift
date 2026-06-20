@@ -106,7 +106,6 @@ struct ChatThreadPresentation: Equatable, Sendable {
     let selectedPlanModeEnabled: Bool
     let selectedUseWorktree: Bool
     let showWorktreePicker: Bool
-    let sessionLocationLabel: String?
     let contextWindowCacheLookupID: String
 
     @MainActor
@@ -136,18 +135,6 @@ struct ChatThreadPresentation: Equatable, Sendable {
             showWorktreePicker = true
         } else {
             showWorktreePicker = false
-        }
-
-        if let thread,
-           let project = thread.project,
-           project.isGitRepository,
-           thread.hasCompletedInitialSetup {
-            sessionLocationLabel = ChatComposerTextSupport.sessionLocationLabel(
-                useWorktree: thread.useWorktree,
-                worktreePath: thread.worktreePath
-            )
-        } else {
-            sessionLocationLabel = nil
         }
 
         contextWindowCacheLookupID = "\(providerID):\(selectedModel)"

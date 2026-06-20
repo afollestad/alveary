@@ -6,7 +6,9 @@ struct SidebarThreadRow: View {
     private static let cleanupButtonSize: CGFloat = 24
     private static let cleanupConfirmationWidth: CGFloat = 72
     private static let statusIndicatorSpacing: CGFloat = 8
-    private static let cleanupControlSpacing: CGFloat = 4
+    private static let worktreeIndicatorSize: CGFloat = 12
+    private static let worktreeIndicatorStatusSpacing: CGFloat = 6
+    private static let worktreeIndicatorRotationDegrees: CGFloat = 90
     private static let cleanupWidthAnimationDuration = 0.18
     private static let cleanupWidthAnimationNanoseconds: UInt64 = 180_000_000
     private static let cleanupHideAnimationDuration = 0.12
@@ -16,7 +18,6 @@ struct SidebarThreadRow: View {
     private static let cleanupDestructivePressedTint = Color(red: 0.54, green: 0.08, blue: 0.08)
     private static let trailingStatusCenterInset = SidebarProjectRow.horizontalPadding + statusIndicatorSize
     private static let cleanupButtonTrailingPadding = trailingStatusCenterInset - cleanupButtonSize / 2
-    private static let trailingStatusPadding = trailingStatusCenterInset - statusIndicatorSize / 2
 
     let thread: AgentThread
     let status: ThreadStatus
@@ -87,28 +88,22 @@ struct SidebarThreadRow: View {
                     .onExitCommand { cancelRename() }
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(0)
             } else {
                 AppMarkdownInlineLabel(text: displayName)
                     .allowsHitTesting(false)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .clipped()
-                    .layoutPriority(1)
+                    .layoutPriority(0)
             }
 
-            Color.clear
-                .frame(width: trailingControlSpacing)
-
-            trailingStatusOrCleanupControl
+            trailingControls
         }
         .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
         .padding(.trailing, trailingPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .trailing) {
-            if showsCleanupButton {
-                cleanupButton
-                    .padding(.trailing, Self.cleanupButtonTrailingPadding)
-            }
-        }
         .onHover { isHovering in
             withAnimation(.easeInOut(duration: Self.cleanupHideAnimationDuration)) {
                 self.isHovering = isHovering
@@ -180,12 +175,50 @@ struct SidebarThreadRow: View {
     }
 
     private var trailingStatusOrCleanupControl: some View {
-        statusIndicator
-            .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
-            .opacity(showsStatusIndicator ? 1 : 0)
-            .scaleEffect(showsStatusIndicator ? 1 : 0.55)
-            .animation(.easeInOut(duration: Self.cleanupStatusTransitionDuration), value: showsStatusIndicator)
-            .frame(width: trailingControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
+        ZStack(alignment: .trailing) {
+            statusIndicator
+                .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
+                .opacity(showsStatusIndicator ? 1 : 0)
+                .scaleEffect(showsStatusIndicator ? 1 : 0.55)
+                .animation(.easeInOut(duration: Self.cleanupStatusTransitionDuration), value: showsStatusIndicator)
+                .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize, alignment: .center)
+
+            if showsCleanupButton {
+                cleanupButton
+            }
+        }
+        .frame(width: trailingControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
+    }
+
+    private var worktreeIndicator: some View {
+        Image(systemName: "arrow.trianglehead.branch")
+            .font(.system(size: Self.worktreeIndicatorSize, weight: .medium))
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(Self.worktreeIndicatorRotationDegrees))
+            .frame(width: Self.worktreeIndicatorSize, height: Self.worktreeIndicatorSize)
+            .accessibilityHidden(true)
+            .overlay {
+                AppHoverTooltipAnchor(text: sidebarThreadWorktreeTooltipText(for: thread))
+                    .frame(width: Self.worktreeIndicatorSize, height: Self.worktreeIndicatorSize)
+            }
+    }
+
+    private var trailingControls: some View {
+        HStack(spacing: 0) {
+            Color.clear
+                .frame(width: trailingControlSpacing)
+
+            if thread.useWorktree {
+                worktreeIndicator
+
+                Color.clear
+                    .frame(width: Self.worktreeIndicatorStatusSpacing)
+            }
+
+            trailingStatusOrCleanupControl
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
     }
 
     private var cleanupButton: some View {
@@ -220,7 +253,6 @@ struct SidebarThreadRow: View {
             .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
             .animation(.easeOut(duration: 0.08), value: isCleanupButtonPressed)
             .animation(.easeInOut(duration: Self.cleanupWidthAnimationDuration), value: isCleanupConfirmationArmed)
-            .frame(width: Self.cleanupConfirmationWidth, height: Self.cleanupButtonSize, alignment: .trailing)
     }
 
     private func cleanupButtonContent(showsConfirm: Bool) -> some View {
@@ -276,18 +308,15 @@ struct SidebarThreadRow: View {
     }
 
     private var trailingControlWidth: CGFloat {
-        guard showsCleanupButton else {
-            return Self.statusIndicatorSize
-        }
-        return max(Self.statusIndicatorSize, cleanupControlWidth)
+        return max(Self.cleanupButtonSize, cleanupControlWidth)
     }
 
     private var trailingControlSpacing: CGFloat {
-        showsCleanupButton && !isCleanupControlCollapsingToHidden ? Self.cleanupControlSpacing : Self.statusIndicatorSpacing
+        Self.statusIndicatorSpacing
     }
 
     private var trailingPadding: CGFloat {
-        showsCleanupButton && !isCleanupControlCollapsingToHidden ? Self.cleanupButtonTrailingPadding : Self.trailingStatusPadding
+        Self.cleanupButtonTrailingPadding
     }
 
     private func cleanupPressGesture(width: CGFloat) -> some Gesture {
@@ -444,4 +473,14 @@ func sidebarThreadRenameCommitValue(initialValue: String, submittedValue: String
         return nil
     }
     return trimmedSubmitted
+}
+
+func sidebarThreadWorktreeTooltipText(for thread: AgentThread) -> String {
+    if let path = thread.worktreePath,
+       !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let canonicalPath = CanonicalPath.normalize(path.trimmingCharacters(in: .whitespacesAndNewlines))
+        return CanonicalPath.abbreviateHomeDirectory(canonicalPath)
+    }
+
+    return "Worktree path not created yet"
 }

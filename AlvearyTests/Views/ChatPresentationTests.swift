@@ -168,7 +168,6 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.selectedPlanModeEnabled)
         XCTAssertTrue(presentation.selectedUseWorktree)
         XCTAssertTrue(presentation.showWorktreePicker)
-        XCTAssertNil(presentation.sessionLocationLabel)
         XCTAssertEqual(presentation.contextWindowCacheLookupID, "claude:opus")
     }
 
@@ -239,7 +238,7 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.selectedPlanModeEnabled)
     }
 
-    func testThreadPresentationShowsSessionLocationAfterSetup() {
+    func testThreadPresentationHidesWorktreePickerAfterSetup() {
         let project = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
         let thread = AgentThread(
             name: "Native composer",
@@ -253,8 +252,8 @@ final class ChatPresentationTests: XCTestCase {
         let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
 
         XCTAssertEqual(presentation.selectedModel, AppSettings.defaultModelValue)
+        XCTAssertTrue(presentation.selectedUseWorktree)
         XCTAssertFalse(presentation.showWorktreePicker)
-        XCTAssertEqual(presentation.sessionLocationLabel, "Worktree (alveary-worktree)")
         XCTAssertEqual(presentation.contextWindowCacheLookupID, "claude:\(AppSettings.defaultModelValue)")
     }
 }

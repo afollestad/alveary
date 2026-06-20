@@ -4,8 +4,7 @@ extension ChatComposerActionRowView {
     /// Lays out the row in two independent groups: settings stay on the leading
     /// side and trailing accessories/actions pin to the right edge. This avoids
     /// `NSStackView` compression redistributing space in ways that truncate
-    /// short session-location labels like "Local" while still letting dropdowns
-    /// compress first.
+    /// controls unexpectedly while still letting dropdowns compress first.
     func layoutArrangedSubviews() {
         let arrangedSubviews = rowSubviews.filter { $0.superview === stack && !$0.isHidden }
         guard let spacerIndex = arrangedSubviews.firstIndex(of: spacer) else {
@@ -66,7 +65,7 @@ extension ChatComposerActionRowView {
         )
         let spacingWidth = spacings.reduce(0, +)
         let contentWidth = max(0, availableWidth - spacingWidth)
-        let widths = compressedWidths(views: views, preferredWidths: preferredWidths, availableWidth: contentWidth)
+        let widths = compressedWidths(preferredWidths: preferredWidths, availableWidth: contentWidth)
 
         var frames: [NSView: NSRect] = [:]
         var nextX: CGFloat = 0
@@ -131,7 +130,7 @@ extension ChatComposerActionRowView {
         return spacings
     }
 
-    private func compressedWidths(views: [NSView], preferredWidths: [CGFloat], availableWidth: CGFloat) -> [CGFloat] {
+    private func compressedWidths(preferredWidths: [CGFloat], availableWidth: CGFloat) -> [CGFloat] {
         guard !preferredWidths.isEmpty else {
             return []
         }
@@ -140,12 +139,10 @@ extension ChatComposerActionRowView {
             return preferredWidths
         }
 
-        let minimumWidths = zip(views, preferredWidths).map { view, preferredWidth in
-            minimumWidth(for: view, preferredWidth: preferredWidth)
-        }
+        let minimumWidths = preferredWidths.map(minimumWidth(forPreferredWidth:))
         let minimumTotal = minimumWidths.reduce(0, +)
         guard minimumTotal < availableWidth else {
-            return overflowWidths(views: views, minimumWidths: minimumWidths, availableWidth: availableWidth)
+            return overflowWidths(minimumWidths: minimumWidths, availableWidth: availableWidth)
         }
 
         var widths = preferredWidths
@@ -162,35 +159,18 @@ extension ChatComposerActionRowView {
         return widths
     }
 
-    private func overflowWidths(views: [NSView], minimumWidths: [CGFloat], availableWidth: CGFloat) -> [CGFloat] {
-        let fixedWidth = zip(views, minimumWidths)
-            .filter { view, _ in !canCompressBelowMinimum(view) }
-            .map(\.1)
-            .reduce(0, +)
-        let compressibleIndexes = views.indices.filter { canCompressBelowMinimum(views[$0]) }
-        let compressibleWidth = max(0, availableWidth - fixedWidth)
-        let compressibleMinimumTotal = compressibleIndexes
-            .map { minimumWidths[$0] }
-            .reduce(0, +)
+    private func overflowWidths(minimumWidths: [CGFloat], availableWidth: CGFloat) -> [CGFloat] {
+        let minimumTotal = minimumWidths.reduce(0, +)
+        let scale = minimumTotal > 0 ? max(0, availableWidth) / minimumTotal : 0
         var widths = minimumWidths
-
-        for index in compressibleIndexes {
-            let scale = compressibleMinimumTotal > 0 ? compressibleWidth / compressibleMinimumTotal : 0
+        for index in widths.indices {
             widths[index] = floor(minimumWidths[index] * scale)
         }
-
         return widths
     }
 
-    private func minimumWidth(for view: NSView, preferredWidth: CGFloat) -> CGFloat {
-        if !canCompressBelowMinimum(view) {
-            return preferredWidth
-        }
+    private func minimumWidth(forPreferredWidth preferredWidth: CGFloat) -> CGFloat {
         return min(preferredWidth, minimumSettingsControlWidth)
-    }
-
-    private func canCompressBelowMinimum(_ view: NSView) -> Bool {
-        view !== sessionLocationField
     }
 
     private func centeredFrame(originX: CGFloat, width: CGFloat, for view: NSView) -> NSRect {
@@ -206,9 +186,6 @@ extension ChatComposerActionRowView {
     private func preferredWidth(for view: NSView) -> CGFloat {
         if view === disabledProgressContainer {
             return disabledSendSlot.intrinsicContentSize.width
-        }
-        if view === sessionLocationField {
-            return measuredWidth(for: sessionLocationField)
         }
         let intrinsicWidth = view.intrinsicContentSize.width
         if intrinsicWidth != NSView.noIntrinsicMetric, intrinsicWidth > 0 {
@@ -260,8 +237,7 @@ extension ChatComposerActionRowView {
         view === plusButton ||
             view === permissionButton ||
             view === planModeButton ||
-            view === worktreeButton ||
-            view === sessionLocationField
+            view === worktreeButton
     }
 
     #if DEBUG
@@ -299,14 +275,6 @@ extension ChatComposerActionRowView {
             return ceil(intrinsicHeight)
         }
         return configuration?.composerActionRowHeight ?? 30
-    }
-
-    private func measuredWidth(for field: NSTextField) -> CGFloat {
-        let font = field.font ?? .preferredFont(forTextStyle: .callout)
-        let textWidth = (field.stringValue as NSString).size(withAttributes: [.font: font]).width
-        let cellWidth = field.cell?.cellSize.width ?? 0
-        let intrinsicWidth = field.intrinsicContentSize.width
-        return ceil(max(textWidth, cellWidth, intrinsicWidth)) + 4
     }
 
     func progressLabelText(for configuration: Configuration) -> String {

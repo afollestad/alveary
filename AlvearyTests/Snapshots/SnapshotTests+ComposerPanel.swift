@@ -347,7 +347,6 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: false,
             selectedUseWorktree: selectedUseWorktree,
-            sessionLocationLabel: "Local",
             usageSummary: usageSummary,
             areControlsDisabled: false,
             mode: .idle,

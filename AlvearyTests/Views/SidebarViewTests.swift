@@ -137,6 +137,34 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertNil(threadCleanupConfirmation(for: nil, action: .archive))
     }
 
+    func testWorktreeTooltipTextUsesCanonicalWorktreePath() {
+        let path = " \(NSHomeDirectory())/Documents/../Documents/worktrees/refactor-chat-input/ "
+        let thread = AgentThread(name: "Thread", useWorktree: true)
+        thread.worktreePath = path
+
+        XCTAssertEqual(
+            sidebarThreadWorktreeTooltipText(for: thread),
+            "~/Documents/worktrees/refactor-chat-input"
+        )
+    }
+
+    func testWorktreeTooltipTextDoesNotDecodeLiteralPercentEncoding() {
+        let path = "\(NSHomeDirectory())/Documents/worktrees/refactor%20chat-input"
+        let thread = AgentThread(name: "Thread", useWorktree: true)
+        thread.worktreePath = path
+
+        XCTAssertEqual(
+            sidebarThreadWorktreeTooltipText(for: thread),
+            "~/Documents/worktrees/refactor%20chat-input"
+        )
+    }
+
+    func testWorktreeTooltipTextUsesPendingFallbackBeforePathExists() {
+        let thread = AgentThread(name: "Thread", useWorktree: true)
+
+        XCTAssertEqual(sidebarThreadWorktreeTooltipText(for: thread), "Worktree path not created yet")
+    }
+
     private func makeThread(name: String, project: Project) -> AgentThread {
         let thread = AgentThread(name: name, project: project)
         let conversation = Conversation(

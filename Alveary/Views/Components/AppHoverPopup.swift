@@ -269,7 +269,7 @@ private struct AppHoverInfoIconRepresentable: NSViewRepresentable {
 }
 
 @MainActor
-private final class AppKitHoverTooltipController {
+final class AppKitHoverTooltipController {
     private var tooltipWindow: NSWindow?
     private weak var parentWindow: NSWindow?
 

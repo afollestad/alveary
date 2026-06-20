@@ -77,31 +77,6 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertEqual(ChatComposerTextSupport.worktreeLocationLabel(for: true), "New worktree")
     }
 
-    func testSessionLocationLabelFormats() {
-        XCTAssertEqual(
-            ChatComposerTextSupport.sessionLocationLabel(useWorktree: false, worktreePath: nil),
-            "Local"
-        )
-        XCTAssertEqual(
-            ChatComposerTextSupport.sessionLocationLabel(
-                useWorktree: false,
-                worktreePath: "/tmp/worktrees/alveary/feature-abc123"
-            ),
-            "Local"
-        )
-        XCTAssertEqual(
-            ChatComposerTextSupport.sessionLocationLabel(
-                useWorktree: true,
-                worktreePath: "/tmp/worktrees/alveary/feature-abc123"
-            ),
-            "Worktree (feature-abc123)"
-        )
-        XCTAssertEqual(
-            ChatComposerTextSupport.sessionLocationLabel(useWorktree: true, worktreePath: nil),
-            "Worktree"
-        )
-    }
-
     func testDeferredToolComposerStatusTextUsesRequestOverrides() {
         let askUserQuestion = ToolApprovalRequest(
             sessionId: "session-1",

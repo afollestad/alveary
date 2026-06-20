@@ -60,10 +60,6 @@ extension ChatView {
         threadPresentation.showWorktreePicker
     }
 
-    var sessionLocationLabel: String? {
-        threadPresentation.sessionLocationLabel
-    }
-
     func clearSubmittedDraftAndRequestFocus(source: ComposerDraftSource) {
         viewModel.clearInputDraft(source: source)
         appState.requestComposerFocus()

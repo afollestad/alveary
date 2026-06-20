@@ -466,7 +466,6 @@ extension ChatView {
                 composerCapabilities.planModeDisabledTooltip == nil &&
                 !presentation.areControlsDisabled,
             planModeDisabledTooltip: composerCapabilities.planModeDisabledTooltip,
-            sessionLocationLabel: sessionLocationLabel,
             usageSummary: usageSummary,
             areControlsDisabled: presentation.areControlsDisabled,
             mode: composerMode,

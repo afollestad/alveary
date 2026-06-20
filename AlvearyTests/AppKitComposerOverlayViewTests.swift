@@ -388,7 +388,6 @@ func makeOverlayActionRowConfiguration() -> ChatComposerActionRowView.Configurat
         selectedPermissionMode: "default",
         showWorktreePicker: false,
         selectedUseWorktree: false,
-        sessionLocationLabel: "Local",
         usageSummary: nil,
         areControlsDisabled: false,
         mode: .idle,

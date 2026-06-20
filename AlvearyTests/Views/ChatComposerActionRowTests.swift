@@ -254,81 +254,6 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertLessThan(reasoningFrame.maxX, actionFrame.minX)
     }
 
-    func testSessionLocationLabelKeepsIntrinsicWidthWhenDropdownsCompress() throws {
-        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 930, height: 30))
-        row.configure(
-            makeConfiguration(
-                mode: .idle,
-                showWorktreePicker: false,
-                sessionLocationLabel: "Local",
-                usageSummary: ConversationUsageSummary(
-                    contextUsedTokens: 10_000,
-                    contextWindowSize: 100_000,
-                    totalCostUsd: 0.12,
-                    hasReportedCost: true,
-                    hasReportedUsage: true,
-                    isUsingCachedContextWindow: false
-                )
-            )
-        )
-
-        row.layoutSubtreeIfNeeded()
-
-        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Local" })
-        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
-        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
-    }
-
-    func testSessionLocationLabelKeepsIntrinsicWidthWhenRowOverflowsMinimums() throws {
-        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 300, height: 30))
-        row.configure(
-            makeConfiguration(
-                mode: .idle,
-                showWorktreePicker: false,
-                sessionLocationLabel: "Local",
-                usageSummary: ConversationUsageSummary(
-                    contextUsedTokens: 10_000,
-                    contextWindowSize: 100_000,
-                    totalCostUsd: 0.12,
-                    hasReportedCost: true,
-                    hasReportedUsage: true,
-                    isUsingCachedContextWindow: false
-                )
-            )
-        )
-
-        row.layoutSubtreeIfNeeded()
-
-        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Local" })
-        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
-        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
-    }
-
-    func testSessionLocationWorktreeLabelKeepsNaturalWidthWhenDropdownsCompress() throws {
-        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 930, height: 30))
-        row.configure(
-            makeConfiguration(
-                mode: .idle,
-                showWorktreePicker: false,
-                sessionLocationLabel: "Worktree",
-                usageSummary: ConversationUsageSummary(
-                    contextUsedTokens: 10_000,
-                    contextWindowSize: 100_000,
-                    totalCostUsd: 0.12,
-                    hasReportedCost: true,
-                    hasReportedUsage: true,
-                    isUsingCachedContextWindow: false
-                )
-            )
-        )
-
-        row.layoutSubtreeIfNeeded()
-
-        let locationLabel = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Worktree" })
-        let locationFrame = locationLabel.convert(locationLabel.bounds, to: row)
-        XCTAssertGreaterThanOrEqual(locationFrame.width, measuredTextWidth(for: locationLabel))
-    }
-
 }
 
 func makeConfiguration(
@@ -343,7 +268,6 @@ func makeConfiguration(
     isPlanModeEnabled: Bool = false,
     selectedSpeedMode: AgentSpeedMode = .standard,
     supportsSpeedMode: Bool = false,
-    sessionLocationLabel: String? = nil,
     usageSummary: ConversationUsageSummary? = nil,
     areControlsDisabled: Bool = false,
     isPrimaryActionDisabled: Bool = false,
@@ -373,7 +297,6 @@ func makeConfiguration(
         showWorktreePicker: showWorktreePicker,
         selectedUseWorktree: selectedUseWorktree,
         isPlanModeEnabled: isPlanModeEnabled,
-        sessionLocationLabel: sessionLocationLabel,
         usageSummary: usageSummary,
         areControlsDisabled: areControlsDisabled,
         mode: mode,
@@ -451,15 +374,6 @@ private extension NSView {
             return matches
         }
     }
-}
-
-@MainActor
-private func measuredTextWidth(for field: NSTextField) -> CGFloat {
-    let font = field.font ?? .preferredFont(forTextStyle: .callout)
-    let textWidth = (field.stringValue as NSString).size(withAttributes: [.font: font]).width
-    let cellWidth = field.cell?.cellSize.width ?? 0
-    let intrinsicWidth = field.intrinsicContentSize.width
-    return ceil(max(textWidth, cellWidth, intrinsicWidth)) + 4
 }
 
 private func mouseEvent(type: NSEvent.EventType = .leftMouseUp, at point: NSPoint) -> NSEvent {

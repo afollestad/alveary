@@ -27,12 +27,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 - Composer popup menus must reuse `AppKitComposerPopoverSurfaceView` and `AppKitComposerPopoverDividerView` from `Components/AppKit/` instead of hand-rolled popover surfaces or divider views.
 
-## Worktree Picker And Session Location
+## Worktree Picker
 
 - The worktree-location picker is an empty-thread-only control for git-backed threads. New threads seed `AgentThread.useWorktree` from the global `createWorktreeByDefault` setting, the picker edits that per-thread override before first send, and it should disappear once `hasCompletedInitialSetup` flips true.
-- Once hidden, surface the committed location as `"Local"` or `"Worktree (<last-path-component of worktreePath>)"` in the action row.
-- Production gating belongs in `ChatView.sessionLocationLabel`; require both `project.isGitRepository` and `thread.hasCompletedInitialSetup`.
-- Format labels through `ChatComposerTextSupport.sessionLocationLabel(useWorktree:worktreePath:)` so tests and snapshots move with any copy change.
+- Once hidden, do not surface redundant `"Local"` or `"Worktree (<last-path-component of worktreePath>)"` text in the composer action row; the sidebar owns committed worktree indication.
 
 ## Composer Action Row
 
