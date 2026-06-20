@@ -152,7 +152,7 @@ struct DiffViewerPaneHeader: View {
                 maxHeight: diffViewerHeaderControlHeight,
                 alignment: .leading
             )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
         }
         .buttonStyle(DiffViewerModeMenuButtonStyle())
         .accessibilityLabel("Diff viewer mode")
@@ -194,11 +194,11 @@ private struct DiffViewerModeMenuButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .fill(configuration.isPressed ? Color.primary.opacity(0.06) : Color(nsColor: .windowBackgroundColor))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .stroke(Color.primary.opacity(configuration.isPressed ? 0.22 : 0.14), lineWidth: 1)
             )
     }
@@ -256,13 +256,13 @@ private struct DiffViewerHeaderIconButtonStyle: ButtonStyle {
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(foregroundColor.opacity(isEnabled ? 1 : 0.55))
             .frame(width: diffViewerHeaderControlHeight, height: diffViewerHeaderControlHeight)
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .fill(backgroundColor(isPressed: configuration.isPressed).opacity(isEnabled ? 1 : 0.38))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .stroke(borderColor.opacity(borderOpacity), lineWidth: borderWidth)
             )
             .opacity(configuration.isPressed && isEnabled ? 0.94 : 1)

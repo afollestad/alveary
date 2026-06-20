@@ -192,10 +192,10 @@ final class ComposerActionButton: NSView {
 
     private func drawBackground() {
         backgroundColor.withAlphaComponent(backgroundAlpha).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+        NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
         if isHovering, controlIsEnabled, !isPressed {
             foregroundColor.appKitResolvedColor(in: self, alpha: 0.06 * pressedBodyOpacity).setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+            NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
         }
     }
 

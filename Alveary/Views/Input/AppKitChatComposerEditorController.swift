@@ -58,7 +58,7 @@ extension AppKitChatComposerEditorController {
     nonisolated static let editorHorizontalPadding: CGFloat = 14
     nonisolated static let editorVerticalPadding: CGFloat = 10
     nonisolated static let editorBaseHeight: CGFloat = 68
-    nonisolated static let editorCornerRadius: CGFloat = 18
+    nonisolated static let editorCornerRadius: CGFloat = AppCornerRadius.standard
     nonisolated static let borderWidth: CGFloat = 1
     nonisolated static let autocompleteVerticalOffset: CGFloat = 8
     nonisolated static let modalHorizontalOffset: CGFloat = 8

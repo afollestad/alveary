@@ -116,7 +116,7 @@ final class AppKitChatQueuedMessageSteerButton: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         appKitComposerPrimaryColor(in: self, opacity: isPressed ? 0.16 : (isHovering ? 0.12 : 0.08)).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+        NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
         drawTitle()
     }
 

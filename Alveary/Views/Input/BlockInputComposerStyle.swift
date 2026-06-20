@@ -3,13 +3,13 @@ import BlockInputKit
 
 enum BlockInputComposerStyle {
     static let chipCornerRadius: CGFloat = 4
-    static let completionPopupCornerRadius: CGFloat = 18
+    static let completionPopupCornerRadius: CGFloat = AppCornerRadius.standard
     static let completionPopupBorderWidth: CGFloat = 1
     static let imagePreviewThumbnailSize = NSSize(width: 76, height: 76)
     static let imagePreviewVerticalPadding: CGFloat = 8
     static let imagePreviewHorizontalPadding: CGFloat = 8
     static let imagePreviewInterItemSpacing: CGFloat = 12
-    static let imagePreviewCornerRadius: CGFloat = 12
+    static let imagePreviewCornerRadius: CGFloat = AppCornerRadius.standard
     static let imagePreviewBorderWidth: CGFloat = 1
     static let imagePreviewRemoveButtonBorderWidth: CGFloat = 1
     static let imagePreviewRemoveButtonShadowOpacity: Float = 0.22

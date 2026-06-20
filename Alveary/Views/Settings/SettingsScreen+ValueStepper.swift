@@ -50,7 +50,7 @@ struct SettingsValueStepper: View {
             maxHeight: SettingsScreenLayout.settingsControlSurfaceHeight
         )
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                 .fill(Color.secondary.opacity(0.14))
         )
         .frame(maxWidth: .infinity)
@@ -79,7 +79,7 @@ struct SettingsValueStepper: View {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .bold))
                 .frame(width: 30, height: 28)
-                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
         }
         .buttonStyle(SettingsValueStepperButtonStyle())
         .accessibilityLabel(accessibilityLabel)
@@ -109,7 +109,7 @@ private struct SettingsValueStepperButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(Color.primary.opacity(isEnabled ? 0.9 : 0.35))
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .fill(Color.primary.opacity(configuration.isPressed && isEnabled ? 0.08 : 0))
             )
     }

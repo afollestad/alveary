@@ -100,7 +100,7 @@ struct SidebarThreadRow: View {
 
             trailingStatusOrCleanupControl
         }
-        .padding(.vertical, 6)
+        .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
         .padding(.trailing, trailingPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .trailing) {

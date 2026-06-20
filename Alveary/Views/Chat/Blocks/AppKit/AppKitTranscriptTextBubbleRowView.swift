@@ -226,14 +226,14 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let overflows = isOverflowing(markdownHeight: fullMarkdownHeight)
         let visibleMarkdownHeight = overflows && !isExpanded ? min(fullMarkdownHeight, collapsedMaxHeight) : fullMarkdownHeight
         let toggleHeight = overflows ? max(textBubbleToggleMinHeight, ceil(expansionButton.fittingSize.height)) : 0
-        let height = visibleMarkdownHeight + (chatVerticalPadding * 2) +
+        let height = visibleMarkdownHeight + (chatBubbleVerticalPadding * 2) +
             (overflows ? textBubbleControlClearance + textBubbleControlSpacing + toggleHeight : 0)
         let originX = configuration.role == .user ? max(bounds.width - width, 0) : 0
         return TextBubbleLayoutMetrics(
             bubbleFrame: NSRect(x: originX, y: 0, width: width, height: height),
             markdownClipFrame: NSRect(
                 x: chatBubbleHorizontalPadding,
-                y: chatVerticalPadding,
+                y: chatBubbleVerticalPadding,
                 width: markdownWidth,
                 height: visibleMarkdownHeight
             ),
@@ -433,7 +433,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         } else if bubbleView.frame.height > 0 {
             bubbleHeight = bubbleView.frame.height
         } else {
-            bubbleHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatVerticalPadding * 2)
+            bubbleHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatBubbleVerticalPadding * 2)
         }
         let retryHeight = retryButton.isHidden ? 0 : 6 + max(retryStatusField.frame.height, retryButton.frame.height)
         return ceil(bubbleHeight + retryHeight)

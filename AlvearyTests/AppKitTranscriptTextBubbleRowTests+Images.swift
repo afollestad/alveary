@@ -21,7 +21,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let imageView = try XCTUnwrap(row.descendants(of: AppKitMarkdownImageBlockView.self).first)
         XCTAssertEqual(imageView.displaySizeForTesting, CGSize(width: 262, height: 174))
         XCTAssertFalse(row.descendants(of: AppKitMarkdownTextView.self).map(\.string).contains { $0.contains("<img") })
-        XCTAssertEqual(row.intrinsicContentSize.height, 174 + (chatVerticalPadding * 2), accuracy: 1)
+        XCTAssertEqual(row.intrinsicContentSize.height, 174 + (chatBubbleVerticalPadding * 2), accuracy: 1)
     }
 
     func testAssistantBubbleCapsWideImagesToContentWidth() throws {

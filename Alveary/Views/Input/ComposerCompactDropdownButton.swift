@@ -234,7 +234,7 @@ class ComposerCompactDropdownButton: NSView {
 
     private func drawChrome() {
         NSColor.labelColor.appKitResolvedColor(in: self, alpha: backgroundAlpha).setFill()
-        let path = NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8)
+        let path = NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard)
         path.fill()
         if window?.firstResponder === self, controlIsEnabled {
             AppAccentFill.primaryNSColor.appKitResolvedColor(in: self, alpha: 0.22).setStroke()

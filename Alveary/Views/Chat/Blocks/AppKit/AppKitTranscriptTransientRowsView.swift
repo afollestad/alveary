@@ -130,12 +130,12 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
         let width = bubbleWidth(for: configuration, fitting: fittingTextWidth())
         let textWidth = max(width - (chatBubbleHorizontalPadding * 2) - 4, 0)
         let textHeight = measuredTextHeight(width: textWidth)
-        let height = max(textHeight, 16) + (chatVerticalPadding * 2)
+        let height = max(textHeight, 16) + (chatBubbleVerticalPadding * 2)
         let caretLayout = streamingCaretLayout(textWidth: textWidth)
         bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         textField.frame = NSRect(
             x: chatBubbleHorizontalPadding,
-            y: chatVerticalPadding,
+            y: chatBubbleVerticalPadding,
             width: textWidth,
             height: textHeight
         )
@@ -144,7 +144,7 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
                 chatBubbleHorizontalPadding + caretLayout.origin.x + 2,
                 width - chatBubbleHorizontalPadding - 2
             ),
-            y: chatVerticalPadding + caretLayout.origin.y,
+            y: chatBubbleVerticalPadding + caretLayout.origin.y,
             width: 2,
             height: caretLayout.height
         )
@@ -262,7 +262,7 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
         if bubbleView.frame.height > 0 {
             return ceil(bubbleView.frame.height)
         }
-        return ceil(max(measuredTextHeight(width: textField.frame.width), 16) + (chatVerticalPadding * 2))
+        return ceil(max(measuredTextHeight(width: textField.frame.width), 16) + (chatBubbleVerticalPadding * 2))
     }
 
     private func measuredTextHeight(width: CGFloat) -> CGFloat {

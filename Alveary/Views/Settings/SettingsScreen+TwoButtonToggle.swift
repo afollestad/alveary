@@ -41,7 +41,7 @@ struct SettingsTwoButtonToggle<Value: Hashable>: View {
                 if let bounds = boundsByOption[AnyHashable(selection)] {
                     let rect = proxy[bounds]
 
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                         .fill(selectedBackgroundColor)
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
@@ -93,7 +93,7 @@ private struct SettingsTwoButtonToggleOption: View {
                 .foregroundStyle(Color.primary.opacity(isSelected ? 1 : 0.55))
                 .padding(.horizontal, 12)
                 .frame(minWidth: 68, minHeight: 28, maxHeight: 28)
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
         }
         .buttonStyle(SettingsTwoButtonToggleOptionButtonStyle(isSelected: isSelected, isHovering: isHovering))
         .anchorPreference(key: SettingsTwoButtonToggleOptionBoundsKey.self, value: .bounds) { bounds in
@@ -120,7 +120,7 @@ private struct SettingsTwoButtonToggleOptionButtonStyle: ButtonStyle {
             .background(
                 Group {
                     if !isSelected && (configuration.isPressed || isHovering) {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                             .fill(unselectedInteractionColor(isPressed: configuration.isPressed))
                     }
                 }

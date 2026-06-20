@@ -5,7 +5,7 @@ final class AppKitPromptSubmitButton: NSButton {
     private enum Metrics {
         static let height: CGFloat = 30
         static let horizontalPadding: CGFloat = 12
-        static let cornerRadius: CGFloat = 10
+        static let cornerRadius: CGFloat = AppCornerRadius.standard
     }
 
     private var isHovering = false

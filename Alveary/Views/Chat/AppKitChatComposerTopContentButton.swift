@@ -136,7 +136,7 @@ final class ComposerTopContentButton: NSView {
     private func drawSecondaryButton() {
         let fillAlpha: CGFloat = isPressed ? 0.16 : (isHovering ? 0.12 : 0.08)
         NSColor.labelColor.appKitResolvedColor(in: self, alpha: fillAlpha).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+        NSBezierPath(roundedRect: bounds, xRadius: AppCornerRadius.standard, yRadius: AppCornerRadius.standard).fill()
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: Self.titleFont,

@@ -4,12 +4,26 @@ import SwiftUI
 // SF Symbols include leading side bearings; compensate so visible icon ink aligns with the header text.
 private let topIconOpticalInset: CGFloat = 4
 
+enum SidebarRowMetrics {
+    private static let labelHeight: CGFloat = 16
+
+    static let topLevelAndThreadVerticalPadding: CGFloat = 4
+    static let topLevelAndThreadContentHeight: CGFloat = labelHeight + topLevelAndThreadVerticalPadding * 2
+    static let topLevelRowSpacing: CGFloat = 4
+    static let interThreadRowSpacing: CGFloat = 2
+}
+
 extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
         viewModel.activeThreads(for: project)
     }
 
-    func topLevelRow(title: String, systemImage: String, item: SidebarItem) -> some View {
+    func topLevelRow(
+        title: String,
+        systemImage: String,
+        item: SidebarItem,
+        bottomSpacing: CGFloat = 0
+    ) -> some View {
         let isSelected = appState.selectedSidebarItem == item
 
         return HStack(spacing: 8) {
@@ -23,15 +37,17 @@ extension SidebarView {
             Text(title)
         }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
+            .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
             .padding(.leading, SidebarProjectsHeaderRow.contentLeadingPadding - topIconOpticalInset)
             .appSelectableRow(
                 isSelected: isSelected,
+                selectionBackgroundBottomInset: bottomSpacing,
                 action: {
                     appState.selectedSidebarItem = item
                     claimSidebarFocus()
                 }
             )
+            .padding(.bottom, bottomSpacing)
     }
 
     func toggleExpansion(for path: String, in set: inout Set<String>) {

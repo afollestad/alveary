@@ -392,7 +392,7 @@ private enum AppInputStyle {
     static let backgroundColor = Color.secondary.opacity(0.08)
     static let borderColor = Color.secondary.opacity(0.2)
     static let borderWidth: CGFloat = 1
-    static let defaultCornerRadius: CGFloat = 12
+    static let defaultCornerRadius: CGFloat = AppCornerRadius.standard
     static let defaultHorizontalPadding: CGFloat = 14
     static let defaultVerticalPadding: CGFloat = 10
     static let editorHorizontalPadding: CGFloat = 10

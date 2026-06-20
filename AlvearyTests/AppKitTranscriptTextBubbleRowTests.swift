@@ -256,7 +256,7 @@ final class AppKitTranscriptTextBubbleRowTests: XCTestCase {
         XCTAssertGreaterThan(showMoreIconSize.width, showMoreIconSize.height)
         XCTAssertEqual(
             row.bubbleFrameForTesting.maxY - row.expansionButtonFrameForTesting.maxY,
-            chatVerticalPadding,
+            chatBubbleVerticalPadding,
             accuracy: 1
         )
         showMore.performClick(nil)

@@ -66,7 +66,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let markdownFrame = try XCTUnwrap(row.markdownFrameForTesting)
 
         XCTAssertEqual(row.markdownClipFrameForTesting.minX, chatBubbleHorizontalPadding, accuracy: 0.5)
-        XCTAssertEqual(row.markdownClipFrameForTesting.minY, chatVerticalPadding, accuracy: 0.5)
+        XCTAssertEqual(row.markdownClipFrameForTesting.minY, chatBubbleVerticalPadding, accuracy: 0.5)
         XCTAssertEqual(markdownFrame.width, row.markdownClipFrameForTesting.width, accuracy: 0.5)
     }
 
@@ -182,7 +182,7 @@ extension AppKitTranscriptTextBubbleRowTests {
 
         XCTAssertEqual(
             row.bubbleFrameForTesting.maxY - row.expansionButtonFrameForTesting.maxY,
-            chatVerticalPadding,
+            chatBubbleVerticalPadding,
             accuracy: 0.5
         )
 
@@ -194,7 +194,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertEqual(row.intrinsicContentSize.height, initialCollapsedHeight, accuracy: 0.5)
         XCTAssertEqual(
             row.bubbleFrameForTesting.maxY - row.expansionButtonFrameForTesting.maxY,
-            chatVerticalPadding,
+            chatBubbleVerticalPadding,
             accuracy: 0.5
         )
     }
@@ -234,7 +234,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertTrue(row.markdownView === markdownView)
         XCTAssertEqual(
             row.bubbleFrameForTesting.maxY - row.expansionButtonFrameForTesting.maxY,
-            chatVerticalPadding,
+            chatBubbleVerticalPadding,
             accuracy: 0.5
         )
     }

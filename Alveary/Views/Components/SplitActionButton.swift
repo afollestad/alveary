@@ -110,20 +110,7 @@ struct SplitActionButton<Option: Hashable>: View {
     }
 
     private var cornerRadius: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 9
-        case .regular:
-            return 10
-        case .large:
-            return 12
-        case .extraLarge:
-            return 14
-        @unknown default:
-            return 10
-        }
+        AppCornerRadius.standard
     }
 
     private var menuWidth: CGFloat {

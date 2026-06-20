@@ -2,13 +2,14 @@ import AppKit
 import CoreGraphics
 
 let chatBubbleHorizontalPadding: CGFloat = 12
-let chatBubbleCornerRadius: CGFloat = 12
+let chatBubbleVerticalPadding: CGFloat = 8
+let chatBubbleCornerRadius: CGFloat = AppCornerRadius.standard
 let userBubbleMaxWidth: CGFloat = 640
 let userBubbleLeadingClearance: CGFloat = 60
 let chatBlockPadding: CGFloat = 14
-/// Shared vertical rhythm for bubble-style chat surfaces.
+/// Shared vertical rhythm for non-text transcript blocks.
 let chatVerticalPadding: CGFloat = 10
-let chatBlockCornerRadius: CGFloat = 12
+let chatBlockCornerRadius: CGFloat = AppCornerRadius.standard
 let transcriptToolIconFrameSize: CGFloat = 16
 let transcriptToolIconTextSpacing: CGFloat = 24
 let transcriptToolLeadingTextSpacing = transcriptToolIconTextSpacing - transcriptToolIconFrameSize

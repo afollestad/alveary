@@ -51,7 +51,7 @@ struct SettingsMenuPicker<Value: Hashable>: View {
                 alignment: .leading
             )
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
                     .fill(Color.secondary.opacity(0.14))
             )
         }

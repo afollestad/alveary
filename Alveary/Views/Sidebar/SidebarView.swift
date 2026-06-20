@@ -1,6 +1,10 @@
 import SwiftData
 import SwiftUI
 
+private enum SidebarProjectListMetrics {
+    static let subsequentProjectTopSpacing: CGFloat = 4
+}
+
 struct SidebarView: View {
     let viewModel: SidebarViewModel
     @Bindable var appState: AppState
@@ -54,7 +58,8 @@ struct SidebarView: View {
                     topLevelRow(
                         title: "Skills",
                         systemImage: "puzzlepiece.extension",
-                        item: .skills
+                        item: .skills,
+                        bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
                     )
 
                     topLevelRow(
@@ -75,6 +80,8 @@ struct SidebarView: View {
                         let project = projects[index]
                         let isExpanded = expandedProjects.contains(project.path)
                         let activeProjectThreads = activeThreads(for: project)
+                        let firstThreadID = activeProjectThreads.first?.persistentModelID
+                        let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
 
                         SidebarProjectRow(
                             project: project,
@@ -91,8 +98,10 @@ struct SidebarView: View {
                                 Task { await createThread(in: project) }
                             }
                         )
+                        .padding(.top, topSpacing)
                         .appSelectionRowBackground(
-                            isSelected: appState.selectedSidebarItem == .project(project)
+                            isSelected: appState.selectedSidebarItem == .project(project),
+                            topInset: topSpacing
                         )
                         .contextMenu {
                             Button("New Thread") {
@@ -117,6 +126,9 @@ struct SidebarView: View {
                             ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
                                 let isSelected = appState.selectedSidebarItem == .thread(thread)
                                 let cleanupAction = viewModel.defaultThreadCleanupAction
+                                let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
+                                    ? 0
+                                    : SidebarRowMetrics.interThreadRowSpacing
                                 SidebarThreadRow(
                                     thread: thread,
                                     status: viewModel.threadStatus(for: thread),
@@ -138,8 +150,10 @@ struct SidebarView: View {
                                     }
                                 )
                                     .padding(.leading, 14)
+                                    .padding(.top, threadTopSpacing)
                                     .appSelectableRow(
                                         isSelected: isSelected,
+                                        selectionBackgroundTopInset: threadTopSpacing,
                                         action: { activateThread(thread) }
                                     )
                                     .contextMenu {

@@ -199,20 +199,7 @@ private struct ProminentActionButtonBody: View {
     }
 
     private var cornerRadius: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 9
-        case .regular:
-            return 10
-        case .extraLarge:
-            return 14
-        case .large:
-            return 12
-        @unknown default:
-            return 10
-        }
+        AppCornerRadius.standard
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {

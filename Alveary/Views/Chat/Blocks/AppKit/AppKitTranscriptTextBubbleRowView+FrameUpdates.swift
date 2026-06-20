@@ -157,7 +157,7 @@ extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptFrameAnimatable {
         let toggleHeight = max(textBubbleToggleMinHeight, ceil(expansionButton.fittingSize.height))
         let visibleMarkdownHeight = max(
             0,
-            bubbleHeight - (chatVerticalPadding * 2) - textBubbleControlClearance - textBubbleControlSpacing - toggleHeight
+            bubbleHeight - (chatBubbleVerticalPadding * 2) - textBubbleControlClearance - textBubbleControlSpacing - toggleHeight
         )
         return TextBubbleLayoutMetrics(
             bubbleFrame: NSRect(

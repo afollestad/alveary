@@ -10,7 +10,7 @@ struct AppSelectionRowBackground: View {
     let bottomInset: CGFloat
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
+        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
             .fill(fillColor)
             .padding(.leading, leadingInset)
             .padding(.trailing, trailingInset)
@@ -47,6 +47,8 @@ private struct SelectableRowModifier: ViewModifier {
     let identity: AnyHashable?
     let selectionBackgroundLeadingInset: CGFloat
     let selectionBackgroundTrailingInset: CGFloat
+    let selectionBackgroundTopInset: CGFloat
+    let selectionBackgroundBottomInset: CGFloat
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -91,8 +93,8 @@ private struct SelectableRowModifier: ViewModifier {
                     isPressed: isPressed,
                     leadingInset: selectionBackgroundLeadingInset,
                     trailingInset: selectionBackgroundTrailingInset,
-                    topInset: 0,
-                    bottomInset: 0
+                    topInset: selectionBackgroundTopInset,
+                    bottomInset: selectionBackgroundBottomInset
                 )
             )
             .onDisappear {
@@ -145,6 +147,8 @@ extension View {
         identity: AnyHashable? = nil,
         selectionBackgroundLeadingInset: CGFloat = 10,
         selectionBackgroundTrailingInset: CGFloat = 10,
+        selectionBackgroundTopInset: CGFloat = 0,
+        selectionBackgroundBottomInset: CGFloat = 0,
         action: @escaping () -> Void
     ) -> some View {
         modifier(SelectableRowModifier(
@@ -152,6 +156,8 @@ extension View {
             identity: identity,
             selectionBackgroundLeadingInset: selectionBackgroundLeadingInset,
             selectionBackgroundTrailingInset: selectionBackgroundTrailingInset,
+            selectionBackgroundTopInset: selectionBackgroundTopInset,
+            selectionBackgroundBottomInset: selectionBackgroundBottomInset,
             action: action
         ))
     }

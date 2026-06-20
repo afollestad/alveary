@@ -9,7 +9,7 @@ private enum AppKitTranscriptApprovalButtonMetrics {
     static let shortcutHeight: CGFloat = 18
     static let shortcutSymbolSize: CGFloat = 12
     static let shortcutSpacing: CGFloat = 7
-    static let cornerRadius: CGFloat = 9
+    static let cornerRadius: CGFloat = AppCornerRadius.standard
 }
 
 enum AppKitTranscriptApprovalButtonStyle {

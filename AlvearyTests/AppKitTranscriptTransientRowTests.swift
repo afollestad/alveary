@@ -63,7 +63,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         let bubbleView = try XCTUnwrap(row.subviews.first)
         XCTAssertTrue(bubbleView.isFlipped)
         XCTAssertEqual(textField.frame.minY, initialTextY, accuracy: 0.5)
-        XCTAssertEqual(textField.frame.minY, chatVerticalPadding, accuracy: 0.5)
+        XCTAssertEqual(textField.frame.minY, chatBubbleVerticalPadding, accuracy: 0.5)
     }
 
     func testStreamingBubbleRevealKeepsLayoutMonotonicAfterInitialRender() throws {
@@ -83,7 +83,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
             row.advanceStreamingRevealForTesting()
             row.layoutSubtreeIfNeeded()
             XCTAssertGreaterThanOrEqual(row.displayedTextForTesting.count, previousDisplayedCount)
-            XCTAssertEqual(textField.frame.minY, chatVerticalPadding, accuracy: 0.5)
+            XCTAssertEqual(textField.frame.minY, chatBubbleVerticalPadding, accuracy: 0.5)
             previousDisplayedCount = row.displayedTextForTesting.count
         }
 
@@ -158,7 +158,7 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
 
         let textField = try XCTUnwrap(row.descendants(of: NSTextField.self).first)
         let textFrame = textField.frame
-        XCTAssertGreaterThan(row.cursorFrameForTesting.minY, chatVerticalPadding)
+        XCTAssertGreaterThan(row.cursorFrameForTesting.minY, chatBubbleVerticalPadding)
         XCTAssertLessThan(row.cursorFrameForTesting.minX, textFrame.maxX - 20)
     }
 

@@ -2,7 +2,7 @@ import BlockInputKit
 import Foundation
 
 let markdownInlineCodeFontScale: CGFloat = 0.94
-let markdownTableCornerRadius: CGFloat = 12
+let markdownTableCornerRadius: CGFloat = AppCornerRadius.standard
 
 /// Returns code text as it should be displayed in transcript/code surfaces.
 /// Markdown and tool output can include trailing blank lines that SwiftUI and AppKit
