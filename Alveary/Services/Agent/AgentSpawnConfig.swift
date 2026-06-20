@@ -11,6 +11,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let model: String?
     let effort: String?
     let speedMode: AgentSpeedMode?
+    let sessionFork: AgentSessionForkRequest?
     let initialPrompt: String?
 
     init(
@@ -21,6 +22,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         model: String? = nil,
         effort: String? = nil,
         speedMode: AgentSpeedMode? = nil,
+        sessionFork: AgentSessionForkRequest? = nil,
         initialPrompt: String? = nil
     ) {
         self.providerId = providerId
@@ -30,6 +32,28 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.model = model
         self.effort = effort
         self.speedMode = speedMode
+        self.sessionFork = sessionFork
         self.initialPrompt = initialPrompt
+    }
+}
+
+enum AgentSessionForkMode: String, Sendable, Equatable {
+    case local
+    case worktree
+}
+
+struct AgentSessionForkRequest: Sendable, Equatable {
+    let sourceSessionId: String
+    let sourceWorkingDirectory: String?
+    let mode: AgentSessionForkMode
+
+    init(
+        sourceSessionId: String,
+        sourceWorkingDirectory: String?,
+        mode: AgentSessionForkMode
+    ) {
+        self.sourceSessionId = sourceSessionId
+        self.sourceWorkingDirectory = sourceWorkingDirectory.map(CanonicalPath.normalize)
+        self.mode = mode
     }
 }

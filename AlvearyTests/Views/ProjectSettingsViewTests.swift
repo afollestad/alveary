@@ -149,12 +149,12 @@ final class ProjectSettingsViewTests: XCTestCase {
         let actions = await fixture.providerSessionActions.actions
         XCTAssertEqual(actions.count, 2)
         guard case .resolve(let resolveSnapshot) = actions.first,
-              case .archive(let archiveSnapshot) = actions.last else {
-            XCTFail("Expected resolve then archive actions")
+              case .delete(let deleteSnapshot) = actions.last else {
+            XCTFail("Expected resolve then delete actions")
             return
         }
         XCTAssertEqual(Set(resolveSnapshot.conversationIDs), ["main", "side"])
-        XCTAssertEqual(archiveSnapshot, resolveSnapshot)
+        XCTAssertEqual(deleteSnapshot, resolveSnapshot)
         XCTAssertFalse(try fixture.threadExists(thread))
         XCTAssertEqual(appState.selectedSidebarItem, .project(project))
         XCTAssertEqual(appState.previousSelection, .projectPath(project.path))

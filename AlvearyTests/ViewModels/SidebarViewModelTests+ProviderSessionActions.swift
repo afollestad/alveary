@@ -79,7 +79,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.unexpectedErrors.messages, [diagnostic.toastMessage])
     }
 
-    func testDeleteThreadCallsProviderCompanionArchiveAction() async throws {
+    func testDeleteThreadCallsProviderCompanionDeleteAction() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -108,7 +108,7 @@ extension SidebarViewModelTests {
         let actions = await fixture.providerSessionActions.actions
         XCTAssertEqual(actions, [
             .resolve(snapshot),
-            .archive(snapshot)
+            .delete(snapshot)
         ])
     }
 
@@ -129,15 +129,15 @@ extension SidebarViewModelTests {
 
         try await fixture.viewModel.deleteThread(thread)
 
-        let archivedMissingBindings = await fixture.providerSessionActions.archivedMissingBindings
-        XCTAssertEqual(archivedMissingBindings, [])
+        let deletedMissingBindings = await fixture.providerSessionActions.deletedMissingBindings
+        XCTAssertEqual(deletedMissingBindings, [])
         XCTAssertEqual(fixture.unexpectedErrors.messages, [])
     }
 
     func testDeleteThreadProviderCompanionFailureSurfacesUnexpectedErrorWithoutRollingBackLocalDelete() async throws {
-        let diagnostic = ProviderSessionActionDiagnostic.fixture(action: .archive)
+        let diagnostic = ProviderSessionActionDiagnostic.fixture(action: .delete)
         let fixture = try SidebarTestFixture(
-            providerSessionActions: RecordingProviderSessionActionService(archiveDiagnostics: [diagnostic])
+            providerSessionActions: RecordingProviderSessionActionService(deleteDiagnostics: [diagnostic])
         )
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -180,10 +180,10 @@ extension SidebarViewModelTests {
 
         let actions = await fixture.providerSessionActions.actions
         XCTAssertEqual(actions.map {
-            if case .archive = $0 { return "archive" }
+            if case .delete = $0 { return "delete" }
             if case .resolve = $0 { return "resolve" }
             return "other"
-        }, ["resolve", "archive"])
+        }, ["resolve", "delete"])
         XCTAssertFalse(try fixture.threadExists(thread))
     }
 
@@ -268,7 +268,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.unexpectedErrors.messages, [diagnostic.toastMessage])
     }
 
-    func testDeleteProjectArchivesUniqueChildProviderSessionsBeforeCleanupFailure() async throws {
+    func testDeleteProjectDeletesUniqueChildProviderSessionsBeforeCleanupFailure() async throws {
         let fixture = try SidebarTestFixture(
             providerSessionActions: RecordingProviderSessionActionService(
                 resolvedRecords: deleteProjectProviderSessionRecords()
@@ -287,8 +287,8 @@ extension SidebarViewModelTests {
             }
         }
 
-        let archivedRecords = await fixture.providerSessionActions.archivedRecords
-        XCTAssertEqual(archivedRecords.map(\.providerSessionId), ["codex-thread", "other-codex-thread"])
+        let deletedRecords = await fixture.providerSessionActions.deletedRecords
+        XCTAssertEqual(deletedRecords.map(\.providerSessionId), ["codex-thread", "other-codex-thread"])
     }
 }
 

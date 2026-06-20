@@ -6,12 +6,12 @@ import SwiftData
 @MainActor
 @Observable
 final class SidebarViewModel {
-    private let agentsManager: any AgentsManager
+    let agentsManager: any AgentsManager
     let modelContext: ModelContext
-    private let shell: ShellRunner
+    let shell: ShellRunner
     private let gitHubCLI: GitHubCLIService
-    private let worktreeManager: WorktreeManager
-    private let settingsService: SettingsService
+    let worktreeManager: WorktreeManager
+    let settingsService: SettingsService
     let providerSessionActionService: any ProviderSessionActionService
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
@@ -22,6 +22,7 @@ final class SidebarViewModel {
     private(set) var sidebarError: String?
     var statusVersion = 0
     var threadOrderVersion = 0
+    var activeForkSourceThreadIDs: Set<PersistentIdentifier> = []
 
     init(
         agentsManager: any AgentsManager,
@@ -181,7 +182,7 @@ final class SidebarViewModel {
         }
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)
         if let teardownError {
             throw SidebarViewModelError.threadDeleteCleanupFailed(teardownError)
@@ -204,7 +205,7 @@ final class SidebarViewModel {
         }
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
+        let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)
         if let teardownError {
             throw SidebarViewModelError.projectDeleteCleanupFailed(teardownError)
@@ -279,7 +280,10 @@ final class SidebarViewModel {
     }
 
     func threadStatus(for thread: AgentThread) -> ThreadStatus {
-        thread.displayStatus { agentsManager.status(for: $0.id) }
+        if activeForkSourceThreadIDs.contains(thread.persistentModelID), thread.archivedAt == nil {
+            return .busy
+        }
+        return thread.displayStatus { agentsManager.status(for: $0.id) }
     }
 
 }
@@ -312,7 +316,7 @@ extension SidebarViewModel {
         }
     }
 
-    private func presentProviderSessionActionDiagnostics(_ diagnostics: [ProviderSessionActionDiagnostic]) {
+    func presentProviderSessionActionDiagnostics(_ diagnostics: [ProviderSessionActionDiagnostic]) {
         for diagnostic in diagnostics {
             presentUnexpectedError(diagnostic.toastMessage)
         }

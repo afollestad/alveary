@@ -151,79 +151,6 @@ struct SidebarTestFixture {
     }
 }
 
-actor RecordingProviderSessionActionService: ProviderSessionActionService {
-    enum Action: Sendable, Equatable {
-        case resolve(ProviderSessionActionSnapshot)
-        case archive(ProviderSessionActionSnapshot)
-        case unarchive(ProviderSessionActionSnapshot)
-    }
-
-    private(set) var actions: [Action] = []
-    private(set) var archivedRecords: [AgentCLIKit.AgentSessionRecord] = []
-    private(set) var archivedMissingBindings: [ProviderSessionActionMissingBinding] = []
-    private var resolvedRecords: [AgentCLIKit.AgentSessionRecord]
-    private var resolvedMissingBindings: [ProviderSessionActionMissingBinding]
-    private var archiveDiagnostics: [ProviderSessionActionDiagnostic]
-    private var unarchiveDiagnostics: [ProviderSessionActionDiagnostic]
-
-    init(
-        resolvedRecords: [AgentCLIKit.AgentSessionRecord] = [],
-        resolvedMissingBindings: [ProviderSessionActionMissingBinding] = [],
-        archiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
-        unarchiveDiagnostics: [ProviderSessionActionDiagnostic] = []
-    ) {
-        self.resolvedRecords = resolvedRecords
-        self.resolvedMissingBindings = resolvedMissingBindings
-        self.archiveDiagnostics = archiveDiagnostics
-        self.unarchiveDiagnostics = unarchiveDiagnostics
-    }
-
-    func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
-        actions.append(.resolve(snapshot))
-        return ProviderSessionActionResolution(snapshot: snapshot, records: resolvedRecords, missingBindings: resolvedMissingBindings)
-    }
-
-    func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
-        actions.append(.archive(resolution.snapshot))
-        archivedRecords = resolution.records
-        archivedMissingBindings = resolution.missingBindings
-        return archiveDiagnostics
-    }
-
-    func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
-        actions.append(.unarchive(resolution.snapshot))
-        return unarchiveDiagnostics
-    }
-}
-
-@MainActor
-final class RecordingUnexpectedErrors {
-    private(set) var messages: [String] = []
-
-    func present(_ message: String) {
-        messages.append(message)
-    }
-}
-
-extension ProviderSessionActionDiagnostic {
-    static func fixture(
-        action: Action,
-        providerID: AgentCLIKit.AgentProviderID = .codex,
-        providerDisplayName: String = "Codex",
-        providerSessionID: AgentCLIKit.AgentSessionID = "session-1",
-        message: String = "Sync failed"
-    ) -> ProviderSessionActionDiagnostic {
-        ProviderSessionActionDiagnostic(
-            action: action,
-            providerID: providerID,
-            providerDisplayName: providerDisplayName,
-            providerSessionID: providerSessionID,
-            conversationID: "conversation-1",
-            message: message
-        )
-    }
-}
-
 enum SidebarFixtureError: Error {
     case threadMissing
     case conversationMissing
@@ -231,13 +158,27 @@ enum SidebarFixtureError: Error {
 
 actor SidebarMockAgentsManager: AgentsManager {
     enum MockError: Error, Sendable, Equatable {
+        case spawnFailed(String)
         case destroyFailed(String)
     }
 
+    struct SpawnCall: Sendable, Equatable {
+        let id: String
+        let config: Alveary.AgentSpawnConfig
+        let forkSession: Bool
+    }
+
     private let statuses = SidebarLockedStatusStore()
+    private var spawnError: MockError?
+    private var recordedSpawnCalls: [SpawnCall] = []
+    private var spawnObserver: (@Sendable @MainActor (String) -> Void)?
     private var destroyFailures: [String: MockError] = [:]
     private var recordedDestroyCalls: [String] = []
     private var destroyObserver: (@Sendable @MainActor (String) -> Void)?
+
+    func setSpawnError(_ error: MockError?) {
+        spawnError = error
+    }
 
     func setDestroyError(_ error: MockError, for conversationId: String) {
         destroyFailures[conversationId] = error
@@ -247,11 +188,23 @@ actor SidebarMockAgentsManager: AgentsManager {
         destroyObserver = observer
     }
 
+    func setSpawnObserver(_ observer: (@Sendable @MainActor (String) -> Void)?) {
+        spawnObserver = observer
+    }
+
     func setStatus(_ status: ActivitySignal, for conversationId: String) {
         statuses.set(status, for: conversationId)
     }
 
-    func spawn(id: String, config: Alveary.AgentSpawnConfig, forkSession: Bool) async throws {}
+    func spawn(id: String, config: Alveary.AgentSpawnConfig, forkSession: Bool) async throws {
+        recordedSpawnCalls.append(SpawnCall(id: id, config: config, forkSession: forkSession))
+        if let spawnObserver {
+            await spawnObserver(id)
+        }
+        if let spawnError {
+            throw spawnError
+        }
+    }
 
     func subscribe(conversationId: String, afterIndex: Int) -> Alveary.AgentEventSubscription? {
         nil
@@ -339,12 +292,30 @@ actor SidebarMockAgentsManager: AgentsManager {
     func destroyCalls() -> [String] {
         recordedDestroyCalls
     }
+
+    func spawnCalls() -> [SpawnCall] {
+        recordedSpawnCalls
+    }
 }
 
 actor SidebarMockWorktreeManager: WorktreeManager {
     enum MockError: Error, Sendable, Equatable {
+        case createFailed
+        case prepareForkContextFailed
         case removeFailed
         case removeAllFailed
+    }
+
+    struct CreateCall: Sendable, Equatable {
+        let projectPath: String
+        let threadName: String
+        let baseRef: String?
+        let remoteName: String?
+    }
+
+    struct PrepareForkContextCall: Sendable, Equatable {
+        let sourcePath: String
+        let worktreePath: String
     }
 
     struct DeleteBranchCall: Sendable, Equatable {
@@ -358,11 +329,28 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         let branch: String?
     }
 
+    private var recordedCreateCalls: [CreateCall] = []
+    private var recordedPrepareForkContextCalls: [PrepareForkContextCall] = []
     private var recordedDeleteBranchCalls: [DeleteBranchCall] = []
     private var recordedRemoveCalls: [RemoveCall] = []
     private var recordedRemoveAllCalls: [String] = []
+    private var createInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread")
+    private var createError: MockError?
+    private var prepareForkContextError: MockError?
     private var removeError: MockError?
     private var removeAllError: MockError?
+
+    func setCreateInfo(_ info: WorktreeInfo) {
+        createInfo = info
+    }
+
+    func setCreateError(_ error: MockError?) {
+        createError = error
+    }
+
+    func setPrepareForkContextError(_ error: MockError?) {
+        prepareForkContextError = error
+    }
 
     func setRemoveError(_ error: MockError?) {
         removeError = error
@@ -378,7 +366,11 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         baseRef: String?,
         remoteName: String?
     ) async throws -> WorktreeInfo {
-        WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread")
+        recordedCreateCalls.append(CreateCall(projectPath: projectPath, threadName: threadName, baseRef: baseRef, remoteName: remoteName))
+        if let createError {
+            throw createError
+        }
+        return createInfo
     }
 
     func createFromBranch(
@@ -388,6 +380,13 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         remoteName: String?
     ) async throws -> WorktreeInfo {
         WorktreeInfo(path: "/tmp/worktree", branch: branch)
+    }
+
+    func prepareForkContext(sourcePath: String, worktreePath: String) async throws {
+        recordedPrepareForkContextCalls.append(PrepareForkContextCall(sourcePath: sourcePath, worktreePath: worktreePath))
+        if let prepareForkContextError {
+            throw prepareForkContextError
+        }
     }
 
     func remove(projectPath: String, worktreePath: String, branch: String?) async throws {
@@ -418,6 +417,14 @@ actor SidebarMockWorktreeManager: WorktreeManager {
 
     func deleteBranchCalls() -> [DeleteBranchCall] {
         recordedDeleteBranchCalls
+    }
+
+    func createCalls() -> [CreateCall] {
+        recordedCreateCalls
+    }
+
+    func prepareForkContextCalls() -> [PrepareForkContextCall] {
+        recordedPrepareForkContextCalls
     }
 
     func removeCalls() -> [RemoveCall] {

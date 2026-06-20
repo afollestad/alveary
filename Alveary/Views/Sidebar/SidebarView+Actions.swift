@@ -23,6 +23,32 @@ extension SidebarView {
         }
     }
 
+    func forkThread(_ thread: AgentThread, mode: SidebarThreadForkMode) async {
+        let sourceProjectPath = thread.project?.path
+
+        do {
+            let forkedThread: AgentThread
+            switch mode {
+            case .local:
+                forkedThread = try await viewModel.forkThreadIntoLocal(thread)
+            case .worktree:
+                forkedThread = try await viewModel.forkThreadIntoWorktree(thread)
+            }
+
+            guard let resolvedThread = uiModelContext.resolveThread(id: forkedThread.persistentModelID) else {
+                return
+            }
+
+            if let projectPath = resolvedThread.project?.path ?? sourceProjectPath {
+                expandedProjects.insert(projectPath)
+            }
+            appState.requestComposerFocus()
+            appState.selectedSidebarItem = .thread(resolvedThread)
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+    }
+
     func archive(_ thread: AgentThread) async {
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection

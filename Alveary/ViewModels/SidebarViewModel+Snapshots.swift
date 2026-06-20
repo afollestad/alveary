@@ -30,6 +30,9 @@ enum SidebarViewModelError: LocalizedError {
     case threadMissing
     case threadMissingParentProject
     case threadMissingDeletionMetadata
+    case threadForkUnavailable(String)
+    case threadForkFailed(Error)
+    case threadForkRollbackFailed(original: Error, cleanup: Error)
     case archiveCleanupFailed(Error)
     case threadDeleteCleanupFailed(Error)
     case projectDeleteCleanupFailed(Error)
@@ -44,6 +47,12 @@ enum SidebarViewModelError: LocalizedError {
             return "Thread is missing its parent project"
         case .threadMissingDeletionMetadata:
             return "Thread is missing worktree cleanup metadata needed for deletion"
+        case .threadForkUnavailable(let reason):
+            return reason
+        case .threadForkFailed(let error):
+            return "Thread fork failed: \(error.localizedDescription)"
+        case .threadForkRollbackFailed(let original, let cleanup):
+            return "Thread fork failed: \(original.localizedDescription). Rollback cleanup also failed: \(cleanup.localizedDescription)"
         case .archiveCleanupFailed(let error):
             return "Thread was archived, but runtime cleanup failed: \(error.localizedDescription)"
         case .threadDeleteCleanupFailed(let error):
@@ -57,7 +66,8 @@ enum SidebarViewModelError: LocalizedError {
         switch self {
         case .archiveCleanupFailed, .threadDeleteCleanupFailed, .projectDeleteCleanupFailed:
             return true
-        case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingDeletionMetadata:
+        case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingDeletionMetadata,
+             .threadForkUnavailable, .threadForkFailed, .threadForkRollbackFailed:
             return false
         }
     }

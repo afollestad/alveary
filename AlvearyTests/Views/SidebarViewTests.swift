@@ -137,6 +137,35 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertNil(threadCleanupConfirmation(for: nil, action: .archive))
     }
 
+    func testThreadContextMenuItemsUseForkDividerRenameArchiveDeleteOrder() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: true), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .rename,
+            .archive,
+            .delete
+        ])
+        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: true).map(\.title), [
+            "Fork into local",
+            "Fork into worktree",
+            nil,
+            "Rename...",
+            "Archive...",
+            "Delete..."
+        ])
+    }
+
+    func testThreadContextMenuHidesRenameWhileAnotherRowIsEditing() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: false), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .archive,
+            .delete
+        ])
+    }
+
     func testWorktreeTooltipTextUsesCanonicalWorktreePath() {
         let path = " \(NSHomeDirectory())/Documents/../Documents/worktrees/refactor-chat-input/ "
         let thread = AgentThread(name: "Thread", useWorktree: true)

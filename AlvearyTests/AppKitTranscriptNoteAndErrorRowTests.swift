@@ -51,6 +51,18 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
     }
 
+    func testSessionForkedTranscriptNoteStaysCentered() throws {
+        let note = AppKitTranscriptNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        note.configure(.init(kind: .sessionForked))
+        note.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.stringValue, "Forked from session")
+        XCTAssertEqual(label.accessibilityLabel(), "Forked from session")
+        XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
+    }
+
     func testInterruptedTranscriptNoteTrailsUserBubbleBoundary() throws {
         let note = AppKitTranscriptNoteView()
         note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)

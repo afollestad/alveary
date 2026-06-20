@@ -157,27 +157,31 @@ struct SidebarView: View {
                                         action: { activateThread(thread) }
                                     )
                                     .contextMenu {
-                                        Button("Archive...") {
-                                            pendingArchiveThread = thread
-                                        }
-
-                                        // Hide "Rename..." when *any* row is being edited. Swapping
-                                        // `editingThreadID` directly from one row to another left
-                                        // the target row stuck "in editing state without an input
-                                        // field" — the simultaneous unmount of A's TextField and
-                                        // mount of B's within a single SwiftUI update pass didn't
-                                        // converge. Force users to finish the in-flight rename first,
-                                        // matching the invariant the keyboard rename already enforces
-                                        // in `renameThreadID(for:editingThreadID:)`
-                                        // (`SidebarView+KeyboardNavigation.swift`).
-                                        if editingThreadID == nil {
-                                            Button("Rename...") {
-                                                editingThreadID = thread.persistentModelID
+                                        ForEach(sidebarThreadContextMenuItems(canRename: editingThreadID == nil), id: \.self) { item in
+                                            switch item {
+                                            case .forkLocal:
+                                                Button("Fork into local") {
+                                                    Task { await forkThread(thread, mode: .local) }
+                                                }
+                                            case .forkWorktree:
+                                                Button("Fork into worktree") {
+                                                    Task { await forkThread(thread, mode: .worktree) }
+                                                }
+                                            case .divider:
+                                                Divider()
+                                            case .rename:
+                                                Button("Rename...") {
+                                                    editingThreadID = thread.persistentModelID
+                                                }
+                                            case .archive:
+                                                Button("Archive...") {
+                                                    pendingArchiveThread = thread
+                                                }
+                                            case .delete:
+                                                Button("Delete...", role: .destructive) {
+                                                    pendingDeleteThread = thread
+                                                }
                                             }
-                                        }
-
-                                        Button("Delete...", role: .destructive) {
-                                            pendingDeleteThread = thread
                                         }
                                     }
                             }

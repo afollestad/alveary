@@ -85,6 +85,7 @@ struct ProviderSessionActionDiagnostic: Equatable, Sendable {
     enum Action: String, Equatable, Sendable {
         case archive
         case unarchive
+        case delete
 
         var toastVerb: String {
             switch self {
@@ -92,6 +93,8 @@ struct ProviderSessionActionDiagnostic: Equatable, Sendable {
                 "archive"
             case .unarchive:
                 "restore"
+            case .delete:
+                "delete"
             }
         }
     }
@@ -118,6 +121,7 @@ protocol ProviderSessionActionService: Sendable {
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution
     func archiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic]
     func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic]
+    func deleteSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic]
 }
 
 struct NoopProviderSessionActionService: ProviderSessionActionService {
@@ -130,6 +134,10 @@ struct NoopProviderSessionActionService: ProviderSessionActionService {
     }
 
     func unarchiveSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
+        []
+    }
+
+    func deleteSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
         []
     }
 }
@@ -172,6 +180,41 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
         await routeSessions(resolution, sessionAction: .unarchive) { [router] record in
             try await router.unarchiveSession(record)
         }
+    }
+
+    func deleteSessions(_ resolution: ProviderSessionActionResolution) async -> [ProviderSessionActionDiagnostic] {
+        var diagnostics: [ProviderSessionActionDiagnostic] = []
+        for record in resolution.records {
+            guard let definition = await providerLookup.definition(for: record.providerId) else {
+                diagnostics.append(.missingProviderDefinition(action: .delete, record: record))
+                continue
+            }
+            do {
+                try await router.deleteSession(record)
+            } catch {
+                let fallbackDiagnostics = await archiveFallbackDiagnostics(
+                    record: record,
+                    definition: definition
+                )
+                if fallbackDiagnostics.isEmpty {
+                    continue
+                }
+                diagnostics.append(contentsOf: fallbackDiagnostics)
+            }
+        }
+
+        for missingBinding in resolution.missingBindings {
+            guard let definition = await providerLookup.definition(for: missingBinding.providerID) else {
+                diagnostics.append(.missingProviderDefinition(action: .delete, missingBinding: missingBinding))
+                continue
+            }
+            diagnostics.append(.missingSessionBinding(
+                action: .delete,
+                missingBinding: missingBinding,
+                definition: definition
+            ))
+        }
+        return diagnostics
     }
 
     private func routeSessions(
@@ -227,6 +270,35 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
             ))
         }
         return diagnostics
+    }
+
+    private func archiveFallbackDiagnostics(
+        record: AgentCLIKit.AgentSessionRecord,
+        definition: AgentCLIKit.AgentProviderDefinition
+    ) async -> [ProviderSessionActionDiagnostic] {
+        guard definition.capabilities.supports(.archive) else {
+            return [
+                .providerFailure(
+                    action: .delete,
+                    record: record,
+                    definition: definition,
+                    error: ProviderSessionDeleteFallbackError.archiveUnsupported
+                )
+            ]
+        }
+        do {
+            try await router.archiveSession(record)
+            return []
+        } catch {
+            return [
+                .providerFailure(
+                    action: .archive,
+                    record: record,
+                    definition: definition,
+                    error: error
+                )
+            ]
+        }
     }
 
     private func sessionRecords(
@@ -330,6 +402,19 @@ private extension AgentCLIKit.AgentProviderCapabilities {
             supportsSessionArchiving
         case .unarchive:
             supportsSessionUnarchiving
+        case .delete:
+            true
+        }
+    }
+}
+
+private enum ProviderSessionDeleteFallbackError: LocalizedError {
+    case archiveUnsupported
+
+    var errorDescription: String? {
+        switch self {
+        case .archiveUnsupported:
+            return "Provider deletion failed and archive fallback is unsupported."
         }
     }
 }

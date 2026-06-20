@@ -27,6 +27,22 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(grouper.items, [.transcriptNote(id: "note-tool-1", kind: .enteredPlanMode)])
     }
 
+    func testSessionForkedStopRendersTranscriptNote() {
+        let grouper = ChatItemGrouper()
+        let event = ConversationEventRecord(
+            id: "session-forked",
+            conversationId: "conversation-1",
+            type: "stop",
+            content: ConversationSessionFork.displayMessage
+        )
+
+        grouper.update(events: [event])
+
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "session-forked", kind: .sessionForked)])
+        XCTAssertEqual(TranscriptNoteKind.sessionForked.text, "Forked from session")
+        XCTAssertEqual(TranscriptNoteKind.sessionForked.alignment, .centered)
+    }
+
     func testExitPlanModeToolRendersTranscriptNoteOnSuccess() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

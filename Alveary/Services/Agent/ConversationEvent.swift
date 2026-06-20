@@ -42,6 +42,14 @@ enum ConversationSessionHandoff {
     }
 }
 
+enum ConversationSessionFork {
+    static let displayMessage = "Forked from session"
+
+    static func isDisplayMessage(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == displayMessage
+    }
+}
+
 enum ConversationContextCompaction {
     static let startedType = "context_compaction_started"
     static let completedType = "context_compaction_completed"

@@ -148,6 +148,52 @@ final class ProviderSessionActionServiceTests: XCTestCase {
         XCTAssertEqual(unarchivedSessionIDs, ["session-1"])
     }
 
+    func testDeletesMatchingProviderRecords() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(
+            records: [
+                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
+            ],
+            state: state
+        )
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversationIDs: ["main"],
+            providerIDs: ["codex"],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.deleteSessions(resolution)
+
+        let deletedSessionIDs = await state.deletedSessionIDs
+
+        XCTAssertEqual(diagnostics, [])
+        XCTAssertEqual(deletedSessionIDs, ["session-1"])
+    }
+
+    func testDeleteFallsBackToArchiveWhenProviderDeleteFails() async throws {
+        let state = ProviderActionAdapterState(failingDeleteSessionIDs: ["session-1"])
+        let service = try await makeService(
+            records: [
+                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
+            ],
+            state: state
+        )
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversationIDs: ["main"],
+            providerIDs: ["codex"],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.deleteSessions(resolution)
+
+        let archivedSessionIDs = await state.archivedSessionIDs
+        let deletedSessionIDs = await state.deletedSessionIDs
+
+        XCTAssertEqual(diagnostics, [])
+        XCTAssertEqual(deletedSessionIDs, [])
+        XCTAssertEqual(archivedSessionIDs, ["session-1"])
+    }
+
     func testProviderActionFailureDoesNotStopOtherRecords() async throws {
         let state = ProviderActionAdapterState(failingArchiveSessionIDs: ["session-a"])
         let service = try await makeService(
@@ -390,106 +436,4 @@ final class ProviderSessionActionServiceTests: XCTestCase {
 
 private enum ProviderSessionActionServiceTestError: Error {
     case conversationMissing
-}
-
-private struct ProviderActionDefaultAdapter: AgentCLIKit.AgentProviderAdapter {
-    let providerId: AgentCLIKit.AgentProviderID
-    let state: ProviderActionAdapterState
-
-    var definition: AgentCLIKit.AgentProviderDefinition {
-        AgentCLIKit.AgentProviderDefinition(id: providerId, displayName: "Provider", executableNames: ["provider"])
-    }
-
-    func makeLaunchConfiguration(
-        spawnConfig: AgentCLIKit.AgentSpawnConfig,
-        resumedSession: AgentCLIKit.AgentSessionRecord?
-    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
-        AgentCLIKit.AgentLaunchConfiguration(executable: "/usr/bin/true")
-    }
-
-    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
-        []
-    }
-
-    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
-        Data()
-    }
-
-    func shutdownProviderResources() async {
-        await state.recordShutdown()
-    }
-}
-
-private struct ProviderActionRecordingAdapter: AgentCLIKit.AgentProviderAdapter {
-    let providerId: AgentCLIKit.AgentProviderID
-    let state: ProviderActionAdapterState
-
-    var definition: AgentCLIKit.AgentProviderDefinition {
-        AgentCLIKit.AgentProviderDefinition(id: providerId, displayName: "Provider", executableNames: ["provider"])
-    }
-
-    func makeLaunchConfiguration(
-        spawnConfig: AgentCLIKit.AgentSpawnConfig,
-        resumedSession: AgentCLIKit.AgentSessionRecord?
-    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
-        AgentCLIKit.AgentLaunchConfiguration(executable: "/usr/bin/true")
-    }
-
-    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
-        []
-    }
-
-    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
-        Data()
-    }
-
-    func archiveSession(_ record: AgentCLIKit.AgentSessionRecord) async throws {
-        try await state.recordArchive(record.providerSessionId)
-    }
-
-    func unarchiveSession(_ record: AgentCLIKit.AgentSessionRecord) async throws {
-        await state.recordUnarchive(record.providerSessionId)
-    }
-
-    func shutdownProviderResources() async {
-        await state.recordShutdown()
-    }
-}
-
-private actor ProviderActionAdapterState {
-    private let failingArchiveSessionIDs: Set<AgentCLIKit.AgentSessionID>
-    private var archived: [AgentCLIKit.AgentSessionID] = []
-    private var unarchived: [AgentCLIKit.AgentSessionID] = []
-    private var shutdowns = 0
-
-    init(failingArchiveSessionIDs: Set<AgentCLIKit.AgentSessionID> = []) {
-        self.failingArchiveSessionIDs = failingArchiveSessionIDs
-    }
-
-    var archivedSessionIDs: [AgentCLIKit.AgentSessionID] {
-        archived
-    }
-
-    var unarchivedSessionIDs: [AgentCLIKit.AgentSessionID] {
-        unarchived
-    }
-
-    var shutdownCount: Int {
-        shutdowns
-    }
-
-    func recordArchive(_ sessionID: AgentCLIKit.AgentSessionID) throws {
-        if failingArchiveSessionIDs.contains(sessionID) {
-            throw AgentCLIKit.AgentCLIError.invalidInput("archive failed")
-        }
-        archived.append(sessionID)
-    }
-
-    func recordUnarchive(_ sessionID: AgentCLIKit.AgentSessionID) {
-        unarchived.append(sessionID)
-    }
-
-    func recordShutdown() {
-        shutdowns += 1
-    }
 }

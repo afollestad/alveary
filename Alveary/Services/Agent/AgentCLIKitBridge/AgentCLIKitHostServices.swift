@@ -44,6 +44,7 @@ struct AgentCLIKitHostAdapter: Sendable {
             permissionMode: config.permissionMode,
             collaborationMode: config.planModeEnabled.map { $0 ? .plan : .default },
             speedMode: config.speedMode.map(AgentCLIKit.AgentSpeedMode.init(alvearyMode:)),
+            sessionFork: config.sessionFork.map(AgentCLIKit.AgentSessionForkRequest.init(alvearyRequest:)),
             forkSession: forkSession,
             initialPrompt: config.initialPrompt
         )
@@ -57,6 +58,29 @@ private extension AgentCLIKit.AgentSpeedMode {
             self = .standard
         case .fast:
             self = .fast
+        }
+    }
+}
+
+private extension AgentCLIKit.AgentSessionForkRequest {
+    init(alvearyRequest: AgentSessionForkRequest) {
+        self.init(
+            sourceSessionId: AgentCLIKit.AgentSessionID(rawValue: alvearyRequest.sourceSessionId),
+            sourceWorkingDirectory: alvearyRequest.sourceWorkingDirectory.map {
+                URL(fileURLWithPath: $0, isDirectory: true)
+            },
+            mode: AgentCLIKit.AgentSessionForkMode(alvearyMode: alvearyRequest.mode)
+        )
+    }
+}
+
+private extension AgentCLIKit.AgentSessionForkMode {
+    init(alvearyMode: AgentSessionForkMode) {
+        switch alvearyMode {
+        case .local:
+            self = .local
+        case .worktree:
+            self = .worktree
         }
     }
 }
