@@ -24,9 +24,9 @@ extension ConversationViewModel {
 private extension ConversationViewModel {
     // swiftlint:disable:next cyclomatic_complexity
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
-        if state.isHandingOffSession || state.failedSessionHandoffMessage != nil {
-            return shouldPersistHiddenSessionHandoffEvent(event)
-        }
+        if state.isGeneratingCommitMessage { return shouldPersistHiddenCommitMessageGenerationEvent(event) }
+        if state.isHandingOffSession || state.failedSessionHandoffMessage != nil { return shouldPersistHiddenSessionHandoffEvent(event) }
+        if state.isDrainingCommitMessageGenerationEvents { return acknowledgeLateHiddenCommitMessageGenerationEvent(event) }
 
         if shouldSuppressPromptDismissalEvent(event) || shouldSuppressPromptDismissalFallout(event) {
             return false

@@ -36,6 +36,7 @@ final class ConversationViewModel {
     @ObservationIgnored var promptDismissalTerminalFalloutSeen = false
     @ObservationIgnored var promptDismissalSuppressedApprovals: [ToolApprovalRequest] = []
     @ObservationIgnored var promptDismissalHandledApprovalKeys: Set<ClaudeToolApprovalKey> = []
+    @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?
 
     var streamingText: String? { state.streamingText }
 

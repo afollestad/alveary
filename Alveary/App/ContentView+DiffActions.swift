@@ -27,6 +27,22 @@ extension ContentView {
         appState.requestDiffAction(message: message, conversationID: conversation.persistentModelID)
     }
 
+    func requestCommitMessageGeneration(
+        prompt: String,
+        completion: @escaping @MainActor (Result<String, Error>) -> Void
+    ) {
+        guard let (_, conversation) = activeDiffActionTarget() else {
+            completion(.failure(CommitMessageGenerationError.activeConversationChanged))
+            return
+        }
+
+        appState.requestCommitMessageGeneration(
+            prompt: prompt,
+            conversationID: conversation.persistentModelID,
+            completion: completion
+        )
+    }
+
     func requestAgentOpenPR() {
         guard let (thread, conversation) = activeDiffActionTarget() else {
             return
@@ -45,6 +61,18 @@ extension ContentView {
         guard let activeConversationID = activeDiffActionTarget()?.conversation.persistentModelID,
               activeConversationID == request.conversationID else {
             appState.pendingDiffAction = nil
+            return
+        }
+    }
+
+    func cancelPendingCommitMessageGenerationIfNeeded() {
+        guard let request = appState.pendingCommitMessageGenerationRequest else {
+            return
+        }
+
+        guard let activeConversationID = activeDiffActionTarget()?.conversation.persistentModelID,
+              activeConversationID == request.conversationID else {
+            appState.cancelPendingCommitMessageGenerationRequest()
             return
         }
     }

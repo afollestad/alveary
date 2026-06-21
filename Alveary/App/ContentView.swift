@@ -260,6 +260,7 @@ struct ContentView: View {
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             updateDiffViewer(item: selection)
             cancelPendingDiffActionIfNeeded()
+            cancelPendingCommitMessageGenerationIfNeeded()
         }
         .onChange(of: appState.previousSelection) { _, _ in
             guard appState.selectedSidebarItem == .settings else {

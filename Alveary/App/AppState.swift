@@ -14,6 +14,7 @@ final class AppState {
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
     var pendingCommand: CommandRequest?
     var pendingDiffAction: DiffActionRequest?
+    var pendingCommitMessageGenerationRequest: CommitMessageGenerationRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
     var previousSelection: SidebarBookmark?
     // Set by commands that want the BlockInput composer to grab focus once a
@@ -85,6 +86,36 @@ final class AppState {
         )
     }
 
+    func requestCommitMessageGeneration(
+        prompt: String,
+        conversationID: PersistentIdentifier,
+        completion: @escaping @MainActor (Result<String, Error>) -> Void
+    ) {
+        pendingCommitMessageGenerationRequest = CommitMessageGenerationRequest(
+            id: UUID(),
+            conversationID: conversationID,
+            prompt: prompt,
+            completion: completion
+        )
+    }
+
+    func clearCommitMessageGenerationRequest(id: UUID) {
+        if pendingCommitMessageGenerationRequest?.id == id {
+            pendingCommitMessageGenerationRequest = nil
+        }
+    }
+
+    func cancelPendingCommitMessageGenerationRequest(
+        error: CommitMessageGenerationError = .activeConversationChanged
+    ) {
+        guard let request = pendingCommitMessageGenerationRequest else {
+            return
+        }
+
+        pendingCommitMessageGenerationRequest = nil
+        request.completion(.failure(error))
+    }
+
     func selectedConversation(in thread: AgentThread, conversations: [Conversation]) -> Conversation? {
         let sortedConversations = sortedConversationList(conversations)
 
@@ -116,6 +147,9 @@ final class AppState {
     func selectConversation(_ conversation: Conversation, in thread: AgentThread) {
         if pendingDiffAction?.conversationID != conversation.persistentModelID {
             pendingDiffAction = nil
+        }
+        if pendingCommitMessageGenerationRequest?.conversationID != conversation.persistentModelID {
+            cancelPendingCommitMessageGenerationRequest()
         }
         selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
     }
@@ -172,9 +206,42 @@ final class AppState {
         let message: String
     }
 
+    struct CommitMessageGenerationRequest {
+        let id: UUID
+        let conversationID: PersistentIdentifier
+        let prompt: String
+        let completion: @MainActor (Result<String, Error>) -> Void
+    }
+
     struct UnexpectedErrorToast: Identifiable, Equatable, Sendable {
         let id: UUID
         let message: String
+    }
+}
+
+enum CommitMessageGenerationError: LocalizedError, Sendable, Equatable {
+    case activeConversationChanged
+    case busy
+    case emptyResponse
+    case approvalRequested
+    case interrupted
+    case failed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .activeConversationChanged:
+            return "Active conversation changed while generating the commit message."
+        case .busy:
+            return "Wait for the current conversation action to finish before generating a commit message."
+        case .emptyResponse:
+            return "Commit message generation returned no message."
+        case .approvalRequested:
+            return "Commit message generation paused because the hidden prompt requested approval."
+        case .interrupted:
+            return "Commit message generation was interrupted."
+        case .failed(let message):
+            return message
+        }
     }
 }
 

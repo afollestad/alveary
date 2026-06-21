@@ -4,6 +4,7 @@ extension ConversationViewModel {
         state.currentTurnActivityVisibility = .visible
         state.hasRecordedLocalTurnEndActivity = false
         state.isSessionHandoffSeedTurnActive = isSessionHandoffSeed
+        state.isDrainingCommitMessageGenerationEvents = false
     }
 
     func markHiddenTurnStarted() {

@@ -93,6 +93,8 @@ final class ConversationState {
     var isCancellingInitialSetup = false
     var isReconfiguringSession = false
     var isHandingOffSession = false
+    var isGeneratingCommitMessage = false
+    var isDrainingCommitMessageGenerationEvents = false
     var lastObservedEventIndex = 0
     var lastPersistedEventIndex = 0
     var activeBufferGeneration: UUID?
@@ -119,6 +121,7 @@ final class ConversationState {
     var isSessionHandoffSeedTurnActive = false
     var isAutomaticSessionHandoffPending = false
     var hiddenHandoffResponse = ""
+    var hiddenCommitMessageResponse = ""
     var pendingHandoffOutput: String?
     var failedSessionHandoffMessage: String?
     var handoffCountdownRemaining: Int?

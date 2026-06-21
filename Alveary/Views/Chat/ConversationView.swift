@@ -225,6 +225,9 @@ struct ConversationView: View {
                 }
             }
         }
+        .task(id: appState.pendingCommitMessageGenerationRequest?.id) {
+            await handlePendingCommitMessageGenerationRequest()
+        }
     }
 
     func liveConversationIDs(for threadID: PersistentIdentifier) -> Set<String> {
