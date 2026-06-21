@@ -122,6 +122,7 @@ struct SettingsScreen: View {
             GitSettingsTabView(
                 gitHubCLI: gitHubCLI,
                 branchPrefix: binding(for: \.branchPrefix),
+                commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory)
             )
         case .interface:

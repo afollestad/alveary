@@ -218,6 +218,16 @@ final class SettingsViewModel {
         set { settingsService.update { $0.branchPrefix = newValue } }
     }
 
+    var commitMessageGenerationPrompt: String {
+        get { settingsService.current.commitMessageGenerationPrompt }
+        set { settingsService.update { $0.commitMessageGenerationPrompt = newValue } }
+    }
+
+    var gitCommitIncludeUnstagedChanges: Bool {
+        get { settingsService.current.gitCommitIncludeUnstagedChanges }
+        set { settingsService.update { $0.gitCommitIncludeUnstagedChanges = newValue } }
+    }
+
     var worktreesBaseDirectory: String {
         get { settingsService.current.worktreesBaseDirectory }
         set { settingsService.update { $0.worktreesBaseDirectory = newValue } }

@@ -61,6 +61,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var sessionHandoffPrompt = Self.defaultSessionHandoffPrompt
     var notifications = NotificationSettings()
     var branchPrefix = "alveary/"
+    var commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
+    var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
     var providerConfigs: [String: ProviderCustomConfig] = [:]
@@ -78,6 +80,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.normalizeContextManagement()
         copy.normalizeNotificationDefaults()
         copy.normalizeProviderConfigs()
+        copy.normalizeGitDefaults()
         copy.normalizeWorktreesBaseDirectory()
         return copy
     }
@@ -222,6 +225,12 @@ struct AppSettings: Codable, Sendable, Equatable {
         }
     }
 
+    private mutating func normalizeGitDefaults() {
+        if commitMessageGenerationPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
+        }
+    }
+
     private mutating func normalizeWorktreesBaseDirectory() {
         let trimmedWorktreesBase = worktreesBaseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
         worktreesBaseDirectory = trimmedWorktreesBase.isEmpty
@@ -283,6 +292,8 @@ extension AppSettings {
         case sessionHandoffPrompt
         case notifications
         case branchPrefix
+        case commitMessageGenerationPrompt
+        case gitCommitIncludeUnstagedChanges
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
         case providerConfigs
@@ -413,6 +424,14 @@ extension AppSettings {
             decodedBranchPrefix ?? branchPrefix,
             storedSchemaVersion: storedSchemaVersion
         )
+        commitMessageGenerationPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .commitMessageGenerationPrompt
+        ) ?? commitMessageGenerationPrompt
+        gitCommitIncludeUnstagedChanges = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .gitCommitIncludeUnstagedChanges
+        ) ?? gitCommitIncludeUnstagedChanges
         worktreesBaseDirectory = try container.decodeIfPresent(
             String.self,
             forKey: .worktreesBaseDirectory

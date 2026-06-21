@@ -4,6 +4,7 @@ import SwiftUI
 struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
     @Binding var branchPrefix: String
+    @Binding var commitMessageGenerationPrompt: String
     @Binding var worktreesBaseDirectory: String
 
     @State private var gitHubInstalledVersion: String?
@@ -32,6 +33,17 @@ struct GitSettingsTabView: View {
                             horizontalControlSizing: .expandsToFitText
                         )
                     }
+                }
+
+                SettingsFormSection("Commits") {
+                    SettingsPromptEditorRow(
+                        "Commit message generation prompt",
+                        helpText: GitSettingsHelp.commitMessageGenerationPrompt,
+                        prompt: $commitMessageGenerationPrompt,
+                        defaultPrompt: AppSettings.defaultCommitMessageGenerationPrompt,
+                        placeholder: "Write the prompt used to generate commit messages.",
+                        showsDivider: false
+                    )
                 }
 
                 SettingsFormSection("Worktrees") {
@@ -153,4 +165,9 @@ private extension GitSettingsTabView {
             screenError = error.localizedDescription
         }
     }
+}
+
+private enum GitSettingsHelp {
+    static let commitMessageGenerationPrompt =
+        "Prompt sent to the agent when generating a commit message from the Git commit modal."
 }

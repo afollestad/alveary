@@ -45,6 +45,25 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertFalse(settings.sessionHandoffPrompt.contains("name: session-handoff"))
     }
 
+    func testDefaultGitCommitSettings() {
+        let settings = AppSettings()
+
+        XCTAssertTrue(settings.gitCommitIncludeUnstagedChanges)
+        XCTAssertTrue(settings.commitMessageGenerationPrompt.hasPrefix("Generate a Git commit message"))
+        XCTAssertTrue(
+            settings.commitMessageGenerationPrompt.contains(
+                "Consider any existing project level or global level commit message guidelines."
+            )
+        )
+        XCTAssertTrue(
+            settings.commitMessageGenerationPrompt.contains(
+                "Wrap file names, class names, function names, variable names, or other code tokens with single ticks (`)."
+            )
+        )
+        XCTAssertTrue(settings.commitMessageGenerationPrompt.contains("Co-authored-by: Claude <noreply@anthropic.com>"))
+        XCTAssertTrue(settings.commitMessageGenerationPrompt.contains("Co-authored-by: Codex <noreply@openai.com>"))
+    }
+
     func testExpandedWorktreesBaseDirectoryExpandsTilde() {
         var settings = AppSettings()
         settings.worktreesBaseDirectory = "~/Development/worktrees"
@@ -139,6 +158,14 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.handoffPromptSendCountdownSeconds, AppSettings.defaultHandoffPromptSendCountdownSeconds)
         XCTAssertTrue(settings.handoffContextCustomizationEnabled)
         XCTAssertEqual(settings.sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
+    func testDecodeDefaultsGitCommitSettingsWhenFieldsAreMissing() throws {
+        let json = Data("{}".utf8)
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.commitMessageGenerationPrompt, AppSettings.defaultCommitMessageGenerationPrompt)
+        XCTAssertTrue(settings.gitCommitIncludeUnstagedChanges)
     }
 
     func testDecodeDefaultsFontSizesWhenFieldsAreMissing() throws {
@@ -401,6 +428,16 @@ final class AppSettingsTests: XCTestCase {
         settings.sessionHandoffPrompt = "  \n  "
 
         XCTAssertEqual(settings.normalized().sessionHandoffPrompt, AppSettings.defaultSessionHandoffPrompt)
+    }
+
+    func testNormalizedRestoresDefaultCommitMessageGenerationPromptWhenPromptIsEmpty() {
+        var settings = AppSettings()
+        settings.commitMessageGenerationPrompt = "  \n  "
+
+        XCTAssertEqual(
+            settings.normalized().commitMessageGenerationPrompt,
+            AppSettings.defaultCommitMessageGenerationPrompt
+        )
     }
 
 }

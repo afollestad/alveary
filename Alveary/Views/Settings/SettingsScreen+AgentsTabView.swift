@@ -14,9 +14,6 @@ struct AgentsSettingsTabView: View {
     @Binding var handoffContextCustomizationEnabled: Bool
     @Binding var sessionHandoffPrompt: String
 
-    @State private var isPromptEditorPresented = false
-    @State private var promptDraft = ""
-
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
             contextManagementSection
@@ -49,18 +46,6 @@ struct AgentsSettingsTabView: View {
         .task {
             await viewModel.refreshProviderStatusesIfNeeded()
         }
-        .sheet(isPresented: $isPromptEditorPresented) {
-            SessionHandoffPromptEditorSheet(
-                prompt: $promptDraft,
-                onCancel: {
-                    isPromptEditorPresented = false
-                },
-                onSave: {
-                    sessionHandoffPrompt = promptDraft
-                    isPromptEditorPresented = false
-                }
-            )
-        }
     }
 }
 
@@ -92,19 +77,13 @@ private extension AgentsSettingsTabView {
             }
             .disabled(!contextManagementEnabled)
 
-            SettingsFormRow {
-                SettingsResponsiveControlRow(
-                    "Default session handoff prompt",
-                    helpText: ContextManagementHelp.defaultSessionHandoffPrompt,
-                    horizontalControlSizing: .intrinsicInline
-                ) {
-                    Button("Edit") {
-                        promptDraft = sessionHandoffPrompt
-                        isPromptEditorPresented = true
-                    }
-                    .secondaryActionButtonStyle()
-                }
-            }
+            SettingsPromptEditorRow(
+                "Default session handoff prompt",
+                helpText: ContextManagementHelp.defaultSessionHandoffPrompt,
+                prompt: $sessionHandoffPrompt,
+                defaultPrompt: AppSettings.defaultSessionHandoffPrompt,
+                placeholder: "Write the prompt used to prepare a session handoff."
+            )
 
             SettingsToggleRow(
                 "Enable handoff steering",
@@ -269,47 +248,6 @@ private enum ContextManagementHelp {
     static let handoffPromptSendCountdown =
         "Seconds to edit generated handoff context before it is sent automatically to the next session. " +
         "The countdown stops when you start typing in the composer."
-}
-
-private struct SessionHandoffPromptEditorSheet: View {
-    @Binding var prompt: String
-
-    let onCancel: () -> Void
-    let onSave: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Default session handoff prompt")
-                .font(.title3.weight(.semibold))
-
-            AppTextEditor(
-                text: $prompt,
-                minHeight: 320,
-                idealHeight: 360,
-                maxHeight: 520,
-                placeholder: "Write the prompt used to prepare a session handoff.",
-                sizesToContent: false
-            )
-
-            HStack {
-                Button("Reset") {
-                    prompt = AppSettings.defaultSessionHandoffPrompt
-                }
-                .secondaryActionButtonStyle()
-                .disabled(prompt == AppSettings.defaultSessionHandoffPrompt)
-
-                Spacer()
-
-                Button("Cancel", action: onCancel)
-                    .secondaryActionButtonStyle()
-
-                Button("Save", action: onSave)
-                    .primaryActionButtonStyle()
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 620, idealWidth: 720, minHeight: 480)
-    }
 }
 
 private struct AgentStatusBadge: View {
