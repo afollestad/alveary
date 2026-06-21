@@ -142,4 +142,25 @@ final class SessionHandoffPromptBuilderTests: XCTestCase {
 
         XCTAssertEqual(message, output + "\n\n## User Prompt\n" + steeringPrompt)
     }
+
+    func testLocalHistoryFallbackOutputIncludesRestoreContext() {
+        let output = SessionHandoffPromptBuilder.localHistoryFallbackOutput(
+            restoreContext: "Restoring context from local history."
+        )
+
+        XCTAssertTrue(output.hasPrefix("The hidden session handoff agent could not resume the previous provider session."))
+        XCTAssertTrue(output.hasSuffix("Restoring context from local history."))
+    }
+
+    func testPlanModeLocalHistoryFallbackOutputKeepsPlanModeContextFirst() throws {
+        let output = SessionHandoffPromptBuilder.localHistoryFallbackOutput(
+            restoreContext: "Restoring context from local history.",
+            isPlanModeHandoff: true
+        )
+
+        XCTAssertTrue(output.hasPrefix(planModeHandoffPrefix))
+        let instructionRange = try XCTUnwrap(output.range(of: planModeHandoffInstruction))
+        let fallbackRange = try XCTUnwrap(output.range(of: "The hidden session handoff agent could not resume"))
+        XCTAssertLessThan(instructionRange.lowerBound, fallbackRange.lowerBound)
+    }
 }

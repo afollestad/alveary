@@ -31,4 +31,11 @@ extension ConversationViewModel {
             // Best-effort only; the next save will retry persisting the cleared restore context.
         }
     }
+
+    func clearConsumedPendingRestoreContext(_ resolvedContext: SessionRecoveryStagedContext) {
+        guard let consumedCurrentStagedContext = resolvedContext.consumedCurrentStagedContext else {
+            return
+        }
+        clearConsumedPendingRestoreContext(using: consumedCurrentStagedContext)
+    }
 }

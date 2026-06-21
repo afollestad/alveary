@@ -1,3 +1,5 @@
+import AgentCLIKit
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -209,4 +211,102 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.pendingHandoffOutput, "Primary goal:\n- Continue the work.")
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Primary goal:\n- Continue the work.")
     }
+
+    func testHiddenSessionHandoffFallsBackToLocalHistoryWhenCodexResumeHasNoRollout() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            initialAgentIsRunning: false,
+            providerId: "codex"
+        )
+        try await seedCodexNoRolloutHandoffFixture(
+            fixture,
+            userMessage: "Please continue the index.html review.",
+            assistantMessage: "The page summary is partially written."
+        )
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+
+        try await waitUntil("local fallback handoff staged") {
+            let freshSessionCount = await fixture.agentsManager.freshSessionCalls().count
+            return !fixture.viewModel.state.isHandingOffSession && freshSessionCount == 1
+        }
+
+        let spawnCalls = await fixture.agentsManager.spawnCalls()
+        let hiddenPromptSends = await fixture.agentsManager.sentMessages()
+        let output = try XCTUnwrap(fixture.viewModel.state.pendingHandoffOutput)
+        XCTAssertEqual(spawnCalls.count, 1)
+        XCTAssertTrue(hiddenPromptSends.isEmpty)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertNil(fixture.viewModel.state.failedSessionHandoffMessage)
+        XCTAssertTrue(output.contains("The hidden session handoff agent could not resume the previous provider session."))
+        XCTAssertTrue(output.contains("Restoring context from local history."))
+        XCTAssertTrue(output.contains("User: Please continue the index.html review."))
+        XCTAssertTrue(output.contains("Assistant: The page summary is partially written."))
+        XCTAssertFalse(output.contains(ConversationSessionHandoff.startedDisplayMessage))
+        XCTAssertFalse(output.contains(ConversationSessionHandoff.completedDisplayMessage))
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, output)
+
+        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        let handoffNotes = records.filter { ConversationSessionHandoff.isDisplayMessage($0.content) }
+        XCTAssertEqual(handoffNotes.count, 1)
+        XCTAssertEqual(handoffNotes.first?.content, ConversationSessionHandoff.completedDisplayMessage)
+    }
+
+    func testPlanModeLocalHistoryHandoffFallbackKeepsPlanModeContext() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            initialAgentIsRunning: false,
+            providerId: "codex"
+        )
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+        try await seedCodexNoRolloutHandoffFixture(
+            fixture,
+            userMessage: "Review the current implementation plan."
+        )
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+
+        try await waitUntil("plan-mode local fallback staged") {
+            let freshSessionCount = await fixture.agentsManager.freshSessionCalls().count
+            return !fixture.viewModel.state.isHandingOffSession && freshSessionCount == 1
+        }
+        let output = try XCTUnwrap(fixture.viewModel.state.pendingHandoffOutput)
+        XCTAssertTrue(output.hasPrefix(planModeHandoffPrefix))
+        let instructionRange = try XCTUnwrap(output.range(of: planModeHandoffInstruction))
+        let fallbackRange = try XCTUnwrap(output.range(of: "The hidden session handoff agent could not resume"))
+        XCTAssertLessThan(instructionRange.lowerBound, fallbackRange.lowerBound)
+    }
+}
+
+@MainActor
+private func seedCodexNoRolloutHandoffFixture(
+    _ fixture: ConversationViewModelTestFixture,
+    userMessage: String,
+    assistantMessage: String? = nil
+) async throws {
+    let conversation = try fixture.dbConversation()
+    fixture.context.insert(ConversationEventRecord(
+        conversationId: conversation.id,
+        type: "message",
+        role: "user",
+        content: userMessage,
+        timestamp: Date(timeIntervalSince1970: 1),
+        conversation: conversation
+    ))
+    if let assistantMessage {
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: conversation.id,
+            type: "message",
+            role: "assistant",
+            content: assistantMessage,
+            timestamp: Date(timeIntervalSince1970: 2),
+            conversation: conversation
+        ))
+    }
+    try fixture.context.save()
+    await fixture.agentsManager.enqueueSpawnError(
+        CodexAppServerError.jsonRPCError(
+            method: "thread/resume",
+            code: -32600,
+            message: "no rollout found for thread id 019ee845-0b26-7061-af79-9bd2327f8401"
+        )
+    )
 }

@@ -273,10 +273,7 @@ private extension ConversationViewModel {
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
         let preflightTransportText = revisionTransportTextForQueuedMessage(next)
-        let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(
-            next,
-            transportText: preflightTransportText
-        )
+        let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(next, transportText: preflightTransportText)
 
         if let requiredPlanModeEnabled {
             try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
@@ -286,7 +283,8 @@ private extension ConversationViewModel {
         }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
-            guard try await prepareRuntimeForQueuedMessage() else {
+            let sessionRecoveryContext = try await prepareRuntimeForQueuedMessage()
+            guard sessionRecoveryContext.shouldContinue else {
                 return
             }
 
@@ -302,22 +300,24 @@ private extension ConversationViewModel {
             )
             localMessageID = localMessage.id
 
+            let resolvedStagedContext = resolveSessionRecoveryStagedContext(
+                recoveryContext: sessionRecoveryContext.recoveryContext,
+                stagedContextOverride: queuedMessage.stagedContext,
+                useCurrentStagedContextWhenOverrideNil: false
+            )
             do {
-                try await deliverMessageReserved(
-                    queuedMessage.text,
-                    transportTextOverride: transportText,
-                    consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
-                    stagedContextOverride: queuedMessage.stagedContext,
-                    useCurrentStagedContextWhenOverrideNil: false,
-                    existingLocalUserMessageID: localMessage.id,
-                    respawnSettingsSource: .currentContinuation
+                try await deliverPreparedQueuedMessage(
+                    queuedMessage,
+                    transportText: transportText,
+                    stagedContext: resolvedStagedContext.stagedContext,
+                    localMessageID: localMessage.id
                 )
                 state.respawnAttempts = 0
             } catch {
                 if let localMessageID {
                     state.markRetryableFailedMessage(
                         id: localMessageID,
-                        stagedContext: queuedMessage.stagedContext,
+                        stagedContext: resolvedStagedContext.stagedContext,
                         transportText: transportText
                     )
                 }
@@ -326,23 +326,59 @@ private extension ConversationViewModel {
         }
     }
 
-    func prepareRuntimeForQueuedMessage() async throws -> Bool {
+    func deliverPreparedQueuedMessage(
+        _ queuedMessage: QueuedMessage,
+        transportText: String?,
+        stagedContext: String?,
+        localMessageID: String
+    ) async throws {
+        try await deliverMessageReserved(
+            queuedMessage.text,
+            transportTextOverride: transportText,
+            consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
+            stagedContextOverride: stagedContext,
+            useCurrentStagedContextWhenOverrideNil: false,
+            existingLocalUserMessageID: localMessageID,
+            respawnSettingsSource: .currentContinuation
+        )
+    }
+
+    private func prepareRuntimeForQueuedMessage() async throws -> OutboundRuntimePreparation {
         switch await agentsManager.outboundReadiness(conversationId: conversation.id) {
         case .ready:
-            return true
+            return .proceed(recoveryContext: nil)
         case .respawnRequired:
             guard state.respawnAttempts < Self.maxRespawnAttempts else {
                 state.lastTurnError = "Agent process keeps crashing — queued message paused"
                 state.respawnAttempts = 0
                 state.turnState.endTurn()
-                return false
+                return .pause
             }
             state.respawnAttempts += 1
-            try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
-            return true
+            let recoveryContext = try await respawnRuntimeForOutbound(settingsSource: .currentContinuation)
+            return .proceed(recoveryContext: recoveryContext)
         case .blocked(let reason):
             throw AgentError.spawnFailed(reason)
         }
     }
 
+}
+
+private enum OutboundRuntimePreparation {
+    case proceed(recoveryContext: String?)
+    case pause
+
+    var shouldContinue: Bool {
+        guard case .proceed = self else {
+            return false
+        }
+        return true
+    }
+
+    var recoveryContext: String? {
+        guard case .proceed(let recoveryContext) = self else {
+            return nil
+        }
+        return recoveryContext
+    }
 }

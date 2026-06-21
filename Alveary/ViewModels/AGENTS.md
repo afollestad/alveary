@@ -13,6 +13,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - Put feature-specific view-model rules in the narrowest subfolder guidance, such as `Alveary/ViewModels/DiffViewer/AGENTS.md`.
 - Keep `ConversationViewModel` companions focused by behavior:
   - **Route outbound work.** Put message sending, queued-message dispatch, and transport message construction in `ConversationViewModel+MessageDispatch.swift`.
+  - **Recover stale provider sessions locally.** If a stopped provider session cannot be resumed, start a fresh provider session for the same conversation and attach `Conversation.restoreContextFromHistory()` through staged transport context. Normal sends, queued sends, retries, and session handoff should not fail only because provider-native history disappeared.
   - **Handle inbound events.** Put provider event filtering, token stop handling, and synthetic event records in `ConversationViewModel+EventHandling.swift`.
   - **Record local user messages.** Put transcript-local user message insertion and secondary-conversation preview title side effects in `ConversationViewModel+LocalMessages.swift`; main thread titles come from provider metadata in `ConversationViewModel+EventHandling.swift`.
   - **Persist runtime state.** Put debounced SwiftData saves and runtime-buffer cursor acknowledgement in `ConversationViewModel+Persistence.swift`.

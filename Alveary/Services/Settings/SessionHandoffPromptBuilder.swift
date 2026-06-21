@@ -44,6 +44,21 @@ User steering prompt:
         return handoffOutput + "\n\n## User Prompt\n" + steeringPrompt
     }
 
+    static func localHistoryFallbackOutput(
+        restoreContext: String,
+        isPlanModeHandoff: Bool = false
+    ) -> String {
+        let fallbackContext = """
+        The hidden session handoff agent could not resume the previous provider session. Continue from this local transcript summary instead.
+
+        \(restoreContext)
+        """
+        return planModePrefixed(
+            fallbackContext,
+            isPlanModeHandoff: isPlanModeHandoff
+        )
+    }
+
     static func editableHandoffOutput(_ output: String) -> String {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("```") else {
@@ -69,12 +84,22 @@ private extension SessionHandoffPromptBuilder {
         configuredPrompt: String,
         isPlanModeHandoff: Bool
     ) -> String {
+        planModePrefixed(
+            configuredPrompt,
+            isPlanModeHandoff: isPlanModeHandoff
+        )
+    }
+
+    static func planModePrefixed(
+        _ prompt: String,
+        isPlanModeHandoff: Bool
+    ) -> String {
         guard isPlanModeHandoff else {
-            return configuredPrompt
+            return prompt
         }
 
         return "You are currently in plan mode.\n\n" +
             "Preserve the active plan/proposal, including whether it is pending, rejected, or ready to implement.\n\n" +
-            configuredPrompt
+            prompt
     }
 }

@@ -122,7 +122,8 @@ extension ConversationViewModel {
 
     private func markLocalUserMessageAttemptFailedIfNeeded(
         _ attempt: LocalUserMessageAttempt,
-        error: Error
+        error: Error,
+        stagedContextOverride: String? = nil
     ) {
         guard attempt.insertedMessage else {
             return
@@ -130,7 +131,7 @@ extension ConversationViewModel {
 
         state.markRetryableFailedMessage(
             id: attempt.id,
-            stagedContext: attempt.stagedContext,
+            stagedContext: stagedContextOverride ?? attempt.stagedContext,
             transportText: attempt.transportText
         )
         if state.lastTurnError == nil {
@@ -204,9 +205,12 @@ extension ConversationViewModel {
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn
     ) async throws {
         try repairMissingWorktreeIfNeeded()
-        if !needsSetup {
-            try await prepareRuntimeForOutbound(settingsSource: respawnSettingsSource)
-        }
+        let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
+            stagedContextOverride: stagedContextOverride,
+            useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
+            respawnSettingsSource: respawnSettingsSource
+        )
+        if resolvedStagedContext.consumedCurrentStagedContext != nil { state.stagedContext = nil }
 
         let attempt = try localUserMessageAttempt(
             outbound: OutboundMessageText(
@@ -214,10 +218,11 @@ extension ConversationViewModel {
                 transportText: transportTextOverride,
                 consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
             ),
-            stagedContextOverride: stagedContextOverride,
-            useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
+            stagedContextOverride: resolvedStagedContext.stagedContext,
+            useCurrentStagedContextWhenOverrideNil: resolvedStagedContext.recoveryContext == nil ? useCurrentStagedContextWhenOverrideNil : false,
             existingLocalUserMessageID: existingLocalUserMessageID
         )
+        var retryStagedContext = attempt.stagedContext
 
         do {
             if needsSetup {
@@ -234,24 +239,26 @@ extension ConversationViewModel {
 
             try await sendAttemptWithSingleRespawnRecovery(
                 OutboundMessageText(visibleText: message, transportText: transportTextOverride),
-                stagedContextOverride: stagedContextOverride ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
+                stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
-                respawnSettingsSource: respawnSettingsSource
+                respawnSettingsSource: respawnSettingsSource,
+                onResolvedRecoveryContext: { retryStagedContext = $0.stagedContext }
             )
+            clearConsumedPendingRestoreContext(resolvedStagedContext)
         } catch is CancellationError {
-            if attempt.insertedMessage {
-                removeLocalUserMessageAttempt(
-                    id: attempt.id,
-                    restoring: attempt.metadata
-                )
-                restoreExitPlanModeRevisionGuidanceIfNeeded(attempt.consumedExitPlanModeRevisionGuidance)
-            }
+            cancelLocalUserMessageAttemptIfNeeded(attempt)
             throw CancellationError()
         } catch {
-            markLocalUserMessageAttemptFailedIfNeeded(attempt, error: error)
+            markLocalUserMessageAttemptFailedIfNeeded(attempt, error: error, stagedContextOverride: retryStagedContext)
             throw error
         }
+    }
+
+    private func cancelLocalUserMessageAttemptIfNeeded(_ attempt: LocalUserMessageAttempt) {
+        guard attempt.insertedMessage else { return }
+        removeLocalUserMessageAttempt(id: attempt.id, restoring: attempt.metadata)
+        restoreExitPlanModeRevisionGuidanceIfNeeded(attempt.consumedExitPlanModeRevisionGuidance)
     }
 
     private func setupAndStartReserved(

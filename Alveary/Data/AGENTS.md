@@ -16,6 +16,7 @@ These instructions cover the SwiftData models under `Alveary/Data/`.
 These are persistence contracts backed by SwiftData fields. Treat them as hard constraints unless the work explicitly includes a coordinated migration.
 
 - Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume. Restoring a thread should regenerate that summary from saved `ConversationEventRecord`s, hydrate it back into `ConversationState.stagedContext` when the conversation view model is recreated, send it only through the existing staged-context path on the next outbound message, and clear the persisted field when the user dismisses it or that send succeeds.
+- Restore summaries should carry actionable conversation history only. Exclude UI-only transcript notes such as session handoff markers so local recovery context does not tell a fresh provider session about Alveary display state.
 - Tool approval resolution belongs on the associated transcript row:
     - **Use the existing row.** Store approve/deny state on the `tool_approval` `ConversationEventRecord` via `toolApprovalStatus`.
     - **Do not add a separate model.** Keeping status on the transcript row preserves the associated button state across rebuilds and app restarts.

@@ -1,6 +1,5 @@
 import Foundation
 import OSLog
-import SwiftData
 
 private let sessionHandoffLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Alveary", category: "SessionHandoff")
 
@@ -58,6 +57,9 @@ extension ConversationViewModel {
             try await agentsManager.sendMessage(makeHiddenSessionHandoffPrompt(), conversationId: conversation.id, activityVisibility: .hidden)
             beginHiddenActivityTurn()
         } catch {
+            if await recoverHiddenSessionHandoffFromLocalHistoryIfNeeded(error) {
+                return
+            }
             failSessionHandoff("Session handoff failed: \(error.localizedDescription)")
         }
     }
@@ -478,14 +480,4 @@ private extension ConversationViewModel {
         replaceInputDraft(restorableDraft, source: state.sessionHandoffRestorableDraftSource)
     }
 
-    func resetSubscriptionTrackingForNewSession() {
-        subscriptionTask?.cancel()
-        subscriptionTask = nil
-        state.lastObservedEventIndex = 0
-        state.lastPersistedEventIndex = 0
-        state.activeBufferGeneration = nil
-        state.activeSubscriptionToken = nil
-        state.activeRuntimeActivityTurnId = nil
-        state.grouper.resetInFlightStateForNewSession()
-    }
 }

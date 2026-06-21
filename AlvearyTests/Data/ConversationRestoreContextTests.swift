@@ -89,6 +89,23 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("User cancelled after checking the worktree"))
     }
 
+    func testRefreshPendingRestoreContextExcludesSessionHandoffStopNotes() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Resume from the real transcript")
+        fixture.addEvent(type: "stop", content: ConversationSessionHandoff.startedDisplayMessage)
+        fixture.addEvent(type: "stop", content: ConversationSessionHandoff.completedDisplayMessage)
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(pendingRestoreContext.contains("Resume from the real transcript"))
+        XCTAssertFalse(pendingRestoreContext.contains(ConversationSessionHandoff.startedDisplayMessage))
+        XCTAssertFalse(pendingRestoreContext.contains(ConversationSessionHandoff.completedDisplayMessage))
+        XCTAssertFalse(pendingRestoreContext.contains("Last session note:"))
+    }
+
     func testRefreshPendingRestoreContextUsesErrorMessageAsSessionNote() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation

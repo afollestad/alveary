@@ -50,7 +50,8 @@ actor MockAgentsManager: AgentsManager {
     private let approvalError: MockError?
     private let sessionApprovalEffective: Bool
     private let statusStore = MockAgentsManagerStatusStore()
-    private var queuedSendResults: [Result<Void, MockError>] = []
+    private var queuedSpawnErrors: [Error] = []
+    private var queuedSendResults: [Result<Void, Error>] = []
     private var queuedOutboundReadiness: [AgentOutboundReadiness] = []
     private var queuedRefreshStatuses: [ActivitySignal] = []
     private var failsSendWhenCurrentTaskIsCancelled = false
@@ -93,6 +94,9 @@ actor MockAgentsManager: AgentsManager {
 
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
         recordedSpawnCalls.append(SpawnCall(id: id, config: config, forkSession: forkSession))
+        if !queuedSpawnErrors.isEmpty {
+            throw queuedSpawnErrors.removeFirst()
+        }
         isRunningValue = true
     }
 
@@ -127,7 +131,7 @@ actor MockAgentsManager: AgentsManager {
                 recordedSendVisibilities.append(activityVisibility)
                 return
             case .failure(let error):
-                if error == .stdinClosed {
+                if let mockError = error as? MockError, mockError == .stdinClosed {
                     throw AgentError.stdinClosed
                 }
                 throw error
@@ -198,8 +202,12 @@ actor MockAgentsManager: AgentsManager {
         )] = selection
     }
 
-    func enqueueSendResult(_ result: Result<Void, MockError>) {
-        queuedSendResults.append(result)
+    func enqueueSendResult(_ result: Result<Void, MockError>) { queuedSendResults.append(result.mapError { $0 as Error }) }
+
+    func enqueueSendError(_ error: Error) { queuedSendResults.append(.failure(error)) }
+
+    func enqueueSpawnError(_ error: Error) {
+        queuedSpawnErrors.append(error)
     }
 
     func enqueueOutboundReadiness(_ readiness: AgentOutboundReadiness) {

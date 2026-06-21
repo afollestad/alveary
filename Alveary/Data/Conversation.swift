@@ -49,11 +49,19 @@ final class Conversation {
 }
 
 extension Conversation {
-    func refreshPendingRestoreContextFromHistory() {
-        pendingRestoreContext = Self.buildPendingRestoreContext(
+    func restoreContextFromHistory() -> String? {
+        restoreContext(from: events)
+    }
+
+    func restoreContext(from events: [ConversationEventRecord]) -> String? {
+        Self.buildPendingRestoreContext(
             from: events,
             conversationName: displayName()
         )
+    }
+
+    func refreshPendingRestoreContextFromHistory() {
+        pendingRestoreContext = restoreContextFromHistory()
     }
 }
 
@@ -181,7 +189,7 @@ private extension Conversation {
         case "error", ConversationContextCompaction.failedType:
             return restoreErrorSessionNote(for: record)
         case "stop":
-            return normalizedRestoreSnippet(record.content)
+            return restoreStopSessionNote(for: record)
         case "notification":
             let type = normalizedRestoreSnippet(record.notificationType)
             let content = normalizedRestoreSnippet(record.content)
@@ -198,6 +206,13 @@ private extension Conversation {
         default:
             return nil
         }
+    }
+
+    static func restoreStopSessionNote(for record: ConversationEventRecord) -> String? {
+        guard !ConversationSessionHandoff.isDisplayMessage(record.content) else {
+            return nil
+        }
+        return normalizedRestoreSnippet(record.content)
     }
 
     static func restoreErrorSessionNote(for record: ConversationEventRecord) -> String? {
