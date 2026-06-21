@@ -202,7 +202,8 @@ extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
-        respawnSettingsSource: SessionSettingsConfigSource = .nextTurn
+        respawnSettingsSource: SessionSettingsConfigSource = .nextTurn,
+        marksSessionHandoffSeedTurn: Bool = false
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
@@ -211,7 +212,6 @@ extension ConversationViewModel {
             respawnSettingsSource: respawnSettingsSource
         )
         if resolvedStagedContext.consumedCurrentStagedContext != nil { state.stagedContext = nil }
-
         let attempt = try localUserMessageAttempt(
             outbound: OutboundMessageText(
                 visibleText: message,
@@ -243,6 +243,7 @@ extension ConversationViewModel {
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
                 respawnSettingsSource: respawnSettingsSource,
+                marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn,
                 onResolvedRecoveryContext: { retryStagedContext = $0.stagedContext }
             )
             clearConsumedPendingRestoreContext(resolvedStagedContext)

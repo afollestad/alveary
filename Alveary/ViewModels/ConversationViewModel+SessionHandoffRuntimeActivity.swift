@@ -5,7 +5,7 @@ extension ConversationViewModel {
             state.activeRuntimeActivityTurnId = nil
             state.clearStreamingText()
             state.isCancellingTurn = false
-            state.turnState.endTurn()
+            state.endTurn()
             scheduleSave()
         default:
             break
@@ -64,13 +64,13 @@ private extension ConversationViewModel {
     func completeHiddenSessionHandoffFromRuntimeActivity() {
         let output = SessionHandoffPromptBuilder.editableHandoffOutput(state.hiddenHandoffResponse)
         guard !output.isEmpty else {
-            state.turnState.endTurn()
+            state.endTurn()
             failHiddenSessionHandoff("Session handoff failed: the hidden handoff prompt returned no context.")
             scheduleSave()
             return
         }
 
-        state.turnState.endTurn()
+        state.endTurn()
         scheduleSave()
         Task { @MainActor [self] in
             await finishHiddenSessionHandoff(with: output)

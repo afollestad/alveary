@@ -274,7 +274,7 @@ extension ChatView {
     }
 
     func steerDraft() {
-        guard canUseOutboundComposerActions else {
+        guard canUseOutboundComposerActions, !viewModel.state.isNormalSteeringBlockedBySessionHandoff else {
             return
         }
 
@@ -287,7 +287,7 @@ extension ChatView {
     }
 
     func alternateSteerDraft() {
-        guard canUseOutboundComposerActions else {
+        guard canUseOutboundComposerActions, !viewModel.state.isNormalSteeringBlockedBySessionHandoff else {
             return
         }
 
@@ -308,7 +308,7 @@ extension ChatView {
     }
 
     func sendSteeringDraft(_ draft: ComposerDraft) {
-        guard !draft.isEffectivelyEmpty else {
+        guard !viewModel.state.isNormalSteeringBlockedBySessionHandoff, !draft.isEffectivelyEmpty else {
             return
         }
 

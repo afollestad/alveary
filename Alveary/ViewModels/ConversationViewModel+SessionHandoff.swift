@@ -189,7 +189,10 @@ extension ConversationViewModel {
         let retryableMessageCount = state.retryableFailedMessageIDs.count
         do {
             try await withOutboundReservation {
-                try await deliverMessageReserved(makeSessionHandoffOutgoingMessage(output: output))
+                try await deliverMessageReserved(
+                    makeSessionHandoffOutgoingMessage(output: output),
+                    marksSessionHandoffSeedTurn: true
+                )
             }
             restoreSessionHandoffDraftIfNeeded()
             clearSubmittedHandoffSteering()
@@ -275,20 +278,20 @@ private extension ConversationViewModel {
         }
         guard payload.completesTurn else { return }
         guard !payload.isError, payload.permissionDenials.isEmpty else {
-            state.turnState.endTurn()
+            state.endTurn()
             failSessionHandoff(ConversationErrorDisplayPolicy.sessionHandoffTokenFailureMessage(stopReason: payload.stopReason))
             return
         }
 
         let output = SessionHandoffPromptBuilder.editableHandoffOutput(state.hiddenHandoffResponse)
         guard !output.isEmpty else {
-            state.turnState.endTurn()
+            state.endTurn()
             failSessionHandoff("Session handoff failed: the hidden handoff prompt returned no context.")
             return
         }
 
         sessionHandoffLogger.debug("Hidden handoff completed with outputLength=\(output.count)")
-        state.turnState.endTurn()
+        state.endTurn()
         Task { @MainActor [self] in
             await finishSessionHandoff(with: output)
         }
@@ -414,7 +417,7 @@ private extension ConversationViewModel {
         removeSessionHandoffStartedNoteIfNeeded()
         state.clearStreamingText()
         state.activeRuntimeActivityTurnId = nil
-        state.turnState.endTurn()
+        state.endTurn()
         state.lastTurnError = message
         let draft = flushDraftFromEditor()
         if let restorableDraft, draft.text.isEmpty {

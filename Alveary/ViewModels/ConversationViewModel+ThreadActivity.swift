@@ -1,8 +1,9 @@
 extension ConversationViewModel {
-    func markVisibleTurnStarted() {
+    func markVisibleTurnStarted(isSessionHandoffSeed: Bool = false) {
         markPromptDismissalNewOutboundTurnStarted()
         state.currentTurnActivityVisibility = .visible
         state.hasRecordedLocalTurnEndActivity = false
+        state.isSessionHandoffSeedTurnActive = isSessionHandoffSeed
     }
 
     func markHiddenTurnStarted() {
@@ -10,6 +11,7 @@ extension ConversationViewModel {
             state.currentTurnActivityVisibility = .hidden
         }
         state.hasRecordedLocalTurnEndActivity = false
+        state.isSessionHandoffSeedTurnActive = false
     }
 
     func beginHiddenActivityTurn() {

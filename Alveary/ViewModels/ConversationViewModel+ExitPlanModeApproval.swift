@@ -171,7 +171,7 @@ extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.clearStreamingText()
-        state.turnState.endTurn()
+        state.endTurn()
         recordLocalVisibleTurnEndedIfNeeded()
 
         schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()

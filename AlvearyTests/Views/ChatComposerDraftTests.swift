@@ -96,6 +96,74 @@ final class ChatComposerDraftTests: XCTestCase {
         }
     }
 
+    func testAlternateSteerDraftDuringSessionHandoffLeavesQueuedMessageParked() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.messageQueue.enqueue("Queued steer", stagedContext: "Queued context")
+        fixture.viewModel.state.isHandingOffSession = true
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Queued steer"])
+    }
+
+    func testAlternateSteerDraftDuringSessionHandoffDoesNotClearDraft() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.isHandingOffSession = true
+        fixture.viewModel.replaceInputDraft("Do not steer during handoff", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.alternateSteerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Do not steer during handoff")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testSteerDraftDuringSessionHandoffDoesNotClearDraft() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.isHandingOffSession = true
+        fixture.viewModel.replaceInputDraft("Do not steer directly during handoff", source: .blockInputMarkdown)
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        chatView.steerDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "Do not steer directly during handoff")
+        XCTAssertNil(appState.pendingComposerFocusToken)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testQueuedMessagesConfigurationDisablesSteerDuringSessionHandoff() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let appState = AppState()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.messageQueue.enqueue("Queued steer", stagedContext: nil)
+        fixture.viewModel.state.isHandingOffSession = true
+        let chatView = makeChatView(fixture: fixture, appState: appState)
+
+        let configuration = try XCTUnwrap(chatView.composerQueuedMessagesConfiguration)
+
+        XCTAssertTrue(configuration.supportsMidTurnSteering)
+        XCTAssertFalse(configuration.isTurnActive)
+        XCTAssertNil(configuration.inFlightQueuedMessageID)
+        XCTAssertEqual(configuration.queuedMessages.map(\.text), ["Queued steer"])
+    }
+
     func testAlternateSteerDraftWithEmptyDraftAndNoQueueDoesNothing() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()

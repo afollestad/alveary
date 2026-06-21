@@ -94,6 +94,8 @@ extension AppKitChatSurfaceViewTests {
         let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
         let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
         var didSteer = false
+        var didEdit = false
+        var didDismiss = false
         view.configure(
             AppKitChatQueuedMessagesConfiguration(
                 queuedMessages: [message],
@@ -102,15 +104,21 @@ extension AppKitChatSurfaceViewTests {
                 inFlightQueuedMessageID: nil,
                 borderWidth: 1,
                 onSteer: { _ in didSteer = true },
-                onEdit: { _ in },
-                onDismiss: { _ in }
+                onEdit: { _ in didEdit = true },
+                onDismiss: { _ in didDismiss = true }
             )
         )
         view.layoutSubtreeIfNeeded()
 
         let steerButton = try XCTUnwrap(firstDescendant(of: view) { $0.accessibilityLabel() == "Steer queued message" })
+        let editButton = try XCTUnwrap(firstDescendant(of: view) { $0.accessibilityLabel() == "Edit queued message" })
+        let dismissButton = try XCTUnwrap(firstDescendant(of: view) { $0.accessibilityLabel() == "Discard queued message" })
         XCTAssertFalse(steerButton.accessibilityPerformPress())
+        XCTAssertTrue(editButton.accessibilityPerformPress())
+        XCTAssertTrue(dismissButton.accessibilityPerformPress())
         XCTAssertFalse(didSteer)
+        XCTAssertTrue(didEdit)
+        XCTAssertTrue(didDismiss)
     }
 }
 

@@ -34,7 +34,7 @@ extension ConversationViewModel {
         nonresumableSessionLogger.error(
             "Hidden handoff could not resume provider session; using local transcript fallback: \(error.localizedDescription, privacy: .public)"
         )
-        state.turnState.endTurn()
+        state.endTurn()
         let output = SessionHandoffPromptBuilder.localHistoryFallbackOutput(
             restoreContext: restoreContext,
             isPlanModeHandoff: state.sessionHandoffStartedInPlanMode

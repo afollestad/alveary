@@ -116,6 +116,7 @@ final class ConversationState {
     var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
     var sessionHandoffStartedInPlanMode = false
     var sessionHandoffNoteRecordID: String?
+    var isSessionHandoffSeedTurnActive = false
     var isAutomaticSessionHandoffPending = false
     var hiddenHandoffResponse = ""
     var pendingHandoffOutput: String?
@@ -150,6 +151,10 @@ final class ConversationState {
             || failedSessionHandoffMessage != nil
     }
 
+    var isNormalSteeringBlockedBySessionHandoff: Bool {
+        hasActiveSessionHandoff || (isSessionHandoffSeedTurnActive && turnState.isActive)
+    }
+
     var shouldShowInterruptedCue: Bool {
         lastTurnInterrupted
     }
@@ -168,6 +173,12 @@ final class ConversationState {
 
     func clearStreamingText() {
         streamingText = nil
+    }
+
+    func endTurn() {
+        // The fresh-session handoff seed blocks normal steering only until any terminal turn boundary.
+        turnState.endTurn()
+        isSessionHandoffSeedTurnActive = false
     }
 
     func markRetryableFailedMessage(id: String, stagedContext: String?, transportText: String? = nil) {

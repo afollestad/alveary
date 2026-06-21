@@ -2,7 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func handleTurnCompleted() {
-        state.turnState.endTurn()
+        state.endTurn()
         scheduleQueueDrainIfNeeded()
     }
 
@@ -11,7 +11,8 @@ extension ConversationViewModel {
         transportText: String? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
-        existingLocalUserMessageID: String? = nil
+        existingLocalUserMessageID: String? = nil,
+        marksSessionHandoffSeedTurn: Bool = false
     ) async throws {
         let appliedContext = stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let transportMessage = buildTransportMessage(
@@ -33,7 +34,7 @@ extension ConversationViewModel {
             state.stagedContext = nil
         }
         clearConsumedPendingRestoreContext(using: appliedContext)
-        markVisibleTurnStarted()
+        markVisibleTurnStarted(isSessionHandoffSeed: marksSessionHandoffSeedTurn)
         state.turnState.beginTurn()
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
@@ -77,7 +78,10 @@ extension ConversationViewModel {
     }
 
     func steerQueuedMessage(id: UUID) async throws {
-        guard canSteerCurrentTurn else {
+        guard !state.isNormalSteeringBlockedBySessionHandoff else {
+            throw AgentError.spawnFailed("Session handoff is in progress")
+        }
+        guard providerCanSteerCurrentTurn else {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
         guard state.inFlightQueuedMessageID == nil else {
@@ -212,7 +216,7 @@ private extension ConversationViewModel {
             try await sendNextQueuedMessage(next, in: dbConversation)
         } catch {
             state.lastTurnError = "Queued message failed to send: \(error.localizedDescription)"
-            state.turnState.endTurn()
+            state.endTurn()
         }
     }
 
@@ -289,7 +293,7 @@ private extension ConversationViewModel {
             }
 
             guard let queuedMessage = state.messageQueue.remove(id: next.id) else {
-                state.turnState.endTurn()
+                state.endTurn()
                 return
             }
             let transportText = revisionTransportTextForQueuedMessage(queuedMessage)
@@ -351,7 +355,7 @@ private extension ConversationViewModel {
             guard state.respawnAttempts < Self.maxRespawnAttempts else {
                 state.lastTurnError = "Agent process keeps crashing — queued message paused"
                 state.respawnAttempts = 0
-                state.turnState.endTurn()
+                state.endTurn()
                 return .pause
             }
             state.respawnAttempts += 1

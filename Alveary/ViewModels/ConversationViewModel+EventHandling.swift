@@ -156,7 +156,7 @@ private extension ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.clearStreamingText()
-            state.turnState.endTurn()
+            state.endTurn()
             scheduleSave()
             return true
         default:
@@ -220,7 +220,7 @@ private extension ConversationViewModel {
 
         if !payload.isError && payload.permissionDenials.isEmpty {
             if shouldTriggerAutomaticSessionHandoff(for: payload) {
-                state.turnState.endTurn()
+                state.endTurn()
                 Task { @MainActor [self] in await startSessionHandoff(trigger: .automatic) }
             } else if isAwaitingAutomaticSessionHandoffTurnCompletion(for: payload) {
                 // Keep queued messages parked until the real terminal token starts handoff.
@@ -230,7 +230,7 @@ private extension ConversationViewModel {
         } else if didQueueExitPlanModeFollowUp || !payload.permissionDenials.isEmpty {
             handleTurnCompleted()
         } else {
-            state.turnState.endTurn()
+            state.endTurn()
         }
 
         return .persistTokens
@@ -267,7 +267,7 @@ private extension ConversationViewModel {
 
         state.isCancellingTurn = false
         state.lastTurnError = nil
-        state.turnState.endTurn()
+        state.endTurn()
         return .dropTokens
     }
 
@@ -331,7 +331,7 @@ private extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
         state.lastTurnError = nil
-        state.turnState.endTurn()
+        state.endTurn()
         handleTurnCompleted()
         scheduleSave()
     }
@@ -342,7 +342,7 @@ private extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
         state.lastTurnError = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
-        state.turnState.endTurn()
+        state.endTurn()
         scheduleSave()
     }
 
@@ -354,7 +354,7 @@ private extension ConversationViewModel {
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
         markTranscriptToolsInterrupted()
-        state.turnState.endTurn()
+        state.endTurn()
         if shouldPersistInterruption {
             persistSyntheticStopRecord(message: ConversationInterruption.displayMessage)
         }
@@ -366,7 +366,7 @@ private extension ConversationViewModel {
         state.clearStreamingText()
         if shouldSuppressInterruptedError(message) {
             state.isCancellingTurn = false
-            state.turnState.endTurn()
+            state.endTurn()
             scheduleSave()
             return false
         }
@@ -375,7 +375,7 @@ private extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
         state.lastTurnError = nil
-        state.turnState.endTurn()
+        state.endTurn()
         return true
     }
 
@@ -417,7 +417,7 @@ private extension ConversationViewModel {
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
         markTranscriptToolsInterrupted()
-        state.turnState.endTurn()
+        state.endTurn()
     }
 
     func handleFailedTokenTurn(_ payload: TokenEventPayload) {
@@ -441,7 +441,7 @@ private extension ConversationViewModel {
         if ConversationInterruption.isDisplayMessage(message), state.lastTurnInterrupted {
             state.isCancellingTurn = false
             markTranscriptToolsInterrupted()
-            state.turnState.endTurn()
+            state.endTurn()
             scheduleSave()
             return false
         }
@@ -451,7 +451,7 @@ private extension ConversationViewModel {
             state.lastTurnInterrupted = true
             markTranscriptToolsInterrupted()
         }
-        state.turnState.endTurn()
+        state.endTurn()
         return true
     }
 

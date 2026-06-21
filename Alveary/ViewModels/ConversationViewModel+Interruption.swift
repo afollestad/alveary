@@ -135,7 +135,7 @@ extension ConversationViewModel {
 
     func restorePromptAnswerContinuation(_ snapshot: PromptAnswerContinuationSnapshot) {
         if !snapshot.wasTurnActive {
-            state.turnState.endTurn()
+            state.endTurn()
         }
         state.currentTurnActivityVisibility = snapshot.turnActivityVisibility
         state.hasRecordedLocalTurnEndActivity = snapshot.hasRecordedLocalTurnEndActivity
@@ -245,7 +245,7 @@ extension ConversationViewModel {
         state.lastTurnInterrupted = true
         markTranscriptToolsInterrupted()
         state.clearStreamingText()
-        state.turnState.endTurn()
+        state.endTurn()
         recordLocalVisibleTurnEndedIfNeeded()
     }
 

@@ -284,7 +284,7 @@ private extension ConversationViewModel {
             }
 
             let wasActive = self.state.turnState.isActive
-            self.state.turnState.endTurn()
+            self.state.endTurn()
             if wasActive {
                 self.recordLocalVisibleTurnEndedIfNeeded()
             }

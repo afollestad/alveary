@@ -39,6 +39,7 @@ extension ConversationViewModel {
         useCurrentStagedContextWhenOverrideNil: Bool,
         existingLocalUserMessageID: String,
         respawnSettingsSource: SessionSettingsConfigSource,
+        marksSessionHandoffSeedTurn: Bool = false,
         onResolvedRecoveryContext: ((SessionRecoveryStagedContext) -> Void)? = nil
     ) async throws {
         do {
@@ -47,7 +48,8 @@ extension ConversationViewModel {
                 transportText: outbound.transportText,
                 stagedContextOverride: stagedContextOverride,
                 useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
-                existingLocalUserMessageID: existingLocalUserMessageID
+                existingLocalUserMessageID: existingLocalUserMessageID,
+                marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn
             )
         } catch {
             let recoveryContext = try await recoveryContextAfterSendFailure(
@@ -66,7 +68,8 @@ extension ConversationViewModel {
                 transportText: outbound.transportText,
                 stagedContextOverride: resolvedContext.stagedContext,
                 useCurrentStagedContextWhenOverrideNil: recoveryContext == nil ? useCurrentStagedContextWhenOverrideNil : false,
-                existingLocalUserMessageID: existingLocalUserMessageID
+                existingLocalUserMessageID: existingLocalUserMessageID,
+                marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn
             )
             if let consumedCurrentStagedContext = resolvedContext.consumedCurrentStagedContext {
                 state.stagedContext = nil
