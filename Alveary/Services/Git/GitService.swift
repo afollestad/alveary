@@ -93,6 +93,11 @@ protocol GitService: Sendable {
     func stage(paths: [String], in directory: String) async throws
     func unstage(paths: [String], in directory: String) async throws
     func discard(paths: [String], scope: DiscardScope, in directory: String) async throws
+    func hasStagedChanges(in directory: String) async throws -> Bool
+    func validateBranchName(_ branchName: String, in directory: String) async throws -> Bool
+    func checkoutNewBranch(_ branchName: String, in directory: String) async throws
+    func commit(message: String, includeUnstagedChanges: Bool, in directory: String) async throws
+    func pushCurrentBranch(remoteName: String?, in directory: String) async throws
     func log(in directory: String, limit: Int) async throws -> [CommitInfo]
     func currentBranch(in directory: String) async throws -> String
     func currentHeadHash(in directory: String) async throws -> String
@@ -110,5 +115,25 @@ extension GitService {
 
     func discard(paths: [String], in directory: String) async throws {
         try await discard(paths: paths, scope: .all, in: directory)
+    }
+
+    func hasStagedChanges(in directory: String) async throws -> Bool {
+        throw GitError.commandFailed("Staged change detection is not implemented")
+    }
+
+    func validateBranchName(_ branchName: String, in directory: String) async throws -> Bool {
+        throw GitError.commandFailed("Branch name validation is not implemented")
+    }
+
+    func checkoutNewBranch(_ branchName: String, in directory: String) async throws {
+        throw GitError.commandFailed("Branch checkout is not implemented")
+    }
+
+    func commit(message: String, includeUnstagedChanges: Bool, in directory: String) async throws {
+        throw GitError.commandFailed("Commit is not implemented")
+    }
+
+    func pushCurrentBranch(remoteName: String?, in directory: String) async throws {
+        throw GitError.commandFailed("Push is not implemented")
     }
 }
