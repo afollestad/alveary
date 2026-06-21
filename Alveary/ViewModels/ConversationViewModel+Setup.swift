@@ -2,7 +2,7 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
-private struct ConversationInitialSetupSnapshot {
+struct ConversationInitialSetupSnapshot {
     let draft: String
     let draftSource: ComposerDraftSource
     let stagedContext: String?
@@ -343,7 +343,7 @@ extension ConversationViewModel {
         state.respawnAttempts = 0
     }
 
-    private func createInitialWorkingDirectory(
+    func createInitialWorkingDirectory(
         for thread: AgentThread,
         project: Project,
         message: String
@@ -379,7 +379,7 @@ extension ConversationViewModel {
         }
     }
 
-    private func rollbackFailedInitialSetup(
+    func rollbackFailedInitialSetup(
         error: Error,
         project: Project,
         thread: AgentThread,

@@ -96,6 +96,8 @@ private extension ConversationViewModel {
 
     func runHiddenCommitMessageGenerationSend(prompt: String) async {
         do {
+            try await setupHiddenInitialRuntimeIfNeeded()
+
             if await needsRespawn() {
                 try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
                 state.sessionContinuityNotice = nil
@@ -109,7 +111,9 @@ private extension ConversationViewModel {
     }
 
     var canStartHiddenCommitMessageGeneration: Bool {
-        !needsSetup &&
+        initialSetupTask == nil &&
+            setupPhase == nil &&
+            !state.isCancellingInitialSetup &&
             !isAgentActivelyWorking &&
             !state.isSendingMessage &&
             !state.isReconfiguringSession &&

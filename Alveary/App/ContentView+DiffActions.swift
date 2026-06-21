@@ -12,19 +12,31 @@ extension ContentView {
         return (thread, conversation)
     }
 
-    func requestAgentCommit() {
-        guard let (_, conversation) = activeDiffActionTarget() else {
+    func presentGitCommitModal() {
+        guard let (thread, _) = activeDiffActionTarget(),
+              let directory = diffViewModel.activeDirectory else {
             return
         }
 
-        let message: String
-        if diffViewModel.files.contains(where: { $0.isStaged }) {
-            message = "Please review the currently staged changes in this worktree and create an appropriate git commit for them."
-        } else {
-            message = "Please review the current uncommitted changes in this worktree and create an appropriate git commit."
-        }
+        let baseBranch = thread.project?.baseRef ?? "main"
+        let context = DiffGitCommitModalContext(
+            directory: directory,
+            threadName: thread.displayName(),
+            baseBranch: baseBranch,
+            remoteName: thread.project?.remoteName
+        )
 
-        appState.requestDiffAction(message: message, conversationID: conversation.persistentModelID)
+        gitCommitModalModel = DiffGitCommitModalModel(
+            context: context,
+            gitService: gitService,
+            settingsService: settingsService,
+            generateCommitMessage: { prompt in
+                try await generateCommitMessage(prompt: prompt)
+            },
+            refreshAfterMutation: {
+                await diffViewModel.refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
+            }
+        )
     }
 
     func requestCommitMessageGeneration(
@@ -41,6 +53,14 @@ extension ContentView {
             conversationID: conversation.persistentModelID,
             completion: completion
         )
+    }
+
+    func generateCommitMessage(prompt: String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            requestCommitMessageGeneration(prompt: prompt) { result in
+                continuation.resume(with: result)
+            }
+        }
     }
 
     func requestAgentOpenPR() {

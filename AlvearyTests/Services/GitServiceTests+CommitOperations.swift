@@ -107,6 +107,26 @@ extension GitServiceTests {
         XCTAssertEqual(Array(invocations[0].args.prefix(3)), ["commit", "--cleanup=verbatim", "--file"])
     }
 
+    func testCommitMessageWithShellMetacharactersIsOnlyWrittenToTempFile() async throws {
+        let shell = CommitMessageCapturingShellRunner()
+        let service = CLIGitService(shell: shell)
+        let message = #"""
+        Add `CommitModal`
+
+        Preserve "quotes", '$HOME', $(rm -rf /), backslashes \, pipes |, and semicolons ; literally.
+
+        Co-authored-by: Codex <noreply@openai.com>
+        """#
+
+        try await service.commit(message: message, includeUnstagedChanges: false, in: "/tmp/project")
+
+        let capturedMessage = await shell.capturedMessage
+        XCTAssertEqual(capturedMessage, message)
+        let invocations = await shell.invocations
+        XCTAssertEqual(Array(invocations[0].args.prefix(3)), ["commit", "--cleanup=verbatim", "--file"])
+        XCTAssertFalse(invocations[0].args.contains(message))
+    }
+
     func testPushCurrentBranchUsesRemoteAndCurrentBranch() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(Self.shellResult(stdout: "feature/test\n")))

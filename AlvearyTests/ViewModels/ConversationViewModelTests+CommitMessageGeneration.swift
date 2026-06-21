@@ -30,6 +30,78 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.turnState.isActive)
     }
 
+    func testGenerateCommitMessageInitializesFreshThreadWithoutVisibleTranscriptRows() async throws {
+        let recorder = RecordingThreadActivityRecorder()
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: false,
+            threadActivityRecorder: recorder
+        )
+        let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }
+
+        try await waitUntil("hidden commit prompt sent") {
+            await fixture.agentsManager.sentMessages() == ["Generate commit"]
+        }
+
+        let refreshedThread = try fixture.dbThread()
+        XCTAssertTrue(refreshedThread.hasCompletedInitialSetup)
+        XCTAssertNil(refreshedThread.worktreePath)
+        XCTAssertNil(refreshedThread.branch)
+        XCTAssertTrue(recorder.visibleOutboundConversationIDs.isEmpty)
+
+        let spawnCalls = await fixture.agentsManager.spawnCalls()
+        XCTAssertEqual(spawnCalls.count, 1)
+        XCTAssertEqual(spawnCalls.first?.config.workingDirectory, fixture.project.path)
+        XCTAssertNil(spawnCalls.first?.config.initialPrompt)
+
+        let sendVisibilities = await fixture.agentsManager.sendVisibilities()
+        XCTAssertEqual(sendVisibilities, [.hidden])
+
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "Add modal", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .completed))
+
+        let message = try await task.value
+        XCTAssertEqual(message, "Add modal")
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
+    func testGenerateCommitMessageFreshWorktreeUsesThreadNameForSetup() async throws {
+        let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/commit-thread")
+        let fixture = try ConversationViewModelTestFixture(
+            threadName: "Commit Thread",
+            useWorktree: true,
+            hasCompletedInitialSetup: false,
+            worktreeInfo: worktreeInfo
+        )
+        let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }
+
+        try await waitUntil("hidden commit prompt sent") {
+            await fixture.agentsManager.sentMessages() == ["Generate commit"]
+        }
+
+        let createCalls = await fixture.worktreeManager.createCalls()
+        XCTAssertEqual(createCalls.count, 1)
+        XCTAssertEqual(createCalls.first?.projectPath, fixture.project.path)
+        XCTAssertEqual(createCalls.first?.threadName, "Commit Thread")
+        XCTAssertEqual(createCalls.first?.remoteName, fixture.project.remoteName)
+
+        let refreshedThread = try fixture.dbThread()
+        XCTAssertEqual(refreshedThread.worktreePath, worktreeInfo.path)
+        XCTAssertEqual(refreshedThread.branch, worktreeInfo.branch)
+        XCTAssertTrue(refreshedThread.hasCompletedInitialSetup)
+
+        let spawnCalls = await fixture.agentsManager.spawnCalls()
+        XCTAssertEqual(spawnCalls.count, 1)
+        XCTAssertEqual(spawnCalls.first?.config.workingDirectory, worktreeInfo.path)
+        XCTAssertNil(spawnCalls.first?.config.initialPrompt)
+
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "Add modal", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .completed))
+
+        _ = try await task.value
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+    }
+
     func testGenerateCommitMessageEmptyResponseFails() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }

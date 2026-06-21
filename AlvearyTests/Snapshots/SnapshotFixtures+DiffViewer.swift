@@ -40,6 +40,8 @@ actor SnapshotMockGitService: GitService {
     private var imageBlobResults: [Data]
     private var aheadCommitResults: [[CommitInfo]]
     private var commitDiffResults: [String]
+    private var hasStagedChangesResult: Bool
+    private var currentBranchResult: String
 
     init(
         statusResults: [[FileStatus]],
@@ -48,7 +50,9 @@ actor SnapshotMockGitService: GitService {
         syntheticDiffResults: [String] = [],
         imageBlobResults: [Data] = [],
         aheadCommitResults: [[CommitInfo]] = [],
-        commitDiffResults: [String] = []
+        commitDiffResults: [String] = [],
+        hasStagedChangesResult: Bool = true,
+        currentBranchResult: String = "feature/chat-input"
     ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
@@ -57,6 +61,8 @@ actor SnapshotMockGitService: GitService {
         self.imageBlobResults = imageBlobResults
         self.aheadCommitResults = aheadCommitResults
         self.commitDiffResults = commitDiffResults
+        self.hasStagedChangesResult = hasStagedChangesResult
+        self.currentBranchResult = currentBranchResult
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -93,12 +99,26 @@ actor SnapshotMockGitService: GitService {
 
     func discard(paths: [String], scope: DiscardScope, in directory: String) async throws {}
 
+    func hasStagedChanges(in directory: String) async throws -> Bool {
+        hasStagedChangesResult
+    }
+
+    func validateBranchName(_ branchName: String, in directory: String) async throws -> Bool {
+        true
+    }
+
+    func checkoutNewBranch(_ branchName: String, in directory: String) async throws {}
+
+    func commit(message: String, includeUnstagedChanges: Bool, in directory: String) async throws {}
+
+    func pushCurrentBranch(remoteName: String?, in directory: String) async throws {}
+
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] {
         []
     }
 
     func currentBranch(in directory: String) async throws -> String {
-        "feature/chat-input"
+        currentBranchResult
     }
 
     func currentHeadHash(in directory: String) async throws -> String {

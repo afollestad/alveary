@@ -25,6 +25,7 @@ struct ContentView: View {
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
     let threadActivityRecorder: any ThreadActivityRecording
+    let gitService: GitService
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State var isAddProjectSheetPresented = false
@@ -44,6 +45,7 @@ struct ContentView: View {
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
     @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
     @State var diffViewerSwitchGeneration = 0
+    @State var gitCommitModalModel: DiffGitCommitModalModel?
     @State private var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
     @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
     @State private var terminalToolbarResetTask: Task<Void, Never>?
@@ -75,6 +77,7 @@ struct ContentView: View {
         self.notificationManager = dependencies.notificationManager
         self.notificationRouter = dependencies.notificationRouter
         self.threadActivityRecorder = dependencies.threadActivityRecorder
+        self.gitService = dependencies.gitService
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the container's main context so sidebar `@Query` reads
         // and imperative view-model saves stay in sync without requiring a relaunch.
@@ -196,7 +199,7 @@ struct ContentView: View {
                                 onTopSectionFractionCommit: { fraction in
                                     persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
                                 },
-                                onCommitRequested: requestAgentCommit,
+                                onCommitRequested: presentGitCommitModal,
                                 onOpenPRRequested: requestAgentOpenPR
                             )
                             .frame(width: effectiveDiffViewerWidth)
@@ -295,6 +298,11 @@ struct ContentView: View {
             onDismiss: handleAddProjectSheetDismiss,
             content: addProjectSheetContent
         )
+        .sheet(item: $gitCommitModalModel) { model in
+            DiffGitCommitModal(model: model) {
+                gitCommitModalModel = nil
+            }
+        }
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .task(id: selectedThreadID) {
             await refreshToolbarProjectActions()
