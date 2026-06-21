@@ -72,6 +72,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(records.contains { $0.type == ConversationEventRecord.contextWindowInvalidatedType })
         XCTAssertTrue(records.contains { ConversationSessionHandoff.isDisplayMessage($0.content) })
         let noteRecord = try XCTUnwrap(records.first { ConversationSessionHandoff.isDisplayMessage($0.content) })
+        XCTAssertEqual(noteRecord.content, ConversationSessionHandoff.completedDisplayMessage)
         XCTAssertTrue(fixture.viewModel.state.grouper.items.contains(.transcriptNote(id: noteRecord.id, kind: .sessionHandoff)))
     }
 
@@ -119,6 +120,16 @@ extension ConversationViewModelTests {
         let freshSessionCalls = await fixture.agentsManager.freshSessionCalls()
         XCTAssertTrue(freshSessionCalls.isEmpty)
         XCTAssertTrue(try fixture.userMessages().isEmpty)
+        let records = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+        XCTAssertFalse(records.contains { ConversationSessionHandoff.isDisplayMessage($0.content) })
+        XCTAssertFalse(
+            fixture.viewModel.state.grouper.items.contains { item in
+                if case .transcriptNote(_, .sessionHandoffInProgress) = item {
+                    return true
+                }
+                return false
+            }
+        )
     }
 
     func testFailedSessionHandoffBlocksVisibleSendUntilRetried() async throws {

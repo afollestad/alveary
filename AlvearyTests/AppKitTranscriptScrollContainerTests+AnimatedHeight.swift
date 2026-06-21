@@ -36,7 +36,7 @@ extension AppKitTranscriptScrollContainerTests {
         XCTAssertEqual(container.documentHeight, initialDocumentHeight, accuracy: 0.5)
         XCTAssertEqual(container.scrollOffsetY, initialScrollOffsetY, accuracy: 0.5)
 
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.1))
+        waitForAnimatedHeightSettle(container)
 
         XCTAssertEqual(container.documentHeight, finalDocumentHeight, accuracy: 0.5)
         XCTAssertEqual(container.scrollOffsetY, finalScrollOffsetY, accuracy: 0.5)
@@ -101,7 +101,7 @@ extension AppKitTranscriptScrollContainerTests {
         container.rowHeightInvalidated(rowID: "first", preserveBottomIfFollowing: false)
         first.height = 140
         container.rowHeightInvalidated(rowID: "first", preserveBottomIfFollowing: false)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.1))
+        waitForAnimatedHeightSettle(container)
 
         XCTAssertEqual(container.documentHeight, finalDocumentHeight, accuracy: 0.5)
     }
@@ -141,7 +141,9 @@ extension AppKitTranscriptScrollContainerTests {
             XCTAssertLessThanOrEqual(presentationHeight, collapsedHeight + 0.5)
         }
 
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: appExpansionAnimationDuration + 0.4))
+        waitForAnimatedHeightSettle(container) {
+            !clipView.isAnimatingVisibleHeight
+        }
 
         XCTAssertFalse(container.transcriptDocumentView.hasActiveFrameAnimation)
         XCTAssertFalse(clipView.isAnimatingVisibleHeight)
@@ -156,6 +158,17 @@ extension AppKitTranscriptScrollContainerTests {
         window.contentView?.addSubview(container)
         container.layoutSubtreeIfNeeded()
         return container
+    }
+
+    private func waitForAnimatedHeightSettle(
+        _ container: AppKitTranscriptScrollContainerView,
+        until extraCondition: () -> Bool = { true }
+    ) {
+        let deadline = Date(timeIntervalSinceNow: appExpansionAnimationDuration + 2)
+        while Date() < deadline &&
+            (container.transcriptDocumentView.hasActiveFrameAnimation || !extraCondition()) {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
+        }
     }
 
     private func animatedHeightRow(_ id: String, height: CGFloat) -> AppKitTranscriptLayoutRow {

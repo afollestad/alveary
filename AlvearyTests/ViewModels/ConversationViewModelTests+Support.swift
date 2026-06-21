@@ -53,6 +53,7 @@ actor MockAgentsManager: AgentsManager {
     private var queuedSendResults: [Result<Void, MockError>] = []
     private var queuedOutboundReadiness: [AgentOutboundReadiness] = []
     private var queuedRefreshStatuses: [ActivitySignal] = []
+    private var failsSendWhenCurrentTaskIsCancelled = false
     private var pausesNextRefreshStatus = false
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
@@ -117,6 +118,7 @@ actor MockAgentsManager: AgentsManager {
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility
     ) async throws {
+        if failsSendWhenCurrentTaskIsCancelled, Task.isCancelled { throw CancellationError() }
         if !queuedSendResults.isEmpty {
             let result = queuedSendResults.removeFirst()
             switch result {
@@ -208,6 +210,8 @@ actor MockAgentsManager: AgentsManager {
         queuedRefreshStatuses.append(status)
     }
 
+    func failSendWhenCurrentTaskIsCancelled() { failsSendWhenCurrentTaskIsCancelled = true }
+
     func pauseNextRefreshStatus() {
         pausesNextRefreshStatus = true
     }
@@ -249,37 +253,21 @@ actor MockAgentsManager: AgentsManager {
         subscriptionContinuation = nil
     }
 
-    func hasActiveSubscription() -> Bool {
-        subscriptionContinuation != nil
-    }
+    func hasActiveSubscription() -> Bool { subscriptionContinuation != nil }
 
-    func subscribeCalls() -> Int {
-        subscribeCallCount
-    }
+    func subscribeCalls() -> Int { subscribeCallCount }
 
-    func subscriptionTerminations() -> Int {
-        subscriptionTerminationCount
-    }
+    func subscriptionTerminations() -> Int { subscriptionTerminationCount }
 
-    func cancelTurn(conversationId: String) {
-        recordedCancelCalls.append(conversationId)
-    }
+    func cancelTurn(conversationId: String) { recordedCancelCalls.append(conversationId) }
 
-    func destroyRuntime(conversationId: String) async throws {
-        isRunningValue = false
-    }
+    func destroyRuntime(conversationId: String) async throws { isRunningValue = false }
 
-    func kill(conversationId: String) {
-        isRunningValue = false
-    }
+    func kill(conversationId: String) { isRunningValue = false }
 
-    func killAll() {
-        isRunningValue = false
-    }
+    func killAll() { isRunningValue = false }
 
-    func isRunning(conversationId: String) -> Bool {
-        isRunningValue
-    }
+    func isRunning(conversationId: String) -> Bool { isRunningValue }
 
     func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness {
         if !queuedOutboundReadiness.isEmpty {

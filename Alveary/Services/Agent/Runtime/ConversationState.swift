@@ -114,6 +114,8 @@ final class ConversationState {
     var sessionHandoffRestorableDraftSource: ComposerDraftSource = .legacyText
     var submittedHandoffSteeringPrompt: String?
     var sessionHandoffSteeringCountdownTask: Task<Void, Never>?
+    var sessionHandoffStartedInPlanMode = false
+    var sessionHandoffNoteRecordID: String?
     var isAutomaticSessionHandoffPending = false
     var hiddenHandoffResponse = ""
     var pendingHandoffOutput: String?

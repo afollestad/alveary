@@ -1,5 +1,6 @@
 enum TranscriptNoteKind: Equatable {
     case interrupted
+    case sessionHandoffInProgress
     case sessionHandoff
     case sessionForked
     case enteredPlanMode
@@ -12,7 +13,7 @@ enum TranscriptNoteKind: Equatable {
 
     var alignment: TranscriptNoteAlignment {
         switch self {
-        case .sessionHandoff, .sessionForked,
+        case .sessionHandoffInProgress, .sessionHandoff, .sessionForked,
              .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return .centered
         case .enteredPlanMode, .exitedPlanMode, .stayingInPlanMode, .steeredConversation:
@@ -26,8 +27,10 @@ enum TranscriptNoteKind: Equatable {
         switch self {
         case .interrupted:
             return "Interrupted"
+        case .sessionHandoffInProgress:
+            return ConversationSessionHandoff.startedDisplayMessage
         case .sessionHandoff:
-            return "Session handoff"
+            return ConversationSessionHandoff.displayMessage
         case .sessionForked:
             return ConversationSessionFork.displayMessage
         case .enteredPlanMode:

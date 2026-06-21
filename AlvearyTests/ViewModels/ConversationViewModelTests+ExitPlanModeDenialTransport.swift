@@ -359,9 +359,13 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.turnState.endTurn()
         await fixture.viewModel.startSessionHandoff(trigger: .manual)
 
-        try await waitUntil("hidden session handoff prompt sent raw") {
-            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        try await waitUntil("hidden session handoff prompt sent with plan context") {
+            let sentMessages = await fixture.agentsManager.sentMessages()
+            return sentMessages.count == 1 && sentMessages.first?.hasPrefix(planModeHandoffPrefix) == true
         }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        assertPlanModeHandoffPromptOrder(hiddenPrompt)
         let queuedAfterHandoff = try XCTUnwrap(fixture.viewModel.state.messageQueue.peekNext())
         XCTAssertEqual(queuedAfterHandoff.id, queuedBeforeHandoff.id)
         XCTAssertEqual(queuedAfterHandoff.text, "Please revise this.")

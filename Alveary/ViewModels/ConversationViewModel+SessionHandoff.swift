@@ -4,24 +4,21 @@ import SwiftData
 
 private let sessionHandoffLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Alveary", category: "SessionHandoff")
 
-enum SessionHandoffTrigger: Sendable {
-    case automatic
-    case command
-    case manual
-}
-
 extension ConversationViewModel {
     func startSessionHandoff(
         trigger: SessionHandoffTrigger,
-        retryingFailedHandoff: Bool = false
+        retryingFailedHandoff: Bool = false,
+        capturedPlanModeEnabled: Bool? = nil
     ) async {
         guard canStartSessionHandoff(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) else {
             return
         }
 
+        markSessionHandoffAccepted(capturedPlanModeEnabled: capturedPlanModeEnabled)
+        appendSessionHandoffStartedNote()
         clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: retryingFailedHandoff)
         if shouldRequestHandoffSteering(trigger: trigger, retryingFailedHandoff: retryingFailedHandoff) {
-            beginSessionHandoffSteeringPrompt(startsCountdown: trigger == .automatic)
+            beginSessionHandoffSteeringPrompt(startsCountdown: trigger == .automatic || trigger == .debugAutomatic)
             return
         }
 
@@ -172,7 +169,7 @@ extension ConversationViewModel {
         }
 
         let output = draft.text
-        cancelSessionHandoffCountdown(clearPendingOutput: true)
+        clearSessionHandoffCountdownState(clearPendingOutput: true)
         state.failedSessionHandoffMessage = nil
         clearInputDraft(source: draft.source)
         let retryableMessageCount = state.retryableFailedMessageIDs.count
@@ -213,14 +210,13 @@ extension ConversationViewModel {
         trigger: SessionHandoffTrigger,
         retryingFailedHandoff: Bool
     ) -> Bool {
-        guard canUseSessionHandoff(trigger: trigger) else {
-            return false
-        }
+        guard canUseSessionHandoff(trigger: trigger) else { return false }
         let hasBlockingHandoff = state.isHandingOffSession ||
             state.isAwaitingHandoffSteering ||
             state.pendingHandoffOutput != nil ||
             state.handoffCountdownRemaining != nil ||
             (!retryingFailedHandoff && state.failedSessionHandoffMessage != nil)
+        let canClearQueuedPlanRevision = trigger == .manual && state.messageQueue.pending.contains { $0.consumedExitPlanModeRevisionGuidance != nil }
         guard !needsSetup else {
             state.lastTurnError = "Complete the first turn before triggering a session handoff."
             return false
@@ -230,7 +226,7 @@ extension ConversationViewModel {
               !state.isSendingMessage,
               !state.isReconfiguringSession,
               state.pendingToolApproval == nil,
-              !hasUnansweredPrompt else {
+              !hasUnansweredPrompt || canClearQueuedPlanRevision else {
             if trigger != .automatic {
                 state.lastTurnError = "Wait for the current conversation action to finish before triggering session handoff."
             }
@@ -238,6 +234,7 @@ extension ConversationViewModel {
         }
         return true
     }
+
 }
 
 private extension ConversationViewModel {
@@ -245,7 +242,8 @@ private extension ConversationViewModel {
         SessionHandoffPromptBuilder.hiddenPrompt(
             configuredPrompt: settingsService.current.sessionHandoffPrompt,
             steeringPrompt: state.submittedHandoffSteeringPrompt,
-            isSteeringEnabled: shouldIncludeSubmittedHandoffSteering
+            isSteeringEnabled: shouldIncludeSubmittedHandoffSteering,
+            isPlanModeHandoff: state.sessionHandoffStartedInPlanMode
         )
     }
 
@@ -306,7 +304,7 @@ private extension ConversationViewModel {
             resetSubscriptionTrackingForNewSession()
             subscribe()
             recordContextWindowInvalidation()
-            appendSessionHandoffNote()
+            completeSessionHandoffNote()
 
             if shouldCustomizeSessionHandoffOutput {
                 beginSessionHandoffCustomization(output: output)
@@ -374,12 +372,13 @@ private extension ConversationViewModel {
 
     func cancelSessionHandoffCountdown(clearPendingOutput: Bool) {
         sessionHandoffCountdownTask?.cancel()
+        clearSessionHandoffCountdownState(clearPendingOutput: clearPendingOutput)
+    }
+
+    func clearSessionHandoffCountdownState(clearPendingOutput: Bool) {
         sessionHandoffCountdownTask = nil
-        state.handoffCountdownRemaining = nil
-        state.handoffDraftBaseline = nil
-        if clearPendingOutput {
-            state.pendingHandoffOutput = nil
-        }
+        (state.handoffCountdownRemaining, state.handoffDraftBaseline) = (nil, nil)
+        if clearPendingOutput { state.pendingHandoffOutput = nil }
     }
 
     var promptSendCountdownSeconds: Int {
@@ -409,6 +408,8 @@ private extension ConversationViewModel {
         state.handoffSteeringDraftBaseline = nil
         state.handoffCountdownRemaining = nil
         state.handoffDraftBaseline = nil
+        state.sessionHandoffStartedInPlanMode = false
+        removeSessionHandoffStartedNoteIfNeeded()
         state.clearStreamingText()
         state.activeRuntimeActivityTurnId = nil
         state.turnState.endTurn()
@@ -422,6 +423,8 @@ private extension ConversationViewModel {
     func clearSubmittedHandoffSteering() {
         state.submittedHandoffSteeringPrompt = nil
         state.sessionHandoffRestorableDraft = nil
+        state.sessionHandoffStartedInPlanMode = false
+        state.sessionHandoffNoteRecordID = nil
     }
 
     func clearRestorableDraftForEmptyRetryIfNeeded(retryingFailedHandoff: Bool) {
@@ -440,7 +443,7 @@ private extension ConversationViewModel {
         retryingFailedHandoff: Bool
     ) {
         let draft = flushDraftFromEditor()
-        let shouldPreserveDraft = trigger == .automatic || trigger == .command
+        let shouldPreserveDraft = trigger == .automatic || trigger == .debugAutomatic || trigger == .command
         guard shouldPreserveDraft,
               !retryingFailedHandoff,
               !draft.text.isEmpty else {
@@ -473,18 +476,6 @@ private extension ConversationViewModel {
         }
 
         replaceInputDraft(restorableDraft, source: state.sessionHandoffRestorableDraftSource)
-    }
-
-    func appendSessionHandoffNote() {
-        guard let dbConversation = dbConversation(),
-              let record = ConversationEvent.stop(message: ConversationSessionHandoff.displayMessage)
-                .toRecord(conversation: dbConversation) else {
-            return
-        }
-
-        modelContext.insert(record)
-        state.grouper.append(event: record)
-        scheduleSave()
     }
 
     func resetSubscriptionTrackingForNewSession() {

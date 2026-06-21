@@ -49,6 +49,26 @@ func firstEvent(
     }
 }
 
+let planModeHandoffPrefix = "You are currently in plan mode.\n\n"
+let planModeHandoffInstruction =
+    "Preserve the active plan/proposal, including whether it is pending, rejected, or ready to implement."
+
+func assertPlanModeHandoffPromptOrder(
+    _ hiddenPrompt: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    guard let instructionRange = hiddenPrompt.range(of: planModeHandoffInstruction) else {
+        XCTFail("Expected plan-mode handoff instruction", file: file, line: line)
+        return
+    }
+    guard let configuredRange = hiddenPrompt.range(of: AppSettings.defaultSessionHandoffPrompt) else {
+        XCTFail("Expected configured handoff prompt", file: file, line: line)
+        return
+    }
+    XCTAssertLessThan(instructionRange.lowerBound, configuredRange.lowerBound, file: file, line: line)
+}
+
 struct WaitTimeoutError: LocalizedError {
     let description: String
 

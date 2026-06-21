@@ -230,6 +230,25 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.state.sessionHandoffRestorableDraft)
         XCTAssertNil(fixture.viewModel.state.submittedHandoffSteeringPrompt)
     }
+
+    func testPlanModeCommandHandoffWithExplicitSteeringKeepsPlanModeContext() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+
+        XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand(steeringPrompt: "Focus on current plan."))
+
+        try await waitUntil("plan-mode command handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertTrue(hiddenPrompt.hasPrefix(planModeHandoffPrefix))
+        assertPlanModeHandoffPromptOrder(hiddenPrompt)
+        let configuredRange = try XCTUnwrap(hiddenPrompt.range(of: AppSettings.defaultSessionHandoffPrompt))
+        let steeringRange = try XCTUnwrap(hiddenPrompt.range(of: "## User Handoff Steering"))
+        XCTAssertLessThan(configuredRange.lowerBound, steeringRange.lowerBound)
+        XCTAssertTrue(hiddenPrompt.hasSuffix("Focus on current plan."))
+    }
 }
 
 @MainActor

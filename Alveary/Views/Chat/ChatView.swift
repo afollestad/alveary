@@ -162,7 +162,7 @@ struct ChatView: View {
             cachedContextWindowSize = size
         }
         .focusedSceneValue(\.triggerSessionHandoffAction) {
-            viewModel.triggerSessionHandoffFromCommand()
+            viewModel.triggerAutomaticSessionHandoffFromDebugMenu()
         }
         .focusedSceneValue(\.chatComposerFocus, ChatComposerFocusHandle(
             claim: {

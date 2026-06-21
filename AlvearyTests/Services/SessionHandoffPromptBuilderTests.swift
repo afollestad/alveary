@@ -43,6 +43,47 @@ final class SessionHandoffPromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.hasSuffix(steeringPrompt))
     }
 
+    func testHiddenPromptPrefixesPlanModeContextBeforeConfiguredPrompt() throws {
+        let configuredPrompt = "Minimal handoff prompt."
+        let planModePrefix = "You are currently in plan mode.\n\n"
+        let planModeInstruction = "Preserve the active plan/proposal, including whether it is pending, rejected, or ready to implement."
+
+        let prompt = SessionHandoffPromptBuilder.hiddenPrompt(
+            configuredPrompt: configuredPrompt,
+            steeringPrompt: nil,
+            isSteeringEnabled: true,
+            isPlanModeHandoff: true
+        )
+
+        XCTAssertTrue(prompt.hasPrefix(planModePrefix))
+        let instructionRange = try XCTUnwrap(prompt.range(of: planModeInstruction))
+        let configuredRange = try XCTUnwrap(prompt.range(of: configuredPrompt))
+        XCTAssertLessThan(instructionRange.lowerBound, configuredRange.lowerBound)
+        XCTAssertTrue(prompt.hasSuffix(configuredPrompt))
+    }
+
+    func testHiddenPromptKeepsPlanModeContextBeforeSteeringContract() throws {
+        let configuredPrompt = "Minimal handoff prompt."
+        let steeringPrompt = "Focus on prompt builder tests."
+        let planModePrefix = "You are currently in plan mode.\n\n"
+        let planModeInstruction = "Preserve the active plan/proposal, including whether it is pending, rejected, or ready to implement."
+
+        let prompt = SessionHandoffPromptBuilder.hiddenPrompt(
+            configuredPrompt: configuredPrompt,
+            steeringPrompt: steeringPrompt,
+            isSteeringEnabled: true,
+            isPlanModeHandoff: true
+        )
+
+        XCTAssertTrue(prompt.hasPrefix(planModePrefix))
+        let instructionRange = try XCTUnwrap(prompt.range(of: planModeInstruction))
+        let configuredRange = try XCTUnwrap(prompt.range(of: configuredPrompt))
+        let steeringRange = try XCTUnwrap(prompt.range(of: "## User Handoff Steering"))
+        XCTAssertLessThan(instructionRange.lowerBound, configuredRange.lowerBound)
+        XCTAssertLessThan(configuredRange.lowerBound, steeringRange.lowerBound)
+        XCTAssertTrue(prompt.hasSuffix(steeringPrompt))
+    }
+
     func testOutgoingMessageReturnsHandoffOutputWhenSteeringIsDisabled() {
         let output = "Generated handoff output."
 

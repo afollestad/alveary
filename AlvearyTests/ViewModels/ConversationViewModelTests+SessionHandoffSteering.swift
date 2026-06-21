@@ -47,6 +47,41 @@ extension ConversationViewModelTests {
         XCTAssertTrue(try fixture.userMessages().isEmpty)
     }
 
+    func testDebugAutomaticHandoffPromptsForSteeringWithCountdownWhenEnabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.contextManagementEnabled = false
+            $0.handoffSteeringEnabled = true
+            $0.handoffSteeringCountdownSeconds = 15
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerAutomaticSessionHandoffFromDebugMenu())
+
+        try await waitUntil("debug automatic handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(fixture.viewModel.state.handoffSteeringCountdownRemaining, 15)
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testDebugAutomaticHandoffBypassesSteeringWhenDisabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.contextManagementEnabled = false
+            $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerAutomaticSessionHandoffFromDebugMenu())
+
+        try await waitUntil("debug automatic handoff prompt sent") {
+            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        }
+        XCTAssertTrue(fixture.viewModel.state.isHandingOffSession)
+        XCTAssertFalse(fixture.viewModel.state.isAwaitingHandoffSteering)
+        XCTAssertNil(fixture.viewModel.state.handoffSteeringCountdownRemaining)
+    }
+
     func testCommandHandoffWithExplicitSteeringHonorsSteeringWhenAutomaticSteeringIsDisabled() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.settingsService.update {
@@ -70,6 +105,23 @@ extension ConversationViewModelTests {
         fixture.settingsService.update {
             $0.contextManagementEnabled = false
             $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand())
+
+        try await waitUntil("command handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertNil(fixture.viewModel.state.handoffSteeringCountdownRemaining)
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
+    func testCommandHandoffPromptsForSteeringWithoutCountdownWhenAutomaticSteeringIsEnabled() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.handoffSteeringEnabled = true
+            $0.handoffSteeringCountdownSeconds = 15
         }
 
         XCTAssertTrue(fixture.viewModel.triggerSessionHandoffFromCommand())
@@ -129,6 +181,66 @@ extension ConversationViewModelTests {
         XCTAssertTrue(hiddenPrompt.hasSuffix("Focus on prompt entry."))
         XCTAssertTrue(fixture.viewModel.state.isHandingOffSession)
         XCTAssertFalse(fixture.viewModel.state.isAwaitingHandoffSteering)
+    }
+
+    func testPlanModeHandoffHiddenPromptIncludesPlanModeContext() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+        fixture.settingsService.update {
+            $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerAutomaticSessionHandoffFromDebugMenu())
+
+        try await waitUntil("plan-mode handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertTrue(hiddenPrompt.hasPrefix(planModeHandoffPrefix))
+        assertPlanModeHandoffPromptOrder(hiddenPrompt)
+    }
+
+    func testNonPlanModeHandoffHiddenPromptOmitsPlanModeContext() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.settingsService.update {
+            $0.handoffSteeringEnabled = false
+        }
+
+        XCTAssertTrue(fixture.viewModel.triggerAutomaticSessionHandoffFromDebugMenu())
+
+        try await waitUntil("non-plan-mode handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertEqual(hiddenPrompt, AppSettings.defaultSessionHandoffPrompt)
+        XCTAssertFalse(hiddenPrompt.contains(planModeHandoffInstruction))
+    }
+
+    func testSteeredPlanModeHandoffKeepsPlanModeContextBeforeSteering() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.runtimePlanModeEnabled = true
+
+        XCTAssertTrue(fixture.viewModel.triggerAutomaticSessionHandoffFromDebugMenu())
+
+        try await waitUntil("plan-mode handoff steering prompt shown") {
+            fixture.viewModel.state.isAwaitingHandoffSteering
+        }
+        fixture.viewModel.state.runtimePlanModeEnabled = false
+        XCTAssertTrue(fixture.viewModel.submitSessionHandoffSteeringPrompt("Focus on pending plan context."))
+
+        try await waitUntil("steered plan-mode handoff prompt sent") {
+            await fixture.agentsManager.sentMessages().count == 1
+        }
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let hiddenPrompt = try XCTUnwrap(sentMessages.first)
+        XCTAssertTrue(hiddenPrompt.hasPrefix(planModeHandoffPrefix))
+        assertPlanModeHandoffPromptOrder(hiddenPrompt)
+        let configuredRange = try XCTUnwrap(hiddenPrompt.range(of: AppSettings.defaultSessionHandoffPrompt))
+        let steeringRange = try XCTUnwrap(hiddenPrompt.range(of: "## User Handoff Steering"))
+        XCTAssertLessThan(configuredRange.lowerBound, steeringRange.lowerBound)
+        XCTAssertTrue(hiddenPrompt.hasSuffix("Focus on pending plan context."))
     }
 
     func testEmptyHandoffSteeringSubmitStartsHiddenPromptWithoutSteering() async throws {

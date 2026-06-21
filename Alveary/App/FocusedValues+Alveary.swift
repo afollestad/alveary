@@ -20,8 +20,8 @@ struct ToggleTerminalPaneActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }
 
-/// Published by `ChatView` so the debug-only Developer menu can trigger the
-/// same session handoff path as automatic context-window handoff.
+/// Published by `ChatView` so the debug-only Developer menu can trigger a
+/// session handoff with automatic-style steering behavior.
 struct TriggerSessionHandoffActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }

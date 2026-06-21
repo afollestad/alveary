@@ -115,7 +115,7 @@ final class AppKitTranscriptNoteView: NSView {
         )
         // Ask the field cell for its single-line width, including internal cell
         // padding. Plain attributed-string width is a few points too narrow and
-        // can wrap "Session handoff" after the first word, clipping "handoff".
+        // can wrap "Session handed off" after the first word, clipping trailing text.
         return ceil(textField.cell?.cellSize(forBounds: unconstrainedBounds).width ?? textField.fittingSize.width)
     }
 
@@ -179,7 +179,7 @@ final class AppKitTranscriptNoteView: NSView {
     }
 }
 
-private let centeredTranscriptNoteVerticalPadding: CGFloat = 16
+private let centeredTranscriptNoteVerticalPadding: CGFloat = transcriptInlineToolRowVerticalPadding * 2
 
 private func transcriptNoteVerticalPadding(for alignment: TranscriptNoteAlignment) -> CGFloat {
     switch alignment {

@@ -40,6 +40,17 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertEqual(labelColor, expectedSRGBColor)
     }
 
+    func testSessionHandoffInProgressTranscriptNoteStaysCentered() throws {
+        let note = AppKitTranscriptNoteView()
+        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        note.configure(.init(kind: .sessionHandoffInProgress))
+        note.layoutSubtreeIfNeeded()
+
+        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(label.stringValue, "Handing off session...")
+        XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
+    }
+
     func testSessionHandoffTranscriptNoteStaysCentered() throws {
         let note = AppKitTranscriptNoteView()
         note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
@@ -47,7 +58,7 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         note.layoutSubtreeIfNeeded()
 
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
-        XCTAssertEqual(label.stringValue, "Session handoff")
+        XCTAssertEqual(label.stringValue, "Session handed off")
         XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
     }
 
@@ -86,7 +97,7 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         note.layoutSubtreeIfNeeded()
 
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
-        XCTAssertEqual(label.stringValue, "Session handoff")
+        XCTAssertEqual(label.stringValue, "Session handed off")
         XCTAssertEqual(label.frame.width, label.naturalCellWidth, accuracy: 0.5)
     }
 

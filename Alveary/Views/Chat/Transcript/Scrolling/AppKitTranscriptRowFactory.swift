@@ -278,7 +278,7 @@ final class AppKitTranscriptRowFactory {
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptNoteView.self)
-        view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onHeightInvalidated = heightInvalidationHandler(for: id, animatesLayoutChanges: false, configuration: configuration)
         view.configure(.init(kind: kind, typography: configuration.typography))
         return .init(id: id, view: view)
     }
@@ -289,7 +289,7 @@ final class AppKitTranscriptRowFactory {
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptErrorBannerView.self)
-        view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onHeightInvalidated = heightInvalidationHandler(for: id, animatesLayoutChanges: false, configuration: configuration)
         view.configure(
             .init(
                 message: message,

@@ -56,7 +56,7 @@ extension ConversationViewModel {
             return false
         }
         switch trigger {
-        case .automatic:
+        case .automatic, .debugAutomatic:
             return settingsService.current.handoffSteeringEnabled
         case .command:
             return true

@@ -4,15 +4,20 @@ enum SessionHandoffPromptBuilder {
     static func hiddenPrompt(
         configuredPrompt: String,
         steeringPrompt: String?,
-        isSteeringEnabled: Bool
+        isSteeringEnabled: Bool,
+        isPlanModeHandoff: Bool = false
     ) -> String {
+        let basePrompt = hiddenPromptBase(
+            configuredPrompt: configuredPrompt,
+            isPlanModeHandoff: isPlanModeHandoff
+        )
         guard isSteeringEnabled,
               let steeringPrompt,
               !steeringPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return configuredPrompt
+            return basePrompt
         }
 
-        return configuredPrompt + #"""
+        return basePrompt + #"""
 
 ## User Handoff Steering
 
@@ -56,5 +61,20 @@ User steering prompt:
         lines.removeFirst()
         lines.removeLast()
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private extension SessionHandoffPromptBuilder {
+    static func hiddenPromptBase(
+        configuredPrompt: String,
+        isPlanModeHandoff: Bool
+    ) -> String {
+        guard isPlanModeHandoff else {
+            return configuredPrompt
+        }
+
+        return "You are currently in plan mode.\n\n" +
+            "Preserve the active plan/proposal, including whether it is pending, rejected, or ready to implement.\n\n" +
+            configuredPrompt
     }
 }

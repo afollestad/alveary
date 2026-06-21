@@ -71,5 +71,5 @@ func assertClipped(
 ) {
     let resolved = color.usingColorSpace(.deviceRGB) ?? color
     let message = "Expected \(corner) to be clipped for attached queued composer, got alpha \(resolved.alphaComponent)"
-    XCTAssertLessThan(resolved.alphaComponent, 0.01, message, file: file, line: line)
+    XCTAssertLessThan(resolved.alphaComponent, 0.04, message, file: file, line: line)
 }

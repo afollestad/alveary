@@ -66,7 +66,7 @@ extension ChatItemGrouper {
             return "EnterPlanMode"
         case .exitedPlanMode, .stayingInPlanMode:
             return "ExitPlanMode"
-        case .interrupted, .sessionHandoff, .sessionForked, .steeredConversation,
+        case .interrupted, .sessionHandoffInProgress, .sessionHandoff, .sessionForked, .steeredConversation,
              .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return "Tool"
         }
@@ -116,11 +116,16 @@ extension ChatItemGrouper {
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.transcriptNote(id: event.id, kind: .interrupted))
-        case "stop" where ConversationSessionHandoff.isDisplayMessage(event.content):
+        case "stop" where ConversationSessionHandoff.isStartedDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoff))
+            replaceOrAppendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoffInProgress))
+        case "stop" where ConversationSessionHandoff.isCompletedDisplayMessage(event.content):
+            currentToolApprovalBatch = nil
+            flushGroup()
+            flushSubAgents()
+            replaceOrAppendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoff))
         case "stop" where ConversationSessionFork.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()

@@ -43,6 +43,29 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(TranscriptNoteKind.sessionForked.alignment, .centered)
     }
 
+    func testSessionHandoffStopUpdatesTranscriptNoteByRecordID() {
+        let grouper = ChatItemGrouper()
+        let event = ConversationEventRecord(
+            id: "session-handoff",
+            conversationId: "conversation-1",
+            type: "stop",
+            content: ConversationSessionHandoff.startedDisplayMessage
+        )
+
+        grouper.update(events: [event])
+
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "session-handoff", kind: .sessionHandoffInProgress)])
+        XCTAssertEqual(TranscriptNoteKind.sessionHandoffInProgress.text, "Handing off session...")
+        XCTAssertEqual(TranscriptNoteKind.sessionHandoffInProgress.alignment, .centered)
+
+        event.content = ConversationSessionHandoff.completedDisplayMessage
+        grouper.update(events: [event], forceFullRebuild: true)
+
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "session-handoff", kind: .sessionHandoff)])
+        XCTAssertEqual(TranscriptNoteKind.sessionHandoff.text, "Session handed off")
+        XCTAssertEqual(TranscriptNoteKind.sessionHandoff.alignment, .centered)
+    }
+
     func testExitPlanModeToolRendersTranscriptNoteOnSuccess() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

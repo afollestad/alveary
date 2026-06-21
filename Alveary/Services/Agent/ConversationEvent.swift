@@ -35,10 +35,20 @@ enum ConversationInterruption {
 }
 
 enum ConversationSessionHandoff {
-    static let displayMessage = "Session handoff"
+    static let startedDisplayMessage = "Handing off session..."
+    static let completedDisplayMessage = "Session handed off"
+    static let displayMessage = completedDisplayMessage
 
     static func isDisplayMessage(_ text: String?) -> Bool {
-        text?.trimmingCharacters(in: .whitespacesAndNewlines) == displayMessage
+        isStartedDisplayMessage(text) || isCompletedDisplayMessage(text)
+    }
+
+    static func isStartedDisplayMessage(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == startedDisplayMessage
+    }
+
+    static func isCompletedDisplayMessage(_ text: String?) -> Bool {
+        text?.trimmingCharacters(in: .whitespacesAndNewlines) == completedDisplayMessage
     }
 }
 

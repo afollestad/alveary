@@ -60,12 +60,9 @@ final class AppKitTranscriptScrollContainerView: NSView {
         let shouldRestoreBottom = preserveBottomIfFollowing && (isAtBottom || forceBottomIfPreserving)
         let visibleAnchor = captureVisibleAnchor()
         let documentHeightBeforeLayout = documentHeight
-        // Named invalidation is the hot path for streaming, expansion, and task
-        // changes. The nil fallback stays available for callers that cannot safely
-        // identify the changed row and therefore must force a conservative pass.
-        // Rows can report a fresh height while the document is measuring them;
-        // that feedback is satisfied by the active pass, and reentering here
-        // creates staggered row animations.
+        // Named invalidation is the hot path; nil stays available when callers
+        // cannot identify the changed row. Reentrant measurement feedback is
+        // satisfied by the active pass to avoid staggered row animations.
         if deferHeightInvalidationUntilStable(
             rowID: rowID,
             preserveBottomIfFollowing: preserveBottomIfFollowing,
@@ -217,9 +214,8 @@ final class AppKitTranscriptScrollContainerView: NSView {
             scrollToBottom()
             return
         }
-        // Non-following updates preserve the user's top visible row by identity plus
-        // offset within that row, so prepends and height changes above the viewport
-        // do not shift the content the user was reading.
+        // Non-following updates preserve the user's top visible row by identity
+        // plus offset so prepends and height changes above it do not shift reading.
         guard let visibleAnchor, restoreVisibleAnchor(visibleAnchor) else {
             clampScrollOffset()
             return
@@ -340,9 +336,8 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     }
 
     func layoutRows(width: CGFloat) {
-        // The target layout is already measured when the frame animation starts.
-        // Reentrant AppKit layout during that animation must not commit the final
-        // document height early, or bottom-pinned collapse visibly jumps.
+        // Reentrant layout during a measured frame animation must not commit the
+        // final document height early, or bottom-pinned collapse visibly jumps.
         guard !isMeasuringRows, !isApplyingFrameUpdates, !hasActiveFrameAnimation else {
             return
         }
@@ -359,8 +354,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         shouldAnimateNextLayoutChange = false
         let measuredLayout = measuredRowLayout(contentWidth: contentWidth, previousFramesByID: previousFramesByID)
         let newDocumentHeight = max(measuredLayout.documentHeight, 0)
-        // Dirty rows are still measured, but unchanged frame sets are skipped so
-        // streaming/configuration echoes do not perturb scroll anchoring work.
+        // Skip unchanged frame sets so configuration echoes do not perturb anchors.
         lastLayoutChangedFrames = hasLayoutChanges(
             frameUpdates: measuredLayout.frameUpdates,
             documentWidth: width,
@@ -439,9 +433,8 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
             return measurement.height
         }
 
-        // Width is committed before measuring because transcript rows wrap markdown,
-        // tables, and code blocks against their current AppKit frame. Clean rows reuse
-        // cached heights; every row still receives a fresh frame for anchor math.
+        // Commit width before measuring because transcript rows wrap against their
+        // current AppKit frame; clean rows still get fresh frames for anchor math.
         row.view.frame = CGRect(
             x: transcriptScrollLeadingInset,
             y: currentY,
