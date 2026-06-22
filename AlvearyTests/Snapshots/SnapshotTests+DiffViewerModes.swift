@@ -11,7 +11,8 @@ extension SnapshotTests {
                 mode: .currentChanges,
                 contextualAction: .commit,
                 selectedFiles: [],
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
@@ -36,7 +37,8 @@ extension SnapshotTests {
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false)
                 ],
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
@@ -59,7 +61,8 @@ extension SnapshotTests {
                 mode: .commits,
                 contextualAction: .commit,
                 selectedFiles: [],
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
@@ -82,7 +85,8 @@ extension SnapshotTests {
                 mode: .commits,
                 contextualAction: .viewPR(url: "https://example.com/pull/42"),
                 selectedFiles: [],
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
@@ -124,7 +128,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPane(
                 viewModel: fixture.viewModel,
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 mode: .constant(.currentChanges),
                 onCommitRequested: {},
                 onOpenPRRequested: {}
@@ -162,7 +167,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPane(
                 viewModel: fixture.viewModel,
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
                 onOpenPRRequested: {}
@@ -193,7 +199,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPane(
                 viewModel: fixture.viewModel,
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
                 onOpenPRRequested: {}
@@ -235,7 +242,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPane(
                 viewModel: fixture.viewModel,
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
                 onOpenPRRequested: {}

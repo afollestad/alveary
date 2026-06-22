@@ -26,7 +26,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPane(
                 viewModel: fixture.viewModel,
-                areAgentActionsEnabled: true,
+                canCommit: true,
+                canRequestOpenPR: true,
                 onCommitRequested: {},
                 onOpenPRRequested: {}
             ),

@@ -64,6 +64,7 @@ extension DefaultAgentsManager {
             throw AgentError.stdinClosed
         }
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
+        markCurrentTurnActivityVisibility(activityVisibility, conversationId: conversationId)
         do {
             try await services.runtime.send(
                 .userMessage(AgentCLIKit.AgentMessageInput(text: message, metadata: metadata)),
@@ -77,7 +78,6 @@ extension DefaultAgentsManager {
             }
             throw error
         }
-        markCurrentTurnActivityVisibility(activityVisibility, conversationId: conversationId)
         if activityVisibility == .visible {
             await threadActivityRecorder.recordVisibleOutbound(conversationId: conversationId)
         }

@@ -5,7 +5,8 @@ struct DiffViewerPaneHeader: View {
     let mode: DiffViewerMode
     let contextualAction: DiffViewerViewModel.ContextualAction
     let selectedFiles: [FileStatus]
-    let areAgentActionsEnabled: Bool
+    let canCommit: Bool
+    let canRequestOpenPR: Bool
     let showsFileListDivider: Bool
     let showsFileActions: Bool
     let onModeSelected: (DiffViewerMode) -> Void
@@ -46,7 +47,7 @@ struct DiffViewerPaneHeader: View {
                 title: "Commit",
                 systemImage: "checkmark.circle",
                 tone: .primary,
-                isEnabled: areAgentActionsEnabled,
+                isEnabled: canCommit,
                 action: onCommitRequested
             ))
         case .openPR:
@@ -55,7 +56,7 @@ struct DiffViewerPaneHeader: View {
                 title: "Create PR",
                 systemImage: "arrow.triangle.branch",
                 tone: .primary,
-                isEnabled: areAgentActionsEnabled,
+                isEnabled: canRequestOpenPR,
                 action: onOpenPRRequested
             ))
         case .viewPR(let url):

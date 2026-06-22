@@ -41,6 +41,7 @@ final class AppComponentTests: XCTestCase {
         let runtimeStore = try XCTUnwrap(component.conversationRuntimeStore as? DefaultAgentsManager)
         XCTAssertTrue(component.defaultAgentsManager === agentsManager)
         XCTAssertTrue(component.defaultAgentsManager === runtimeStore)
+        assertSameInstance(component.agentOneShotPromptService, component.agentOneShotPromptService)
     }
 
     func testRootPropertiesResolveAllServices() {
@@ -81,6 +82,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.claudeApprovalPersistenceStore
         _ = component.defaultAgentsManager
         _ = component.agentsManager
+        _ = component.agentOneShotPromptService
         _ = component.conversationRuntimeStore
         _ = component.gitService
         _ = component.worktreeManager

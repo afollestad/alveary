@@ -14,7 +14,8 @@ enum DiffViewerPaneMetrics {
 
 struct DiffViewerPane: View {
     let viewModel: DiffViewerViewModel
-    let areAgentActionsEnabled: Bool
+    let canCommit: Bool
+    let canRequestOpenPR: Bool
     @Binding private var mode: DiffViewerMode
     let onModeCommit: (DiffViewerMode) -> Void
     @Binding private var topSectionFraction: CGFloat
@@ -27,7 +28,8 @@ struct DiffViewerPane: View {
 
     init(
         viewModel: DiffViewerViewModel,
-        areAgentActionsEnabled: Bool,
+        canCommit: Bool,
+        canRequestOpenPR: Bool,
         mode: Binding<DiffViewerMode> = .constant(.currentChanges),
         onModeCommit: @escaping (DiffViewerMode) -> Void = { _ in },
         topSectionFraction: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultDiffViewerTopSectionFraction)),
@@ -36,7 +38,8 @@ struct DiffViewerPane: View {
         onOpenPRRequested: @escaping () -> Void
     ) {
         self.viewModel = viewModel
-        self.areAgentActionsEnabled = areAgentActionsEnabled
+        self.canCommit = canCommit
+        self.canRequestOpenPR = canRequestOpenPR
         _mode = mode
         self.onModeCommit = onModeCommit
         _topSectionFraction = topSectionFraction
@@ -52,7 +55,8 @@ struct DiffViewerPane: View {
                 mode: mode,
                 contextualAction: viewModel.contextualAction,
                 selectedFiles: viewModel.selectedFiles,
-                areAgentActionsEnabled: areAgentActionsEnabled,
+                canCommit: canCommit,
+                canRequestOpenPR: canRequestOpenPR,
                 showsFileListDivider: isFileListTopDividerVisible,
                 showsFileActions: mode == .currentChanges,
                 onModeSelected: selectMode,

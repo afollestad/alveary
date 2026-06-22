@@ -353,6 +353,16 @@ extension AppComponent {
         return defaultAgentsManager
     }
 
+    var agentOneShotPromptService: any AgentOneShotPromptService {
+        return shared {
+            DefaultAgentOneShotPromptService(
+                agentsManager: agentsManager,
+                settingsService: settingsService,
+                providerSetup: providerSetupService
+            )
+        }
+    }
+
     var conversationRuntimeStore: ConversationRuntimeStore {
         return defaultAgentsManager
     }

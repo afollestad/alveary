@@ -26,7 +26,7 @@ final class DiffGitCommitModalModelTests: XCTestCase {
             currentBranchResult: .success("feature/current")
         )
         let model = makeModel(
-            threadName: "Disable Steering During Handoff",
+            targetName: "Disable Steering During Handoff",
             gitService: gitService,
             settingsService: settingsService
         )
@@ -183,7 +183,7 @@ final class DiffGitCommitModalModelTests: XCTestCase {
 
 private extension DiffGitCommitModalModelTests {
     func makeModel(
-        threadName: String = "Test Thread",
+        targetName: String = "Test Thread",
         gitService: GitService = DiffGitCommitModalMockGitService(statusResults: []),
         settingsService: InMemorySettingsService = InMemorySettingsService(),
         generateCommitMessage: @escaping @MainActor (String) async throws -> String = { _ in "Generated commit" },
@@ -192,7 +192,7 @@ private extension DiffGitCommitModalModelTests {
         DiffGitCommitModalModel(
             context: DiffGitCommitModalContext(
                 directory: "/tmp/alveary-project",
-                threadName: threadName,
+                targetName: targetName,
                 baseBranch: "main",
                 remoteName: "origin"
             ),

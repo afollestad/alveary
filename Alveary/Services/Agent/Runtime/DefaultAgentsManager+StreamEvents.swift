@@ -21,14 +21,30 @@ extension DefaultAgentsManager {
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
         await handleRuntimeStatusEvent(event, conversationId: conversationId)
         noteTerminalRuntimeEventIfNeeded(event, conversationId: conversationId, runtimeEventIndex: runtimeEventIndex)
+        let preTerminalActivityVisibility = managedBuffer.currentTurnActivityVisibility
+        let notificationActivityVisibility = notificationActivityVisibility(
+            for: event,
+            managedBuffer: managedBuffer,
+            preTerminalActivityVisibility: preTerminalActivityVisibility
+        )
         recordVisibleTurnEndedForTerminalEventIfNeeded(event, conversationId: conversationId)
+        rememberTerminalNotificationActivityVisibility(
+            for: event,
+            managedBuffer: managedBuffer,
+            preTerminalActivityVisibility: preTerminalActivityVisibility
+        )
 
         guard canTriggerNotification(event) else {
             return
         }
 
         let notificationEvent = await notificationEvent(for: event, conversationId: conversationId)
-        let shouldNotify = await shouldNotify(for: event, notificationEvent: notificationEvent, conversationId: conversationId)
+        let shouldNotify = await shouldNotify(
+            for: event,
+            notificationEvent: notificationEvent,
+            conversationId: conversationId,
+            turnActivityVisibility: notificationActivityVisibility
+        )
 
         guard shouldNotify else {
             return
@@ -59,6 +75,30 @@ extension DefaultAgentsManager {
             await Task.yield()
             _ = await self?.refreshStatus(conversationId: conversationId)
         }
+    }
+
+    private func notificationActivityVisibility(
+        for event: ConversationEvent,
+        managedBuffer: ManagedEventBuffer,
+        preTerminalActivityVisibility: AgentTurnActivityVisibility
+    ) -> AgentTurnActivityVisibility {
+        guard preTerminalActivityVisibility == .hidden,
+              isTerminalRuntimeBoundary(event) else {
+            return preTerminalActivityVisibility
+        }
+        return managedBuffer.terminalNotificationVisibility ?? preTerminalActivityVisibility
+    }
+
+    private func rememberTerminalNotificationActivityVisibility(
+        for event: ConversationEvent,
+        managedBuffer: ManagedEventBuffer,
+        preTerminalActivityVisibility: AgentTurnActivityVisibility
+    ) {
+        guard preTerminalActivityVisibility != .hidden,
+              isTerminalRuntimeBoundary(event) else {
+            return
+        }
+        managedBuffer.terminalNotificationVisibility = preTerminalActivityVisibility
     }
 
     func finishStreamBufferIfCurrent(conversationId: String, generation: UUID) {

@@ -26,6 +26,8 @@ actor MockAgentsManager: AgentsManager {
         let config: AgentSpawnConfig
     }
 
+    struct SubscribeCall: Sendable, Equatable { let conversationId: String; let afterIndex: Int }
+
     struct SteeringCall: Sendable, Equatable { let message: String; let conversationId: String; let steeringInputID: String }
 
     // swiftlint:disable:next large_tuple
@@ -52,6 +54,7 @@ actor MockAgentsManager: AgentsManager {
     private let statusStore = MockAgentsManagerStatusStore()
     private var queuedSpawnErrors: [Error] = []
     private var queuedSendResults: [Result<Void, Error>] = []
+    private var queuedDestroyErrors: [Error] = []
     private var queuedOutboundReadiness: [AgentOutboundReadiness] = []
     private var queuedRefreshStatuses: [ActivitySignal] = []
     private var failsSendWhenCurrentTaskIsCancelled = false
@@ -63,6 +66,8 @@ actor MockAgentsManager: AgentsManager {
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
+    private var recordedSubscribeCalls: [SubscribeCall] = []
+    private var recordedDestroyCalls: [String] = []
     private var recordedMarkPersistedCalls: [MarkPersistedCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var recordedCancelCalls: [String] = []
@@ -101,6 +106,7 @@ actor MockAgentsManager: AgentsManager {
     }
 
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription? {
+        recordedSubscribeCalls.append(SubscribeCall(conversationId: conversationId, afterIndex: afterIndex))
         guard subscriptionEnabled else {
             return nil
         }
@@ -206,17 +212,13 @@ actor MockAgentsManager: AgentsManager {
 
     func enqueueSendError(_ error: Error) { queuedSendResults.append(.failure(error)) }
 
-    func enqueueSpawnError(_ error: Error) {
-        queuedSpawnErrors.append(error)
-    }
+    func enqueueSpawnError(_ error: Error) { queuedSpawnErrors.append(error) }
 
-    func enqueueOutboundReadiness(_ readiness: AgentOutboundReadiness) {
-        queuedOutboundReadiness.append(readiness)
-    }
+    func enqueueDestroyError(_ error: Error) { queuedDestroyErrors.append(error) }
 
-    func enqueueRefreshStatus(_ status: ActivitySignal) {
-        queuedRefreshStatuses.append(status)
-    }
+    func enqueueOutboundReadiness(_ readiness: AgentOutboundReadiness) { queuedOutboundReadiness.append(readiness) }
+
+    func enqueueRefreshStatus(_ status: ActivitySignal) { queuedRefreshStatuses.append(status) }
 
     func failSendWhenCurrentTaskIsCancelled() { failsSendWhenCurrentTaskIsCancelled = true }
 
@@ -269,7 +271,13 @@ actor MockAgentsManager: AgentsManager {
 
     func cancelTurn(conversationId: String) { recordedCancelCalls.append(conversationId) }
 
-    func destroyRuntime(conversationId: String) async throws { isRunningValue = false }
+    func destroyRuntime(conversationId: String) async throws {
+        recordedDestroyCalls.append(conversationId)
+        isRunningValue = false
+        if !queuedDestroyErrors.isEmpty {
+            throw queuedDestroyErrors.removeFirst()
+        }
+    }
 
     func kill(conversationId: String) { isRunningValue = false }
 
@@ -341,43 +349,29 @@ actor MockAgentsManager: AgentsManager {
         []
     }
 
-    func sentMessages() -> [String] {
-        recordedSentMessages
-    }
+    func sentMessages() -> [String] { recordedSentMessages }
 
-    func sendVisibilities() -> [AgentTurnActivityVisibility] {
-        recordedSendVisibilities
-    }
+    func sendVisibilities() -> [AgentTurnActivityVisibility] { recordedSendVisibilities }
 
     func steeringCalls() -> [SteeringCall] { recordedSteeringCalls }
 
-    func spawnCalls() -> [SpawnCall] {
-        recordedSpawnCalls
-    }
+    func spawnCalls() -> [SpawnCall] { recordedSpawnCalls }
 
-    func reconfigureCalls() -> [ReconfigureCall] {
-        recordedReconfigureCalls
-    }
+    func reconfigureCalls() -> [ReconfigureCall] { recordedReconfigureCalls }
 
-    func freshSessionCalls() -> [FreshSessionCall] {
-        recordedFreshSessionCalls
-    }
+    func freshSessionCalls() -> [FreshSessionCall] { recordedFreshSessionCalls }
 
-    func markPersistedCalls() -> [MarkPersistedCall] {
-        recordedMarkPersistedCalls
-    }
+    func subscribeCallsList() -> [SubscribeCall] { recordedSubscribeCalls }
 
-    func approvalCalls() -> [ApprovalCall] {
-        recordedApprovalCalls
-    }
+    func destroyCalls() -> [String] { recordedDestroyCalls }
 
-    func cancelCalls() -> [String] {
-        recordedCancelCalls
-    }
+    func markPersistedCalls() -> [MarkPersistedCall] { recordedMarkPersistedCalls }
 
-    func refreshStatusCalls() -> [String] {
-        recordedRefreshStatusCalls
-    }
+    func approvalCalls() -> [ApprovalCall] { recordedApprovalCalls }
+
+    func cancelCalls() -> [String] { recordedCancelCalls }
+
+    func refreshStatusCalls() -> [String] { recordedRefreshStatusCalls }
 
     private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {
         "\(providerId)|\(conversationId)|\(sessionId)"

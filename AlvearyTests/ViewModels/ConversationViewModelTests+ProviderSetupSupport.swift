@@ -31,6 +31,9 @@ actor MockProviderSetupService: ProviderSetupService {
                 autoTrust: autoTrust
             )
         )
+        if autoTrust {
+            setTrustedProject(workingDirectory, isTrusted: true)
+        }
     }
 
     func isTrustedProject(providerId: String, workingDirectory: String) async -> Bool {

@@ -4,7 +4,7 @@ import Observation
 struct DiffGitCommitModalContext: Identifiable, Equatable {
     let id = UUID()
     let directory: String
-    let threadName: String
+    let targetName: String
     let baseBranch: String
     let remoteName: String?
 }
@@ -82,7 +82,7 @@ final class DiffGitCommitModalModel: Identifiable {
         self.includeUnstagedChanges = settingsService.current.gitCommitIncludeUnstagedChanges
         self.newBranchName = Self.defaultNewBranchName(
             branchPrefix: settingsService.current.branchPrefix,
-            threadName: context.threadName
+            targetName: context.targetName
         )
     }
 
@@ -222,8 +222,8 @@ final class DiffGitCommitModalModel: Identifiable {
         }
     }
 
-    static func defaultNewBranchName(branchPrefix: String, threadName: String) -> String {
-        let slug = threadName
+    static func defaultNewBranchName(branchPrefix: String, targetName: String) -> String {
+        let slug = targetName
             .lowercased()
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: "-")

@@ -23,6 +23,7 @@ extension AgentsManagerTests {
         let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
         let generation = try XCTUnwrap(maybeGeneration)
 
+        await manager.markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
         await manager.handleStreamEvent(
             .error(message: "Selected model is unavailable."),
             conversationId: conversationId,
@@ -60,6 +61,7 @@ extension AgentsManagerTests {
         let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
         let generation = try XCTUnwrap(maybeGeneration)
 
+        await manager.markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
         await manager.handleStreamEvent(
             .error(message: "Selected model is unavailable."),
             conversationId: conversationId,
@@ -91,6 +93,68 @@ extension AgentsManagerTests {
         XCTAssertFalse(canTriggerNotification)
     }
 
+    func testHiddenTerminalActivityDoesNotTriggerNotification() async throws {
+        let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let notifications = StubNotificationManager()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin",
+            notificationManager: notifications
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-hidden-terminal-notification"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+
+        await manager.markCurrentTurnActivityVisibility(.hidden, conversationId: conversationId)
+        await manager.handleStreamEvent(
+            terminalSuccessTokens(),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude"
+        )
+
+        XCTAssertTrue(notifications.handledEvents.isEmpty)
+        await manager.kill(conversationId: conversationId)
+    }
+
+    func testVisibleTerminalActivityStillNotifiesAfterVisibilityCleanup() async throws {
+        let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let notifications = StubNotificationManager()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin",
+            notificationManager: notifications
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-visible-terminal-notification"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+
+        await manager.markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
+        await manager.handleStreamEvent(
+            terminalSuccessTokens(),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude"
+        )
+
+        XCTAssertEqual(notifications.handledEvents.count, 1)
+        XCTAssertEqual(notifications.handledEvents.first?.conversationId, conversationId)
+        XCTAssertEqual(notifications.handledEvents.first?.event, terminalSuccessTokens())
+        let currentVisibility = await manager.eventBuffers[conversationId]?.currentTurnActivityVisibility
+        XCTAssertEqual(currentVisibility, .hidden)
+        await manager.kill(conversationId: conversationId)
+    }
+
     private func tokenError(stopReason: String) -> ConversationEvent {
         .tokens(
             input: 1,
@@ -98,6 +162,20 @@ extension AgentsManagerTests {
             cacheRead: 0,
             isError: true,
             stopReason: stopReason,
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: [],
+            isTerminal: true
+        )
+    }
+
+    private func terminalSuccessTokens() -> ConversationEvent {
+        .tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
             durationMs: 10,
             costUsd: 0,
             permissionDenials: [],

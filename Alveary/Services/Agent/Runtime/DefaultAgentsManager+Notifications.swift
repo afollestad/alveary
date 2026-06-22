@@ -26,8 +26,13 @@ extension DefaultAgentsManager {
     func shouldNotify(
         for event: ConversationEvent,
         notificationEvent: ConversationEvent,
-        conversationId: String
+        conversationId: String,
+        turnActivityVisibility: AgentTurnActivityVisibility
     ) async -> Bool {
+        guard turnActivityVisibility != .hidden else {
+            return false
+        }
+
         if case .tokens(_, _, _, _, true, let stopReason, _, _, _, _, let permissionDenials, _) = event,
            permissionDenials.isEmpty,
            ConversationInterruption.isRequestInterruptedByUserReason(stopReason) {

@@ -17,7 +17,7 @@ extension SnapshotTests {
 
     func testDiffGitCommitModalNewBranch() async {
         let model = diffGitCommitModalModel(
-            threadName: "Disable Steering During Handoff",
+            targetName: "Disable Steering During Handoff",
             currentBranch: "feature/current"
         )
         await model.load()
@@ -57,7 +57,7 @@ extension SnapshotTests {
 
 private extension SnapshotTests {
     func diffGitCommitModalModel(
-        threadName: String = "Commit Modal",
+        targetName: String = "Commit Modal",
         settings: AppSettings = {
             var settings = AppSettings()
             settings.branchPrefix = "af/"
@@ -68,7 +68,7 @@ private extension SnapshotTests {
         DiffGitCommitModalModel(
             context: DiffGitCommitModalContext(
                 directory: "/tmp/alveary-snapshot-project",
-                threadName: threadName,
+                targetName: targetName,
                 baseBranch: "main",
                 remoteName: "origin"
             ),

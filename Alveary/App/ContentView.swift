@@ -16,6 +16,7 @@ struct ContentView: View {
     private let skillsService: SkillsService
     private let mcpService: MCPService
     private let agentsManager: any AgentsManager
+    let agentOneShotPromptService: any AgentOneShotPromptService
     private let runtimeStore: any ConversationRuntimeStore
     private let keepAwakeService: KeepAwakeService
     private let worktreeManager: WorktreeManager
@@ -68,6 +69,7 @@ struct ContentView: View {
         self.skillsService = dependencies.skillsService
         self.mcpService = dependencies.mcpService
         self.agentsManager = dependencies.agentsManager
+        self.agentOneShotPromptService = dependencies.agentOneShotPromptService
         self.runtimeStore = dependencies.runtimeStore
         self.keepAwakeService = dependencies.keepAwakeService
         self.worktreeManager = dependencies.worktreeManager
@@ -187,12 +189,9 @@ struct ContentView: View {
                             )
                             DiffViewerPane(
                                 viewModel: diffViewModel,
-                                // Gate on observation-tracked selection state only. The
-                                // fetch-backed `activeDiffActionTarget()` resolution is not
-                                // observation-tracked, so using it here latches a stale value
-                                // until an unrelated body re-render; the request handlers
-                                // re-run the full resolution at action time.
-                                areAgentActionsEnabled: appState.selectedSidebarItem?.isThread == true,
+                                // Keep render-time gates observation-tracked; action handlers re-resolve backing rows.
+                                canCommit: appState.selectedSidebarItem?.canCommitDiffChanges == true,
+                                canRequestOpenPR: appState.selectedSidebarItem?.isThread == true,
                                 mode: $diffViewerMode,
                                 onModeCommit: persistDiffViewerMode,
                                 topSectionFraction: activeDiffViewerTopSectionFraction,

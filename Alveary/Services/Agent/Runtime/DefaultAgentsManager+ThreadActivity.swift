@@ -9,6 +9,7 @@ extension DefaultAgentsManager {
         guard let managedBuffer = eventBuffers[conversationId] else {
             return
         }
+        managedBuffer.terminalNotificationVisibility = nil
         if visibility == .visible {
             managedBuffer.currentTurnActivityVisibility = .visible
             managedBuffer.hasRecordedTerminalThreadActivity = false

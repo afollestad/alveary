@@ -12,6 +12,7 @@ struct ContentViewDependencies {
     let skillsService: SkillsService
     let mcpService: MCPService
     let agentsManager: any AgentsManager
+    let agentOneShotPromptService: any AgentOneShotPromptService
     let runtimeStore: any ConversationRuntimeStore
     let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
@@ -40,6 +41,7 @@ struct ContentViewDependencies {
             skillsService: component.skillsService,
             mcpService: component.mcpService,
             agentsManager: component.agentsManager,
+            agentOneShotPromptService: component.agentOneShotPromptService,
             runtimeStore: component.conversationRuntimeStore,
             keepAwakeService: component.keepAwakeService,
             worktreeManager: component.worktreeManager,

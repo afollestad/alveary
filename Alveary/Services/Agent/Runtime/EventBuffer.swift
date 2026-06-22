@@ -15,6 +15,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var deferredToolStopSessionId: String?
     var deferredToolStopToolUseId: String?
     var currentTurnActivityVisibility: AgentTurnActivityVisibility = .hidden
+    var terminalNotificationVisibility: AgentTurnActivityVisibility?
     var hasRecordedTerminalThreadActivity = false
     var lastKnownRuntimeTurnActive = false
     var latestTerminalRuntimeEventIndex: Int?

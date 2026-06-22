@@ -9,6 +9,7 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
 - Runtime speed mode must stay per-session. Pass `AgentSpawnConfig.speedMode` through the AgentCLIKit bridge; never launch shared provider runtimes with global fast flags or app-wide speed enablement.
 - Session handoff uses `startFreshSession(...)` to replace the provider session binding for the same conversation. It must remove old session approvals, drop the old event buffer, and spawn with `forkSession: false`; do not route it through normal settings reconfiguration.
 - Runtime notification gating is terminal-aware:
+    - **Suppress hidden activity.** Hidden runtime turns, including one-shot commit-message generation, must not trigger desktop notifications. Classify terminal events using the turn visibility captured before terminal cleanup resets the buffer state.
     - **Suppress progress token notifications.** `usage_update` token rows are interim usage, not turn completion.
     - **Treat `tool_deferred` as waiting.** A successful `tool_deferred` token stop means the runtime is waiting on approval or a prompt; notify from the `tool_approval` request instead of saying the agent finished.
     - **Suppress resolved denials.** If the user denies a tool approval, later provider token rows that report that same `permission_denial` are confirmation, not a new permission request.

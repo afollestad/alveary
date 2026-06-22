@@ -24,6 +24,106 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertEqual(displayState, .idle(stats))
     }
 
+    func testSidebarSelectionDiffActionCapabilitiesSplitCommitAndCreatePR() {
+        let project = Project(path: "/tmp/project", name: "Alveary")
+        let thread = AgentThread(name: "Thread", project: project)
+
+        XCTAssertTrue(SidebarItem.project(project).canCommitDiffChanges)
+        XCTAssertFalse(SidebarItem.project(project).isThread)
+        XCTAssertTrue(SidebarItem.thread(thread).canCommitDiffChanges)
+        XCTAssertTrue(SidebarItem.thread(thread).isThread)
+        XCTAssertFalse(SidebarItem.skills.canCommitDiffChanges)
+    }
+
+    func testDiffCommitTargetResolverResolvesThreadTarget() throws {
+        let fixture = try makeDiffCommitTargetFixture(worktreePath: "/tmp/worktree")
+        fixture.appState.selectedSidebarItem = .thread(fixture.thread)
+        fixture.appState.selectedConversationIDs[fixture.thread.persistentModelID] = fixture.conversation.persistentModelID
+
+        let snapshot = DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: fixture.appState.selectedSidebarItem,
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: "/tmp/worktree"
+        )
+
+        XCTAssertEqual(snapshot?.directory, "/tmp/worktree")
+        XCTAssertEqual(snapshot?.targetName, "Toolbar Action")
+        XCTAssertEqual(snapshot?.baseBranch, "develop")
+        XCTAssertEqual(snapshot?.remoteName, "upstream")
+        XCTAssertEqual(snapshot?.generationRoute, .thread)
+    }
+
+    func testDiffCommitTargetResolverResolvesProjectTargetWithNameFallback() throws {
+        let fixture = try makeDiffCommitTargetFixture(projectPath: "/tmp/FallbackProject", projectName: "   ")
+        fixture.appState.selectedSidebarItem = .project(fixture.project)
+
+        let snapshot = DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: fixture.appState.selectedSidebarItem,
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: "/tmp/FallbackProject"
+        )
+
+        XCTAssertEqual(snapshot?.directory, "/tmp/FallbackProject")
+        XCTAssertEqual(snapshot?.targetName, "FallbackProject")
+        XCTAssertEqual(snapshot?.baseBranch, "develop")
+        XCTAssertEqual(snapshot?.remoteName, "upstream")
+        XCTAssertEqual(snapshot?.generationRoute, .project(directory: "/tmp/FallbackProject"))
+    }
+
+    func testDiffCommitTargetResolverReturnsNilWithoutSelectionOrActiveDirectory() throws {
+        let fixture = try makeDiffCommitTargetFixture()
+
+        XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: nil,
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: "/tmp/project"
+        ))
+        XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: .project(fixture.project),
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: nil
+        ))
+    }
+
+    func testDiffCommitTargetResolverRejectsStaleActiveDirectory() throws {
+        let fixture = try makeDiffCommitTargetFixture()
+
+        XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: .project(fixture.project),
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: "/tmp/other-project"
+        ))
+    }
+
+    func testDiffCommitTargetResolverReturnsNilForThreadWithoutDirectory() throws {
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        let appState = AppState()
+        let conversation = Conversation(title: "Main", provider: "claude")
+        let thread = AgentThread(name: "No Project", conversations: [conversation])
+        context.insert(thread)
+        try context.save()
+        appState.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
+
+        XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: .thread(thread),
+            modelContext: context,
+            appState: appState,
+            activeDirectory: "/tmp/project"
+        ))
+    }
+
     func testProjectActionExecutionContextPrefersWorktreePathAndCarriesThreadMetadata() throws {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)
@@ -231,4 +331,53 @@ final class ContentViewProjectActionsTests: XCTestCase {
                 + 42
         )
     }
+}
+
+private struct DiffCommitTargetFixture {
+    let context: ModelContext
+    let appState: AppState
+    let project: Project
+    let thread: AgentThread
+    let conversation: Conversation
+}
+
+@MainActor
+private func makeDiffCommitTargetFixture(
+    projectPath: String = "/tmp/project",
+    projectName: String = "Alveary",
+    worktreePath: String? = nil
+) throws -> DiffCommitTargetFixture {
+    let container = try ModelContainer(
+        for: Project.self,
+        AgentThread.self,
+        Conversation.self,
+        ConversationEventRecord.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
+    let context = ModelContext(container)
+    let appState = AppState()
+    let project = Project(
+        path: projectPath,
+        name: projectName,
+        remoteName: "upstream",
+        baseRef: "develop"
+    )
+    let conversation = Conversation(title: "Main", provider: "claude")
+    let thread = AgentThread(
+        name: "Toolbar Action",
+        worktreePath: worktreePath,
+        project: project,
+        conversations: [conversation]
+    )
+    project.threads.append(thread)
+    context.insert(project)
+    try context.save()
+
+    return DiffCommitTargetFixture(
+        context: context,
+        appState: appState,
+        project: project,
+        thread: thread,
+        conversation: conversation
+    )
 }

@@ -259,6 +259,15 @@ enum SidebarItem: Hashable {
         return false
     }
 
+    var canCommitDiffChanges: Bool {
+        switch self {
+        case .project, .thread:
+            return true
+        case .skills, .mcp, .settings:
+            return false
+        }
+    }
+
     func hash(into hasher: inout Hasher) {
         switch self {
         case .skills:
