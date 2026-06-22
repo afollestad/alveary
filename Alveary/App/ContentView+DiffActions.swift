@@ -174,28 +174,6 @@ extension ContentView {
         }
     }
 
-    func requestAgentOpenPR() {
-        guard let (thread, conversation) = activeDiffActionTarget() else {
-            return
-        }
-
-        let baseRef = thread.project?.baseRef ?? "main"
-        let message = "Please push or publish the current branch if needed, then open a pull request against `\(baseRef)` and share the PR URL."
-        appState.requestDiffAction(message: message, conversationID: conversation.persistentModelID)
-    }
-
-    func cancelPendingDiffActionIfNeeded() {
-        guard let request = appState.pendingDiffAction else {
-            return
-        }
-
-        guard let activeConversationID = activeDiffActionTarget()?.conversation.persistentModelID,
-              activeConversationID == request.conversationID else {
-            appState.pendingDiffAction = nil
-            return
-        }
-    }
-
     func cancelPendingCommitMessageGenerationIfNeeded() {
         guard let request = appState.pendingCommitMessageGenerationRequest else {
             return

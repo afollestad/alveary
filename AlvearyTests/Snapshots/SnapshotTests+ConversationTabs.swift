@@ -340,7 +340,6 @@ private struct ThreadDetailStatusFixture {
         notificationManager = RecordingNotificationManager()
         diffViewModel = DiffViewerViewModel(
             gitService: SnapshotMockGitService(statusResults: [[]], diffResults: [""]),
-            gitHubService: SnapshotMockGitHubService(),
             fileListManager: fileListManager,
             agentsManager: agentsManager,
             fsEventDebounceDuration: .seconds(10),

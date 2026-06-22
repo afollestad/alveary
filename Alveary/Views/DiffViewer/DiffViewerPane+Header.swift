@@ -6,13 +6,10 @@ struct DiffViewerPaneHeader: View {
     let contextualAction: DiffViewerViewModel.ContextualAction
     let selectedFiles: [FileStatus]
     let canCommit: Bool
-    let canRequestOpenPR: Bool
     let showsFileListDivider: Bool
     let showsFileActions: Bool
     let onModeSelected: (DiffViewerMode) -> Void
     let onCommitRequested: () -> Void
-    let onOpenPRRequested: () -> Void
-    let onViewPRRequested: (String) -> Void
     let onStageSelectedFiles: () -> Void
     let onUnstageSelectedFiles: () -> Void
     let onDiscardSelectedFiles: () -> Void
@@ -49,24 +46,6 @@ struct DiffViewerPaneHeader: View {
                 tone: .primary,
                 isEnabled: canCommit,
                 action: onCommitRequested
-            ))
-        case .openPR:
-            actions.append(DiffViewerHeaderAction(
-                id: "open-pr",
-                title: "Create PR",
-                systemImage: "arrow.triangle.branch",
-                tone: .primary,
-                isEnabled: canRequestOpenPR,
-                action: onOpenPRRequested
-            ))
-        case .viewPR(let url):
-            actions.append(DiffViewerHeaderAction(
-                id: "view-pr",
-                title: "View PR",
-                systemImage: "arrow.up.right.square",
-                tone: .primary,
-                isEnabled: true,
-                action: { onViewPRRequested(url) }
             ))
         case .none:
             break
@@ -110,16 +89,7 @@ struct DiffViewerPaneHeader: View {
     }
 
     private var visibleContextualAction: DiffViewerViewModel.ContextualAction {
-        guard mode == .commits else {
-            return contextualAction
-        }
-
-        switch contextualAction {
-        case .openPR, .viewPR:
-            return contextualAction
-        case .commit, .none:
-            return .none
-        }
+        mode == .currentChanges ? contextualAction : .none
     }
 
     private var headerActionLayoutID: String {

@@ -467,10 +467,6 @@ final class SidebarMockGitHubCLIService: GitHubCLIService, @unchecked Sendable {
     }
 
     func cancelAuthentication() {}
-
-    func run(args: [String], in directory: String?) async throws -> ShellResult {
-        ShellResult(stdout: "", stderr: "", exitCode: 0, stdoutWasTruncated: false, stderrWasTruncated: false)
-    }
 }
 
 final class SidebarLockedStatusStore: @unchecked Sendable {

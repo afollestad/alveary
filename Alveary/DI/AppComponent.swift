@@ -394,10 +394,6 @@ extension AppComponent {
         return shared { DefaultGitHubCLIService(shell: shellRunner) }
     }
 
-    var gitHubService: GitHubService {
-        return shared { CLIGitHubService(ghCLI: gitHubCLIService) }
-    }
-
     var skillsService: SkillsService {
         return shared { DefaultSkillsService(agentRegistry: agentRegistry) }
     }

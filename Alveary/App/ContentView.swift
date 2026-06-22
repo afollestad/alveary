@@ -120,7 +120,6 @@ struct ContentView: View {
     private static func makeDiffViewModel(dependencies: ContentViewDependencies) -> DiffViewerViewModel {
         DiffViewerViewModel(
             gitService: dependencies.gitService,
-            gitHubService: dependencies.gitHubService,
             diffStore: dependencies.diffWorkspaceStore,
             fileListManager: dependencies.fileListManager,
             agentsManager: dependencies.agentsManager
@@ -192,15 +191,13 @@ struct ContentView: View {
                                 viewModel: diffViewModel,
                                 // Keep render-time gates observation-tracked; action handlers re-resolve backing rows.
                                 canCommit: appState.selectedSidebarItem?.canCommitDiffChanges == true,
-                                canRequestOpenPR: appState.selectedSidebarItem?.isThread == true,
                                 mode: $diffViewerMode,
                                 onModeCommit: persistDiffViewerMode,
                                 topSectionFraction: activeDiffViewerTopSectionFraction,
                                 onTopSectionFractionCommit: { fraction in
                                     persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
                                 },
-                                onCommitRequested: presentGitCommitModal,
-                                onOpenPRRequested: requestAgentOpenPR
+                                onCommitRequested: presentGitCommitModal
                             )
                             .frame(width: effectiveDiffViewerWidth)
                         }
@@ -262,7 +259,6 @@ struct ContentView: View {
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             updateDiffViewer(item: selection)
-            cancelPendingDiffActionIfNeeded()
             cancelPendingCommitMessageGenerationIfNeeded()
         }
         .onChange(of: appState.previousSelection) { _, _ in

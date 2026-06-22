@@ -23,19 +23,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.previousSelection, AppState.SidebarBookmark.threadId(fixture.primaryThread.persistentModelID))
     }
 
-    func testSidebarItemIsThreadOnlyForThreadCase() throws {
-        let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
-        )
-        let project = try XCTUnwrap(fixture.primaryThread.project)
-
-        XCTAssertTrue(SidebarItem.thread(fixture.primaryThread).isThread)
-        XCTAssertFalse(SidebarItem.project(project).isThread)
-        XCTAssertFalse(SidebarItem.skills.isThread)
-        XCTAssertFalse(SidebarItem.mcp.isThread)
-        XCTAssertFalse(SidebarItem.settings.isThread)
-    }
-
     func testClearsMatchingCommitMessageGenerationRequest() throws {
         let fixture = try makeFixture(
             primaryConversations: [Conversation(title: "Main", provider: "claude")]
@@ -168,46 +155,6 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertNil(state.selectedConversationIDs[fixture.primaryThread.persistentModelID])
-    }
-
-    func testSelectConversationOnlyClearsDiffActionWhenSelectingAwayFromTargetConversation() throws {
-        let targetConversation = Conversation(title: "Target", provider: "claude", isMain: true, displayOrder: 0)
-        let otherConversation = Conversation(title: "Other", provider: "claude", isMain: false, displayOrder: 1)
-        let fixture = try makeFixture(primaryConversations: [targetConversation, otherConversation])
-        let state = AppState()
-
-        state.pendingDiffAction = AppState.DiffActionRequest(
-            id: UUID(),
-            conversationID: targetConversation.persistentModelID,
-            message: "Generate commit"
-        )
-        state.selectConversation(targetConversation, in: fixture.primaryThread)
-
-        XCTAssertNotNil(state.pendingDiffAction)
-
-        state.selectConversation(otherConversation, in: fixture.primaryThread)
-
-        XCTAssertNil(state.pendingDiffAction)
-        XCTAssertEqual(
-            state.selectedConversationIDs[fixture.primaryThread.persistentModelID],
-            otherConversation.persistentModelID
-        )
-    }
-
-    func testRequestDiffActionAlwaysReplacesExistingRequestWithFreshIdentifier() throws {
-        let conversation = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
-        ).primaryConversations[0]
-        let state = AppState()
-
-        state.requestDiffAction(message: "Open a PR", conversationID: conversation.persistentModelID)
-        let firstRequest = try XCTUnwrap(state.pendingDiffAction)
-        state.requestDiffAction(message: "Open a PR", conversationID: conversation.persistentModelID)
-        let secondRequest = try XCTUnwrap(state.pendingDiffAction)
-
-        XCTAssertEqual(secondRequest.message, firstRequest.message)
-        XCTAssertEqual(secondRequest.conversationID, firstRequest.conversationID)
-        XCTAssertNotEqual(secondRequest.id, firstRequest.id)
     }
 
     func testPendingComposerFocusTokenDefaultsToNilUntilRequested() {

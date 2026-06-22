@@ -156,10 +156,6 @@ final class DefaultGitHubCLIService: GitHubCLIService {
         clearAuthenticationState(ifCurrent: process)
     }
 
-    func run(args: [String], in directory: String?) async throws -> ShellResult {
-        try await shell.run(executable: "/usr/bin/env", args: ["gh"] + args, in: directory)
-    }
-
     private func clearAuthenticationState(ifCurrent process: Process? = nil) {
         if let process {
             guard authProcess === process else {

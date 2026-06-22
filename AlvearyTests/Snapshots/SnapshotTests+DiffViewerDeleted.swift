@@ -27,9 +27,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 520),
             named: "diff_viewer_deleted_compact_gutter"

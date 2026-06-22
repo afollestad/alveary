@@ -13,7 +13,6 @@ final class AppState {
     private(set) var isTerminalPaneVisible = false
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
     var pendingCommand: CommandRequest?
-    var pendingDiffAction: DiffActionRequest?
     var pendingCommitMessageGenerationRequest: CommitMessageGenerationRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
     var previousSelection: SidebarBookmark?
@@ -78,14 +77,6 @@ final class AppState {
         isLeftPaneVisible = isVisible
     }
 
-    func requestDiffAction(message: String, conversationID: PersistentIdentifier) {
-        pendingDiffAction = DiffActionRequest(
-            id: UUID(),
-            conversationID: conversationID,
-            message: message
-        )
-    }
-
     func requestCommitMessageGeneration(
         prompt: String,
         conversationID: PersistentIdentifier,
@@ -145,9 +136,6 @@ final class AppState {
     }
 
     func selectConversation(_ conversation: Conversation, in thread: AgentThread) {
-        if pendingDiffAction?.conversationID != conversation.persistentModelID {
-            pendingDiffAction = nil
-        }
         if pendingCommitMessageGenerationRequest?.conversationID != conversation.persistentModelID {
             cancelPendingCommitMessageGenerationRequest()
         }
@@ -200,12 +188,6 @@ final class AppState {
         }
     }
 
-    struct DiffActionRequest: Equatable {
-        let id: UUID
-        let conversationID: PersistentIdentifier
-        let message: String
-    }
-
     struct CommitMessageGenerationRequest {
         let id: UUID
         let conversationID: PersistentIdentifier
@@ -251,13 +233,6 @@ enum SidebarItem: Hashable {
     case project(Project)
     case thread(AgentThread)
     case settings
-
-    var isThread: Bool {
-        if case .thread = self {
-            return true
-        }
-        return false
-    }
 
     var canCommitDiffChanges: Bool {
         switch self {

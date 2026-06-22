@@ -24,14 +24,12 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertEqual(displayState, .idle(stats))
     }
 
-    func testSidebarSelectionDiffActionCapabilitiesSplitCommitAndCreatePR() {
+    func testSidebarSelectionDiffActionCapabilitiesAllowCommitForProjectsAndThreads() {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Thread", project: project)
 
         XCTAssertTrue(SidebarItem.project(project).canCommitDiffChanges)
-        XCTAssertFalse(SidebarItem.project(project).isThread)
         XCTAssertTrue(SidebarItem.thread(thread).canCommitDiffChanges)
-        XCTAssertTrue(SidebarItem.thread(thread).isThread)
         XCTAssertFalse(SidebarItem.skills.canCommitDiffChanges)
     }
 

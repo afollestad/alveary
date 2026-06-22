@@ -12,13 +12,10 @@ extension SnapshotTests {
                 contextualAction: .commit,
                 selectedFiles: [],
                 canCommit: true,
-                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
                 onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -33,18 +30,15 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .commits,
-                contextualAction: .openPR,
+                contextualAction: .none,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false)
                 ],
                 canCommit: true,
-                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
                 onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -62,43 +56,16 @@ extension SnapshotTests {
                 contextualAction: .commit,
                 selectedFiles: [],
                 canCommit: true,
-                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
                 onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 72),
             named: "diff_viewer_header_commits_dropdown_no_actions"
-        )
-    }
-
-    func testDiffViewerPaneHeaderCommitsDropdownShowsViewPRAction() {
-        assertMacSnapshot(
-            DiffViewerPaneHeader(
-                activeDirectory: "/tmp/alveary",
-                mode: .commits,
-                contextualAction: .viewPR(url: "https://example.com/pull/42"),
-                selectedFiles: [],
-                canCommit: true,
-                canRequestOpenPR: true,
-                showsFileListDivider: false,
-                showsFileActions: false,
-                onModeSelected: { _ in },
-                onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
-                onStageSelectedFiles: {},
-                onUnstageSelectedFiles: {},
-                onDiscardSelectedFiles: {}
-            ),
-            size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_commits_dropdown_view_pr"
         )
     }
 
@@ -129,10 +96,8 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 mode: .constant(.currentChanges),
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_mode_current_changes"
@@ -168,10 +133,8 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_mode_commits"
@@ -200,10 +163,8 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 520),
             named: "diff_viewer_mode_commits_empty"
@@ -243,10 +204,8 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 mode: .constant(.commits),
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_mode_commits_collapsed_file_diff"

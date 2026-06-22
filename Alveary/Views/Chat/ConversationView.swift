@@ -188,45 +188,6 @@ struct ConversationView: View {
                 )
             }
         }
-        .onChange(of: appState.pendingDiffAction) { _, request in
-            guard let request,
-                  request.conversationID == conversation.persistentModelID else {
-                return
-            }
-
-            Task {
-                let priorDraft = viewModel.flushDraftFromEditor()
-                defer {
-                    if appState.pendingDiffAction?.id == request.id {
-                        appState.pendingDiffAction = nil
-                    }
-                }
-
-                guard appState.pendingDiffAction?.id == request.id,
-                      case .thread(let selectedThread) = appState.selectedSidebarItem,
-                      selectedThread.persistentModelID == conversation.thread?.persistentModelID,
-                      selectedConversation(
-                          in: selectedThread,
-                          modelContext: modelContext,
-                          appState: appState
-                      )?.persistentModelID == conversation.persistentModelID else {
-                    return
-                }
-
-                do {
-                    viewModel.normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
-                    try await viewModel.queueOrSend(request.message)
-                } catch {
-                    viewModel.replaceInputDraft(
-                        priorDraft.isEffectivelyEmpty ? request.message : priorDraft.text,
-                        source: priorDraft.source
-                    )
-                    if viewModel.lastTurnError == nil {
-                        viewModel.lastTurnError = error.localizedDescription
-                    }
-                }
-            }
-        }
         .task(id: appState.pendingCommitMessageGenerationRequest?.id) {
             await handlePendingCommitMessageGenerationRequest()
         }

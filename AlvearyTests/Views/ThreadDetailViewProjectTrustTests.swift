@@ -146,7 +146,6 @@ private struct ThreadDetailProjectTrustFixture {
             loadSkillCompletions: { [] },
             diffViewModel: DiffViewerViewModel(
                 gitService: SnapshotMockGitService(statusResults: [[]], diffResults: [""]),
-                gitHubService: SnapshotMockGitHubService(),
                 fileListManager: fileListManager,
                 agentsManager: SidebarMockAgentsManager(),
                 fsEventDebounceDuration: .seconds(10),

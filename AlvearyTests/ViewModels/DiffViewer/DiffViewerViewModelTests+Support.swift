@@ -6,7 +6,6 @@ import Foundation
 struct DiffViewerTestFixture {
     let directory = "/tmp/alveary-project"
     let gitService: DiffViewerMockGitService
-    let gitHubService: DiffViewerMockGitHubService
     let diffStore: DiffWorkspaceStore
     let fileListManager: DiffViewerMockFileListManager
     let agentsManager: DiffViewerMockAgentsManager
@@ -14,7 +13,6 @@ struct DiffViewerTestFixture {
 
     init(
         gitService: DiffViewerMockGitService,
-        gitHubService: DiffViewerMockGitHubService = DiffViewerMockGitHubService(),
         fileListManager: DiffViewerMockFileListManager = DiffViewerMockFileListManager(),
         agentsManager: DiffViewerMockAgentsManager = DiffViewerMockAgentsManager(),
         loadingIndicatorDelay: Duration = .milliseconds(30),
@@ -22,13 +20,11 @@ struct DiffViewerTestFixture {
         idlePollInterval: Duration = .seconds(60)
     ) {
         self.gitService = gitService
-        self.gitHubService = gitHubService
         self.diffStore = DiffWorkspaceStore(gitService: gitService, loadingIndicatorDelay: loadingIndicatorDelay)
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
         self.viewModel = DiffViewerViewModel(
             gitService: gitService,
-            gitHubService: gitHubService,
             diffStore: diffStore,
             fileListManager: fileListManager,
             agentsManager: agentsManager,
@@ -322,34 +318,6 @@ actor DiffViewerMockGitService: GitService {
 
     func diffStatsCallCount() -> Int {
         recordedDiffStatsCallCount
-    }
-}
-
-@MainActor
-final class DiffViewerMockGitHubService: GitHubService, @unchecked Sendable {
-    private var listPRResults: [[PRInfo]]
-    private var recordedListPRCallCount = 0
-
-    init(listPRResults: [[PRInfo]] = [[]]) {
-        self.listPRResults = listPRResults
-    }
-
-    func listPRs(in directory: String) async throws -> [PRInfo] {
-        recordedListPRCallCount += 1
-        if !listPRResults.isEmpty {
-            return listPRResults.removeFirst()
-        }
-        return []
-    }
-
-    func checkRunStatus(prNumber: Int, in directory: String) async throws -> CIStatus {
-        .none
-    }
-
-    func checkoutPRBranch(prNumber: Int, branchName: String, in directory: String) async throws {}
-
-    func listPRCallCount() -> Int {
-        recordedListPRCallCount
     }
 }
 

@@ -63,7 +63,6 @@ final class DiffViewerViewModel {
     let diffStore: DiffWorkspaceStore
     private let fileListManager: FileListManager
     private let agentsManager: any AgentsManager
-    private let contextualActionResolver: DiffViewerContextualActionResolver
     private let fsEventDebounceDuration: Duration
     private let idlePollInterval: Duration
     @ObservationIgnored
@@ -105,7 +104,6 @@ final class DiffViewerViewModel {
 
     init(
         gitService: GitService,
-        gitHubService: GitHubService,
         diffStore: DiffWorkspaceStore? = nil,
         fileListManager: FileListManager,
         agentsManager: any AgentsManager,
@@ -120,7 +118,6 @@ final class DiffViewerViewModel {
         self.agentsManager = agentsManager
         self.imagePreviewLoader = imagePreviewLoader
         self.imagePreviewOpener = imagePreviewOpener
-        self.contextualActionResolver = DiffViewerContextualActionResolver(gitService: gitService, gitHubService: gitHubService)
         self.fsEventDebounceDuration = fsEventDebounceDuration
         self.idlePollInterval = idlePollInterval
 
@@ -227,7 +224,6 @@ final class DiffViewerViewModel {
         // completes still upgrades instead of deduping the same target.
         needsFullPaneRefresh = scope == .toolbarStatsOnly
 
-        contextualActionResolver.invalidatePRCache()
         refreshScheduler.clearPending()
 
         if watchingEnabled { watchController.startWatching(target.directory) }
@@ -261,7 +257,6 @@ final class DiffViewerViewModel {
         contextualAction = .none
         clearCommitState()
         refreshScheduler.clearPending()
-        contextualActionResolver.invalidatePRCache()
     }
 
     func clearGitError() { diffStore.clearGitError() }
@@ -274,7 +269,6 @@ final class DiffViewerViewModel {
                 directory: directory,
                 reason: reason,
                 invalidateFileListCache: false,
-                invalidatePRCache: false,
                 scope: scope
             )
         )
@@ -286,7 +280,6 @@ final class DiffViewerViewModel {
                 directory: directory,
                 reason: reason,
                 invalidateFileListCache: true,
-                invalidatePRCache: reason != .localGitMutation,
                 scope: .full
             )
         )
@@ -392,9 +385,6 @@ final class DiffViewerViewModel {
 
 private extension DiffViewerViewModel {
     private func performRefresh(_ request: RefreshRequest) async {
-        if request.invalidatePRCache {
-            contextualActionResolver.invalidatePRCache()
-        }
         if request.invalidateFileListCache {
             await fileListManager.invalidateCache(for: request.directory)
         }
@@ -423,12 +413,7 @@ private extension DiffViewerViewModel {
             return
         }
 
-        let action = await contextualActionResolver.determineAction(
-            files: snapshot.files,
-            baseRef: snapshot.target.baseRef,
-            remoteName: snapshot.target.remoteName,
-            directory: snapshot.target.directory
-        )
+        let action: ContextualAction = snapshot.files.isEmpty ? .none : .commit
         guard diffStore.isCurrent(snapshot) else {
             return
         }

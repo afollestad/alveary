@@ -250,7 +250,6 @@ final class DiffViewerViewModelTests: XCTestCase {
         await fixture.viewModel.selectFile(modifiedFile, in: fixture.directory)
         await fixture.viewModel.refresh(in: fixture.directory, reason: .manual)
         let diffCallCount = await fixture.gitService.diffCalls().count
-        let listPRCallCount = fixture.gitHubService.listPRCallCount()
 
         XCTAssertNil(fixture.viewModel.gitError)
         XCTAssertFalse(fixture.viewModel.isGitRepository)
@@ -258,7 +257,6 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.selectedFile)
         XCTAssertNil(fixture.viewModel.parsedDiff)
         XCTAssertEqual(diffCallCount, 1)
-        XCTAssertEqual(listPRCallCount, 0)
     }
 
     func testSelectFileCancelsSupersededDiffLoad() async throws {
@@ -300,7 +298,7 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.gitError, nil)
     }
 
-    func testDetermineActionReturnsExpectedToolbarStates() async {
+    func testDetermineActionReturnsCommitOnlyWhenFilesChanged() async {
         let commitFixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
                 statusResults: [.success([FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)])]
@@ -309,57 +307,19 @@ final class DiffViewerViewModelTests: XCTestCase {
         defer { commitFixture.viewModel.tearDown() }
         await assertContextualAction(.commit, in: commitFixture, baseRef: "main", remoteName: nil)
 
-        let viewPRFixture = DiffViewerTestFixture(
+        let cleanFixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
-                statusResults: [.success([])],
-                currentBranchResult: .success("feature"),
-                commitsAheadResult: .success(0)
-            ),
-            gitHubService: DiffViewerMockGitHubService(
-                listPRResults: [[
-                    PRInfo(
-                        number: 42,
-                        title: "Feature",
-                        url: "https://example.com/42",
-                        state: "OPEN",
-                        headRefName: "feature",
-                        ciStatus: .pass
-                    )
-                ]]
+                statusResults: [.success([])]
             )
         )
-        defer { viewPRFixture.viewModel.tearDown() }
-        await assertContextualAction(.viewPR(url: "https://example.com/42"), in: viewPRFixture, baseRef: "main", remoteName: "origin")
-
-        let openPRFixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([])],
-                currentBranchResult: .success("feature"),
-                commitsAheadResult: .success(2)
-            )
-        )
-        defer { openPRFixture.viewModel.tearDown() }
-        await assertContextualAction(.openPR, in: openPRFixture, baseRef: "main", remoteName: "origin")
+        defer { cleanFixture.viewModel.tearDown() }
+        await assertContextualAction(.none, in: cleanFixture, baseRef: "main", remoteName: "origin")
     }
 
-    func testRefreshAndInvalidateFileListPreservesWarmPRCacheForLocalGitMutations() async {
+    func testRefreshAndInvalidateFileListInvalidatesFileListForEachMutation() async {
         let fixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
-                statusResults: [.success([]), .success([]), .success([])],
-                currentBranchResult: .success("feature"),
-                commitsAheadResult: .success(0)
-            ),
-            gitHubService: DiffViewerMockGitHubService(
-                listPRResults: [[
-                    PRInfo(
-                        number: 42,
-                        title: "Feature",
-                        url: "https://example.com/42",
-                        state: "OPEN",
-                        headRefName: "feature",
-                        ciStatus: .pass
-                    )
-                ]]
+                statusResults: [.success([]), .success([]), .success([])]
             )
         )
         defer { fixture.viewModel.tearDown() }
@@ -372,10 +332,8 @@ final class DiffViewerViewModelTests: XCTestCase {
         )
         await fixture.viewModel.refreshAndInvalidateFileList(in: fixture.directory, reason: .localGitMutation)
         await fixture.viewModel.refreshAndInvalidateFileList(in: fixture.directory, reason: .agentTurnCompleted)
-        let listPRCallCount = fixture.gitHubService.listPRCallCount()
         let invalidatedDirectories = await fixture.fileListManager.invalidatedDirectories()
 
-        XCTAssertEqual(listPRCallCount, 2)
         XCTAssertEqual(invalidatedDirectories, [fixture.directory, fixture.directory])
     }
 

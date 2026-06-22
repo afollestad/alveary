@@ -6,24 +6,20 @@ import XCTest
 struct SnapshotDiffViewerFixture {
     let directory = "/tmp/alveary-snapshot-project"
     let gitService: SnapshotMockGitService
-    let gitHubService: SnapshotMockGitHubService
     let fileListManager: SnapshotMockFileListManager
     let agentsManager: SnapshotMockAgentsManager
     let viewModel: DiffViewerViewModel
 
     init(
         gitService: SnapshotMockGitService,
-        gitHubService: SnapshotMockGitHubService = SnapshotMockGitHubService(),
         fileListManager: SnapshotMockFileListManager = SnapshotMockFileListManager(),
         agentsManager: SnapshotMockAgentsManager = SnapshotMockAgentsManager()
     ) {
         self.gitService = gitService
-        self.gitHubService = gitHubService
         self.fileListManager = fileListManager
         self.agentsManager = agentsManager
         viewModel = DiffViewerViewModel(
             gitService: gitService,
-            gitHubService: gitHubService,
             fileListManager: fileListManager,
             agentsManager: agentsManager,
             fsEventDebounceDuration: .seconds(10),
@@ -153,19 +149,6 @@ actor SnapshotMockGitService: GitService {
         }
         return imageBlobResults.removeFirst()
     }
-}
-
-@MainActor
-final class SnapshotMockGitHubService: GitHubService, @unchecked Sendable {
-    func listPRs(in directory: String) async throws -> [PRInfo] {
-        []
-    }
-
-    func checkRunStatus(prNumber: Int, in directory: String) async throws -> CIStatus {
-        .none
-    }
-
-    func checkoutPRBranch(prNumber: Int, branchName: String, in directory: String) async throws {}
 }
 
 actor SnapshotMockFileListManager: FileListManager {

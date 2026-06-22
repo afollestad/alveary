@@ -151,30 +151,6 @@ extension SnapshotTests {
         )
     }
 
-    func testDiffViewerPaneHeaderOpenPRAction() {
-        assertMacSnapshot(
-            DiffViewerPaneHeader(
-                activeDirectory: "/tmp/alveary",
-                mode: .currentChanges,
-                contextualAction: .openPR,
-                selectedFiles: [],
-                canCommit: true,
-                canRequestOpenPR: true,
-                showsFileListDivider: false,
-                showsFileActions: true,
-                onModeSelected: { _ in },
-                onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
-                onStageSelectedFiles: {},
-                onUnstageSelectedFiles: {},
-                onDiscardSelectedFiles: {}
-            ),
-            size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_open_pr"
-        )
-    }
-
     func testDiffViewerPaneHeaderMixedSelectionActions() {
         assertMacSnapshot(
             DiffViewerPaneHeader(
@@ -186,13 +162,10 @@ extension SnapshotTests {
                     FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
                 ],
                 canCommit: true,
-                canRequestOpenPR: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
                 onCommitRequested: {},
-                onOpenPRRequested: {},
-                onViewPRRequested: { _ in },
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -233,9 +206,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_populated"
@@ -273,9 +244,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 360, height: 720),
             named: "diff_viewer_populated_narrow"
@@ -306,9 +275,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 520),
             named: "diff_viewer_untracked_compact_gutter"
@@ -342,9 +309,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_multi_selection_preview"
@@ -382,9 +347,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_raw_fallback"
@@ -474,9 +437,7 @@ extension SnapshotTests {
             DiffViewerPane(
                 viewModel: fixture.viewModel,
                 canCommit: true,
-                canRequestOpenPR: true,
                 onCommitRequested: {},
-                onOpenPRRequested: {}
             ),
             size: CGSize(width: 460, height: 720),
             named: "diff_viewer_renamed_metadata"

@@ -86,17 +86,17 @@ private extension GitSettingsTabView {
                         .secondaryActionButtonStyle()
                 }
             } else if isGitHubConnected {
-                Label("Connected for PR and CI workflows.", systemImage: "checkmark.circle.fill")
+                Label("Connected for GitHub project metadata.", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else if gitHubInstalledVersion == nil {
-                Text("Install the GitHub CLI to enable PR and CI features.")
+                Text("Install the GitHub CLI to show GitHub project connection state.")
                     .foregroundStyle(.secondary)
 
                 Text("brew install gh")
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
             } else {
-                Text("Connect GitHub for PR, CI, and agent-opened pull requests.")
+                Text("Connect GitHub to show authenticated project connection state.")
                     .foregroundStyle(.secondary)
             }
 

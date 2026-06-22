@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 enum DiffViewerPaneMetrics {
@@ -15,13 +14,11 @@ enum DiffViewerPaneMetrics {
 struct DiffViewerPane: View {
     let viewModel: DiffViewerViewModel
     let canCommit: Bool
-    let canRequestOpenPR: Bool
     @Binding private var mode: DiffViewerMode
     let onModeCommit: (DiffViewerMode) -> Void
     @Binding private var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
     let onCommitRequested: () -> Void
-    let onOpenPRRequested: () -> Void
 
     @State private var pendingDiscardFiles: [FileStatus] = []
     @State private var isFileListTopDividerVisible = false
@@ -29,23 +26,19 @@ struct DiffViewerPane: View {
     init(
         viewModel: DiffViewerViewModel,
         canCommit: Bool,
-        canRequestOpenPR: Bool,
         mode: Binding<DiffViewerMode> = .constant(.currentChanges),
         onModeCommit: @escaping (DiffViewerMode) -> Void = { _ in },
         topSectionFraction: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultDiffViewerTopSectionFraction)),
         onTopSectionFractionCommit: @escaping (CGFloat) -> Void = { _ in },
-        onCommitRequested: @escaping () -> Void,
-        onOpenPRRequested: @escaping () -> Void
+        onCommitRequested: @escaping () -> Void
     ) {
         self.viewModel = viewModel
         self.canCommit = canCommit
-        self.canRequestOpenPR = canRequestOpenPR
         _mode = mode
         self.onModeCommit = onModeCommit
         _topSectionFraction = topSectionFraction
         self.onTopSectionFractionCommit = onTopSectionFractionCommit
         self.onCommitRequested = onCommitRequested
-        self.onOpenPRRequested = onOpenPRRequested
     }
 
     var body: some View {
@@ -56,18 +49,10 @@ struct DiffViewerPane: View {
                 contextualAction: viewModel.contextualAction,
                 selectedFiles: viewModel.selectedFiles,
                 canCommit: canCommit,
-                canRequestOpenPR: canRequestOpenPR,
                 showsFileListDivider: isFileListTopDividerVisible,
                 showsFileActions: mode == .currentChanges,
                 onModeSelected: selectMode,
                 onCommitRequested: onCommitRequested,
-                onOpenPRRequested: onOpenPRRequested,
-                onViewPRRequested: { url in
-                    guard let url = URL(string: url) else {
-                        return
-                    }
-                    NSWorkspace.shared.open(url)
-                },
                 onStageSelectedFiles: {
                     guard let directory = viewModel.activeDirectory else {
                         return

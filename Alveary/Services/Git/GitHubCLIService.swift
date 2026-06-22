@@ -28,5 +28,4 @@ protocol GitHubCLIService: AnyObject, Sendable {
     func authenticate() async throws -> GitHubDeviceCode
     func awaitAuthentication() async throws -> Bool
     func cancelAuthentication()
-    func run(args: [String], in directory: String?) async throws -> ShellResult
 }

@@ -24,7 +24,6 @@ struct ContentViewDependencies {
     let notificationRouter: NotificationRouter
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
-    let gitHubService: GitHubService
     let diffWorkspaceStore: DiffWorkspaceStore
     let modelContainer: ModelContainer
 
@@ -53,7 +52,6 @@ struct ContentViewDependencies {
             notificationRouter: component.notificationRouter,
             threadActivityRecorder: component.threadActivityRecorder,
             gitService: component.gitService,
-            gitHubService: component.gitHubService,
             diffWorkspaceStore: component.diffWorkspaceStore,
             modelContainer: component.modelContainer
         )

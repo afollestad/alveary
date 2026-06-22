@@ -91,7 +91,6 @@ final class AppComponentTests: XCTestCase {
         _ = component.fileListManager
         _ = component.diffWorkspaceStore
         _ = component.gitHubCLIService
-        _ = component.gitHubService
         _ = component.skillsService
         _ = component.mcpService
     }

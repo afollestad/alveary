@@ -137,10 +137,8 @@ extension SidebarView {
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
         let previousConversationIDs = appState.selectedConversationIDs
-        let previousDiffAction = appState.pendingDiffAction
 
         let threadIDs = liveThreadIDs(in: project)
-        let conversationIDs = liveConversationIDs(in: project)
 
         switch appState.selectedSidebarItem {
         case .project(let selectedProject) where selectedProject.path == projectPath:
@@ -164,11 +162,6 @@ extension SidebarView {
             appState.selectedConversationIDs.removeValue(forKey: threadID)
         }
 
-        if let pendingDiffAction = appState.pendingDiffAction,
-           conversationIDs.contains(pendingDiffAction.conversationID) {
-            appState.pendingDiffAction = nil
-        }
-
         do {
             try await viewModel.deleteProject(project)
             expandedProjects.remove(projectPath)
@@ -179,7 +172,6 @@ extension SidebarView {
             appState.selectedSidebarItem = previousSelectedItem
             appState.previousSelection = previousBookmark
             appState.selectedConversationIDs = previousConversationIDs
-            appState.pendingDiffAction = previousDiffAction
             viewModel.presentSidebarError(error)
         }
     }
@@ -215,17 +207,6 @@ extension SidebarView {
         )
         let threads = (try? uiModelContext.fetch(descriptor)) ?? []
         return Set(threads.map(\.persistentModelID))
-    }
-
-    func liveConversationIDs(in project: Project) -> Set<PersistentIdentifier> {
-        let projectPath = project.path
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.project?.path == projectPath
-            }
-        )
-        let conversations = (try? uiModelContext.fetch(descriptor)) ?? []
-        return Set(conversations.map(\.persistentModelID))
     }
 
     func mainConversation(in thread: AgentThread) -> Conversation? {

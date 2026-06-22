@@ -135,7 +135,6 @@ struct ThreadDetailView: View {
                     let threadID = thread.persistentModelID
                     let conversationIDString = conversation.id
 
-                    cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
                     // Defer persistence and mark-read one cycle so the selection
                     // switch itself renders without synchronous side effects.
                     await Task.yield()
@@ -214,7 +213,6 @@ struct ThreadDetailView: View {
                     appState.repairSelectedConversationIfNeeded(for: thread, conversations: conversations)
                 }
                 .task(id: selectedConversationID) {
-                    cancelPendingDiffActionIfNeeded(selectedConversationID: selectedConversationID)
                     let threadID = thread.persistentModelID
                     await Task.yield()
                     guard case .thread(let selectedThread) = appState.selectedSidebarItem,
@@ -370,10 +368,6 @@ private extension ThreadDetailView {
             try uiModelContext.save()
             conversationActionError = nil
 
-            if appState.pendingDiffAction?.conversationID == id {
-                appState.pendingDiffAction = nil
-            }
-
             appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
             await refreshDiffAfterRemovingConversation(from: liveThread, excluding: conversationIDString)
 
@@ -423,17 +417,6 @@ private extension ThreadDetailView {
         }
         if let neighbor {
             appState.selectConversation(neighbor, in: dbThread)
-        }
-    }
-
-    func cancelPendingDiffActionIfNeeded(selectedConversationID: PersistentIdentifier?) {
-        guard let request = appState.pendingDiffAction else {
-            return
-        }
-
-        guard request.conversationID == selectedConversationID else {
-            appState.pendingDiffAction = nil
-            return
         }
     }
 }
