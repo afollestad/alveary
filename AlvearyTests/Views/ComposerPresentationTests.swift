@@ -32,6 +32,20 @@ final class ComposerPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.placeholder, ComposerPresentation.handoffSteeringPlaceholder)
     }
 
+    func testGoalModePlaceholderAppliesOnlyWhileArmedIdle() {
+        let armed = makePresentation(text: "", isGoalModeArmed: true)
+        let disarmed = makePresentation(text: "", isGoalModeArmed: false)
+        let handoff = makePresentation(
+            text: "",
+            isHandoffSteeringPromptActive: true,
+            isGoalModeArmed: true
+        )
+
+        XCTAssertEqual(armed.placeholder, ComposerPresentation.goalPlaceholder)
+        XCTAssertEqual(disarmed.placeholder, "Ask anything, @ to add files, / for skills")
+        XCTAssertEqual(handoff.placeholder, ComposerPresentation.handoffSteeringPlaceholder)
+    }
+
     func testEmptyCodeBlockCountsAsEmptyComposerText() {
         let presentation = makePresentation(text: "```\n")
 
@@ -221,7 +235,8 @@ final class ComposerPresentationTests: XCTestCase {
         isHandoffOutputPromptActive: Bool = false,
         handoffSteeringCountdown: Int? = nil,
         sendCountdown: Int? = nil,
-        isProjectTrustBlocked: Bool = false
+        isProjectTrustBlocked: Bool = false,
+        isGoalModeArmed: Bool = false
     ) -> ComposerPresentation {
         ComposerPresentation(
             text: text,
@@ -234,7 +249,8 @@ final class ComposerPresentationTests: XCTestCase {
             isHandoffOutputPromptActive: isHandoffOutputPromptActive,
             handoffSteeringCountdown: handoffSteeringCountdown,
             sendCountdown: sendCountdown,
-            isProjectTrustBlocked: isProjectTrustBlocked
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            isGoalModeArmed: isGoalModeArmed
         )
     }
 }

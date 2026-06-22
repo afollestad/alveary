@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import Observation
 
@@ -145,6 +146,11 @@ final class ConversationState {
     var retryableFailedMessageStagedContexts: [String: String] = [:]
     var retryableFailedMessageTransportTexts: [String: String] = [:]
     var pendingSyntheticAssistantDuplicateText: String?
+    var isGoalModeArmed = false
+    var goalSnapshot: AgentGoalSnapshot?
+    var dismissedTerminalGoalKeys: Set<String> = []
+    var lastPersistedGoalRecordKey: String?
+    var goalActionError: String?
 
     var hasActiveSessionHandoff: Bool {
         isAwaitingHandoffSteering
@@ -202,5 +208,16 @@ final class ConversationState {
         retryableFailedMessageIDs.remove(id)
         retryableFailedMessageStagedContexts.removeValue(forKey: id)
         retryableFailedMessageTransportTexts.removeValue(forKey: id)
+    }
+
+    func visibleGoalSnapshot() -> AgentGoalSnapshot? {
+        guard let goalSnapshot else {
+            return nil
+        }
+        if goalSnapshot.status.isTerminal,
+           dismissedTerminalGoalKeys.contains(goalSnapshot.stableGoalKey) {
+            return nil
+        }
+        return goalSnapshot
     }
 }

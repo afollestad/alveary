@@ -14,6 +14,20 @@ extension DefaultAgentsManager {
         )
     }
 
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
+        try await sendGoalStartMessageWithAgentCLIKit(
+            message,
+            initialGoal: initialGoal,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility
+        )
+    }
+
     func sendSteeringMessage(
         _ message: String,
         conversationId: String,

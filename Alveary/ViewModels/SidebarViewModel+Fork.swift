@@ -330,7 +330,7 @@ private extension SidebarViewModel {
 
     func shouldCopyForkTranscriptRecord(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case "session_init", ConversationEventRecord.contextWindowInvalidatedType:
+        case "session_init", ConversationEventRecord.contextWindowInvalidatedType, ConversationEventRecord.goalType:
             return false
         case "stop" where ConversationSessionFork.isDisplayMessage(record.content):
             return false

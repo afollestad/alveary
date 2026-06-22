@@ -14,6 +14,7 @@ extension ConversationViewModel {
     func makeSpawnConfig(
         workingDirectory overrideWorkingDirectory: String? = nil,
         initialPrompt: String? = nil,
+        initialGoal: String? = nil,
         settingsSource: SessionSettingsConfigSource = .nextTurn
     ) throws -> AgentSpawnConfig {
         guard let dbConversation = dbConversation() else {
@@ -44,7 +45,8 @@ extension ConversationViewModel {
             model: modelAndEffort.model,
             effort: modelAndEffort.effort,
             speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
-            initialPrompt: initialPrompt
+            initialPrompt: initialPrompt,
+            initialGoal: initialGoal
         )
     }
 

@@ -73,7 +73,7 @@ extension SnapshotTests {
     func testComposerPlusMenuCompactContent() {
         assertMacSnapshot(
             ComposerPlusMenuSnapshot(),
-            size: CGSize(width: 244, height: 84),
+            size: CGSize(width: 244, height: 121),
             named: "composer_plus_menu_compact_content",
             colorScheme: .dark
         )
@@ -378,11 +378,15 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
 private struct ComposerPlusMenuSnapshot: NSViewControllerRepresentable {
     func makeNSViewController(context: Context) -> ComposerPlusMenuViewController {
         ComposerPlusMenuViewController(configuration: .init(
+            isGoalModeArmed: false,
+            isGoalModeToggleEnabled: true,
+            goalModeDisabledTooltip: nil,
             isPlanModeEnabled: true,
             isPlanModeToggleEnabled: true,
             planModeDisabledTooltip: nil,
             onAddPhotosAndFiles: {},
-            onPlanModeChange: { _ in }
+            onPlanModeChange: { _ in },
+            onGoalModeChange: { _ in }
         ))
     }
 

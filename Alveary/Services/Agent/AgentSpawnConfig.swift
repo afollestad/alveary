@@ -13,6 +13,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let speedMode: AgentSpeedMode?
     let sessionFork: AgentSessionForkRequest?
     let initialPrompt: String?
+    let initialGoal: String?
 
     init(
         providerId: String,
@@ -23,7 +24,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         effort: String? = nil,
         speedMode: AgentSpeedMode? = nil,
         sessionFork: AgentSessionForkRequest? = nil,
-        initialPrompt: String? = nil
+        initialPrompt: String? = nil,
+        initialGoal: String? = nil
     ) {
         self.providerId = providerId
         self.workingDirectory = workingDirectory
@@ -34,6 +36,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.speedMode = speedMode
         self.sessionFork = sessionFork
         self.initialPrompt = initialPrompt
+        self.initialGoal = initialGoal
     }
 }
 

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 extension ChatView {
@@ -8,6 +9,8 @@ extension ChatView {
         }
 
         switch command.kind {
+        case .goal:
+            handleGoalLocalCommand(command, draft: draft)
         case .plan:
             handlePlanLocalCommand(command, draft: draft)
         case .fast:
@@ -16,6 +19,131 @@ extension ChatView {
             handleHandoffLocalCommand(command, draft: draft)
         }
         return true
+    }
+
+    @discardableResult
+    func handleArmedGoalSubmitIfNeeded(draft: ComposerDraft) -> Bool {
+        guard viewModel.state.isGoalModeArmed else {
+            return false
+        }
+        guard !draft.isEffectivelyEmpty else {
+            return false
+        }
+
+        if let command = ComposerLocalCommandParser.parse(
+            draft.text,
+            availability: ComposerLocalCommandAvailability(supportsGoalMode: true)
+        ),
+           command.kind == .goal,
+           command.argument.isEmpty {
+            clearSubmittedDraftAndRequestFocus(source: draft.source)
+            viewModel.setGoalModeArmed(false)
+            return true
+        }
+
+        submitGoalObjective(draft.messageText, restoreText: draft.text, source: draft.source)
+        return true
+    }
+
+    private func handleGoalLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
+        let normalizedArgument = command.argument.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if command.argument.isEmpty {
+            clearSubmittedDraftAndRequestFocus(source: draft.source)
+            toggleGoalModeFromCommand()
+            return
+        }
+
+        if let action = Self.goalAction(forExactArgument: normalizedArgument) {
+            clearSubmittedDraftAndRequestFocus(source: draft.source)
+            Task {
+                do {
+                    try await viewModel.performGoalAction(action)
+                } catch {
+                    if viewModel.lastTurnError == nil {
+                        viewModel.lastTurnError = error.localizedDescription
+                    }
+                }
+            }
+            return
+        }
+
+        submitGoalObjective(command.argument, restoreText: command.argument, source: draft.source)
+    }
+
+    private func toggleGoalModeFromCommand() {
+        if viewModel.state.isGoalModeArmed {
+            viewModel.setGoalModeArmed(false)
+            return
+        }
+        guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+            viewModel.setGoalModeArmed(true)
+            return
+        }
+        viewModel.lastTurnError = unavailableMessage
+    }
+
+    private func submitGoalObjective(_ objective: String, restoreText: String, source: ComposerDraftSource) {
+        guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+            clearSubmittedDraftAndRequestFocus(source: source)
+            requestScrollToBottom()
+            Task {
+                do {
+                    try await viewModel.startGoal(objective)
+                } catch {
+                    viewModel.replaceInputDraft(restoreText, source: source)
+                    viewModel.setGoalModeArmed(true)
+                    if viewModel.lastTurnError == nil {
+                        viewModel.lastTurnError = error.localizedDescription
+                    }
+                }
+            }
+            return
+        }
+        viewModel.lastTurnError = unavailableMessage
+    }
+
+    private func goalModeStartUnavailableMessage() -> String? {
+        if !composerCapabilities.supportsGoalMode {
+            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this agent."
+        }
+        if let tooltip = composerCapabilities.goalModeDisabledTooltip {
+            return tooltip
+        }
+        if viewModel.visibleGoalSnapshot != nil {
+            return "A goal is already active."
+        }
+        if viewModel.hasVisibleUserMessageHistory {
+            return "Goal mode can only start before the first visible user message."
+        }
+        if viewModel.state.messageQueue.peekNext() != nil {
+            return "Send or clear queued messages before starting Goal mode."
+        }
+        if viewModel.state.isAwaitingHandoffSteering {
+            return "Complete session handoff steering before starting Goal mode."
+        }
+        if viewModel.state.isReconfiguringSession {
+            return "Session changes are still being applied."
+        }
+        if viewModel.state.isSendingMessage {
+            return "Another message is already being sent."
+        }
+        if viewModel.isAgentActivelyWorking {
+            return "Wait for the current turn to finish before starting Goal mode."
+        }
+        return nil
+    }
+
+    private static func goalAction(forExactArgument argument: String) -> AgentGoalAction? {
+        switch argument {
+        case "clear":
+            return .delete
+        case "pause":
+            return .pause
+        case "resume":
+            return .resume
+        default:
+            return nil
+        }
     }
 
     private func handlePlanLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {

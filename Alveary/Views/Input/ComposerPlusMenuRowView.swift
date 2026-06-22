@@ -192,7 +192,7 @@ final class ComposerPlusMenuRowView: NSView {
 }
 
 enum ComposerPlusMenuMetrics {
-    static let contentSize = NSSize(width: 244, height: 84)
+    static let contentSize = NSSize(width: 244, height: 121)
     static let horizontalInset: CGFloat = 6
     static let verticalInset: CGFloat = 6
     static let rowHeight: CGFloat = 32

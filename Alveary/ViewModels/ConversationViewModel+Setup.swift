@@ -2,27 +2,6 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
-struct ConversationInitialSetupSnapshot {
-    let draft: String
-    let draftSource: ComposerDraftSource
-    let stagedContext: String?
-}
-
-// Cancellation deletes the attempted bubble, so restore local secondary-title side effects.
-private struct LocalUserMessageAttemptMetadata {
-    let restoresConversationTitle: Bool
-    let conversationTitle: String?
-}
-
-private struct LocalUserMessageAttempt {
-    let id: String
-    let stagedContext: String?
-    let transportText: String?
-    let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
-    let insertedMessage: Bool
-    let metadata: LocalUserMessageAttemptMetadata?
-}
-
 extension ConversationViewModel {
     func dbConversation() -> Conversation? {
         modelContext.resolveConversation(id: conversationModelID)
@@ -166,19 +145,6 @@ extension ConversationViewModel {
         }
     }
 
-    private func conversationEventRecords() -> [ConversationEventRecord] {
-        let conversationID = conversation.id
-        return (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate { $0.conversationId == conversationID },
-                sortBy: [
-                    SortDescriptor(\.timestamp),
-                    SortDescriptor(\.id)
-                ]
-            )
-        )) ?? []
-    }
-
     func prepareForSpawn(config: AgentSpawnConfig) async {
         await providerSetup.prepareForSpawn(
             providerId: config.providerId,
@@ -195,15 +161,18 @@ extension ConversationViewModel {
         subscribe()
     }
 
+    // swiftlint:disable:next function_body_length
     func deliverMessageReserved(
         _ message: String,
         transportTextOverride: String? = nil,
+        initialGoal: String? = nil,
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn,
-        marksSessionHandoffSeedTurn: Bool = false
+        marksSessionHandoffSeedTurn: Bool = false,
+        failureHandling: LocalUserMessageFailureHandling = .retryable
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
@@ -229,6 +198,7 @@ extension ConversationViewModel {
                 try await setupAndStartReserved(
                     message,
                     transportText: transportTextOverride,
+                    initialGoal: initialGoal,
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
@@ -244,6 +214,7 @@ extension ConversationViewModel {
                 existingLocalUserMessageID: attempt.id,
                 respawnSettingsSource: respawnSettingsSource,
                 marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn,
+                initialGoal: initialGoal,
                 onResolvedRecoveryContext: { retryStagedContext = $0.stagedContext }
             )
             clearConsumedPendingRestoreContext(resolvedStagedContext)
@@ -251,8 +222,34 @@ extension ConversationViewModel {
             cancelLocalUserMessageAttemptIfNeeded(attempt)
             throw CancellationError()
         } catch {
-            markLocalUserMessageAttemptFailedIfNeeded(attempt, error: error, stagedContextOverride: retryStagedContext)
+            handleLocalUserMessageAttemptFailure(
+                error,
+                attempt: attempt,
+                retryStagedContext: retryStagedContext,
+                failureHandling: failureHandling
+            )
             throw error
+        }
+    }
+
+    private func handleLocalUserMessageAttemptFailure(
+        _ error: Error,
+        attempt: LocalUserMessageAttempt,
+        retryStagedContext: String?,
+        failureHandling: LocalUserMessageFailureHandling
+    ) {
+        switch failureHandling {
+        case .retryable:
+            markLocalUserMessageAttemptFailedIfNeeded(attempt, error: error, stagedContextOverride: retryStagedContext)
+        case .removeAttempt:
+            removeLocalUserMessageAttempt(id: attempt.id, restoring: attempt.metadata)
+            if state.stagedContext == nil {
+                state.stagedContext = retryStagedContext
+            }
+            restoreExitPlanModeRevisionGuidanceIfNeeded(attempt.consumedExitPlanModeRevisionGuidance)
+            if state.lastTurnError == nil {
+                state.lastTurnError = error.localizedDescription
+            }
         }
     }
 
@@ -265,6 +262,7 @@ extension ConversationViewModel {
     private func setupAndStartReserved(
         _ message: String,
         transportText: String?,
+        initialGoal: String? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -301,6 +299,7 @@ extension ConversationViewModel {
             try await startAgentReserved(config: makeSpawnConfig(
                 workingDirectory: workingDirectory,
                 initialPrompt: transportMessage,
+                initialGoal: initialGoal,
                 settingsSource: .nextTurn
             ))
             try completeInitialPromptSetup(

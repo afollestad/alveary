@@ -50,6 +50,10 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             let files = await state.loadFileCompletions()
             return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
+            guard !state.localCommands.suppressesSlashCommandSuggestions else {
+                self.state.withLock { $0.skillArgumentHints = BlockInputSlashCommandArgumentHints(commandHints: []) }
+                return []
+            }
             let skills = await state.loadSkillCompletions()
             updateArgumentHints(
                 localCommands: state.localCommands,
@@ -183,6 +187,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         let reservedCommands = Set((localCommands.enabledKinds.map(\.command) + passthroughCommands.map(\.command)).map {
             $0.lowercased()
         })
+            .union(localCommands.reservedKinds.map { $0.command.lowercased() })
         let skillSuggestions = scoredMatches(candidates: skills, query: query) { skill, normalizedQuery in
             bestScore(
                 matchScore(candidate: skill.name, query: normalizedQuery, base: 0),
@@ -238,6 +243,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
     private func localCommandDescription(_ kind: ComposerLocalCommandKind) -> String {
         switch kind {
+        case .goal:
+            "Start goal mode"
         case .plan:
             "Toggle plan mode"
         case .fast:
@@ -476,18 +483,6 @@ private struct ComposerFileCompletionCandidate {
     var url: URL
     var labelRelativePath: String
     var insertionDestination: String
-}
-
-private extension Skill {
-    var autocompleteScopeLabel: String {
-        if let repo, !repo.isEmpty {
-            return repo
-        }
-        if let owner, !owner.isEmpty {
-            return owner
-        }
-        return "Personal"
-    }
 }
 
 private extension String {

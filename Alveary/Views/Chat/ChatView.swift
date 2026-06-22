@@ -34,7 +34,7 @@ struct ChatView: View {
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
-            hasEvents: !events.isEmpty,
+            hasEvents: events.contains(where: \.isVisibleTranscriptEvent),
             hasGroupedItems: !viewModel.state.grouper.items.isEmpty,
             hasStreamingText: viewModel.streamingText != nil
         )
@@ -179,6 +179,22 @@ struct ChatView: View {
             }
             _ = viewModel.flushDraftFromEditor()
         }
+        .onChange(of: providerID) { _, _ in
+            viewModel.disarmGoalModeIfNeeded()
+        }
+        .onChange(of: isProjectTrustBlocked) { _, isBlocked in
+            if isBlocked {
+                viewModel.disarmGoalModeIfNeeded()
+            }
+        }
+        .onChange(of: composerCapabilities.supportsGoalMode) { _, supportsGoalMode in
+            if !supportsGoalMode {
+                viewModel.disarmGoalModeIfNeeded()
+            }
+        }
+        .onDisappear {
+            viewModel.disarmGoalModeIfNeeded()
+        }
     }
 }
 
@@ -232,6 +248,9 @@ extension ChatView {
 
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
+        if handleArmedGoalSubmitIfNeeded(draft: draft) {
+            return
+        }
         if handleLocalCommandIfNeeded(draft: draft) {
             return
         }
@@ -279,6 +298,9 @@ extension ChatView {
         }
 
         let draft = viewModel.flushDraftFromEditor()
+        if handleArmedGoalSubmitIfNeeded(draft: draft) {
+            return
+        }
         if handleLocalCommandIfNeeded(draft: draft) {
             return
         }
@@ -292,6 +314,9 @@ extension ChatView {
         }
 
         let draft = viewModel.flushDraftFromEditor()
+        if handleArmedGoalSubmitIfNeeded(draft: draft) {
+            return
+        }
         if handleLocalCommandIfNeeded(draft: draft) {
             return
         }
@@ -367,6 +392,7 @@ extension ChatView {
             isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
             handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
             sendCountdown: viewModel.state.handoffCountdownRemaining,
+            isGoalModeArmed: viewModel.state.isGoalModeArmed,
             hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
@@ -403,53 +429,6 @@ extension ChatView {
         )
     }
 
-    var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
-        var items: [AppKitChatComposerTopContentView.Item] = []
-        if let lastTurnError = viewModel.lastTurnError {
-            if viewModel.canRetryFailedSessionHandoff {
-                items.append(.inlineBanner(.init(
-                    message: lastTurnError,
-                    severity: .error,
-                    actionTitle: "Retry",
-                    onAction: {
-                        viewModel.retryFailedSessionHandoff()
-                    },
-                    onDismiss: nil
-                )))
-            } else {
-                items.append(.inlineBanner(.init(
-                    message: lastTurnError,
-                    severity: .error,
-                    actionTitle: nil,
-                    onAction: nil,
-                    onDismiss: {
-                        viewModel.lastTurnError = nil
-                    }
-                )))
-            }
-        }
-        if let sessionContinuityNotice = viewModel.sessionContinuityNotice {
-            items.append(.inlineBanner(.init(
-                message: sessionContinuityNotice,
-                severity: .warning,
-                actionTitle: nil,
-                onAction: nil,
-                onDismiss: {
-                    viewModel.sessionContinuityNotice = nil
-                }
-            )))
-        }
-        if let stagedContext = viewModel.stagedContext {
-            items.append(.stagedContext(.init(
-                context: stagedContext,
-                onDismiss: {
-                    viewModel.dismissStagedContext()
-                }
-            )))
-        }
-        return AppKitChatComposerTopContentView.Configuration(items: items)
-    }
-
     var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
@@ -466,6 +445,9 @@ extension ChatView {
                 composerCapabilities.planModeDisabledTooltip == nil &&
                 !presentation.areControlsDisabled,
             planModeDisabledTooltip: composerCapabilities.planModeDisabledTooltip,
+            isGoalModeArmed: viewModel.state.isGoalModeArmed,
+            isGoalModeToggleEnabled: isGoalModeToggleEnabled,
+            goalModeDisabledTooltip: goalModeToggleDisabledTooltip,
             usageSummary: usageSummary,
             areControlsDisabled: presentation.areControlsDisabled,
             mode: composerMode,
@@ -477,6 +459,9 @@ extension ChatView {
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
             onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },
+            onGoalModeChange: { isEnabled in
+                viewModel.setGoalModeArmed(isEnabled)
+            },
             onSubmit: {
                 guard presentation.canSubmit else {
                     return

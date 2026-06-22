@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class ConversationEventRecord {
     static let contextWindowInvalidatedType = "context_window_invalidated"
+    static let goalType = "goal"
     static let subAgentCompletedType = "sub_agent_completed"
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
@@ -110,5 +111,23 @@ final class ConversationEventRecord {
         self.stopReason = stopReason
         self.timestamp = timestamp
         self.conversation = conversation
+    }
+}
+
+extension ConversationEventRecord {
+    var isHiddenGoalRecord: Bool {
+        type == Self.goalType
+    }
+
+    var isVisibleTranscriptEvent: Bool {
+        switch type {
+        case Self.contextWindowInvalidatedType,
+             Self.goalType,
+             Self.subAgentCompletedType,
+             "session_init":
+            return false
+        default:
+            return true
+        }
     }
 }

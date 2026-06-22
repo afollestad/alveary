@@ -10,6 +10,7 @@ enum ComposerPrimaryAction: Equatable, Sendable {
 
 struct ComposerPresentation: Equatable, Sendable {
     static let handoffSteeringPlaceholder = "Add steering for the session handoff, or submit empty to continue..."
+    static let goalPlaceholder = "Provide a goal..."
 
     let text: String
     private let textIsEffectivelyEmpty: Bool
@@ -22,6 +23,7 @@ struct ComposerPresentation: Equatable, Sendable {
     let handoffSteeringCountdown: Int?
     let sendCountdown: Int?
     let isProjectTrustBlocked: Bool
+    let isGoalModeArmed: Bool
 
     init(
         text: String,
@@ -34,7 +36,8 @@ struct ComposerPresentation: Equatable, Sendable {
         isHandoffOutputPromptActive: Bool,
         handoffSteeringCountdown: Int?,
         sendCountdown: Int?,
-        isProjectTrustBlocked: Bool
+        isProjectTrustBlocked: Bool,
+        isGoalModeArmed: Bool = false
     ) {
         self.text = text
         textIsEffectivelyEmpty = isTextEffectivelyEmpty ?? ChatComposerTextSupport.isEffectivelyEmpty(text)
@@ -47,6 +50,7 @@ struct ComposerPresentation: Equatable, Sendable {
         self.handoffSteeringCountdown = handoffSteeringCountdown
         self.sendCountdown = sendCountdown
         self.isProjectTrustBlocked = isProjectTrustBlocked
+        self.isGoalModeArmed = isGoalModeArmed
     }
 
     var trimmedText: String {
@@ -131,6 +135,9 @@ struct ComposerPresentation: Equatable, Sendable {
         case .idle:
             if isHandoffSteeringPromptActive {
                 return Self.handoffSteeringPlaceholder
+            }
+            if isGoalModeArmed {
+                return Self.goalPlaceholder
             }
             return "Ask anything, @ to add files, / for skills"
         case .busy(let canStop):

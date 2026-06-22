@@ -20,7 +20,6 @@ extension ConversationViewModel {
         return activeRuntimeActivityTurnId != turnId
     }
 }
-
 private extension ConversationViewModel {
     // swiftlint:disable:next cyclomatic_complexity
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
@@ -66,6 +65,7 @@ private extension ConversationViewModel {
             state.clearStreamingText()
             return true
 
+        case .goal(let event): return handleGoalEvent(event)
         case .toolApprovalRequested(let approval):
             return handleToolApprovalRequested(approval)
 

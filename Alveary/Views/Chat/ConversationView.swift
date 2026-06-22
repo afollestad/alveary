@@ -35,13 +35,16 @@ struct ConversationView: View {
 
         let supportsPlanMode = activeProviderStatus?.definition?.capabilities.supportsPlanMode
             ?? Self.fallbackPlanModeProviderIDs.contains(activeProviderID)
+        let supportsGoalMode = activeProviderStatus?.definition?.capabilities.supportsGoalMode ?? false
         return ComposerCapabilities(
             supportedPermissionModes: providerPermissionModes(),
             supportsMidTurnSteering: activeProviderStatus?.definition?.capabilities.supportsMidTurnSteering
                 ?? provider?.supportsMidTurnSteering
                 ?? false,
+            supportsGoalMode: supportsGoalMode,
             supportsPlanMode: supportsPlanMode,
             supportsSpeedMode: activeProviderStatus?.definition?.capabilities.supportsSpeedMode ?? false,
+            goalModeDisabledTooltip: goalModeDisabledTooltip(supportsGoalMode: supportsGoalMode),
             planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: supportsPlanMode)
         )
     }
@@ -439,6 +442,19 @@ private extension ConversationView {
             return nil
         }
         return hasConcreteCodexModelSelection() ? nil : "Choose a concrete Codex model to use plan mode."
+    }
+
+    func goalModeDisabledTooltip(supportsGoalMode: Bool) -> String? {
+        guard hasLoadedComposerProviderStatuses else {
+            return "Checking Goal mode support..."
+        }
+        guard supportsGoalMode else {
+            return "Goal mode is not supported by this agent."
+        }
+        guard !viewModel.hasVisibleUserMessageHistory else {
+            return "Goal mode can only start before the first visible user message."
+        }
+        return nil
     }
 
     func hasConcreteCodexModelSelection() -> Bool {

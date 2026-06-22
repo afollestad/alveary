@@ -1,6 +1,7 @@
 import Foundation
 
 enum ComposerLocalCommandKind: String, CaseIterable, Sendable, Equatable {
+    case goal
     case plan
     case fast
     case handoff
@@ -15,16 +16,24 @@ struct ComposerLocalCommand: Sendable, Equatable {
 }
 
 struct ComposerLocalCommandAvailability: Sendable, Equatable {
+    var supportsGoalMode = false
     var supportsPlanMode = false
     var supportsSpeedMode = false
     var supportsSessionHandoff = false
+    var suppressesSlashCommandSuggestions = false
 
     var enabledKinds: [ComposerLocalCommandKind] {
         ComposerLocalCommandKind.allCases.filter(isEnabled)
     }
 
+    var reservedKinds: [ComposerLocalCommandKind] {
+        ComposerLocalCommandKind.allCases.filter(isReserved)
+    }
+
     func isEnabled(_ kind: ComposerLocalCommandKind) -> Bool {
         switch kind {
+        case .goal:
+            supportsGoalMode
         case .plan:
             supportsPlanMode
         case .fast:
@@ -32,6 +41,10 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
         case .handoff:
             supportsSessionHandoff
         }
+    }
+
+    func isReserved(_ kind: ComposerLocalCommandKind) -> Bool {
+        kind == .goal || isEnabled(kind)
     }
 }
 
@@ -56,7 +69,7 @@ enum ComposerLocalCommandParser {
         let commandEnd = commandAndArgument.firstIndex(where: \.isWhitespace) ?? commandAndArgument.endIndex
         let command = String(commandAndArgument[..<commandEnd]).lowercased()
         guard let kind = ComposerLocalCommandKind(rawValue: command),
-              availability.isEnabled(kind) else {
+              availability.isReserved(kind) else {
             return nil
         }
 

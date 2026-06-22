@@ -1,0 +1,87 @@
+import AgentCLIKit
+import SwiftUI
+
+extension ChatView {
+    var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
+        var items: [AppKitChatComposerTopContentView.Item] = []
+        appendLastTurnError(to: &items)
+        appendSessionContinuityNotice(to: &items)
+        appendGoalStatus(to: &items)
+        appendStagedContext(to: &items)
+        return AppKitChatComposerTopContentView.Configuration(items: items)
+    }
+
+    private func appendLastTurnError(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let lastTurnError = viewModel.lastTurnError else {
+            return
+        }
+        if viewModel.canRetryFailedSessionHandoff {
+            items.append(.inlineBanner(.init(
+                message: lastTurnError,
+                severity: .error,
+                actionTitle: "Retry",
+                onAction: { viewModel.retryFailedSessionHandoff() },
+                onDismiss: nil
+            )))
+        } else {
+            items.append(.inlineBanner(.init(
+                message: lastTurnError,
+                severity: .error,
+                actionTitle: nil,
+                onAction: nil,
+                onDismiss: { viewModel.lastTurnError = nil }
+            )))
+        }
+    }
+
+    private func appendSessionContinuityNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let sessionContinuityNotice = viewModel.sessionContinuityNotice else {
+            return
+        }
+        items.append(.inlineBanner(.init(
+            message: sessionContinuityNotice,
+            severity: .warning,
+            actionTitle: nil,
+            onAction: nil,
+            onDismiss: { viewModel.sessionContinuityNotice = nil }
+        )))
+    }
+
+    private func appendGoalStatus(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let goal = viewModel.visibleGoalSnapshot else {
+            return
+        }
+        let isTerminal = goal.status.isTerminal
+        items.append(.goalStatus(.init(
+            snapshot: goal,
+            actionError: viewModel.state.goalActionError,
+            onPause: goalActionHandler(.pause, isTerminal: isTerminal, goal: goal),
+            onResume: goalActionHandler(.resume, isTerminal: isTerminal, goal: goal),
+            onDelete: goalActionHandler(.delete, isTerminal: isTerminal, goal: goal),
+            onDismissTerminal: isTerminal ? { viewModel.dismissTerminalGoalStatus() } : nil
+        )))
+    }
+
+    private func goalActionHandler(
+        _ action: AgentGoalAction,
+        isTerminal: Bool,
+        goal: AgentGoalSnapshot
+    ) -> (() -> Void)? {
+        guard !isTerminal, goal.availableActions.contains(action) else {
+            return nil
+        }
+        return {
+            Task { try? await viewModel.performGoalAction(action) }
+        }
+    }
+
+    private func appendStagedContext(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let stagedContext = viewModel.stagedContext else {
+            return
+        }
+        items.append(.stagedContext(.init(
+            context: stagedContext,
+            onDismiss: { viewModel.dismissStagedContext() }
+        )))
+    }
+}

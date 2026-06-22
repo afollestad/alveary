@@ -1,4 +1,5 @@
 import Foundation
+import AgentCLIKit
 import SwiftData
 
 enum ConversationInterruption {
@@ -138,6 +139,7 @@ enum ConversationEvent: Sendable, Equatable {
     case subAgentProgress(toolUseId: String, description: String?, lastToolName: String?, toolUses: Int, totalTokens: Int, durationMs: Int)
     case subAgentCompleted(toolUseId: String, status: String, toolUses: Int, totalTokens: Int, durationMs: Int)
     case taskListSnapshot(ConversationTaskListSnapshot)
+    case goal(AgentCLIKit.AgentGoalEvent)
     case contextCompactionStarted(id: String, trigger: String?)
     case contextCompactionCompleted(id: String, summary: String?)
     case contextCompactionFailed(id: String, error: String?)
@@ -173,6 +175,8 @@ enum ConversationEvent: Sendable, Equatable {
             return toolApprovalFailureRecord(conversation: conversation)
         case .taskListSnapshot:
             return taskListSnapshotRecord(conversation: conversation)
+        case .goal:
+            return goalRecord(conversation: conversation)
         case .notification:
             return notificationRecord(conversation: conversation)
         case .stop:

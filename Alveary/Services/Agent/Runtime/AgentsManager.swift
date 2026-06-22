@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 struct AgentEventSubscription: Sendable {
@@ -30,6 +31,12 @@ protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
     func sendMessage(_ message: String, conversationId: String, activityVisibility: AgentTurnActivityVisibility) async throws
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws
     func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
@@ -47,6 +54,7 @@ protocol AgentsManager: Actor {
     func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness
     func hasTrackedProcess(conversationId: String) -> Bool
     func hasInflightLifecycle(conversationId: String) -> Bool
+    func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws
     @discardableResult
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult
     func startFreshSession(conversationId: String, config: AgentSpawnConfig) async throws
@@ -63,6 +71,15 @@ extension AgentsManager {
         try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible)
     }
 
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
+        throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
+    }
+
     func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws {
         try await sendMessage(message, conversationId: conversationId)
     }
@@ -77,6 +94,10 @@ extension AgentsManager {
 
     func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness {
         isRunning(conversationId: conversationId) ? .ready : .respawnRequired
+    }
+
+    func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {
+        throw AgentError.spawnFailed("Goal \(action.rawValue) is not supported by this agent.")
     }
 }
 

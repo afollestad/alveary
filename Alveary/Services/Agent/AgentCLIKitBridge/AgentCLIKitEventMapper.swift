@@ -25,6 +25,8 @@ struct AgentCLIKitEventMapper: Sendable {
             return [.collaborationModeChanged(event.mode == .plan)]
         case .task(let event):
             return taskEvents(from: event, envelope: envelope)
+        case .goal(let event):
+            return [.goal(event)]
         case .contextCompaction(let event):
             return contextCompactionEvents(from: event)
         case .sessionMetadata(let event):

@@ -112,6 +112,10 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
             reconfiguringIds.contains(conversationId)
     }
 
+    func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {
+        try await performGoalActionWithAgentCLIKit(action, conversationId: conversationId)
+    }
+
     nonisolated func updateStatus(_ signal: ActivitySignal, for conversationId: String) {
         let didChange = statusSnapshot.withLock { statuses in
             let didChange = statuses[conversationId] != signal

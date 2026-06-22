@@ -39,6 +39,28 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertEqual(command, ComposerLocalCommand(kind: .fast, argument: "Fix the tests."))
     }
 
+    func testGoalIsReservedEvenWhenUnavailable() {
+        let noSupport = ComposerLocalCommandAvailability()
+        let supported = ComposerLocalCommandAvailability(supportsGoalMode: true)
+
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/goal", availability: noSupport),
+            ComposerLocalCommand(kind: .goal, argument: "")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/goal Ship this", availability: supported),
+            ComposerLocalCommand(kind: .goal, argument: "Ship this")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/goal clear", availability: noSupport),
+            ComposerLocalCommand(kind: .goal, argument: "clear")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/goal clear the logs", availability: supported),
+            ComposerLocalCommand(kind: .goal, argument: "clear the logs")
+        )
+    }
+
     func testIgnoresLeadingWhitespaceAndUnknownCommands() {
         let availability = ComposerLocalCommandAvailability(supportsPlanMode: true, supportsSessionHandoff: true)
 
@@ -47,6 +69,7 @@ final class ComposerLocalCommandParserTests: XCTestCase {
     }
 
     func testInactiveCommandsAreNotIntercepted() {
+        XCTAssertNotNil(ComposerLocalCommandParser.parse("/goal Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/plan Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/fast Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/handoff Focus", availability: ComposerLocalCommandAvailability()))

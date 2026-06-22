@@ -21,6 +21,7 @@ struct AppKitChatComposerBodyConfiguration {
     let isHandoffOutputPromptActive: Bool
     let handoffSteeringCountdown: Int?
     let sendCountdown: Int?
+    let isGoalModeArmed: Bool
     let hasQueuedMessages: Bool
     let hasTopContent: Bool
     let workingDirectory: String?
@@ -54,6 +55,7 @@ struct AppKitChatComposerBodyConfiguration {
         isHandoffOutputPromptActive: Bool,
         handoffSteeringCountdown: Int?,
         sendCountdown: Int?,
+        isGoalModeArmed: Bool = false,
         hasQueuedMessages: Bool,
         hasTopContent: Bool,
         workingDirectory: String?,
@@ -86,6 +88,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.isHandoffOutputPromptActive = isHandoffOutputPromptActive
         self.handoffSteeringCountdown = handoffSteeringCountdown
         self.sendCountdown = sendCountdown
+        self.isGoalModeArmed = isGoalModeArmed
         self.hasQueuedMessages = hasQueuedMessages
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory

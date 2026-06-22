@@ -30,6 +30,10 @@ actor MockAgentsManager: AgentsManager {
 
     struct SteeringCall: Sendable, Equatable { let message: String; let conversationId: String; let steeringInputID: String }
 
+    struct GoalStartCall: Sendable, Equatable {
+        let message: String; let initialGoal: String; let conversationId: String; let activityVisibility: AgentTurnActivityVisibility
+    }
+
     // swiftlint:disable:next large_tuple
     typealias MarkPersistedCall = (conversationId: String, generation: UUID, index: Int)
 
@@ -62,6 +66,7 @@ actor MockAgentsManager: AgentsManager {
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
     private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
+    private var recordedGoalStartCalls: [GoalStartCall] = []
     private var recordedSteeringCalls: [SteeringCall] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
@@ -149,6 +154,21 @@ actor MockAgentsManager: AgentsManager {
         }
         recordedSentMessages.append(message)
         recordedSendVisibilities.append(activityVisibility)
+    }
+
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: activityVisibility)
+        recordedGoalStartCalls.append(GoalStartCall(
+            message: message,
+            initialGoal: initialGoal,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility
+        ))
     }
 
     func sendSteeringMessage(
@@ -350,27 +370,17 @@ actor MockAgentsManager: AgentsManager {
     }
 
     func sentMessages() -> [String] { recordedSentMessages }
-
     func sendVisibilities() -> [AgentTurnActivityVisibility] { recordedSendVisibilities }
-
+    func goalStartCalls() -> [GoalStartCall] { recordedGoalStartCalls }
     func steeringCalls() -> [SteeringCall] { recordedSteeringCalls }
-
     func spawnCalls() -> [SpawnCall] { recordedSpawnCalls }
-
     func reconfigureCalls() -> [ReconfigureCall] { recordedReconfigureCalls }
-
     func freshSessionCalls() -> [FreshSessionCall] { recordedFreshSessionCalls }
-
     func subscribeCallsList() -> [SubscribeCall] { recordedSubscribeCalls }
-
     func destroyCalls() -> [String] { recordedDestroyCalls }
-
     func markPersistedCalls() -> [MarkPersistedCall] { recordedMarkPersistedCalls }
-
     func approvalCalls() -> [ApprovalCall] { recordedApprovalCalls }
-
     func cancelCalls() -> [String] { recordedCancelCalls }
-
     func refreshStatusCalls() -> [String] { recordedRefreshStatusCalls }
 
     private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {

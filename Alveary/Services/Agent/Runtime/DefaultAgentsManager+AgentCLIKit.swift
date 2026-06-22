@@ -88,11 +88,37 @@ extension DefaultAgentsManager {
         updateStatus(.busy, for: conversationId)
     }
 
+    func sendGoalStartMessageWithAgentCLIKit(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility
+    ) async throws {
+        try await sendMessageWithAgentCLIKit(
+            message,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility,
+            metadata: [
+                AgentCLIKit.AgentGoalMetadata.isInitialGoalTransport: .bool(true),
+                AgentCLIKit.AgentGoalMetadata.objective: .string(initialGoal)
+            ]
+        )
+    }
+
     func cancelTurnWithAgentCLIKit(conversationId: String) {
         let services = agentCLIKitServices
         Task {
             await services.runtime.cancel(conversationId: services.hostAdapter.conversationId(conversationId))
         }
+    }
+
+    func performGoalActionWithAgentCLIKit(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {
+        let services = agentCLIKitServices
+        try await services.runtime.performGoalAction(
+            action,
+            conversationId: services.hostAdapter.conversationId(conversationId)
+        )
+        await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
     }
 
     func startFreshSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws {
@@ -329,6 +355,7 @@ extension DefaultAgentsManager {
             handleRuntimeTurnActiveStatus(status, conversationId: conversationId)
         }
         syncRuntimeSettingsStatus(status, conversationId: conversationId)
+        syncRuntimeGoalStatus(status.goal, conversationId: conversationId)
         processSnapshot.withLock { $0 = [] }
         publishManagedProcessesChanged()
         if suppressCancelledInteractionStatusIfNeeded(status, conversationId: conversationId) {
@@ -423,6 +450,22 @@ extension DefaultAgentsManager {
             }
             if let collaborationMode = status.collaborationMode {
                 state.runtimePlanModeEnabled = collaborationMode == .plan
+            }
+        }
+    }
+
+    private func syncRuntimeGoalStatus(_ goal: AgentCLIKit.AgentGoalSnapshot?, conversationId: String) {
+        guard let goal else {
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            let state = conversationState(for: conversationId)
+            state.goalSnapshot = goal
+            if !goal.status.isTerminal {
+                state.dismissedTerminalGoalKeys.removeAll()
             }
         }
     }

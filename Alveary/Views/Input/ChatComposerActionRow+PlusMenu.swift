@@ -20,6 +20,9 @@ extension ChatComposerActionRowView {
         popover.animates = false
         popover.delegate = self
         popover.contentViewController = ComposerPlusMenuViewController(configuration: .init(
+            isGoalModeArmed: configuration.isGoalModeArmed,
+            isGoalModeToggleEnabled: configuration.isGoalModeToggleEnabled,
+            goalModeDisabledTooltip: configuration.goalModeDisabledTooltip,
             isPlanModeEnabled: configuration.isPlanModeEnabled,
             isPlanModeToggleEnabled: configuration.isPlanModeToggleEnabled,
             planModeDisabledTooltip: configuration.planModeDisabledTooltip,
@@ -32,6 +35,9 @@ extension ChatComposerActionRowView {
             },
             onPlanModeChange: { [weak self] isEnabled in
                 self?.configuration?.onPlanModeChange(isEnabled)
+            },
+            onGoalModeChange: { [weak self] isEnabled in
+                self?.configuration?.onGoalModeChange(isEnabled)
             }
         ))
         plusPopover = popover

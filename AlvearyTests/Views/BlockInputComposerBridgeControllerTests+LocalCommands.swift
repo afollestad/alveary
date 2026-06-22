@@ -41,6 +41,59 @@ extension BlockInputComposerBridgeControllerTests {
         XCTAssertEqual(suggestions.first?.subtitle, "External plan skill")
     }
 
+    func testGoalCommandIsReservedEvenWhenUnavailable() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportsGoalMode: false),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "goal", name: "goal", description: "External goal skill")
+                ]
+            }
+        )
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "g"))
+
+        XCTAssertTrue(suggestions.isEmpty)
+    }
+
+    func testGoalCommandCompletionSuppressesConflictingSkillWhenEnabled() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportsGoalMode: true),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "goal", name: "goal", description: "External goal skill")
+                ]
+            }
+        )
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "g"))
+
+        XCTAssertEqual(suggestions.map(\.insertionText), ["/goal "])
+        XCTAssertEqual(suggestions.first?.detailText, "Alveary")
+    }
+
+    func testArmedGoalModeSuppressesSlashCommandSuggestions() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(
+                supportsGoalMode: true,
+                supportsPlanMode: true,
+                suppressesSlashCommandSuggestions: true
+            ),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "build", name: "build", description: "Build the project")
+                ]
+            }
+        )
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "b"))
+
+        XCTAssertTrue(suggestions.isEmpty)
+    }
+
     func testLocalCommandCompletionMatchesSlashPrefixedQuery() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),

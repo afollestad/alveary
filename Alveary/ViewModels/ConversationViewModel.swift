@@ -274,6 +274,7 @@ final class ConversationViewModel {
     }
 
     func rebuildChatItemsIfNeeded(from events: [ConversationEventRecord], forceFullRebuild: Bool = false) {
+        hydrateGoalState(from: events)
         state.grouper.update(events: events, forceFullRebuild: forceFullRebuild)
     }
 

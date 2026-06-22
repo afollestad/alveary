@@ -11,7 +11,8 @@ extension ChatView {
             isHandoffOutputPromptActive: viewModel.state.pendingHandoffOutput != nil,
             handoffSteeringCountdown: viewModel.state.handoffSteeringCountdownRemaining,
             sendCountdown: viewModel.state.handoffCountdownRemaining,
-            isProjectTrustBlocked: isProjectTrustBlocked
+            isProjectTrustBlocked: isProjectTrustBlocked,
+            isGoalModeArmed: viewModel.state.isGoalModeArmed
         )
     }
 
@@ -21,9 +22,11 @@ extension ChatView {
         }
 
         return ComposerLocalCommandAvailability(
+            supportsGoalMode: composerCapabilities.supportsGoalMode,
             supportsPlanMode: composerCapabilities.supportsPlanMode,
             supportsSpeedMode: composerCapabilities.supportsSpeedMode,
-            supportsSessionHandoff: true
+            supportsSessionHandoff: true,
+            suppressesSlashCommandSuggestions: viewModel.state.isGoalModeArmed
         )
     }
 
@@ -54,6 +57,29 @@ extension ChatView {
         case .busy(canStop: false), .progressOnly:
             return false
         }
+    }
+
+    var isGoalModeToggleEnabled: Bool {
+        goalModeToggleDisabledTooltip == nil
+    }
+
+    var goalModeToggleDisabledTooltip: String? {
+        if !composerCapabilities.supportsGoalMode {
+            return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this agent."
+        }
+        if let tooltip = composerCapabilities.goalModeDisabledTooltip {
+            return tooltip
+        }
+        if viewModel.visibleGoalSnapshot != nil {
+            return "Use the goal status row to manage the active goal."
+        }
+        if viewModel.hasVisibleUserMessageHistory {
+            return "Goal mode can only start before the first visible user message."
+        }
+        if composerPresentation.areControlsDisabled {
+            return "Goal mode is unavailable right now."
+        }
+        return nil
     }
 
     var showWorktreePicker: Bool {

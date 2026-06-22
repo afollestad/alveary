@@ -9,6 +9,7 @@ extension ConversationViewModel {
     func sendReserved(
         _ message: String,
         transportText: String? = nil,
+        initialGoal: String? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -29,7 +30,7 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
-        try await sendVisibleAgentMessage(transportMessage)
+        try await sendVisibleAgentMessage(transportMessage, initialGoal: initialGoal)
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
@@ -53,10 +54,20 @@ extension ConversationViewModel {
         return message
     }
 
-    func sendVisibleAgentMessage(_ message: String) async throws {
+    func sendVisibleAgentMessage(_ message: String, initialGoal: String? = nil) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
-            try await agentsManager.sendMessage(message, conversationId: conversation.id)
+            if let initialGoal = initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !initialGoal.isEmpty {
+                try await agentsManager.sendGoalStartMessage(
+                    message,
+                    initialGoal: initialGoal,
+                    conversationId: conversation.id,
+                    activityVisibility: .visible
+                )
+            } else {
+                try await agentsManager.sendMessage(message, conversationId: conversation.id)
+            }
         } catch {
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
             throw error

@@ -25,10 +25,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
     func testPlusMenuRowsRouteActionsAndPlanRowToggles() throws {
         var addFilesCount = 0
         var planModeChanges: [Bool] = []
-        let controller = ComposerPlusMenuViewController(configuration: .init(
-            isPlanModeEnabled: false,
-            isPlanModeToggleEnabled: true,
-            planModeDisabledTooltip: nil,
+        let controller = ComposerPlusMenuViewController(configuration: makePlusMenuConfiguration(
             onAddPhotosAndFiles: { addFilesCount += 1 },
             onPlanModeChange: { planModeChanges.append($0) }
         ))
@@ -50,11 +47,9 @@ final class ChatComposerPlusMenuTests: XCTestCase {
 
     func testPlusMenuPlanRowIgnoresPressesWhenDisabled() throws {
         var planModeChanges: [Bool] = []
-        let controller = ComposerPlusMenuViewController(configuration: .init(
-            isPlanModeEnabled: false,
+        let controller = ComposerPlusMenuViewController(configuration: makePlusMenuConfiguration(
             isPlanModeToggleEnabled: false,
             planModeDisabledTooltip: "Unsupported",
-            onAddPhotosAndFiles: {},
             onPlanModeChange: { planModeChanges.append($0) }
         ))
         controller.loadViewIfNeeded()
@@ -69,10 +64,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
     func testPlusMenuRowsActivateFromKeyboard() throws {
         var addFilesCount = 0
         var planModeChanges: [Bool] = []
-        let controller = ComposerPlusMenuViewController(configuration: .init(
-            isPlanModeEnabled: false,
-            isPlanModeToggleEnabled: true,
-            planModeDisabledTooltip: nil,
+        let controller = ComposerPlusMenuViewController(configuration: makePlusMenuConfiguration(
             onAddPhotosAndFiles: { addFilesCount += 1 },
             onPlanModeChange: { planModeChanges.append($0) }
         ))
@@ -97,13 +89,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
     }
 
     func testPlusMenuUsesSharedComposerPopoverSurface() {
-        let controller = ComposerPlusMenuViewController(configuration: .init(
-            isPlanModeEnabled: false,
-            isPlanModeToggleEnabled: true,
-            planModeDisabledTooltip: nil,
-            onAddPhotosAndFiles: {},
-            onPlanModeChange: { _ in }
-        ))
+        let controller = ComposerPlusMenuViewController(configuration: makePlusMenuConfiguration())
         controller.loadViewIfNeeded()
 
         XCTAssertTrue(controller.view is AppKitComposerPopoverSurfaceView)
@@ -112,13 +98,7 @@ final class ChatComposerPlusMenuTests: XCTestCase {
     }
 
     func testPlusMenuUsesSharedComposerPopoverDivider() throws {
-        let controller = ComposerPlusMenuViewController(configuration: .init(
-            isPlanModeEnabled: false,
-            isPlanModeToggleEnabled: true,
-            planModeDisabledTooltip: nil,
-            onAddPhotosAndFiles: {},
-            onPlanModeChange: { _ in }
-        ))
+        let controller = ComposerPlusMenuViewController(configuration: makePlusMenuConfiguration())
         controller.loadViewIfNeeded()
         controller.view.layoutSubtreeIfNeeded()
 
@@ -450,6 +430,30 @@ private final class FocusTargetView: NSView {
 private struct WindowBackedActionRow {
     let row: ChatComposerActionRowView
     let window: NSWindow
+}
+
+private func makePlusMenuConfiguration(
+    isGoalModeArmed: Bool = false,
+    isGoalModeToggleEnabled: Bool = true,
+    goalModeDisabledTooltip: String? = nil,
+    isPlanModeEnabled: Bool = false,
+    isPlanModeToggleEnabled: Bool = true,
+    planModeDisabledTooltip: String? = nil,
+    onAddPhotosAndFiles: @escaping () -> Void = {},
+    onGoalModeChange: @escaping (Bool) -> Void = { _ in },
+    onPlanModeChange: @escaping (Bool) -> Void = { _ in }
+) -> ComposerPlusMenuViewController.Configuration {
+    .init(
+        isGoalModeArmed: isGoalModeArmed,
+        isGoalModeToggleEnabled: isGoalModeToggleEnabled,
+        goalModeDisabledTooltip: goalModeDisabledTooltip,
+        isPlanModeEnabled: isPlanModeEnabled,
+        isPlanModeToggleEnabled: isPlanModeToggleEnabled,
+        planModeDisabledTooltip: planModeDisabledTooltip,
+        onAddPhotosAndFiles: onAddPhotosAndFiles,
+        onPlanModeChange: onPlanModeChange,
+        onGoalModeChange: onGoalModeChange
+    )
 }
 
 private extension NSView {

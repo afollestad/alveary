@@ -206,11 +206,15 @@ final class ComposerPlusButton: NSView {
 @MainActor
 final class ComposerPlusMenuViewController: NSViewController {
     struct Configuration {
+        let isGoalModeArmed: Bool
+        let isGoalModeToggleEnabled: Bool
+        let goalModeDisabledTooltip: String?
         let isPlanModeEnabled: Bool
         let isPlanModeToggleEnabled: Bool
         let planModeDisabledTooltip: String?
         let onAddPhotosAndFiles: () -> Void
         let onPlanModeChange: (Bool) -> Void
+        let onGoalModeChange: (Bool) -> Void
     }
 
     private let configuration: Configuration
@@ -234,6 +238,8 @@ final class ComposerPlusMenuViewController: NSViewController {
 private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     private let configuration: ComposerPlusMenuViewController.Configuration
     private let addFilesRow = ComposerPlusMenuRowView()
+    private let goalSwitch = NSSwitch()
+    private let goalRow = ComposerPlusMenuRowView()
     private let planSwitch = NSSwitch()
     private let planRow = ComposerPlusMenuRowView()
     private let divider = AppKitComposerPopoverDividerView()
@@ -262,9 +268,15 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
             width: bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2,
             height: AppKitComposerPopoverDividerView.height
         )
-        planRow.frame = NSRect(
+        goalRow.frame = NSRect(
             x: ComposerPlusMenuMetrics.horizontalInset,
             y: divider.frame.maxY + ComposerPlusMenuMetrics.dividerSpacing,
+            width: bounds.width - ComposerPlusMenuMetrics.horizontalInset * 2,
+            height: ComposerPlusMenuMetrics.rowHeight
+        )
+        planRow.frame = NSRect(
+            x: ComposerPlusMenuMetrics.horizontalInset,
+            y: goalRow.frame.maxY + ComposerPlusMenuMetrics.dividerSpacing,
             width: bounds.width - ComposerPlusMenuMetrics.horizontalInset * 2,
             height: ComposerPlusMenuMetrics.rowHeight
         )
@@ -273,6 +285,7 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     private func setup() {
         setupAddFilesButton()
         setupDivider()
+        setupGoalRow()
         setupPlanRow()
     }
 
@@ -321,8 +334,48 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
         ))
     }
 
+    private func setupGoalRow() {
+        goalRow.toolTip = configuration.goalModeDisabledTooltip
+        addSubview(goalRow)
+
+        goalSwitch.translatesAutoresizingMaskIntoConstraints = false
+        goalSwitch.controlSize = .small
+        goalSwitch.state = configuration.isGoalModeArmed ? .on : .off
+        goalSwitch.isEnabled = configuration.isGoalModeToggleEnabled
+        goalSwitch.toolTip = configuration.goalModeDisabledTooltip
+        goalSwitch.target = self
+        goalSwitch.action = #selector(goalSwitchChanged)
+        goalSwitch.setAccessibilityLabel("Goal mode")
+        goalSwitch.setAccessibilityValue(configuration.isGoalModeArmed ? "On" : "Off")
+        goalRow.configure(.init(
+            title: "Goal mode",
+            icon: symbolImage(named: "target", pointSize: ComposerPlusMenuMetrics.iconPointSize),
+            accessibilityLabel: "Toggle goal mode",
+            isEnabled: configuration.isGoalModeToggleEnabled,
+            toolTip: configuration.goalModeDisabledTooltip,
+            trailingView: goalSwitch,
+            action: { [weak self] in
+                self?.toggleGoalMode()
+            }
+        ))
+    }
+
+    @objc private func goalSwitchChanged() {
+        configuration.onGoalModeChange(goalSwitch.state == .on)
+    }
+
     @objc private func planSwitchChanged() {
         configuration.onPlanModeChange(planSwitch.state == .on)
+    }
+
+    private func toggleGoalMode() {
+        guard configuration.isGoalModeToggleEnabled else {
+            return
+        }
+        let isEnabled = goalSwitch.state != .on
+        goalSwitch.state = isEnabled ? .on : .off
+        goalSwitch.setAccessibilityValue(isEnabled ? "On" : "Off")
+        configuration.onGoalModeChange(isEnabled)
     }
 
     private func togglePlanMode() {

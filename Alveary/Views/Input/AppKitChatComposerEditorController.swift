@@ -108,7 +108,8 @@ extension AppKitChatComposerEditorController {
             isHandoffOutputPromptActive: configuration.isHandoffOutputPromptActive,
             handoffSteeringCountdown: configuration.handoffSteeringCountdown,
             sendCountdown: configuration.sendCountdown,
-            isProjectTrustBlocked: configuration.isProjectTrustBlocked
+            isProjectTrustBlocked: configuration.isProjectTrustBlocked,
+            isGoalModeArmed: configuration.isGoalModeArmed
         )
     }
 }

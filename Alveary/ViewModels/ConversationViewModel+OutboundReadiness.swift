@@ -40,12 +40,14 @@ extension ConversationViewModel {
         existingLocalUserMessageID: String,
         respawnSettingsSource: SessionSettingsConfigSource,
         marksSessionHandoffSeedTurn: Bool = false,
+        initialGoal: String? = nil,
         onResolvedRecoveryContext: ((SessionRecoveryStagedContext) -> Void)? = nil
     ) async throws {
         do {
             try await sendReserved(
                 outbound.visibleText,
                 transportText: outbound.transportText,
+                initialGoal: initialGoal,
                 stagedContextOverride: stagedContextOverride,
                 useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                 existingLocalUserMessageID: existingLocalUserMessageID,
@@ -66,6 +68,7 @@ extension ConversationViewModel {
             try await sendReserved(
                 outbound.visibleText,
                 transportText: outbound.transportText,
+                initialGoal: initialGoal,
                 stagedContextOverride: resolvedContext.stagedContext,
                 useCurrentStagedContextWhenOverrideNil: recoveryContext == nil ? useCurrentStagedContextWhenOverrideNil : false,
                 existingLocalUserMessageID: existingLocalUserMessageID,

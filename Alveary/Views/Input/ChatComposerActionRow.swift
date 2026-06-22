@@ -17,6 +17,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
     @Binding var isPlanModeEnabled: Bool
     let isPlanModeToggleEnabled: Bool
     let planModeDisabledTooltip: String?
+    @Binding var isGoalModeArmed: Bool
+    let isGoalModeToggleEnabled: Bool
+    let goalModeDisabledTooltip: String?
     let usageSummary: ConversationUsageSummary?
     let areControlsDisabled: Bool
     let mode: ComposerMode
@@ -52,6 +55,9 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isPlanModeEnabled: isPlanModeEnabled,
             isPlanModeToggleEnabled: isPlanModeToggleEnabled,
             planModeDisabledTooltip: planModeDisabledTooltip,
+            isGoalModeArmed: isGoalModeArmed,
+            isGoalModeToggleEnabled: isGoalModeToggleEnabled,
+            goalModeDisabledTooltip: goalModeDisabledTooltip,
             usageSummary: usageSummary,
             areControlsDisabled: areControlsDisabled,
             mode: mode,
@@ -63,6 +69,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onPlanModeChange: { isPlanModeEnabled = $0 },
+            onGoalModeChange: { isGoalModeArmed = $0 },
             onSubmit: onSubmit,
             onStop: onStop,
             onAddPhotosAndFiles: onAddPhotosAndFiles
@@ -148,6 +155,9 @@ final class ChatComposerActionRowView: NSView {
         var isPlanModeEnabled = false
         var isPlanModeToggleEnabled = false
         var planModeDisabledTooltip: String?
+        var isGoalModeArmed = false
+        var isGoalModeToggleEnabled = false
+        var goalModeDisabledTooltip: String?
         let usageSummary: ConversationUsageSummary?
         let areControlsDisabled: Bool
         let mode: ComposerMode
@@ -159,6 +169,7 @@ final class ChatComposerActionRowView: NSView {
         let onPermissionModeChange: (String) -> Void
         let onUseWorktreeChange: (Bool) -> Void
         var onPlanModeChange: (Bool) -> Void = { _ in }
+        var onGoalModeChange: (Bool) -> Void = { _ in }
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
