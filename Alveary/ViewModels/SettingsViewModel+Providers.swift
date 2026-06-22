@@ -8,6 +8,49 @@ extension SettingsViewModel {
         return supported.isEmpty ? AppSettings.supportedProviderIDs : supported
     }
 
+    var isCheckingThreadDefaultProviders: Bool {
+        providerDiscovery != nil && !hasLoadedProviderStatuses
+    }
+
+    var threadDefaultProviderIDs: [String] {
+        threadDefaultResolution.readyProviderIDs
+    }
+
+    var hasReadyThreadDefaultProvider: Bool {
+        threadDefaultResolution.hasReadyProvider
+    }
+
+    var threadDefaultProviderSelection: String {
+        threadDefaultResolution.providerID ?? settingsService.current.defaultProvider
+    }
+
+    var threadDefaultModelSelection: String {
+        AgentModelOptionSelection.pickerValue(
+            in: threadDefaultResolution.modelOptions,
+            matching: threadDefaultResolution.storedThreadModel
+        )
+    }
+
+    var threadDefaultModelOptionValues: [String] {
+        let options = threadDefaultResolution.modelOptions
+        let values = options.map(AgentModelOptionSelection.pickerValue(for:))
+        return values.isEmpty ? [AppSettings.defaultModelValue] : values
+    }
+
+    var threadDefaultPermissionModeOptions: [String] {
+        guard let providerID = threadDefaultResolution.providerID else {
+            return []
+        }
+        return permissionModeOptions(for: providerID)
+    }
+
+    var threadDefaultEffortOptions: [AgentCLIKit.AgentProviderOption] {
+        AgentModelOptionSelection.effortOptions(
+            in: threadDefaultResolution.modelOptions,
+            selectedModel: threadDefaultResolution.storedThreadModel
+        )
+    }
+
     var supportedModels: [String] {
         modelOptionValues(for: defaultProvider, including: settingsService.current.defaultModel)
     }
@@ -114,7 +157,7 @@ extension SettingsViewModel {
             installation: .unknown,
             isEnabled: settingsService.current.isProviderEnabled(providerId),
             setup: .unknown,
-            modelOptions: defaultModelOptions(for: id)
+            modelOptions: AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: id)
         )
     }
 
@@ -129,9 +172,11 @@ extension SettingsViewModel {
         guard let providerDiscovery else {
             providerStatuses = [:]
             providerOrdering = AppSettings.supportedProviderIDs
+            hasLoadedProviderStatuses = true
             return
         }
 
+        hasLoadedProviderStatuses = false
         let ordering = await providerDiscovery.stableProviderOrdering().map(\.rawValue)
         let statuses = await providerDiscovery.providerStatuses(projectURL: nil)
 
@@ -139,6 +184,8 @@ extension SettingsViewModel {
         providerStatuses = Dictionary(
             uniqueKeysWithValues: statuses.map { ($0.key.rawValue, $0.value) }
         )
+        hasLoadedProviderStatuses = true
+        persistResolvedThreadDefaultsIfNeeded()
     }
 
     func shortStatusLabel(for status: AgentCLIKit.AgentProviderStatus?) -> String {
@@ -254,14 +301,43 @@ extension SettingsViewModel {
         if let options = providerStatus(for: providerId)?.modelOptions, !options.isEmpty {
             return options
         }
-        guard let id = AgentCLIKit.AgentProviderID(rawValue: providerId) else {
-            return []
-        }
-        return defaultModelOptions(for: id)
+        return ThreadDefaultResolver.modelOptions(for: providerId, providerStatuses: providerStatuses)
     }
 }
 
 private extension SettingsViewModel {
+    var threadDefaultResolution: ThreadDefaultResolution {
+        ThreadDefaultResolver.resolve(
+            settings: settingsService.current,
+            providerOrdering: providerOrdering,
+            providerStatuses: providerStatuses,
+            allowStaticFallback: providerDiscovery == nil
+        )
+    }
+
+    func persistResolvedThreadDefaultsIfNeeded() {
+        let resolution = threadDefaultResolution
+        guard let providerID = resolution.providerID else {
+            return
+        }
+
+        let nextDefaultModel = resolution.storedThreadModel ?? AppSettings.defaultModelValue
+        let current = settingsService.current
+        guard current.defaultProvider != providerID
+            || current.defaultModel != nextDefaultModel
+            || current.permissionMode != resolution.permissionMode
+            || current.effort != resolution.effort else {
+            return
+        }
+
+        settingsService.update {
+            $0.defaultProvider = providerID
+            $0.defaultModel = nextDefaultModel
+            $0.permissionMode = resolution.permissionMode
+            $0.effort = resolution.effort
+        }
+    }
+
     func setupStatusLabel(for setup: AgentCLIKit.AgentProviderReadinessState) -> String {
         switch setup {
         case .ready:
@@ -293,9 +369,5 @@ private extension SettingsViewModel {
             return "Installed at \(path)"
         }
         return "Installed and ready."
-    }
-
-    func defaultModelOptions(for providerId: AgentCLIKit.AgentProviderID) -> [AgentCLIKit.AgentModelOption] {
-        AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
     }
 }

@@ -12,6 +12,7 @@ final class SidebarViewModel {
     private let gitHubCLI: GitHubCLIService
     let worktreeManager: WorktreeManager
     let settingsService: SettingsService
+    let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     let providerSessionActionService: any ProviderSessionActionService
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
@@ -31,6 +32,7 @@ final class SidebarViewModel {
         gitHubCLI: GitHubCLIService,
         worktreeManager: WorktreeManager,
         settingsService: SettingsService,
+        providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
@@ -42,6 +44,7 @@ final class SidebarViewModel {
         self.gitHubCLI = gitHubCLI
         self.worktreeManager = worktreeManager
         self.settingsService = settingsService
+        self.providerDiscovery = providerDiscovery
         self.providerSessionActionService = providerSessionActions
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
@@ -94,43 +97,6 @@ final class SidebarViewModel {
 
     var defaultThreadCleanupAction: ThreadCleanupAction {
         settingsService.current.defaultThreadCleanupAction
-    }
-
-    func createThread(project: Project, provider: String, permissionMode: String) async throws -> AgentThread {
-        let dbProject = try requireProject(project)
-        let defaultModel = settingsService.current.defaultModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let threadModel: String? = defaultModel != AppSettings.defaultModelValue && !defaultModel.isEmpty ? defaultModel : nil
-        let thread = AgentThread(
-            name: "New thread",
-            permissionMode: permissionMode,
-            effort: seedEffortLevel(),
-            model: threadModel,
-            useWorktree: settingsService.current.createWorktreeByDefault && dbProject.isGitRepository,
-            project: dbProject
-        )
-        let conversation = Conversation(
-            provider: provider,
-            isMain: true,
-            displayOrder: 0,
-            thread: thread
-        )
-
-        modelContext.insert(thread)
-        modelContext.insert(conversation)
-        try modelContext.save()
-        return thread
-    }
-
-    func createThread(project: Project) async throws -> AgentThread {
-        try await createThread(
-            project: project,
-            provider: settingsService.current.defaultProvider,
-            permissionMode: settingsService.current.permissionMode
-        )
-    }
-
-    private func seedEffortLevel() -> String {
-        AppSettings.normalizedEffortLevel(settingsService.current.effort)
     }
 
     func presentSidebarError(_ error: Error) {

@@ -44,7 +44,7 @@ struct AgentsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
-            await viewModel.refreshProviderStatusesIfNeeded()
+            await viewModel.refreshProviderStatuses()
         }
     }
 }

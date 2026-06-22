@@ -99,7 +99,10 @@ extension SnapshotTests {
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
 
-        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: settings),
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+        )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(
@@ -122,7 +125,10 @@ extension SnapshotTests {
         settings.theme = "dark"
         settings.codeFontFamily = "JetBrains Mono"
 
-        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: settings),
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+        )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(
@@ -146,7 +152,10 @@ extension SnapshotTests {
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
 
-        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: settings),
+            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
+        )
         let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
 
         assertMacSnapshot(

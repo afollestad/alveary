@@ -14,6 +14,7 @@ final class SettingsViewModel {
 
     var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
     var providerOrdering: [String] = []
+    var hasLoadedProviderStatuses = false
     private var loadedCodeFontFamilyOptions: [String]?
 
     init(

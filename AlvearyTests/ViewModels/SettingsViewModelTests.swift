@@ -441,6 +441,9 @@ final class SettingsViewModelTests: XCTestCase {
 extension SettingsViewModelTests {
     static func providerStatus(
         for providerId: AgentCLIKit.AgentProviderID,
+        installation: AgentCLIKit.AgentProviderInstallationState = .installed,
+        isEnabled: Bool = true,
+        setup: AgentCLIKit.AgentProviderReadinessState = .ready,
         modelOptions: [AgentCLIKit.AgentModelOption]
     ) -> AgentCLIKit.AgentProviderStatus {
         AgentCLIKit.AgentProviderStatus(
@@ -448,9 +451,10 @@ extension SettingsViewModelTests {
             definition: providerId == .claude
                 ? AgentCLIKit.ClaudeProviderDefinition.definition
                 : AgentCLIKit.CodexProviderDefinition.definition,
-            installation: .installed,
+            installation: installation,
             availability: AgentCLIKit.AgentProviderAvailability(providerId: providerId, executablePath: "/usr/local/bin/\(providerId.rawValue)"),
-            setup: .ready,
+            isEnabled: isEnabled,
+            setup: setup,
             modelOptions: modelOptions
         )
     }

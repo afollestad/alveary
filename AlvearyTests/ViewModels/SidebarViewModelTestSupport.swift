@@ -23,7 +23,7 @@ struct SidebarTestFixture {
         gitHubAuthenticated: Bool = false,
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
-        createWorktreeByDefault: Bool = false,
+        createWorktreeByDefault: Bool = false, providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
@@ -58,8 +58,7 @@ struct SidebarTestFixture {
             modelContext: context,
             shell: shell,
             gitHubCLI: gitHubCLI,
-            worktreeManager: worktreeManager,
-            settingsService: settingsService,
+            worktreeManager: worktreeManager, settingsService: settingsService, providerDiscovery: providerDiscovery,
             providerSessionActions: providerSessionActions,
             presentUnexpectedError: { [unexpectedErrors] message in
                 unexpectedErrors.present(message)

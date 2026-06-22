@@ -107,6 +107,7 @@ struct ContentView: View {
             gitHubCLI: dependencies.gitHubCLI,
             worktreeManager: dependencies.worktreeManager,
             settingsService: dependencies.settingsService,
+            providerDiscovery: dependencies.providerDiscovery,
             providerSessionActions: dependencies.providerSessionActions,
             presentUnexpectedError: { message in
                 appState.presentUnexpectedError(message: message)

@@ -44,7 +44,7 @@ struct ThreadsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
-            await viewModel.refreshProviderStatusesIfNeeded()
+            await viewModel.refreshProviderStatuses()
         }
     }
 }
@@ -56,8 +56,10 @@ private extension ThreadsSettingsTabView {
             SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
                     "Provider",
-                    selection: $defaultProvider,
-                    options: viewModel.availableProviderIDs,
+                    selection: threadDefaultProviderBinding,
+                    options: viewModel.threadDefaultProviderIDs,
+                    placeholder: providerPlaceholder,
+                    isDisabled: threadDefaultControlsDisabled,
                     label: { viewModel.providerDisplayName(for: $0) }
                 )
             }
@@ -67,14 +69,16 @@ private extension ThreadsSettingsTabView {
             SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
                     "Model",
-                    selection: $defaultModel,
-                    options: viewModel.modelOptionValues(for: viewModel.defaultProvider, including: defaultModel),
-                    label: { viewModel.modelLabel(for: $0, providerId: viewModel.defaultProvider) }
+                    selection: threadDefaultModelBinding,
+                    options: viewModel.threadDefaultModelOptionValues,
+                    placeholder: dependentPlaceholder,
+                    isDisabled: threadDefaultControlsDisabled,
+                    label: { viewModel.modelLabel(for: $0, providerId: viewModel.threadDefaultProviderSelection) }
                 )
             }
         }
 
-        let effortOptions = viewModel.effortOptions(for: viewModel.defaultProvider, model: defaultModel)
+        let effortOptions = viewModel.threadDefaultEffortOptions
         if !effortOptions.isEmpty {
             SettingsFormRow {
                 SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
@@ -82,6 +86,7 @@ private extension ThreadsSettingsTabView {
                         "Effort",
                         selection: $effort,
                         options: effortOptions.map(\.value),
+                        isDisabled: viewModel.isCheckingThreadDefaultProviders,
                         label: { value in
                             effortOptions.first { $0.value == value }?.label
                                 ?? ChatComposerTextSupport.effortLabel(for: value)
@@ -91,14 +96,16 @@ private extension ThreadsSettingsTabView {
             }
         }
 
-        if !viewModel.permissionModeOptions(for: viewModel.defaultProvider).isEmpty {
+        let permissionModeOptions = viewModel.threadDefaultPermissionModeOptions
+        if !permissionModeOptions.isEmpty {
             SettingsFormRow {
                 SettingsResponsiveControlRow("Permission mode", horizontalControlSizing: .intrinsic) {
                     SettingsMenuPicker(
                         "Permission mode",
                         selection: $permissionMode,
-                        options: viewModel.permissionModeOptions(for: viewModel.defaultProvider),
-                        label: { viewModel.permissionModeLabel(for: $0, providerId: viewModel.defaultProvider) }
+                        options: permissionModeOptions,
+                        isDisabled: viewModel.isCheckingThreadDefaultProviders,
+                        label: { viewModel.permissionModeLabel(for: $0, providerId: viewModel.threadDefaultProviderSelection) }
                     )
                 }
             }
@@ -147,6 +154,35 @@ private extension ThreadsSettingsTabView {
             helpText: ThreadSettingsHelp.autoTrustProjects,
             isOn: $autoTrustProjects,
             showsDivider: false
+        )
+    }
+
+    var providerPlaceholder: String? {
+        if viewModel.isCheckingThreadDefaultProviders {
+            return "Checking providers..."
+        }
+        return viewModel.hasReadyThreadDefaultProvider ? nil : "No ready providers"
+    }
+
+    var dependentPlaceholder: String? {
+        threadDefaultControlsDisabled ? providerPlaceholder : nil
+    }
+
+    var threadDefaultControlsDisabled: Bool {
+        viewModel.isCheckingThreadDefaultProviders || !viewModel.hasReadyThreadDefaultProvider
+    }
+
+    var threadDefaultProviderBinding: Binding<String> {
+        Binding(
+            get: { viewModel.threadDefaultProviderSelection },
+            set: { defaultProvider = $0 }
+        )
+    }
+
+    var threadDefaultModelBinding: Binding<String> {
+        Binding(
+            get: { viewModel.threadDefaultModelSelection },
+            set: { defaultModel = $0 }
         )
     }
 }

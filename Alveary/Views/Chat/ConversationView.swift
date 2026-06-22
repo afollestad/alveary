@@ -28,6 +28,7 @@ struct ConversationView: View {
     @State var viewModel: ConversationViewModel
     @State var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
     @State var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
+    @State var hasLoadedComposerProviderStatuses: Bool
 
     var composerCapabilities: ComposerCapabilities {
         let provider = providerRegistry.provider(for: activeProviderID)
@@ -99,6 +100,7 @@ struct ConversationView: View {
         let providerStatusSnapshot = ComposerProviderStatusCache.snapshot(for: providerStatusCacheKey)
         _composerProviderStatuses = State(initialValue: providerStatusSnapshot?.statuses ?? [:])
         _composerProviderOrdering = State(initialValue: providerStatusSnapshot?.ordering ?? AgentCLIKit.AgentProviderID.allCases)
+        _hasLoadedComposerProviderStatuses = State(initialValue: providerStatusSnapshot != nil)
         _viewModel = State(initialValue: ConversationViewModel(
             conversation: conversation,
             agentsManager: agentsManager,
@@ -297,16 +299,17 @@ private extension ConversationView {
             }
             return [reasoningModelGroup(for: providerID, providerTitle: nil)]
         }
+        guard hasLoadedComposerProviderStatuses else {
+            return []
+        }
 
         return composerProviderOrdering.compactMap { providerID in
             let rawValue = providerID.rawValue
             guard AppSettings.supportedProviderIDs.contains(rawValue) else {
                 return nil
             }
-            let status = composerProviderStatuses[providerID]
-            let isSelectable = status.map(isSelectableComposerProvider(_:))
-                ?? settingsService.current.isProviderEnabled(rawValue)
-            guard isSelectable else {
+            guard let status = composerProviderStatuses[providerID],
+                  isSelectableComposerProvider(status, providerID: rawValue) else {
                 return nil
             }
             return reasoningModelGroup(for: providerID, providerTitle: providerDisplayName(for: providerID))
@@ -314,12 +317,14 @@ private extension ConversationView {
     }
 
     func refreshComposerProviderStatuses() async {
+        hasLoadedComposerProviderStatuses = false
         async let ordering = providerDiscovery.stableProviderOrdering()
         async let statuses = providerDiscovery.providerStatuses(projectURL: providerDiscoveryProjectURL)
         let resolvedOrdering = await ordering
         let resolvedStatuses = await statuses
         composerProviderOrdering = resolvedOrdering
         composerProviderStatuses = resolvedStatuses
+        hasLoadedComposerProviderStatuses = true
         // Thread switches create a fresh `ConversationView`; seed it from the
         // last successful discovery result so model-scoped effort labels do not
         // temporarily disappear while async provider discovery warms back up.
@@ -327,10 +332,6 @@ private extension ConversationView {
             .init(ordering: resolvedOrdering, statuses: resolvedStatuses),
             for: composerProviderStatusTaskID
         )
-    }
-
-    func isSelectableComposerProvider(_ status: AgentCLIKit.AgentProviderStatus) -> Bool {
-        status.isEnabled && status.isInstalled && status.isSetupReady
     }
 
     func providerDisplayName(for providerId: AgentCLIKit.AgentProviderID) -> String {

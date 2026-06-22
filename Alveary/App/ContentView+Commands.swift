@@ -68,11 +68,7 @@ extension ContentView {
         }
 
         do {
-            let createdThread = try await sidebarViewModel.createThread(
-                project: project,
-                provider: settingsService.current.defaultProvider,
-                permissionMode: settingsService.current.permissionMode
-            )
+            let createdThread = try await sidebarViewModel.createThread(project: project)
             guard appState.pendingCommand?.id == commandID else {
                 return
             }

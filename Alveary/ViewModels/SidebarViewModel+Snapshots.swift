@@ -36,6 +36,7 @@ enum SidebarViewModelError: LocalizedError {
     case archiveCleanupFailed(Error)
     case threadDeleteCleanupFailed(Error)
     case projectDeleteCleanupFailed(Error)
+    case noReadyThreadDefaultProvider
 
     var errorDescription: String? {
         switch self {
@@ -59,6 +60,8 @@ enum SidebarViewModelError: LocalizedError {
             return "Thread was deleted, but cleanup failed: \(error.localizedDescription)"
         case .projectDeleteCleanupFailed(let error):
             return "Project was deleted, but cleanup failed: \(error.localizedDescription)"
+        case .noReadyThreadDefaultProvider:
+            return "No enabled provider is installed and ready for new threads"
         }
     }
 
@@ -67,7 +70,7 @@ enum SidebarViewModelError: LocalizedError {
         case .archiveCleanupFailed, .threadDeleteCleanupFailed, .projectDeleteCleanupFailed:
             return true
         case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingDeletionMetadata,
-             .threadForkUnavailable, .threadForkFailed, .threadForkRollbackFailed:
+             .threadForkUnavailable, .threadForkFailed, .threadForkRollbackFailed, .noReadyThreadDefaultProvider:
             return false
         }
     }

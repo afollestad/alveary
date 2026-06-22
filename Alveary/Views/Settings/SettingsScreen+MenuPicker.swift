@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsMenuPicker<Value: Hashable>: View {
     let title: String
     let options: [Value]
+    let placeholder: String?
+    let isDisabled: Bool
     let label: (Value) -> String
 
     @Binding private var selection: Value
@@ -11,11 +13,15 @@ struct SettingsMenuPicker<Value: Hashable>: View {
         _ title: String,
         selection: Binding<Value>,
         options: [Value],
+        placeholder: String? = nil,
+        isDisabled: Bool = false,
         label: @escaping (Value) -> String
     ) {
         self.title = title
         _selection = selection
         self.options = options
+        self.placeholder = placeholder
+        self.isDisabled = isDisabled
         self.label = label
     }
 
@@ -34,7 +40,7 @@ struct SettingsMenuPicker<Value: Hashable>: View {
             }
         } label: {
             HStack(spacing: 8) {
-                Text(label(selection))
+                Text(placeholder ?? label(selection))
                     .lineLimit(1)
 
                 Spacer(minLength: 8)
@@ -56,8 +62,9 @@ struct SettingsMenuPicker<Value: Hashable>: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled || options.isEmpty)
         .frame(maxWidth: .infinity)
         .accessibilityLabel(title)
-        .accessibilityValue(label(selection))
+        .accessibilityValue(placeholder ?? label(selection))
     }
 }

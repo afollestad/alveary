@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import SwiftData
 import XCTest
@@ -116,6 +117,60 @@ extension SidebarViewModelTests {
         )
 
         XCTAssertEqual(try fixture.requireThread(thread).effort, "high")
+    }
+
+    func testCreateThreadDefaultPathUsesReadyProviderFallback() async throws {
+        let fixture = try SidebarTestFixture(
+            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+                .claude: SettingsViewModelTests.providerStatus(
+                    for: .claude,
+                    modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
+                ),
+                .codex: SettingsViewModelTests.providerStatus(
+                    for: .codex,
+                    installation: .missing,
+                    modelOptions: AgentModelOptionTestFixtures.codexModelOptions
+                )
+            ])
+        )
+        fixture.settingsService.update {
+            $0.defaultProvider = "codex"
+            $0.defaultModel = "gpt-5.4-mini"
+            $0.permissionMode = "never"
+        }
+        let project = try fixture.insertProject(name: "Fallback Project", path: "/tmp/provider-fallback")
+
+        let thread = try await fixture.viewModel.createThread(project: project)
+
+        let savedThread = try fixture.requireThread(thread)
+        XCTAssertEqual(savedThread.model, nil)
+        XCTAssertEqual(savedThread.permissionMode, "default")
+        XCTAssertEqual(savedThread.conversations.first?.provider, "claude")
+    }
+
+    func testCreateThreadDefaultPathFailsWhenNoProviderIsReady() async throws {
+        let fixture = try SidebarTestFixture(
+            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+                .claude: SettingsViewModelTests.providerStatus(
+                    for: .claude,
+                    installation: .missing,
+                    modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
+                ),
+                .codex: SettingsViewModelTests.providerStatus(
+                    for: .codex,
+                    setup: .needsSetup,
+                    modelOptions: AgentModelOptionTestFixtures.codexModelOptions
+                )
+            ])
+        )
+        let project = try fixture.insertProject(name: "No Providers", path: "/tmp/no-ready-providers")
+
+        do {
+            _ = try await fixture.viewModel.createThread(project: project)
+            XCTFail("Expected no-ready-provider failure")
+        } catch SidebarViewModelError.noReadyThreadDefaultProvider {
+            XCTAssertTrue(fixture.context.hasChanges == false)
+        }
     }
 
     func testCreateThreadDisablesWorktreeDefaultForNonGitProjects() async throws {
