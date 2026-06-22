@@ -25,6 +25,7 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
         assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
         XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
+        _ = component.agentCLIKitOneShotPromptRunner
         assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
         assertSameInstance(component.agentCLIKitCodexConfigStore, component.agentCLIKitCodexConfigStore)
         assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
@@ -66,6 +67,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitApprovalPolicyStore
         _ = component.agentCLIKitClaudeApprovalPolicyStore
         _ = component.agentCLIKitProviderAdapterSet
+        _ = component.agentCLIKitOneShotPromptRunner
         _ = component.agentCLIKitClaudeConfigStore
         _ = component.agentCLIKitCodexConfigStore
         _ = component.agentCLIKitProviderRegistry

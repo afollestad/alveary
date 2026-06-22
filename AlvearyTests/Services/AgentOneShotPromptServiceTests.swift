@@ -1,68 +1,62 @@
+import AgentCLIKit
+import Foundation
 import XCTest
 
 @testable import Alveary
 
+private typealias AppOneShotPromptError = Alveary.AgentOneShotPromptError
+
 @MainActor
 final class AgentOneShotPromptServiceTests: XCTestCase {
-    func testGenerateUsesUniqueSyntheticIdsConfiguresRuntimeAndSendsHiddenPrompt() async throws {
-        let fixture = await makeFixture()
+    func testGenerateRunsProviderSpecificOneShotWithoutRuntimeCalls() async throws {
+        var settings = AppSettings()
+        settings.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--append-system-prompt 'Use terse output'")
+        let fixture = await makeFixture(settings: settings, timeout: .seconds(7))
 
-        let first = Task { try await fixture.service.generate(prompt: "Generate first", workingDirectory: "/tmp/project") }
-        try await waitForSentMessage(in: fixture.agentsManager)
-        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: " First subject ", parentToolUseId: nil))
-        await fixture.agentsManager.yieldSubscriptionEvent(terminalTokens())
-        let firstOutput = try await first.value
+        let output = try await fixture.service.generate(prompt: "Generate subject", workingDirectory: "/tmp/project")
 
-        let second = Task { try await fixture.service.generate(prompt: "Generate second", workingDirectory: "/tmp/project") }
-        try await waitForSentMessage(in: fixture.agentsManager, count: 2)
-        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Second subject", parentToolUseId: nil))
-        await fixture.agentsManager.yieldSubscriptionEvent(terminalTokens())
-        let secondOutput = try await second.value
+        XCTAssertEqual(output, "Generated subject")
 
-        XCTAssertEqual(firstOutput, "First subject")
-        XCTAssertEqual(secondOutput, "Second subject")
+        let requests = await fixture.runner.requests()
+        XCTAssertEqual(requests.count, 1)
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.providerId, .claude)
+        XCTAssertEqual(request.workingDirectory.path, "/tmp/project")
+        XCTAssertTrue(request.prompt.hasPrefix("Generate subject"))
+        XCTAssertTrue(request.prompt.contains("AGENTS.md"))
+        XCTAssertTrue(request.prompt.contains("CLAUDE.md"))
+        XCTAssertEqual(request.arguments, ["--append-system-prompt", "Use terse output"])
+        XCTAssertEqual(request.environment["PATH"], "/opt/homebrew/bin:/usr/bin")
+        XCTAssertEqual(request.environment["ALVEARY_TEST"], "1")
+        XCTAssertNil(request.model)
+        XCTAssertEqual(request.effort, AppSettings.defaultEffortLevel)
+        XCTAssertEqual(try XCTUnwrap(request.timeout), 7, accuracy: 0.001)
+        XCTAssertEqual(request.toolPolicy, .readOnly)
 
-        let spawnCalls = await fixture.agentsManager.spawnCalls()
-        XCTAssertEqual(spawnCalls.count, 2)
-        XCTAssertTrue(spawnCalls.allSatisfy { $0.id.hasPrefix(DefaultAgentOneShotPromptService.syntheticConversationIDPrefix) })
-        XCTAssertNotEqual(spawnCalls[0].id, spawnCalls[1].id)
-        XCTAssertEqual(spawnCalls[0].config.providerId, "claude")
-        XCTAssertEqual(spawnCalls[0].config.workingDirectory, "/tmp/project")
-        XCTAssertEqual(spawnCalls[0].config.permissionMode, "default")
-        XCTAssertEqual(spawnCalls[0].config.planModeEnabled, false)
-        XCTAssertNil(spawnCalls[0].config.model)
-        XCTAssertEqual(spawnCalls[0].config.effort, AppSettings.defaultEffortLevel)
-        XCTAssertEqual(spawnCalls[0].config.speedMode, .standard)
-        XCTAssertNil(spawnCalls[0].config.initialPrompt)
-        XCTAssertFalse(spawnCalls[0].forkSession)
-
-        let sentMessages = await fixture.agentsManager.sentMessages()
-        let sendVisibilities = await fixture.agentsManager.sendVisibilities()
-        let subscribeCalls = await fixture.agentsManager.subscribeCallsList()
-        let destroyCalls = await fixture.agentsManager.destroyCalls()
-
-        XCTAssertEqual(sentMessages, ["Generate first", "Generate second"])
-        XCTAssertEqual(sendVisibilities, [.hidden, .hidden])
-        XCTAssertEqual(
-            subscribeCalls,
-            spawnCalls.map { MockAgentsManager.SubscribeCall(conversationId: $0.id, afterIndex: 0) }
-        )
-        XCTAssertEqual(destroyCalls, spawnCalls.map(\.id))
+        let providerSetupCalls = await fixture.providerSetup.calls()
+        XCTAssertEqual(providerSetupCalls, [
+            MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
+        ])
+        let checkCalls = await fixture.providerDetection.checkCalls()
+        XCTAssertTrue(checkCalls.isEmpty)
+        await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
     func testGenerateMapsDefaultAndEmptyModelToNilAndKeepsCustomModel() async throws {
         var settings = AppSettings()
         settings.defaultModel = "  "
         var fixture = await makeFixture(settings: settings)
-        _ = try await completeSuccessfulGeneration(fixture: fixture)
-        let emptyModelSpawn = await fixture.agentsManager.spawnCalls().first
-        XCTAssertNil(emptyModelSpawn?.config.model)
+        _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+        let emptyModelRequests = await fixture.runner.requests()
+        let emptyModelRequest = emptyModelRequests.first
+        XCTAssertNil(emptyModelRequest?.model)
 
         settings.defaultModel = "claude-opus"
         fixture = await makeFixture(settings: settings)
-        _ = try await completeSuccessfulGeneration(fixture: fixture)
-        let customModelSpawn = await fixture.agentsManager.spawnCalls().first
-        XCTAssertEqual(customModelSpawn?.config.model, "claude-opus")
+        _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+        let customModelRequests = await fixture.runner.requests()
+        let customModelRequest = customModelRequests.first
+        XCTAssertEqual(customModelRequest?.model, "claude-opus")
     }
 
     func testGeneratePreparesProjectAndFailsWhenProjectIsNotTrusted() async {
@@ -71,7 +65,7 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         do {
             _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
             XCTFail("Expected generation to fail")
-        } catch AgentOneShotPromptError.untrustedProject(let providerId, let workingDirectory) {
+        } catch AppOneShotPromptError.untrustedProject(let providerId, let workingDirectory) {
             XCTAssertEqual(providerId, "claude")
             XCTAssertEqual(workingDirectory, "/tmp/project")
         } catch {
@@ -79,14 +73,14 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         }
 
         let providerSetupCalls = await fixture.providerSetup.calls()
-        let spawnCalls = await fixture.agentsManager.spawnCalls()
-        let destroyCalls = await fixture.agentsManager.destroyCalls()
-
         XCTAssertEqual(providerSetupCalls, [
             MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: false)
         ])
-        XCTAssertTrue(spawnCalls.isEmpty)
-        XCTAssertEqual(destroyCalls.count, 1)
+        let requests = await fixture.runner.requests()
+        let checkCalls = await fixture.providerDetection.checkCalls()
+        XCTAssertTrue(requests.isEmpty)
+        XCTAssertTrue(checkCalls.isEmpty)
+        await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
     func testGenerateUsesAutoTrustSettingDuringPrepare() async throws {
@@ -94,157 +88,113 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         settings.autoTrustProjects = true
         let fixture = await makeFixture(settings: settings, trusted: false)
 
-        let output = try await completeSuccessfulGeneration(fixture: fixture)
+        let output = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
 
         XCTAssertEqual(output, "Generated subject")
         let providerSetupCalls = await fixture.providerSetup.calls()
         XCTAssertEqual(providerSetupCalls, [
             MockProviderSetupService.Call(providerId: "claude", workingDirectory: "/tmp/project", autoTrust: true)
         ])
+        let requests = await fixture.runner.requests()
+        XCTAssertEqual(requests.count, 1)
+        await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testGenerateIgnoresReplayedSetupEventsBeforeTurnOutput() async throws {
-        let fixture = await makeFixture()
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-
-        try await waitForSentMessage(in: fixture.agentsManager)
-        await fixture.agentsManager.yieldSubscriptionEvent(.sessionInit(sessionId: "session"))
-        await fixture.agentsManager.yieldSubscriptionEvent(.permissionModeChanged("default"))
-        await fixture.agentsManager.yieldSubscriptionEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .unknown))
-        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Generated subject", parentToolUseId: nil))
-        await fixture.agentsManager.yieldSubscriptionEvent(terminalTokens())
-
-        let output = try await task.value
-        XCTAssertEqual(output, "Generated subject")
-    }
-
-    func testGenerateAcceptsFullAssistantMessageOutput() async throws {
-        let fixture = await makeFixture()
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-
-        try await waitForSentMessage(in: fixture.agentsManager)
-        await fixture.agentsManager.yieldSubscriptionEvent(.message(role: "assistant", content: "Generated from message", parentToolUseId: nil))
-        await fixture.agentsManager.yieldSubscriptionEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .completed))
-
-        let output = try await task.value
-        XCTAssertEqual(output, "Generated from message")
-    }
-
-    func testGenerateFailsOnProviderErrorApprovalAndInterruptedRuntime() async throws {
-        try await assertGenerationFails(
-            events: [.error(message: "Provider failed")],
-            expected: .failed("Provider failed")
-        )
-        try await assertGenerationFails(
-            events: [.toolApprovalRequested(ToolApprovalRequest(
-                sessionId: "session",
-                toolUseId: "approval",
-                toolName: "Edit",
-                toolInput: ""
-            ))],
-            expected: .approvalRequested
-        )
-        try await assertGenerationFails(
-            events: [
-                .runtimeActivity(state: .active, turnId: "turn", outcome: .unknown),
-                .runtimeActivity(state: .idle, turnId: "turn", outcome: .interrupted)
-            ],
-            expected: .interrupted
-        )
-    }
-
-    func testGenerateFailsOnInterruptedTerminalTokens() async throws {
-        try await assertGenerationFails(
-            events: [
-                .messageChunk(text: "Partial subject", parentToolUseId: nil),
-                interruptedTokens()
-            ],
-            expected: .interrupted
-        )
-    }
-
-    func testGenerateFailsOnInterruptedStopEvent() async throws {
-        try await assertGenerationFails(
-            events: [
-                .messageChunk(text: "Partial subject", parentToolUseId: nil),
-                .stop(message: ConversationInterruption.displayMessage)
-            ],
-            expected: .interrupted
-        )
-    }
-
-    func testGenerateFailsOnEmptyOutput() async throws {
-        try await assertGenerationFails(
-            events: [.runtimeActivity(state: .active, turnId: "turn", outcome: .unknown),
-                     .runtimeActivity(state: .idle, turnId: "turn", outcome: .completed)],
-            expected: .emptyOutput
-        )
-    }
-
-    func testGenerateTimesOutAndCleansRuntime() async {
-        let fixture = await makeFixture(timeout: .milliseconds(10))
+    func testGenerateFailsBeforeLaunchWhenProviderExecutableIsMissing() async {
+        let fixture = await makeFixture(detectedPath: nil, detectedPathAfterCheck: nil)
 
         do {
             _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
-            XCTFail("Expected generation to time out")
-        } catch AgentOneShotPromptError.timedOut {
-            let destroyCalls = await fixture.agentsManager.destroyCalls()
-            XCTAssertEqual(destroyCalls.count, 1)
+            XCTFail("Expected generation to fail")
+        } catch AppOneShotPromptError.failed(let message) {
+            XCTAssertEqual(message, "claude CLI is not installed")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+
+        let checkCalls = await fixture.providerDetection.checkCalls()
+        XCTAssertEqual(checkCalls, ["claude"])
+        let requests = await fixture.runner.requests()
+        XCTAssertTrue(requests.isEmpty)
+        await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testGenerateCancellationCleansRuntime() async throws {
-        let fixture = await makeFixture()
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-
-        try await waitForSentMessage(in: fixture.agentsManager)
-        task.cancel()
+    func testGenerateFailsForInvalidProviderExtraArgsBeforeLaunch() async {
+        var settings = AppSettings()
+        settings.providerConfigs["claude"] = ProviderCustomConfig(extraArgs: "--bad 'unterminated")
+        let fixture = await makeFixture(settings: settings)
 
         do {
-            _ = try await task.value
-            XCTFail("Expected generation to be cancelled")
-        } catch AgentOneShotPromptError.cancelled {
-            let destroyCalls = await fixture.agentsManager.destroyCalls()
-            XCTAssertEqual(destroyCalls.count, 1)
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+            XCTFail("Expected generation to fail")
+        } catch AppOneShotPromptError.failed(let message) {
+            XCTAssertTrue(message.contains("Invalid provider extra args"), message)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+
+        let requests = await fixture.runner.requests()
+        XCTAssertTrue(requests.isEmpty)
+        await assertNoRuntimeCalls(fixture.agentsManager)
     }
 
-    func testCleanupErrorPreservesPrimaryGenerationError() async throws {
-        let fixture = await makeFixture()
-        await fixture.agentsManager.enqueueDestroyError(MockAgentsManager.MockError.stdinClosed)
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-
-        try await waitForSentMessage(in: fixture.agentsManager)
-        await fixture.agentsManager.yieldSubscriptionEvent(.error(message: "Provider failed"))
-
-        do {
-            _ = try await task.value
-            XCTFail("Expected provider error")
-        } catch AgentOneShotPromptError.failed(let message) {
-            XCTAssertEqual(message, "Provider failed")
-            let destroyCalls = await fixture.agentsManager.destroyCalls()
-            XCTAssertEqual(destroyCalls.count, 1)
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+    func testGenerateMapsRunnerErrors() async throws {
+        try await assertRunnerFailure(
+            .failure(.approvalRequired(providerId: .claude, message: "approval")),
+            expected: .approvalRequested
+        )
+        try await assertRunnerFailure(
+            .failure(.promptRequired(providerId: .claude, message: "question")),
+            expected: .promptRequired
+        )
+        try await assertRunnerFailure(
+            .failure(.emptyOutput(providerId: .claude, stdout: "", stderr: "")),
+            expected: .emptyOutput
+        )
+        try await assertRunnerFailure(
+            .failure(.timedOut(providerId: .claude, timeout: 1)),
+            expected: .timedOut
+        )
+        try await assertRunnerFailure(
+            .failure(.cancelled(providerId: .claude)),
+            expected: .cancelled
+        )
+        try await assertRunnerFailure(
+            .cancellation,
+            expected: .cancelled
+        )
+        try await assertRunnerFailure(
+            .failure(.commandFailed(providerId: .claude, exitCode: 42, stdout: "", stderr: "stderr diagnostic")),
+            expectedMessageContaining: "stderr diagnostic"
+        )
+        try await assertRunnerFailure(
+            .failure(.unavailableModel(providerId: .claude, message: "not available")),
+            expectedMessageContaining: "model is unavailable"
+        )
     }
 }
 
 private extension AgentOneShotPromptServiceTests {
     struct Fixture {
         let service: DefaultAgentOneShotPromptService
+        let runner: MockAgentOneShotPromptRunner
         let agentsManager: MockAgentsManager
         let providerSetup: MockProviderSetupService
+        let providerDetection: RecordingProviderDetectionService
     }
 
     func makeFixture(
         settings: AppSettings = AppSettings(),
         trusted: Bool = true,
-        timeout: Duration = .seconds(1)
+        timeout: Duration = .seconds(1),
+        detectedPath: String? = "/opt/homebrew/bin/claude",
+        detectedPathAfterCheck: String? = nil,
+        runnerOutcome: MockAgentOneShotPromptRunner.Outcome = .success(.init(
+            providerId: .claude,
+            text: " Generated subject ",
+            stdout: "{}\n",
+            stderr: ""
+        ))
     ) async -> Fixture {
         let agentsManager = MockAgentsManager(
             isRunning: false,
@@ -254,87 +204,164 @@ private extension AgentOneShotPromptServiceTests {
         )
         let providerSetup = MockProviderSetupService()
         await providerSetup.setTrustedProject("/tmp/project", isTrusted: trusted)
-        await agentsManager.enableSubscription()
-
+        let providerDetection = RecordingProviderDetectionService(
+            resolvedPath: detectedPath,
+            resolvedPathAfterCheck: detectedPathAfterCheck
+        )
+        let runner = MockAgentOneShotPromptRunner(outcome: runnerOutcome)
         let service = DefaultAgentOneShotPromptService(
-            agentsManager: agentsManager,
+            promptRunner: runner,
             settingsService: InMemorySettingsService(current: settings),
             providerSetup: providerSetup,
+            providerDetection: providerDetection,
+            environmentBuilder: FixedEnvironmentBuilder(environment: [
+                "PATH": "/usr/bin",
+                "ALVEARY_TEST": "1"
+            ]),
             timeout: timeout
         )
 
-        return Fixture(service: service, agentsManager: agentsManager, providerSetup: providerSetup)
+        return Fixture(
+            service: service,
+            runner: runner,
+            agentsManager: agentsManager,
+            providerSetup: providerSetup,
+            providerDetection: providerDetection
+        )
     }
 
-    func completeSuccessfulGeneration(fixture: Fixture) async throws -> String {
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-        try await waitForSentMessage(in: fixture.agentsManager)
-        await fixture.agentsManager.yieldSubscriptionEvent(.messageChunk(text: "Generated subject", parentToolUseId: nil))
-        await fixture.agentsManager.yieldSubscriptionEvent(terminalTokens())
-        return try await task.value
-    }
-
-    func assertGenerationFails(
-        events: [ConversationEvent],
-        expected: AgentOneShotPromptError,
+    func assertRunnerFailure(
+        _ outcome: MockAgentOneShotPromptRunner.Outcome,
+        expected: AppOneShotPromptError,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async throws {
-        let fixture = await makeFixture()
-        let task = Task { try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project") }
-
-        try await waitForSentMessage(in: fixture.agentsManager)
-        for event in events {
-            await fixture.agentsManager.yieldSubscriptionEvent(event)
-        }
+        let fixture = await makeFixture(runnerOutcome: outcome)
 
         do {
-            _ = try await task.value
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
             XCTFail("Expected generation to fail", file: file, line: line)
-        } catch let error as AgentOneShotPromptError {
-            let destroyCalls = await fixture.agentsManager.destroyCalls()
+        } catch let error as AppOneShotPromptError {
             XCTAssertEqual(error, expected, file: file, line: line)
-            XCTAssertEqual(destroyCalls.count, 1, file: file, line: line)
+            let requests = await fixture.runner.requests()
+            XCTAssertEqual(requests.count, 1, file: file, line: line)
+            await assertNoRuntimeCalls(fixture.agentsManager, file: file, line: line)
         } catch {
             XCTFail("Unexpected error: \(error)", file: file, line: line)
         }
     }
 
-    func waitForSentMessage(in agentsManager: MockAgentsManager, count: Int = 1) async throws {
-        for _ in 0..<100 {
-            if await agentsManager.sentMessages().count >= count {
-                return
-            }
-            try await Task.sleep(for: .milliseconds(5))
+    func assertRunnerFailure(
+        _ outcome: MockAgentOneShotPromptRunner.Outcome,
+        expectedMessageContaining message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let fixture = await makeFixture(runnerOutcome: outcome)
+
+        do {
+            _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
+            XCTFail("Expected generation to fail", file: file, line: line)
+        } catch AppOneShotPromptError.failed(let failureMessage) {
+            XCTAssertTrue(failureMessage.contains(message), failureMessage, file: file, line: line)
+            let requests = await fixture.runner.requests()
+            XCTAssertEqual(requests.count, 1, file: file, line: line)
+            await assertNoRuntimeCalls(fixture.agentsManager, file: file, line: line)
+        } catch {
+            XCTFail("Unexpected error: \(error)", file: file, line: line)
         }
-        XCTFail("Timed out waiting for hidden send")
     }
 
-    func terminalTokens() -> ConversationEvent {
-        .tokens(
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            isError: false,
-            stopReason: "end_turn",
-            durationMs: 0,
-            costUsd: nil,
-            permissionDenials: [],
-            isTerminal: true
-        )
+    func assertNoRuntimeCalls(
+        _ agentsManager: MockAgentsManager,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let spawnCalls = await agentsManager.spawnCalls()
+        let subscribeCalls = await agentsManager.subscribeCallsList()
+        let sentMessages = await agentsManager.sentMessages()
+        let destroyCalls = await agentsManager.destroyCalls()
+        XCTAssertTrue(spawnCalls.isEmpty, file: file, line: line)
+        XCTAssertTrue(subscribeCalls.isEmpty, file: file, line: line)
+        XCTAssertTrue(sentMessages.isEmpty, file: file, line: line)
+        XCTAssertTrue(destroyCalls.isEmpty, file: file, line: line)
+    }
+}
+
+private actor MockAgentOneShotPromptRunner: AgentCLIKit.AgentOneShotPromptRunning {
+    enum Outcome: Sendable {
+        case success(AgentCLIKit.AgentOneShotPromptResult)
+        case failure(AgentCLIKit.AgentOneShotPromptError)
+        case cancellation
     }
 
-    func interruptedTokens() -> ConversationEvent {
-        .tokens(
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            isError: true,
-            stopReason: ConversationInterruption.requestInterruptedByUserReason,
-            durationMs: 0,
-            costUsd: nil,
-            permissionDenials: [],
-            isTerminal: true
-        )
+    private let outcome: Outcome
+    private var recordedRequests: [AgentCLIKit.AgentOneShotPromptRequest] = []
+
+    init(outcome: Outcome) {
+        self.outcome = outcome
+    }
+
+    func generate(_ request: AgentCLIKit.AgentOneShotPromptRequest) async throws -> AgentCLIKit.AgentOneShotPromptResult {
+        recordedRequests.append(request)
+        switch outcome {
+        case .success(let result):
+            return result
+        case .failure(let error):
+            throw error
+        case .cancellation:
+            throw CancellationError()
+        }
+    }
+
+    func requests() -> [AgentCLIKit.AgentOneShotPromptRequest] {
+        recordedRequests
+    }
+}
+
+private actor RecordingProviderDetectionService: ProviderDetectionService {
+    private var resolvedPath: String?
+    private let resolvedPathAfterCheck: String?
+    private var recordedCheckCalls: [String] = []
+
+    init(resolvedPath: String?, resolvedPathAfterCheck: String?) {
+        self.resolvedPath = resolvedPath
+        self.resolvedPathAfterCheck = resolvedPathAfterCheck
+    }
+
+    func resolvedPath(for providerId: String) -> String? {
+        resolvedPath
+    }
+
+    func status(for providerId: String) -> ProviderStatus {
+        if let resolvedPath {
+            return .connected(path: resolvedPath, version: "test")
+        }
+        return .missing
+    }
+
+    func checkAllProviders() async {}
+
+    func checkProvider(_ providerId: String) async {
+        recordedCheckCalls.append(providerId)
+        if resolvedPath == nil {
+            resolvedPath = resolvedPathAfterCheck
+        }
+    }
+
+    func checkCalls() -> [String] {
+        recordedCheckCalls
+    }
+}
+
+private struct FixedEnvironmentBuilder: AgentEnvironmentBuilder {
+    let environment: [String: String]
+
+    func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {
+        var values = environment
+        for (key, value) in providerEnv ?? [:] {
+            values[key] = value
+        }
+        return values
     }
 }

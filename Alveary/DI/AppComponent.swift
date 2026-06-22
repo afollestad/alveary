@@ -356,9 +356,11 @@ extension AppComponent {
     var agentOneShotPromptService: any AgentOneShotPromptService {
         return shared {
             DefaultAgentOneShotPromptService(
-                agentsManager: agentsManager,
+                promptRunner: agentCLIKitOneShotPromptRunner,
                 settingsService: settingsService,
-                providerSetup: providerSetupService
+                providerSetup: providerSetupService,
+                providerDetection: providerDetectionService,
+                environmentBuilder: agentEnvironmentBuilder
             )
         }
     }
