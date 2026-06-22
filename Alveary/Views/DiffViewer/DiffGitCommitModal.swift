@@ -133,19 +133,19 @@ private extension DiffGitCommitModal {
                 Label("Commit", systemImage: "checkmark.circle")
             }
             .secondaryActionButtonStyle()
-            .disabled(model.actionButtonsDisabled)
+            .disabled(model.commitButtonDisabled)
 
             Button {
                 Task {
-                    if await model.perform(commitAndPush: true) {
+                    if await model.performPrimaryAction() {
                         onClose()
                     }
                 }
             } label: {
-                Label("Commit and push", systemImage: "arrow.up.circle")
+                Label(model.primaryActionButtonTitle, systemImage: "arrow.up.circle")
             }
             .primaryActionButtonStyle()
-            .disabled(model.actionButtonsDisabled)
+            .disabled(model.primaryActionButtonDisabled)
         }
         .frame(minHeight: 32)
     }

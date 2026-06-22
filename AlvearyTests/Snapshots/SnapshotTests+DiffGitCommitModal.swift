@@ -53,6 +53,21 @@ extension SnapshotTests {
             named: "diff_git_commit_modal_generating"
         )
     }
+
+    func testDiffGitCommitModalForcePushRequired() async {
+        let model = diffGitCommitModalModel(currentBranch: "main")
+        await model.load()
+        model.commitMessage = "Commit directly"
+        model.didCommitSuccessfully = true
+        model.forcePushRequired = true
+        model.errorMessage = "Force push required."
+
+        assertMacSnapshot(
+            DiffGitCommitModal(model: model, onClose: {}),
+            size: CGSize(width: 620, height: 430),
+            named: "diff_git_commit_modal_force_push_required"
+        )
+    }
 }
 
 private extension SnapshotTests {

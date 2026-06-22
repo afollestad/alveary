@@ -64,7 +64,8 @@ final class DiffGitCommitModalModelTests: XCTestCase {
         await model.load()
 
         XCTAssertEqual(model.preflightMessage, "No staged changes to commit.")
-        XCTAssertTrue(model.actionButtonsDisabled)
+        XCTAssertTrue(model.commitButtonDisabled)
+        XCTAssertTrue(model.primaryActionButtonDisabled)
     }
 
     func testBlankMessageGeneratesPromptAndCommitsGeneratedMessage() async throws {
@@ -170,7 +171,10 @@ final class DiffGitCommitModalModelTests: XCTestCase {
         let pushCalls = await gitService.pushCalls()
         XCTAssertEqual(commitCalls.count, 1)
         XCTAssertEqual(pushCalls.first?.remoteName, "origin")
-        XCTAssertTrue(model.actionButtonsDisabled)
+        XCTAssertFalse(model.forcePushRequired)
+        XCTAssertEqual(model.primaryActionButtonTitle, "Commit and push")
+        XCTAssertTrue(model.commitButtonDisabled)
+        XCTAssertTrue(model.primaryActionButtonDisabled)
         XCTAssertEqual(model.errorMessage, "Commit succeeded, but push failed: Rejected by remote")
 
         let retryCompleted = await model.perform(commitAndPush: true)
@@ -178,6 +182,53 @@ final class DiffGitCommitModalModelTests: XCTestCase {
 
         XCTAssertFalse(retryCompleted)
         XCTAssertEqual(commitCallsAfterRetry.count, 1)
+    }
+
+    func testCommitAndPushSwitchesToForcePushAfterNonFastForwardRejection() async {
+        let gitService = DiffGitCommitModalMockGitService(
+            statusResults: [],
+            pushResults: [.failure(GitError.nonFastForwardPushRequired("Rejected (non-fast-forward)"))],
+            currentBranchResult: .success("main")
+        )
+        var refreshCount = 0
+        let model = makeModel(
+            gitService: gitService,
+            refreshAfterMutation: {
+                refreshCount += 1
+            }
+        )
+        model.commitMessage = "Commit directly"
+
+        await model.load()
+        let didComplete = await model.perform(commitAndPush: true)
+
+        XCTAssertFalse(didComplete)
+        XCTAssertEqual(refreshCount, 1)
+        XCTAssertTrue(model.didCommitSuccessfully)
+        XCTAssertTrue(model.forcePushRequired)
+        XCTAssertEqual(model.errorMessage, "Force push required.")
+        XCTAssertTrue(model.controlsDisabled)
+        XCTAssertTrue(model.commitButtonDisabled)
+        XCTAssertFalse(model.primaryActionButtonDisabled)
+        XCTAssertEqual(model.primaryActionButtonTitle, "Force push")
+
+        let commitCalls = await gitService.commitCalls()
+        let pushCalls = await gitService.pushCalls()
+        let forcePushCalls = await gitService.forcePushCalls()
+        XCTAssertEqual(commitCalls.count, 1)
+        XCTAssertEqual(pushCalls.count, 1)
+        XCTAssertEqual(pushCalls.first?.remoteName, "origin")
+        XCTAssertTrue(forcePushCalls.isEmpty)
+
+        let forcePushCompleted = await model.performPrimaryAction()
+
+        XCTAssertTrue(forcePushCompleted)
+        XCTAssertEqual(refreshCount, 2)
+        XCTAssertFalse(model.forcePushRequired)
+        let commitCallsAfterForcePush = await gitService.commitCalls()
+        let forcePushCallsAfterForcePush = await gitService.forcePushCalls()
+        XCTAssertEqual(commitCallsAfterForcePush.count, 1)
+        XCTAssertEqual(forcePushCallsAfterForcePush.first?.remoteName, "origin")
     }
 }
 
@@ -236,6 +287,7 @@ private actor DiffGitCommitModalMockGitService: GitService {
     private var checkoutNewBranchResults: [Result<Void, Error>]
     private var commitResults: [Result<Void, Error>]
     private var pushResults: [Result<Void, Error>]
+    private var forcePushResults: [Result<Void, Error>]
     private let currentBranchResult: Result<String, Error>
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
@@ -244,6 +296,7 @@ private actor DiffGitCommitModalMockGitService: GitService {
     private var recordedCheckoutNewBranchCalls: [BranchCall] = []
     private var recordedCommitCalls: [CommitCall] = []
     private var recordedPushCalls: [PushCall] = []
+    private var recordedForcePushCalls: [PushCall] = []
 
     init(
         statusResults: [Result<[FileStatus], Error>],
@@ -255,6 +308,7 @@ private actor DiffGitCommitModalMockGitService: GitService {
         checkoutNewBranchResults: [Result<Void, Error>] = [.success(())],
         commitResults: [Result<Void, Error>] = [.success(())],
         pushResults: [Result<Void, Error>] = [.success(())],
+        forcePushResults: [Result<Void, Error>] = [.success(())],
         currentBranchResult: Result<String, Error> = .success("main")
     ) {
         self.statusResults = statusResults
@@ -266,6 +320,7 @@ private actor DiffGitCommitModalMockGitService: GitService {
         self.checkoutNewBranchResults = checkoutNewBranchResults
         self.commitResults = commitResults
         self.pushResults = pushResults
+        self.forcePushResults = forcePushResults
         self.currentBranchResult = currentBranchResult
     }
 
@@ -318,6 +373,11 @@ private actor DiffGitCommitModalMockGitService: GitService {
     func pushCurrentBranch(remoteName: String?, in directory: String) async throws {
         recordedPushCalls.append(PushCall(remoteName: remoteName, directory: directory))
         try nextResult(from: &pushResults, default: .success(())).get()
+    }
+
+    func forcePushCurrentBranch(remoteName: String?, in directory: String) async throws {
+        recordedForcePushCalls.append(PushCall(remoteName: remoteName, directory: directory))
+        try nextResult(from: &forcePushResults, default: .success(())).get()
     }
 
     func log(in directory: String, limit: Int) async throws -> [CommitInfo] {
@@ -378,6 +438,10 @@ private actor DiffGitCommitModalMockGitService: GitService {
 
     func pushCalls() -> [PushCall] {
         recordedPushCalls
+    }
+
+    func forcePushCalls() -> [PushCall] {
+        recordedForcePushCalls
     }
 
     private func nextResult<Success>(

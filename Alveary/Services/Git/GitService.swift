@@ -58,6 +58,7 @@ enum DiscardScope: Sendable, Equatable {
 
 enum GitError: Error, Sendable, Equatable {
     case commandFailed(String)
+    case nonFastForwardPushRequired(String)
     case notARepository
     case outputTooLarge(String)
 }
@@ -66,6 +67,8 @@ extension GitError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .commandFailed(let message):
+            return message
+        case .nonFastForwardPushRequired(let message):
             return message
         case .notARepository:
             return "This project is not a Git repository"
@@ -98,6 +101,7 @@ protocol GitService: Sendable {
     func checkoutNewBranch(_ branchName: String, in directory: String) async throws
     func commit(message: String, includeUnstagedChanges: Bool, in directory: String) async throws
     func pushCurrentBranch(remoteName: String?, in directory: String) async throws
+    func forcePushCurrentBranch(remoteName: String?, in directory: String) async throws
     func log(in directory: String, limit: Int) async throws -> [CommitInfo]
     func currentBranch(in directory: String) async throws -> String
     func currentHeadHash(in directory: String) async throws -> String
@@ -135,5 +139,9 @@ extension GitService {
 
     func pushCurrentBranch(remoteName: String?, in directory: String) async throws {
         throw GitError.commandFailed("Push is not implemented")
+    }
+
+    func forcePushCurrentBranch(remoteName: String?, in directory: String) async throws {
+        throw GitError.commandFailed("Force push is not implemented")
     }
 }

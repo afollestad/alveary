@@ -60,6 +60,7 @@ final class DiffGitCommitModalModel: Identifiable {
     var phase: OperationPhase = .idle
     var errorMessage: String?
     var didCommitSuccessfully = false
+    var forcePushRequired = false
 
     private let gitService: GitService
     private let settingsService: SettingsService
@@ -87,11 +88,22 @@ final class DiffGitCommitModalModel: Identifiable {
     }
 
     var controlsDisabled: Bool {
-        isLoadingInitialState || phase != .idle
+        isLoadingInitialState || phase != .idle || didCommitSuccessfully
     }
 
-    var actionButtonsDisabled: Bool {
+    var commitButtonDisabled: Bool {
         didCommitSuccessfully || controlsDisabled || preflightMessage != nil
+    }
+
+    var primaryActionButtonDisabled: Bool {
+        if forcePushRequired {
+            return isLoadingInitialState || phase != .idle
+        }
+        return didCommitSuccessfully || controlsDisabled || preflightMessage != nil
+    }
+
+    var primaryActionButtonTitle: String {
+        forcePushRequired ? "Force push" : "Commit and push"
     }
 
     var isOperationInFlight: Bool {
@@ -204,6 +216,12 @@ final class DiffGitCommitModalModel: Identifiable {
                 phase = .pushing
                 do {
                     try await gitService.pushCurrentBranch(remoteName: context.remoteName, in: context.directory)
+                } catch GitError.nonFastForwardPushRequired(_) {
+                    forcePushRequired = true
+                    phase = .idle
+                    await refreshAfterMutation()
+                    errorMessage = "Force push required."
+                    return false
                 } catch {
                     phase = .idle
                     await refreshAfterMutation()
@@ -212,6 +230,33 @@ final class DiffGitCommitModalModel: Identifiable {
                 }
             }
 
+            phase = .idle
+            await refreshAfterMutation()
+            return true
+        } catch {
+            phase = .idle
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func performPrimaryAction() async -> Bool {
+        if forcePushRequired {
+            return await performForcePush()
+        }
+        return await perform(commitAndPush: true)
+    }
+
+    func performForcePush() async -> Bool {
+        guard phase == .idle, forcePushRequired else {
+            return false
+        }
+
+        errorMessage = nil
+        phase = .pushing
+        do {
+            try await gitService.forcePushCurrentBranch(remoteName: context.remoteName, in: context.directory)
+            forcePushRequired = false
             phase = .idle
             await refreshAfterMutation()
             return true

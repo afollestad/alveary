@@ -151,6 +151,48 @@ extension GitServiceTests {
         let invocations = await shell.invocations
         XCTAssertEqual(invocations[1].args, ["push", "-u", "origin", "feature/test"])
     }
+
+    func testPushCurrentBranchClassifiesNonFastForwardRejection() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(Self.shellResult(stdout: "main\n")))
+        await shell.enqueue(
+            .success(
+                Self.shellResult(
+                    stdout: """
+                    To https://github.com/example/repo.git
+                     ! [rejected]        main -> main (non-fast-forward)
+                    """,
+                    stderr: """
+                    error: failed to push some refs to 'https://github.com/example/repo.git'
+                    """,
+                    exitCode: 1
+                )
+            )
+        )
+        let service = CLIGitService(shell: shell)
+
+        do {
+            try await service.pushCurrentBranch(remoteName: "origin", in: "/tmp/project")
+            XCTFail("Expected non-fast-forward push rejection")
+        } catch GitError.nonFastForwardPushRequired(let message) {
+            XCTAssertTrue(message.contains("non-fast-forward"))
+        } catch {
+            XCTFail("Expected non-fast-forward push rejection, got \(error)")
+        }
+    }
+
+    func testForcePushCurrentBranchUsesForceWithLease() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(Self.shellResult(stdout: "feature/test\n")))
+        await shell.enqueue(.success(Self.shellResult()))
+        let service = CLIGitService(shell: shell)
+
+        try await service.forcePushCurrentBranch(remoteName: "upstream", in: "/tmp/project")
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(invocations[0].args, ["rev-parse", "--abbrev-ref", "HEAD"])
+        XCTAssertEqual(invocations[1].args, ["push", "--force-with-lease", "-u", "upstream", "feature/test"])
+    }
 }
 
 private actor CommitMessageCapturingShellRunner: ShellRunner {

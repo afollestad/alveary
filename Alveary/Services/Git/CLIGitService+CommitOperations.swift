@@ -82,8 +82,38 @@ extension CLIGitService {
             in: directory
         )
         guard result.succeeded else {
+            throw Self.makePushError(from: result)
+        }
+    }
+
+    func forcePushCurrentBranch(remoteName: String?, in directory: String) async throws {
+        let branch = try await currentBranch(in: directory)
+        let remote = remoteName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "origin"
+        let result = try await shell.run(
+            executable: "/usr/bin/git",
+            args: ["push", "--force-with-lease", "-u", remote, branch],
+            in: directory
+        )
+        guard result.succeeded else {
             throw Self.makeError(from: result)
         }
+    }
+}
+
+private extension CLIGitService {
+    static func makePushError(from result: ShellResult) -> GitError {
+        let combined = [result.stderr, result.stdout]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            .nonEmpty ?? "Git push failed"
+
+        if combined.localizedCaseInsensitiveContains("non-fast-forward"),
+           combined.localizedCaseInsensitiveContains("rejected") {
+            return .nonFastForwardPushRequired(combined)
+        }
+
+        return makeError(from: result)
     }
 }
 
