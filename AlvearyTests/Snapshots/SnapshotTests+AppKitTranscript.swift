@@ -289,6 +289,28 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitTranscriptTaskListBlockInterrupted() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptTaskListBlockView()
+                view.configure(.init(
+                    tasks: [
+                        TaskEntry(
+                            id: "task-interrupted",
+                            content: "Patch the affected scripts or markup with the narrowest fixes",
+                            activeForm: "Patching the affected scripts or markup",
+                            status: .interrupted
+                        )
+                    ],
+                    bubbleMaxWidth: 760
+                ))
+                return view
+            },
+            size: CGSize(width: 760, height: 150),
+            named: "appkit_transcript_task_list_interrupted"
+        )
+    }
+
     func testAppKitTranscriptFullSurface() {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 560

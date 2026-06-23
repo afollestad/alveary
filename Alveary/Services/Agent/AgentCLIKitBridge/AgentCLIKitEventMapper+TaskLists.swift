@@ -44,6 +44,8 @@ private extension ConversationTaskListStatus {
             self = .inProgress
         case .completed:
             self = .completed
+        case .interrupted:
+            self = .interrupted
         }
     }
 }

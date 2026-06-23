@@ -93,6 +93,8 @@ extension AppKitTranscriptTaskListRowView {
             view = statusImageView(systemName: "square", color: .secondaryLabelColor, status: configuration.task.status)
         case .completed:
             view = statusImageView(systemName: "checkmark.square.fill", color: .systemGreen, status: configuration.task.status)
+        case .interrupted:
+            view = statusImageView(systemName: "xmark.square", color: .secondaryLabelColor, status: configuration.task.status)
         }
 
         statusSlot.addSubview(view)

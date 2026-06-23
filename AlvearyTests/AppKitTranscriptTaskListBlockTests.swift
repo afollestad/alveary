@@ -82,6 +82,25 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
         XCTAssertTrue(imageViews.allSatisfy { $0.frame.size == NSSize(width: 16, height: 16) })
     }
 
+    func testInterruptedTaskUsesStaticIconAndOriginalText() throws {
+        let block = configuredBlock(tasks: [
+            task("Interrupted task", .interrupted, activeForm: "Interrupting task")
+        ])
+        let row = try XCTUnwrap(block.taskRowForTesting(id: "Interrupted task"))
+        let field = try XCTUnwrap(row.taskTextFields.first)
+        let attributes = field.attributedStringValue.attributes(at: 0, effectiveRange: nil)
+        let font = try XCTUnwrap(attributes[.font] as? NSFont)
+        let image = try XCTUnwrap(row.descendants(of: NSImageView.self).first)
+
+        XCTAssertEqual(field.stringValue, "Interrupted task")
+        XCTAssertEqual(attributes[.foregroundColor] as? NSColor, NSColor.labelColor)
+        XCTAssertNil(attributes[.strikethroughStyle])
+        XCTAssertFalse(NSFontManager.shared.traits(of: font).contains(.boldFontMask))
+        XCTAssertTrue(row.descendants(of: AppKitStatusIndicatorSpinner.self).isEmpty)
+        XCTAssertEqual(image.frame.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(image.accessibilityLabel(), "Interrupted")
+    }
+
     func testTaskRowsUseCompactVerticalSpacing() {
         let block = configuredBlock(tasks: mixedTasks())
 

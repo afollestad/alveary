@@ -353,7 +353,7 @@ private extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
-        markTranscriptToolsInterrupted()
+        markTranscriptActivityInterrupted()
         state.endTurn()
         if shouldPersistInterruption {
             persistSyntheticStopRecord(message: ConversationInterruption.displayMessage)
@@ -416,7 +416,7 @@ private extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
-        markTranscriptToolsInterrupted()
+        markTranscriptActivityInterrupted()
         state.endTurn()
     }
 
@@ -440,7 +440,7 @@ private extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         if ConversationInterruption.isDisplayMessage(message), state.lastTurnInterrupted {
             state.isCancellingTurn = false
-            markTranscriptToolsInterrupted()
+            markTranscriptActivityInterrupted()
             state.endTurn()
             scheduleSave()
             return false
@@ -449,7 +449,7 @@ private extension ConversationViewModel {
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.lastTurnInterrupted = true
-            markTranscriptToolsInterrupted()
+            markTranscriptActivityInterrupted()
         }
         state.endTurn()
         return true

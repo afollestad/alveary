@@ -48,7 +48,7 @@ extension ChatItemGrouper {
                 return nil
             }
 
-            let status = TaskEntry.Status(rawValue: todo["status"] as? String ?? "pending") ?? .pending
+            let status = TaskEntry.Status(taskListRawValue: todo["status"] as? String ?? "pending")
             return TaskEntry(
                 id: "task-\(index)",
                 content: content,

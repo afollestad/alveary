@@ -16,7 +16,8 @@ extension ChatItemGrouperTests {
                     activeForm: "Implementing",
                     status: .inProgress
                 ),
-                ConversationTaskListItem(id: "task-3", content: "Verify", status: .pending)
+                ConversationTaskListItem(id: "task-3", content: "Verify", status: .pending),
+                ConversationTaskListItem(id: "task-4", content: "Resume", status: .interrupted)
             ]
         )
 
@@ -28,7 +29,8 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(taskBlock.tasks, [
             TaskEntry(id: "task-1", content: "Inspect", activeForm: nil, status: .completed),
             TaskEntry(id: "task-2", content: "Implement", activeForm: "Implementing", status: .inProgress),
-            TaskEntry(id: "task-3", content: "Verify", activeForm: nil, status: .pending)
+            TaskEntry(id: "task-3", content: "Verify", activeForm: nil, status: .pending),
+            TaskEntry(id: "task-4", content: "Resume", activeForm: nil, status: .interrupted)
         ])
     }
 
@@ -49,6 +51,107 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(taskBlocks.count, 1)
         XCTAssertEqual(taskBlocks.first, [
             TaskEntry(id: "task-1", content: "Inspect", activeForm: nil, status: .completed)
+        ])
+    }
+
+    func testInterruptedStopTerminalizesCurrentTurnTaskListBlock() throws {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let user = userMessageRecord(id: "user-1", conversationId: conversationId, content: "Start")
+        let taskList = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [
+                ConversationTaskListItem(id: "task-1", content: "Inspect", status: .completed),
+                ConversationTaskListItem(
+                    id: "task-2",
+                    content: "Patch",
+                    activeForm: "Patching",
+                    status: .inProgress
+                ),
+                ConversationTaskListItem(id: "task-3", content: "Verify", status: .pending)
+            ]
+        )
+        let stop = interruptedStopRecord(id: "stop-1", conversationId: conversationId)
+
+        grouper.update(events: [user, taskList, stop])
+
+        XCTAssertEqual(grouper.items.count, 3)
+        guard case .taskListBlock("tasks-codex-plan-turn-1", let tasks) = grouper.items[1] else {
+            return XCTFail("Expected the current-turn task list to remain before the interrupted note")
+        }
+        XCTAssertEqual(tasks.map(\.status), [.completed, .interrupted, .interrupted])
+        XCTAssertEqual(tasks[1].content, "Patch")
+        XCTAssertEqual(tasks[1].activeForm, "Patching")
+        XCTAssertEqual(grouper.items[2], .transcriptNote(id: "stop-1", kind: .interrupted))
+    }
+
+    func testInterruptedStopLeavesPriorTurnTaskListBlockUnchanged() {
+        let grouper = ChatItemGrouper()
+        grouper.items = [
+            .taskListBlock(id: "tasks-prior", tasks: [
+                TaskEntry(id: "prior-task", content: "Prior work", activeForm: "Working", status: .interrupted)
+            ]),
+            .userMessage(id: "user-2", text: "Next turn"),
+            .taskListBlock(id: "tasks-current", tasks: [
+                TaskEntry(id: "current-task", content: "Current work", activeForm: "Working", status: .inProgress)
+            ])
+        ]
+
+        grouper.handleLifecycleNote(interruptedStopRecord(id: "stop-2", conversationId: "conversation-1"))
+
+        guard case .taskListBlock("tasks-prior", let priorTasks) = grouper.items[0],
+              case .taskListBlock("tasks-current", let currentTasks) = grouper.items[2] else {
+            return XCTFail("Expected both task-list blocks to remain visible")
+        }
+        XCTAssertEqual(priorTasks.map(\.status), [.interrupted])
+        XCTAssertEqual(currentTasks.map(\.status), [.interrupted])
+        XCTAssertEqual(grouper.items[3], .transcriptNote(id: "stop-2", kind: .interrupted))
+    }
+
+    func testInterruptedTerminalizationLeavesTaskListBeforeLatestUserUnchanged() {
+        let items: [ChatItem] = [
+            .taskListBlock(id: "tasks-prior", tasks: [
+                TaskEntry(id: "prior-task", content: "Prior work", activeForm: "Working", status: .inProgress)
+            ]),
+            .userMessage(id: "user-2", text: "Next turn"),
+            .taskListBlock(id: "tasks-current", tasks: [
+                TaskEntry(id: "current-task", content: "Current work", activeForm: "Working", status: .inProgress)
+            ])
+        ].interruptedActivityTerminalized
+
+        guard case .taskListBlock("tasks-prior", let priorTasks) = items[0],
+              case .taskListBlock("tasks-current", let currentTasks) = items[2] else {
+            return XCTFail("Expected both task-list blocks to remain visible")
+        }
+        XCTAssertEqual(priorTasks.map(\.status), [.inProgress])
+        XCTAssertEqual(currentTasks.map(\.status), [.interrupted])
+    }
+
+    func testSubsequentTurnTaskListSnapshotReactivatesInterruptedTaskList() throws {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let user1 = userMessageRecord(id: "user-1", conversationId: conversationId, content: "Start")
+        let interruptedSnapshot = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [ConversationTaskListItem(id: "task-1", content: "Inspect", status: .inProgress)]
+        )
+        let stop = interruptedStopRecord(id: "stop-1", conversationId: conversationId)
+        let user2 = userMessageRecord(id: "user-2", conversationId: conversationId, content: "Resume")
+        let resumedSnapshot = try taskListSnapshotRecord(
+            id: "tasks-codex-plan-turn-1",
+            items: [ConversationTaskListItem(id: "task-1", content: "Inspect", status: .inProgress)]
+        )
+
+        grouper.update(events: [user1, interruptedSnapshot, stop, user2, resumedSnapshot])
+
+        let taskBlocks = taskListBlocks(in: grouper.items)
+        XCTAssertEqual(taskBlocks.count, 1)
+        XCTAssertEqual(taskBlocks.first?.map(\.status), [.inProgress])
+        XCTAssertEqual(Array(grouper.items.suffix(2)), [
+            .userMessage(id: "user-2", text: "Resume"),
+            .taskListBlock(id: "tasks-codex-plan-turn-1", tasks: [
+                TaskEntry(id: "task-1", content: "Inspect", activeForm: nil, status: .inProgress)
+            ])
         ])
     }
 
@@ -194,6 +297,29 @@ extension ChatItemGrouperTests {
             type: "message",
             role: "assistant",
             content: content
+        )
+    }
+
+    private func userMessageRecord(
+        id: String,
+        conversationId: String,
+        content: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "message",
+            role: "user",
+            content: content
+        )
+    }
+
+    private func interruptedStopRecord(id: String, conversationId: String) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "stop",
+            content: ConversationInterruption.displayMessage
         )
     }
 

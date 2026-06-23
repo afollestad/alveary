@@ -56,7 +56,7 @@ extension [ChatItem] {
         filter(\.isVisibleInTranscript)
     }
 
-    var interruptedToolsTerminalized: [ChatItem] {
+    var interruptedActivityTerminalized: [ChatItem] {
         let terminalizationStart = lastIndex(where: \.isUserMessage).map { index(after: $0) } ?? startIndex
         return indices.map { index in
             let item = self[index]
@@ -68,6 +68,8 @@ extension [ChatItem] {
                 return .toolGroup(id: id, tools: tools.map(\.terminalizingAsInterruptedIfNeeded))
             case .standaloneTool(let id, let tool):
                 return .standaloneTool(id: id, tool: tool.terminalizingAsInterruptedIfNeeded)
+            case .taskListBlock(let id, let tasks):
+                return .taskListBlock(id: id, tasks: tasks.map(\.terminalizingAsInterruptedIfNeeded))
             default:
                 return item
             }
@@ -410,6 +412,31 @@ struct TaskEntry: Identifiable, Equatable {
         case pending
         case inProgress = "in_progress"
         case completed
+        case interrupted
+
+        init(taskListRawValue rawValue: String) {
+            switch rawValue {
+            case Self.pending.rawValue:
+                self = .pending
+            case Self.inProgress.rawValue, "inProgress":
+                self = .inProgress
+            case Self.completed.rawValue:
+                self = .completed
+            case Self.interrupted.rawValue, "cancelled", "canceled":
+                self = .interrupted
+            default:
+                self = .pending
+            }
+        }
+
+        var isTerminal: Bool {
+            switch self {
+            case .pending, .inProgress:
+                return false
+            case .completed, .interrupted:
+                return true
+            }
+        }
     }
 }
 
@@ -422,6 +449,18 @@ struct ToolApprovalBatchState: Equatable {
 extension TaskEntry {
     var normalizedContentForMatching: String {
         content.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var terminalizingAsInterruptedIfNeeded: TaskEntry {
+        guard !status.isTerminal else {
+            return self
+        }
+        return TaskEntry(
+            id: id,
+            content: content,
+            activeForm: activeForm,
+            status: .interrupted
+        )
     }
 }
 
@@ -447,6 +486,6 @@ extension ChatItem {
         guard case .taskListBlock(_, let tasks) = self else {
             return false
         }
-        return tasks.contains { $0.status != .completed }
+        return tasks.contains { !$0.status.isTerminal }
     }
 }

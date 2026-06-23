@@ -112,7 +112,7 @@ extension ChatItemGrouper {
             appendTranscriptItem(.transcriptNote(id: event.id, kind: .steeredConversation))
         case "stop" where ConversationInterruption.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
-            markIncompleteToolsInterrupted()
+            markIncompleteTranscriptActivityInterrupted()
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.transcriptNote(id: event.id, kind: .interrupted))

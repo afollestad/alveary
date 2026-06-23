@@ -534,6 +534,49 @@ extension ConversationViewModelTests {
         XCTAssertEqual(persistedEvents.first?.content, ConversationInterruption.displayMessage)
     }
 
+    func testInterruptedMarkerTerminalizesCurrentTaskListWithoutSyntheticRecord() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(.taskListSnapshot(ConversationTaskListSnapshot(
+            id: "tasks-codex-plan-turn-1",
+            items: [
+                ConversationTaskListItem(id: "task-1", content: "Inspect", status: .completed),
+                ConversationTaskListItem(id: "task-2", content: "Patch", activeForm: "Patching", status: .inProgress),
+                ConversationTaskListItem(id: "task-3", content: "Verify", status: .pending)
+            ]
+        )))
+        fixture.viewModel.handleEvent(.stop(message: ConversationInterruption.displayMessage))
+
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertEqual(fixture.viewModel.state.grouper.items.count, 2)
+        guard case .taskListBlock("tasks-codex-plan-turn-1", let tasks) = fixture.viewModel.state.grouper.items.first else {
+            return XCTFail("Expected interrupted task list before the interrupted note")
+        }
+        XCTAssertEqual(tasks.map(\.status), [.completed, .interrupted, .interrupted])
+        guard case .transcriptNote(_, .interrupted) = fixture.viewModel.state.grouper.items.last else {
+            return XCTFail("Expected interrupted note after the task list")
+        }
+
+        let persistedEvents = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>())
+            .filter { $0.conversationId == fixture.conversation.id }
+        let taskListRecords = persistedEvents.filter { $0.type == ConversationEventRecord.taskListType }
+        let stopRecords = persistedEvents.filter { $0.type == "stop" }
+        XCTAssertEqual(taskListRecords.count, 1)
+        XCTAssertEqual(stopRecords.count, 1)
+
+        let restoredGrouper = ChatItemGrouper()
+        restoredGrouper.update(events: [
+            try XCTUnwrap(taskListRecords.first),
+            try XCTUnwrap(stopRecords.first)
+        ])
+        guard case .taskListBlock("tasks-codex-plan-turn-1", let restoredTasks) = restoredGrouper.items.first else {
+            return XCTFail("Expected restored task list before the interrupted note")
+        }
+        XCTAssertEqual(restoredTasks.map(\.status), [.completed, .interrupted, .interrupted])
+    }
+
     func testLateTaskListSnapshotIsSuppressedAfterInterruptedTurn() throws {
         let fixture = try ConversationViewModelTestFixture()
 

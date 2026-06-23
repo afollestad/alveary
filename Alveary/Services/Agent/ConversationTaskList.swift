@@ -47,6 +47,7 @@ enum ConversationTaskListStatus: String, Codable, Sendable {
     case pending
     case inProgress = "in_progress"
     case completed
+    case interrupted
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -58,6 +59,8 @@ enum ConversationTaskListStatus: String, Codable, Sendable {
             self = .inProgress
         case Self.completed.rawValue:
             self = .completed
+        case Self.interrupted.rawValue, "cancelled", "canceled":
+            self = .interrupted
         default:
             self = .pending
         }

@@ -30,7 +30,8 @@ final class ConversationEventTests: XCTestCase {
                     content: "Implement",
                     activeForm: "Implementing",
                     status: .inProgress
-                )
+                ),
+                ConversationTaskListItem(id: "task-3", content: "Verify", status: .interrupted)
             ]
         )
         let record = try XCTUnwrap(ConversationEvent.taskListSnapshot(snapshot).toRecord(conversation: conversation))
@@ -48,13 +49,23 @@ final class ConversationEventTests: XCTestCase {
           "items": [
             { "id": "task-1", "content": "Legacy in progress", "status": "inProgress" },
             { "id": "task-2", "content": "Unknown status", "status": "blocked" },
-            { "id": "task-3", "content": "Missing status" }
+            { "id": "task-3", "content": "Missing status" },
+            { "id": "task-4", "content": "Interrupted status", "status": "interrupted" },
+            { "id": "task-5", "content": "Canceled status", "status": "canceled" },
+            { "id": "task-6", "content": "Cancelled status", "status": "cancelled" }
           ]
         }
         """
         let legacyData = try XCTUnwrap(legacyPayload.data(using: .utf8))
         let legacySnapshot = try JSONDecoder().decode(ConversationTaskListSnapshot.self, from: legacyData)
-        XCTAssertEqual(legacySnapshot.items.map(\.status), [.inProgress, .pending, .pending])
+        XCTAssertEqual(legacySnapshot.items.map(\.status), [
+            .inProgress,
+            .pending,
+            .pending,
+            .interrupted,
+            .interrupted,
+            .interrupted
+        ])
     }
 
     func testToolResultToRecordPersistsMetadataAndConversationLink() throws {

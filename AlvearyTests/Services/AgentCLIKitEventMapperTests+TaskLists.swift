@@ -58,6 +58,38 @@ extension AgentCLIKitEventMapperTests {
         ])
     }
 
+    func testMapsInterruptedTaskListMetadataStatus() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
+            id: "codex-plan-turn-2",
+            phase: .progress,
+            description: "Plan interrupted",
+            taskType: "plan",
+            status: "updated",
+            metadata: [
+                "todos": .array([
+                    .object([
+                        "id": .string("codex-plan-turn-2-0"),
+                        "subject": .string("Resume after interruption"),
+                        "status": .string("interrupted")
+                    ])
+                ])
+            ]
+        ))))
+
+        XCTAssertEqual(events, [
+            .taskListSnapshot(ConversationTaskListSnapshot(
+                id: "tasks-codex-plan-turn-2",
+                items: [
+                    ConversationTaskListItem(
+                        id: "codex-plan-turn-2-0",
+                        content: "Resume after interruption",
+                        status: .interrupted
+                    )
+                ]
+            ))
+        ])
+    }
+
     func testDropsCodexPlanDeltaWithoutSnapshot() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.task(AgentTaskEvent(
             id: "plan-delta-1",

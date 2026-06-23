@@ -175,11 +175,11 @@ extension ChatItemGrouper {
         )
     }
 
-    func markIncompleteToolsInterrupted() {
+    func markIncompleteTranscriptActivityInterrupted() {
         pendingGroupTools = pendingGroupTools.map { tool in
             tool.isComplete ? tool : interruptedToolEntry(from: tool)
         }
-        items = items.interruptedToolsTerminalized
+        items = items.interruptedActivityTerminalized
     }
 
     func interruptedToolEntry(from tool: ToolEntry) -> ToolEntry {

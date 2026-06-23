@@ -120,7 +120,7 @@ extension ChatItemGrouperTests {
             .userMessage(id: "user-2", text: "Next turn"),
             .standaloneTool(id: "tool-cmd-1", tool: runningCommand),
             .toolGroup(id: "group-read-1", tools: [completedRead, runningGrep])
-        ].interruptedToolsTerminalized
+        ].interruptedActivityTerminalized
 
         guard case .standaloneTool(_, let oldCommand) = items[0],
               case .standaloneTool(_, let updatedCommand) = items[2],

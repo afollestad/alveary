@@ -20,10 +20,12 @@ extension TaskEntry.Status {
         switch self {
         case .inProgress:
             return 0
-        case .pending:
+        case .interrupted:
             return 1
-        case .completed:
+        case .pending:
             return 2
+        case .completed:
+            return 3
         }
     }
 
@@ -31,6 +33,8 @@ extension TaskEntry.Status {
         switch self {
         case .inProgress:
             return "In progress"
+        case .interrupted:
+            return "Interrupted"
         case .pending:
             return "Pending"
         case .completed:

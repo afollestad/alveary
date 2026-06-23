@@ -233,8 +233,8 @@ extension ConversationViewModel {
         ))
     }
 
-    func markTranscriptToolsInterrupted() {
-        state.grouper.markIncompleteToolsInterrupted()
+    func markTranscriptActivityInterrupted() {
+        state.grouper.markIncompleteTranscriptActivityInterrupted()
     }
 
     func markPromptDismissInterruption() {
@@ -243,7 +243,7 @@ extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
-        markTranscriptToolsInterrupted()
+        markTranscriptActivityInterrupted()
         state.clearStreamingText()
         state.endTurn()
         recordLocalVisibleTurnEndedIfNeeded()

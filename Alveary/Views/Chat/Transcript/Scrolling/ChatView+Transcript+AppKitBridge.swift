@@ -29,7 +29,7 @@ extension ChatTranscriptView {
               !viewModel.turnState.isActive else {
             return items
         }
-        return items.interruptedToolsTerminalized
+        return items.interruptedActivityTerminalized
     }
 
     var appKitTransientRows: AppKitTranscriptTransientRows {

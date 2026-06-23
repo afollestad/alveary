@@ -16,8 +16,21 @@ extension ChatItemGrouper {
         guard let index = items.lastIndex(where: { $0.id == id }) else {
             return replaceTaskListBlockMatchingTasks(tasks)
         }
+        if shouldMoveReactivatedTaskListToCurrentTurn(index: index, tasks: tasks) {
+            items.remove(at: index)
+            appendTranscriptItem(.taskListBlock(id: id, tasks: tasks))
+            return true
+        }
         items[index] = .taskListBlock(id: id, tasks: tasks)
         return true
+    }
+
+    func shouldMoveReactivatedTaskListToCurrentTurn(index: Array<ChatItem>.Index, tasks: [TaskEntry]) -> Bool {
+        guard tasks.contains(where: { !$0.status.isTerminal }),
+              let latestUserIndex = items.lastIndex(where: \.isUserMessage) else {
+            return false
+        }
+        return index < latestUserIndex
     }
 
     func replaceTaskListBlockMatchingTasks(_ tasks: [TaskEntry]) -> Bool {
@@ -28,7 +41,7 @@ extension ChatItemGrouper {
             return false
         }),
               case .taskListBlock(let id, let existingTasks) = items[index],
-              existingTasks.contains(where: { $0.status != .completed }),
+              existingTasks.contains(where: { !$0.status.isTerminal }),
               taskListsMatchByContent(existingTasks, tasks) else {
             return false
         }
@@ -189,6 +202,8 @@ private extension AgentTaskListItem.Status {
             return .inProgress
         case .completed:
             return .completed
+        case .interrupted:
+            return .interrupted
         }
     }
 }
@@ -202,6 +217,8 @@ private extension ConversationTaskListStatus {
             return .inProgress
         case .completed:
             return .completed
+        case .interrupted:
+            return .interrupted
         }
     }
 }
