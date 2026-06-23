@@ -20,36 +20,8 @@ enum AppPopupSurfaceStyle {
 }
 
 @MainActor
-enum AppKitComposerPopoverSurface {
-    static let cornerRadius: CGFloat = 12
-
-    static func fillColor(in view: NSView) -> NSColor {
-        AppPopupSurfaceStyle.backgroundColor(in: view)
-    }
-
-    static func draw(in view: NSView, bounds: NSRect) {
-        fillColor(in: view).setFill()
-        NSBezierPath(
-            roundedRect: bounds,
-            xRadius: cornerRadius,
-            yRadius: cornerRadius
-        ).fill()
-    }
-}
-
-@MainActor
 class AppKitComposerPopoverSurfaceView: NSView {
     override var isFlipped: Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        AppKitComposerPopoverSurface.draw(in: self, bounds: bounds)
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-    }
 }
 
 @MainActor

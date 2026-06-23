@@ -122,7 +122,12 @@ final class AppKitHoverTooltipAnchorView: NSView {
 #if DEBUG
 extension AppKitHoverTooltipAnchorView {
     func showTooltipForTesting() {
-        showHoverTooltip()
+        guard let helpText,
+              !helpText.isEmpty,
+              window != nil else {
+            return
+        }
+        hoverTooltip.showForTesting(text: helpText)
     }
 
     var tooltipIgnoresMouseForTesting: Bool? {

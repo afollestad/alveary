@@ -147,20 +147,12 @@ final class BlockInputComposerStyleTests: XCTestCase {
     }
 
     func testPopupSurfaceStyleResolvesSharedFill() throws {
-        let view = NSView()
-
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
             let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
             let expected = expectedPopupBackgroundColor(for: appearance)
-            view.appearance = appearance
 
             try assertColor(
                 AppPopupSurfaceStyle.backgroundColor(for: appearance),
-                appearanceName: appearanceName,
-                matches: expected
-            )
-            try assertColor(
-                AppKitComposerPopoverSurface.fillColor(in: view),
                 appearanceName: appearanceName,
                 matches: expected
             )

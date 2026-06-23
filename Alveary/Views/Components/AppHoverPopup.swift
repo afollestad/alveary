@@ -1,52 +1,6 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-struct AppHoverPopup<Content: View>: View {
-    private let arrowEdge: AppHoverPopupArrowEdge
-    private let horizontalPadding: CGFloat
-    private let verticalPadding: CGFloat
-    private let textAlignment: TextAlignment
-    private let content: Content
-
-    init(
-        arrowEdge: AppHoverPopupArrowEdge = .none,
-        horizontalPadding: CGFloat = 18,
-        verticalPadding: CGFloat = 14,
-        textAlignment: TextAlignment = .center,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.arrowEdge = arrowEdge
-        self.horizontalPadding = horizontalPadding
-        self.verticalPadding = verticalPadding
-        self.textAlignment = textAlignment
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .multilineTextAlignment(textAlignment)
-            .padding(.vertical, verticalPadding)
-            .padding(.horizontal, horizontalPadding)
-            .padding(.top, arrowEdge == .top ? AppHoverPopupBubbleShape.arrowDepth : 0)
-            .padding(.leading, arrowEdge == .leading ? AppHoverPopupBubbleShape.arrowDepth : 0)
-            .background {
-                AppHoverPopupBubbleShape(arrowEdge: arrowEdge)
-                    .fill(Color(nsColor: AppPopupSurfaceStyle.backgroundNSColor))
-                    .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
-                    .overlay {
-                        AppHoverPopupBubbleShape(arrowEdge: arrowEdge)
-                            .stroke(Color.secondary.opacity(0.22), lineWidth: 1)
-                    }
-            }
-    }
-}
-
-enum AppHoverPopupArrowEdge {
-    case none
-    case top
-    case leading
-}
-
 struct AppHoverInfoIcon: View {
     let text: String
 
@@ -243,7 +197,12 @@ extension AppKitHoverInfoButton {
     }
 
     func showTooltipForTesting() {
-        showHoverTooltip()
+        guard let helpText,
+              !helpText.isEmpty,
+              window != nil else {
+            return
+        }
+        hoverTooltip.showForTesting(text: helpText)
     }
 
     var tooltipIgnoresMouseForTesting: Bool? {
@@ -270,14 +229,27 @@ private struct AppHoverInfoIconRepresentable: NSViewRepresentable {
 
 @MainActor
 final class AppKitHoverTooltipController {
-    private var tooltipWindow: NSWindow?
-    private weak var parentWindow: NSWindow?
+    private var tooltipPopover: NSPopover?
+#if DEBUG
+    private var isShowingForTesting = false
+#endif
 
     var isShown: Bool {
-        tooltipWindow?.isVisible == true
+#if DEBUG
+        if isShowingForTesting {
+            return true
+        }
+#endif
+        return tooltipPopover?.isShown == true
     }
 
     func show(text: String, relativeTo sourceView: NSView) {
+#if DEBUG
+        if isShowingForTesting {
+            showForTesting(text: text)
+            return
+        }
+#endif
         close()
 
         guard let sourceWindow = sourceView.window else {
@@ -285,43 +257,34 @@ final class AppKitHoverTooltipController {
         }
 
         let visibleFrame = sourceWindow.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        let rightView = makeHostingView(text: text, arrowEdge: .leading)
-        let rightSize = rightView.fittingSize
-        let edge = preferredEdge(for: rightSize, relativeTo: sourceView, visibleFrame: visibleFrame)
-        let hostingView = edge == .maxX ? rightView : makeHostingView(text: text, arrowEdge: .top)
-        let preferredSize = hostingView.fittingSize
-        let frame = tooltipFrame(
-            size: preferredSize,
-            edge: edge,
-            relativeTo: sourceView,
-            visibleFrame: visibleFrame
-        )
-        let tooltipWindow = NSPanel(
-            contentRect: frame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        tooltipWindow.backgroundColor = .clear
-        tooltipWindow.contentView = hostingView
-        tooltipWindow.hasShadow = false
-        tooltipWindow.ignoresMouseEvents = true
-        tooltipWindow.isOpaque = false
-        tooltipWindow.level = .popUpMenu
-        tooltipWindow.collectionBehavior = [.transient, .ignoresCycle]
-        sourceWindow.addChildWindow(tooltipWindow, ordered: .above)
-        tooltipWindow.orderFront(nil)
-        self.tooltipWindow = tooltipWindow
-        parentWindow = sourceWindow
+        let controller = makePopoverController(text: text)
+        let preferredSize = controller.preferredContentSize
+        let edge = preferredEdge(for: preferredSize, relativeTo: sourceView, visibleFrame: visibleFrame)
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = false
+        popover.contentViewController = controller
+        popover.contentSize = preferredSize
+        tooltipPopover = popover
+        popover.show(relativeTo: sourceView.bounds, of: sourceView, preferredEdge: edge)
+        updatePopoverWindowMouseHandling(for: popover)
+        Task { @MainActor [weak self, weak popover] in
+            await Task.yield()
+            guard let self,
+                  let popover,
+                  self.tooltipPopover === popover else {
+                return
+            }
+            self.updatePopoverWindowMouseHandling(for: popover)
+        }
     }
 
     func close() {
-        if let tooltipWindow {
-            parentWindow?.removeChildWindow(tooltipWindow)
-            tooltipWindow.orderOut(nil)
-        }
-        tooltipWindow = nil
-        parentWindow = nil
+        tooltipPopover?.performClose(nil)
+        tooltipPopover = nil
+#if DEBUG
+        isShowingForTesting = false
+#endif
     }
 
     private func preferredEdge(for contentSize: NSSize, relativeTo sourceView: NSView, visibleFrame: NSRect) -> NSRectEdge {
@@ -333,26 +296,6 @@ final class AppKitHoverTooltipController {
         return visibleFrame.maxX - sourceRect.maxX >= contentSize.width + rightMargin ? .maxX : .maxY
     }
 
-    private func tooltipFrame(size: NSSize, edge: NSRectEdge, relativeTo sourceView: NSView, visibleFrame: NSRect) -> NSRect {
-        let sourceRect = sourceScreenRect(for: sourceView)
-        let margin: CGFloat = 6
-        let shadowPadding = AppHoverTooltipContent.shadowPadding
-        let origin: NSPoint
-        switch edge {
-        case .maxX:
-            origin = NSPoint(
-                x: sourceRect.maxX + margin - shadowPadding,
-                y: clamped(sourceRect.midY - (size.height / 2), min: visibleFrame.minY + margin, max: visibleFrame.maxY - size.height - margin)
-            )
-        default:
-            origin = NSPoint(
-                x: clamped(sourceRect.midX - (size.width / 2), min: visibleFrame.minX + margin, max: visibleFrame.maxX - size.width - margin),
-                y: sourceRect.minY - size.height - margin + shadowPadding
-            )
-        }
-        return NSRect(origin: origin, size: size)
-    }
-
     private func sourceScreenRect(for sourceView: NSView) -> NSRect {
         guard let sourceWindow = sourceView.window else {
             return .zero
@@ -360,45 +303,49 @@ final class AppKitHoverTooltipController {
         return sourceWindow.convertToScreen(sourceView.convert(sourceView.bounds, to: nil))
     }
 
-    private func makeHostingView(text: String, arrowEdge: AppHoverPopupArrowEdge) -> NSHostingView<AppHoverTooltipContent> {
-        let view = NSHostingView(rootView: AppHoverTooltipContent(text: text, arrowEdge: arrowEdge))
-        view.frame = NSRect(origin: .zero, size: view.fittingSize)
-        return view
+    private func makePopoverController(text: String) -> NSHostingController<AppHoverTooltipContent> {
+        let controller = NSHostingController(rootView: AppHoverTooltipContent(text: text))
+        controller.preferredContentSize = controller.view.fittingSize
+        return controller
     }
 
-    private func clamped(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
-        guard maxValue >= minValue else {
-            return minValue
-        }
-        return min(max(value, minValue), maxValue)
+    private func updatePopoverWindowMouseHandling(for popover: NSPopover) {
+        popover.contentViewController?.view.window?.ignoresMouseEvents = true
     }
 }
 
 #if DEBUG
 extension AppKitHoverTooltipController {
+    func showForTesting(text: String) {
+        close()
+        _ = makePopoverController(text: text)
+        isShowingForTesting = true
+    }
+
     var tooltipIgnoresMouse: Bool? {
-        tooltipWindow?.ignoresMouseEvents
+        if isShowingForTesting {
+            return true
+        }
+        return tooltipPopover?.contentViewController?.view.window?.ignoresMouseEvents
     }
 }
 #endif
 
-private struct AppHoverTooltipContent: View {
-    static let shadowPadding: CGFloat = 10
+struct AppHoverTooltipContent: View {
     private static let maxTextWidth: CGFloat = 280
     private static let textFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
 
     let text: String
-    let arrowEdge: AppHoverPopupArrowEdge
 
     var body: some View {
-        AppHoverPopup(arrowEdge: arrowEdge, horizontalPadding: 12, verticalPadding: 15, textAlignment: .leading) {
-            Text(text)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: !Self.shouldWrap(text), vertical: false)
-                .frame(width: Self.wrappedTextWidth(for: text), alignment: .leading)
-        }
-        .padding(Self.shadowPadding)
+        Text(text)
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.primary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: !Self.shouldWrap(text), vertical: false)
+            .frame(width: Self.wrappedTextWidth(for: text), alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 15)
     }
 
     private static func shouldWrap(_ text: String) -> Bool {
@@ -412,78 +359,5 @@ private struct AppHoverTooltipContent: View {
     private static func measuredTextWidth(for text: String) -> CGFloat {
         let attributes: [NSAttributedString.Key: Any] = [.font: textFont]
         return ceil((text as NSString).size(withAttributes: attributes).width)
-    }
-}
-
-private struct AppHoverPopupBubbleShape: Shape {
-    static let arrowDepth: CGFloat = 8
-    private static let arrowLength: CGFloat = 14
-
-    let arrowEdge: AppHoverPopupArrowEdge
-
-    func path(in rect: CGRect) -> Path {
-        switch arrowEdge {
-        case .none:
-            return Path(roundedRect: rect, cornerRadius: 10)
-        case .top:
-            return topArrowPath(in: rect)
-        case .leading:
-            return leadingArrowPath(in: rect)
-        }
-    }
-
-    private func topArrowPath(in rect: CGRect) -> Path {
-        let arrowDepth = Self.arrowDepth
-        let arrowHalfLength = Self.arrowLength / 2
-        let bubble = CGRect(
-            x: rect.minX,
-            y: rect.minY + arrowDepth,
-            width: rect.width,
-            height: max(0, rect.height - arrowDepth)
-        )
-        let radius = min(10, bubble.width / 2, bubble.height / 2)
-        let arrowX = min(max(rect.midX, bubble.minX + radius + arrowHalfLength), bubble.maxX - radius - arrowHalfLength)
-        var path = Path()
-        path.move(to: CGPoint(x: arrowX, y: rect.minY))
-        path.addLine(to: CGPoint(x: arrowX + arrowHalfLength, y: bubble.minY))
-        path.addLine(to: CGPoint(x: bubble.maxX - radius, y: bubble.minY))
-        path.addQuadCurve(to: CGPoint(x: bubble.maxX, y: bubble.minY + radius), control: CGPoint(x: bubble.maxX, y: bubble.minY))
-        path.addLine(to: CGPoint(x: bubble.maxX, y: bubble.maxY - radius))
-        path.addQuadCurve(to: CGPoint(x: bubble.maxX - radius, y: bubble.maxY), control: CGPoint(x: bubble.maxX, y: bubble.maxY))
-        path.addLine(to: CGPoint(x: bubble.minX + radius, y: bubble.maxY))
-        path.addQuadCurve(to: CGPoint(x: bubble.minX, y: bubble.maxY - radius), control: CGPoint(x: bubble.minX, y: bubble.maxY))
-        path.addLine(to: CGPoint(x: bubble.minX, y: bubble.minY + radius))
-        path.addQuadCurve(to: CGPoint(x: bubble.minX + radius, y: bubble.minY), control: CGPoint(x: bubble.minX, y: bubble.minY))
-        path.addLine(to: CGPoint(x: arrowX - arrowHalfLength, y: bubble.minY))
-        path.closeSubpath()
-        return path
-    }
-
-    private func leadingArrowPath(in rect: CGRect) -> Path {
-        let arrowDepth = Self.arrowDepth
-        let arrowHalfLength = Self.arrowLength / 2
-        let bubble = CGRect(
-            x: rect.minX + arrowDepth,
-            y: rect.minY,
-            width: max(0, rect.width - arrowDepth),
-            height: rect.height
-        )
-        let radius = min(10, bubble.width / 2, bubble.height / 2)
-        let arrowY = min(max(rect.midY, bubble.minY + radius + arrowHalfLength), bubble.maxY - radius - arrowHalfLength)
-        var path = Path()
-        path.move(to: CGPoint(x: bubble.minX + radius, y: bubble.minY))
-        path.addLine(to: CGPoint(x: bubble.maxX - radius, y: bubble.minY))
-        path.addQuadCurve(to: CGPoint(x: bubble.maxX, y: bubble.minY + radius), control: CGPoint(x: bubble.maxX, y: bubble.minY))
-        path.addLine(to: CGPoint(x: bubble.maxX, y: bubble.maxY - radius))
-        path.addQuadCurve(to: CGPoint(x: bubble.maxX - radius, y: bubble.maxY), control: CGPoint(x: bubble.maxX, y: bubble.maxY))
-        path.addLine(to: CGPoint(x: bubble.minX + radius, y: bubble.maxY))
-        path.addQuadCurve(to: CGPoint(x: bubble.minX, y: bubble.maxY - radius), control: CGPoint(x: bubble.minX, y: bubble.maxY))
-        path.addLine(to: CGPoint(x: bubble.minX, y: arrowY + arrowHalfLength))
-        path.addLine(to: CGPoint(x: rect.minX, y: arrowY))
-        path.addLine(to: CGPoint(x: bubble.minX, y: arrowY - arrowHalfLength))
-        path.addLine(to: CGPoint(x: bubble.minX, y: bubble.minY + radius))
-        path.addQuadCurve(to: CGPoint(x: bubble.minX + radius, y: bubble.minY), control: CGPoint(x: bubble.minX, y: bubble.minY))
-        path.closeSubpath()
-        return path
     }
 }

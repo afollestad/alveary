@@ -22,7 +22,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Fill width:** Keep the row framed to `maxWidth: .infinity` so the trailing dot reaches the same action column as project-row icon buttons.
     - **Preserve title alignment:** Keep the invisible leading slot so thread titles stay aligned with project names.
     - **Match busy sizing:** `.busy` uses a spinner in the same fixed frame as the colored dot (`8×8` today) so status changes do not change row height or nudge the label vertically.
-    - **Show worktrees inline:** Threads with `useWorktree` show a rotated branch glyph before the status/cleanup frame with a 6pt explicit gap. Hovering the glyph uses the shared `AppHoverPopup` tooltip chrome to show the worktree path, or `Worktree path not created yet` before setup creates one.
+    - **Show worktrees inline:** Threads with `useWorktree` show a rotated branch glyph before the status/cleanup frame with a 6pt explicit gap. Hovering the glyph uses the shared hover tooltip to show the worktree path, or `Worktree path not created yet` before setup creates one.
     - **Reserve trailing controls:** Keep the title gap, worktree glyph, and status/cleanup frame in a fixed-width trailing cluster so long thread names ellipsize before the glyph instead of overlapping or shifting it.
 - `SidebarThreadRow` cleanup action overlays the status dot:
     - **Keep hidden by default:** Show the archive/delete icon button only while the row is hovered or confirmation is armed.
