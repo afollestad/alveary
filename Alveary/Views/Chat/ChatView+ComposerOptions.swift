@@ -1,3 +1,5 @@
+import AgentCLIKit
+
 extension ChatView {
     var composerPresentation: ComposerPresentation {
         ComposerPresentation(
@@ -61,6 +63,44 @@ extension ChatView {
 
     var isGoalModeToggleEnabled: Bool {
         goalModeToggleDisabledTooltip == nil
+    }
+
+    var isGoalModeChipVisible: Bool {
+        if viewModel.state.isGoalModeArmed {
+            return true
+        }
+        guard let goal = viewModel.visibleGoalSnapshot,
+              !goal.status.isTerminal else {
+            return false
+        }
+        return goal.availableActions.contains(.delete) &&
+            isGoalActionVisible(.delete, for: goal)
+    }
+
+    var isGoalModeChipEnabled: Bool {
+        if viewModel.state.isGoalModeArmed {
+            return true
+        }
+        guard let goal = viewModel.visibleGoalSnapshot,
+              !goal.status.isTerminal else {
+            return false
+        }
+        return goal.availableActions.contains(.delete) &&
+            isGoalActionVisible(.delete, for: goal)
+    }
+
+    func dismissGoalModeFromComposerChip() {
+        if viewModel.state.isGoalModeArmed {
+            viewModel.setGoalModeArmed(false)
+            return
+        }
+        guard let goal = viewModel.visibleGoalSnapshot,
+              !goal.status.isTerminal,
+              goal.availableActions.contains(.delete),
+              isGoalActionVisible(.delete, for: goal) else {
+            return
+        }
+        Task { try? await viewModel.performGoalAction(.delete) }
     }
 
     var goalModeToggleDisabledTooltip: String? {

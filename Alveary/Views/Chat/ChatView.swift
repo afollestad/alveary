@@ -444,6 +444,8 @@ extension ChatView {
             isGoalModeArmed: viewModel.state.isGoalModeArmed,
             isGoalModeToggleEnabled: isGoalModeToggleEnabled,
             goalModeDisabledTooltip: goalModeToggleDisabledTooltip,
+            isGoalModeChipVisible: isGoalModeChipVisible,
+            isGoalModeChipEnabled: isGoalModeChipEnabled,
             usageSummary: usageSummary,
             areControlsDisabled: presentation.areControlsDisabled,
             mode: composerMode,
@@ -465,6 +467,9 @@ extension ChatView {
                     return
                 }
                 viewModel.lastTurnError = unavailableMessage
+            },
+            onGoalModeChipDismiss: {
+                dismissGoalModeFromComposerChip()
             },
             onSubmit: {
                 guard presentation.canSubmit else {

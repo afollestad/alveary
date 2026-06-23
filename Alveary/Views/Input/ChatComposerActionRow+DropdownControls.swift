@@ -34,19 +34,34 @@ extension ChatComposerActionRowView {
                 permissionButton.setAccessibilityValue("\(permissionOption.title). \(overrideTooltip)")
             }
         }
-        planModeButton.configure(
-            height: Self.defaultSettingsControlHeight,
-            isEnabled: !configuration.areControlsDisabled,
-            actionHandler: { [weak self] in
-                self?.configuration?.onPlanModeChange(false)
-            }
-        )
+        applyModeChipConfiguration(configuration)
         // Keep open popovers tied to the persisted provider/model/effort and
         // permission state, including async reconfigure rollback updates.
         reasoningMenuController?.update(configuration: configuration.reasoning)
         permissionMenuController?.update(
             options: configuration.supportedPermissionModes,
             selectedValue: configuration.selectedPermissionMode
+        )
+    }
+
+    func applyModeChipConfiguration(_ configuration: Configuration) {
+        planModeButton.configure(
+            presentation: .init(title: "Plan", symbolName: "checklist"),
+            accessibilityLabel: "Exit plan mode",
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: !configuration.areControlsDisabled,
+            actionHandler: { [weak self] in
+                self?.configuration?.onPlanModeChange(false)
+            }
+        )
+        goalModeButton.configure(
+            presentation: .init(title: "Goal", symbolName: "target"),
+            accessibilityLabel: "Disable goal mode",
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: configuration.isGoalModeChipEnabled && !configuration.areControlsDisabled,
+            actionHandler: { [weak self] in
+                self?.configuration?.onGoalModeChipDismiss()
+            }
         )
     }
 

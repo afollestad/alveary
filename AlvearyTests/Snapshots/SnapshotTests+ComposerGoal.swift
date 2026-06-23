@@ -12,7 +12,9 @@ extension SnapshotTests {
             AppKitComposerPanelNativeRowSnapshot(
                 topContentConfiguration: goalTopContentConfiguration(items: [
                     activeGoalItem()
-                ])
+                ]),
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: true
             ),
             size: CGSize(width: 1000, height: 190),
             named: "appkit_composer_panel_active_goal_status",
@@ -31,7 +33,9 @@ extension SnapshotTests {
                         text: "After the goal is accepted, keep this as an ordinary queued follow-up.",
                         stagedContext: nil
                     )
-                ]
+                ],
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: true
             ),
             size: CGSize(width: 1000, height: 260),
             named: "appkit_composer_panel_active_goal_with_queued_messages",
@@ -48,7 +52,9 @@ extension SnapshotTests {
                         context: "Restoring focused implementation notes from the previous session.",
                         onDismiss: {}
                     ))
-                ])
+                ]),
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: true
             ),
             size: CGSize(width: 1000, height: 230),
             named: "appkit_composer_panel_active_goal_with_staged_context",
@@ -75,7 +81,9 @@ extension SnapshotTests {
                         onDismiss: nil
                     )),
                     activeGoalItem()
-                ])
+                ]),
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: true
             ),
             size: CGSize(width: 1000, height: 270),
             named: "appkit_composer_panel_active_goal_with_banners",

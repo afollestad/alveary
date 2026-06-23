@@ -266,6 +266,8 @@ func makeConfiguration(
     showWorktreePicker: Bool = true,
     selectedUseWorktree: Bool = false,
     isPlanModeEnabled: Bool = false,
+    isGoalModeChipVisible: Bool = false,
+    isGoalModeChipEnabled: Bool = false,
     selectedSpeedMode: AgentSpeedMode = .standard,
     supportsSpeedMode: Bool = false,
     usageSummary: ConversationUsageSummary? = nil,
@@ -273,6 +275,7 @@ func makeConfiguration(
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
     onPlanModeChange: @escaping (Bool) -> Void = { _ in },
+    onGoalModeChipDismiss: @escaping () -> Void = {},
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
     onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
@@ -297,6 +300,8 @@ func makeConfiguration(
         showWorktreePicker: showWorktreePicker,
         selectedUseWorktree: selectedUseWorktree,
         isPlanModeEnabled: isPlanModeEnabled,
+        isGoalModeChipVisible: isGoalModeChipVisible,
+        isGoalModeChipEnabled: isGoalModeChipEnabled,
         usageSummary: usageSummary,
         areControlsDisabled: areControlsDisabled,
         mode: mode,
@@ -308,6 +313,7 @@ func makeConfiguration(
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         onPlanModeChange: onPlanModeChange,
+        onGoalModeChipDismiss: onGoalModeChipDismiss,
         onSubmit: onSubmit,
         onStop: onStop,
         onAddPhotosAndFiles: onAddPhotosAndFiles

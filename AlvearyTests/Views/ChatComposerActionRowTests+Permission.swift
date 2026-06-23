@@ -225,6 +225,90 @@ extension ChatComposerActionRowTests {
         XCTAssertEqual(changes, [false, false])
     }
 
+    func testGoalModeButtonAppearsOnlyWhenConfiguredVisible() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+
+        row.configure(makeConfiguration(mode: .idle, isGoalModeChipVisible: false))
+        XCTAssertNil(row.goalModeButton.superview)
+
+        row.configure(makeConfiguration(mode: .idle, isGoalModeChipVisible: true, isGoalModeChipEnabled: true))
+        XCTAssertTrue(row.goalModeButton.superview === row.stack)
+
+        row.configure(makeConfiguration(mode: .idle, isGoalModeChipVisible: false))
+        XCTAssertNil(row.goalModeButton.superview)
+    }
+
+    func testGoalModeButtonUsesPlanChipStyleWithoutChevron() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(makeConfiguration(mode: .idle, isGoalModeChipVisible: true, isGoalModeChipEnabled: true))
+
+        let button = row.goalModeButton
+        XCTAssertEqual(button.accessibilityLabel(), "Disable goal mode")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Goal")
+        XCTAssertEqual(button.intrinsicContentSize.height, 24)
+        #if DEBUG
+        XCTAssertEqual(button.debugTitle, "Goal")
+        XCTAssertEqual(button.debugSymbolName, "target")
+        XCTAssertEqual(button.debugIconRotationRadians, 0, accuracy: 0.0001)
+        XCTAssertFalse(button.debugIsWarning)
+        XCTAssertFalse(button.debugReservesTrailingSlot)
+        XCTAssertFalse(button.debugDrawsChevron)
+        #endif
+    }
+
+    func testGoalModeButtonHoverAndClickRouteDismiss() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        var dismissCount = 0
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: true,
+                onGoalModeChipDismiss: { dismissCount += 1 }
+            )
+        )
+        let button = row.goalModeButton
+        button.frame = NSRect(origin: .zero, size: button.intrinsicContentSize)
+        button.display()
+
+        button.mouseEntered(with: mouseEvent(type: .mouseEntered, at: NSPoint(x: 4, y: 4)))
+        #if DEBUG
+        XCTAssertEqual(button.debugSymbolName, "xmark")
+        #endif
+
+        button.mouseDown(with: mouseEvent(type: .leftMouseDown, at: NSPoint(x: 4, y: 4)))
+        button.mouseUp(with: mouseEvent(type: .leftMouseUp, at: NSPoint(x: 4, y: 4)))
+
+        XCTAssertEqual(dismissCount, 1)
+        #if DEBUG
+        XCTAssertEqual(button.debugSymbolName, "target")
+        XCTAssertFalse(button.debugHasSymbolTransition)
+        #endif
+    }
+
+    func testDisabledGoalModeButtonStaysVisibleWithoutHoverOrAction() {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        var dismissCount = 0
+        row.configure(
+            makeConfiguration(
+                mode: .idle,
+                isGoalModeChipVisible: true,
+                isGoalModeChipEnabled: false,
+                onGoalModeChipDismiss: { dismissCount += 1 }
+            )
+        )
+
+        let button = row.goalModeButton
+        XCTAssertTrue(button.superview === row.stack)
+        button.mouseEntered(with: mouseEvent(type: .mouseEntered, at: NSPoint(x: 4, y: 4)))
+
+        #if DEBUG
+        XCTAssertEqual(button.debugSymbolName, "target")
+        #endif
+        XCTAssertFalse(button.accessibilityPerformPress())
+        XCTAssertEqual(dismissCount, 0)
+    }
+
     func testDisabledPlanModeButtonStaysVisibleWithoutHoverOrAction() {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         var changes: [Bool] = []

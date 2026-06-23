@@ -148,6 +148,78 @@ final class ChatComposerGoalModeTests: XCTestCase {
         XCTAssertNil(chatView.goalModeToggleDisabledTooltip)
     }
 
+    func testGoalChipShowsWhileArmedAndDisarmsComposer() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.isGoalModeArmed = true
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            providerID: "codex"
+        )
+
+        let configuration = chatView.composerActionRowConfiguration
+        XCTAssertTrue(configuration.isGoalModeChipVisible)
+        XCTAssertTrue(configuration.isGoalModeChipEnabled)
+
+        configuration.onGoalModeChipDismiss()
+
+        XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testGoalChipShowsForActiveGoalAndRoutesDeleteAction() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.goalSnapshot = activeGoal()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            providerID: "codex"
+        )
+
+        let configuration = chatView.composerActionRowConfiguration
+        XCTAssertTrue(configuration.isGoalModeChipVisible)
+        XCTAssertTrue(configuration.isGoalModeChipEnabled)
+
+        configuration.onGoalModeChipDismiss()
+
+        try await waitUntil("expected goal chip dismiss to perform delete") {
+            await fixture.agentsManager.goalActionCalls().map(\.action) == [.delete]
+        }
+    }
+
+    func testGoalChipIsHiddenForTerminalGoal() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
+            objective: "Previous goal",
+            status: .achieved
+        )
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            providerID: "codex"
+        )
+
+        XCTAssertFalse(chatView.composerActionRowConfiguration.isGoalModeChipVisible)
+    }
+
+    func testGoalChipIsHiddenWhenDeleteIsNotCurrentlyVisible() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "claude")
+        fixture.viewModel.state.goalSnapshot = activeGoal()
+        fixture.viewModel.turnState.beginTurn()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            providerID: "claude"
+        )
+
+        let configuration = chatView.composerActionRowConfiguration
+        XCTAssertFalse(configuration.isGoalModeChipVisible)
+        XCTAssertFalse(configuration.isGoalModeChipEnabled)
+    }
+
     private func activeGoal() -> AgentGoalSnapshot {
         AgentGoalSnapshot(
             objective: "Current goal",

@@ -237,6 +237,7 @@ extension ChatComposerActionRowView {
         view === plusButton ||
             view === permissionButton ||
             view === planModeButton ||
+            view === goalModeButton ||
             view === worktreeButton
     }
 

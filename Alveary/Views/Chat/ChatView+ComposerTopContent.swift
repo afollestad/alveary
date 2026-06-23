@@ -77,7 +77,7 @@ extension ChatView {
         }
     }
 
-    private func isGoalActionVisible(_ action: AgentGoalAction, for goal: AgentGoalSnapshot) -> Bool {
+    func isGoalActionVisible(_ action: AgentGoalAction, for goal: AgentGoalSnapshot) -> Bool {
         guard providerID == "claude",
               action == .delete,
               goal.status == .active else {

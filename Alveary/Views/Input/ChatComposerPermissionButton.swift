@@ -320,7 +320,7 @@ final class ComposerPermissionButton: ComposerIconTitleDropdownButton {
 }
 
 @MainActor
-final class ComposerPlanModeButton: ComposerIconTitleDropdownButton {
+final class ComposerModeChipButton: ComposerIconTitleDropdownButton {
     private var usesExitSymbol = false
 
     override var reservesTrailingSlot: Bool { false }
@@ -331,22 +331,16 @@ final class ComposerPlanModeButton: ComposerIconTitleDropdownButton {
         presentation.symbolName == "xmark" ? 12 : super.symbolDrawMaxSize(for: presentation)
     }
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setAccessibilityLabel("Exit plan mode")
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setAccessibilityLabel("Exit plan mode")
-    }
-
-    func configure(height: CGFloat, isEnabled: Bool, actionHandler: @escaping () -> Void) {
+    func configure(
+        presentation: Presentation,
+        accessibilityLabel: String,
+        height: CGFloat,
+        isEnabled: Bool,
+        actionHandler: @escaping () -> Void
+    ) {
+        setAccessibilityLabel(accessibilityLabel)
         configure(
-            presentation: .init(
-                title: "Plan",
-                symbolName: "checklist"
-            ),
+            presentation: presentation,
             height: height,
             isEnabled: isEnabled,
             actionHandler: { [weak self] in

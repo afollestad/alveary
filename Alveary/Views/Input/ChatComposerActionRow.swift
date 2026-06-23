@@ -58,6 +58,8 @@ struct ChatComposerActionRow: NSViewRepresentable {
             isGoalModeArmed: isGoalModeArmed,
             isGoalModeToggleEnabled: isGoalModeToggleEnabled,
             goalModeDisabledTooltip: goalModeDisabledTooltip,
+            isGoalModeChipVisible: isGoalModeArmed,
+            isGoalModeChipEnabled: isGoalModeArmed,
             usageSummary: usageSummary,
             areControlsDisabled: areControlsDisabled,
             mode: mode,
@@ -70,6 +72,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             onPlanModeChange: { isPlanModeEnabled = $0 },
             onGoalModeChange: { isGoalModeArmed = $0 },
+            onGoalModeChipDismiss: { isGoalModeArmed = false },
             onSubmit: onSubmit,
             onStop: onStop,
             onAddPhotosAndFiles: onAddPhotosAndFiles
@@ -158,6 +161,8 @@ final class ChatComposerActionRowView: NSView {
         var isGoalModeArmed = false
         var isGoalModeToggleEnabled = false
         var goalModeDisabledTooltip: String?
+        var isGoalModeChipVisible = false
+        var isGoalModeChipEnabled = false
         let usageSummary: ConversationUsageSummary?
         let areControlsDisabled: Bool
         let mode: ComposerMode
@@ -170,6 +175,7 @@ final class ChatComposerActionRowView: NSView {
         let onUseWorktreeChange: (Bool) -> Void
         var onPlanModeChange: (Bool) -> Void = { _ in }
         var onGoalModeChange: (Bool) -> Void = { _ in }
+        var onGoalModeChipDismiss: () -> Void = {}
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
@@ -178,7 +184,8 @@ final class ChatComposerActionRowView: NSView {
     let plusButton = ComposerPlusButton()
     let reasoningButton = ComposerReasoningButton()
     let permissionButton = ComposerPermissionButton()
-    let planModeButton = ComposerPlanModeButton()
+    let planModeButton = ComposerModeChipButton()
+    let goalModeButton = ComposerModeChipButton()
     let worktreeButton = ComposerWorktreeLocationButton()
     // Internal so `ChatComposerActionRow+Layout.swift` can keep the overflow
     // frame logic out of this already-large view type without widening behavior.
@@ -272,6 +279,7 @@ final class ChatComposerActionRowView: NSView {
         reasoningButton.setAccessibilityLabel("Reasoning")
         permissionButton.setAccessibilityLabel("Permissions")
         planModeButton.setAccessibilityLabel("Exit plan mode")
+        goalModeButton.setAccessibilityLabel("Disable goal mode")
         worktreeButton.setAccessibilityLabel("Thread location")
     }
 
@@ -292,6 +300,9 @@ final class ChatComposerActionRowView: NSView {
         }
         planModeButton.actionHandler = { [weak self] in
             self?.configuration?.onPlanModeChange(false)
+        }
+        goalModeButton.actionHandler = { [weak self] in
+            self?.configuration?.onGoalModeChipDismiss()
         }
         worktreeButton.actionHandler = { [weak self] in
             self?.toggleWorktreeLocationMenu()
@@ -445,6 +456,9 @@ final class ChatComposerActionRowView: NSView {
         }
         if configuration.isPlanModeEnabled {
             views.append(planModeButton)
+        }
+        if configuration.isGoalModeChipVisible {
+            views.append(goalModeButton)
         }
         if configuration.showWorktreePicker {
             views.append(worktreeButton)

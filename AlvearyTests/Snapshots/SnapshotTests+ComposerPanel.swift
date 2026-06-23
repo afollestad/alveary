@@ -223,6 +223,8 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessages: [QueuedMessage]
     let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
+    let isGoalModeChipVisible: Bool
+    let isGoalModeChipEnabled: Bool
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
@@ -244,11 +246,15 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
     init(
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
         queuedMessages: [QueuedMessage] = [],
-        interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil
+        interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
+        isGoalModeChipVisible: Bool = false,
+        isGoalModeChipEnabled: Bool = false
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
         self.interactionOverlayConfiguration = interactionOverlayConfiguration
+        self.isGoalModeChipVisible = isGoalModeChipVisible
+        self.isGoalModeChipEnabled = isGoalModeChipEnabled
     }
 
     var body: some View {
@@ -347,6 +353,8 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             selectedPermissionMode: selectedPermissionMode,
             showWorktreePicker: false,
             selectedUseWorktree: selectedUseWorktree,
+            isGoalModeChipVisible: isGoalModeChipVisible,
+            isGoalModeChipEnabled: isGoalModeChipEnabled,
             usageSummary: usageSummary,
             areControlsDisabled: false,
             mode: .idle,
