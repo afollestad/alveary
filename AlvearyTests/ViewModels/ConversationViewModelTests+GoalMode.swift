@@ -55,6 +55,112 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
     }
 
+    func testStartGoalInEstablishedThreadUsesExistingSessionGoalStart() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "codex"
+        )
+        let existingMessage = ConversationEventRecord(
+            conversationId: fixture.conversation.id,
+            type: "message",
+            role: "user",
+            content: "Earlier request",
+            conversation: try fixture.dbConversation()
+        )
+        fixture.context.insert(existingMessage)
+        try fixture.context.save()
+        fixture.viewModel.setGoalModeArmed(true)
+
+        try await fixture.viewModel.startGoal(
+            "Audit remaining failures",
+            supportsExistingSessionGoalStart: true
+        )
+
+        let existingGoalStarts = await fixture.agentsManager.existingGoalStartCalls()
+        XCTAssertEqual(existingGoalStarts, [
+            .init(objective: "Audit remaining failures", conversationId: fixture.conversation.id)
+        ])
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        let goalStartCalls = await fixture.agentsManager.goalStartCalls()
+        XCTAssertTrue(sentMessages.isEmpty)
+        XCTAssertTrue(goalStartCalls.isEmpty)
+        XCTAssertEqual(try fixture.userMessages().map(\.content), ["Earlier request"])
+        XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testEstablishedThreadGoalStartRequiresExistingSessionCapability() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true
+        )
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: fixture.conversation.id,
+            type: "message",
+            role: "user",
+            content: "Earlier request",
+            conversation: try fixture.dbConversation()
+        ))
+        try fixture.context.save()
+        fixture.viewModel.setGoalModeArmed(true)
+
+        do {
+            try await fixture.viewModel.startGoal("Audit remaining failures")
+            XCTFail("Expected existing-session goal start to be rejected.")
+        } catch AgentError.spawnFailed(let message) {
+            XCTAssertEqual(message, "This agent can only start Goal mode before the first visible user message.")
+        }
+
+        let existingGoalStarts = await fixture.agentsManager.existingGoalStartCalls()
+        XCTAssertTrue(existingGoalStarts.isEmpty)
+        XCTAssertTrue(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testTerminalGoalSnapshotDoesNotBlockLaterGoalStart() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "codex"
+        )
+        fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
+            objective: "Old goal",
+            status: .achieved,
+            elapsedSeconds: 20
+        )
+        fixture.viewModel.setGoalModeArmed(true)
+
+        try await fixture.viewModel.startGoal("Next goal")
+
+        let goalStartCalls = await fixture.agentsManager.goalStartCalls()
+        XCTAssertEqual(goalStartCalls.map(\.initialGoal), ["Next goal"])
+        XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testActiveGoalSnapshotBlocksLaterGoalStart() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "codex"
+        )
+        fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
+            objective: "Current goal",
+            status: .active,
+            availableActions: [.delete]
+        )
+
+        do {
+            try await fixture.viewModel.startGoal("Next goal")
+            XCTFail("Expected active goal to block replacement.")
+        } catch AgentError.spawnFailed(let message) {
+            XCTAssertEqual(message, "A goal is already active.")
+        }
+
+        let goalStartCalls = await fixture.agentsManager.goalStartCalls()
+        let existingGoalStarts = await fixture.agentsManager.existingGoalStartCalls()
+        XCTAssertTrue(goalStartCalls.isEmpty)
+        XCTAssertTrue(existingGoalStarts.isEmpty)
+    }
+
     func testFailedGoalStartRemovesAttemptAndKeepsGoalModeArmed() async throws {
         let fixture = try ConversationViewModelTestFixture(
             hasCompletedInitialSetup: false,

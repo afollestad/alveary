@@ -1,3 +1,6 @@
+// swiftlint:disable file_length
+
+import enum AgentCLIKit.AgentGoalAction
 import Foundation
 
 @testable import Alveary
@@ -34,6 +37,16 @@ actor MockAgentsManager: AgentsManager {
         let message: String; let initialGoal: String; let conversationId: String; let activityVisibility: AgentTurnActivityVisibility
     }
 
+    struct ExistingGoalStartCall: Sendable, Equatable {
+        let objective: String
+        let conversationId: String
+    }
+
+    struct GoalActionCall: Sendable, Equatable {
+        let action: AgentGoalAction
+        let conversationId: String
+    }
+
     // swiftlint:disable:next large_tuple
     typealias MarkPersistedCall = (conversationId: String, generation: UUID, index: Int)
 
@@ -67,6 +80,8 @@ actor MockAgentsManager: AgentsManager {
     private var recordedSentMessages: [String] = []
     private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
     private var recordedGoalStartCalls: [GoalStartCall] = []
+    private var recordedExistingGoalStartCalls: [ExistingGoalStartCall] = []
+    private var recordedGoalActionCalls: [GoalActionCall] = []
     private var recordedSteeringCalls: [SteeringCall] = []
     private var recordedSpawnCalls: [SpawnCall] = []
     private var recordedReconfigureCalls: [ReconfigureCall] = []
@@ -320,6 +335,40 @@ actor MockAgentsManager: AgentsManager {
         false
     }
 
+    func startGoal(_ objective: String, conversationId: String) async throws {
+        if !queuedSendResults.isEmpty {
+            let result = queuedSendResults.removeFirst()
+            switch result {
+            case .success:
+                recordedExistingGoalStartCalls.append(.init(objective: objective, conversationId: conversationId))
+                return
+            case .failure(let error):
+                throw error
+            }
+        }
+        if let sendError {
+            throw sendError
+        }
+        recordedExistingGoalStartCalls.append(.init(objective: objective, conversationId: conversationId))
+    }
+
+    func performGoalAction(_ action: AgentGoalAction, conversationId: String) async throws {
+        if !queuedSendResults.isEmpty {
+            let result = queuedSendResults.removeFirst()
+            switch result {
+            case .success:
+                recordedGoalActionCalls.append(.init(action: action, conversationId: conversationId))
+                return
+            case .failure(let error):
+                throw error
+            }
+        }
+        if let sendError {
+            throw sendError
+        }
+        recordedGoalActionCalls.append(.init(action: action, conversationId: conversationId))
+    }
+
     func reconfigureSession(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
         recordedReconfigureCalls.append(ReconfigureCall(conversationId: conversationId, config: config))
         if let reconfigureError {
@@ -372,6 +421,8 @@ actor MockAgentsManager: AgentsManager {
     func sentMessages() -> [String] { recordedSentMessages }
     func sendVisibilities() -> [AgentTurnActivityVisibility] { recordedSendVisibilities }
     func goalStartCalls() -> [GoalStartCall] { recordedGoalStartCalls }
+    func existingGoalStartCalls() -> [ExistingGoalStartCall] { recordedExistingGoalStartCalls }
+    func goalActionCalls() -> [GoalActionCall] { recordedGoalActionCalls }
     func steeringCalls() -> [SteeringCall] { recordedSteeringCalls }
     func spawnCalls() -> [SpawnCall] { recordedSpawnCalls }
     func reconfigureCalls() -> [ReconfigureCall] { recordedReconfigureCalls }

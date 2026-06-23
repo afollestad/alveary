@@ -1,3 +1,4 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
@@ -392,6 +393,8 @@ final class ChatComposerDraftTests: XCTestCase {
         fixture: ConversationViewModelTestFixture,
         appState: AppState,
         isProjectTrustBlocked: Bool = false,
+        supportsGoalMode: Bool = false,
+        supportsExistingSessionGoalStart: Bool = false,
         supportsPlanMode: Bool = false,
         supportsSpeedMode: Bool = false,
         providerID: String = "claude"
@@ -402,6 +405,8 @@ final class ChatComposerDraftTests: XCTestCase {
             composerCapabilities: ComposerCapabilities(
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true,
+                supportsGoalMode: supportsGoalMode,
+                supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
                 supportsPlanMode: supportsPlanMode,
                 supportsSpeedMode: supportsSpeedMode
             ),

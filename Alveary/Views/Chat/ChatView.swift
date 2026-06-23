@@ -192,6 +192,11 @@ struct ChatView: View {
                 viewModel.disarmGoalModeIfNeeded()
             }
         }
+        .onChange(of: composerCapabilities.supportsExistingSessionGoalStart) { _, supportsExistingSessionGoalStart in
+            if viewModel.hasVisibleUserMessageHistory, !supportsExistingSessionGoalStart {
+                viewModel.disarmGoalModeIfNeeded()
+            }
+        }
         .onDisappear {
             viewModel.disarmGoalModeIfNeeded()
         }
@@ -248,10 +253,7 @@ extension ChatView {
 
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
-        if handleArmedGoalSubmitIfNeeded(draft: draft) {
-            return
-        }
-        if handleLocalCommandIfNeeded(draft: draft) {
+        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
             return
         }
 
@@ -298,10 +300,7 @@ extension ChatView {
         }
 
         let draft = viewModel.flushDraftFromEditor()
-        if handleArmedGoalSubmitIfNeeded(draft: draft) {
-            return
-        }
-        if handleLocalCommandIfNeeded(draft: draft) {
+        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
             return
         }
 
@@ -314,10 +313,7 @@ extension ChatView {
         }
 
         let draft = viewModel.flushDraftFromEditor()
-        if handleArmedGoalSubmitIfNeeded(draft: draft) {
-            return
-        }
-        if handleLocalCommandIfNeeded(draft: draft) {
+        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
             return
         }
 
@@ -460,7 +456,15 @@ extension ChatView {
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
             onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },
             onGoalModeChange: { isEnabled in
-                viewModel.setGoalModeArmed(isEnabled)
+                guard isEnabled else {
+                    viewModel.setGoalModeArmed(false)
+                    return
+                }
+                guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+                    viewModel.setGoalModeArmed(true)
+                    return
+                }
+                viewModel.lastTurnError = unavailableMessage
             },
             onSubmit: {
                 guard presentation.canSubmit else {

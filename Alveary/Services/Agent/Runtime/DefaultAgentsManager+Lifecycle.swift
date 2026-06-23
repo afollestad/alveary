@@ -44,6 +44,10 @@ extension DefaultAgentsManager {
         )
     }
 
+    func startGoal(_ objective: String, conversationId: String) async throws {
+        try await startGoalWithAgentCLIKit(objective, conversationId: conversationId)
+    }
+
     func cancelTurn(conversationId: String) {
         cancelTurnWithAgentCLIKit(conversationId: conversationId)
     }

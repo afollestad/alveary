@@ -70,11 +70,12 @@ extension ChatView {
         if let tooltip = composerCapabilities.goalModeDisabledTooltip {
             return tooltip
         }
-        if viewModel.visibleGoalSnapshot != nil {
+        if viewModel.visibleGoalSnapshot?.status.isTerminal == false {
             return "Use the goal status row to manage the active goal."
         }
-        if viewModel.hasVisibleUserMessageHistory {
-            return "Goal mode can only start before the first visible user message."
+        if viewModel.hasVisibleUserMessageHistory,
+           !composerCapabilities.supportsExistingSessionGoalStart {
+            return "This agent can only start Goal mode before the first visible user message."
         }
         if composerPresentation.areControlsDisabled {
             return "Goal mode is unavailable right now."

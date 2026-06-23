@@ -35,16 +35,22 @@ struct ConversationView: View {
 
         let supportsPlanMode = activeProviderStatus?.definition?.capabilities.supportsPlanMode
             ?? Self.fallbackPlanModeProviderIDs.contains(activeProviderID)
-        let supportsGoalMode = activeProviderStatus?.definition?.capabilities.supportsGoalMode ?? false
+        let activeCapabilities = activeProviderStatus?.definition?.capabilities
+        let supportsGoalMode = activeCapabilities?.supportsGoalMode ?? false
+        let supportsExistingSessionGoalStart = activeCapabilities?.supportsExistingSessionGoalStart ?? false
         return ComposerCapabilities(
             supportedPermissionModes: providerPermissionModes(),
-            supportsMidTurnSteering: activeProviderStatus?.definition?.capabilities.supportsMidTurnSteering
+            supportsMidTurnSteering: activeCapabilities?.supportsMidTurnSteering
                 ?? provider?.supportsMidTurnSteering
                 ?? false,
             supportsGoalMode: supportsGoalMode,
+            supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
             supportsPlanMode: supportsPlanMode,
-            supportsSpeedMode: activeProviderStatus?.definition?.capabilities.supportsSpeedMode ?? false,
-            goalModeDisabledTooltip: goalModeDisabledTooltip(supportsGoalMode: supportsGoalMode),
+            supportsSpeedMode: activeCapabilities?.supportsSpeedMode ?? false,
+            goalModeDisabledTooltip: goalModeDisabledTooltip(
+                supportsGoalMode: supportsGoalMode,
+                supportsExistingSessionGoalStart: supportsExistingSessionGoalStart
+            ),
             planModeDisabledTooltip: planModeDisabledTooltip(supportsPlanMode: supportsPlanMode)
         )
     }
@@ -444,15 +450,19 @@ private extension ConversationView {
         return hasConcreteCodexModelSelection() ? nil : "Choose a concrete Codex model to use plan mode."
     }
 
-    func goalModeDisabledTooltip(supportsGoalMode: Bool) -> String? {
+    func goalModeDisabledTooltip(
+        supportsGoalMode: Bool,
+        supportsExistingSessionGoalStart: Bool
+    ) -> String? {
         guard hasLoadedComposerProviderStatuses else {
             return "Checking Goal mode support..."
         }
         guard supportsGoalMode else {
             return "Goal mode is not supported by this agent."
         }
-        guard !viewModel.hasVisibleUserMessageHistory else {
-            return "Goal mode can only start before the first visible user message."
+        if viewModel.hasVisibleUserMessageHistory,
+           !supportsExistingSessionGoalStart {
+            return "This agent can only start Goal mode before the first visible user message."
         }
         return nil
     }

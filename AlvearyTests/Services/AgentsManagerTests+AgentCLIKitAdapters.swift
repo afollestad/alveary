@@ -157,3 +157,57 @@ struct SteeringEchoAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         return Data("steering:\(isSteering):\(inputID):\(message.text)\n".utf8)
     }
 }
+
+actor GoalStartingAgentCLIKitRecorder {
+    struct Call: Sendable, Equatable {
+        let objective: String
+        let conversationId: String
+    }
+
+    private var recordedCalls: [Call] = []
+
+    func record(objective: String, conversationId: String) {
+        recordedCalls.append(Call(objective: objective, conversationId: conversationId))
+    }
+
+    func calls() -> [Call] {
+        recordedCalls
+    }
+}
+
+struct GoalStartingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let recorder: GoalStartingAgentCLIKitRecorder
+
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .codex,
+        displayName: "Codex",
+        executableNames: ["codex"],
+        capabilities: AgentCLIKit.AgentProviderCapabilities(
+            supportsGoalMode: true,
+            supportsExistingSessionGoalStart: true
+        )
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", "while IFS= read -r line; do :; done"],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+
+    func startGoal(_ objective: String, context: AgentCLIKit.AgentProviderGoalStartContext) async throws {
+        await recorder.record(objective: objective, conversationId: context.conversationId.rawValue)
+    }
+}

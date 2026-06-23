@@ -105,6 +105,22 @@ extension DefaultAgentsManager {
         )
     }
 
+    func startGoalWithAgentCLIKit(_ objective: String, conversationId: String) async throws {
+        let services = agentCLIKitServices
+        guard !shutdownRequested.withLock({ $0 }),
+              !closingConversationIds.contains(conversationId) else {
+            throw AgentError.stdinClosed
+        }
+        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+        guard let status = await services.runtime.status(conversationId: runtimeConversationId),
+              !status.isTerminal,
+              status.isProcessRunning else {
+            throw AgentError.stdinClosed
+        }
+        try await services.runtime.startGoal(objective, conversationId: runtimeConversationId)
+        await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
+    }
+
     func cancelTurnWithAgentCLIKit(conversationId: String) {
         let services = agentCLIKitServices
         Task {

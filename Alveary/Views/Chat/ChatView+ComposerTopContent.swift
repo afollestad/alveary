@@ -67,12 +67,23 @@ extension ChatView {
         isTerminal: Bool,
         goal: AgentGoalSnapshot
     ) -> (() -> Void)? {
-        guard !isTerminal, goal.availableActions.contains(action) else {
+        guard !isTerminal,
+              goal.availableActions.contains(action),
+              isGoalActionVisible(action, for: goal) else {
             return nil
         }
         return {
             Task { try? await viewModel.performGoalAction(action) }
         }
+    }
+
+    private func isGoalActionVisible(_ action: AgentGoalAction, for goal: AgentGoalSnapshot) -> Bool {
+        guard providerID == "claude",
+              action == .delete,
+              goal.status == .active else {
+            return true
+        }
+        return !viewModel.isAgentActivelyWorking
     }
 
     private func appendStagedContext(to items: inout [AppKitChatComposerTopContentView.Item]) {

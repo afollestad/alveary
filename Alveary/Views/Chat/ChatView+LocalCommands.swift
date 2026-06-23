@@ -22,6 +22,30 @@ extension ChatView {
     }
 
     @discardableResult
+    func handleComposerGoalOrLocalControlIfNeeded(draft: ComposerDraft) -> Bool {
+        if handleExactGoalActionCommandIfNeeded(draft: draft) {
+            return true
+        }
+        if handleArmedGoalSubmitIfNeeded(draft: draft) {
+            return true
+        }
+        if handleLocalCommandIfNeeded(draft: draft) {
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
+    func handleExactGoalActionCommandIfNeeded(draft: ComposerDraft) -> Bool {
+        guard let action = Self.exactGoalActionCommand(for: draft.text) else {
+            return false
+        }
+        clearSubmittedDraftAndRequestFocus(source: draft.source)
+        performGoalActionFromCommand(action)
+        return true
+    }
+
+    @discardableResult
     func handleArmedGoalSubmitIfNeeded(draft: ComposerDraft) -> Bool {
         guard viewModel.state.isGoalModeArmed else {
             return false
@@ -55,15 +79,7 @@ extension ChatView {
 
         if let action = Self.goalAction(forExactArgument: normalizedArgument) {
             clearSubmittedDraftAndRequestFocus(source: draft.source)
-            Task {
-                do {
-                    try await viewModel.performGoalAction(action)
-                } catch {
-                    if viewModel.lastTurnError == nil {
-                        viewModel.lastTurnError = error.localizedDescription
-                    }
-                }
-            }
+            performGoalActionFromCommand(action)
             return
         }
 
@@ -88,7 +104,10 @@ extension ChatView {
             requestScrollToBottom()
             Task {
                 do {
-                    try await viewModel.startGoal(objective)
+                    try await viewModel.startGoal(
+                        objective,
+                        supportsExistingSessionGoalStart: composerCapabilities.supportsExistingSessionGoalStart
+                    )
                 } catch {
                     viewModel.replaceInputDraft(restoreText, source: source)
                     viewModel.setGoalModeArmed(true)
@@ -102,18 +121,19 @@ extension ChatView {
         viewModel.lastTurnError = unavailableMessage
     }
 
-    private func goalModeStartUnavailableMessage() -> String? {
+    func goalModeStartUnavailableMessage() -> String? {
         if !composerCapabilities.supportsGoalMode {
             return composerCapabilities.goalModeDisabledTooltip ?? "Goal mode is not supported by this agent."
         }
         if let tooltip = composerCapabilities.goalModeDisabledTooltip {
             return tooltip
         }
-        if viewModel.visibleGoalSnapshot != nil {
+        if viewModel.visibleGoalSnapshot?.status.isTerminal == false {
             return "A goal is already active."
         }
-        if viewModel.hasVisibleUserMessageHistory {
-            return "Goal mode can only start before the first visible user message."
+        if viewModel.hasVisibleUserMessageHistory,
+           !composerCapabilities.supportsExistingSessionGoalStart {
+            return "This agent can only start Goal mode before the first visible user message."
         }
         if viewModel.state.messageQueue.peekNext() != nil {
             return "Send or clear queued messages before starting Goal mode."
@@ -133,8 +153,25 @@ extension ChatView {
         return nil
     }
 
+    private func performGoalActionFromCommand(_ action: AgentGoalAction) {
+        Task {
+            try? await viewModel.performGoalAction(action)
+        }
+    }
+
+    private static func exactGoalActionCommand(for text: String) -> AgentGoalAction? {
+        guard let command = ComposerLocalCommandParser.parse(
+            text,
+            availability: ComposerLocalCommandAvailability()
+        ),
+              command.kind == .goal else {
+            return nil
+        }
+        return goalAction(forExactArgument: command.argument)
+    }
+
     private static func goalAction(forExactArgument argument: String) -> AgentGoalAction? {
-        switch argument {
+        switch argument.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "clear":
             return .delete
         case "pause":

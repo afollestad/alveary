@@ -128,7 +128,8 @@ extension ConversationViewModel {
     }
 
     func performGoalAction(_ action: AgentGoalAction) async throws {
-        guard let goal = state.goalSnapshot else {
+        guard let goal = state.goalSnapshot,
+              !goal.status.isTerminal else {
             let message = "No active goal is available."
             state.goalActionError = message
             throw AgentError.spawnFailed(message)
@@ -149,12 +150,8 @@ extension ConversationViewModel {
 
     func setGoalModeArmed(_ isArmed: Bool) {
         if isArmed {
-            guard state.goalSnapshot == nil else {
+            guard state.goalSnapshot?.status.isTerminal != false else {
                 lastTurnError = "A goal is already active."
-                return
-            }
-            guard !hasVisibleUserMessageHistory else {
-                lastTurnError = "Goal mode can only start before the first visible user message."
                 return
             }
         }
@@ -168,39 +165,29 @@ extension ConversationViewModel {
         state.isGoalModeArmed = false
     }
 
-    func startGoal(_ objective: String) async throws {
+    func startGoal(
+        _ objective: String,
+        supportsExistingSessionGoalStart: Bool = false
+    ) async throws {
         let trimmedObjective = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedObjective.isEmpty else {
-            throw AgentError.spawnFailed("Provide a goal before starting Goal mode.")
-        }
-        guard !hasVisibleUserMessageHistory else {
-            throw AgentError.spawnFailed("Goal mode can only start before the first visible user message.")
-        }
-        guard state.messageQueue.peekNext() == nil else {
-            throw AgentError.spawnFailed("Send or clear queued messages before starting Goal mode.")
-        }
-        guard !state.isAwaitingHandoffSteering else {
-            throw AgentError.spawnFailed("Complete session handoff steering before starting Goal mode.")
-        }
-        guard !state.isReconfiguringSession else {
-            throw AgentError.spawnFailed("Session changes are still being applied.")
-        }
-        guard !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Another message is already being sent.")
-        }
-        guard !isAgentActivelyWorking else {
-            throw AgentError.spawnFailed("Wait for the current turn to finish before starting Goal mode.")
-        }
+        try validateGoalStartAvailability(trimmedObjective)
 
-        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await withOutboundReservation {
-            try await deliverMessageReserved(
-                trimmedObjective,
-                initialGoal: trimmedObjective,
-                failureHandling: .removeAttempt
-            )
+        do {
+            if hasVisibleUserMessageHistory {
+                guard supportsExistingSessionGoalStart else {
+                    throw AgentError.spawnFailed("This agent can only start Goal mode before the first visible user message.")
+                }
+                try await startExistingSessionGoal(trimmedObjective)
+            } else {
+                try await startFirstMessageGoal(trimmedObjective)
+            }
+            state.isGoalModeArmed = false
+        } catch {
+            if lastTurnError == nil {
+                lastTurnError = error.localizedDescription
+            }
+            throw error
         }
-        state.isGoalModeArmed = false
     }
 
     func visibleUserMessageRecord() -> ConversationEventRecord? {
@@ -217,5 +204,67 @@ extension ConversationViewModel {
             ]
         )
         return try? modelContext.fetch(descriptor).first
+    }
+}
+
+private extension ConversationViewModel {
+    func validateGoalStartAvailability(_ trimmedObjective: String) throws {
+        guard !trimmedObjective.isEmpty else {
+            throw AgentError.spawnFailed("Provide a goal before starting Goal mode.")
+        }
+        guard state.goalSnapshot?.status.isTerminal != false else {
+            throw AgentError.spawnFailed("A goal is already active.")
+        }
+        guard state.messageQueue.peekNext() == nil else {
+            throw AgentError.spawnFailed("Send or clear queued messages before starting Goal mode.")
+        }
+        guard !state.isAwaitingHandoffSteering else {
+            throw AgentError.spawnFailed("Complete session handoff steering before starting Goal mode.")
+        }
+        guard !state.isReconfiguringSession else {
+            throw AgentError.spawnFailed("Session changes are still being applied.")
+        }
+        guard !state.isSendingMessage else {
+            throw AgentError.spawnFailed("Another message is already being sent.")
+        }
+        guard !isAgentActivelyWorking else {
+            throw AgentError.spawnFailed("Wait for the current turn to finish before starting Goal mode.")
+        }
+    }
+
+    func startFirstMessageGoal(_ objective: String) async throws {
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await withOutboundReservation {
+            try await deliverMessageReserved(
+                objective,
+                initialGoal: objective,
+                failureHandling: .removeAttempt
+            )
+        }
+    }
+
+    func startExistingSessionGoal(_ objective: String) async throws {
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await withOutboundReservation {
+            try repairMissingWorktreeIfNeeded()
+            try await setupHiddenInitialRuntimeIfNeeded()
+            if let recoveryContext = try await prepareRuntimeForOutbound(settingsSource: .nextTurn) {
+                let resolvedContext = resolveSessionRecoveryStagedContext(
+                    recoveryContext: recoveryContext,
+                    stagedContextOverride: nil,
+                    useCurrentStagedContextWhenOverrideNil: true
+                )
+                state.stagedContext = resolvedContext.stagedContext
+            }
+
+            state.lastTurnInterrupted = false
+            state.isCancellingTurn = false
+            state.activeRuntimeActivityTurnId = nil
+            state.pendingSyntheticAssistantDuplicateText = nil
+            state.goalActionError = nil
+            (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
+            try await agentsManager.startGoal(objective, conversationId: conversation.id)
+            state.respawnAttempts = 0
+        }
     }
 }
