@@ -148,6 +148,97 @@ final class ChatComposerGoalModeTests: XCTestCase {
         XCTAssertNil(chatView.goalModeToggleDisabledTooltip)
     }
 
+    func testGoalModeToggleTurnsOffPlanMode() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        try fixture.dbThread().planModeEnabled = true
+        try fixture.context.save()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            supportsPlanMode: true,
+            providerID: "codex"
+        )
+
+        chatView.composerActionRowConfiguration.onGoalModeChange(true)
+
+        XCTAssertFalse(fixture.viewModel.effectivePlanModeEnabled)
+        XCTAssertTrue(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testPlanModeToggleDisarmsArmedGoalMode() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.isGoalModeArmed = true
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            supportsPlanMode: true,
+            providerID: "codex"
+        )
+
+        chatView.composerActionRowConfiguration.onPlanModeChange(true)
+
+        XCTAssertTrue(fixture.viewModel.effectivePlanModeEnabled)
+        XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
+    }
+
+    func testActiveGoalDisablesPlanModeToggle() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.goalSnapshot = activeGoal()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            supportsPlanMode: true,
+            providerID: "codex"
+        )
+
+        let configuration = chatView.composerActionRowConfiguration
+        XCTAssertFalse(configuration.isPlanModeToggleEnabled)
+        XCTAssertEqual(configuration.planModeDisabledTooltip, "Plan mode is unavailable while a goal is active.")
+    }
+
+    func testPlanLocalCommandDoesNotEnablePlanModeWhileGoalIsActive() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.viewModel.state.goalSnapshot = activeGoal()
+        fixture.viewModel.replaceInputDraft("/plan", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            supportsPlanMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        XCTAssertFalse(fixture.viewModel.effectivePlanModeEnabled)
+        XCTAssertEqual(fixture.viewModel.lastTurnError, "Plan mode is unavailable while a goal is active.")
+    }
+
+    func testGoalSubmissionTurnsOffPlanModeBeforeStartingGoal() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        try fixture.dbThread().planModeEnabled = true
+        try fixture.context.save()
+        fixture.viewModel.state.isGoalModeArmed = true
+        fixture.viewModel.replaceInputDraft("Fix the failing tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            supportsPlanMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        try await waitUntil("expected goal start to run") {
+            await fixture.agentsManager.goalStartCalls().map(\.initialGoal) == ["Fix the failing tests"]
+        }
+        XCTAssertFalse(fixture.viewModel.effectivePlanModeEnabled)
+    }
+
     func testGoalChipShowsWhileArmedAndDisarmsComposer() throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
         fixture.viewModel.state.isGoalModeArmed = true
@@ -233,6 +324,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
         appState: AppState,
         supportsGoalMode: Bool = false,
         supportsExistingSessionGoalStart: Bool = false,
+        supportsPlanMode: Bool = false,
         providerID: String = "claude"
     ) -> ChatView {
         ChatView(
@@ -242,7 +334,8 @@ final class ChatComposerGoalModeTests: XCTestCase {
                 supportedPermissionModes: [],
                 supportsMidTurnSteering: true,
                 supportsGoalMode: supportsGoalMode,
-                supportsExistingSessionGoalStart: supportsExistingSessionGoalStart
+                supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
+                supportsPlanMode: supportsPlanMode
             ),
             reasoningConfiguration: makeReasoningConfiguration(
                 modelOptions: [

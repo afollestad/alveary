@@ -65,6 +65,19 @@ extension ChatView {
         goalModeToggleDisabledTooltip == nil
     }
 
+    var planModeToggleDisabledTooltip: String? {
+        if viewModel.visibleGoalSnapshot?.status.isTerminal == false {
+            return "Plan mode is unavailable while a goal is active."
+        }
+        return composerCapabilities.planModeDisabledTooltip
+    }
+
+    var isPlanModeToggleEnabled: Bool {
+        composerCapabilities.supportsPlanMode &&
+            planModeToggleDisabledTooltip == nil &&
+            !composerPresentation.areControlsDisabled
+    }
+
     var isGoalModeChipVisible: Bool {
         if viewModel.state.isGoalModeArmed {
             return true
@@ -101,6 +114,31 @@ extension ChatView {
             return
         }
         Task { try? await viewModel.performGoalAction(.delete) }
+    }
+
+    func setPlanModeFromComposer(_ isEnabled: Bool) {
+        if isEnabled,
+           let unavailableMessage = planModeToggleDisabledTooltip {
+            viewModel.lastTurnError = unavailableMessage
+            return
+        }
+        if isEnabled {
+            viewModel.setGoalModeArmed(false)
+        }
+        selectedPlanModeBinding.wrappedValue = isEnabled
+    }
+
+    func setGoalModeFromComposer(_ isEnabled: Bool) {
+        guard isEnabled else {
+            viewModel.setGoalModeArmed(false)
+            return
+        }
+        guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+            selectedPlanModeBinding.wrappedValue = false
+            viewModel.setGoalModeArmed(true)
+            return
+        }
+        viewModel.lastTurnError = unavailableMessage
     }
 
     var goalModeToggleDisabledTooltip: String? {

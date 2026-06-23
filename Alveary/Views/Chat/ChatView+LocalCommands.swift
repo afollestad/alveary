@@ -92,6 +92,7 @@ extension ChatView {
             return
         }
         guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+            selectedPlanModeBinding.wrappedValue = false
             viewModel.setGoalModeArmed(true)
             return
         }
@@ -104,13 +105,18 @@ extension ChatView {
             requestScrollToBottom()
             Task {
                 do {
+                    try await viewModel.ensurePlanModeForOutbound(false)
                     try await viewModel.startGoal(
                         objective,
                         supportsExistingSessionGoalStart: composerCapabilities.supportsExistingSessionGoalStart
                     )
                 } catch {
                     viewModel.replaceInputDraft(restoreText, source: source)
-                    viewModel.setGoalModeArmed(true)
+                    if viewModel.pendingPlanModeForDisplay() ?? viewModel.effectivePlanModeEnabled {
+                        viewModel.setGoalModeArmed(false)
+                    } else {
+                        viewModel.setGoalModeArmed(true)
+                    }
                     if viewModel.lastTurnError == nil {
                         viewModel.lastTurnError = error.localizedDescription
                     }
@@ -184,6 +190,15 @@ extension ChatView {
     }
 
     private func handlePlanLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
+        let targetPlanModeEnabled = !(viewModel.pendingPlanModeForDisplay() ?? viewModel.effectivePlanModeEnabled)
+        if targetPlanModeEnabled,
+           let unavailableMessage = planModeToggleDisabledTooltip {
+            viewModel.lastTurnError = unavailableMessage
+            return
+        }
+        if targetPlanModeEnabled {
+            viewModel.setGoalModeArmed(false)
+        }
         clearSubmittedDraftAndRequestFocus(source: draft.source)
         Task {
             var didTogglePlanMode = false

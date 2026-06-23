@@ -437,10 +437,8 @@ extension ChatView {
             showWorktreePicker: showWorktreePicker,
             selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,
             isPlanModeEnabled: selectedPlanModeBinding.wrappedValue,
-            isPlanModeToggleEnabled: composerCapabilities.supportsPlanMode &&
-                composerCapabilities.planModeDisabledTooltip == nil &&
-                !presentation.areControlsDisabled,
-            planModeDisabledTooltip: composerCapabilities.planModeDisabledTooltip,
+            isPlanModeToggleEnabled: isPlanModeToggleEnabled,
+            planModeDisabledTooltip: planModeToggleDisabledTooltip,
             isGoalModeArmed: viewModel.state.isGoalModeArmed,
             isGoalModeToggleEnabled: isGoalModeToggleEnabled,
             goalModeDisabledTooltip: goalModeToggleDisabledTooltip,
@@ -456,18 +454,8 @@ extension ChatView {
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
             onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
-            onPlanModeChange: { selectedPlanModeBinding.wrappedValue = $0 },
-            onGoalModeChange: { isEnabled in
-                guard isEnabled else {
-                    viewModel.setGoalModeArmed(false)
-                    return
-                }
-                guard let unavailableMessage = goalModeStartUnavailableMessage() else {
-                    viewModel.setGoalModeArmed(true)
-                    return
-                }
-                viewModel.lastTurnError = unavailableMessage
-            },
+            onPlanModeChange: { setPlanModeFromComposer($0) },
+            onGoalModeChange: { setGoalModeFromComposer($0) },
             onGoalModeChipDismiss: {
                 dismissGoalModeFromComposerChip()
             },

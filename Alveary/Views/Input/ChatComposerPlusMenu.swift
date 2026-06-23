@@ -361,11 +361,21 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     }
 
     @objc private func goalSwitchChanged() {
-        configuration.onGoalModeChange(goalSwitch.state == .on)
+        let isEnabled = goalSwitch.state == .on
+        setGoalSwitchOn(isEnabled)
+        if isEnabled {
+            setPlanSwitchOn(false)
+        }
+        configuration.onGoalModeChange(isEnabled)
     }
 
     @objc private func planSwitchChanged() {
-        configuration.onPlanModeChange(planSwitch.state == .on)
+        let isEnabled = planSwitch.state == .on
+        setPlanSwitchOn(isEnabled)
+        if isEnabled {
+            setGoalSwitchOn(false)
+        }
+        configuration.onPlanModeChange(isEnabled)
     }
 
     private func toggleGoalMode() {
@@ -373,8 +383,10 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
             return
         }
         let isEnabled = goalSwitch.state != .on
-        goalSwitch.state = isEnabled ? .on : .off
-        goalSwitch.setAccessibilityValue(isEnabled ? "On" : "Off")
+        setGoalSwitchOn(isEnabled)
+        if isEnabled {
+            setPlanSwitchOn(false)
+        }
         configuration.onGoalModeChange(isEnabled)
     }
 
@@ -383,9 +395,21 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
             return
         }
         let isEnabled = planSwitch.state != .on
-        planSwitch.state = isEnabled ? .on : .off
-        planSwitch.setAccessibilityValue(isEnabled ? "On" : "Off")
+        setPlanSwitchOn(isEnabled)
+        if isEnabled {
+            setGoalSwitchOn(false)
+        }
         configuration.onPlanModeChange(isEnabled)
+    }
+
+    private func setGoalSwitchOn(_ isOn: Bool) {
+        goalSwitch.state = isOn ? .on : .off
+        goalSwitch.setAccessibilityValue(isOn ? "On" : "Off")
+    }
+
+    private func setPlanSwitchOn(_ isOn: Bool) {
+        planSwitch.state = isOn ? .on : .off
+        planSwitch.setAccessibilityValue(isOn ? "On" : "Off")
     }
 
     private func symbolImage(named name: String, pointSize: CGFloat) -> NSImage? {
