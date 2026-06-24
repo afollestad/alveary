@@ -107,7 +107,7 @@ extension SnapshotTests {
     private func goalTopContentConfiguration(
         items: [AppKitChatComposerTopContentView.Item]
     ) -> AppKitChatComposerTopContentView.Configuration {
-        .init(items: items)
+        .init(items: items, ticksGoalElapsedTime: false)
     }
 
     private func activeGoalItem() -> AppKitChatComposerTopContentView.Item {

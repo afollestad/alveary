@@ -54,11 +54,13 @@ final class ComposerTopContentButton: NSView {
         }
     }
 
-    func configure(title: String, isEnabled: Bool) {
+    func configure(title: String, isEnabled: Bool, tooltip: String? = nil) {
         self.title = title
         controlIsEnabled = isEnabled
+        toolTip = tooltip
         setAccessibilityLabel(title)
         setAccessibilityEnabled(isEnabled)
+        setAccessibilityHelp(tooltip)
         invalidateIntrinsicContentSize()
         needsDisplay = true
     }
