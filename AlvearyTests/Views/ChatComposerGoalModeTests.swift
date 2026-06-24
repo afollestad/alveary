@@ -131,6 +131,28 @@ final class ChatComposerGoalModeTests: XCTestCase {
         XCTAssertNil(supportedView.goalModeToggleDisabledTooltip)
     }
 
+    func testGoalTogglePrefersProjectTrustBlockedMessage() throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        fixture.context.insert(ConversationEventRecord(
+            conversationId: fixture.conversation.id,
+            type: "message",
+            role: "user",
+            content: "Earlier request",
+            conversation: try fixture.dbConversation()
+        ))
+        try fixture.context.save()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            supportsGoalMode: true,
+            providerID: "codex",
+            isProjectTrustBlocked: true
+        )
+
+        XCTAssertFalse(chatView.isGoalModeToggleEnabled)
+        XCTAssertEqual(chatView.goalModeToggleDisabledTooltip, "Approve this project before starting Goal mode.")
+    }
+
     func testTerminalGoalRowDoesNotDisableGoalToggle() throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
         fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
@@ -312,10 +334,17 @@ final class ChatComposerGoalModeTests: XCTestCase {
     }
 
     private func activeGoal() -> AgentGoalSnapshot {
+        goal(status: .active, availableActions: [.delete])
+    }
+
+    private func goal(
+        status: AgentGoalStatus,
+        availableActions: [AgentGoalAction] = []
+    ) -> AgentGoalSnapshot {
         AgentGoalSnapshot(
             objective: "Current goal",
-            status: .active,
-            availableActions: [.delete]
+            status: status,
+            availableActions: availableActions
         )
     }
 
@@ -325,7 +354,8 @@ final class ChatComposerGoalModeTests: XCTestCase {
         supportsGoalMode: Bool = false,
         supportsExistingSessionGoalStart: Bool = false,
         supportsPlanMode: Bool = false,
-        providerID: String = "claude"
+        providerID: String = "claude",
+        isProjectTrustBlocked: Bool = false
     ) -> ChatView {
         ChatView(
             viewModel: fixture.viewModel,
@@ -353,7 +383,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             contextWindowCache: fixture.contextWindowCache,
             workingDirectory: fixture.project.path,
             projectTrustPrompt: nil,
-            isProjectTrustBlocked: false,
+            isProjectTrustBlocked: isProjectTrustBlocked,
             onTrustProject: { _ in },
             onDenyProjectTrust: { _ in },
             loadFileCompletions: { [] },

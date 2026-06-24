@@ -56,6 +56,10 @@ final class ComposerLocalCommandParserTests: XCTestCase {
             ComposerLocalCommand(kind: .goal, argument: "clear")
         )
         XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/goal restart", availability: noSupport),
+            ComposerLocalCommand(kind: .goal, argument: "restart")
+        )
+        XCTAssertEqual(
             ComposerLocalCommandParser.parse("/goal clear the logs", availability: supported),
             ComposerLocalCommand(kind: .goal, argument: "clear the logs")
         )

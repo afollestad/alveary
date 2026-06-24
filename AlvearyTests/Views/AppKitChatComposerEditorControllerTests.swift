@@ -155,6 +155,31 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertEqual(consumedToken, token)
     }
 
+    func testFocusRequestAfterNonEmptyReplacementPlacesCaretAtEnd() throws {
+        let controller = AppKitChatComposerEditorController()
+        let frame = NSRect(x: 0, y: 0, width: 480, height: 160)
+        let window = NSWindow(contentRect: frame, styleMask: [.titled], backing: .buffered, defer: false)
+
+        controller.configure(makeConfiguration(text: "Before", inputDraftRevision: 0))
+        let editor = try XCTUnwrap(controller.view)
+        editor.frame = frame
+        window.contentView = NSView(frame: frame)
+        window.contentView?.addSubview(editor)
+
+        let replacement = "Restart this goal"
+        controller.configure(makeConfiguration(
+            text: replacement,
+            inputDraftRevision: 1,
+            requestFirstResponder: UUID()
+        ))
+
+        guard case .cursor(let cursor) = editor.selection else {
+            return XCTFail("Expected a cursor selection.")
+        }
+        XCTAssertEqual(cursor.blockID, editor.document.blocks.last?.id)
+        XCTAssertEqual(cursor.utf16Offset, (replacement as NSString).length)
+    }
+
     func testCompletionPopupOverlayUsesChatSurfaceParentAndEditorFrame() throws {
         let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
         let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 320, width: 448, height: 120))

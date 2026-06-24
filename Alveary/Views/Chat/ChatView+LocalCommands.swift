@@ -37,11 +37,17 @@ extension ChatView {
 
     @discardableResult
     func handleExactGoalActionCommandIfNeeded(draft: ComposerDraft) -> Bool {
-        guard let action = Self.exactGoalActionCommand(for: draft.text) else {
+        guard let command = Self.exactGoalCommand(for: draft.text) else {
             return false
         }
-        clearSubmittedDraftAndRequestFocus(source: draft.source)
-        performGoalActionFromCommand(action)
+        let shouldClearDraft = shouldClearDraftForExactGoalCommand(command)
+        if shouldClearDraft {
+            clearSubmittedDraftAndRequestFocus(source: draft.source)
+        }
+        performExactGoalCommand(
+            command,
+            restartSeedDraft: shouldClearDraft ? ComposerDraft(text: "", source: draft.source, isEffectivelyEmpty: true) : nil
+        )
         return true
     }
 
@@ -77,9 +83,15 @@ extension ChatView {
             return
         }
 
-        if let action = Self.goalAction(forExactArgument: normalizedArgument) {
-            clearSubmittedDraftAndRequestFocus(source: draft.source)
-            performGoalActionFromCommand(action)
+        if let exactCommand = Self.exactGoalCommand(forArgument: normalizedArgument) {
+            let shouldClearDraft = shouldClearDraftForExactGoalCommand(exactCommand)
+            if shouldClearDraft {
+                clearSubmittedDraftAndRequestFocus(source: draft.source)
+            }
+            performExactGoalCommand(
+                exactCommand,
+                restartSeedDraft: shouldClearDraft ? ComposerDraft(text: "", source: draft.source, isEffectivelyEmpty: true) : nil
+            )
             return
         }
 
@@ -137,6 +149,9 @@ extension ChatView {
         if viewModel.visibleGoalSnapshot?.status.isTerminal == false {
             return "A goal is already active."
         }
+        if isProjectTrustBlocked {
+            return "Approve this project before starting Goal mode."
+        }
         if viewModel.hasVisibleUserMessageHistory,
            !composerCapabilities.supportsExistingSessionGoalStart {
             return "This agent can only start Goal mode before the first visible user message."
@@ -159,13 +174,67 @@ extension ChatView {
         return nil
     }
 
+    func prepareVisibleTerminalGoalRestart(seedDraft: ComposerDraft? = nil) {
+        guard let goal = viewModel.visibleGoalSnapshot,
+              goal.status.isComposerRestartableTerminal else {
+            viewModel.state.goalActionError = "No blocked goal is available to restart."
+            appState.requestComposerFocus()
+            return
+        }
+        if viewModel.state.isGoalModeArmed {
+            viewModel.state.goalActionError = nil
+            appState.requestComposerFocus()
+            return
+        }
+
+        let draft = seedDraft ?? viewModel.flushDraftFromEditor()
+        guard let unavailableMessage = goalModeStartUnavailableMessage() else {
+            selectedPlanModeBinding.wrappedValue = false
+            viewModel.setGoalModeArmed(true)
+            viewModel.state.goalActionError = nil
+            if draft.isEffectivelyEmpty {
+                viewModel.replaceInputDraft(goal.objective, source: draft.source)
+            }
+            viewModel.dismissTerminalGoalStatus()
+            appState.requestComposerFocus()
+            return
+        }
+
+        viewModel.state.goalActionError = unavailableMessage
+    }
+
+    private func performExactGoalCommand(_ command: ExactGoalCommand, restartSeedDraft: ComposerDraft?) {
+        switch command {
+        case .restart:
+            prepareVisibleTerminalGoalRestart(seedDraft: restartSeedDraft)
+        case .action(.resume) where viewModel.visibleGoalSnapshot?.status.isComposerRestartableTerminal == true:
+            prepareVisibleTerminalGoalRestart(seedDraft: restartSeedDraft)
+        case .action(let action):
+            performGoalActionFromCommand(action)
+        }
+    }
+
+    private func shouldClearDraftForExactGoalCommand(_ command: ExactGoalCommand) -> Bool {
+        guard viewModel.state.isGoalModeArmed else {
+            return true
+        }
+        switch command {
+        case .restart:
+            return false
+        case .action(.resume) where viewModel.visibleGoalSnapshot?.status.isComposerRestartableTerminal == true:
+            return false
+        case .action:
+            return true
+        }
+    }
+
     private func performGoalActionFromCommand(_ action: AgentGoalAction) {
         Task {
             try? await viewModel.performGoalAction(action)
         }
     }
 
-    private static func exactGoalActionCommand(for text: String) -> AgentGoalAction? {
+    private static func exactGoalCommand(for text: String) -> ExactGoalCommand? {
         guard let command = ComposerLocalCommandParser.parse(
             text,
             availability: ComposerLocalCommandAvailability()
@@ -173,17 +242,19 @@ extension ChatView {
               command.kind == .goal else {
             return nil
         }
-        return goalAction(forExactArgument: command.argument)
+        return exactGoalCommand(forArgument: command.argument)
     }
 
-    private static func goalAction(forExactArgument argument: String) -> AgentGoalAction? {
+    private static func exactGoalCommand(forArgument argument: String) -> ExactGoalCommand? {
         switch argument.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "clear":
-            return .delete
+            return .action(.delete)
         case "pause":
-            return .pause
+            return .action(.pause)
         case "resume":
-            return .resume
+            return .action(.resume)
+        case "restart":
+            return .restart
         default:
             return nil
         }
@@ -250,4 +321,9 @@ extension ChatView {
         }
         clearSubmittedDraftAndRequestFocus(source: draft.source)
     }
+}
+
+private enum ExactGoalCommand {
+    case action(AgentGoalAction)
+    case restart
 }

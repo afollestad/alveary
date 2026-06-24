@@ -52,12 +52,16 @@ extension ChatView {
             return
         }
         let isTerminal = goal.status.isTerminal
+        let restartDisabledTooltip = terminalGoalRestartDisabledTooltip(for: goal)
         items.append(.goalStatus(.init(
             snapshot: goal,
             actionError: viewModel.state.goalActionError,
             onPause: goalActionHandler(.pause, isTerminal: isTerminal, goal: goal),
             onResume: goalActionHandler(.resume, isTerminal: isTerminal, goal: goal),
             onDelete: goalActionHandler(.delete, isTerminal: isTerminal, goal: goal),
+            onRestartTerminal: terminalGoalRestartHandler(for: goal),
+            isRestartTerminalEnabled: restartDisabledTooltip == nil,
+            restartTerminalDisabledTooltip: restartDisabledTooltip,
             onDismissTerminal: isTerminal ? { viewModel.dismissTerminalGoalStatus() } : nil
         )))
     }
@@ -84,6 +88,22 @@ extension ChatView {
             return true
         }
         return !viewModel.isAgentActivelyWorking
+    }
+
+    private func terminalGoalRestartHandler(for goal: AgentGoalSnapshot) -> (() -> Void)? {
+        guard goal.status.isComposerRestartableTerminal,
+              !viewModel.state.isGoalModeArmed else {
+            return nil
+        }
+        return { prepareVisibleTerminalGoalRestart() }
+    }
+
+    private func terminalGoalRestartDisabledTooltip(for goal: AgentGoalSnapshot) -> String? {
+        guard goal.status.isComposerRestartableTerminal,
+              !viewModel.state.isGoalModeArmed else {
+            return nil
+        }
+        return goalModeStartUnavailableMessage()
     }
 
     private func appendStagedContext(to items: inout [AppKitChatComposerTopContentView.Item]) {

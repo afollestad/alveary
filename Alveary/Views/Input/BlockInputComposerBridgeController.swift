@@ -104,16 +104,18 @@ final class BlockInputComposerBridgeController {
         configureBlockInputView(for: configuration)
     }
 
-    func configure(_ configuration: BlockInputComposerBridgeConfiguration) {
+    @discardableResult
+    func configure(_ configuration: BlockInputComposerBridgeConfiguration) -> Bool {
         currentConfiguration = configuration
         let replacedDocument = replaceExternalMarkdownIfNeeded(configuration)
         updateCompletionProvider(configuration)
         let nextViewConfigurationKey = Self.viewConfigurationKey(for: configuration)
         guard replacedDocument || nextViewConfigurationKey != appliedViewConfigurationKey else {
-            return
+            return false
         }
         appliedViewConfigurationKey = nextViewConfigurationKey
         configureBlockInputView(for: configuration)
+        return replacedDocument
     }
 
     private func replaceExternalMarkdownIfNeeded(_ configuration: BlockInputComposerBridgeConfiguration) -> Bool {
@@ -135,6 +137,14 @@ final class BlockInputComposerBridgeController {
 
     func currentMarkdown() -> String {
         documentStore.document.markdown
+    }
+
+    func focusEditorAtDocumentEnd() {
+        guard let lastBlock = documentStore.document.blocks.last else {
+            view.focusEditor()
+            return
+        }
+        view.focus(blockID: lastBlock.id, utf16Offset: lastBlock.cursorUTF16Length)
     }
 
     var containsTextualImagePreviewSource: Bool {

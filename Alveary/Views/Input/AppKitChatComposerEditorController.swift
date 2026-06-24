@@ -33,12 +33,15 @@ final class AppKitChatComposerEditorController {
         }
         self.configuration = configuration
 
-        configureBlockInput(configuration)
+        let replacedDocument = configureBlockInput(configuration)
         if shouldRefreshImagePreviewPresence {
             lastTextualImagePreviewPresence = currentTextualImagePreviewPresence()
         }
         installDraftSnapshotProvider(configuration)
-        consumeFocusRequestIfNeeded(configuration.requestFirstResponder)
+        consumeFocusRequestIfNeeded(
+            configuration.requestFirstResponder,
+            focusesDocumentEnd: replacedDocument && !configuration.text.isEmpty
+        )
         invalidatePreferredSize(animateSurfaceHeight: true)
     }
 
@@ -238,16 +241,16 @@ extension AppKitChatComposerEditorController {
         configuration?.onFocusRequestConsumed(token)
     }
 
-    func consumeFocusRequestIfNeeded(_ token: UUID?) {
+    func consumeFocusRequestIfNeeded(_ token: UUID?, focusesDocumentEnd: Bool = false) {
         guard let token,
               token != lastConsumedFocusRequestToken else {
             return
         }
         lastConsumedFocusRequestToken = token
-        focusBlockInputWhenReady(token: token, attempt: 0)
+        focusBlockInputWhenReady(token: token, focusesDocumentEnd: focusesDocumentEnd, attempt: 0)
     }
 
-    private func focusBlockInputWhenReady(token: UUID, attempt: Int) {
+    private func focusBlockInputWhenReady(token: UUID, focusesDocumentEnd: Bool, attempt: Int) {
         guard configuration?.requestFirstResponder == token,
               view != nil else {
             return
@@ -257,12 +260,20 @@ extension AppKitChatComposerEditorController {
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
-                self?.focusBlockInputWhenReady(token: token, attempt: attempt + 1)
+                self?.focusBlockInputWhenReady(
+                    token: token,
+                    focusesDocumentEnd: focusesDocumentEnd,
+                    attempt: attempt + 1
+                )
             }
             return
         }
 
-        view?.focusEditor()
+        if focusesDocumentEnd {
+            bridgeController?.focusEditorAtDocumentEnd()
+        } else {
+            view?.focusEditor()
+        }
         consumeFocusRequest(token)
     }
 }

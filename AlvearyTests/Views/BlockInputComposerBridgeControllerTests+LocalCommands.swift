@@ -71,6 +71,7 @@ extension BlockInputComposerBridgeControllerTests {
         let suggestions = await provider.suggestions(for: Self.completionContext(query: "g"))
 
         XCTAssertEqual(suggestions.map(\.insertionText), ["/goal "])
+        XCTAssertEqual(suggestions.first?.subtitle, "Start or restart goal mode")
         XCTAssertEqual(suggestions.first?.detailText, "Alveary")
     }
 

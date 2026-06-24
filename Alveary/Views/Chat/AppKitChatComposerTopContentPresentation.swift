@@ -10,10 +10,8 @@ extension AgentGoalStatus {
             return "Goal paused"
         case .achieved:
             return "Goal achieved"
-        case .blocked:
-            return "Goal blocked"
-        case .usageLimited:
-            return "Goal limited"
+        case .blocked, .usageLimited:
+            return "Goal stopped"
         case .cleared:
             return "Goal cleared"
         }
@@ -31,6 +29,15 @@ extension AgentGoalStatus {
             return .systemOrange
         case .cleared:
             return .secondaryLabelColor
+        }
+    }
+
+    var isComposerRestartableTerminal: Bool {
+        switch self {
+        case .blocked, .usageLimited:
+            return true
+        case .active, .paused, .achieved, .cleared:
+            return false
         }
     }
 }

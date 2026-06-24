@@ -104,6 +104,35 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithBlockedGoalRestartStatus() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                topContentConfiguration: goalTopContentConfiguration(items: [
+                    blockedGoalRestartItem()
+                ])
+            ),
+            size: CGSize(width: 1000, height: 190),
+            named: "appkit_composer_panel_blocked_goal_restart_status",
+            colorScheme: .dark
+        )
+    }
+
+    func testAppKitComposerPanelWithBlockedGoalRestartDisabledStatus() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                topContentConfiguration: goalTopContentConfiguration(items: [
+                    blockedGoalRestartItem(
+                        isEnabled: false,
+                        tooltip: "Wait for the current turn to finish before starting Goal mode."
+                    )
+                ])
+            ),
+            size: CGSize(width: 1000, height: 190),
+            named: "appkit_composer_panel_blocked_goal_restart_disabled_status",
+            colorScheme: .dark
+        )
+    }
+
     private func goalTopContentConfiguration(
         items: [AppKitChatComposerTopContentView.Item]
     ) -> AppKitChatComposerTopContentView.Configuration {
@@ -141,6 +170,29 @@ extension SnapshotTests {
             onPause: nil,
             onResume: nil,
             onDelete: nil,
+            onDismissTerminal: {}
+        ))
+    }
+
+    private func blockedGoalRestartItem(
+        isEnabled: Bool = true,
+        tooltip: String? = nil
+    ) -> AppKitChatComposerTopContentView.Item {
+        .goalStatus(.init(
+            snapshot: AgentGoalSnapshot(
+                objective: "Resolve the remaining test blockers without inventing missing provider behavior.",
+                status: .blocked,
+                elapsedSeconds: 420,
+                turnCount: 8,
+                tokenCount: 34_100
+            ),
+            actionError: nil,
+            onPause: nil,
+            onResume: nil,
+            onDelete: nil,
+            onRestartTerminal: {},
+            isRestartTerminalEnabled: isEnabled,
+            restartTerminalDisabledTooltip: tooltip,
             onDismissTerminal: {}
         ))
     }

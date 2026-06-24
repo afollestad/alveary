@@ -151,6 +151,9 @@ extension ChatView {
         if viewModel.visibleGoalSnapshot?.status.isTerminal == false {
             return "Use the goal status row to manage the active goal."
         }
+        if isProjectTrustBlocked {
+            return "Approve this project before starting Goal mode."
+        }
         if viewModel.hasVisibleUserMessageHistory,
            !composerCapabilities.supportsExistingSessionGoalStart {
             return "This agent can only start Goal mode before the first visible user message."

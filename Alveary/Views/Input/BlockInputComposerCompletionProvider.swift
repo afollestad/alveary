@@ -244,7 +244,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
     private func localCommandDescription(_ kind: ComposerLocalCommandKind) -> String {
         switch kind {
         case .goal:
-            "Start goal mode"
+            "Start or restart goal mode"
         case .plan:
             "Toggle plan mode"
         case .fast:

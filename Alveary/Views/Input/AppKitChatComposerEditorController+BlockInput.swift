@@ -2,13 +2,14 @@
 import BlockInputKit
 
 extension AppKitChatComposerEditorController {
-    func configureBlockInput(_ configuration: AppKitChatComposerBodyConfiguration) {
+    func configureBlockInput(_ configuration: AppKitChatComposerBodyConfiguration) -> Bool {
         let bridgeConfiguration = blockInputBridgeConfiguration(for: configuration)
         if let bridgeController {
-            bridgeController.configure(bridgeConfiguration)
+            return bridgeController.configure(bridgeConfiguration)
         } else {
             let controller = BlockInputComposerBridgeController(configuration: bridgeConfiguration)
             bridgeController = controller
+            return false
         }
     }
 
