@@ -44,7 +44,7 @@ extension ConversationViewModel {
             planModeEnabled: planModeOverride ?? dbConversation.thread?.planModeEnabled ?? false,
             model: modelAndEffort.model,
             effort: modelAndEffort.effort,
-            reasoningSummaryMode: providerId == "codex" ? .auto : nil,
+            reasoningSummaryMode: providerId == "codex" ? .concise : nil,
             speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
             initialPrompt: initialPrompt,
             initialGoal: initialGoal

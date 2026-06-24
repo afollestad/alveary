@@ -64,10 +64,24 @@ extension ConversationViewModelTests {
 
         state.appendStreamingChunk("Hel")
         XCTAssertEqual(state.streamingText, "Hel")
+        XCTAssertNil(state.completedThoughtText)
 
         state.appendStreamingChunk("lo")
 
         XCTAssertEqual(state.streamingText, "Hello")
+        XCTAssertNil(state.completedThoughtText)
+    }
+
+    func testStreamingChunkCompletesLiveThoughtInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("Plan")
+        state.appendStreamingChunk("Hel")
+
+        XCTAssertNil(state.thoughtText)
+        XCTAssertEqual(state.completedThoughtText, "Plan")
+        XCTAssertEqual(state.completedThoughtSequence, 1)
+        XCTAssertEqual(state.streamingText, "Hel")
     }
 
     func testThoughtChunksAppendImmediatelyInConversationState() {
@@ -81,6 +95,19 @@ extension ConversationViewModelTests {
 
         XCTAssertEqual(state.thoughtText, "Thinking")
         XCTAssertEqual(state.thoughtSequence, 1)
+    }
+
+    func testNewThoughtClearsCompletedThoughtInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("Plan")
+        state.appendStreamingChunk("Hel")
+        state.clearAssistantStreamingText()
+        state.appendThoughtChunk("Next")
+
+        XCTAssertEqual(state.thoughtText, "Next")
+        XCTAssertEqual(state.thoughtSequence, 2)
+        XCTAssertNil(state.completedThoughtText)
     }
 
     func testThinkingEventsAccumulateWithoutPersistence() throws {
@@ -102,6 +129,7 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.handleEvent(.message(role: "assistant", content: "Done", parentToolUseId: nil))
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
 
         fixture.viewModel.handleEvent(.thinking(content: "Next", parentToolUseId: nil))
 
@@ -116,6 +144,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.handleEvent(.runtimeUserMessage(content: "Follow up"))
 
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
     }
 
     func testThinkingDoesNotClearOnInvisibleStatusEvents() throws {
@@ -162,6 +191,7 @@ extension ConversationViewModelTests {
         ))
 
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
     }
 
     func testParentToolThinkingDoesNotRenderAsRootThought() throws {
@@ -172,7 +202,7 @@ extension ConversationViewModelTests {
         XCTAssertNil(fixture.viewModel.thoughtText)
     }
 
-    func testStreamingMessageClearsThoughtText() throws {
+    func testStreamingMessageCompletesThoughtText() throws {
         let fixture = try ConversationViewModelTestFixture()
 
         fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
@@ -180,6 +210,8 @@ extension ConversationViewModelTests {
 
         XCTAssertEqual(fixture.viewModel.streamingText, "Hel")
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertEqual(fixture.viewModel.completedThoughtText, "Plan")
+        XCTAssertEqual(fixture.viewModel.completedThoughtSequence, 1)
     }
 
     func testSubscriptionFlushesBufferedRootChunksAfterDelay() async throws {

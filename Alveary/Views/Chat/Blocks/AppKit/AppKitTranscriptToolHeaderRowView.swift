@@ -2,7 +2,7 @@
 import Foundation
 import QuartzCore
 
-private let appKitTranscriptToolStatusSlotTextOffset: CGFloat = -4
+let appKitTranscriptToolStatusSlotTextOffset: CGFloat = -4
 private let appKitToolSummaryPulseAnimationKey = "toolSummaryPulse"
 private let appKitToolSummaryPulseDuration: CFTimeInterval = 1.45
 private let appKitToolSummaryPulseBaseLocations: [NSNumber] = [0.06, 0.24, 0.42, 0.60, 0.78]
@@ -20,6 +20,9 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         let debounceStatus: Bool
         let typography: TranscriptTypography
         let bottomPadding: CGFloat
+        let maxWidth: CGFloat
+        let summaryMaximumNumberOfLines: Int
+        let showsStatusSlot: Bool
 
         init(
             summary: String,
@@ -29,7 +32,10 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             showsLeadingIcon: Bool = true,
             debounceStatus: Bool = false,
             typography: TranscriptTypography = TranscriptTypography(),
-            bottomPadding: CGFloat = transcriptInlineToolRowVerticalPadding
+            bottomPadding: CGFloat = transcriptInlineToolRowVerticalPadding,
+            maxWidth: CGFloat = .infinity,
+            summaryMaximumNumberOfLines: Int = 1,
+            showsStatusSlot: Bool = true
         ) {
             self.summary = summary
             self.leadingIcon = leadingIcon
@@ -39,21 +45,24 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             self.debounceStatus = debounceStatus
             self.typography = typography
             self.bottomPadding = bottomPadding
+            self.maxWidth = maxWidth
+            self.summaryMaximumNumberOfLines = summaryMaximumNumberOfLines
+            self.showsStatusSlot = showsStatusSlot
         }
     }
 
     var onToggle: (() -> Void)?
     var onHeightInvalidated: (() -> Void)?
 
-    private let iconView = AppKitDynamicTintImageView()
-    private let summaryField = NSTextField(labelWithString: "")
-    private let summaryPulseField = NSTextField(labelWithString: "")
-    private let summaryPulseMask = CAGradientLayer()
-    private let statusView = AppKitTranscriptToolStatusIndicatorView()
-    private var configuration: Configuration?
+    let iconView = AppKitDynamicTintImageView()
+    let summaryField = NSTextField(labelWithString: "")
+    let summaryPulseField = NSTextField(labelWithString: "")
+    let summaryPulseMask = CAGradientLayer()
+    let statusView = AppKitTranscriptToolStatusIndicatorView()
+    var configuration: Configuration?
     private var isRowHovered = false
     private var trackingArea: NSTrackingArea?
-    private var lastMeasuredHeight: CGFloat = -1
+    var lastMeasuredHeight: CGFloat = -1
 
     private var isDisclosureHovered: Bool {
         configuration?.isExpanded != nil && isRowHovered
@@ -90,8 +99,10 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
             return
         }
         self.configuration = configuration
+        updateSummaryLineMode(for: configuration)
         updateIcon()
         updateSummary()
+        statusView.isHidden = !configuration.showsStatusSlot
         statusView.configure(
             phase: configuration.phase,
             debounceTerminal: configuration.debounceStatus,
@@ -264,56 +275,6 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         trackingArea = newTrackingArea
     }
 
-    private func layoutContent() {
-        guard let configuration else {
-            return
-        }
-        let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
-        let contentY = transcriptInlineToolRowVerticalPadding
-        let contentHeight = max(
-            metrics.controlSize,
-            ceil(summaryField.fittingSize.height)
-        )
-        if configuration.showsLeadingIcon {
-            iconView.frame = NSRect(
-                x: 0,
-                y: contentY + ((contentHeight - metrics.controlSize) / 2),
-                width: metrics.controlSize,
-                height: metrics.controlSize
-            )
-        } else {
-            iconView.frame = .zero
-        }
-
-        let leadingTextInset = configuration.showsLeadingIcon ? metrics.leadingTextInset : 0
-        let availableSummaryWidth = max(
-            bounds.width - leadingTextInset - metrics.textStatusSpacing - metrics.controlSize,
-            0
-        )
-        let summaryWidth = measuredSummaryWidth(maxWidth: availableSummaryWidth, height: contentHeight)
-        let statusX = max(0, min(
-            leadingTextInset + summaryWidth + metrics.textStatusSpacing + appKitTranscriptToolStatusSlotTextOffset,
-            bounds.width - metrics.controlSize
-        ))
-        summaryField.frame = NSRect(
-            x: leadingTextInset,
-            y: contentY + ((contentHeight - ceil(summaryField.fittingSize.height)) / 2),
-            width: summaryWidth,
-            height: ceil(summaryField.fittingSize.height)
-        )
-        summaryPulseField.frame = summaryField.frame
-        summaryPulseMask.frame = summaryPulseField.bounds
-        statusView.frame = NSRect(
-            x: statusX,
-            y: contentY + ((contentHeight - metrics.controlSize) / 2),
-            width: metrics.controlSize,
-            height: metrics.controlSize
-        )
-
-        frame.size.height = measuredHeight(for: configuration)
-        restartSummaryPulseIfNeeded()
-    }
-
     private func pulseAttributedSummary(for configuration: Configuration) -> NSAttributedString {
         let attributed = NSMutableAttributedString(
             attributedString: TranscriptToolSummaryFormatter.nsAttributedString(
@@ -336,7 +297,7 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         restartSummaryPulseIfNeeded()
     }
 
-    private func restartSummaryPulseIfNeeded() {
+    func restartSummaryPulseIfNeeded() {
         guard !summaryPulseField.isHidden,
               summaryPulseField.bounds.width > 0,
               window != nil,
@@ -365,75 +326,6 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         summaryPulseMask.add(animation, forKey: appKitToolSummaryPulseAnimationKey)
     }
 
-    private func measuredSummaryWidth(maxWidth: CGFloat, height: CGFloat) -> CGFloat {
-        guard maxWidth > 0 else {
-            return 0
-        }
-        let naturalWidth = ceil(summaryField.fittingSize.width)
-        let proposedWidth = min(naturalWidth, maxWidth)
-        let proposedBounds = NSRect(x: 0, y: 0, width: proposedWidth, height: height)
-        let cellWidth = summaryField.cell.map { ceil($0.cellSize(forBounds: proposedBounds).width) } ?? proposedWidth
-        return min(max(cellWidth, 0), proposedWidth)
-    }
-
-    private func measuredHeight() -> CGFloat {
-        guard let configuration else {
-            return 0
-        }
-        return measuredHeight(for: configuration)
-    }
-
-    private func measuredHeight(for configuration: Configuration) -> CGFloat {
-        let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
-        return transcriptInlineToolRowVerticalPadding
-            + max(metrics.controlSize, ceil(summaryField.fittingSize.height))
-            + configuration.bottomPadding
-    }
-
-    private func invalidateTranscriptHeight(force: Bool) {
-        let newHeight = measuredHeight()
-        guard force || abs(newHeight - lastMeasuredHeight) > 0.5 else {
-            return
-        }
-        lastMeasuredHeight = newHeight
-        invalidateIntrinsicContentSize()
-        onHeightInvalidated?()
-    }
-
-    // Keep this switch exhaustive so new semantic icon cases cannot silently fall back to a generic glyph.
-    // swiftlint:disable:next cyclomatic_complexity
-    private func systemSymbolName(for kind: TranscriptToolLeadingIconKind) -> String {
-        switch kind {
-        case .terminal:
-            return "terminal"
-        case .search:
-            return "magnifyingglass"
-        case .folder:
-            return "folder"
-        case .read:
-            return "magnifyingglass"
-        case .book:
-            return "book"
-        case .document:
-            return "doc.text"
-        case .edit:
-            return "pencil"
-        case .write:
-            return "pencil"
-        case .skill:
-            return "book"
-        case .checklist:
-            return "checklist"
-        case .question:
-            return "questionmark"
-        case .subAgent:
-            return "hat.widebrim"
-        case .toolGroup:
-            return "wrench.and.screwdriver"
-        case .genericTool:
-            return "gearshape"
-        }
-    }
 }
 
 #if DEBUG
@@ -459,7 +351,7 @@ extension AppKitTranscriptToolHeaderRowView {
     }
 
     var summaryPulseMaskLocationsForTesting: [NSNumber]? {
-        summaryPulseMask.locations as? [NSNumber]
+        summaryPulseMask.locations
     }
 
     func setRowHoveredForTesting(_ hovered: Bool, animated: Bool = false) {
@@ -471,28 +363,3 @@ extension AppKitTranscriptToolHeaderRowView {
     }
 }
 #endif
-
-private func transcriptInlineToolRowPulseHighlightColor(isHovered: Bool) -> NSColor {
-    let baseColor = transcriptInlineToolRowForegroundColor(isHovered: isHovered)
-    return NSColor(name: nil) { appearance in
-        let base = baseColor.resolved(for: appearance)
-        let label = NSColor.labelColor.resolved(for: appearance)
-        return base.interpolated(toward: label, amount: 0.45)
-    }
-}
-
-private extension NSColor {
-    func interpolated(toward target: NSColor, amount: CGFloat) -> NSColor {
-        guard let sourceRGB = usingColorSpace(.deviceRGB),
-              let targetRGB = target.usingColorSpace(.deviceRGB) else {
-            return target
-        }
-        let clampedAmount = min(max(amount, 0), 1)
-        return NSColor(
-            deviceRed: sourceRGB.redComponent + ((targetRGB.redComponent - sourceRGB.redComponent) * clampedAmount),
-            green: sourceRGB.greenComponent + ((targetRGB.greenComponent - sourceRGB.greenComponent) * clampedAmount),
-            blue: sourceRGB.blueComponent + ((targetRGB.blueComponent - sourceRGB.blueComponent) * clampedAmount),
-            alpha: sourceRGB.alphaComponent + ((targetRGB.alphaComponent - sourceRGB.alphaComponent) * clampedAmount)
-        )
-    }
-}

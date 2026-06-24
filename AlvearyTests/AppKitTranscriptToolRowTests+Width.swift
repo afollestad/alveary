@@ -19,6 +19,7 @@ extension AppKitTranscriptToolRowTests {
 
         let summaryField = try XCTUnwrap(header.descendants(of: NSTextField.self).first)
         XCTAssertEqual(summaryField.lineBreakMode, .byTruncatingMiddle)
+        XCTAssertEqual(summaryField.maximumNumberOfLines, 1)
     }
 
     func testInlineToolRowClampsVisibleContentToMaxWidth() throws {

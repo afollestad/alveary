@@ -91,12 +91,18 @@ extension SnapshotTests {
     func testAppKitTranscriptThoughtBubble() {
         assertMacSnapshot(
             appKitRowSnapshot {
-                let view = AppKitTranscriptStreamingBubbleView()
+                let view = AppKitTranscriptToolHeaderRowView()
                 view.configure(
                     .init(
-                        text: "Thinking through the implementation path before the assistant response appears.",
-                        bubbleMaxWidth: 420,
-                        variant: .thought
+                        summary: appKitTranscriptLiveThoughtSummaryText(
+                            from: "Thinking through the **implementation** path, checking the transcript width, and preparing the assistant response."
+                        ),
+                        leadingIcon: .genericTool,
+                        phase: .loading,
+                        showsLeadingIcon: false,
+                        maxWidth: 360,
+                        summaryMaximumNumberOfLines: 0,
+                        showsStatusSlot: false
                     )
                 )
                 return view

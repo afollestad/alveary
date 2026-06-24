@@ -85,11 +85,28 @@ final class AppKitTranscriptRowFactory {
         configuration: Configuration
     ) -> [AppKitTranscriptLayoutRow] {
         if let streamingText = transientRows.streamingText {
-            return [streamingBubbleRow(text: streamingText, configuration: configuration)]
+            var rows: [AppKitTranscriptLayoutRow] = []
+            if let completedThoughtText = transientRows.completedThoughtText {
+                rows.append(thoughtRow(
+                    text: completedThoughtText,
+                    sequence: transientRows.completedThoughtSequence,
+                    configuration: configuration
+                ))
+            }
+            rows.append(streamingBubbleRow(text: streamingText, configuration: configuration))
+            return rows
         }
 
         if let thoughtText = transientRows.thoughtText {
-            return [thoughtBubbleRow(text: thoughtText, sequence: transientRows.thoughtSequence, configuration: configuration)]
+            return [thoughtRow(text: thoughtText, sequence: transientRows.thoughtSequence, configuration: configuration)]
+        }
+
+        if let completedThoughtText = transientRows.completedThoughtText {
+            return [thoughtRow(
+                text: completedThoughtText,
+                sequence: transientRows.completedThoughtSequence,
+                configuration: configuration
+            )]
         }
 
         if transientRows.isTurnActive || transientRows.isAwaitingExitPlanModeFollowUp {

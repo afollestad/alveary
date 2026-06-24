@@ -150,6 +150,44 @@ extension AppKitTranscriptScrollContainerTests {
         XCTAssertEqual(clipView.visibleHeightForTesting, block.intrinsicContentSize.height, accuracy: 0.5)
     }
 
+    func testRemovedThoughtRowAnimatesOutWhenMotionIsAllowed() {
+        let container = makeAnimatedHeightContainer(height: 120)
+        let thoughtView = AnimatedHeightFixedRowView(height: 30)
+        let belowView = AnimatedHeightFixedRowView(height: 40)
+        let thoughtID = AppKitTranscriptTransientRows.thoughtRowID(sequence: 3)
+        container.configure(
+            rows: [
+                AppKitTranscriptLayoutRow(id: thoughtID, view: thoughtView),
+                AppKitTranscriptLayoutRow(id: "below", view: belowView)
+            ],
+            preserveBottomIfFollowing: false
+        )
+
+        container.configure(
+            rows: [
+                AppKitTranscriptLayoutRow(id: "below", view: belowView)
+            ],
+            preserveBottomIfFollowing: false
+        )
+
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            XCTAssertNil(thoughtView.superview)
+            return
+        }
+
+        XCTAssertTrue(thoughtView.superview === container.transcriptDocumentView)
+        XCTAssertEqual(thoughtView.identifier?.rawValue, thoughtID)
+        XCTAssertTrue(container.transcriptDocumentView.hasActiveFrameAnimation)
+
+        let deadline = Date(timeIntervalSinceNow: 0.6)
+        while (thoughtView.superview != nil || container.transcriptDocumentView.hasActiveFrameAnimation) && Date() < deadline {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.02))
+        }
+
+        XCTAssertNil(thoughtView.superview)
+        XCTAssertFalse(container.transcriptDocumentView.hasActiveFrameAnimation)
+    }
+
     private func makeAnimatedHeightContainer(height: CGFloat) -> AppKitTranscriptScrollContainerView {
         let container = AppKitTranscriptScrollContainerView(frame: NSRect(x: 0, y: 0, width: 300, height: height))
         container.layoutSubtreeIfNeeded()

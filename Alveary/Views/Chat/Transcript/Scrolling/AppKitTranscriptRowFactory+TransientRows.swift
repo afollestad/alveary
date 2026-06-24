@@ -22,13 +22,13 @@ extension AppKitTranscriptRowFactory {
         return .init(id: AppKitTranscriptTransientRows.streamingRowID, view: view)
     }
 
-    func thoughtBubbleRow(
+    func thoughtRow(
         text: String,
         sequence: Int,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
         let rowID = AppKitTranscriptTransientRows.thoughtRowID(sequence: sequence)
-        let view = cachedView(for: rowID, as: AppKitTranscriptStreamingBubbleView.self)
+        let view = cachedView(for: rowID, as: AppKitTranscriptToolHeaderRowView.self)
         view.onHeightInvalidated = heightInvalidationHandler(
             for: rowID,
             animatesLayoutChanges: false,
@@ -36,10 +36,15 @@ extension AppKitTranscriptRowFactory {
         )
         view.configure(
             .init(
-                text: text,
-                bubbleMaxWidth: configuration.bubbleMaxWidth,
+                summary: appKitTranscriptLiveThoughtSummaryText(from: text),
+                leadingIcon: .genericTool,
+                phase: .loading,
+                showsLeadingIcon: false,
                 typography: configuration.typography,
-                variant: .thought
+                bottomPadding: transcriptInlineToolRowVerticalPadding,
+                maxWidth: configuration.bubbleMaxWidth,
+                summaryMaximumNumberOfLines: 0,
+                showsStatusSlot: false
             )
         )
         return .init(id: rowID, view: view)
@@ -60,3 +65,46 @@ extension AppKitTranscriptRowFactory {
         return .init(id: AppKitTranscriptTransientRows.thinkingRowID, view: view)
     }
 }
+
+func appKitTranscriptLiveThoughtSummaryText(from text: String) -> String {
+    let lines = text
+        .replacingOccurrences(of: "\r\n", with: "\n")
+        .replacingOccurrences(of: "\r", with: "\n")
+        .components(separatedBy: .newlines)
+        .map { appKitTranscriptLiveThoughtLineText(from: $0) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+    let collapsed = appKitTranscriptCollapsedLiveThoughtPlainText(from: lines)
+    guard collapsed.isEmpty else {
+        return collapsed
+    }
+    return appKitTranscriptCollapsedLiveThoughtPlainText(from: text)
+}
+
+private func appKitTranscriptCollapsedLiveThoughtPlainText(from text: String) -> String {
+    AppMarkdownInlineLabel.plainText(from: text)
+        .replacingOccurrences(of: #"\*{2,}"#, with: " ", options: .regularExpression)
+        .replacingOccurrences(of: #"_{2,}"#, with: " ", options: .regularExpression)
+        .components(separatedBy: .whitespacesAndNewlines)
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+}
+
+private func appKitTranscriptLiveThoughtLineText(from line: String) -> String {
+    var result = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !result.hasPrefix("```"), !result.hasPrefix("~~~") else {
+        return ""
+    }
+    for pattern in liveThoughtBlockPrefixPatterns {
+        result = result.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+    }
+    return result.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private let liveThoughtBlockPrefixPatterns = [
+    #"^#{1,6}\s+"#,
+    #"^(?:>\s*)+"#,
+    #"^[-*+]\s+\[[xX ]\]\s+"#,
+    #"^[-*+]\s+"#,
+    #"^\d+[\.)]\s+"#
+]

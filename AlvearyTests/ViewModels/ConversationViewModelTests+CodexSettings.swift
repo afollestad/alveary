@@ -18,7 +18,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(reconfigureCalls.first?.config.providerId, "codex")
         XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
-        XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .auto)
+        XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .concise)
     }
 
     func testCodexActiveTurnEffortChangeStagesUntilNextSend() async throws {
@@ -42,7 +42,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(reconfigureCalls.first?.config.providerId, "codex")
         XCTAssertEqual(reconfigureCalls.first?.config.effort, "high")
-        XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .auto)
+        XCTAssertEqual(reconfigureCalls.first?.config.reasoningSummaryMode, .concise)
         XCTAssertNil(fixture.viewModel.state.pendingSessionSettingsChange)
     }
 

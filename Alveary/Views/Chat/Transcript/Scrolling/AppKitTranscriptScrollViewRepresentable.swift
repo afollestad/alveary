@@ -51,6 +51,8 @@ struct AppKitTranscriptTransientRows: Equatable {
     var streamingText: String?
     var thoughtText: String?
     var thoughtSequence = 0
+    var completedThoughtText: String?
+    var completedThoughtSequence = 0
     var showsInterruptedNote = false
     var isThinkingAnimated = true
 

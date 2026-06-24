@@ -41,17 +41,24 @@ extension ChatTranscriptView {
         let visibleThoughtText = suppressesTransientText
             ? nil
             : viewModel.thoughtText
+        let visibleCompletedThoughtText = suppressesTransientText
+            ? nil
+            : viewModel.completedThoughtText
         return AppKitTranscriptTransientRows(
             isTurnActive: viewModel.turnState.isActive &&
                 visibleStreamingText == nil &&
                 visibleThoughtText == nil &&
+                visibleCompletedThoughtText == nil &&
                 !isHiddenCommitMessageGeneration,
             isAwaitingExitPlanModeFollowUp: viewModel.state.isAwaitingExitPlanModeFollowUp &&
                 visibleStreamingText == nil &&
-                visibleThoughtText == nil,
+                visibleThoughtText == nil &&
+                visibleCompletedThoughtText == nil,
             streamingText: visibleStreamingText,
             thoughtText: visibleThoughtText,
             thoughtSequence: viewModel.thoughtSequence,
+            completedThoughtText: visibleCompletedThoughtText,
+            completedThoughtSequence: viewModel.completedThoughtSequence,
             showsInterruptedNote: viewModel.state.shouldShowInterruptedCue &&
                 !viewModel.turnState.isActive &&
                 shouldShowTransientInterruptedNote

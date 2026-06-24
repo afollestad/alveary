@@ -22,27 +22,19 @@ private let streamingRevealMaximumStepCharacterCount = 12
 /// bubble, text, and caret appear to rewind.
 @MainActor
 final class AppKitTranscriptStreamingBubbleView: NSView {
-    enum Variant: Equatable {
-        case streaming
-        case thought
-    }
-
     struct Configuration: Equatable {
         let text: String
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
-        let variant: Variant
 
         init(
             text: String,
             bubbleMaxWidth: CGFloat = .infinity,
-            typography: TranscriptTypography = TranscriptTypography(),
-            variant: Variant = .streaming
+            typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.text = text
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
-            self.variant = variant
         }
     }
 
@@ -150,10 +142,6 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
     }
 
     private func layoutCursorIfNeeded(width: CGFloat, textWidth: CGFloat) {
-        guard configuration?.variant == .streaming else {
-            cursorView.frame = .zero
-            return
-        }
         let caretLayout = streamingCaretLayout(textWidth: textWidth)
         cursorView.frame = NSRect(
             x: min(
@@ -175,10 +163,9 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
     }
 
     private func updateAppearance() {
-        let variant = configuration?.variant ?? .streaming
-        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: variant == .thought ? 0.05 : 0.08)
-        textField.textColor = variant == .thought ? .secondaryLabelColor : .labelColor
-        cursorView.isHidden = variant == .thought
+        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: 0.08)
+        textField.textColor = .labelColor
+        cursorView.isHidden = false
         cursorView.setLayerFillColor(.labelColor, alpha: 0.65)
     }
 
@@ -357,10 +344,6 @@ extension AppKitTranscriptStreamingBubbleView {
 
     var cursorIsHiddenForTesting: Bool {
         cursorView.isHidden
-    }
-
-    var textColorForTesting: NSColor? {
-        textField.textColor
     }
 
     func advanceStreamingRevealForTesting() {

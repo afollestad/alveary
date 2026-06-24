@@ -42,6 +42,8 @@ final class ConversationViewModel {
     var streamingText: String? { state.streamingText }
     var thoughtText: String? { state.thoughtText }
     var thoughtSequence: Int { state.thoughtSequence }
+    var completedThoughtText: String? { state.completedThoughtText }
+    var completedThoughtSequence: Int { state.completedThoughtSequence }
 
     var isAgentActivelyWorking: Bool {
         state.turnState.isActive || agentsManager.status(for: conversation.id) == .busy

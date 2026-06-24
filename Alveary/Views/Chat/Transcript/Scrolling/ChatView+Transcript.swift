@@ -79,6 +79,16 @@ struct ChatTranscriptView: View {
                 scrollToBottom(at: now)
             }
         }
+        .onChange(of: viewModel.completedThoughtText) {
+            guard isFollowing else {
+                return
+            }
+
+            let now = Date()
+            if now.timeIntervalSince(lastScrollTime) >= 0.1 {
+                scrollToBottom(at: now)
+            }
+        }
         .onAppear {
             viewModel.rebuildChatItemsIfNeeded(from: events)
             scrollToBottom(forceFollow: true)

@@ -185,7 +185,9 @@ extension ConversationViewModelTests {
         let fixture = try ConversationViewModelTestFixture()
 
         fixture.viewModel.handleEvent(.thinking(content: "Visible thought", parentToolUseId: nil))
-        XCTAssertEqual(fixture.viewModel.thoughtText, "Visible thought")
+        fixture.viewModel.handleEvent(.messageChunk(text: "Draft", parentToolUseId: nil))
+        XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertEqual(fixture.viewModel.completedThoughtText, "Visible thought")
 
         let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }
 
@@ -193,15 +195,18 @@ extension ConversationViewModelTests {
             await fixture.agentsManager.sentMessages() == ["Generate commit"]
         }
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
 
         fixture.viewModel.handleEvent(.thinking(content: "Hidden thought", parentToolUseId: nil))
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
 
         fixture.viewModel.handleEvent(.message(role: "assistant", content: "Add modal", parentToolUseId: nil))
         fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .completed))
 
         _ = try await task.value
         XCTAssertNil(fixture.viewModel.thoughtText)
+        XCTAssertNil(fixture.viewModel.completedThoughtText)
     }
 
     func testGenerateCommitMessageDropsLateTerminalEventsAfterCompletion() async throws {

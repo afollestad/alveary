@@ -97,7 +97,10 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func reasoningEvents(from event: AgentCLIKit.AgentReasoningEvent) -> [ConversationEvent] {
-        [.thinking(
+        guard event.metadata.stringValue("codex_item_phase")?.lowercased() != "completed" else {
+            return []
+        }
+        return [.thinking(
             content: event.text,
             parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
         )]

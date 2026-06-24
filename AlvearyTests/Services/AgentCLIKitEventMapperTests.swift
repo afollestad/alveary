@@ -86,6 +86,18 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         ])
     }
 
+    func testDropsCompletedCodexReasoningSnapshot() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.reasoning(AgentReasoningEvent(
+            text: "Thinking",
+            metadata: [
+                "codex_item_phase": .string("completed"),
+                "codex_item_type": .string("reasoning")
+            ]
+        ))))
+
+        XCTAssertEqual(events, [])
+    }
+
     func testMapsMissingUsageCostAsNil() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.usage(AgentUsageEvent(
             model: nil,

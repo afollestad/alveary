@@ -287,6 +287,7 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     private var dirtyRowIDs: Set<String> = []
     private var lastContentWidth: CGFloat?
     private var shouldAnimateNextLayoutChange = false
+    var exitingThoughtViewIDs: Set<ObjectIdentifier> = []
     var activeFrameAnimationCompletions: [() -> Void] = []
     var activeFrameAnimationTargetDocumentSize: CGSize?
     private(set) var isMeasuringRows = false
@@ -297,12 +298,10 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     override var isFlipped: Bool { true }
 
     var scrollableContentBottomY: CGFloat { rowFramesByID.values.map(\.maxY).max() ?? 0 }
-
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         addSubview(bottomSpacerView)
     }
-
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         addSubview(bottomSpacerView)
@@ -312,8 +311,16 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
         let incomingKeys = rows.map(rowCacheKey(for:))
         let incomingKeySet = Set(incomingKeys)
         let incomingViews = Set(rows.map { ObjectIdentifier($0.view) })
+        let animatesThoughtRemoval = subviews.contains { existingView in
+            existingView !== bottomSpacerView &&
+                !incomingViews.contains(ObjectIdentifier(existingView)) &&
+                canAnimateRemovedThoughtView(existingView)
+        }
         for existingView in subviews where existingView !== bottomSpacerView && !incomingViews.contains(ObjectIdentifier(existingView)) {
-            existingView.removeFromSuperview()
+            removeObsoleteView(existingView)
+        }
+        if animatesThoughtRemoval {
+            animateNextLayoutChange()
         }
 
         self.rows = rows
