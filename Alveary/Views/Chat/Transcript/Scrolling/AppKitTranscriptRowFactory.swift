@@ -88,6 +88,10 @@ final class AppKitTranscriptRowFactory {
             return [streamingBubbleRow(text: streamingText, configuration: configuration)]
         }
 
+        if let thoughtText = transientRows.thoughtText {
+            return [thoughtBubbleRow(text: thoughtText, sequence: transientRows.thoughtSequence, configuration: configuration)]
+        }
+
         if transientRows.isTurnActive || transientRows.isAwaitingExitPlanModeFollowUp {
             return [thinkingIndicatorRow(transientRows: transientRows, configuration: configuration)]
         }
@@ -97,41 +101,6 @@ final class AppKitTranscriptRowFactory {
         }
 
         return []
-    }
-
-    private func streamingBubbleRow(
-        text: String,
-        configuration: Configuration
-    ) -> AppKitTranscriptLayoutRow {
-        let view = cachedView(for: AppKitTranscriptTransientRows.streamingRowID, as: AppKitTranscriptStreamingBubbleView.self)
-        view.onHeightInvalidated = heightInvalidationHandler(
-            for: AppKitTranscriptTransientRows.streamingRowID,
-            animatesLayoutChanges: false,
-            configuration: configuration
-        )
-        view.configure(
-            .init(
-                text: text,
-                bubbleMaxWidth: configuration.bubbleMaxWidth,
-                typography: configuration.typography
-            )
-        )
-        return .init(id: AppKitTranscriptTransientRows.streamingRowID, view: view)
-    }
-
-    private func thinkingIndicatorRow(
-        transientRows: AppKitTranscriptTransientRows,
-        configuration: Configuration
-    ) -> AppKitTranscriptLayoutRow {
-        let view = cachedView(for: AppKitTranscriptTransientRows.thinkingRowID, as: AppKitTranscriptThinkingIndicatorView.self)
-        view.configure(
-            .init(
-                bubbleMaxWidth: configuration.bubbleMaxWidth,
-                typography: configuration.typography,
-                isAnimated: transientRows.isThinkingAnimated
-            )
-        )
-        return .init(id: AppKitTranscriptTransientRows.thinkingRowID, view: view)
     }
 
     private func toolGroupRow(

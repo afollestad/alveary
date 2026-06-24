@@ -282,6 +282,7 @@ private extension SidebarViewModel {
             planModeEnabled: source.planModeEnabled,
             model: source.model,
             effort: source.effort,
+            reasoningSummaryMode: sourceRecord.providerId.rawValue == "codex" ? .auto : nil,
             speedMode: source.speedMode,
             sessionFork: AgentSessionForkRequest(
                 sourceSessionId: sourceRecord.providerSessionId.rawValue,

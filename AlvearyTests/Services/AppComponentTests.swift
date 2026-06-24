@@ -126,6 +126,7 @@ final class AppComponentTests: XCTestCase {
             planModeEnabled: true,
             model: "sonnet",
             effort: "high",
+            reasoningSummaryMode: .auto,
             speedMode: .fast,
             initialPrompt: "Start"
         ))
@@ -136,6 +137,7 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(config.collaborationMode, .plan)
         XCTAssertEqual(config.model, "sonnet")
         XCTAssertEqual(config.effort, "high")
+        XCTAssertEqual(config.reasoningSummaryMode, .auto)
         XCTAssertEqual(config.speedMode?.rawValue, "fast")
         XCTAssertEqual(config.initialPrompt, "Start")
     }

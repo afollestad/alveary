@@ -75,7 +75,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - `Show N more` extends the window upward.
 - Other tools render full output through the AppKit detail code block.
 - Keep command-tool tail-not-head behavior so streaming shows the latest line at the bottom.
-- Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; the transient AppKit thinking indicator is the only thinking affordance.
+- Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; provider-exposed live thoughts render only as transient AppKit rows.
 - Tune tool dimensions only in `ChatBlocks.swift`.
 - AppKit tool-row loading states animate the summary text itself with a muted left-to-right pulse.
   Do not add a trailing loading spinner back to tool headers.

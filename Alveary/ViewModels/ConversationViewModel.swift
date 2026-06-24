@@ -40,6 +40,8 @@ final class ConversationViewModel {
     @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?
 
     var streamingText: String? { state.streamingText }
+    var thoughtText: String? { state.thoughtText }
+    var thoughtSequence: Int { state.thoughtSequence }
 
     var isAgentActivelyWorking: Bool {
         state.turnState.isActive || agentsManager.status(for: conversation.id) == .busy

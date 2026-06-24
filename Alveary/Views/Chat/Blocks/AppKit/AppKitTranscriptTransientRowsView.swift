@@ -22,19 +22,27 @@ private let streamingRevealMaximumStepCharacterCount = 12
 /// bubble, text, and caret appear to rewind.
 @MainActor
 final class AppKitTranscriptStreamingBubbleView: NSView {
+    enum Variant: Equatable {
+        case streaming
+        case thought
+    }
+
     struct Configuration: Equatable {
         let text: String
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
+        let variant: Variant
 
         init(
             text: String,
             bubbleMaxWidth: CGFloat = .infinity,
-            typography: TranscriptTypography = TranscriptTypography()
+            typography: TranscriptTypography = TranscriptTypography(),
+            variant: Variant = .streaming
         ) {
             self.text = text
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
+            self.variant = variant
         }
     }
 
@@ -131,7 +139,6 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
         let textWidth = max(width - (chatBubbleHorizontalPadding * 2) - 4, 0)
         let textHeight = measuredTextHeight(width: textWidth)
         let height = max(textHeight, 16) + (chatBubbleVerticalPadding * 2)
-        let caretLayout = streamingCaretLayout(textWidth: textWidth)
         bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: height)
         textField.frame = NSRect(
             x: chatBubbleHorizontalPadding,
@@ -139,6 +146,15 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
             width: textWidth,
             height: textHeight
         )
+        layoutCursorIfNeeded(width: width, textWidth: textWidth)
+    }
+
+    private func layoutCursorIfNeeded(width: CGFloat, textWidth: CGFloat) {
+        guard configuration?.variant == .streaming else {
+            cursorView.frame = .zero
+            return
+        }
+        let caretLayout = streamingCaretLayout(textWidth: textWidth)
         cursorView.frame = NSRect(
             x: min(
                 chatBubbleHorizontalPadding + caretLayout.origin.x + 2,
@@ -159,7 +175,10 @@ final class AppKitTranscriptStreamingBubbleView: NSView {
     }
 
     private func updateAppearance() {
-        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: 0.08)
+        let variant = configuration?.variant ?? .streaming
+        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: variant == .thought ? 0.05 : 0.08)
+        textField.textColor = variant == .thought ? .secondaryLabelColor : .labelColor
+        cursorView.isHidden = variant == .thought
         cursorView.setLayerFillColor(.labelColor, alpha: 0.65)
     }
 
@@ -334,6 +353,14 @@ extension AppKitTranscriptStreamingBubbleView {
 
     var cursorFrameForTesting: NSRect {
         cursorView.frame
+    }
+
+    var cursorIsHiddenForTesting: Bool {
+        cursorView.isHidden
+    }
+
+    var textColorForTesting: NSColor? {
+        textField.textColor
     }
 
     func advanceStreamingRevealForTesting() {

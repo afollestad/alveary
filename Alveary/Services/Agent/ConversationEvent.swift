@@ -165,8 +165,6 @@ enum ConversationEvent: Sendable, Equatable {
             return toolCallRecord(conversation: conversation)
         case .toolResult:
             return toolResultRecord(conversation: conversation)
-        case .thinking:
-            return thinkingRecord(conversation: conversation)
         case .tokens:
             return tokensRecord(conversation: conversation)
         case .toolApprovalRequested:
@@ -192,6 +190,7 @@ enum ConversationEvent: Sendable, Equatable {
         case .contextCompactionFailed:
             return contextCompactionFailedRecord(conversation: conversation)
         case .messageChunk,
+             .thinking,
              .subAgentStarted,
              .subAgentProgress,
              .subAgentCompleted,
@@ -284,22 +283,6 @@ private extension ConversationEvent {
             toolOutputIsImage: metadata?.isImage ?? false,
             toolOutputNoOutputExpected: metadata?.noOutputExpected ?? false,
             isError: isError,
-            conversation: conversation
-        )
-        record.parentToolUseId = parentToolUseId
-        return record
-    }
-
-    @MainActor
-    func thinkingRecord(conversation: Conversation) -> ConversationEventRecord {
-        guard case let .thinking(content, parentToolUseId) = self else {
-            preconditionFailure("Unexpected event case")
-        }
-
-        let record = ConversationEventRecord(
-            conversationId: conversation.id,
-            type: "thinking",
-            content: content,
             conversation: conversation
         )
         record.parentToolUseId = parentToolUseId

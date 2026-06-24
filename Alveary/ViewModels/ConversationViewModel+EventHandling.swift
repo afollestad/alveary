@@ -34,9 +34,7 @@ private extension ConversationViewModel {
         if shouldSuppressInterruptedTurnFallout(event) { return false }
 
         switch event {
-        case .sessionInit,
-             .providerSessionMetadataChanged:
-            return false
+        case .sessionInit, .providerSessionMetadataChanged: return false
 
         case .permissionModeChanged(let permissionMode):
             return handlePermissionModeChanged(permissionMode)
@@ -45,44 +43,48 @@ private extension ConversationViewModel {
             return handleCollaborationModeChanged(isPlanModeEnabled)
 
         case .toolCall(_, let name, _, _, _):
-            clearApprovedExitPlanModeApprovalAfterImplementationToolCall(toolName: name)
-            return !persistSubAgentStartIfNeeded(for: event)
+            return shouldPersistToolCallEvent(event, toolName: name)
         case .toolResult(let id, _, let isError, _, _):
-            clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: id, isError: isError)
-            return true
+            return shouldPersistToolResultEvent(toolUseId: id, isError: isError)
         case .messageChunk(let text, let parentToolUseId):
             return handleMessageChunk(text, parentToolUseId: parentToolUseId)
+        case .thinking(let content, let parentToolUseId):
+            return handleThinking(content, parentToolUseId: parentToolUseId)
 
         case .message(let role, let content, _):
             return shouldPersistMessageEvent(role: role, content: content)
 
+        case .runtimeUserMessage:
+            return shouldPersistRuntimeUserMessageEvent()
+
         case .steeredConversation(let inputID): return shouldPersistSteeredConversation(inputID: inputID)
         case .tokens:
-            guard let payload = TokenEventPayload(event) else { return true }
-            return shouldPersistTokensEvent(payload)
+            return shouldPersistTokensEvent(event)
 
         case .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
-            state.clearStreamingText()
-            return true
+            return shouldPersistContextCompactionEvent()
 
         case .goal(let event): return handleGoalEvent(event)
         case .toolApprovalRequested(let approval):
-            return handleToolApprovalRequested(approval)
+            return shouldPersistToolApprovalRequestedEvent(approval)
 
         case .toolApprovalFailed(let failure):
-            return handleToolApprovalFailed(failure)
+            return shouldPersistToolApprovalFailedEvent(failure)
 
         case .runtimeActivity(let activityState, let turnId, let outcome):
             return handleRuntimeActivity(state: activityState, turnId: turnId, outcome: outcome)
 
         case .stop(let message):
+            state.clearStreamingText()
             return shouldPersistStopEvent(message: message)
 
         case .error(let message):
             return shouldPersistErrorEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
-            return handleSubAgentControlEvent(event)
+            return shouldPersistSubAgentControlEvent(event)
+        case .taskListSnapshot:
+            return shouldPersistTaskListSnapshotEvent()
 
         default:
             return true
@@ -134,6 +136,43 @@ private extension ConversationViewModel {
         return false
     }
 
+    func shouldPersistToolCallEvent(_ event: ConversationEvent, toolName: String) -> Bool {
+        state.clearThoughtText()
+        clearApprovedExitPlanModeApprovalAfterImplementationToolCall(toolName: toolName)
+        return !persistSubAgentStartIfNeeded(for: event)
+    }
+
+    func shouldPersistToolResultEvent(toolUseId: String, isError: Bool) -> Bool {
+        state.clearThoughtText()
+        clearApprovedExitPlanModeApprovalAfterToolResult(toolUseId: toolUseId, isError: isError)
+        return true
+    }
+
+    func shouldPersistToolApprovalRequestedEvent(_ approval: ToolApprovalRequest) -> Bool {
+        state.clearThoughtText()
+        return handleToolApprovalRequested(approval)
+    }
+
+    func shouldPersistToolApprovalFailedEvent(_ failure: ToolApprovalFailure) -> Bool {
+        state.clearThoughtText()
+        return handleToolApprovalFailed(failure)
+    }
+
+    func shouldPersistSubAgentControlEvent(_ event: ConversationEvent) -> Bool {
+        state.clearThoughtText()
+        return handleSubAgentControlEvent(event)
+    }
+
+    func shouldPersistTaskListSnapshotEvent() -> Bool {
+        state.clearThoughtText()
+        return true
+    }
+
+    func shouldPersistContextCompactionEvent() -> Bool {
+        state.clearStreamingText()
+        return true
+    }
+
     func shouldSuppressInterruptedTurnFallout(_ event: ConversationEvent) -> Bool {
         guard state.lastTurnInterrupted,
               !state.turnState.isActive else {
@@ -142,6 +181,7 @@ private extension ConversationViewModel {
         handleSuppressedPromptApproval(from: event, deferResolution: false)
         switch event {
         case .messageChunk,
+             .thinking,
              .message,
              .toolCall,
              .toolResult,
@@ -171,6 +211,15 @@ private extension ConversationViewModel {
         return false
     }
 
+    func handleThinking(_ content: String, parentToolUseId: String?) -> Bool {
+        guard parentToolUseId == nil,
+              state.streamingText == nil else {
+            return false
+        }
+        state.appendThoughtChunk(content)
+        return false
+    }
+
     func shouldPersistMessageEvent(role: String, content: String) -> Bool {
         if role == "assistant" {
             state.clearStreamingText()
@@ -183,8 +232,34 @@ private extension ConversationViewModel {
         return false
     }
 
+    func shouldPersistRuntimeUserMessageEvent() -> Bool {
+        state.clearThoughtText()
+        return true
+    }
+
+    func shouldPersistTokensEvent(_ event: ConversationEvent) -> Bool {
+        guard let payload = TokenEventPayload(event) else { return true }
+        return shouldPersistTokensEvent(payload)
+    }
+
     func shouldPersistTokensEvent(_ payload: TokenEventPayload) -> Bool {
         shouldPersistTokenEvent(payload)
+    }
+
+    func shouldPersistTokenEvent(_ payload: TokenEventPayload) -> Bool {
+        switch handleTokenEvent(payload) {
+        case .persistTokens:
+            return true
+        case .dropTokens:
+            scheduleSave()
+            return false
+        case .persistSyntheticStop(let message):
+            persistSyntheticStopRecord(message: message)
+            return false
+        case .persistSyntheticAssistant(let message):
+            persistSyntheticAssistantRecord(message: message)
+            return false
+        }
     }
 
     func handleSubAgentControlEvent(_ event: ConversationEvent) -> Bool {
@@ -194,81 +269,6 @@ private extension ConversationViewModel {
         }
         state.grouper.handleSubAgentControl(event)
         return false
-    }
-
-    func handleTokenEvent(_ payload: TokenEventPayload) -> TokenEventPersistence {
-        let hadStreamingText = state.streamingText != nil
-        state.clearStreamingText()
-        guard payload.stopReason != ConversationEvent.interimUsageStopReason else { return .persistTokens }
-        guard !handleToolDeferredTokenIfNeeded(payload) else { return .persistTokens }
-        if !payload.isError && payload.permissionDenials.isEmpty {
-            markAutomaticSessionHandoffPendingIfNeeded(for: payload)
-        }
-        guard payload.completesTurn else { return .persistTokens }
-        state.activeRuntimeActivityTurnId = nil
-        clearResolvedPendingToolApprovalIfNeeded()
-        let didQueueExitPlanModeFollowUp = markPendingExitPlanModeFollowUpReadyAfterTerminalToken(payload)
-
-        if let earlyPersistence = earlyTokenPersistence(payload, hadStreamingText: hadStreamingText) {
-            return earlyPersistence
-        }
-
-        state.isCancellingTurn = false
-        if payload.isError || !payload.permissionDenials.isEmpty {
-            handleFailedTokenTurn(payload)
-        }
-
-        if !payload.isError && payload.permissionDenials.isEmpty {
-            if shouldTriggerAutomaticSessionHandoff(for: payload) {
-                state.endTurn()
-                Task { @MainActor [self] in await startSessionHandoff(trigger: .automatic) }
-            } else if isAwaitingAutomaticSessionHandoffTurnCompletion(for: payload) {
-                // Keep queued messages parked until the real terminal token starts handoff.
-            } else {
-                handleTurnCompleted()
-            }
-        } else if didQueueExitPlanModeFollowUp || !payload.permissionDenials.isEmpty {
-            handleTurnCompleted()
-        } else {
-            state.endTurn()
-        }
-
-        return .persistTokens
-    }
-
-    func earlyTokenPersistence(
-        _ payload: TokenEventPayload,
-        hadStreamingText: Bool
-    ) -> TokenEventPersistence? {
-        if let slashCommandNotice = state.synthesizedSlashCommandFailureNotice(
-            for: payload,
-            hadStreamingText: hadStreamingText
-        ) {
-            state.isCancellingTurn = false
-            state.lastTurnInterrupted = false
-            state.lastTurnError = nil
-            state.pendingSyntheticAssistantDuplicateText = slashCommandNotice
-            handleTurnCompleted()
-            return .persistSyntheticAssistant(message: slashCommandNotice)
-        }
-
-        if isConfirmedTurnInterruption(
-            isError: payload.isError,
-            stopReason: payload.stopReason,
-            permissionDenials: payload.permissionDenials
-        ) {
-            handleInterruptedTokenTurn()
-            return .persistSyntheticStop(message: ConversationInterruption.displayMessage)
-        }
-
-        guard state.lastTurnInterrupted, payload.isError, payload.permissionDenials.isEmpty else {
-            return nil
-        }
-
-        state.isCancellingTurn = false
-        state.lastTurnError = nil
-        state.endTurn()
-        return .dropTokens
     }
 
     func handleRuntimeActivity(
@@ -394,47 +394,6 @@ private extension ConversationViewModel {
         return trimmedMessage.isEmpty ? fallback : trimmedMessage
     }
 
-    func shouldPersistTokenEvent(_ payload: TokenEventPayload) -> Bool {
-        switch handleTokenEvent(payload) {
-        case .persistTokens:
-            return true
-        case .dropTokens:
-            scheduleSave()
-            return false
-        case .persistSyntheticStop(let message):
-            persistSyntheticStopRecord(message: message)
-            return false
-        case .persistSyntheticAssistant(let message):
-            persistSyntheticAssistantRecord(message: message)
-            return false
-        }
-    }
-
-    func handleInterruptedTokenTurn() {
-        state.activeRuntimeActivityTurnId = nil
-        state.isAutomaticSessionHandoffPending = false
-        state.isCancellingTurn = false
-        state.lastTurnError = nil
-        state.lastTurnInterrupted = true
-        markTranscriptActivityInterrupted()
-        state.endTurn()
-    }
-
-    func handleFailedTokenTurn(_ payload: TokenEventPayload) {
-        state.activeRuntimeActivityTurnId = nil
-        state.isAutomaticSessionHandoffPending = false
-        state.lastTurnInterrupted = false
-        guard payload.permissionDenials.isEmpty else {
-            state.lastTurnError = nil
-            return
-        }
-        guard !shouldSuppressTokenErrorComposerMessage(payload) else {
-            state.lastTurnError = nil
-            return
-        }
-        state.lastTurnError = ConversationErrorDisplayPolicy.tokenErrorMessage(stopReason: payload.stopReason)
-    }
-
     func shouldPersistStopEvent(message: String?) -> Bool {
         state.activeRuntimeActivityTurnId = nil
         state.isAutomaticSessionHandoffPending = false
@@ -490,11 +449,4 @@ private extension ConversationViewModel {
         scheduleSave()
     }
 
-    func shouldSuppressTokenErrorComposerMessage(_ payload: TokenEventPayload) -> Bool {
-        if state.grouper.items.containsCurrentTurnTranscriptError {
-            return true
-        }
-        return ConversationErrorDisplayPolicy.isGenericStopReason(payload.stopReason) &&
-            state.grouper.items.containsCurrentTurnAssistantMessage
-    }
 }

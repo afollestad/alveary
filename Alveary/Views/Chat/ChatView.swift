@@ -36,7 +36,7 @@ struct ChatView: View {
         ChatPresentation.hasVisibleChatContent(
             hasEvents: events.contains(where: \.isVisibleTranscriptEvent),
             hasGroupedItems: !viewModel.state.grouper.items.isEmpty,
-            hasStreamingText: viewModel.streamingText != nil
+            hasStreamingText: viewModel.streamingText != nil || viewModel.thoughtText != nil
         )
     }
     var composerMode: ComposerMode {

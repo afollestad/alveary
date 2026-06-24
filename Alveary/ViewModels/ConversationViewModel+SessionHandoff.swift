@@ -47,6 +47,7 @@ extension ConversationViewModel {
         state.lastTurnError = nil
         state.sessionContinuityNotice = nil
         state.activeRuntimeActivityTurnId = nil
+        state.clearStreamingText()
         do {
             if await needsRespawn() {
                 try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
@@ -99,6 +100,9 @@ extension ConversationViewModel {
                     )
                 }
             }
+            return false
+        case .thinking:
+            state.clearThoughtText()
             return false
         case .tokens:
             if let payload = TokenEventPayload(event) {

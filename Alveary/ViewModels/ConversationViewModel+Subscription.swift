@@ -10,6 +10,20 @@ private enum SubscriptionLoopInput: Sendable {
     case finished
 }
 
+private enum SubscriptionTextStreamKind: Sendable, Equatable {
+    case message
+    case thought
+
+    func event(text: String) -> ConversationEvent {
+        switch self {
+        case .message:
+            return .messageChunk(text: text, parentToolUseId: nil)
+        case .thought:
+            return .thinking(content: text, parentToolUseId: nil)
+        }
+    }
+}
+
 // `runSubscription` owns this reader and creates at most one pending `next()` task at a time.
 private final class SubscriptionEventReader: @unchecked Sendable {
     private var iterator: AsyncStream<ConversationEvent>.Iterator
@@ -24,6 +38,7 @@ private final class SubscriptionEventReader: @unchecked Sendable {
 }
 
 private struct SubscriptionChunkBuffer {
+    var kind: SubscriptionTextStreamKind?
     var text = ""
     var eventCount = 0
     var hasPublishedRootChunk = false
@@ -36,7 +51,18 @@ private struct SubscriptionChunkBuffer {
         eventCount >= streamingChunkBatchEventThreshold || text.count >= streamingChunkBatchCharacterThreshold
     }
 
-    mutating func append(_ chunk: String) {
+    mutating func prepareFor(kind: SubscriptionTextStreamKind) {
+        guard self.kind != kind else {
+            return
+        }
+        self.kind = kind
+        text = ""
+        eventCount = 0
+        hasPublishedRootChunk = false
+    }
+
+    mutating func append(_ chunk: String, kind: SubscriptionTextStreamKind) {
+        prepareFor(kind: kind)
         text.append(chunk)
         eventCount += 1
     }
@@ -46,20 +72,27 @@ private struct SubscriptionChunkBuffer {
     }
 
     mutating func resetPublishedState() {
+        kind = nil
         hasPublishedRootChunk = false
     }
 
-    mutating func takePending() -> (text: String, eventCount: Int)? {
-        guard !text.isEmpty else {
+    mutating func takePending() -> PendingSubscriptionText? {
+        guard let kind, !text.isEmpty else {
             return nil
         }
 
-        let pending = (text, eventCount)
+        let pending = PendingSubscriptionText(kind: kind, text: text, eventCount: eventCount)
         text = ""
         eventCount = 0
         hasPublishedRootChunk = true
         return pending
     }
+}
+
+private struct PendingSubscriptionText {
+    let kind: SubscriptionTextStreamKind
+    let text: String
+    let eventCount: Int
 }
 
 extension ConversationViewModel {
@@ -255,7 +288,7 @@ private extension ConversationViewModel {
             }
 
             self.state.lastObservedEventIndex += pending.eventCount
-            self.handleEvent(.messageChunk(text: pending.text, parentToolUseId: nil))
+            self.handleEvent(pending.kind.event(text: pending.text))
             self.recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: token)
             return true
         }
@@ -300,10 +333,16 @@ private extension ConversationViewModel {
         chunkBuffer: inout SubscriptionChunkBuffer,
         token: UUID
     ) async -> Bool {
-        if case .messageChunk(let text, let parentToolUseId) = event, parentToolUseId == nil {
-            return await processRootMessageChunk(
+        if let rootText = event.rootTextStream {
+            if chunkBuffer.kind != rootText.kind {
+                guard await flushSubscriptionChunkBuffer(&chunkBuffer, token: token) else {
+                    return false
+                }
+            }
+            return await processRootTextChunk(
                 event,
-                text: text,
+                kind: rootText.kind,
+                text: rootText.text,
                 chunkBuffer: &chunkBuffer,
                 token: token
             )
@@ -321,12 +360,14 @@ private extension ConversationViewModel {
         return true
     }
 
-    nonisolated func processRootMessageChunk(
+    nonisolated func processRootTextChunk(
         _ event: ConversationEvent,
+        kind: SubscriptionTextStreamKind,
         text: String,
         chunkBuffer: inout SubscriptionChunkBuffer,
         token: UUID
     ) async -> Bool {
+        chunkBuffer.prepareFor(kind: kind)
         if !chunkBuffer.hasPublishedRootChunk {
             guard await handleImmediateSubscriptionEvent(event, token: token) else {
                 return false
@@ -335,7 +376,7 @@ private extension ConversationViewModel {
             return true
         }
 
-        chunkBuffer.append(text)
+        chunkBuffer.append(text, kind: kind)
         guard chunkBuffer.shouldFlush else {
             return true
         }
@@ -345,17 +386,40 @@ private extension ConversationViewModel {
 }
 
 private extension ConversationEvent {
+    var rootTextStream: (kind: SubscriptionTextStreamKind, text: String)? {
+        switch self {
+        case .messageChunk(let text, let parentToolUseId) where parentToolUseId == nil:
+            return (.message, text)
+        case .thinking(let content, let parentToolUseId) where parentToolUseId == nil:
+            return (.thought, content)
+        default:
+            return nil
+        }
+    }
+
     var resetsPublishedRootChunk: Bool {
         switch self {
-        case .message(let role, _, let parentToolUseId):
-            return role == "assistant" && parentToolUseId == nil
-        case .tokens,
+        case .message(_, _, let parentToolUseId):
+            return parentToolUseId == nil
+        case .toolCall,
+             .toolResult,
+             .toolApprovalRequested,
+             .toolApprovalFailed,
+             .taskListSnapshot,
+             .subAgentStarted,
+             .subAgentProgress,
+             .subAgentCompleted,
+             .goal,
              .stop,
              .error,
              .runtimeActivity,
              .contextCompactionStarted,
              .contextCompactionCompleted,
              .contextCompactionFailed:
+            return true
+        case .tokens,
+             .runtimeUserMessage,
+             .steeredConversation:
             return true
         default:
             return false

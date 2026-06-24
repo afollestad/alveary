@@ -37,6 +37,49 @@ final class AppKitTranscriptTransientRowTests: XCTestCase {
         XCTAssertEqual(textField.font?.pointSize, 18)
     }
 
+    func testThoughtBubbleUsesMutedStyleTypographyAndNoCursor() throws {
+        var settings = AppSettings()
+        settings.chatFontSize = 17
+        let typography = TranscriptTypography(settings: settings)
+        let row = AppKitTranscriptStreamingBubbleView()
+        row.frame = NSRect(x: 0, y: 0, width: 260, height: 200)
+
+        row.configure(.init(text: "Thinking", bubbleMaxWidth: 220, typography: typography, variant: .thought))
+        row.layoutSubtreeIfNeeded()
+
+        let textField = try XCTUnwrap(row.descendants(of: NSTextField.self).first)
+        XCTAssertEqual(textField.font?.pointSize, 17)
+        XCTAssertEqual(row.textColorForTesting, .secondaryLabelColor)
+        XCTAssertTrue(row.cursorIsHiddenForTesting)
+        XCTAssertEqual(row.cursorFrameForTesting, .zero)
+    }
+
+    func testThoughtBubbleInvalidatesHeightAndKeepsAppendedTextMonotonic() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 240), styleMask: [], backing: .buffered, defer: false)
+        let row = AppKitTranscriptStreamingBubbleView()
+        var invalidationCount = 0
+        row.onHeightInvalidated = {
+            invalidationCount += 1
+        }
+        row.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: 320, height: 240)
+        window.contentView?.addSubview(row)
+
+        row.configure(.init(text: "Thinking", bubbleMaxWidth: 220, variant: .thought))
+        row.layoutSubtreeIfNeeded()
+        row.configure(.init(
+            text: "Thinking " + String(repeating: "through the implementation ", count: 20),
+            bubbleMaxWidth: 220,
+            variant: .thought
+        ))
+        row.layoutSubtreeIfNeeded()
+        row.configure(.init(text: "Stale", bubbleMaxWidth: 220, variant: .thought))
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(invalidationCount, 1)
+        XCTAssertTrue(row.displayedTextForTesting.hasPrefix("Thinking"))
+        XCTAssertTrue(row.cursorIsHiddenForTesting)
+    }
+
     func testStreamingBubbleChromeHugsShortTextBeforeMaxWidth() throws {
         let row = AppKitTranscriptStreamingBubbleView()
         row.frame = NSRect(x: 0, y: 0, width: 320, height: 200)

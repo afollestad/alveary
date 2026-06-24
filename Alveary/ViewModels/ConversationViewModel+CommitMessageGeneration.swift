@@ -46,6 +46,9 @@ extension ConversationViewModel {
                 }
             }
             return false
+        case .thinking:
+            state.clearThoughtText()
+            return false
         case .tokens:
             if let payload = TokenEventPayload(event) {
                 handleHiddenCommitMessageGenerationTokens(payload)

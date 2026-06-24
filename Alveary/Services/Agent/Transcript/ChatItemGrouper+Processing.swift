@@ -30,9 +30,8 @@ extension ChatItemGrouper {
              ConversationContextCompaction.failedType:
             handleLifecycleNote(event)
         default:
-            // `thinking` events are intentionally not rendered — they add little for the
-            // user and clutter transcripts. The active-turn "Thinking…" spinner in
-            // `ChatTranscriptView` covers the "something is happening" affordance.
+            // Historical persisted `thinking` rows stay hidden. Provider-exposed live
+            // thoughts render only through transient AppKit rows.
             break
         }
     }

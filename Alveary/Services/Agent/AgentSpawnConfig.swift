@@ -10,6 +10,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let planModeEnabled: Bool?
     let model: String?
     let effort: String?
+    let reasoningSummaryMode: AgentReasoningSummaryMode?
     let speedMode: AgentSpeedMode?
     let sessionFork: AgentSessionForkRequest?
     let initialPrompt: String?
@@ -22,6 +23,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         planModeEnabled: Bool? = nil,
         model: String? = nil,
         effort: String? = nil,
+        reasoningSummaryMode: AgentReasoningSummaryMode? = nil,
         speedMode: AgentSpeedMode? = nil,
         sessionFork: AgentSessionForkRequest? = nil,
         initialPrompt: String? = nil,
@@ -33,11 +35,19 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.planModeEnabled = planModeEnabled
         self.model = model
         self.effort = effort
+        self.reasoningSummaryMode = reasoningSummaryMode
         self.speedMode = speedMode
         self.sessionFork = sessionFork
         self.initialPrompt = initialPrompt
         self.initialGoal = initialGoal
     }
+}
+
+enum AgentReasoningSummaryMode: String, Sendable, Equatable {
+    case auto
+    case concise
+    case detailed
+    case none
 }
 
 enum AgentSessionForkMode: String, Sendable, Equatable {

@@ -44,12 +44,23 @@ struct AppKitTranscriptTransientRows: Equatable {
     static let thinkingRowID = "transient-thinking"
     static let streamingRowID = "streaming"
     static let interruptedRowID = "transient-interrupted"
+    static let thoughtRowIDPrefix = "transient-thought-"
 
     var isTurnActive = false
     var isAwaitingExitPlanModeFollowUp = false
     var streamingText: String?
+    var thoughtText: String?
+    var thoughtSequence = 0
     var showsInterruptedNote = false
     var isThinkingAnimated = true
+
+    static func thoughtRowID(sequence: Int) -> String {
+        "\(thoughtRowIDPrefix)\(sequence)"
+    }
+
+    static func isThoughtRowID(_ rowID: String) -> Bool {
+        rowID.hasPrefix(thoughtRowIDPrefix)
+    }
 }
 
 @MainActor
@@ -153,7 +164,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
                 // state for streaming rows because follow-state-only updates do
                 // not reconfigure cached row callbacks.
                 preserveBottomIfFollowing: true,
-                forceBottomIfPreserving: rowID == AppKitTranscriptTransientRows.streamingRowID && self?.currentIsFollowing == true,
+                forceBottomIfPreserving: self?.shouldForceBottomForTransientTextInvalidation(rowID) == true,
                 animatesLayoutChanges: animatesLayoutChanges
             )
         }
@@ -203,6 +214,14 @@ final class AppKitTranscriptScrollBridgeCoordinator {
             container.scrollToBottom()
         }
         lastScrollToBottomRequest = scrollToBottomRequest
+    }
+
+    private func shouldForceBottomForTransientTextInvalidation(_ rowID: String) -> Bool {
+        guard currentIsFollowing else {
+            return false
+        }
+        return rowID == AppKitTranscriptTransientRows.streamingRowID ||
+            AppKitTranscriptTransientRows.isThoughtRowID(rowID)
     }
 
     private func shouldHonorRowTopRequest(_ request: AppKitTranscriptRowTopScrollRequest?) -> Bool {

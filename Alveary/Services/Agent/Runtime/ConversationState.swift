@@ -85,6 +85,8 @@ final class ConversationState {
     let turnState = TurnState()
 
     var streamingText: String?
+    var thoughtText: String?
+    var thoughtSequence = 0
     var lastTurnError: String?
     var lastTurnInterrupted = false
     var stagedContext: String?
@@ -173,6 +175,7 @@ final class ConversationState {
     }
 
     func appendStreamingChunk(_ text: String) {
+        clearThoughtText()
         if streamingText == nil {
             streamingText = text
         } else {
@@ -180,8 +183,36 @@ final class ConversationState {
         }
     }
 
-    func clearStreamingText() {
+    func appendThoughtChunk(_ text: String) {
+        guard !text.isEmpty else {
+            return
+        }
+        if thoughtText == nil {
+            thoughtSequence += 1
+            thoughtText = text
+        } else {
+            thoughtText?.append(text)
+        }
+    }
+
+    func clearThoughtText() {
+        thoughtText = nil
+    }
+
+    func clearThoughtText(ifNeeded shouldClear: Bool) {
+        guard shouldClear else {
+            return
+        }
+        clearThoughtText()
+    }
+
+    func clearAssistantStreamingText() {
         streamingText = nil
+    }
+
+    func clearStreamingText() {
+        clearAssistantStreamingText()
+        clearThoughtText()
     }
 
     func endTurn() {

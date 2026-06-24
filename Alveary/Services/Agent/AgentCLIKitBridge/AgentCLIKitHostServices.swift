@@ -41,6 +41,7 @@ struct AgentCLIKitHostAdapter: Sendable {
             environment: environment,
             model: config.model,
             effort: config.effort,
+            reasoningSummaryMode: config.reasoningSummaryMode.map(AgentCLIKit.AgentReasoningSummaryMode.init(alvearyMode:)),
             permissionMode: config.permissionMode,
             collaborationMode: config.planModeEnabled.map { $0 ? .plan : .default },
             speedMode: config.speedMode.map(AgentCLIKit.AgentSpeedMode.init(alvearyMode:)),
@@ -49,6 +50,21 @@ struct AgentCLIKitHostAdapter: Sendable {
             forkSession: forkSession,
             initialPrompt: config.initialPrompt
         )
+    }
+}
+
+private extension AgentCLIKit.AgentReasoningSummaryMode {
+    init(alvearyMode: AgentReasoningSummaryMode) {
+        switch alvearyMode {
+        case .auto:
+            self = .auto
+        case .concise:
+            self = .concise
+        case .detailed:
+            self = .detailed
+        case .none:
+            self = .none
+        }
     }
 }
 

@@ -70,6 +70,118 @@ extension ConversationViewModelTests {
         XCTAssertEqual(state.streamingText, "Hello")
     }
 
+    func testThoughtChunksAppendImmediatelyInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("Think")
+        XCTAssertEqual(state.thoughtText, "Think")
+        XCTAssertEqual(state.thoughtSequence, 1)
+
+        state.appendThoughtChunk("ing")
+
+        XCTAssertEqual(state.thoughtText, "Thinking")
+        XCTAssertEqual(state.thoughtSequence, 1)
+    }
+
+    func testThinkingEventsAccumulateWithoutPersistence() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.thinking(content: " next", parentToolUseId: nil))
+
+        XCTAssertEqual(fixture.viewModel.thoughtText, "Plan next")
+        XCTAssertEqual(fixture.viewModel.thoughtSequence, 1)
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+    }
+
+    func testThinkingClearsOnVisibleAssistantMessageAndLaterThoughtGetsNewSequence() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        XCTAssertEqual(fixture.viewModel.thoughtSequence, 1)
+
+        fixture.viewModel.handleEvent(.message(role: "assistant", content: "Done", parentToolUseId: nil))
+        XCTAssertNil(fixture.viewModel.thoughtText)
+
+        fixture.viewModel.handleEvent(.thinking(content: "Next", parentToolUseId: nil))
+
+        XCTAssertEqual(fixture.viewModel.thoughtText, "Next")
+        XCTAssertEqual(fixture.viewModel.thoughtSequence, 2)
+    }
+
+    func testThinkingClearsOnPersistedRuntimeUserMessage() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.runtimeUserMessage(content: "Follow up"))
+
+        XCTAssertNil(fixture.viewModel.thoughtText)
+    }
+
+    func testThinkingDoesNotClearOnInvisibleStatusEvents() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.permissionModeChanged("acceptEdits"))
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(sessionId: "session", name: nil, preview: nil))
+
+        XCTAssertEqual(fixture.viewModel.thoughtText, "Plan")
+        XCTAssertEqual(fixture.viewModel.thoughtSequence, 1)
+    }
+
+    func testThinkingSurvivesInterimTokenAndClearsOnTerminalToken() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.tokens(
+            input: 10,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: ConversationEvent.interimUsageStopReason,
+            durationMs: 1,
+            costUsd: nil,
+            contextWindowSize: nil,
+            permissionDenials: [],
+            isTerminal: false
+        ))
+
+        XCTAssertEqual(fixture.viewModel.thoughtText, "Plan")
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 10,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 1,
+            costUsd: nil,
+            contextWindowSize: nil,
+            permissionDenials: [],
+            isTerminal: true
+        ))
+
+        XCTAssertNil(fixture.viewModel.thoughtText)
+    }
+
+    func testParentToolThinkingDoesNotRenderAsRootThought() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Nested", parentToolUseId: "agent-1"))
+
+        XCTAssertNil(fixture.viewModel.thoughtText)
+    }
+
+    func testStreamingMessageClearsThoughtText() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.messageChunk(text: "Hel", parentToolUseId: nil))
+
+        XCTAssertEqual(fixture.viewModel.streamingText, "Hel")
+        XCTAssertNil(fixture.viewModel.thoughtText)
+    }
+
     func testSubscriptionFlushesBufferedRootChunksAfterDelay() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.enableSubscription()
@@ -89,6 +201,64 @@ extension ConversationViewModelTests {
 
         try await waitUntil("buffered root chunk flushes after max delay", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             fixture.viewModel.streamingText == "Hello"
+        }
+
+        await fixture.agentsManager.finishSubscription()
+    }
+
+    func testSubscriptionFlushesBufferedThoughtChunksAfterDelay() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.thinking(content: "Think", parentToolUseId: nil))
+        try await waitUntil("first thought publishes immediately", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.thoughtText == "Think"
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.thinking(content: "ing", parentToolUseId: nil))
+
+        try await waitUntil("buffered thought flushes after max delay", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.thoughtText == "Thinking"
+        }
+
+        await fixture.agentsManager.finishSubscription()
+    }
+
+    func testSubscriptionResetsThoughtSequenceAfterVisibleBoundary() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.enableSubscription()
+
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.subscribe()
+        try await waitUntil("subscription becomes active", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            await fixture.agentsManager.hasActiveSubscription()
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.thinking(content: "Plan", parentToolUseId: nil))
+        try await waitUntil("first thought publishes", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.thoughtText == "Plan"
+        }
+        await fixture.agentsManager.yieldSubscriptionEvent(.toolCall(
+            id: "tool-1",
+            name: "Bash",
+            input: "{}",
+            parentToolUseId: nil,
+            callerAgent: nil
+        ))
+        try await waitUntil("tool row clears thought", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.thoughtText == nil
+        }
+
+        await fixture.agentsManager.yieldSubscriptionEvent(.thinking(content: "Next", parentToolUseId: nil))
+        try await waitUntil("later thought has new sequence", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
+            fixture.viewModel.thoughtText == "Next" &&
+                fixture.viewModel.thoughtSequence == 2
         }
 
         await fixture.agentsManager.finishSubscription()

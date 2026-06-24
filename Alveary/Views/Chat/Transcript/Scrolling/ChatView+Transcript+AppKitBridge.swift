@@ -34,13 +34,24 @@ extension ChatTranscriptView {
 
     var appKitTransientRows: AppKitTranscriptTransientRows {
         let isHiddenCommitMessageGeneration = viewModel.state.isGeneratingCommitMessage
-        let visibleStreamingText = (viewModel.state.isHandingOffSession || isHiddenCommitMessageGeneration)
+        let suppressesTransientText = viewModel.state.isHandingOffSession || isHiddenCommitMessageGeneration
+        let visibleStreamingText = suppressesTransientText
             ? nil
             : viewModel.streamingText
+        let visibleThoughtText = suppressesTransientText
+            ? nil
+            : viewModel.thoughtText
         return AppKitTranscriptTransientRows(
-            isTurnActive: viewModel.turnState.isActive && visibleStreamingText == nil && !isHiddenCommitMessageGeneration,
-            isAwaitingExitPlanModeFollowUp: viewModel.state.isAwaitingExitPlanModeFollowUp && visibleStreamingText == nil,
+            isTurnActive: viewModel.turnState.isActive &&
+                visibleStreamingText == nil &&
+                visibleThoughtText == nil &&
+                !isHiddenCommitMessageGeneration,
+            isAwaitingExitPlanModeFollowUp: viewModel.state.isAwaitingExitPlanModeFollowUp &&
+                visibleStreamingText == nil &&
+                visibleThoughtText == nil,
             streamingText: visibleStreamingText,
+            thoughtText: visibleThoughtText,
+            thoughtSequence: viewModel.thoughtSequence,
             showsInterruptedNote: viewModel.state.shouldShowInterruptedCue &&
                 !viewModel.turnState.isActive &&
                 shouldShowTransientInterruptedNote

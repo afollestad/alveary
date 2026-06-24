@@ -75,6 +75,17 @@ final class AgentCLIKitEventMapperTests: XCTestCase {
         XCTAssertEqual(stopReason, "tool_deferred")
     }
 
+    func testMapsReasoningToThinking() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.reasoning(AgentReasoningEvent(
+            text: "Thinking",
+            metadata: ["parent_tool_use_id": .string("parent-1")]
+        ))))
+
+        XCTAssertEqual(events, [
+            .thinking(content: "Thinking", parentToolUseId: "parent-1")
+        ])
+    }
+
     func testMapsMissingUsageCostAsNil() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.usage(AgentUsageEvent(
             model: nil,
