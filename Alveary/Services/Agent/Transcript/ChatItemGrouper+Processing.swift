@@ -80,11 +80,12 @@ extension ChatItemGrouper {
         subAgentIdsReadyForEviction = []
         evictedSubAgentIds = []
         pendingSubAgentCompletions = [:]
-        pendingSubAgentResults = [:]
+        pendingToolResultEventsByToolId = [:]
         currentTasks = []
         agentTaskListReducer = AgentTaskListReducer()
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []
+        todoWriteToolIds = []
         promptToolIds = []
         transcriptNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
@@ -119,7 +120,12 @@ extension ChatItemGrouper {
         }
         clearCurrentToolApprovalBatchIfResultCompletes(toolId: toolId)
 
-        guard !promptToolIds.contains(toolId) else {
+        if promptToolIds.contains(toolId) {
+            pendingToolResultEventsByToolId.removeValue(forKey: toolId)
+            return
+        }
+        if todoWriteToolIds.contains(toolId) {
+            pendingToolResultEventsByToolId.removeValue(forKey: toolId)
             return
         }
         if let transcriptNoteKind = transcriptNoteToolKinds.removeValue(forKey: toolId) {
@@ -136,7 +142,7 @@ extension ChatItemGrouper {
             return
         }
         if !patchedVisibleTool {
-            patchPendingOrRenderedTool(id: toolId, entry: updatedTool)
+            pendingToolResultEventsByToolId[toolId] = event
         }
     }
 
@@ -222,6 +228,7 @@ private extension ChatItemGrouper {
         flushSubAgents()
 
         let toolId = event.toolId ?? event.id
+        pendingToolResultEventsByToolId.removeValue(forKey: toolId)
         promptToolIds.insert(toolId)
         let prompt = PromptEntry(
             id: toolId,
@@ -252,6 +259,9 @@ private extension ChatItemGrouper {
         var pendingTool = makePendingToolEntry(id: toolId, event: event)
         if let completion = pendingSubAgentCompletions[toolId] {
             pendingTool = terminalizedToolEntry(from: pendingTool, completion: completion)
+        }
+        if let resultEvent = pendingToolResultEventsByToolId.removeValue(forKey: toolId) {
+            pendingTool = completedToolEntry(from: pendingTool, event: resultEvent)
         }
 
         switch ChatItemGrouper.groupability(forToolNamed: toolName) {

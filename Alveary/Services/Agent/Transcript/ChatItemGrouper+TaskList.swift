@@ -4,8 +4,11 @@ import Foundation
 extension ChatItemGrouper {
     func handleTodoWriteToolCall(_ event: ConversationEventRecord) {
         flushGroup()
+        let toolId = event.toolId ?? event.id
+        pendingToolResultEventsByToolId.removeValue(forKey: toolId)
+        todoWriteToolIds.insert(toolId)
         currentTasks = parseTodoWriteInput(event.toolInput)
-        let blockId = "tasks-\(event.toolId ?? event.id)"
+        let blockId = "tasks-\(toolId)"
         if replaceMatchingTaskListBlock(id: blockId, tasks: currentTasks) {
             return
         }
@@ -65,7 +68,11 @@ extension ChatItemGrouper {
     func handleAgentTaskToolCallIfNeeded(_ event: ConversationEventRecord) -> Bool {
         let envelope = agentTaskToolCallEnvelope(from: event)
         if AgentTaskListReducer.isTaskToolDiscovery(envelope) {
-            hiddenAgentTaskToolSearchIds.insert(event.toolId ?? event.id)
+            let toolId = event.toolId ?? event.id
+            hiddenAgentTaskToolSearchIds.insert(toolId)
+            if let resultEvent = pendingToolResultEventsByToolId.removeValue(forKey: toolId) {
+                _ = handleAgentTaskToolResultIfNeeded(resultEvent)
+            }
             return true
         }
 
@@ -74,9 +81,13 @@ extension ChatItemGrouper {
             return false
         }
 
-        agentTaskToolIds.insert(event.toolId ?? event.id)
+        let toolId = event.toolId ?? event.id
+        agentTaskToolIds.insert(toolId)
         if let snapshot = agentTaskListReducer.append(envelope) {
             renderAgentTaskListSnapshot(snapshot)
+        }
+        if let resultEvent = pendingToolResultEventsByToolId.removeValue(forKey: toolId) {
+            _ = handleAgentTaskToolResultIfNeeded(resultEvent)
         }
         return true
     }

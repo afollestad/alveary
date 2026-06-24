@@ -37,6 +37,30 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertTrue(headers.dropFirst().allSatisfy { !$0.showsLeadingIconForTesting })
     }
 
+    func testCompletedCommandActivityGroupUsesPastTense() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let rows = factory.makeRows(
+            for: [
+                .standaloneTool(
+                    id: "pwd-row",
+                    tool: activityTool(id: "pwd", name: "CommandExecution", summary: "Executing `pwd`", isComplete: true)
+                ),
+                .standaloneTool(
+                    id: "files-row",
+                    tool: activityTool(id: "files", name: "CommandExecution", summary: "Executing `rg --files`", isComplete: true)
+                )
+            ],
+            configuration: .init()
+        )
+        let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        group.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        group.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(rows.map(\.id), ["activity-pwd-row"])
+        XCTAssertTrue(group.renderedText.contains("Ran 2 commands"))
+        XCTAssertFalse(group.renderedText.contains("Running 2 commands"))
+    }
+
     func testPendingPromptParticipatesInActivityGroupSummaryWithoutChildExpansion() throws {
         let factory = AppKitTranscriptRowFactory()
         let prompt = PromptEntry(

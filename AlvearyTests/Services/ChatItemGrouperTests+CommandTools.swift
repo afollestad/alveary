@@ -78,6 +78,61 @@ extension ChatItemGrouperTests {
         }
     }
 
+    func testCommandExecutionResultBeforeCallCompletesLaterVisibleRow() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let result = commandResultRecord(
+            id: "cmd-result",
+            toolId: "cmd-1",
+            conversationId: conversationId,
+            output: ""
+        )
+        let call = commandCallRecord(
+            id: "cmd-call",
+            toolId: "cmd-1",
+            conversationId: conversationId,
+            command: "pwd"
+        )
+
+        grouper.update(events: [result, call])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .standaloneTool(_, let tool) = grouper.items[0] else {
+            return XCTFail("Expected the later command call to consume the cached result")
+        }
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertEqual(tool.output, "")
+        XCTAssertEqual(tool.transcriptDisplaySummary, "Ran `pwd`")
+        XCTAssertTrue(grouper.pendingToolResultEventsByToolId.isEmpty)
+    }
+
+    func testAppendingCommandExecutionResultBeforeCallCompletesLaterVisibleRow() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+
+        grouper.append(event: commandResultRecord(
+            id: "cmd-result",
+            toolId: "cmd-1",
+            conversationId: conversationId,
+            output: "/tmp/project\n"
+        ))
+        grouper.append(event: commandCallRecord(
+            id: "cmd-call",
+            toolId: "cmd-1",
+            conversationId: conversationId,
+            command: "pwd"
+        ))
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .standaloneTool(_, let tool) = grouper.items[0] else {
+            return XCTFail("Expected the later command call to consume the cached result")
+        }
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertEqual(tool.output, "/tmp/project\n")
+        XCTAssertEqual(tool.transcriptDisplaySummary, "Ran `pwd`")
+        XCTAssertTrue(grouper.pendingToolResultEventsByToolId.isEmpty)
+    }
+
     func testInterruptedStopTerminalizesRunningCommandExecution() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
@@ -134,6 +189,37 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(updatedTools[0], completedRead)
         XCTAssertTrue(updatedTools[1].isComplete)
         XCTAssertTrue(updatedTools[1].isInterrupted)
+    }
+
+    private func commandCallRecord(
+        id: String,
+        toolId: String,
+        conversationId: String,
+        command: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: toolId,
+            toolName: "CommandExecution",
+            toolInput: #"{"command":"\#(command)"}"#
+        )
+    }
+
+    private func commandResultRecord(
+        id: String,
+        toolId: String,
+        conversationId: String,
+        output: String
+    ) -> ConversationEventRecord {
+        ConversationEventRecord(
+            id: id,
+            conversationId: conversationId,
+            type: "tool_result",
+            toolId: toolId,
+            toolOutput: output
+        )
     }
 
     private func commandTool(id: String, isComplete: Bool) -> ToolEntry {

@@ -90,6 +90,32 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(grouper.items, [.transcriptNote(id: "note-tool-1", kind: .exitedPlanMode)])
     }
 
+    func testExitPlanModeResultBeforeCallRendersTranscriptNoteOnSuccess() {
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let toolResult = ConversationEventRecord(
+            id: "exit-plan-result",
+            conversationId: conversationId,
+            type: "tool_result",
+            toolId: "tool-1",
+            toolOutput: ""
+        )
+        let toolCall = ConversationEventRecord(
+            id: "exit-plan-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "tool-1",
+            toolName: "ExitPlanMode",
+            toolInput: "{}"
+        )
+
+        grouper.update(events: [toolResult, toolCall])
+
+        XCTAssertEqual(grouper.items, [.transcriptNote(id: "note-tool-1", kind: .exitedPlanMode)])
+        XCTAssertTrue(grouper.pendingToolResultEventsByToolId.isEmpty)
+        XCTAssertTrue(grouper.transcriptNoteToolKinds.isEmpty)
+    }
+
     func testDeniedExitPlanModeRendersStayingTranscriptNote() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"

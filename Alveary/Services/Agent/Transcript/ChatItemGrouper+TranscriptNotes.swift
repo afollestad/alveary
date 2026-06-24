@@ -9,6 +9,10 @@ extension ChatItemGrouper {
 
         let toolId = event.toolId ?? event.id
         transcriptNoteToolKinds[toolId] = noteKind
+        if let resultEvent = pendingToolResultEventsByToolId.removeValue(forKey: toolId) {
+            transcriptNoteToolKinds.removeValue(forKey: toolId)
+            handleTranscriptNoteToolResult(toolId: toolId, kind: noteKind, event: resultEvent)
+        }
     }
 
     func handleTranscriptNoteToolResult(

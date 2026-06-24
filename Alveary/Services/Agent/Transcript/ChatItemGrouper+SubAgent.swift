@@ -141,7 +141,6 @@ extension ChatItemGrouper {
             return true
         }
 
-        pendingSubAgentResults[toolId] = event
         return false
     }
 }
@@ -231,7 +230,7 @@ extension ChatItemGrouper {
 
     func applyPendingSubAgentTerminalEvents(id: String) {
         let completion = pendingSubAgentCompletions.removeValue(forKey: id)
-        let resultEvent = pendingSubAgentResults.removeValue(forKey: id)
+        let resultEvent = pendingToolResultEventsByToolId.removeValue(forKey: id)
         guard completion != nil || resultEvent != nil else {
             return
         }
