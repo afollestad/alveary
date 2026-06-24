@@ -49,9 +49,15 @@ struct AskUserQuestionOverlayState: Equatable {
         allQuestionsAnswered(in: prompt) ? "Submit" : "Continue"
     }
 
-    func firstUnansweredQuestionIndex(in prompt: PromptEntry) -> Int? {
+    func firstUnansweredQuestionIndex(after questionIndex: Int, in prompt: PromptEntry) -> Int? {
         prompt.questions.indices.first { index in
-            !isQuestionAnswered(prompt.questions[index], at: index)
+            index > questionIndex && !isQuestionAnswered(prompt.questions[index], at: index)
+        }
+    }
+
+    func firstUnansweredQuestionIndex(before questionIndex: Int, in prompt: PromptEntry) -> Int? {
+        prompt.questions.indices.first { index in
+            index < questionIndex && !isQuestionAnswered(prompt.questions[index], at: index)
         }
     }
 
@@ -130,6 +136,7 @@ extension ChatView {
                 isPrimaryEnabled: canInteract &&
                     isCurrentQuestionAnswered &&
                     viewModel.canSubmitPromptAnswer(promptId: prompt.id),
+                prefersPrimaryActionForReturn: state.allQuestionsAnswered(in: prompt),
                 isResolving: state.isSubmitting || state.isDismissing,
                 onNavigateBackward: {
                     navigateAskUserQuestion(promptID: prompt.id, delta: -1, questionCount: prompt.questions.count)
@@ -141,7 +148,7 @@ extension ChatView {
                     dismissAskUserQuestionPrompt(prompt)
                 },
                 onPrimary: {
-                    advanceOrSubmitAskUserQuestionPrompt(prompt, submitWhenComplete: true)
+                    advanceOrSubmitAskUserQuestionPrompt(prompt)
                 }
             )
         )
@@ -250,75 +257,101 @@ extension ChatView {
         }
     }
 
+    @discardableResult
     func selectAskUserQuestionOption(
         prompt: PromptEntry,
         questionIndex: Int,
         option: PromptEntry.PromptOption
-    ) {
+    ) -> AskUserQuestionOverlayState? {
         guard let question = prompt.questions[safe: questionIndex] else {
-            return
+            return nil
         }
 
-        updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+        let updatedState = updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
             state.select(option: option, for: question, at: questionIndex, togglesMultiSelect: true)
         }
 
         guard !question.multiSelect, !option.isCustomResponse else {
-            return
+            return updatedState
         }
-        advanceOrSubmitAskUserQuestionPrompt(prompt)
+        return routeAfterAnsweringAskUserQuestionPrompt(prompt, state: updatedState)
     }
 
+    @discardableResult
     func submitAskUserQuestionOptionSelection(
         prompt: PromptEntry,
         questionIndex: Int,
         option: PromptEntry.PromptOption
-    ) {
+    ) -> AskUserQuestionOverlayState? {
         guard let question = prompt.questions[safe: questionIndex] else {
-            return
+            return nil
         }
 
         let updatedState = updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
             state.select(option: option, for: question, at: questionIndex, togglesMultiSelect: false)
         }
 
-        advanceOrSubmitAskUserQuestionPrompt(prompt, state: updatedState, submitWhenComplete: true)
+        return routeAfterAnsweringAskUserQuestionPrompt(prompt, state: updatedState)
     }
 
+    @discardableResult
+    func routeAfterAnsweringAskUserQuestionPrompt(
+        _ prompt: PromptEntry,
+        state: AskUserQuestionOverlayState
+    ) -> AskUserQuestionOverlayState? {
+        let questionIndex = clampedQuestionIndex(state.currentQuestionIndex, questionCount: prompt.questions.count)
+        guard let question = prompt.questions[safe: questionIndex],
+              state.isQuestionAnswered(question, at: questionIndex) else {
+            return nil
+        }
+
+        if questionIndex < prompt.questions.count - 1 {
+            if let nextUnanswered = state.firstUnansweredQuestionIndex(after: questionIndex, in: prompt) {
+                return updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+                    state.currentQuestionIndex = nextUnanswered
+                }
+            }
+        }
+
+        if let firstUnanswered = state.firstUnansweredQuestionIndex(before: questionIndex, in: prompt) {
+            return updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+                state.currentQuestionIndex = firstUnanswered
+            }
+        }
+
+        return state
+    }
+
+    @discardableResult
     func advanceOrSubmitAskUserQuestionPrompt(
         _ prompt: PromptEntry,
-        state providedState: AskUserQuestionOverlayState? = nil,
-        submitWhenComplete: Bool = false
-    ) {
+        state providedState: AskUserQuestionOverlayState? = nil
+    ) -> AskUserQuestionOverlayState? {
         let state = providedState ?? askUserQuestionOverlayState(for: prompt)
         let questionIndex = clampedQuestionIndex(state.currentQuestionIndex, questionCount: prompt.questions.count)
         guard let question = prompt.questions[safe: questionIndex],
               state.isQuestionAnswered(question, at: questionIndex) else {
-            return
+            return nil
         }
 
-        if submitWhenComplete, state.allQuestionsAnswered(in: prompt) {
+        if state.allQuestionsAnswered(in: prompt) {
             submitAskUserQuestionPrompt(prompt, state: state)
-            return
+            return nil
         }
 
-        if questionIndex < prompt.questions.count - 1 {
-            updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
-                state.currentQuestionIndex = questionIndex + 1
+        if let nextUnanswered = state.firstUnansweredQuestionIndex(after: questionIndex, in: prompt) {
+            return updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+                state.currentQuestionIndex = nextUnanswered
             }
-            return
         }
 
-        guard state.allQuestionsAnswered(in: prompt) else {
-            if let firstUnanswered = state.firstUnansweredQuestionIndex(in: prompt) {
-                updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
-                    state.currentQuestionIndex = firstUnanswered
-                }
+        if let firstUnanswered = state.firstUnansweredQuestionIndex(before: questionIndex, in: prompt) {
+            return updateAskUserQuestionOverlayState(promptID: prompt.id, questionCount: prompt.questions.count) { state in
+                state.currentQuestionIndex = firstUnanswered
             }
-            return
         }
 
-        submitAskUserQuestionPrompt(prompt, state: state)
+        return nil
     }
 
     func submitAskUserQuestionPrompt(_ prompt: PromptEntry, state: AskUserQuestionOverlayState) {

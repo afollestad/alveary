@@ -208,6 +208,9 @@ final class AppKitComposerOverlayOptionRowView: NSView, NSTextFieldDelegate {
             return
         }
         if event.specialKey == .carriageReturn {
+            if onKeyEvent?(event) == true {
+                return
+            }
             performSubmitSelection()
             return
         }

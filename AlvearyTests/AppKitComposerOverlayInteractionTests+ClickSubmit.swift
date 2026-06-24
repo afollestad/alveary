@@ -93,7 +93,7 @@ extension AppKitComposerOverlayInteractionTests {
         XCTAssertEqual(multiSelectRows[1].mouseActivationBehavior, .select)
     }
 
-    func testClickingAnsweredEarlierAskUserQuestionSingleChoiceRowSubmitsUpdatedAnswers() async throws {
+    func testClickingAnsweredEarlierAskUserQuestionSingleChoiceRowLeavesPromptReadyToSubmit() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
         let prompt = multiQuestionPromptForClickSubmit()
         let chatView = makeClickSubmitChatView(
@@ -106,21 +106,134 @@ extension AppKitComposerOverlayInteractionTests {
             ]
         )
         configureAnsweredPrompt(prompt, fixture: fixture)
-        let bugFixRow = AppKitComposerOverlayOptionRowView(frame: NSRect(x: 0, y: 0, width: 360, height: 42))
-        let rows = rowsForFirstQuestion(prompt, chatView: chatView)
-        XCTAssertTrue(rows[0].isSelected)
-        bugFixRow.configure(rows[1])
 
-        bugFixRow.performMouseActivationForTesting()
-        try await waitUntil("expected click submit approval call") {
-            await fixture.agentsManager.approvalCalls().isEmpty == false
-        }
+        let routedState = try XCTUnwrap(chatView.submitAskUserQuestionOptionSelection(
+            prompt: prompt,
+            questionIndex: 0,
+            option: prompt.questions[0].options[1]
+        ))
         let calls = await fixture.agentsManager.approvalCalls()
 
-        let call = try XCTUnwrap(calls.first)
-        XCTAssertEqual(call.decision, .allow)
-        XCTAssertTrue(call.updatedInput?.contains(#""Scope?":"Bug fix""#) ?? false)
-        XCTAssertTrue(call.updatedInput?.contains(#""Risk?":"Low""#) ?? false)
+        XCTAssertEqual(routedState.currentQuestionIndex, 0)
+        XCTAssertEqual(routedState.primaryActionTitle(for: prompt), "Submit")
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testAnsweringLaterSingleChoiceQuestionMovesToNextUnansweredQuestion() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let prompt = multiQuestionPromptForRevisit()
+        let chatView = makeClickSubmitChatView(
+            fixture: fixture,
+            initialAskUserQuestionOverlayStates: [
+                prompt.id: AskUserQuestionOverlayState(currentQuestionIndex: 1)
+            ]
+        )
+        configureAnsweredPrompt(prompt, fixture: fixture)
+
+        let routedState = try XCTUnwrap(chatView.submitAskUserQuestionOptionSelection(
+            prompt: prompt,
+            questionIndex: 1,
+            option: prompt.questions[1].options[0]
+        ))
+        let calls = await fixture.agentsManager.approvalCalls()
+
+        XCTAssertEqual(routedState.currentQuestionIndex, 2)
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testSelectingLaterSingleChoiceQuestionMovesToNextUnansweredQuestion() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let prompt = multiQuestionPromptForRevisit()
+        let chatView = makeClickSubmitChatView(
+            fixture: fixture,
+            initialAskUserQuestionOverlayStates: [
+                prompt.id: AskUserQuestionOverlayState(currentQuestionIndex: 1)
+            ]
+        )
+        configureAnsweredPrompt(prompt, fixture: fixture)
+
+        let routedState = try XCTUnwrap(chatView.selectAskUserQuestionOption(
+            prompt: prompt,
+            questionIndex: 1,
+            option: prompt.questions[1].options[0]
+        ))
+        let calls = await fixture.agentsManager.approvalCalls()
+
+        XCTAssertEqual(routedState.currentQuestionIndex, 2)
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testPrimaryActionAfterLaterMultiSelectAnswerMovesToNextUnansweredQuestion() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let prompt = multiQuestionPromptForRevisit(secondQuestionMultiSelect: true)
+        let chatView = makeClickSubmitChatView(
+            fixture: fixture,
+            initialAskUserQuestionOverlayStates: [
+                prompt.id: AskUserQuestionOverlayState(currentQuestionIndex: 1)
+            ]
+        )
+        configureAnsweredPrompt(prompt, fixture: fixture)
+
+        let selectedState = try XCTUnwrap(chatView.selectAskUserQuestionOption(
+            prompt: prompt,
+            questionIndex: 1,
+            option: prompt.questions[1].options[0]
+        ))
+
+        let routedState = try XCTUnwrap(chatView.advanceOrSubmitAskUserQuestionPrompt(
+            prompt,
+            state: selectedState
+        ))
+        let calls = await fixture.agentsManager.approvalCalls()
+
+        XCTAssertEqual(routedState.currentQuestionIndex, 2)
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testPrimaryActionAtLastQuestionReturnsToFirstUnansweredQuestion() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let prompt = multiQuestionPromptForRevisit()
+        let chatView = makeClickSubmitChatView(
+            fixture: fixture,
+            initialAskUserQuestionOverlayStates: [
+                prompt.id: AskUserQuestionOverlayState(
+                    currentQuestionIndex: 2,
+                    selections: [1: ["Low"], 2: ["None"]]
+                )
+            ]
+        )
+        configureAnsweredPrompt(prompt, fixture: fixture)
+
+        let routedState = try XCTUnwrap(chatView.advanceOrSubmitAskUserQuestionPrompt(prompt))
+        let calls = await fixture.agentsManager.approvalCalls()
+
+        XCTAssertEqual(routedState.currentQuestionIndex, 0)
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testSubmittingLastQuestionRowReturnsToFirstUnansweredQuestion() async throws {
+        let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: false)
+        let prompt = multiQuestionPromptForRevisit()
+        let chatView = makeClickSubmitChatView(
+            fixture: fixture,
+            initialAskUserQuestionOverlayStates: [
+                prompt.id: AskUserQuestionOverlayState(
+                    currentQuestionIndex: 2,
+                    selections: [1: ["Low"]]
+                )
+            ]
+        )
+        configureAnsweredPrompt(prompt, fixture: fixture)
+
+        let routedState = try XCTUnwrap(chatView.submitAskUserQuestionOptionSelection(
+            prompt: prompt,
+            questionIndex: 2,
+            option: prompt.questions[2].options[0]
+        ))
+        let calls = await fixture.agentsManager.approvalCalls()
+
+        XCTAssertEqual(routedState.currentQuestionIndex, 0)
+        XCTAssertTrue(calls.isEmpty)
     }
 }
 
@@ -144,12 +257,12 @@ private func clickTestRow(
 }
 
 @MainActor
-private func makeClickSubmitChatView() throws -> ChatView {
+func makeClickSubmitChatView() throws -> ChatView {
     try makeClickSubmitChatView(fixture: ConversationViewModelTestFixture())
 }
 
 @MainActor
-private func makeClickSubmitChatView(
+func makeClickSubmitChatView(
     fixture: ConversationViewModelTestFixture,
     initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
 ) -> ChatView {
@@ -247,8 +360,41 @@ private func multiQuestionPromptForClickSubmit() -> PromptEntry {
     )
 }
 
+private func multiQuestionPromptForRevisit(secondQuestionMultiSelect: Bool = false) -> PromptEntry {
+    PromptEntry(
+        id: "prompt-revisit",
+        questions: [
+            PromptEntry.PromptQuestion(
+                question: "Scope?",
+                header: nil,
+                options: [
+                    PromptEntry.PromptOption(label: "Feature", description: "")
+                ],
+                multiSelect: false
+            ),
+            PromptEntry.PromptQuestion(
+                question: "Risk?",
+                header: nil,
+                options: [
+                    PromptEntry.PromptOption(label: "Low", description: "")
+                ],
+                multiSelect: secondQuestionMultiSelect
+            ),
+            PromptEntry.PromptQuestion(
+                question: "Notes?",
+                header: nil,
+                options: [
+                    PromptEntry.PromptOption(label: "None", description: "")
+                ],
+                multiSelect: false
+            )
+        ],
+        submittedSummary: nil
+    )
+}
+
 @MainActor
-private func configureAnsweredPrompt(
+func configureAnsweredPrompt(
     _ prompt: PromptEntry,
     fixture: ConversationViewModelTestFixture
 ) {
@@ -262,20 +408,6 @@ private func configureAnsweredPrompt(
         status: .pending
     )
     fixture.viewModel.state.grouper.items = [.promptBlock(id: prompt.id, prompt: prompt)]
-}
-
-@MainActor
-private func rowsForFirstQuestion(
-    _ prompt: PromptEntry,
-    chatView: ChatView
-) -> [AppKitComposerOverlayOptionRowView.Configuration] {
-    chatView.askUserQuestionRows(
-        prompt: prompt,
-        question: prompt.questions[0],
-        questionIndex: 0,
-        state: chatView.askUserQuestionOverlayState(for: prompt),
-        canInteract: true
-    )
 }
 
 private func askUserQuestionToolInput(for prompt: PromptEntry) -> String {

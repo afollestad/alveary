@@ -16,6 +16,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         let primaryTitle: String
         let primarySymbolName: String?
         let isPrimaryEnabled: Bool
+        let prefersPrimaryActionForReturn: Bool
         let isResolving: Bool
         let onNavigateBackward: () -> Void
         let onNavigateForward: () -> Void
@@ -34,6 +35,7 @@ final class AppKitComposerOverlayPanelView: NSView {
             primaryTitle: String,
             primarySymbolName: String? = nil,
             isPrimaryEnabled: Bool = true,
+            prefersPrimaryActionForReturn: Bool = false,
             isResolving: Bool = false,
             onNavigateBackward: @escaping () -> Void = {},
             onNavigateForward: @escaping () -> Void = {},
@@ -51,6 +53,7 @@ final class AppKitComposerOverlayPanelView: NSView {
             self.primaryTitle = primaryTitle
             self.primarySymbolName = primarySymbolName
             self.isPrimaryEnabled = isPrimaryEnabled
+            self.prefersPrimaryActionForReturn = prefersPrimaryActionForReturn
             self.isResolving = isResolving
             self.onNavigateBackward = onNavigateBackward
             self.onNavigateForward = onNavigateForward
@@ -69,7 +72,7 @@ final class AppKitComposerOverlayPanelView: NSView {
     let dismissButton = AppKitTranscriptApprovalButton()
     let primaryButton = AppKitTranscriptApprovalButton()
     var rowViews: [AppKitComposerOverlayOptionRowView] = []
-    private var configuration: Configuration?
+    var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
 
     override init(frame frameRect: NSRect) {
@@ -152,60 +155,6 @@ final class AppKitComposerOverlayPanelView: NSView {
             return
         }
         focused.focusPreferredTarget()
-    }
-
-    @discardableResult
-    // swiftlint:disable:next cyclomatic_complexity
-    func handleKeyDown(_ event: NSEvent) -> Bool {
-        guard let configuration else {
-            return false
-        }
-        switch event.specialKey {
-        case .leftArrow:
-            if configuration.canNavigateBackward {
-                configuration.onNavigateBackward()
-            }
-            return true
-        case .rightArrow:
-            if configuration.canNavigateForward {
-                configuration.onNavigateForward()
-            }
-            return true
-        case .upArrow:
-            focusAdjacentRow(delta: -1)
-            return true
-        case .downArrow:
-            focusAdjacentRow(delta: 1)
-            return true
-        case .carriageReturn:
-            if let row = focusedOrConfiguredRow,
-               shouldReturnSelectFocusedRow(row) {
-                row.performSubmitSelection()
-                return true
-            }
-            guard configuration.isPrimaryEnabled, !configuration.isResolving else {
-                return true
-            }
-            configuration.onPrimary()
-            return true
-        default:
-            break
-        }
-        if event.keyCode == 48 {
-            focusAdjacentKeyView(delta: event.modifierFlags.contains(.shift) ? -1 : 1)
-            return true
-        }
-        if event.keyCode == 53 {
-            configuration.onDismiss()
-            return true
-        }
-        if event.charactersIgnoringModifiers == " " {
-            if let row = focusedOrConfiguredRow {
-                row.performSelectionFromKeyboard()
-                return true
-            }
-        }
-        return false
     }
 
     override func layout() {

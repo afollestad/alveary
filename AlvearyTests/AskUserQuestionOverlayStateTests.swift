@@ -92,16 +92,57 @@ final class AskUserQuestionOverlayStateTests: XCTestCase {
         XCTAssertEqual(state.selections[0], Set<String>())
     }
 
-    func testPrimaryActionTitleSwitchesToSubmitOnlyAfterEveryQuestionIsAnswered() {
+    func testPrimaryActionTitleSwitchesToSubmitWhenCompleteAtAnyQuestion() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?"])
+        var state = AskUserQuestionOverlayState()
+
+        XCTAssertEqual(state.primaryActionTitle(for: prompt), "Continue")
+
+        state.selections[0] = ["Scope?"]
+        state.selections[1] = ["Risk?"]
+        state.selections[2] = ["Notes?"]
+
+        XCTAssertEqual(state.primaryActionTitle(for: prompt), "Submit")
+    }
+
+    func testFirstUnansweredQuestionAfterCurrentFindsNextGap() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[0] = ["Scope?"]
+        state.selections[2] = ["Notes?"]
+
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(after: 0, in: prompt), 1)
+    }
+
+    func testFirstUnansweredQuestionAfterCurrentUsesEarliestLaterGap() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?", "Tests?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[0] = ["Scope?"]
+        state.selections[2] = ["Notes?"]
+
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(after: 0, in: prompt), 1)
+    }
+
+    func testFirstUnansweredQuestionAfterCurrentReturnsNilWhenLaterQuestionsAreAnswered() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[1] = ["Risk?"]
+        state.selections[2] = ["Notes?"]
+
+        XCTAssertNil(state.firstUnansweredQuestionIndex(after: 0, in: prompt))
+        XCTAssertNil(state.firstUnansweredQuestionIndex(after: 2, in: prompt))
+    }
+
+    func testFirstUnansweredQuestionAfterCurrentTreatsEmptyCustomResponseAsUnanswered() {
+        let customOption = PromptEntry.PromptOption(
+            id: "custom",
+            label: "Write details",
+            description: "",
+            isCustomResponse: true
+        )
         let prompt = PromptEntry(
             id: "prompt",
             questions: [
-                PromptEntry.PromptQuestion(
-                    question: "Scope?",
-                    header: nil,
-                    options: [PromptEntry.PromptOption(label: "Feature", description: "")],
-                    multiSelect: false
-                ),
                 PromptEntry.PromptQuestion(
                     question: "Risk?",
                     header: nil,
@@ -109,25 +150,101 @@ final class AskUserQuestionOverlayStateTests: XCTestCase {
                     multiSelect: false
                 ),
                 PromptEntry.PromptQuestion(
-                    question: "Notes?",
+                    question: "Details?",
                     header: nil,
-                    options: [PromptEntry.PromptOption(label: "None", description: "")],
+                    options: [customOption],
                     multiSelect: false
                 )
             ],
             submittedSummary: nil
         )
         var state = AskUserQuestionOverlayState()
+        state.selections[0] = ["Low"]
+        state.selections[1] = ["custom"]
 
-        XCTAssertEqual(state.primaryActionTitle(for: prompt), "Continue")
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(after: 0, in: prompt), 1)
 
-        state.selections[0] = ["Feature"]
+        state.customResponses[1] = "Use a smaller change"
+
+        XCTAssertNil(state.firstUnansweredQuestionIndex(after: 0, in: prompt))
+    }
+
+    func testFirstUnansweredQuestionBeforeCurrentFindsEarliestGap() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[1] = ["Risk?"]
+        state.selections[2] = ["Notes?"]
+
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(before: 2, in: prompt), 0)
+    }
+
+    func testFirstUnansweredQuestionBeforeCurrentUsesEarliestGapWhenMultipleAreMissing() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?", "Tests?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[3] = ["Tests?"]
+
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(before: 3, in: prompt), 0)
+    }
+
+    func testFirstUnansweredQuestionBeforeCurrentReturnsNilWhenEarlierQuestionsAreAnswered() {
+        let prompt = promptWithRequiredQuestions(["Scope?", "Risk?", "Notes?"])
+        var state = AskUserQuestionOverlayState()
+        state.selections[0] = ["Scope?"]
+        state.selections[1] = ["Risk?"]
+
+        XCTAssertNil(state.firstUnansweredQuestionIndex(before: 2, in: prompt))
+        XCTAssertNil(state.firstUnansweredQuestionIndex(before: 0, in: prompt))
+    }
+
+    func testFirstUnansweredQuestionBeforeCurrentTreatsEmptyCustomResponseAsUnanswered() {
+        let customOption = PromptEntry.PromptOption(
+            id: "custom",
+            label: "Write details",
+            description: "",
+            isCustomResponse: true
+        )
+        let prompt = PromptEntry(
+            id: "prompt",
+            questions: [
+                PromptEntry.PromptQuestion(
+                    question: "Details?",
+                    header: nil,
+                    options: [customOption],
+                    multiSelect: false
+                ),
+                PromptEntry.PromptQuestion(
+                    question: "Risk?",
+                    header: nil,
+                    options: [PromptEntry.PromptOption(label: "Low", description: "")],
+                    multiSelect: false
+                )
+            ],
+            submittedSummary: nil
+        )
+        var state = AskUserQuestionOverlayState()
+        state.selections[0] = ["custom"]
         state.selections[1] = ["Low"]
 
-        XCTAssertEqual(state.primaryActionTitle(for: prompt), "Continue")
+        XCTAssertEqual(state.firstUnansweredQuestionIndex(before: 1, in: prompt), 0)
 
-        state.selections[2] = ["None"]
+        state.customResponses[0] = "Use a smaller change"
 
-        XCTAssertEqual(state.primaryActionTitle(for: prompt), "Submit")
+        XCTAssertNil(state.firstUnansweredQuestionIndex(before: 1, in: prompt))
     }
+}
+
+private func promptWithRequiredQuestions(_ questions: [String]) -> PromptEntry {
+    PromptEntry(
+        id: "prompt",
+        questions: questions.map {
+            PromptEntry.PromptQuestion(
+                question: $0,
+                header: nil,
+                options: [PromptEntry.PromptOption(label: $0, description: "")],
+                multiSelect: false,
+                allowsCustomResponse: false
+            )
+        },
+        submittedSummary: nil
+    )
 }
