@@ -270,6 +270,7 @@ extension AppKitTranscriptToolRowTests {
         let globTool = semanticIconTool(name: "Glob", summary: "Searching for files")
         let editTool = semanticIconTool(name: "Edit", summary: "Editing AGENTS.md")
         let writeTool = semanticIconTool(name: "Write", summary: "Writing notes.md")
+        let fileChangeTool = semanticIconTool(name: "FileChange", summary: "Changing notes.md")
 
         XCTAssertEqual(readTool.transcriptLeadingIconKind, .read)
         XCTAssertEqual(listTool.transcriptLeadingIconKind, .folder)
@@ -277,11 +278,13 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(globTool.transcriptLeadingIconKind, .search)
         XCTAssertEqual(editTool.transcriptLeadingIconKind, .edit)
         XCTAssertEqual(writeTool.transcriptLeadingIconKind, .write)
+        XCTAssertEqual(fileChangeTool.transcriptLeadingIconKind, .edit)
         XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [readTool]), .read)
         XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [listTool]), .folder)
         XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [listTool, grepTool]), .search)
         XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [editTool]), .edit)
         XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [writeTool]), .write)
+        XCTAssertEqual(ToolEntry.transcriptGroupLeadingIconKind(for: [fileChangeTool]), .edit)
     }
 
     func testSemanticLeadingIconKindsUseExpectedSFSymbols() {

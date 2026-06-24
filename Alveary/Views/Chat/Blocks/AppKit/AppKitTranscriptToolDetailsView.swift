@@ -87,6 +87,10 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     }
 
     private func primaryViews(for tool: ToolEntry, typography: TranscriptTypography) -> [NSView] {
+        if let fileChange = CodexFileChangePresentation.extract(from: tool) {
+            return fileChangeViews(for: fileChange, tool: tool, typography: typography)
+        }
+
         if let snapshot = MinimalToolContent.snapshot(for: tool) {
             return minimalContentViews(for: tool, snapshot: snapshot, typography: typography)
         }
@@ -112,6 +116,33 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         }
 
         return views
+    }
+
+    private func fileChangeViews(
+        for fileChange: CodexFileChangePresentation,
+        tool: ToolEntry,
+        typography: TranscriptTypography
+    ) -> [NSView] {
+        if tool.isError,
+           let output = tool.output,
+           !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let surface = AppKitTranscriptCodeSurfaceView()
+            surface.configure(.plain(content: output, tint: .systemRed, typography: typography))
+            return [surface]
+        }
+
+        return fileChange.changes.map { change in
+            let block = AppKitTranscriptDetailCodeBlockView()
+            block.configure(
+                .init(
+                    title: change.detailTitle,
+                    content: change.diff,
+                    language: change.contentLanguage,
+                    typography: typography
+                )
+            )
+            return block
+        }
     }
 
     private func minimalContentViews(

@@ -6,17 +6,20 @@ final class AppKitTranscriptDetailCodeBlockView: NSView {
     struct Configuration: Equatable {
         let title: String
         let content: String
+        let language: String
         let tint: Tint
         let typography: TranscriptTypography
 
         init(
             title: String,
             content: String,
+            language: String = "",
             tint: Tint = .secondary,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.title = title
             self.content = content
+            self.language = language
             self.tint = tint
             self.typography = typography
         }
@@ -77,7 +80,7 @@ final class AppKitTranscriptDetailCodeBlockView: NSView {
             codeView.configure(
                 .highlighted(
                     content: configuration.content,
-                    language: "",
+                    language: configuration.language,
                     preservesLeadingLineNumberPrefixes: false,
                     typography: configuration.typography
                 )

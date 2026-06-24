@@ -61,7 +61,7 @@ extension ToolEntry {
             return .document
         case "Grep", "Glob", "ToolSearch", "WebSearch", "WebFetch":
             return .search
-        case "Edit", "MultiEdit", "NotebookEdit":
+        case "Edit", "MultiEdit", "NotebookEdit", "FileChange":
             return .edit
         case "Write":
             return .write
@@ -127,6 +127,8 @@ extension ToolEntry {
             return isComplete ? summary.replacingPrefix("Fetching ", with: "Fetched ") : summary
         case "Edit", "MultiEdit", "NotebookEdit":
             return summary.replacingLeadingWord(name, with: isComplete ? "Edited" : "Editing")
+        case "FileChange":
+            return CodexFileChangePresentation.extract(from: self)?.rowSummary(isComplete: isComplete) ?? summary
         case "Write":
             return summary.replacingLeadingWord("Write", with: isComplete ? "Wrote" : "Writing")
         default:

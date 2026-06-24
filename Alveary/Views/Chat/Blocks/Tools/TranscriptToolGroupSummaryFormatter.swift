@@ -40,6 +40,7 @@ enum TranscriptToolGroupSummaryFormatter {
             "Edit": "Edit",
             "MultiEdit": "Edit",
             "NotebookEdit": "Edit",
+            "FileChange": "FileChange",
             "Skill": "Skill"
         ]
         return knownCategories[toolName] ?? (toolName.hasPrefix("mcp__") ? "MCP" : "Tool")
@@ -80,6 +81,10 @@ enum TranscriptToolGroupSummaryFormatter {
             return count == 1
                 ? (isComplete ? "Edited 1 file" : "Editing 1 file")
                 : (isComplete ? "Edited \(count) files" : "Editing \(count) files")
+        case "FileChange":
+            return count == 1
+                ? (isComplete ? "Changed 1 file" : "Changing 1 file")
+                : (isComplete ? "Changed \(count) files" : "Changing \(count) files")
         case "Skill":
             return count == 1
                 ? (isComplete ? "Invoked 1 skill" : "Invoking 1 skill")

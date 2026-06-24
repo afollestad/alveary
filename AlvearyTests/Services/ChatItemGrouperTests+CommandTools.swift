@@ -133,6 +133,76 @@ extension ChatItemGrouperTests {
         XCTAssertTrue(grouper.pendingToolResultEventsByToolId.isEmpty)
     }
 
+    func testFileChangeSummariesHandleKnownAndUnknownKinds() throws {
+        let addInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/notes.md", kind: ["type": "add"], diff: "# Notes")
+        ])
+        let deleteInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/old.md", kind: ["type": "delete"], diff: "# Old")
+        ])
+        let updateInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/new.md", kind: ["type": "update", "move_path": "/tmp/old.md"], diff: "@@ -1 +1 @@")
+        ])
+        let unknownInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/config.toml", kind: ["type": "rewrite"], diff: "value = true")
+        ])
+        let multiInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/a.md", kind: ["type": "add"], diff: "A"),
+            fileChange(path: "/tmp/b.md", kind: ["type": "delete"], diff: "B")
+        ])
+        let partiallyMalformedInput = try fileChangeInput(changes: [
+            fileChange(path: "/tmp/a.md", kind: ["type": "add"], diff: "A"),
+            ["path": "/tmp/b.md", "kind": ["type": "delete"]]
+        ])
+
+        XCTAssertEqual(ChatItemGrouper.toolSummary(name: "FileChange", input: addInput), "Adding `notes.md`")
+        XCTAssertEqual(fileChangeTool(input: addInput, isComplete: true).transcriptDisplaySummary, "Added `notes.md`")
+        XCTAssertEqual(fileChangeTool(input: deleteInput).transcriptDisplaySummary, "Deleting `old.md`")
+        XCTAssertEqual(fileChangeTool(input: deleteInput, isComplete: true).transcriptDisplaySummary, "Deleted `old.md`")
+        XCTAssertEqual(fileChangeTool(input: updateInput).transcriptDisplaySummary, "Moving `old.md` to `new.md`")
+        XCTAssertEqual(fileChangeTool(input: updateInput, isComplete: true).transcriptDisplaySummary, "Moved `old.md` to `new.md`")
+        XCTAssertEqual(fileChangeTool(input: unknownInput).transcriptDisplaySummary, "Changing `config.toml`")
+        XCTAssertEqual(fileChangeTool(input: unknownInput, isComplete: true).transcriptDisplaySummary, "Changed `config.toml`")
+        XCTAssertEqual(fileChangeTool(input: multiInput).transcriptDisplaySummary, "Changing 2 files")
+        XCTAssertEqual(fileChangeTool(input: multiInput, isComplete: true).transcriptDisplaySummary, "Changed 2 files")
+        XCTAssertEqual(ChatItemGrouper.toolSummary(name: "FileChange", input: partiallyMalformedInput), "FileChange")
+    }
+
+    func testFileChangeStaysStandaloneAndResultUpdatesVisibleRow() throws {
+        XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "FileChange"), .standalone)
+
+        let grouper = ChatItemGrouper()
+        let conversationId = "conversation-1"
+        let call = ConversationEventRecord(
+            id: "file-change-call",
+            conversationId: conversationId,
+            type: "tool_call",
+            toolId: "file-change-1",
+            toolName: "FileChange",
+            toolInput: try fileChangeInput(changes: [
+                fileChange(path: "/tmp/notes.md", kind: ["type": "add"], diff: "# Notes")
+            ])
+        )
+        let result = ConversationEventRecord(
+            id: "file-change-result",
+            conversationId: conversationId,
+            type: "tool_result",
+            toolId: "file-change-1",
+            toolOutput: "/tmp/notes.md\nkind: add\n# Notes"
+        )
+
+        grouper.update(events: [call, result])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .standaloneTool(_, let tool) = grouper.items[0] else {
+            return XCTFail("Expected FileChange to render as a standalone tool")
+        }
+        XCTAssertEqual(tool.name, "FileChange")
+        XCTAssertTrue(tool.isComplete)
+        XCTAssertEqual(tool.output, "/tmp/notes.md\nkind: add\n# Notes")
+        XCTAssertEqual(tool.transcriptDisplaySummary, "Added `notes.md`")
+    }
+
     func testInterruptedStopTerminalizesRunningCommandExecution() {
         let grouper = ChatItemGrouper()
         let conversationId = "conversation-1"
@@ -252,5 +322,34 @@ extension ChatItemGrouperTests {
             noOutputExpected: false,
             isError: false
         )
+    }
+
+    private func fileChangeTool(input: String, isComplete: Bool = false) -> ToolEntry {
+        ToolEntry(
+            id: "file-change-1",
+            name: "FileChange",
+            summary: ChatItemGrouper.toolSummary(name: "FileChange", input: input),
+            input: input,
+            output: isComplete ? "ok" : nil,
+            stderr: nil,
+            isComplete: isComplete,
+            isInterrupted: false,
+            isImage: false,
+            noOutputExpected: false,
+            isError: false
+        )
+    }
+
+    private func fileChange(path: String, kind: [String: Any], diff: String) -> [String: Any] {
+        [
+            "path": path,
+            "kind": kind,
+            "diff": diff
+        ]
+    }
+
+    private func fileChangeInput(changes: [[String: Any]]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: ["changes": changes], options: [.sortedKeys])
+        return try XCTUnwrap(String(data: data, encoding: .utf8))
     }
 }

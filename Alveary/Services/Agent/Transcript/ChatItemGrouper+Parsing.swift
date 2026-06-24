@@ -22,6 +22,8 @@ extension ChatItemGrouper {
             return readToolSummary(from: json)
         case "Edit", "Write":
             return fileMutationToolSummary(name: name, json: json)
+        case "FileChange":
+            return CodexFileChangePresentation.parse(from: json)?.rowSummary(isComplete: false) ?? name
         case let name where CommandToolPresentation.isCommandToolName(name):
             return commandToolSummary(name: name, json: json)
         case "Grep", "Glob":
@@ -219,5 +221,131 @@ private extension ChatItemGrouper {
         let todos = json["todos"] as? [[String: Any]] ?? []
         let completedCount = todos.filter { ($0["status"] as? String) == "completed" }.count
         return "\(completedCount)/\(todos.count) tasks"
+    }
+}
+
+struct CodexFileChangePresentation: Equatable {
+    struct Change: Equatable {
+        let path: String
+        let diff: String
+        let kind: Kind
+
+        var displayPath: String {
+            (path as NSString).abbreviatingWithTildeInPath
+        }
+
+        var fileName: String {
+            let name = (path as NSString).lastPathComponent
+            return name.isEmpty ? displayPath : name
+        }
+
+        var detailTitle: String {
+            switch kind {
+            case .add, .delete:
+                return displayPath
+            case .update(let movePath):
+                guard let movePath else {
+                    return displayPath
+                }
+                let source = (movePath as NSString).abbreviatingWithTildeInPath
+                return "\(source) -> \(displayPath)"
+            case .unknown(let raw):
+                return "\(displayPath) (kind: \(raw))"
+            }
+        }
+
+        var contentLanguage: String {
+            isUnifiedDiff ? "diff" : FileLanguageHint.language(forPath: path)
+        }
+
+        private var isUnifiedDiff: Bool {
+            let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.hasPrefix("@@") || trimmed.hasPrefix("diff --git") || trimmed.contains("\n@@")
+        }
+    }
+
+    enum Kind: Equatable {
+        case add
+        case delete
+        case update(movePath: String?)
+        case unknown(String)
+
+        init(type: String, movePath: String?) {
+            switch type {
+            case "add":
+                self = .add
+            case "delete":
+                self = .delete
+            case "update":
+                let trimmedMovePath = movePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+                self = .update(movePath: trimmedMovePath?.isEmpty == false ? trimmedMovePath : nil)
+            default:
+                self = .unknown(type)
+            }
+        }
+    }
+
+    let changes: [Change]
+
+    static func extract(from tool: ToolEntry) -> CodexFileChangePresentation? {
+        guard tool.name == "FileChange",
+              let json = parsedJSON(from: tool.input) else {
+            return nil
+        }
+        return parse(from: json)
+    }
+
+    static func parse(from json: [String: Any]) -> CodexFileChangePresentation? {
+        guard let rawChanges = json["changes"] as? [[String: Any]] else {
+            return nil
+        }
+        let changes = rawChanges.map(Change.init(json:))
+        guard !changes.contains(nil) else {
+            return nil
+        }
+        let parsedChanges = changes.compactMap { $0 }
+        return parsedChanges.isEmpty ? nil : CodexFileChangePresentation(changes: parsedChanges)
+    }
+
+    func rowSummary(isComplete: Bool) -> String {
+        guard changes.count == 1, let change = changes.first else {
+            return isComplete ? "Changed \(changes.count) files" : "Changing \(changes.count) files"
+        }
+        switch change.kind {
+        case .add:
+            return "\(isComplete ? "Added" : "Adding") `\(change.fileName)`"
+        case .delete:
+            return "\(isComplete ? "Deleted" : "Deleting") `\(change.fileName)`"
+        case .update(let movePath):
+            if let movePath {
+                let sourceName = (movePath as NSString).lastPathComponent
+                let displaySource = sourceName.isEmpty ? (movePath as NSString).abbreviatingWithTildeInPath : sourceName
+                return "\(isComplete ? "Moved" : "Moving") `\(displaySource)` to `\(change.fileName)`"
+            }
+            return "\(isComplete ? "Updated" : "Updating") `\(change.fileName)`"
+        case .unknown:
+            return "\(isComplete ? "Changed" : "Changing") `\(change.fileName)`"
+        }
+    }
+
+    private static func parsedJSON(from input: String) -> [String: Any]? {
+        guard let data = input.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+}
+
+private extension CodexFileChangePresentation.Change {
+    init?(json: [String: Any]) {
+        guard let path = json["path"] as? String,
+              let diff = json["diff"] as? String,
+              let kind = json["kind"] as? [String: Any],
+              let type = kind["type"] as? String else {
+            return nil
+        }
+        self.path = path
+        self.diff = diff
+        self.kind = CodexFileChangePresentation.Kind(type: type, movePath: kind["move_path"] as? String)
     }
 }

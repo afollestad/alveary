@@ -308,6 +308,88 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertTrue(view.renderedText.contains("line 12"))
         XCTAssertFalse(view.renderedText.contains("line 11"))
     }
+
+    func testFileChangeDetailsRenderAddContentWithoutRawJSON() throws {
+        let view = AppKitTranscriptToolDetailsView()
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(
+            .init(
+                tool: fileChangeDetailTool(input: try fileChangeDetailInput(changes: [
+                    fileChangeDetail(path: "/tmp/notes.md", kind: ["type": "add"], diff: "# Notes\n\n- Keep this")
+                ]))
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("/tmp/notes.md"))
+        XCTAssertFalse(view.renderedText.contains("Added /tmp/notes.md"))
+        XCTAssertTrue(view.renderedText.contains("# Notes"))
+        XCTAssertFalse(view.renderedText.contains("Input"))
+        XCTAssertFalse(view.renderedText.contains("\"changes\""))
+    }
+
+    func testFileChangeDetailsRenderDeleteMoveUpdateAndUnknownKind() throws {
+        let view = AppKitTranscriptToolDetailsView()
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(
+            .init(
+                tool: fileChangeDetailTool(input: try fileChangeDetailInput(changes: [
+                    fileChangeDetail(path: "/tmp/deleted.md", kind: ["type": "delete"], diff: "# Deleted"),
+                    fileChangeDetail(
+                        path: "/tmp/after.md",
+                        kind: ["type": "update", "move_path": "/tmp/before.md"],
+                        diff: "@@ -1 +1 @@\n-before\n+after"
+                    ),
+                    fileChangeDetail(path: "/tmp/config.toml", kind: ["type": "rewrite"], diff: "value = true")
+                ]))
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("/tmp/deleted.md"))
+        XCTAssertTrue(view.renderedText.contains("/tmp/before.md -> /tmp/after.md"))
+        XCTAssertTrue(view.renderedText.contains("/tmp/config.toml (kind: rewrite)"))
+        XCTAssertFalse(view.renderedText.contains("Deleted /tmp/deleted.md"))
+        XCTAssertFalse(view.renderedText.contains("Moved /tmp/before.md -> /tmp/after.md"))
+        XCTAssertFalse(view.renderedText.contains("Changed /tmp/config.toml (kind: rewrite)"))
+        XCTAssertTrue(view.renderedText.contains("@@ -1 +1 @@"))
+        XCTAssertTrue(view.renderedText.contains("value = true"))
+        XCTAssertFalse(view.renderedText.contains("Output"))
+    }
+
+    func testMalformedFileChangeDetailsFallBackToRawInput() {
+        let view = AppKitTranscriptToolDetailsView()
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(
+            .init(tool: fileChangeDetailTool(input: #"{"changes":[{"path":"/tmp/notes.md"}]}"#))
+        )
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("Input"))
+        XCTAssertTrue(view.renderedText.contains("\"changes\""))
+        XCTAssertFalse(view.renderedText.contains("Added /tmp/notes.md"))
+    }
+
+    func testErroredFileChangeDetailsRenderOutputInsteadOfPlannedDiff() throws {
+        let view = AppKitTranscriptToolDetailsView()
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(
+            .init(
+                tool: fileChangeDetailTool(
+                    input: try fileChangeDetailInput(changes: [
+                        fileChangeDetail(path: "/tmp/notes.md", kind: ["type": "add"], diff: "# Notes")
+                    ]),
+                    output: "Patch failed",
+                    isError: true
+                )
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(view.renderedText.contains("Patch failed"))
+        XCTAssertFalse(view.renderedText.contains("/tmp/notes.md"))
+        XCTAssertFalse(view.renderedText.contains("# Notes"))
+    }
 }
 
 private final class RecordingScrollView: NSScrollView {
@@ -316,6 +398,36 @@ private final class RecordingScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
         didReceiveVerticalScroll = abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX)
     }
+}
+
+@MainActor
+private func fileChangeDetailTool(input: String, output: String? = nil, isError: Bool = false) -> ToolEntry {
+    ToolEntry(
+        id: "file-change-1",
+        name: "FileChange",
+        summary: ChatItemGrouper.toolSummary(name: "FileChange", input: input),
+        input: input,
+        output: output,
+        stderr: nil,
+        isComplete: output != nil,
+        isInterrupted: false,
+        isImage: false,
+        noOutputExpected: false,
+        isError: isError
+    )
+}
+
+private func fileChangeDetail(path: String, kind: [String: Any], diff: String) -> [String: Any] {
+    [
+        "path": path,
+        "kind": kind,
+        "diff": diff
+    ]
+}
+
+private func fileChangeDetailInput(changes: [[String: Any]]) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: ["changes": changes], options: [.sortedKeys])
+    return try XCTUnwrap(String(data: data, encoding: .utf8))
 }
 
 private extension NSView {

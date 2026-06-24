@@ -18,7 +18,7 @@ extension ChatItemGrouper {
     /// silently folded into a group header.
     static func groupability(forToolNamed name: String) -> ToolGroupability {
         switch name {
-        case "Skill", "CommandExecution":
+        case "Skill", "CommandExecution", "FileChange":
             return .standalone
         case "Read", "Grep", "Glob", "LS", "NotebookRead", "WebFetch", "WebSearch", "ToolSearch":
             return .groupable
