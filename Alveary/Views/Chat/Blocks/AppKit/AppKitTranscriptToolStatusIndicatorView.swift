@@ -11,11 +11,6 @@ private let appKitToolDisclosureExpandedRotation = -CGFloat.pi / 2
 @MainActor
 final class AppKitTranscriptToolStatusIndicatorView: NSView {
     private let symbolView = AppKitDynamicTintImageView()
-    private let spinnerView = AppKitStatusIndicatorSpinner(
-        lineWidth: 1.5,
-        color: transcriptInlineToolRowColor,
-        preservesResolvedColorAlpha: true
-    )
     private var phase: ToolStatusPhase?
     private var displayedPhase: ToolStatusPhase?
     private var symbolSystemName: String?
@@ -110,10 +105,6 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         super.layout()
         symbolView.frame = bounds
         positionSymbolLayer(rotation: symbolRotation)
-        let spinnerSize = transcriptInlineToolRowMetrics(for: typography).statusIconSize
-        let spinnerInsetX = max((bounds.width - spinnerSize) / 2, 0)
-        let spinnerInsetY = max((bounds.height - spinnerSize) / 2, 0)
-        spinnerView.frame = bounds.insetBy(dx: spinnerInsetX, dy: spinnerInsetY)
     }
 
     private func setup() {
@@ -122,11 +113,8 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         symbolView.translatesAutoresizingMaskIntoConstraints = true
         symbolView.imageAlignment = .alignCenter
         symbolView.imageScaling = .scaleProportionallyDown
-        spinnerView.translatesAutoresizingMaskIntoConstraints = true
         updateSymbolConfiguration()
-        spinnerView.isHidden = true
         addSubview(symbolView)
-        addSubview(spinnerView)
     }
 
     private func apply(phase: ToolStatusPhase) {
@@ -135,13 +123,8 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
     }
 
     private func renderCurrentState(animated: Bool) {
-        guard let displayedPhase else {
-            showSpinner()
-            return
-        }
-
-        if displayedPhase == .loading {
-            showSpinner()
+        guard displayedPhase != nil else {
+            showNoSymbol(animated: false)
             return
         }
 
@@ -158,20 +141,10 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         showNoSymbol(animated: animated && disclosureExpansionState == false && !isDisclosureHovered)
     }
 
-    private func showSpinner() {
-        symbolSystemName = nil
-        symbolRotation = 0
-        symbolView.isHidden = true
-        symbolView.alphaValue = 1
-        positionSymbolLayer(rotation: 0)
-        spinnerView.isHidden = false
-    }
-
     private func showNoSymbol(animated: Bool) {
         let previousSymbolName = symbolSystemName
         symbolSystemName = nil
         symbolRotation = 0
-        spinnerView.isHidden = true
         symbolView.setAccessibilityLabel(nil)
         positionSymbolLayer(rotation: 0)
         guard !symbolView.isHidden else {
@@ -196,7 +169,6 @@ final class AppKitTranscriptToolStatusIndicatorView: NSView {
         let previousRotation = symbolRotation
         let symbolChanged = symbolSystemName != systemName
         let rotationChanged = abs(symbolRotation - rotation) > 0.001
-        spinnerView.isHidden = true
         symbolView.isHidden = false
         symbolView.alphaValue = 1
         symbolView.setAccessibilityLabel(accessibilityDescription)

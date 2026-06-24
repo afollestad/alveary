@@ -15,7 +15,7 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Do not use chevron/caret symbols as the leading inline tool-row icon. Expansion state is available through row accessibility state, not the visible glyph.
 - Keep status indicators inside the dynamic status frame.
 - Terminal tool rows do not show trailing success/error glyphs. Collapsed rows reveal the rotating disclosure chevron only on row hover; expanded rows may keep the chevron visible.
-- Inline tool rows use `transcriptInlineToolRowColor` for leading icons, summary text, loading spinners, and disclosure chevrons. Approval prompts keep separate approval typography and chrome.
+- Inline tool rows use `transcriptInlineToolRowColor` for leading icons, summary text, and disclosure chevrons. Approval prompts keep separate approval typography and chrome.
 - Inline code and chip backgrounds inside tool summaries should stay lighter than regular markdown chips so they do not overpower muted row text.
 - Expanded rows keep `transcriptToolExpandedContentTopSpacing` between header and content.
 - Inline rows use `transcriptInlineToolRowVerticalPadding`; keep approval prompt spacing on its separate approval layout path.
@@ -77,8 +77,10 @@ Rules for tool rows, groups, sub-agents, headers, and expanded details.
 - Keep command-tool tail-not-head behavior so streaming shows the latest line at the bottom.
 - Thinking events are dropped by the grouper. Do not add a persisted `ThinkingRow`/`ThinkingBlock`; the transient AppKit thinking indicator is the only thinking affordance.
 - Tune tool dimensions only in `ChatBlocks.swift`.
-- Use `AppKitStatusIndicatorSpinner` for AppKit tool-row loading states; keep spinner construction centralized instead of adding one-off loading animations.
-- Transcript tool-row loading spinners are intentionally sized from inline tool-row metrics; do not change task-list/sidebar/tab spinner sizing when tuning tool rows.
+- AppKit tool-row loading states animate the summary text itself with a muted left-to-right pulse.
+  Do not add a trailing loading spinner back to tool headers.
+- Keep tool-row pulse color derived from `transcriptInlineToolRowColor` and dynamic AppKit appearances so it works in light and dark mode.
+- Do not change task-list/sidebar/tab spinner sizing when tuning tool rows; those surfaces keep their own fixed loading slots.
 - Multi-entry group headers debounce terminal status indicators.
     - Terminal states wait 250ms.
     - Loading applies immediately when a new child streams in.

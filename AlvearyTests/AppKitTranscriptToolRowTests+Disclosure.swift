@@ -41,6 +41,29 @@ extension AppKitTranscriptToolRowTests {
         )
     }
 
+    func testLoadingCollapsedHeaderShowsDisclosureOnHoverWithoutSpinner() throws {
+        let header = AppKitTranscriptToolHeaderRowView()
+        header.configure(
+            .init(
+                summary: "Running `swift test`",
+                leadingIcon: .terminal,
+                phase: .loading,
+                isExpanded: false
+            )
+        )
+        header.frame = NSRect(x: 0, y: 0, width: 220, height: 32)
+        header.layoutSubtreeIfNeeded()
+
+        let statusView = try XCTUnwrap(header.descendantsForDisclosureTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        XCTAssertTrue(header.descendantsForDisclosureTests(of: AppKitStatusIndicatorSpinner.self).isEmpty)
+        XCTAssertTrue(header.isSummaryPulseVisibleForTesting)
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+
+        header.setDisclosureHoveredForTesting(true)
+
+        try assertDisclosureSymbol(statusView, rotation: 0)
+    }
+
     func testExpandedHeaderKeepsDisclosureVisibleAfterHoverExitAndRotatesOnPress() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         var isExpanded = false

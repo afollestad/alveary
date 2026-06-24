@@ -316,7 +316,7 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         XCTAssertTrue(group.renderedText.contains("Read 1 file and searched code"))
     }
 
-    func testToolGroupDebouncesTerminalStatusAfterLoading() async throws {
+    func testToolGroupClearsLoadingPulseWhenComplete() throws {
         let group = AppKitTranscriptToolGroupView()
         group.frame = NSRect(x: 0, y: 0, width: 460, height: 1_000)
         group.configure(
@@ -329,6 +329,9 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         )
         group.layoutSubtreeIfNeeded()
 
+        var header = try XCTUnwrap(group.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
+        XCTAssertTrue(header.isSummaryPulseVisibleForTesting)
+
         group.configure(
             .init(
                 tools: [
@@ -339,14 +342,12 @@ final class AppKitTranscriptToolRowTests: XCTestCase {
         )
         group.layoutSubtreeIfNeeded()
 
+        header = try XCTUnwrap(group.descendants(of: AppKitTranscriptToolHeaderRowView.self).first)
         let statusView = try XCTUnwrap(group.descendants(of: AppKitTranscriptToolStatusIndicatorView.self).first)
 
-        XCTAssertFalse(statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? true)
-
-        try await waitUntil("expected terminal tool-group spinner to clear after debounce", timeout: .seconds(1)) {
-            let progressHidden = statusView.descendants(of: AppKitStatusIndicatorSpinner.self).first?.isHidden ?? false
-            return progressHidden && statusView.statusSymbolSystemNameForTesting == nil
-        }
+        XCTAssertFalse(header.isSummaryPulseVisibleForTesting)
+        XCTAssertTrue(statusView.descendants(of: AppKitStatusIndicatorSpinner.self).isEmpty)
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
     }
 
     func testEmptyToolGroupClearsStaleSingleRowHeight() {

@@ -11,7 +11,9 @@ General shared controls live here. Narrower scopes:
 ## Status Spinners
 
 - Use `StatusIndicatorSpinner` for fixed-size status spinner slots: the 8pt status-dot slots (sidebar rows, tab chips) and the 16pt `PrimaryToolbarProgressSlot`. Do not shrink `ProgressView` into dot slots.
-- AppKit transcript rows (tool status, task lists) use the `AppKit/AppKitStatusIndicatorSpinner` twin instead of `NSProgressIndicator`; keep the two rings visually matched (track at 25% alpha, 0.7 arc, same spin period).
+- AppKit task-list rows use the `AppKit/AppKitStatusIndicatorSpinner` twin instead of `NSProgressIndicator`.
+  Keep the two rings visually matched (track at 25% alpha, 0.7 arc, same spin period).
+  AppKit tool-row loading is the scoped exception: it pulses summary text instead of showing a trailing spinner.
 - Working spinners are `.secondary` gray, not blue — the spinning shape carries the "working" signal; blue stays reserved for `.waitingForUser` dots. See **Status Dot Colors** in `Alveary/Views/AGENTS.md`.
 - Only `rotationEffect` animates; the frame stays fixed so busy/idle swaps cannot change row or chip layout.
 - Snapshot determinism comes from the `statusSpinnerAnimationsDisabled` environment key, set by the shared snapshot hosts. `\.accessibilityReduceMotion` is get-only and cannot be injected in tests; the spinner still reads it for real reduce-motion users. The AppKit twin needs no hook: its spin is a presentation-only `CABasicAnimation`, so snapshots render the static model layer.

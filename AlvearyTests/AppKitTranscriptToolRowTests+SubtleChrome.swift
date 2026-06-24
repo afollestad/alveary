@@ -112,6 +112,34 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
     }
 
+    func testLoadingSummaryPulseUsesDynamicHighlightInLightAndDarkMode() throws {
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let header = AppKitTranscriptToolHeaderRowView()
+            header.appearance = NSAppearance(named: appearanceName)
+            header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
+            header.configure(
+                .init(
+                    summary: "Running `swift test`",
+                    leadingIcon: .terminal,
+                    phase: .loading
+                )
+            )
+            header.layoutSubtreeIfNeeded()
+
+            let baseColor = try summaryForegroundColor(in: header, matching: "Running").resolved(for: header.appKitRenderingAppearance)
+            let pulseColor = try XCTUnwrap(header.summaryPulseHighlightColorForTesting).resolved(for: header.appKitRenderingAppearance)
+            let labelColor = NSColor.labelColor.resolved(for: header.appKitRenderingAppearance)
+
+            XCTAssertTrue(header.isSummaryPulseVisibleForTesting)
+            XCTAssertNotEqual(pulseColor, baseColor)
+            XCTAssertLessThan(
+                colorDistance(pulseColor, labelColor),
+                colorDistance(baseColor, labelColor),
+                "Pulse highlight should move muted tool text toward label color in \(appearanceName.rawValue)"
+            )
+        }
+    }
+
     func testHeaderHoverIncreasesIconSummaryAndDisclosureAlpha() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         header.appearance = NSAppearance(named: .aqua)
@@ -202,7 +230,7 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
     }
 
-    func testHeaderHoverLeavesLoadingSpinnerMuted() throws {
+    func testLoadingHeaderHoverShowsDisclosureWithoutStoppingPulse() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         header.appearance = NSAppearance(named: .aqua)
         header.frame = NSRect(x: 0, y: 0, width: 420, height: 120)
@@ -217,9 +245,7 @@ extension AppKitTranscriptToolRowTests {
         header.layoutSubtreeIfNeeded()
 
         let icon = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: NSImageView.self).first)
-        let spinner = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitStatusIndicatorSpinner.self).first)
         let statusView = try XCTUnwrap(header.descendantsForSubtleChromeTests(of: AppKitTranscriptToolStatusIndicatorView.self).first)
-        let expectedColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
         let expectedHoverColor = transcriptInlineToolRowForegroundColor(isHovered: true).resolved(
             for: header.appKitRenderingAppearance
         )
@@ -231,8 +257,10 @@ extension AppKitTranscriptToolRowTests {
             try summaryForegroundColor(in: header, matching: "Running").resolved(for: header.appKitRenderingAppearance),
             expectedHoverColor
         )
-        XCTAssertEqual(spinner.arcStrokeColorForTesting, expectedColor)
-        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+        XCTAssertTrue(header.descendantsForSubtleChromeTests(of: AppKitStatusIndicatorSpinner.self).isEmpty)
+        XCTAssertTrue(header.isSummaryPulseVisibleForTesting)
+        XCTAssertEqual(statusView.statusSymbolSystemNameForTesting, "chevron.right")
+        XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
     }
 
     func testToolNamesUseSemanticLeadingIconKinds() {
@@ -321,6 +349,17 @@ private func semanticIconTool(name: String, summary: String) -> ToolEntry {
         noOutputExpected: false,
         isError: false
     )
+}
+
+private func colorDistance(_ lhs: NSColor, _ rhs: NSColor) -> CGFloat {
+    guard let lhsRGB = lhs.usingColorSpace(.deviceRGB),
+          let rhsRGB = rhs.usingColorSpace(.deviceRGB) else {
+        return .greatestFiniteMagnitude
+    }
+    return abs(lhsRGB.redComponent - rhsRGB.redComponent) +
+        abs(lhsRGB.greenComponent - rhsRGB.greenComponent) +
+        abs(lhsRGB.blueComponent - rhsRGB.blueComponent) +
+        abs(lhsRGB.alphaComponent - rhsRGB.alphaComponent)
 }
 
 private extension NSView {

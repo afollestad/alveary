@@ -100,6 +100,31 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitTranscriptToolGroupInProgress() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptToolGroupView()
+                view.configure(.init(tools: self.sampleGroupToolsInProgress))
+                return view
+            },
+            size: CGSize(width: 760, height: 140),
+            named: "appkit_transcript_tool_group_in_progress"
+        )
+    }
+
+    func testAppKitTranscriptToolGroupInProgressDark() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptToolGroupView()
+                view.configure(.init(tools: self.sampleGroupToolsInProgress))
+                return view
+            },
+            size: CGSize(width: 760, height: 140),
+            named: "appkit_transcript_tool_group_in_progress_dark",
+            colorScheme: .dark
+        )
+    }
+
     func testAppKitTranscriptApprovalBlock() {
         assertMacSnapshot(
             appKitRowSnapshot {

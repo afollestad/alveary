@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 extension AppKitTranscriptToolRowTests {
-    func testHeaderLoadingSpinnerIsSmallerThanStatusSlot() throws {
+    func testHeaderLoadingUsesPulsingSummaryInsteadOfStatusSpinner() throws {
         let header = AppKitTranscriptToolHeaderRowView()
         var settings = AppSettings()
         settings.chatFontSize = 18
@@ -22,15 +22,20 @@ extension AppKitTranscriptToolRowTests {
         )
         header.layoutSubtreeIfNeeded()
 
-        let spinner = try XCTUnwrap(header.descendants(of: AppKitStatusIndicatorSpinner.self).first)
-        let expectedColor = transcriptInlineToolRowColor.resolved(for: spinner.appKitRenderingAppearance)
-        XCTAssertEqual(spinner.frame.width, metrics.statusIconSize)
-        XCTAssertEqual(spinner.frame.height, metrics.statusIconSize)
-        XCTAssertEqual(spinner.arcStrokeColorForTesting, expectedColor)
+        let statusView = try XCTUnwrap(header.descendants(of: AppKitTranscriptToolStatusIndicatorView.self).first)
+        let pulseColor = try XCTUnwrap(header.summaryPulseHighlightColorForTesting)
+        let baseColor = transcriptInlineToolRowColor.resolved(for: header.appKitRenderingAppearance)
+
+        XCTAssertTrue(header.descendants(of: AppKitStatusIndicatorSpinner.self).isEmpty)
+        XCTAssertTrue(header.isSummaryPulseVisibleForTesting)
         XCTAssertEqual(
-            spinner.trackStrokeColorForTesting,
-            expectedColor.withAlphaComponent(expectedColor.alphaComponent * 0.25)
+            try XCTUnwrap(header.summaryPulseMaskLocationsForTesting),
+            [0.06, 0.24, 0.42, 0.60, 0.78].map(NSNumber.init(value:))
         )
+        XCTAssertEqual(statusView.frame.width, metrics.controlSize)
+        XCTAssertEqual(statusView.frame.height, metrics.controlSize)
+        XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
+        XCTAssertNotEqual(pulseColor.resolved(for: header.appKitRenderingAppearance), baseColor)
     }
 }
 
