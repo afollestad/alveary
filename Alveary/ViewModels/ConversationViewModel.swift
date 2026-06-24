@@ -34,6 +34,7 @@ final class ConversationViewModel {
     @ObservationIgnored var promptDismissalFalloutSuppressionActive = false
     @ObservationIgnored var promptDismissalNewOutboundTurnStarted = false
     @ObservationIgnored var promptDismissalTerminalFalloutSeen = false
+    @ObservationIgnored var promptDismissalDelayedFalloutStarted = false
     @ObservationIgnored var promptDismissalSuppressedApprovals: [ToolApprovalRequest] = []
     @ObservationIgnored var promptDismissalHandledApprovalKeys: Set<ClaudeToolApprovalKey> = []
     @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?

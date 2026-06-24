@@ -76,12 +76,7 @@ extension ConversationViewModel {
         guard state.grouper.latestUnansweredPrompt?.id == promptId else {
             return
         }
-        guard !state.isSendingMessage else {
-            throw AgentError.spawnFailed("Wait for the current approval to finish before dismissing the prompt")
-        }
-        guard !state.isReconfiguringSession else {
-            throw AgentError.spawnFailed("Wait for session changes to finish before dismissing the prompt")
-        }
+        try validatePromptDismissalAvailable()
 
         let approvalCandidate = latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId)
         let promptPendingApproval = pendingApprovalForPromptAnswer(
@@ -97,9 +92,11 @@ extension ConversationViewModel {
             return
         }
 
-        if approvalCandidate?.shouldCheckSessionResolution != false,
-           clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil {
-            completePromptDismissal(promptId: promptId, suppressDelayedFallout: false)
+        if completeAlreadyResolvedPromptDismissalIfNeeded(
+            promptId: promptId,
+            promptPendingApproval: promptPendingApproval,
+            shouldCheckSessionResolution: approvalCandidate?.shouldCheckSessionResolution != false
+        ) {
             return
         }
 
@@ -127,8 +124,34 @@ extension ConversationViewModel {
             throw error
         }
 
-        completePromptDismissal(promptId: promptId)
+        completePromptDismissal(promptId: promptId, handledApproval: promptPendingApproval.request)
         try await resolveSuppressedPromptDismissalApprovalsIfNeeded()
+    }
+
+    func validatePromptDismissalAvailable() throws {
+        guard !state.isSendingMessage else {
+            throw AgentError.spawnFailed("Wait for the current approval to finish before dismissing the prompt")
+        }
+        guard !state.isReconfiguringSession else {
+            throw AgentError.spawnFailed("Wait for session changes to finish before dismissing the prompt")
+        }
+    }
+
+    func completeAlreadyResolvedPromptDismissalIfNeeded(
+        promptId: String,
+        promptPendingApproval: PendingToolApproval,
+        shouldCheckSessionResolution: Bool
+    ) -> Bool {
+        guard shouldCheckSessionResolution,
+              clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil else {
+            return false
+        }
+        completePromptDismissal(
+            promptId: promptId,
+            handledApproval: promptPendingApproval.request,
+            suppressDelayedFallout: false
+        )
+        return true
     }
 
     func toolApprovalSelection(for approval: ToolApprovalRequest) async -> ToolApprovalSelection? {

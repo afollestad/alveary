@@ -9,6 +9,7 @@ struct PromptAnswerContinuationSnapshot {
     let wasDismissalSuppressionActive: Bool
     let wasDismissalReplacementMarked: Bool
     let wasDismissalTerminalSeen: Bool
+    let wasDismissalDelayedFalloutStarted: Bool
 }
 
 extension ConversationViewModel {
@@ -20,6 +21,7 @@ extension ConversationViewModel {
             promptDismissalSuppressedApprovals.removeAll()
             promptDismissalNewOutboundTurnStarted = false
             promptDismissalTerminalFalloutSeen = false
+            promptDismissalDelayedFalloutStarted = false
         }
         promptDismissalsResolving.insert(promptId)
         state.activeRuntimeActivityTurnId = nil
@@ -60,6 +62,15 @@ extension ConversationViewModel {
             clearPromptDismissalFalloutSuppression()
             return false
         }
+        if promptDismissalNewOutboundTurnStarted,
+           !promptDismissalDelayedFalloutStarted,
+           !startsPromptDismissalDelayedFallout(event) {
+            clearPromptDismissalFalloutSuppression()
+            return false
+        }
+        if startsPromptDismissalDelayedFallout(event) {
+            promptDismissalDelayedFalloutStarted = true
+        }
 
         handleSuppressedPromptApproval(from: event, deferResolution: false)
         let shouldSuppress = event.isPromptDismissalFallout
@@ -94,6 +105,15 @@ extension ConversationViewModel {
         recordPromptHandled(promptId: promptId)
     }
 
+    func completePromptDismissal(
+        promptId: String,
+        handledApproval approval: ToolApprovalRequest,
+        suppressDelayedFallout: Bool = true
+    ) {
+        recordPromptDismissalHandledApproval(approval)
+        completePromptDismissal(promptId: promptId, suppressDelayedFallout: suppressDelayedFallout)
+    }
+
     @discardableResult
     func markPromptDismissalNewOutboundTurnStarted() -> Bool {
         guard promptDismissalFalloutSuppressionActive else {
@@ -114,6 +134,7 @@ extension ConversationViewModel {
         promptDismissalFalloutSuppressionActive = false
         promptDismissalNewOutboundTurnStarted = false
         promptDismissalTerminalFalloutSeen = false
+        promptDismissalDelayedFalloutStarted = false
     }
 
     func beginPromptAnswerContinuation() -> PromptAnswerContinuationSnapshot {
@@ -124,7 +145,8 @@ extension ConversationViewModel {
             wasLastTurnInterrupted: state.lastTurnInterrupted,
             wasDismissalSuppressionActive: promptDismissalFalloutSuppressionActive,
             wasDismissalReplacementMarked: promptDismissalNewOutboundTurnStarted,
-            wasDismissalTerminalSeen: promptDismissalTerminalFalloutSeen
+            wasDismissalTerminalSeen: promptDismissalTerminalFalloutSeen,
+            wasDismissalDelayedFalloutStarted: promptDismissalDelayedFalloutStarted
         )
         clearPromptDismissalFalloutSuppression()
         state.lastTurnInterrupted = false
@@ -143,6 +165,7 @@ extension ConversationViewModel {
         promptDismissalFalloutSuppressionActive = snapshot.wasDismissalSuppressionActive
         promptDismissalNewOutboundTurnStarted = snapshot.wasDismissalReplacementMarked
         promptDismissalTerminalFalloutSeen = snapshot.wasDismissalTerminalSeen
+        promptDismissalDelayedFalloutStarted = snapshot.wasDismissalDelayedFalloutStarted
     }
 
     func handleSuppressedPromptApproval(from event: ConversationEvent, deferResolution: Bool) {
@@ -197,8 +220,15 @@ extension ConversationViewModel {
         promptDismissalSuppressedApprovals.removeAll()
         for approval in approvals {
             try await denySuppressedPromptApproval(approval)
-            promptDismissalHandledApprovalKeys.insert(approval.promptDismissalKey)
+            recordPromptDismissalHandledApproval(approval)
         }
+    }
+
+    func recordPromptDismissalHandledApproval(_ approval: ToolApprovalRequest) {
+        guard approval.isAppNativeInteractionPrompt else {
+            return
+        }
+        promptDismissalHandledApprovalKeys.insert(approval.promptDismissalKey)
     }
 
     func scheduleSuppressedPromptApprovalResolution(_ approval: ToolApprovalRequest) {
@@ -231,6 +261,23 @@ extension ConversationViewModel {
             sessionApproval: nil,
             config: config
         ))
+    }
+
+    func startsPromptDismissalDelayedFallout(_ event: ConversationEvent) -> Bool {
+        if event.startsPromptDismissalDelayedFallout {
+            return true
+        }
+        switch event {
+        case .toolApprovalRequested(let approval):
+            return approval.isAppNativeInteractionPrompt &&
+                (promptDismissalHandledApprovalKeys.contains(approval.promptDismissalKey) ||
+                    suppressedPromptApprovalAlreadyResolved(approval))
+        case .toolCall(let id, let name, _, _, _):
+            return name == "AskUserQuestion" &&
+                promptDismissalHandledApprovalKeys.contains { $0.toolUseId == id }
+        default:
+            return false
+        }
     }
 
     func markTranscriptActivityInterrupted() {
@@ -295,6 +342,33 @@ private extension ConversationEvent {
             return true
         }
         return false
+    }
+
+    var startsPromptDismissalDelayedFallout: Bool {
+        if let payload = TokenEventPayload(self) {
+            return payload.permissionDenials.contains { denial in
+                denial.toolName == "AskUserQuestion" || denial.toolName == "ExitPlanMode"
+            }
+        }
+
+        switch self {
+        case .toolCall(_, let name, _, _, _):
+            return name == "ExitPlanMode"
+        case .toolApprovalRequested(let approval):
+            return approval.toolName == "ExitPlanMode"
+        case .message(_, let content, _),
+             .messageChunk(let content, _):
+            return content.localizedCaseInsensitiveContains("permission denied")
+        case .stop(let message):
+            return ConversationInterruption.isDisplayMessage(message)
+        case .error(let message):
+            let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized.contains("interrupt") ||
+                normalized.contains("cancel") ||
+                normalized.contains("no active turn")
+        default:
+            return false
+        }
     }
 
     var isPromptDismissalFallout: Bool {
