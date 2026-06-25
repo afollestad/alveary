@@ -69,6 +69,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - After creating, moving, removing, or renaming Swift files, run `xcodegen generate`.
 - After adding an SPM dependency, update `project.yml`, then run `xcodegen generate`.
 - Do not commit `Alveary.xcodeproj/`; it is gitignored and regenerated.
+- Debug app signing uses `Config/CodeSigning/AlvearyDebugTCC.requirements` so app-shot TCC grants survive rebuilds. If `PRODUCT_BUNDLE_IDENTIFIER` changes, update that requirement too. When a privacy row is enabled but raw probes are false, reset Alveary's TCC grants or remove the stale row before re-dragging the rebuilt app.
 
 ## Build And Test
 

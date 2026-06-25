@@ -11,7 +11,7 @@ enum AppShotAXTreeFormatter {
     private static let maxNodes = 500
 
     static func snapshot(for target: AppShotWindowTarget) throws -> AppShotAXTreeSnapshot {
-        guard AXIsProcessTrusted() else {
+        guard AppShotPermission.accessibility.isAllowed else {
             throw AppShotCaptureError.accessibilityPermissionMissing
         }
 

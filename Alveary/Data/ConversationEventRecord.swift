@@ -16,6 +16,7 @@ final class ConversationEventRecord {
     var type: String
     var role: String?
     var content: String?
+    var imageAttachmentsJSON: String?
     var toolId: String?
     var toolName: String?
     var toolInput: String?
@@ -48,6 +49,7 @@ final class ConversationEventRecord {
         type: String,
         role: String? = nil,
         content: String? = nil,
+        imageAttachmentsJSON: String? = nil,
         toolId: String? = nil,
         toolName: String? = nil,
         toolInput: String? = nil,
@@ -86,6 +88,7 @@ final class ConversationEventRecord {
         self.type = type
         self.role = role
         self.content = content
+        self.imageAttachmentsJSON = imageAttachmentsJSON
         self.toolId = toolId
         self.toolName = toolName
         self.toolInput = toolInput
@@ -115,6 +118,25 @@ final class ConversationEventRecord {
 }
 
 extension ConversationEventRecord {
+    var persistedImageAttachments: [LocalImageAttachment] {
+        get {
+            guard let imageAttachmentsJSON,
+                  let data = imageAttachmentsJSON.data(using: .utf8),
+                  let attachments = try? JSONDecoder().decode([LocalImageAttachment].self, from: data) else {
+                return []
+            }
+            return attachments
+        }
+        set {
+            guard !newValue.isEmpty,
+                  let data = try? JSONEncoder().encode(newValue) else {
+                imageAttachmentsJSON = nil
+                return
+            }
+            imageAttachmentsJSON = String(data: data, encoding: .utf8)
+        }
+    }
+
     var isHiddenGoalRecord: Bool {
         type == Self.goalType
     }

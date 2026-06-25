@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 extension ConversationViewModel {
     var stagedImageAttachments: [LocalImageAttachment] {
@@ -61,9 +62,12 @@ extension ConversationViewModel {
     }
 
     func cleanupUnreferencedImageAttachments(olderThan age: TimeInterval = 60 * 60 * 24 * 30) {
-        let retainedURLs = retainedImageAttachmentURLs()
+        guard let retainedURLs = retainedImageAttachmentURLs() else {
+            return
+        }
+        let conversationID = conversation.id
         Task {
-            await attachmentStore.cleanupUnreferenced(keeping: retainedURLs, olderThan: age)
+            await attachmentStore.cleanupUnreferenced(conversationId: conversationID, keeping: retainedURLs, olderThan: age)
         }
     }
 
@@ -97,7 +101,7 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
-    func retainedImageAttachmentURLs() -> Set<URL> {
+    func retainedImageAttachmentURLs() -> Set<URL>? {
         var urls = Set(state.stagedImageAttachments.map { $0.fileURL.standardizedFileURL })
         urls.formUnion(state.stagedAppShots.map { $0.screenshot.fileURL.standardizedFileURL })
         for message in state.messageQueue.pending {
@@ -116,6 +120,23 @@ private extension ConversationViewModel {
         for appShots in state.transcriptAppShots.values {
             urls.formUnion(appShots.map { $0.screenshot.fileURL.standardizedFileURL })
         }
+        guard let persistedURLs = persistedTranscriptImageAttachmentURLs() else {
+            return nil
+        }
+        urls.formUnion(persistedURLs)
         return urls
+    }
+
+    func persistedTranscriptImageAttachmentURLs() -> Set<URL>? {
+        let conversationID = conversation.id
+        let descriptor = FetchDescriptor<ConversationEventRecord>(
+            predicate: #Predicate { $0.conversationId == conversationID }
+        )
+        guard let records = try? modelContext.fetch(descriptor) else {
+            return nil
+        }
+        return Set(records.flatMap { record in
+            record.persistedImageAttachments.map { $0.fileURL.standardizedFileURL }
+        })
     }
 }

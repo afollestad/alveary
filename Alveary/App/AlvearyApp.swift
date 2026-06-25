@@ -63,6 +63,9 @@ struct AlvearyApp: App {
                 ViewRawTranscriptCommandButton()
                 TriggerSessionHandoffCommandButton()
                 CopyAppShotPreviewCommandButton()
+                Button("Copy app-shot permission diagnostics") {
+                    AppShotPermissionDiagnostics.copyToPasteboard()
+                }
             }
             #endif
         }

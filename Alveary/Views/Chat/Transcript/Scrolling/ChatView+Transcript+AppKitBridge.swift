@@ -108,17 +108,45 @@ extension ChatTranscriptView {
     }
 
     var appKitImageAttachmentsByUserMessageID: [String: [LocalImageAttachment]] {
-        var attachmentsByID = viewModel.state.transcriptImageAttachments
-        for (messageID, appShots) in viewModel.state.transcriptAppShots {
-            guard !appShots.isEmpty else { continue }
-            var attachments = attachmentsByID[messageID] ?? []
-            var seenAttachmentIDs = Set(attachments.map(\.id))
-            for screenshot in appShots.map(\.screenshot) where seenAttachmentIDs.insert(screenshot.id).inserted {
-                attachments.append(screenshot)
-            }
-            attachmentsByID[messageID] = attachments
+        Self.imageAttachmentsByUserMessageID(
+            events: events,
+            runtimeImageAttachments: viewModel.state.transcriptImageAttachments,
+            runtimeAppShots: viewModel.state.transcriptAppShots
+        )
+    }
+
+    static func imageAttachmentsByUserMessageID(
+        events: [ConversationEventRecord],
+        runtimeImageAttachments: [String: [LocalImageAttachment]],
+        runtimeAppShots: [String: [AppShotAttachment]]
+    ) -> [String: [LocalImageAttachment]] {
+        var attachmentsByID: [String: [LocalImageAttachment]] = [:]
+        for event in events where event.type == "message" && event.role == "user" {
+            appendImageAttachments(event.persistedImageAttachments, to: event.id, in: &attachmentsByID)
+        }
+        for (messageID, attachments) in runtimeImageAttachments {
+            appendImageAttachments(attachments, to: messageID, in: &attachmentsByID)
+        }
+        for (messageID, appShots) in runtimeAppShots {
+            appendImageAttachments(appShots.map(\.screenshot), to: messageID, in: &attachmentsByID)
         }
         return attachmentsByID
+    }
+
+    static func appendImageAttachments(
+        _ newAttachments: [LocalImageAttachment],
+        to messageID: String,
+        in attachmentsByID: inout [String: [LocalImageAttachment]]
+    ) {
+        guard !newAttachments.isEmpty else {
+            return
+        }
+        var attachments = attachmentsByID[messageID] ?? []
+        var seenAttachmentIDs = Set(attachments.map(\.id))
+        for attachment in newAttachments where seenAttachmentIDs.insert(attachment.id).inserted {
+            attachments.append(attachment)
+        }
+        attachmentsByID[messageID] = attachments
     }
 
     func configureAppKitApprovalRows(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {

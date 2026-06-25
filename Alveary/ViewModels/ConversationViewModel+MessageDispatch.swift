@@ -49,7 +49,12 @@ extension ConversationViewModel {
         if let existingLocalUserMessageID {
             state.clearRetryableFailedMessage(id: existingLocalUserMessageID)
         } else {
-            insertLocalUserMessage(message, into: dbConversation)
+            insertLocalUserMessage(
+                message,
+                into: dbConversation,
+                imageAttachments: attachments,
+                appShots: appShots
+            )
         }
     }
 
@@ -166,7 +171,12 @@ extension ConversationViewModel {
                 message: queuedMessage.transportText ?? queuedMessage.text,
                 stagedContext: queuedMessage.stagedContext
             )
-            let localMessage = insertLocalUserMessage(queuedMessage.text, into: dbConversation)
+            let localMessage = insertLocalUserMessage(
+                queuedMessage.text,
+                into: dbConversation,
+                imageAttachments: queuedMessage.attachments,
+                appShots: queuedMessage.appShots
+            )
             onLocalMessageInserted(localMessage.id)
 
             state.lastTurnInterrupted = false
@@ -361,7 +371,9 @@ private extension ConversationViewModel {
 
             let localMessage = insertLocalUserMessage(
                 queuedMessage.text,
-                into: dbConversation
+                into: dbConversation,
+                imageAttachments: queuedMessage.attachments,
+                appShots: queuedMessage.appShots
             )
             localMessageID = localMessage.id
 

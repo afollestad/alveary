@@ -9,7 +9,7 @@ enum AppShotScreenshotCapturer {
         store: any ConversationAttachmentStore,
         conversationId: String
     ) async throws -> LocalImageAttachment {
-        guard CGPreflightScreenCaptureAccess() else {
+        guard AppShotPermission.screenRecording.isAllowed else {
             throw AppShotCaptureError.screenRecordingPermissionMissing
         }
 

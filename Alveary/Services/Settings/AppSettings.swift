@@ -28,7 +28,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultTerminalPaneHeight = 320.0
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
-    static let defaultAppShotShortcut = AppShotKeyboardShortcut.bothCommand
+    static let defaultAppShotShortcut = AppShotKeyboardShortcut.controlShiftS
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var lastSettingsPage = SettingsPage.agents
     var defaultProvider = "claude"
@@ -206,7 +206,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     }
 
     private mutating func normalizeAppShotDefaults() {
-        appShotShortcut = appShotShortcut.normalized ?? Self.defaultAppShotShortcut
+        guard let normalizedShortcut = appShotShortcut.normalized,
+              normalizedShortcut != .bothCommand else {
+            appShotShortcut = Self.defaultAppShotShortcut
+            return
+        }
+        appShotShortcut = normalizedShortcut
     }
 
     private mutating func normalizeContextManagement() {
@@ -479,7 +484,8 @@ extension AppSettings {
         guard let shortcut = try? container.decodeIfPresent(
             AppShotKeyboardShortcut.self,
             forKey: .appShotShortcut
-        )?.normalized else {
+        )?.normalized,
+            shortcut != .bothCommand else {
             return defaultAppShotShortcut
         }
         return shortcut

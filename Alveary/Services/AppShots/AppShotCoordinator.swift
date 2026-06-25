@@ -64,7 +64,7 @@ final class AppShotCoordinator {
         guard currentSettings.enabled else {
             throw AppShotCaptureError.disabled
         }
-        guard AXIsProcessTrusted() else {
+        guard AppShotPermission.accessibility.isAllowed else {
             throw AppShotCaptureError.accessibilityPermissionMissing
         }
         guard let target = targetTracker.targetForCapture() else {
@@ -197,7 +197,7 @@ final class AppShotCoordinator {
     }
 
     private func installModifierEventTap() -> Bool {
-        guard CGPreflightListenEventAccess() || CGRequestListenEventAccess() else {
+        guard AppShotPermission.inputMonitoring.isAllowed else {
             return false
         }
 

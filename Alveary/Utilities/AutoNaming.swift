@@ -1,12 +1,34 @@
+import AgentCLIKit
 import Foundation
 
 extension ConversationViewModel {
+    static let appShotThreadPreviewFallback = "(App shot)"
+
     static func normalizedProviderSessionName(_ name: String?) -> String? {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedName, !trimmedName.isEmpty else {
             return nil
         }
         return trimmedName
+    }
+
+    static func providerSessionTitle(
+        name: String?,
+        preview: String?,
+        appShotTitleFallback: String?
+    ) -> String? {
+        if let name = providerSessionTitleCandidate(name, appShotTitleFallback: appShotTitleFallback) {
+            return name
+        }
+        return providerSessionTitleCandidate(preview, appShotTitleFallback: appShotTitleFallback)
+    }
+
+    static func appShotThreadPreviewTitle(fromVisibleUserInput userInput: String) -> String {
+        let trimmedInput = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInput.isEmpty else {
+            return appShotThreadPreviewFallback
+        }
+        return AgentSessionPreviewGenerator.preview(fromInitialPrompt: trimmedInput) ?? trimmedInput
     }
 
     static func formatPromptAnswers(answers: [(question: String, answer: String)]) -> String {
@@ -22,6 +44,63 @@ extension ConversationViewModel {
             return "Q: \(trimmedQuestion)\nA: \(answer)"
         }
         .joined(separator: "\n\n")
+    }
+}
+
+private extension ConversationViewModel {
+    static func providerSessionTitleCandidate(
+        _ candidate: String?,
+        appShotTitleFallback: String?
+    ) -> String? {
+        guard let normalized = normalizedProviderSessionName(candidate) else {
+            return nil
+        }
+        if let appShotTitle = appShotProviderSessionTitle(
+            from: normalized,
+            fallback: appShotTitleFallback
+        ) {
+            return appShotTitle
+        }
+        return normalized
+    }
+
+    static func appShotProviderSessionTitle(from providerTitle: String, fallback: String?) -> String? {
+        guard providerTitle.hasPrefix("# Applications mentioned by the user:") ||
+            providerTitle.contains("<appshot ") else {
+            return nil
+        }
+
+        if let requestBody = appShotRequestBody(in: providerTitle),
+           !requestBody.isEmpty {
+            return appShotThreadPreviewTitle(fromVisibleUserInput: requestBody)
+        }
+        return fallback ?? appShotThreadPreviewFallback
+    }
+
+    static func appShotRequestBody(in providerTitle: String) -> String? {
+        let lines = providerTitle.components(separatedBy: .newlines)
+        guard let requestHeaderIndex = lines.firstIndex(where: {
+            $0.hasPrefix("## My request for ") && $0.hasSuffix(":")
+        }) else {
+            return nil
+        }
+
+        let bodyLines = lines.dropFirst(requestHeaderIndex + 1)
+        return visibleRequestBody(from: Array(bodyLines))
+    }
+
+    static func visibleRequestBody(from requestBodyLines: [String]) -> String {
+        var lines = requestBodyLines
+        while let firstLine = lines.first {
+            let trimmedLine = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmedLine.isEmpty || trimmedLine.hasPrefix("![Appshot screenshot](") else {
+                break
+            }
+            lines.removeFirst()
+        }
+        return lines
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

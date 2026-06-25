@@ -60,6 +60,13 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
         }
     }
 
+    var modifierCount: Int {
+        guard let keyChord else {
+            return 0
+        }
+        return keyChord.modifiers.count
+    }
+
     var normalized: AppShotKeyboardShortcut? {
         switch kind {
         case .bothCommand:
@@ -69,7 +76,7 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
                 return nil
             }
             let normalizedModifiers = keyChord.modifiers.normalized
-            guard normalizedModifiers.containsAnyActivationModifier,
+            guard normalizedModifiers.count >= 2,
                   !keyChord.keyEquivalent.isEmpty else {
                 return nil
             }
@@ -82,6 +89,11 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
     }
 
     static let bothCommand = AppShotKeyboardShortcut(kind: .bothCommand)
+    static let controlShiftS = AppShotKeyboardShortcut(
+        keyCode: UInt16(kVK_ANSI_S),
+        modifiers: [.control, .shift],
+        keyEquivalent: "S"
+    )
     static let commandShiftS = AppShotKeyboardShortcut(
         keyCode: UInt16(kVK_ANSI_S),
         modifiers: [.command, .shift],
@@ -128,6 +140,11 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
             try container.encode("bothCommand")
             return
         }
+        if self == .controlShiftS {
+            var container = encoder.singleValueContainer()
+            try container.encode("controlShiftS")
+            return
+        }
         if self == .commandShiftS {
             var container = encoder.singleValueContainer()
             try container.encode("commandShiftS")
@@ -170,15 +187,18 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
               let keyChord = shortcut.keyChord else {
             return nil
         }
-        guard keyChord.modifiers.containsAnyActivationModifier else {
-            return "Use Command, Control, or Option with the key."
+        if knownSystemShortcutNames[keyChord] != nil || SystemKeyboardShortcutStore.hasEnabledShortcut(matching: keyChord) {
+            return "\(shortcut.displayString) conflicts with a macOS keyboard shortcut."
+        }
+        if shortcut.modifierCount < 2 {
+            return "Use at least two modifier keys."
         }
         if let conflict = reservedShortcutNames[keyChord] {
             return "\(shortcut.displayString) is already used by \(conflict)."
         }
         if shortcut != currentShortcut,
            !canRegisterGlobally(keyChord: keyChord) {
-            return "\(shortcut.displayString) is already reserved by macOS or another app."
+            return "\(shortcut.displayString) is already used by another app."
         }
         return nil
     }
@@ -191,6 +211,8 @@ struct AppShotKeyboardShortcut: Codable, Hashable, Identifiable, Sendable, Equat
         switch rawValue {
         case "bothCommand":
             return .bothCommand
+        case "controlShiftS":
+            return .controlShiftS
         case "commandShiftS":
             return .commandShiftS
         default:
@@ -261,6 +283,15 @@ struct AppShotKeyboardShortcutModifiers: OptionSet, Codable, Hashable, Sendable 
         contains(.command) || contains(.control) || contains(.option)
     }
 
+    var count: Int {
+        var result = 0
+        if contains(.command) { result += 1 }
+        if contains(.control) { result += 1 }
+        if contains(.option) { result += 1 }
+        if contains(.shift) { result += 1 }
+        return result
+    }
+
     var normalized: AppShotKeyboardShortcutModifiers {
         intersection([.command, .control, .option, .shift])
     }
@@ -325,6 +356,28 @@ private let specialKeySymbols: [UInt16: String] = [
     UInt16(kVK_UpArrow): "↑"
 ]
 
+private let knownSystemShortcutNames: [AppShotKeyboardShortcut.KeyChord: String] = [
+    .init(keyCode: UInt16(kVK_Space), modifiers: [.command], keyEquivalent: "␣"): "Spotlight",
+    .init(keyCode: UInt16(kVK_Space), modifiers: [.command, .option], keyEquivalent: "␣"): "Finder search",
+    .init(keyCode: UInt16(kVK_Space), modifiers: [.command, .control], keyEquivalent: "␣"): "Character Viewer",
+    .init(keyCode: UInt16(kVK_Tab), modifiers: [.command], keyEquivalent: "⇥"): "application switcher",
+    .init(keyCode: UInt16(kVK_Tab), modifiers: [.command, .shift], keyEquivalent: "⇥"): "application switcher",
+    .init(keyCode: UInt16(kVK_ANSI_Grave), modifiers: [.command], keyEquivalent: "`"): "window switcher",
+    .init(keyCode: UInt16(kVK_ANSI_Grave), modifiers: [.command, .shift], keyEquivalent: "`"): "window switcher",
+    .init(keyCode: UInt16(kVK_Escape), modifiers: [.command, .option], keyEquivalent: "⎋"): "Force Quit",
+    .init(keyCode: UInt16(kVK_Escape), modifiers: [.command, .option, .shift], keyEquivalent: "⎋"): "Force Quit",
+    .init(keyCode: UInt16(kVK_ANSI_Q), modifiers: [.command, .control], keyEquivalent: "Q"): "screen lock",
+    .init(keyCode: UInt16(kVK_ANSI_Q), modifiers: [.command, .shift], keyEquivalent: "Q"): "log out",
+    .init(keyCode: UInt16(kVK_ANSI_Q), modifiers: [.command, .option, .shift], keyEquivalent: "Q"): "log out immediately",
+    .init(keyCode: UInt16(kVK_ANSI_D), modifiers: [.command, .option], keyEquivalent: "D"): "Dock hide/show",
+    .init(keyCode: UInt16(kVK_ANSI_3), modifiers: [.command, .shift], keyEquivalent: "3"): "screenshot",
+    .init(keyCode: UInt16(kVK_ANSI_4), modifiers: [.command, .shift], keyEquivalent: "4"): "screenshot",
+    .init(keyCode: UInt16(kVK_ANSI_5), modifiers: [.command, .shift], keyEquivalent: "5"): "screenshot",
+    .init(keyCode: UInt16(kVK_ANSI_3), modifiers: [.command, .control, .shift], keyEquivalent: "3"): "screenshot to clipboard",
+    .init(keyCode: UInt16(kVK_ANSI_4), modifiers: [.command, .control, .shift], keyEquivalent: "4"): "screenshot to clipboard",
+    .init(keyCode: UInt16(kVK_ANSI_5), modifiers: [.command, .control, .shift], keyEquivalent: "5"): "screenshot to clipboard"
+]
+
 private let reservedShortcutNames: [AppShotKeyboardShortcut.KeyChord: String] = [
     .init(keyCode: UInt16(kVK_ANSI_Q), modifiers: [.command], keyEquivalent: "Q"): "Quit",
     .init(keyCode: UInt16(kVK_ANSI_H), modifiers: [.command], keyEquivalent: "H"): "Hide",
@@ -356,3 +409,51 @@ private let reservedShortcutNames: [AppShotKeyboardShortcut.KeyChord: String] = 
     .init(keyCode: UInt16(kVK_ANSI_8), modifiers: [.command], keyEquivalent: "8"): "Conversation Tab 8",
     .init(keyCode: UInt16(kVK_ANSI_9), modifiers: [.command], keyEquivalent: "9"): "Conversation Tab 9"
 ]
+
+private enum SystemKeyboardShortcutStore {
+    static func hasEnabledShortcut(matching keyChord: AppShotKeyboardShortcut.KeyChord) -> Bool {
+        guard let domain = UserDefaults.standard.persistentDomain(forName: "com.apple.symbolichotkeys"),
+              let hotKeys = domain["AppleSymbolicHotKeys"] as? [String: Any] else {
+            return false
+        }
+
+        return hotKeys.values.contains { value in
+            guard let dictionary = value as? [String: Any],
+                  boolValue(dictionary["enabled"]) == true,
+                  let shortcutValue = dictionary["value"] as? [String: Any],
+                  let parameters = shortcutValue["parameters"] as? [Any],
+                  parameters.count >= 3,
+                  let keyCode = uint16Value(parameters[1]),
+                  let modifierRawValue = uintValue(parameters[2]) else {
+                return false
+            }
+            let modifiers = AppShotKeyboardShortcutModifiers(NSEvent.ModifierFlags(rawValue: modifierRawValue)).normalized
+            return keyCode == keyChord.keyCode && modifiers == keyChord.modifiers
+        }
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        if let value = value as? Bool {
+            return value
+        }
+        return (value as? NSNumber)?.boolValue
+    }
+
+    private static func uint16Value(_ value: Any?) -> UInt16? {
+        guard let value = uintValue(value),
+              value <= UInt(UInt16.max) else {
+            return nil
+        }
+        return UInt16(value)
+    }
+
+    private static func uintValue(_ value: Any?) -> UInt? {
+        if let value = value as? UInt {
+            return value
+        }
+        if let value = value as? Int {
+            return value >= 0 ? UInt(value) : nil
+        }
+        return (value as? NSNumber)?.uintValue
+    }
+}

@@ -103,7 +103,13 @@ private extension ConversationViewModel {
         guard case .providerSessionMetadataChanged(_, let name, let preview) = event else {
             return false
         }
-        guard let providerTitle = Self.normalizedProviderSessionName(name) ?? Self.normalizedProviderSessionName(preview),
+        let appShotTitleFallback = state.appShotProviderSessionTitleFallback ??
+            latestPersistedAppShotProviderSessionTitleFallback()
+        guard let providerTitle = Self.providerSessionTitle(
+            name: name,
+            preview: preview,
+            appShotTitleFallback: appShotTitleFallback
+        ),
               let dbConversation = dbConversation(),
               let thread = dbConversation.thread,
               !thread.hasCustomName else {
@@ -120,6 +126,16 @@ private extension ConversationViewModel {
             mainConversation.title = mainConversation.persistedTitle(from: providerTitle)
         }
         return true
+    }
+
+    func latestPersistedAppShotProviderSessionTitleFallback() -> String? {
+        conversationEventRecords().reversed().first { record in
+            record.type == "message" &&
+                record.role == "user" &&
+                record.persistedImageAttachments.contains(where: \.isStoredAppShotScreenshot)
+        }.map {
+            Self.appShotThreadPreviewTitle(fromVisibleUserInput: $0.content ?? "")
+        }
     }
 
     func handlePermissionModeChanged(_ permissionMode: String) -> Bool {
@@ -449,4 +465,10 @@ private extension ConversationViewModel {
         scheduleSave()
     }
 
+}
+
+private extension LocalImageAttachment {
+    var isStoredAppShotScreenshot: Bool {
+        fileURL.deletingLastPathComponent().lastPathComponent == "appshots"
+    }
 }

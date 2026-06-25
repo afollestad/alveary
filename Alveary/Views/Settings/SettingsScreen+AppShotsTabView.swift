@@ -1,28 +1,32 @@
 @preconcurrency import AppKit
-import ApplicationServices
-import Carbon
-import CoreGraphics
 import SwiftUI
 
 struct AppShotsSettingsTabView: View {
     @Binding var appShotsEnabled: Bool
     @Binding var appShotShortcut: AppShotKeyboardShortcut
-    let accessibilityAllowed: Bool
-    let keyboardMonitoringAllowed: Bool
-    let screenRecordingAllowed: Bool
+    @State private var permissionSnapshot: AppShotPermissionSnapshot
+
+    private let refreshesLivePermissions: Bool
 
     init(
         appShotsEnabled: Binding<Bool>,
         appShotShortcut: Binding<AppShotKeyboardShortcut>,
-        accessibilityAllowed: Bool = AXIsProcessTrusted(),
-        keyboardMonitoringAllowed: Bool = CGPreflightListenEventAccess(),
-        screenRecordingAllowed: Bool = CGPreflightScreenCaptureAccess()
+        accessibilityAllowed: Bool? = nil,
+        keyboardMonitoringAllowed: Bool? = nil,
+        screenRecordingAllowed: Bool? = nil
     ) {
         _appShotsEnabled = appShotsEnabled
         _appShotShortcut = appShotShortcut
-        self.accessibilityAllowed = accessibilityAllowed
-        self.keyboardMonitoringAllowed = keyboardMonitoringAllowed
-        self.screenRecordingAllowed = screenRecordingAllowed
+        _permissionSnapshot = State(
+            initialValue: AppShotPermissionSnapshot.makeCurrent(
+                accessibilityAllowed: accessibilityAllowed,
+                inputMonitoringAllowed: keyboardMonitoringAllowed,
+                screenRecordingAllowed: screenRecordingAllowed
+            )
+        )
+        refreshesLivePermissions = accessibilityAllowed == nil &&
+            keyboardMonitoringAllowed == nil &&
+            screenRecordingAllowed == nil
     }
 
     var body: some View {
@@ -47,160 +51,174 @@ struct AppShotsSettingsTabView: View {
                 }
             }
 
-            SettingsFormSection("Status") {
-                AppShotStatusRow(
-                    title: "Accessibility",
-                    value: accessibilityAllowed ? "Allowed" : "Needs permission"
+            SettingsFormSection("Permissions") {
+                AppShotPermissionRow(
+                    presentation: permissionPresentation(for: .accessibility),
+                    request: { requestPermission(.accessibility, sourceFrameInScreen: $0) }
                 )
 
-                AppShotStatusRow(
-                    title: "Keyboard Monitoring",
-                    value: keyboardMonitoringAllowed ? "Allowed" : "Needed for ⌘⌘"
+                AppShotPermissionRow(
+                    presentation: inputMonitoringPresentation,
+                    request: { requestPermission(.inputMonitoring, sourceFrameInScreen: $0) }
                 )
 
-                AppShotStatusRow(
-                    title: "Screen Recording",
-                    value: screenRecordingAllowed ? "Allowed" : "Needs permission",
+                AppShotPermissionRow(
+                    presentation: permissionPresentation(for: .screenRecording),
+                    request: { requestPermission(.screenRecording, sourceFrameInScreen: $0) },
                     showsDivider: false
                 )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear(perform: refreshPermissions)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissions()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didActivateApplicationNotification)) { _ in
+            refreshPermissions()
+        }
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+            refreshPermissions()
+        }
+    }
+
+    private var inputMonitoringPresentation: AppShotPermissionRowPresentation {
+        guard appShotShortcut == .bothCommand else {
+            return AppShotPermissionRowPresentation(
+                title: AppShotPermission.inputMonitoring.title,
+                value: "Not needed for current shortcut",
+                style: .secondary,
+                requestTitle: nil
+            )
+        }
+
+        return permissionPresentation(
+            for: .inputMonitoring,
+            missingValue: "Needed for ⌘⌘"
+        )
+    }
+
+    private func permissionPresentation(
+        for permission: AppShotPermission,
+        missingValue: String = "Required"
+    ) -> AppShotPermissionRowPresentation {
+        if permissionSnapshot.isAllowed(permission) {
+            return AppShotPermissionRowPresentation(
+                title: permission.title,
+                value: "Allowed",
+                style: .secondary,
+                requestTitle: nil
+            )
+        }
+
+        return AppShotPermissionRowPresentation(
+            title: permission.title,
+            value: missingValue,
+            style: .orange,
+            requestTitle: "Allow"
+        )
+    }
+
+    private func requestPermission(_ permission: AppShotPermission, sourceFrameInScreen: CGRect?) {
+        AppShotPermissionDragGrantAssistant.shared.present(
+            permission: permission,
+            sourceFrameInScreen: sourceFrameInScreen
+        )
+        refreshPermissions()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            refreshPermissions()
+        }
+    }
+
+    private func refreshPermissions() {
+        guard refreshesLivePermissions else {
+            return
+        }
+        permissionSnapshot = .current
     }
 }
 
-private struct AppShotStatusRow: View {
-    let title: String
-    let value: String
+private struct AppShotPermissionRow: View {
+    let presentation: AppShotPermissionRowPresentation
+    let request: (CGRect?) -> Void
     var showsDivider = true
+
+    @State private var requestFrameInScreen = CGRect.zero
 
     var body: some View {
         SettingsFormRow(showsDivider: showsDivider) {
-            SettingsResponsiveControlRow(title, horizontalControlSizing: .intrinsicInline) {
-                Text(value)
-                    .foregroundStyle(value == "Allowed" ? Color.secondary : Color.orange)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-}
-
-private struct AppShotShortcutRecorder: View {
-    @Binding var shortcut: AppShotKeyboardShortcut
-
-    @State private var isRecording = false
-    @State private var keyMonitor: Any?
-    @State private var message: AppShotShortcutRecorderMessage?
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(shortcut.displayString)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(minWidth: 72, alignment: .center)
-                    .padding(.horizontal, 10)
-                    .frame(height: SettingsScreenLayout.settingsControlSurfaceHeight)
-                    .background(
-                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                            .fill(Color.secondary.opacity(0.14))
-                    )
-                    .accessibilityHidden(true)
-
-                Button(action: startRecording) {
-                    Label(isRecording ? "Press keys" : "Record", systemImage: isRecording ? "keyboard.badge.ellipsis" : "record.circle")
+            SettingsResponsiveControlRow(presentation.title, horizontalControlSizing: .intrinsicInline) {
+                HStack(spacing: 8) {
+                    Text(presentation.value)
+                        .foregroundStyle(presentation.style)
                         .lineLimit(1)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel(isRecording ? "Recording app shot shortcut" : "Record app shot shortcut")
 
-                Button("Use ⌘⌘") {
-                    stopRecording()
-                    shortcut = .bothCommand
-                    message = nil
+                    if let requestTitle = presentation.requestTitle {
+                        Button(requestTitle) {
+                            request(requestFrameInScreen.isEmpty ? nil : requestFrameInScreen)
+                        }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .accessibilityLabel("Allow \(presentation.title)")
+                            .background(AppShotPermissionRequestFrameReader(frameInScreen: $requestFrameInScreen))
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(shortcut == .bothCommand)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-
-            if let message {
-                Text(message.text)
-                    .font(.caption)
-                    .foregroundStyle(message.style)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .multilineTextAlignment(.trailing)
-                    .transition(.opacity)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .onDisappear(perform: stopRecording)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("App shot shortcut")
-        .accessibilityValue(shortcut.displayString)
-    }
-
-    private func startRecording() {
-        stopRecording()
-        isRecording = true
-        message = .info("Press a shortcut. Esc cancels.")
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            handleKeyDown(event)
-            return nil
-        }
-    }
-
-    private func handleKeyDown(_ event: NSEvent) {
-        if event.keyCode == UInt16(kVK_Escape) {
-            stopRecording()
-            message = nil
-            return
-        }
-
-        guard let recordedShortcut = AppShotKeyboardShortcut.recorded(from: event) else {
-            message = .warning("Use Command, Control, or Option with the key.")
-            return
-        }
-        if let validationMessage = AppShotKeyboardShortcut.validationMessage(
-            for: recordedShortcut,
-            currentShortcut: shortcut
-        ) {
-            message = .warning(validationMessage)
-            return
-        }
-
-        shortcut = recordedShortcut
-        stopRecording()
-        message = nil
-    }
-
-    private func stopRecording() {
-        if let keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-        }
-        keyMonitor = nil
-        isRecording = false
     }
 }
 
-private struct AppShotShortcutRecorderMessage: Equatable {
-    let text: String
+private struct AppShotPermissionRowPresentation: Equatable {
+    let title: String
+    let value: String
     let style: Color
+    let requestTitle: String?
+}
 
-    static func info(_ text: String) -> AppShotShortcutRecorderMessage {
-        AppShotShortcutRecorderMessage(text: text, style: .secondary)
+private struct AppShotPermissionRequestFrameReader: NSViewRepresentable {
+    @Binding var frameInScreen: CGRect
+
+    func makeNSView(context: Context) -> AppShotPermissionFrameView {
+        let view = AppShotPermissionFrameView()
+        view.onFrameChange = { frame in
+            frameInScreen = frame
+        }
+        return view
     }
 
-    static func warning(_ text: String) -> AppShotShortcutRecorderMessage {
-        AppShotShortcutRecorderMessage(text: text, style: .orange)
+    func updateNSView(_ nsView: AppShotPermissionFrameView, context: Context) {
+        nsView.onFrameChange = { frame in
+            frameInScreen = frame
+        }
+        nsView.updateFrameInScreen()
+    }
+}
+
+private final class AppShotPermissionFrameView: NSView {
+    var onFrameChange: ((CGRect) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateFrameInScreen()
+    }
+
+    override func layout() {
+        super.layout()
+        updateFrameInScreen()
+    }
+
+    func updateFrameInScreen() {
+        guard let window else {
+            return
+        }
+        onFrameChange?(window.convertToScreen(convert(bounds, to: nil)))
     }
 }
 
 private enum AppShotsSettingsHelp {
     static let enabled = "When enabled, Alveary can capture the last focused non-Alveary window and stage it in the selected conversation."
-    static let shortcut = "Record a regular key chord for system hot-key registration, or use the modifier-only shortcut. " +
+    static let shortcut = "Click the shortcut button to record a regular key chord, or restore the default shortcut. " +
         "Alveary rejects known conflicting shortcuts when macOS exposes the conflict."
 }

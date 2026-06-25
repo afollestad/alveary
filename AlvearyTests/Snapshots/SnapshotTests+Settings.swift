@@ -252,7 +252,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             AppShotsSettingsTabView(
                 appShotsEnabled: .constant(true),
-                appShotShortcut: .constant(.bothCommand),
+                appShotShortcut: .constant(.controlShiftS),
                 accessibilityAllowed: true,
                 keyboardMonitoringAllowed: false,
                 screenRecordingAllowed: false

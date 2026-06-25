@@ -54,7 +54,9 @@ extension ConversationViewModel {
         )
         let localUserMessageID = insertLocalUserMessage(
             outbound.visibleText,
-            into: dbConversation
+            into: dbConversation,
+            imageAttachments: outbound.attachments,
+            appShots: outbound.appShots
         ).id
 
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {

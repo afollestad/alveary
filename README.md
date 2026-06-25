@@ -78,7 +78,7 @@ Project trust state and provider MCP config reads/writes flow through `AgentCLIK
 
 Local images picked from the composer or dropped onto it are copied into Alveary-owned Application Support storage. Providers that report local image input receive those copies as attachments; providers without that capability keep the existing Markdown image-link fallback.
 
-App shots use Accessibility APIs plus ScreenCaptureKit to capture the last focused non-Alveary window for the selected conversation. Codex receives the screenshot through local image transport plus hidden AX tree text, while Claude receives hidden AX text with an absolute Markdown screenshot reference because Claude transport is text-only.
+App shots use Accessibility APIs plus ScreenCaptureKit to capture the last focused non-Alveary window for the selected conversation. Accessibility and Screen Recording are required for capture; the App Shots settings `Allow` action opens System Settings and shows a draggable Alveary app chip for privacy-list grants. If a debug build shows an enabled Alveary privacy row but app-shot permission checks still fail, remove the existing row or reset Alveary's TCC grants, then drag the rebuilt app back into the privacy list. The default shortcut is `⌃⇧S` so it avoids Codex's `⌘⌘` app-shot trigger and does not need Input Monitoring. Input Monitoring is only needed for legacy modifier-only `⌘⌘` shortcuts. Debug builds use `Config/CodeSigning/AlvearyDebugTCC.requirements` so local TCC grants survive rebuilds. Codex receives the screenshot through local image transport plus hidden AX tree text, while Claude receives hidden AX text with an absolute Markdown screenshot reference because Claude transport is text-only.
 
 ## Snapshot Tests
 

@@ -132,6 +132,7 @@ final class ConversationViewModel {
            conversation.thread?.permissionMode != "plan" {
             self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
         }
+        cleanupUnreferencedImageAttachments()
     }
 
     var needsSetup: Bool {
@@ -167,7 +168,12 @@ final class ConversationViewModel {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
-            let localMessage = insertLocalUserMessage(outbound.visibleText, into: dbConversation)
+            let localMessage = insertLocalUserMessage(
+                outbound.visibleText,
+                into: dbConversation,
+                imageAttachments: outbound.attachments,
+                appShots: outbound.appShots
+            )
             clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
             clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
             state.lastTurnInterrupted = false

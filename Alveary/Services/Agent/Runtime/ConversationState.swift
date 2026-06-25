@@ -156,6 +156,7 @@ final class ConversationState {
     var retryableFailedMessageProviderMetadata: [String: [String: AgentCLIKit.JSONValue]] = [:]
     var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
     var transcriptAppShots: [String: [AppShotAttachment]] = [:]
+    var appShotProviderSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
     var isGoalModeArmed = false
     var goalSnapshot: AgentGoalSnapshot?

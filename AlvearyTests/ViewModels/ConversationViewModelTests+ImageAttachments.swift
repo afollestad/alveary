@@ -45,6 +45,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.state.stagedImageAttachments.isEmpty)
         let userMessages = try fixture.userMessages()
         XCTAssertEqual(userMessages.map(\.content), ["Describe this"])
+        XCTAssertEqual(try XCTUnwrap(userMessages.first).persistedImageAttachments, [attachment])
         XCTAssertEqual(
             fixture.viewModel.state.transcriptImageAttachments[try XCTUnwrap(userMessages.first?.id)],
             [attachment]
@@ -183,6 +184,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(fixture.viewModel.state.stagedAppShots.isEmpty)
         let userMessage = try XCTUnwrap(try fixture.userMessages().first)
         XCTAssertEqual(userMessage.content, "Describe this window")
+        XCTAssertEqual(userMessage.persistedImageAttachments, [appShot.screenshot])
         XCTAssertEqual(fixture.viewModel.state.transcriptAppShots[userMessage.id], [appShot])
     }
 
@@ -342,6 +344,81 @@ extension ConversationViewModelTests {
             !FileManager.default.fileExists(atPath: removedAttachment.fileURL.path)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: sentAttachment.fileURL.path))
+    }
+
+    func testCleanupRetainsPersistedTranscriptImageAttachmentsAfterRuntimeStateReset() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DefaultConversationAttachmentStore(rootDirectory: root)
+        let fixture = try ConversationViewModelTestFixture(attachmentStore: store)
+        let retainedURL = store.conversationRootDirectory(conversationId: fixture.conversation.id)
+            .appendingPathComponent("persisted.png")
+        let removedURL = store.conversationRootDirectory(conversationId: fixture.conversation.id)
+            .appendingPathComponent("removed.png")
+        try FileManager.default.createDirectory(
+            at: retainedURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Self.pngHeaderData.write(to: retainedURL)
+        try Self.pngHeaderData.write(to: removedURL)
+        let retainedAttachment = LocalImageAttachment(
+            id: UUID().uuidString,
+            fileURL: retainedURL,
+            label: "persisted.png",
+            createdAt: Date()
+        )
+        let userMessage = ConversationEventRecord(
+            conversationId: fixture.conversation.id,
+            type: "message",
+            role: "user",
+            content: "Persisted image",
+            conversation: fixture.conversation
+        )
+        userMessage.persistedImageAttachments = [retainedAttachment]
+        fixture.context.insert(userMessage)
+        try fixture.context.save()
+
+        fixture.viewModel.cleanupUnreferencedImageAttachments(olderThan: 0)
+
+        try await waitUntil("unreferenced image attachment cleaned up") {
+            !FileManager.default.fileExists(atPath: removedURL.path)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retainedURL.path))
+    }
+
+    func testCleanupDoesNotDeleteOtherConversationAttachments() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DefaultConversationAttachmentStore(rootDirectory: root)
+        let fixture = try ConversationViewModelTestFixture(attachmentStore: store)
+        let otherConversationID = UUID().uuidString
+        let otherAttachmentURL = store.conversationRootDirectory(conversationId: otherConversationID)
+            .appendingPathComponent("other.png")
+        try FileManager.default.createDirectory(
+            at: otherAttachmentURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Self.pngHeaderData.write(to: otherAttachmentURL)
+
+        let removedAttachment = LocalImageAttachment(
+            id: UUID().uuidString,
+            fileURL: store.conversationRootDirectory(conversationId: fixture.conversation.id)
+                .appendingPathComponent("removed.png"),
+            label: "removed.png",
+            createdAt: Date()
+        )
+        try FileManager.default.createDirectory(
+            at: removedAttachment.fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Self.pngHeaderData.write(to: removedAttachment.fileURL)
+        fixture.viewModel.state.stagedImageAttachments = [removedAttachment]
+        fixture.viewModel.removeStagedImageAttachment(id: removedAttachment.id)
+
+        try await waitUntil("current conversation image cleaned up") {
+            !FileManager.default.fileExists(atPath: removedAttachment.fileURL.path)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: otherAttachmentURL.path))
     }
 }
 

@@ -27,7 +27,7 @@ protocol ConversationAttachmentStore: Sendable {
     func conversationRootDirectory(conversationId: String) -> URL
     func copyLocalImages(_ urls: [URL], conversationId: String) async throws -> [LocalImageAttachment]
     func storeAppShotScreenshot(_ data: Data, conversationId: String, label: String) async throws -> LocalImageAttachment
-    func cleanupUnreferenced(keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async
+    func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async
 }
 
 actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
@@ -93,10 +93,14 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
         )
     }
 
-    func cleanupUnreferenced(keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {
+    func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {
+        cleanupUnreferenced(in: directory(for: conversationId), keeping: retainedURLs, olderThan: age)
+    }
+
+    private func cleanupUnreferenced(in directory: URL, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) {
         let cutoff = Date().addingTimeInterval(-age)
         guard let enumerator = fileManager.enumerator(
-            at: rootDirectory,
+            at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey]
         ) else {
             return

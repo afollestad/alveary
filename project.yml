@@ -41,6 +41,9 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Debug:
+          OTHER_CODE_SIGN_FLAGS: "--requirements $(SRCROOT)/Config/CodeSigning/AlvearyDebugTCC.requirements"
     preBuildScripts:
       - name: Needle Code Generation
         basedOnDependencyAnalysis: false
