@@ -21,6 +21,7 @@ final class ConversationViewModel {
     let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
+    let attachmentStore: any ConversationAttachmentStore
     let threadActivityRecorder: any ThreadActivityRecording
     var subscriptionTask: Task<Void, Never>?
     static let maxRespawnAttempts = 2
@@ -105,6 +106,7 @@ final class ConversationViewModel {
         worktreeManager: WorktreeManager,
         providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
+        attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) {
         self.conversation = conversation
@@ -117,6 +119,7 @@ final class ConversationViewModel {
         self.worktreeManager = worktreeManager
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
+        self.attachmentStore = attachmentStore
         self.threadActivityRecorder = threadActivityRecorder
         self.state = runtimeStore.conversationState(for: conversation.id)
         if self.state.runtimePlanModeEnabled == nil {
@@ -141,7 +144,7 @@ final class ConversationViewModel {
         }
     }
 
-    func steer(_ message: String) async throws {
+    func steer(_ message: String, supportsLocalImageInput: Bool = true) async throws {
         guard !state.isNormalSteeringBlockedBySessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
@@ -154,18 +157,34 @@ final class ConversationViewModel {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
-            let localMessage = insertLocalUserMessage(message, into: dbConversation)
+            let outbound = OutboundMessageText(visibleText: message).resolvingImageAttachments(
+                state.stagedImageAttachments,
+                supportsLocalImageInput: supportsLocalImageInput,
+                fallbackText: fallbackText(visibleText:attachments:)
+            )
+            let localMessage = insertLocalUserMessage(outbound.visibleText, into: dbConversation)
+            clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
             state.lastTurnInterrupted = false
             state.isCancellingTurn = false
             state.lastTurnError = nil
             state.activeRuntimeActivityTurnId = nil
             do {
-                try await sendVisibleSteeringMessage(message, steeringInputID: localMessage.id)
+                try await sendVisibleSteeringMessage(
+                    outbound.transportText ?? outbound.visibleText,
+                    steeringInputID: localMessage.id,
+                    attachments: outbound.attachments
+                )
                 markVisibleTurnStarted()
                 state.turnState.beginTurn()
                 state.clearRetryableFailedMessage(id: localMessage.id)
+                state.markTranscriptImageAttachments(id: localMessage.id, attachments: outbound.attachments)
             } catch {
-                state.markRetryableFailedMessage(id: localMessage.id, stagedContext: nil)
+                state.markRetryableFailedMessage(
+                    id: localMessage.id,
+                    stagedContext: nil,
+                    transportText: outbound.transportText,
+                    attachments: outbound.attachments
+                )
                 state.lastTurnError = "Steer failed: \(error.localizedDescription)"
                 throw error
             }

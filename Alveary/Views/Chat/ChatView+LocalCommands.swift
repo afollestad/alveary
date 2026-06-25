@@ -279,11 +279,19 @@ extension ChatView {
                 if command.argument.isEmpty {
                     return
                 } else {
-                    try await viewModel.queueOrSend(command.argument, requiredPlanModeEnabled: requiredPlanModeEnabled)
+                    try await viewModel.queueOrSend(
+                        command.argument,
+                        requiredPlanModeEnabled: requiredPlanModeEnabled,
+                        supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
+                    )
                 }
             } catch {
                 let restoredText = didTogglePlanMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
+                if viewModel.state.stagedImageAttachments.isEmpty {
+                    viewModel.state.stagedImageAttachments = draft.attachments
+                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
                 }
@@ -301,11 +309,19 @@ extension ChatView {
                 if command.argument.isEmpty {
                     return
                 } else {
-                    try await viewModel.queueOrSend(command.argument, requiredSpeedMode: .fast)
+                    try await viewModel.queueOrSend(
+                        command.argument,
+                        requiredSpeedMode: .fast,
+                        supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
+                    )
                 }
             } catch {
                 let restoredText = didEnableFastMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
+                if viewModel.state.stagedImageAttachments.isEmpty {
+                    viewModel.state.stagedImageAttachments = draft.attachments
+                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
                 }

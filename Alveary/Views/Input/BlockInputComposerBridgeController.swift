@@ -15,6 +15,7 @@ struct BlockInputComposerBridgeConfiguration {
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: BlockInputEditorChromeCorners
     var location: BlockInputComposerLocation
+    var imagePreviewAttachments: [BlockInputImagePreviewAttachment]
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     var loadFileCompletions: @Sendable () async -> [String]
@@ -22,6 +23,7 @@ struct BlockInputComposerBridgeConfiguration {
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
     var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
     var modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)?
+    var fileDropHandler: BlockInputFileDropHandler?
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightTransition: @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void
@@ -37,6 +39,7 @@ struct BlockInputComposerBridgeConfiguration {
         editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
         location: BlockInputComposerLocation,
+        imagePreviewAttachments: [BlockInputImagePreviewAttachment] = [],
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         loadFileCompletions: @escaping @Sendable () async -> [String],
@@ -44,6 +47,7 @@ struct BlockInputComposerBridgeConfiguration {
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
+        fileDropHandler: BlockInputFileDropHandler? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onPreferredHeightTransition: @escaping @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void = { _ in }
@@ -58,6 +62,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.editorVerticalInset = editorVerticalInset
         self.editorRoundedCorners = editorRoundedCorners
         self.location = location
+        self.imagePreviewAttachments = imagePreviewAttachments
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
         self.loadFileCompletions = loadFileCompletions
@@ -65,6 +70,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.keyboardShortcuts = keyboardShortcuts
         self.completionPopupOverlayProvider = completionPopupOverlayProvider
         self.modalOverlayProvider = modalOverlayProvider
+        self.fileDropHandler = fileDropHandler
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightTransition = onPreferredHeightTransition
@@ -185,12 +191,14 @@ final class BlockInputComposerBridgeController {
                 }
             ),
             imagePresentation: configuration.imagePresentation,
+            imagePreviewAttachments: configuration.imagePreviewAttachments,
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,
             undoController: undoController,
             commandDispatcher: commandDispatcher,
             keyboardShortcuts: keyboardShortcuts(for: configuration),
             completionProvider: completionProvider,
+            fileDropHandler: configuration.fileDropHandler,
             completionReturnBehavior: .passthroughExactMatch,
             slashCommandAvailability: .documentStart,
             modalOverlayProvider: { [weak self] context in
@@ -292,8 +300,10 @@ final class BlockInputComposerBridgeController {
             editorVerticalInset: configuration.editorVerticalInset,
             editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
             location: configuration.location,
+            imagePreviewAttachments: configuration.imagePreviewAttachments.map(ImagePreviewAttachmentKey.init),
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,
+            hasFileDropHandler: configuration.fileDropHandler != nil,
             keyboardShortcuts: Set(configuration.keyboardShortcuts.keys)
         )
     }
@@ -308,7 +318,21 @@ private struct BridgeViewConfigKey: Equatable {
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: Int
     var location: BlockInputComposerLocation
+    var imagePreviewAttachments: [ImagePreviewAttachmentKey]
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
+    var hasFileDropHandler: Bool
     var keyboardShortcuts: Set<BlockInputKeyboardShortcut>
+}
+
+private struct ImagePreviewAttachmentKey: Equatable {
+    var id: String
+    var fileURL: URL
+    var label: String
+
+    init(_ attachment: BlockInputImagePreviewAttachment) {
+        id = attachment.id
+        fileURL = attachment.fileURL
+        label = attachment.label
+    }
 }

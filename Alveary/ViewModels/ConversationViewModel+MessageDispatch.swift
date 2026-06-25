@@ -10,6 +10,7 @@ extension ConversationViewModel {
         _ message: String,
         transportText: String? = nil,
         initialGoal: String? = nil,
+        attachments: [LocalImageAttachment] = [],
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -30,7 +31,7 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
-        try await sendVisibleAgentMessage(transportMessage, initialGoal: initialGoal)
+        try await sendVisibleAgentMessage(transportMessage, initialGoal: initialGoal, attachments: attachments)
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
@@ -54,7 +55,11 @@ extension ConversationViewModel {
         return message
     }
 
-    func sendVisibleAgentMessage(_ message: String, initialGoal: String? = nil) async throws {
+    func sendVisibleAgentMessage(
+        _ message: String,
+        initialGoal: String? = nil,
+        attachments: [LocalImageAttachment] = []
+    ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
             if let initialGoal = initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -63,10 +68,16 @@ extension ConversationViewModel {
                     message,
                     initialGoal: initialGoal,
                     conversationId: conversation.id,
-                    activityVisibility: .visible
+                    activityVisibility: .visible,
+                    attachments: attachments
                 )
             } else {
-                try await agentsManager.sendMessage(message, conversationId: conversation.id)
+                try await agentsManager.sendMessage(
+                    message,
+                    conversationId: conversation.id,
+                    activityVisibility: .visible,
+                    attachments: attachments
+                )
             }
         } catch {
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
@@ -74,13 +85,18 @@ extension ConversationViewModel {
         }
     }
 
-    func sendVisibleSteeringMessage(_ message: String, steeringInputID: String) async throws {
+    func sendVisibleSteeringMessage(
+        _ message: String,
+        steeringInputID: String,
+        attachments: [LocalImageAttachment] = []
+    ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
             try await agentsManager.sendSteeringMessage(
                 message,
                 conversationId: conversation.id,
-                steeringInputID: steeringInputID
+                steeringInputID: steeringInputID,
+                attachments: attachments
             )
         } catch {
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
@@ -109,39 +125,50 @@ extension ConversationViewModel {
         }
 
         do {
-            try await withOutboundReservation {
-                guard let queuedMessage = state.messageQueue.remove(id: id),
-                      let dbConversation = dbConversation() else {
-                    throw AgentError.spawnFailed("Conversation no longer exists")
-                }
-
-                let transportMessage = buildTransportMessage(
-                    message: queuedMessage.text,
-                    stagedContext: queuedMessage.stagedContext
-                )
-                let localMessage = insertLocalUserMessage(
-                    queuedMessage.text,
-                    into: dbConversation
-                )
-                localMessageID = localMessage.id
-
-                state.lastTurnInterrupted = false
-                state.isCancellingTurn = false
-                state.lastTurnError = nil
-                state.activeRuntimeActivityTurnId = nil
-                try await sendVisibleSteeringMessage(transportMessage, steeringInputID: localMessage.id)
-                markVisibleTurnStarted()
-                state.turnState.beginTurn()
-                clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
-                state.clearRetryableFailedMessage(id: localMessage.id)
-                state.respawnAttempts = 0
-            }
+            try await performQueuedSteer(id: id) { localMessageID = $0 }
         } catch {
             if let localMessageID {
-                state.markRetryableFailedMessage(id: localMessageID, stagedContext: queuedMessage.stagedContext)
+                state.markRetryableFailedMessage(
+                    id: localMessageID,
+                    stagedContext: queuedMessage.stagedContext,
+                    transportText: queuedMessage.transportText,
+                    attachments: queuedMessage.attachments
+                )
             }
             state.lastTurnError = "Steer failed: \(error.localizedDescription)"
             throw error
+        }
+    }
+
+    func performQueuedSteer(id: UUID, onLocalMessageInserted: (String) -> Void) async throws {
+        try await withOutboundReservation {
+            guard let queuedMessage = state.messageQueue.remove(id: id),
+                  let dbConversation = dbConversation() else {
+                throw AgentError.spawnFailed("Conversation no longer exists")
+            }
+
+            let transportMessage = buildTransportMessage(
+                message: queuedMessage.transportText ?? queuedMessage.text,
+                stagedContext: queuedMessage.stagedContext
+            )
+            let localMessage = insertLocalUserMessage(queuedMessage.text, into: dbConversation)
+            onLocalMessageInserted(localMessage.id)
+
+            state.lastTurnInterrupted = false
+            state.isCancellingTurn = false
+            state.lastTurnError = nil
+            state.activeRuntimeActivityTurnId = nil
+            try await sendVisibleSteeringMessage(
+                transportMessage,
+                steeringInputID: localMessage.id,
+                attachments: queuedMessage.attachments
+            )
+            markVisibleTurnStarted()
+            state.turnState.beginTurn()
+            clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
+            state.clearRetryableFailedMessage(id: localMessage.id)
+            state.markTranscriptImageAttachments(id: localMessage.id, attachments: queuedMessage.attachments)
+            state.respawnAttempts = 0
         }
     }
 
@@ -279,7 +306,7 @@ private extension ConversationViewModel {
         guard queuedMessage.requiredSpeedMode == nil else {
             throw AgentError.spawnFailed("Speed-mode queued messages send on the next turn")
         }
-        guard queuedMessage.transportText == nil else {
+        guard queuedMessage.transportText == nil || queuedMessage.consumedExitPlanModeRevisionGuidance == nil else {
             throw AgentError.spawnFailed("Plan feedback queued messages send on the next turn")
         }
         return queuedMessage
@@ -333,7 +360,8 @@ private extension ConversationViewModel {
                     state.markRetryableFailedMessage(
                         id: localMessageID,
                         stagedContext: resolvedStagedContext.stagedContext,
-                        transportText: transportText
+                        transportText: transportText,
+                        attachments: queuedMessage.attachments
                     )
                 }
                 throw error
@@ -350,6 +378,7 @@ private extension ConversationViewModel {
         try await deliverMessageReserved(
             queuedMessage.text,
             transportTextOverride: transportText,
+            attachments: queuedMessage.attachments,
             consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContext,
             useCurrentStagedContextWhenOverrideNil: false,

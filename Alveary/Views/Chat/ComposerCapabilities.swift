@@ -7,6 +7,7 @@ struct ComposerCapabilities: Sendable {
     var supportsExistingSessionGoalStart = false
     var supportsPlanMode = false
     var supportsSpeedMode = false
+    var supportsLocalImageInput = false
     var goalModeDisabledTooltip: String?
     var planModeDisabledTooltip: String?
 }

@@ -76,6 +76,8 @@ Context-window usage keeps provider cache semantics distinct: Claude cache-read 
 
 Project trust state and provider MCP config reads/writes flow through `AgentCLIKit`. Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
 
+Local images picked from the composer or dropped onto it are copied into Alveary-owned Application Support storage. Providers that report local image input receive those copies as attachments; providers without that capability keep the existing Markdown image-link fallback.
+
 ## Snapshot Tests
 
 Verify the full snapshot suite:

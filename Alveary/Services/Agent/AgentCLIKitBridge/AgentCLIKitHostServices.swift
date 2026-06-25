@@ -48,8 +48,15 @@ struct AgentCLIKitHostAdapter: Sendable {
             initialGoal: config.initialGoal,
             sessionFork: config.sessionFork.map(AgentCLIKit.AgentSessionForkRequest.init(alvearyRequest:)),
             forkSession: forkSession,
-            initialPrompt: config.initialPrompt
+            initialPrompt: config.initialPrompt,
+            initialPromptAttachments: config.initialPromptAttachments.map(AgentCLIKit.AgentInputAttachment.init(localImageAttachment:))
         )
+    }
+}
+
+extension AgentCLIKit.AgentInputAttachment {
+    init(localImageAttachment attachment: LocalImageAttachment) {
+        self = .localImage(id: attachment.id, fileURL: attachment.fileURL)
     }
 }
 

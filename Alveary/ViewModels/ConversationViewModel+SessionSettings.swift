@@ -14,6 +14,7 @@ extension ConversationViewModel {
     func makeSpawnConfig(
         workingDirectory overrideWorkingDirectory: String? = nil,
         initialPrompt: String? = nil,
+        initialPromptAttachments: [LocalImageAttachment] = [],
         initialGoal: String? = nil,
         settingsSource: SessionSettingsConfigSource = .nextTurn
     ) throws -> AgentSpawnConfig {
@@ -47,6 +48,7 @@ extension ConversationViewModel {
             reasoningSummaryMode: providerId == "codex" ? .concise : nil,
             speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
             initialPrompt: initialPrompt,
+            initialPromptAttachments: initialPromptAttachments,
             initialGoal: initialGoal
         )
     }

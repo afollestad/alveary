@@ -5,12 +5,14 @@ extension DefaultAgentsManager {
     func sendMessage(
         _ message: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
-            activityVisibility: activityVisibility
+            activityVisibility: activityVisibility,
+            attachments: attachments
         )
     }
 
@@ -18,25 +20,29 @@ extension DefaultAgentsManager {
         _ message: String,
         initialGoal: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws {
         try await sendGoalStartMessageWithAgentCLIKit(
             message,
             initialGoal: initialGoal,
             conversationId: conversationId,
-            activityVisibility: activityVisibility
+            activityVisibility: activityVisibility,
+            attachments: attachments
         )
     }
 
     func sendSteeringMessage(
         _ message: String,
         conversationId: String,
-        steeringInputID: String
+        steeringInputID: String,
+        attachments: [LocalImageAttachment]
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
             activityVisibility: .visible,
+            attachments: attachments,
             metadata: [
                 AgentCLIKit.AgentSteeringMetadata.isSteering: .bool(true),
                 AgentCLIKit.AgentSteeringMetadata.inputId: .string(steeringInputID)

@@ -30,14 +30,25 @@ enum AgentOutboundReadiness: Sendable, Equatable {
 protocol AgentsManager: Actor {
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws
     func subscribe(conversationId: String, afterIndex: Int) -> AgentEventSubscription?
-    func sendMessage(_ message: String, conversationId: String, activityVisibility: AgentTurnActivityVisibility) async throws
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
+    ) async throws
     func sendGoalStartMessage(
         _ message: String,
         initialGoal: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws
-    func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws
+    func sendSteeringMessage(
+        _ message: String,
+        conversationId: String,
+        steeringInputID: String,
+        attachments: [LocalImageAttachment]
+    ) async throws
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
     func recordToolApprovalSelection(
@@ -68,8 +79,22 @@ protocol AgentsManager: Actor {
 }
 
 extension AgentsManager {
+    func sendMessage(_ message: String, conversationId: String, activityVisibility: AgentTurnActivityVisibility) async throws {
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: activityVisibility, attachments: [])
+    }
+
     func sendMessage(_ message: String, conversationId: String) async throws {
-        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible)
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible, attachments: [])
+    }
+
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
+    ) async throws {
+        throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
     }
 
     func sendGoalStartMessage(
@@ -78,11 +103,26 @@ extension AgentsManager {
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility
     ) async throws {
-        throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
+        try await sendGoalStartMessage(
+            message,
+            initialGoal: initialGoal,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility,
+            attachments: []
+        )
+    }
+
+    func sendSteeringMessage(
+        _ message: String,
+        conversationId: String,
+        steeringInputID: String,
+        attachments: [LocalImageAttachment]
+    ) async throws {
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible, attachments: attachments)
     }
 
     func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws {
-        try await sendMessage(message, conversationId: conversationId)
+        try await sendSteeringMessage(message, conversationId: conversationId, steeringInputID: steeringInputID, attachments: [])
     }
 
     func spawn(id: String, config: AgentSpawnConfig) async throws {

@@ -69,7 +69,7 @@ final class BlockInputComposerStyleTests: XCTestCase {
         try assertColor(
             stripBackgroundColor,
             appearanceName: .darkAqua,
-            matches: NSColor(calibratedWhite: 0.1568627451, alpha: 1)
+            matches: NSColor(calibratedWhite: 0.1176470588, alpha: 1)
         )
         XCTAssertEqual(strip.borderColor, BlockInputComposerStyle.imagePreviewBorderColor)
         XCTAssertEqual(strip.borderWidth, BlockInputComposerStyle.imagePreviewBorderWidth)

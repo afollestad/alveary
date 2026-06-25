@@ -14,6 +14,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let speedMode: AgentSpeedMode?
     let sessionFork: AgentSessionForkRequest?
     let initialPrompt: String?
+    let initialPromptAttachments: [LocalImageAttachment]
     let initialGoal: String?
 
     init(
@@ -27,6 +28,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         speedMode: AgentSpeedMode? = nil,
         sessionFork: AgentSessionForkRequest? = nil,
         initialPrompt: String? = nil,
+        initialPromptAttachments: [LocalImageAttachment] = [],
         initialGoal: String? = nil
     ) {
         self.providerId = providerId
@@ -39,6 +41,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.speedMode = speedMode
         self.sessionFork = sessionFork
         self.initialPrompt = initialPrompt
+        self.initialPromptAttachments = initialPromptAttachments
         self.initialGoal = initialGoal
     }
 }

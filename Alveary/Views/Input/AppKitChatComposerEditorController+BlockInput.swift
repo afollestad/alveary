@@ -28,6 +28,7 @@ extension AppKitChatComposerEditorController {
             editorVerticalInset: Self.editorVerticalPadding,
             editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
+            imagePreviewAttachments: configuration.imagePreviewAttachments,
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,
             loadFileCompletions: configuration.loadFileCompletions,
@@ -39,6 +40,7 @@ extension AppKitChatComposerEditorController {
             modalOverlayProvider: { [weak self] context in
                 self?.blockInputModalOverlay(context: context)
             },
+            fileDropHandler: configuration.fileDropHandler,
             onDocumentMutation: { _, isEffectivelyEmpty in
                 configuration.onBlockInputMutation(isEffectivelyEmpty)
             },

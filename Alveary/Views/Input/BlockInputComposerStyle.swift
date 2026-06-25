@@ -24,7 +24,7 @@ enum BlockInputComposerStyle {
     static let imagePreviewStripBackgroundColor = NSColor(name: nil) { appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
-            return NSColor(calibratedWhite: 0.1568627451, alpha: 1)
+            return NSColor(calibratedWhite: 0.1176470588, alpha: 1)
         default:
             return NSColor.underPageBackgroundColor.resolved(for: appearance)
         }

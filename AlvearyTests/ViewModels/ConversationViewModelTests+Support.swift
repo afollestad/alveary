@@ -10,6 +10,7 @@ enum FixtureError: Error {
     case missingConversation
 }
 
+// swiftlint:disable:next type_body_length
 actor MockAgentsManager: AgentsManager {
     enum MockError: Error, Sendable, Equatable { case sendFailed, stdinClosed, reconfigureFailed, approvalFailed }
 
@@ -31,10 +32,45 @@ actor MockAgentsManager: AgentsManager {
 
     struct SubscribeCall: Sendable, Equatable { let conversationId: String; let afterIndex: Int }
 
-    struct SteeringCall: Sendable, Equatable { let message: String; let conversationId: String; let steeringInputID: String }
+    struct SteeringCall: Sendable, Equatable {
+        let message: String
+        let conversationId: String
+        let steeringInputID: String
+        let attachments: [LocalImageAttachment]
+
+        init(
+            message: String,
+            conversationId: String,
+            steeringInputID: String,
+            attachments: [LocalImageAttachment] = []
+        ) {
+            self.message = message
+            self.conversationId = conversationId
+            self.steeringInputID = steeringInputID
+            self.attachments = attachments
+        }
+    }
 
     struct GoalStartCall: Sendable, Equatable {
-        let message: String; let initialGoal: String; let conversationId: String; let activityVisibility: AgentTurnActivityVisibility
+        let message: String
+        let initialGoal: String
+        let conversationId: String
+        let activityVisibility: AgentTurnActivityVisibility
+        let attachments: [LocalImageAttachment]
+
+        init(
+            message: String,
+            initialGoal: String,
+            conversationId: String,
+            activityVisibility: AgentTurnActivityVisibility,
+            attachments: [LocalImageAttachment] = []
+        ) {
+            self.message = message
+            self.initialGoal = initialGoal
+            self.conversationId = conversationId
+            self.activityVisibility = activityVisibility
+            self.attachments = attachments
+        }
     }
 
     struct ExistingGoalStartCall: Sendable, Equatable {
@@ -78,6 +114,7 @@ actor MockAgentsManager: AgentsManager {
     private var pausesNextRefreshStatus = false
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
+    private var recordedSentAttachments: [[LocalImageAttachment]] = []
     private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
     private var recordedGoalStartCalls: [GoalStartCall] = []
     private var recordedExistingGoalStartCalls: [ExistingGoalStartCall] = []
@@ -146,7 +183,8 @@ actor MockAgentsManager: AgentsManager {
     func sendMessage(
         _ message: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws {
         if failsSendWhenCurrentTaskIsCancelled, Task.isCancelled { throw CancellationError() }
         if !queuedSendResults.isEmpty {
@@ -154,6 +192,7 @@ actor MockAgentsManager: AgentsManager {
             switch result {
             case .success:
                 recordedSentMessages.append(message)
+                recordedSentAttachments.append(attachments)
                 recordedSendVisibilities.append(activityVisibility)
                 return
             case .failure(let error):
@@ -168,6 +207,7 @@ actor MockAgentsManager: AgentsManager {
             throw sendError
         }
         recordedSentMessages.append(message)
+        recordedSentAttachments.append(attachments)
         recordedSendVisibilities.append(activityVisibility)
     }
 
@@ -175,27 +215,41 @@ actor MockAgentsManager: AgentsManager {
         _ message: String,
         initialGoal: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws {
-        try await sendMessage(message, conversationId: conversationId, activityVisibility: activityVisibility)
+        try await sendMessage(
+            message,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility,
+            attachments: attachments
+        )
         recordedGoalStartCalls.append(GoalStartCall(
             message: message,
             initialGoal: initialGoal,
             conversationId: conversationId,
-            activityVisibility: activityVisibility
+            activityVisibility: activityVisibility,
+            attachments: attachments
         ))
     }
 
     func sendSteeringMessage(
         _ message: String,
         conversationId: String,
-        steeringInputID: String
+        steeringInputID: String,
+        attachments: [LocalImageAttachment]
     ) async throws {
-        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible)
+        try await sendMessage(
+            message,
+            conversationId: conversationId,
+            activityVisibility: .visible,
+            attachments: attachments
+        )
         recordedSteeringCalls.append(SteeringCall(
             message: message,
             conversationId: conversationId,
-            steeringInputID: steeringInputID
+            steeringInputID: steeringInputID,
+            attachments: attachments
         ))
     }
 
@@ -419,6 +473,7 @@ actor MockAgentsManager: AgentsManager {
     }
 
     func sentMessages() -> [String] { recordedSentMessages }
+    func sentAttachments() -> [[LocalImageAttachment]] { recordedSentAttachments }
     func sendVisibilities() -> [AgentTurnActivityVisibility] { recordedSendVisibilities }
     func goalStartCalls() -> [GoalStartCall] { recordedGoalStartCalls }
     func existingGoalStartCalls() -> [ExistingGoalStartCall] { recordedExistingGoalStartCalls }

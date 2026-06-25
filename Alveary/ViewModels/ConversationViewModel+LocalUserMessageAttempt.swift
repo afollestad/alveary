@@ -7,6 +7,7 @@ struct LocalUserMessageAttempt {
     let id: String
     let stagedContext: String?
     let transportText: String?
+    let attachments: [LocalImageAttachment]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     let insertedMessage: Bool
     let metadata: LocalUserMessageAttemptMetadata?

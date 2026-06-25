@@ -16,6 +16,7 @@ final class AppKitTranscriptRowFactory {
         var expandedRowIDs: Set<String> = []
         var pendingToolApproval: PendingToolApproval?
         var retryableFailedMessageIDs: Set<String> = []
+        var imageAttachmentsByUserMessageID: [String: [LocalImageAttachment]] = [:]
         var hasUnansweredPrompt = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
@@ -56,7 +57,12 @@ final class AppKitTranscriptRowFactory {
     func layoutRows(for item: ChatItem, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
         switch item {
         case .userMessage(let id, let text):
-            return [textBubbleRow(id: id, role: .user, markdown: text, configuration: configuration)]
+            return [textBubbleRow(
+                id: id,
+                role: .user,
+                markdown: userMessageMarkdown(id: id, text: text, configuration: configuration),
+                configuration: configuration
+            )]
         case .assistantMessage(let id, let text):
             return [textBubbleRow(id: id, role: .assistant, markdown: text, configuration: configuration)]
         case .toolGroup(let id, let tools):
@@ -426,5 +432,24 @@ final class AppKitTranscriptRowFactory {
         {
             configuration.onRowHeightInvalidated(rowID, animatesLayoutChanges)
         }
+    }
+}
+
+extension AppKitTranscriptRowFactory {
+    func userMessageMarkdown(
+        id: String,
+        text: String,
+        configuration: Configuration
+    ) -> String {
+        guard let attachments = configuration.imageAttachmentsByUserMessageID[id],
+              !attachments.isEmpty else {
+            return text
+        }
+
+        let attachmentMarkdown = attachments.map(\.markdownImageLink).joined(separator: "\n")
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return attachmentMarkdown
+        }
+        return attachmentMarkdown + "\n\n" + text
     }
 }

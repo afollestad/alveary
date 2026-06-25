@@ -1,6 +1,12 @@
 import BlockInputKit
 import Foundation
 
+enum LocalFileSelectionResult: Equatable {
+    case useDefault
+    case handled
+    case insertDefault([URL])
+}
+
 /// Composer state and callbacks consumed by the native AppKit body.
 ///
 /// Keep this as a value boundary between `ChatView` state and AppKit rendering:
@@ -25,6 +31,7 @@ struct AppKitChatComposerBodyConfiguration {
     let hasQueuedMessages: Bool
     let hasTopContent: Bool
     let workingDirectory: String?
+    let imagePreviewAttachments: [BlockInputImagePreviewAttachment]
     let localCommands: ComposerLocalCommandAvailability
     let passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     let requestFirstResponder: UUID?
@@ -32,6 +39,8 @@ struct AppKitChatComposerBodyConfiguration {
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let onBlockInputMutation: (Bool) -> Void
     let onBlockInputDocumentChange: (BlockInputDocument) -> Void
+    let fileDropHandler: BlockInputFileDropHandler?
+    let onLocalFileURLsSelected: @MainActor ([URL]) async -> LocalFileSelectionResult
     let onDraftSnapshotProviderChange: (ComposerDraftSnapshotProvider?) -> Void
     let onSubmit: () -> Void
     let onSteer: () -> Void
@@ -59,6 +68,7 @@ struct AppKitChatComposerBodyConfiguration {
         hasQueuedMessages: Bool,
         hasTopContent: Bool,
         workingDirectory: String?,
+        imagePreviewAttachments: [BlockInputImagePreviewAttachment] = [],
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         requestFirstResponder: UUID?,
@@ -66,6 +76,8 @@ struct AppKitChatComposerBodyConfiguration {
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         onBlockInputMutation: @escaping (Bool) -> Void = { _ in },
         onBlockInputDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
+        fileDropHandler: BlockInputFileDropHandler? = nil,
+        onLocalFileURLsSelected: @escaping @MainActor ([URL]) async -> LocalFileSelectionResult = { _ in .useDefault },
         onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
         onSubmit: @escaping () -> Void,
         onSteer: @escaping () -> Void,
@@ -92,6 +104,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.hasQueuedMessages = hasQueuedMessages
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory
+        self.imagePreviewAttachments = imagePreviewAttachments
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
         self.requestFirstResponder = requestFirstResponder
@@ -99,6 +112,8 @@ struct AppKitChatComposerBodyConfiguration {
         self.loadSkillCompletions = loadSkillCompletions
         self.onBlockInputMutation = onBlockInputMutation
         self.onBlockInputDocumentChange = onBlockInputDocumentChange
+        self.fileDropHandler = fileDropHandler
+        self.onLocalFileURLsSelected = onLocalFileURLsSelected
         self.onDraftSnapshotProviderChange = onDraftSnapshotProviderChange
         self.onSubmit = onSubmit
         self.onSteer = onSteer

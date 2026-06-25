@@ -362,10 +362,10 @@ struct ConversationViewModelTestFixture {
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
         providerId: String = "claude",
+        attachmentStore: (any ConversationAttachmentStore)? = nil,
         threadActivityRecorder: (any ThreadActivityRecording)? = nil
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
-
         let project = Self.makeProject(isGitRepository: projectIsGitRepository)
         let thread = AgentThread(
             name: threadName,
@@ -378,7 +378,6 @@ struct ConversationViewModelTestFixture {
         conversation.pendingRestoreContext = pendingRestoreContext
         project.threads.append(thread); thread.conversations.append(conversation)
         context.insert(project); try context.save()
-
         let settingsService = InMemorySettingsService(current: Self.testSettings())
         let agentsManager = MockAgentsManager(
             isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
@@ -406,9 +405,9 @@ struct ConversationViewModelTestFixture {
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
+            attachmentStore: attachmentStore ?? DefaultConversationAttachmentStore(),
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder()
         )
-
         self.container = container; self.context = context; self.project = project; self.thread = thread
         self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
         self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.providerSetup = providerSetup

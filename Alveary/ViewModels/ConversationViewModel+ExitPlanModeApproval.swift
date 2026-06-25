@@ -419,16 +419,48 @@ extension ConversationViewModel {
 struct OutboundMessageText: Equatable, Sendable {
     let visibleText: String
     let transportText: String?
+    let attachments: [LocalImageAttachment]
+    let consumedAttachments: [LocalImageAttachment]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
 
     init(
         visibleText: String,
         transportText: String? = nil,
+        attachments: [LocalImageAttachment] = [],
+        consumedAttachments: [LocalImageAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         self.visibleText = visibleText
         self.transportText = transportText
+        self.attachments = attachments
+        self.consumedAttachments = consumedAttachments
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
+    }
+
+    func resolvingImageAttachments(
+        _ stagedAttachments: [LocalImageAttachment],
+        supportsLocalImageInput: Bool,
+        fallbackText: (String, [LocalImageAttachment]) -> String
+    ) -> OutboundMessageText {
+        guard !stagedAttachments.isEmpty else {
+            return self
+        }
+        if supportsLocalImageInput {
+            return OutboundMessageText(
+                visibleText: visibleText,
+                transportText: transportText,
+                attachments: stagedAttachments,
+                consumedAttachments: stagedAttachments,
+                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            )
+        }
+
+        return OutboundMessageText(
+            visibleText: fallbackText(visibleText, stagedAttachments),
+            transportText: transportText.map { fallbackText($0, stagedAttachments) },
+            consumedAttachments: stagedAttachments,
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+        )
     }
 }
 

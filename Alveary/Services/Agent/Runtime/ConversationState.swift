@@ -109,6 +109,7 @@ final class ConversationState {
     var hasRecordedLocalTurnEndActivity = false
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
+    var stagedImageAttachments: [LocalImageAttachment] = []
     var inputDraftRevision = 0
     var inputDraftDirtyRevision = 0
     var inputDraftIsEffectivelyEmpty = true
@@ -149,6 +150,8 @@ final class ConversationState {
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]
     var retryableFailedMessageTransportTexts: [String: String] = [:]
+    var retryableFailedMessageAttachments: [String: [LocalImageAttachment]] = [:]
+    var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
     var pendingSyntheticAssistantDuplicateText: String?
     var isGoalModeArmed = false
     var goalSnapshot: AgentGoalSnapshot?
@@ -234,7 +237,12 @@ final class ConversationState {
         isSessionHandoffSeedTurnActive = false
     }
 
-    func markRetryableFailedMessage(id: String, stagedContext: String?, transportText: String? = nil) {
+    func markRetryableFailedMessage(
+        id: String,
+        stagedContext: String?,
+        transportText: String? = nil,
+        attachments: [LocalImageAttachment] = []
+    ) {
         retryableFailedMessageIDs.insert(id)
         if let stagedContext {
             retryableFailedMessageStagedContexts[id] = stagedContext
@@ -246,12 +254,26 @@ final class ConversationState {
         } else {
             retryableFailedMessageTransportTexts.removeValue(forKey: id)
         }
+        if attachments.isEmpty {
+            retryableFailedMessageAttachments.removeValue(forKey: id)
+        } else {
+            retryableFailedMessageAttachments[id] = attachments
+        }
     }
 
     func clearRetryableFailedMessage(id: String) {
         retryableFailedMessageIDs.remove(id)
         retryableFailedMessageStagedContexts.removeValue(forKey: id)
         retryableFailedMessageTransportTexts.removeValue(forKey: id)
+        retryableFailedMessageAttachments.removeValue(forKey: id)
+    }
+
+    func markTranscriptImageAttachments(id: String, attachments: [LocalImageAttachment]) {
+        if attachments.isEmpty {
+            transcriptImageAttachments.removeValue(forKey: id)
+        } else {
+            transcriptImageAttachments[id] = attachments
+        }
     }
 
     func visibleGoalSnapshot() -> AgentGoalSnapshot? {

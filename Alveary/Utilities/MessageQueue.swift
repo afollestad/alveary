@@ -9,6 +9,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     let requiredSpeedMode: AgentSpeedMode?
     /// Provider-facing text for delivery; local UI and transcript must keep using `text`.
     let transportText: String?
+    let attachments: [LocalImageAttachment]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
 
     init(
@@ -18,6 +19,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         requiredPlanModeEnabled: Bool? = nil,
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
+        attachments: [LocalImageAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         self.id = id
@@ -26,6 +28,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         self.requiredPlanModeEnabled = requiredPlanModeEnabled
         self.requiredSpeedMode = requiredSpeedMode
         self.transportText = transportText
+        self.attachments = attachments
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
     }
 }
@@ -41,6 +44,7 @@ final class MessageQueue {
         requiredPlanModeEnabled: Bool? = nil,
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
+        attachments: [LocalImageAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.append(QueuedMessage(
@@ -49,6 +53,7 @@ final class MessageQueue {
             requiredPlanModeEnabled: requiredPlanModeEnabled,
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
+            attachments: attachments,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ))
     }
@@ -59,6 +64,7 @@ final class MessageQueue {
         requiredPlanModeEnabled: Bool? = nil,
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
+        attachments: [LocalImageAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.insert(QueuedMessage(
@@ -67,6 +73,7 @@ final class MessageQueue {
             requiredPlanModeEnabled: requiredPlanModeEnabled,
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
+            attachments: attachments,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ), at: 0)
     }
@@ -97,7 +104,8 @@ final class MessageQueue {
                 text: message.text,
                 stagedContext: message.stagedContext,
                 requiredPlanModeEnabled: nil,
-                requiredSpeedMode: message.requiredSpeedMode
+                requiredSpeedMode: message.requiredSpeedMode,
+                attachments: message.attachments
             )
         }
     }

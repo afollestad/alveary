@@ -6,23 +6,29 @@ typealias ComposerDraftSnapshotProvider = @MainActor @Sendable () -> ComposerDra
 struct ComposerDraft: Equatable, Sendable {
     let text: String
     let source: ComposerDraftSource
-    private let cachedIsEffectivelyEmpty: Bool?
+    let attachments: [LocalImageAttachment]
+    private let cachedTextIsEffectivelyEmpty: Bool?
 
     init(
         text: String,
         source: ComposerDraftSource,
+        attachments: [LocalImageAttachment] = [],
         isEffectivelyEmpty: Bool? = nil
     ) {
         self.text = text
         self.source = source
-        cachedIsEffectivelyEmpty = isEffectivelyEmpty
+        self.attachments = attachments
+        cachedTextIsEffectivelyEmpty = isEffectivelyEmpty
     }
 
     var isEffectivelyEmpty: Bool {
-        if let cachedIsEffectivelyEmpty {
-            return cachedIsEffectivelyEmpty
-        }
+        attachments.isEmpty && textIsEffectivelyEmpty
+    }
 
+    var textIsEffectivelyEmpty: Bool {
+        if let cachedTextIsEffectivelyEmpty {
+            return cachedTextIsEffectivelyEmpty
+        }
         switch source {
         case .legacyText:
             return ChatComposerTextSupport.isEffectivelyEmpty(text)
@@ -34,11 +40,21 @@ struct ComposerDraft: Equatable, Sendable {
     var messageText: String {
         text
     }
+
+    func withAttachments(_ attachments: [LocalImageAttachment]) -> ComposerDraft {
+        ComposerDraft(
+            text: text,
+            source: source,
+            attachments: attachments,
+            isEffectivelyEmpty: textIsEffectivelyEmpty
+        )
+    }
 }
 
 @MainActor
 extension ConversationViewModel {
     func flushDraftFromEditor() -> ComposerDraft {
+        let stagedAttachments = state.stagedImageAttachments
         if let draft = composerDraftSnapshotProvider?() {
             state.inputDraftPublishTask?.cancel()
             state.inputDraftPublishTask = nil
@@ -46,16 +62,16 @@ extension ConversationViewModel {
             setInputDraft(
                 draft.text,
                 source: draft.source,
-                isEffectivelyEmpty: draft.isEffectivelyEmpty,
+                isEffectivelyEmpty: draft.textIsEffectivelyEmpty,
                 advancesRevision: false
             )
-            return draft
+            return draft.withAttachments(stagedAttachments)
         }
 
         return ComposerDraft(
             text: state.inputDraft,
             source: state.inputDraftSource,
-            isEffectivelyEmpty: state.inputDraftIsEffectivelyEmpty
+            attachments: stagedAttachments
         )
     }
 
@@ -69,7 +85,7 @@ extension ConversationViewModel {
         state.hasPendingBlockInputDocumentChange = true
         state.inputDraftSource = .blockInputMarkdown
         state.inputDraftDirtyRevision += 1
-        state.inputDraftIsEffectivelyEmpty = isEffectivelyEmpty
+        state.inputDraftIsEffectivelyEmpty = isEffectivelyEmpty && state.stagedImageAttachments.isEmpty
         cancelSessionHandoffSteeringCountdownForEditorMutation()
         cancelSessionHandoffCountdownForEditorMutation()
     }
@@ -142,10 +158,11 @@ extension ConversationViewModel {
             state.hasPendingBlockInputDocumentChange = false
         }
 
-        let nextIsEffectivelyEmpty = isEffectivelyEmpty ?? ComposerDraft(
+        let nextTextIsEffectivelyEmpty = isEffectivelyEmpty ?? ComposerDraft(
             text: text,
             source: source
-        ).isEffectivelyEmpty
+        ).textIsEffectivelyEmpty
+        let nextIsEffectivelyEmpty = nextTextIsEffectivelyEmpty && state.stagedImageAttachments.isEmpty
 
         guard state.inputDraft != text ||
             state.inputDraftSource != source ||

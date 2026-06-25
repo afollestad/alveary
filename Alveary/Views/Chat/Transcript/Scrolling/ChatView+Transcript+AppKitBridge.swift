@@ -85,6 +85,7 @@ extension ChatTranscriptView {
         configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
+        configuration.imageAttachmentsByUserMessageID = appKitImageAttachmentsByUserMessageID
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
@@ -104,6 +105,20 @@ extension ChatTranscriptView {
         }
         configureAppKitApprovalRows(&configuration)
         return configuration
+    }
+
+    var appKitImageAttachmentsByUserMessageID: [String: [LocalImageAttachment]] {
+        var attachmentsByID = viewModel.state.transcriptImageAttachments
+        for (messageID, appShots) in viewModel.state.transcriptAppShots {
+            guard !appShots.isEmpty else { continue }
+            var attachments = attachmentsByID[messageID] ?? []
+            var seenAttachmentIDs = Set(attachments.map(\.id))
+            for screenshot in appShots.map(\.screenshot) where seenAttachmentIDs.insert(screenshot.id).inserted {
+                attachments.append(screenshot)
+            }
+            attachmentsByID[messageID] = attachments
+        }
+        return attachmentsByID
     }
 
     func configureAppKitApprovalRows(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {

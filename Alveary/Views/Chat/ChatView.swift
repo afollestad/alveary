@@ -255,6 +255,7 @@ extension ChatView {
 
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
+        let attachments = draft.attachments
         if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
             return
         }
@@ -281,13 +282,20 @@ extension ChatView {
                 if isSessionHandoffDraft {
                     try await viewModel.sendSessionHandoffOutput(outboundMessage)
                 } else {
-                    try await viewModel.queueOrSend(outboundMessage)
+                    try await viewModel.queueOrSend(
+                        outboundMessage,
+                        supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
+                    )
                 }
             } catch is CancellationError {
                 // User-initiated cancellation — rollback already restored the draft.
             } catch {
                 if viewModel.state.retryableFailedMessageIDs.count == retryableMessageCount {
                     viewModel.replaceInputDraft(message, source: draft.source)
+                    if viewModel.state.stagedImageAttachments.isEmpty {
+                        viewModel.state.stagedImageAttachments = attachments
+                        viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                    }
                 }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
@@ -337,14 +345,22 @@ extension ChatView {
 
         let message = draft.text
         let outboundMessage = draft.messageText
+        let attachments = draft.attachments
 
         requestScrollToBottom()
         clearSubmittedDraftAndRequestFocus(source: draft.source)
         Task {
             do {
-                try await viewModel.steer(outboundMessage)
+                try await viewModel.steer(
+                    outboundMessage,
+                    supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
+                )
             } catch {
                 viewModel.replaceInputDraft(message, source: draft.source)
+                if viewModel.state.stagedImageAttachments.isEmpty {
+                    viewModel.state.stagedImageAttachments = attachments
+                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = "Steer failed: \(error.localizedDescription)"
                 }
@@ -394,6 +410,7 @@ extension ChatView {
             hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
+            imagePreviewAttachments: stagedImagePreviewAttachments,
             localCommands: localCommandAvailability,
             passthroughSlashCommands: passthroughSlashCommands,
             requestFirstResponder: appState.pendingComposerFocusToken,
@@ -405,6 +422,8 @@ extension ChatView {
             onBlockInputDocumentChange: { document in
                 viewModel.scheduleBlockInputDraftPublish(document)
             },
+            fileDropHandler: blockInputFileDropHandler,
+            onLocalFileURLsSelected: handleLocalFileURLsSelected(_:),
             onDraftSnapshotProviderChange: { provider in
                 viewModel.composerDraftSnapshotProvider = provider
             },

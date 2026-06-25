@@ -47,6 +47,7 @@ struct ConversationView: View {
             supportsExistingSessionGoalStart: supportsExistingSessionGoalStart,
             supportsPlanMode: supportsPlanMode,
             supportsSpeedMode: activeCapabilities?.supportsSpeedMode ?? false,
+            supportsLocalImageInput: activeCapabilities?.supportsLocalImageInput ?? false,
             goalModeDisabledTooltip: goalModeDisabledTooltip(
                 supportsGoalMode: supportsGoalMode,
                 supportsExistingSessionGoalStart: supportsExistingSessionGoalStart

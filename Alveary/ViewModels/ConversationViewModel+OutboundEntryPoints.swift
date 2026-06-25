@@ -1,34 +1,44 @@
 import Foundation
 
 extension ConversationViewModel {
-    func setupAndStart(_ message: String) async throws {
+    func setupAndStart(_ message: String, supportsLocalImageInput: Bool = true) async throws {
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
-            try await deliverNormalUserMessage(message)
+            try await deliverNormalUserMessage(message, supportsLocalImageInput: supportsLocalImageInput)
         }
     }
 
-    func send(_ message: String, stagedContextOverride: String? = nil) async throws {
+    func send(
+        _ message: String,
+        stagedContextOverride: String? = nil,
+        supportsLocalImageInput: Bool = true
+    ) async throws {
         guard state.messageQueue.peekNext() == nil else {
             throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before sending a new one")
         }
 
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await withOutboundReservation {
-            try await deliverNormalUserMessage(message, stagedContextOverride: stagedContextOverride)
+            try await deliverNormalUserMessage(
+                message,
+                stagedContextOverride: stagedContextOverride,
+                supportsLocalImageInput: supportsLocalImageInput
+            )
         }
     }
 
     func queueOrSend(
         _ message: String,
         requiredPlanModeEnabled: Bool? = nil,
-        requiredSpeedMode: AgentSpeedMode? = nil
+        requiredSpeedMode: AgentSpeedMode? = nil,
+        supportsLocalImageInput: Bool = true
     ) async throws {
         try validateQueueOrSendAvailability()
         let outbound = outboundText(
             for: message,
             requiredPlanModeEnabled: requiredPlanModeEnabled,
-            requiredSpeedMode: requiredSpeedMode
+            requiredSpeedMode: requiredSpeedMode,
+            supportsLocalImageInput: supportsLocalImageInput
         )
 
         guard !shouldQueueOutboundMessage else {
@@ -73,6 +83,7 @@ extension ConversationViewModel {
                 try await deliverMessageReserved(
                     message,
                     transportTextOverride: state.retryableFailedMessageTransportTexts[id],
+                    attachments: state.retryableFailedMessageAttachments[id] ?? [],
                     stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
                     existingLocalUserMessageID: id
                 )
@@ -101,23 +112,37 @@ private extension ConversationViewModel {
     func outboundText(
         for message: String,
         requiredPlanModeEnabled: Bool?,
-        requiredSpeedMode: AgentSpeedMode?
+        requiredSpeedMode: AgentSpeedMode?,
+        supportsLocalImageInput: Bool
     ) -> OutboundMessageText {
-        guard requiredPlanModeEnabled == nil,
-              requiredSpeedMode == nil else {
-            return OutboundMessageText(visibleText: message)
+        let base: OutboundMessageText
+        if requiredPlanModeEnabled != nil || requiredSpeedMode != nil {
+            base = OutboundMessageText(visibleText: message)
+        } else {
+            base = preparedNormalUserOutboundText(message)
         }
-        return preparedNormalUserOutboundText(message)
+        return base.resolvingImageAttachments(
+            state.stagedImageAttachments,
+            supportsLocalImageInput: supportsLocalImageInput,
+            fallbackText: fallbackText(visibleText:attachments:)
+        )
     }
 
     func deliverNormalUserMessage(
         _ message: String,
-        stagedContextOverride: String? = nil
+        stagedContextOverride: String? = nil,
+        supportsLocalImageInput: Bool = true
     ) async throws {
-        let outbound = preparedNormalUserOutboundText(message)
+        let outbound = preparedNormalUserOutboundText(message).resolvingImageAttachments(
+            state.stagedImageAttachments,
+            supportsLocalImageInput: supportsLocalImageInput,
+            fallbackText: fallbackText(visibleText:attachments:)
+        )
         try await deliverMessageReserved(
             outbound.visibleText,
             transportTextOverride: outbound.transportText,
+            attachments: outbound.attachments,
+            consumedAttachments: outbound.consumedAttachments,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContextOverride
         )
@@ -134,9 +159,11 @@ private extension ConversationViewModel {
             requiredPlanModeEnabled: queuedPlanModeRequirement(outbound, fallback: requiredPlanModeEnabled),
             requiredSpeedMode: requiredSpeedMode,
             transportText: outbound.transportText,
+            attachments: outbound.attachments,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
         )
         state.stagedContext = nil
+        clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
         scheduleQueueDrainIfNeeded()
     }
 
@@ -159,6 +186,8 @@ private extension ConversationViewModel {
             try await deliverMessageReserved(
                 outbound.visibleText,
                 transportTextOverride: outbound.transportText,
+                attachments: outbound.attachments,
+                consumedAttachments: outbound.consumedAttachments,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
             )
         }
@@ -203,8 +232,11 @@ private extension ConversationViewModel {
 
     func retryableVisibleMessage(id: String) -> String? {
         guard let record = userMessageRecord(id: id),
-              let message = record.content,
-              !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+              let message = record.content else {
+            return nil
+        }
+        let hasRetryableAttachments = !(state.retryableFailedMessageAttachments[id]?.isEmpty ?? true)
+        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasRetryableAttachments else {
             return nil
         }
         return message

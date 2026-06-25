@@ -50,6 +50,7 @@ extension DefaultAgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment] = [],
         metadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let services = agentCLIKitServices
@@ -67,7 +68,11 @@ extension DefaultAgentsManager {
         markCurrentTurnActivityVisibility(activityVisibility, conversationId: conversationId)
         do {
             try await services.runtime.send(
-                .userMessage(AgentCLIKit.AgentMessageInput(text: message, metadata: metadata)),
+                .userMessage(AgentCLIKit.AgentMessageInput(
+                    text: message,
+                    attachments: attachments.map(AgentCLIKit.AgentInputAttachment.init(localImageAttachment:)),
+                    metadata: metadata
+                )),
                 conversationId: runtimeConversationId
             )
         } catch {
@@ -92,12 +97,14 @@ extension DefaultAgentsManager {
         _ message: String,
         initialGoal: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment] = []
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
+            attachments: attachments,
             metadata: [
                 AgentCLIKit.AgentGoalMetadata.isInitialGoalTransport: .bool(true),
                 AgentCLIKit.AgentGoalMetadata.objective: .string(initialGoal)

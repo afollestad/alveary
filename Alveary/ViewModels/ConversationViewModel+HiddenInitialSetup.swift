@@ -25,7 +25,8 @@ private extension ConversationViewModel {
         let snapshot = ConversationInitialSetupSnapshot(
             draft: state.inputDraft,
             draftSource: state.inputDraftSource,
-            stagedContext: state.stagedContext
+            stagedContext: state.stagedContext,
+            stagedImageAttachments: state.stagedImageAttachments
         )
 
         do {

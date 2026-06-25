@@ -187,7 +187,8 @@ actor SnapshotMockAgentsManager: AgentsManager {
     func sendMessage(
         _ message: String,
         conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
     ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {

@@ -38,9 +38,7 @@ extension ConversationViewModel {
     }
 
     private func prepareLocalUserMessageAttempt(
-        message: String,
-        transportText: String?,
-        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?,
+        outbound: OutboundMessageText,
         stagedContextOverride: String?,
         useCurrentStagedContextWhenOverrideNil: Bool
     ) throws -> LocalUserMessageAttempt {
@@ -55,7 +53,7 @@ extension ConversationViewModel {
             conversationTitle: restoresConversationTitle ? dbConversation.title : nil
         )
         let localUserMessageID = insertLocalUserMessage(
-            message,
+            outbound.visibleText,
             into: dbConversation
         ).id
 
@@ -66,8 +64,9 @@ extension ConversationViewModel {
         return LocalUserMessageAttempt(
             id: localUserMessageID,
             stagedContext: appliedContext,
-            transportText: transportText,
-            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+            transportText: outbound.transportText,
+            attachments: outbound.attachments,
+            consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             insertedMessage: true,
             metadata: metadata
         )
@@ -84,6 +83,7 @@ extension ConversationViewModel {
                 id: existingLocalUserMessageID,
                 stagedContext: stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil),
                 transportText: outbound.transportText,
+                attachments: outbound.attachments,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
                 insertedMessage: false,
                 metadata: nil
@@ -91,9 +91,7 @@ extension ConversationViewModel {
         }
 
         return try prepareLocalUserMessageAttempt(
-            message: outbound.visibleText,
-            transportText: outbound.transportText,
-            consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
+            outbound: outbound,
             stagedContextOverride: stagedContextOverride,
             useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil
         )
@@ -111,7 +109,8 @@ extension ConversationViewModel {
         state.markRetryableFailedMessage(
             id: attempt.id,
             stagedContext: stagedContextOverride ?? attempt.stagedContext,
-            transportText: attempt.transportText
+            transportText: attempt.transportText,
+            attachments: attempt.attachments
         )
         if state.lastTurnError == nil {
             state.lastTurnError = error.localizedDescription
@@ -166,6 +165,8 @@ extension ConversationViewModel {
         _ message: String,
         transportTextOverride: String? = nil,
         initialGoal: String? = nil,
+        attachments: [LocalImageAttachment] = [],
+        consumedAttachments: [LocalImageAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
@@ -185,6 +186,8 @@ extension ConversationViewModel {
             outbound: OutboundMessageText(
                 visibleText: message,
                 transportText: transportTextOverride,
+                attachments: attachments,
+                consumedAttachments: consumedAttachments,
                 consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
             ),
             stagedContextOverride: resolvedStagedContext.stagedContext,
@@ -192,23 +195,26 @@ extension ConversationViewModel {
             existingLocalUserMessageID: existingLocalUserMessageID
         )
         var retryStagedContext = attempt.stagedContext
+        clearStagedImageAttachmentsIfTheyMatch(consumedAttachments)
 
         do {
             if needsSetup {
                 try await setupAndStartReserved(
                     message,
                     transportText: transportTextOverride,
+                    attachments: attachments,
                     initialGoal: initialGoal,
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
                     snapshotStagedContext: attempt.stagedContext
                 )
+                state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
                 return
             }
 
             try await sendAttemptWithSingleRespawnRecovery(
-                OutboundMessageText(visibleText: message, transportText: transportTextOverride),
+                OutboundMessageText(visibleText: message, transportText: transportTextOverride, attachments: attachments),
                 stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
@@ -218,6 +224,7 @@ extension ConversationViewModel {
                 onResolvedRecoveryContext: { retryStagedContext = $0.stagedContext }
             )
             clearConsumedPendingRestoreContext(resolvedStagedContext)
+            state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
         } catch is CancellationError {
             cancelLocalUserMessageAttemptIfNeeded(attempt)
             throw CancellationError()
@@ -262,6 +269,7 @@ extension ConversationViewModel {
     private func setupAndStartReserved(
         _ message: String,
         transportText: String?,
+        attachments: [LocalImageAttachment],
         initialGoal: String? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
@@ -282,7 +290,8 @@ extension ConversationViewModel {
         let snapshot = ConversationInitialSetupSnapshot(
             draft: message,
             draftSource: state.inputDraftSource,
-            stagedContext: resolvedStagedContext
+            stagedContext: resolvedStagedContext,
+            stagedImageAttachments: attachments
         )
 
         do {
@@ -299,6 +308,7 @@ extension ConversationViewModel {
             try await startAgentReserved(config: makeSpawnConfig(
                 workingDirectory: workingDirectory,
                 initialPrompt: transportMessage,
+                initialPromptAttachments: attachments,
                 initialGoal: initialGoal,
                 settingsSource: .nextTurn
             ))
@@ -419,81 +429,4 @@ private extension ConversationViewModel {
         }
     }
 
-    func cancelPendingRuntimeTasks() {
-        subscriptionTask?.cancel()
-        subscriptionTask = nil
-        saveTask?.cancel()
-        saveTask = nil
-        saveTaskID = nil
-        needsFollowUpSave = false
-    }
-
-    func destroyRuntimeAfterFailedInitialSetup(originalError: Error) async throws {
-        do {
-            try await agentsManager.destroyRuntime(conversationId: conversation.id)
-        } catch let cleanupError {
-            state.lastTurnError =
-                "Initial setup failed: \(originalError.localizedDescription). Runtime cleanup also failed: " +
-                cleanupError.localizedDescription
-            setupPhase = nil
-            throw AgentError.spawnFailed(state.lastTurnError ?? cleanupError.localizedDescription)
-        }
-    }
-
-    func restoreStateAfterFailedInitialSetup(
-        snapshot: ConversationInitialSetupSnapshot,
-        thread: AgentThread,
-        restoresDraft: Bool
-    ) {
-        if restoresDraft {
-            replaceState(with: runtimeStore.conversationState(for: conversation.id))
-            replaceInputDraft(snapshot.draft, source: snapshot.draftSource)
-            state.stagedContext = snapshot.stagedContext
-        }
-        thread.hasCompletedInitialSetup = false
-    }
-
-    func finishFailedInitialSetupRollback(project: Project, thread: AgentThread) async {
-        guard thread.useWorktree, let path = thread.worktreePath else {
-            persistRollbackMetadataReset()
-            return
-        }
-
-        do {
-            try await worktreeManager.remove(
-                projectPath: project.path,
-                worktreePath: path,
-                branch: thread.branch
-            )
-            thread.worktreePath = nil
-            thread.branch = nil
-            try modelContext.save()
-        } catch let cleanupError {
-            preserveWorktreeAfterFailedRollback(cleanupError: cleanupError, thread: thread)
-        }
-    }
-
-    func persistRollbackMetadataReset() {
-        do {
-            try modelContext.save()
-        } catch {
-            state.lastTurnError = "Initial spawn failed and rollback metadata reset also failed: \(error.localizedDescription)"
-        }
-    }
-
-    func preserveWorktreeAfterFailedRollback(cleanupError: Error, thread: AgentThread) {
-        thread.hasCompletedInitialSetup = true
-
-        do {
-            try modelContext.save()
-            state.lastTurnError =
-                "Initial setup failed and rollback worktree cleanup also failed: " +
-                "\(cleanupError.localizedDescription). The existing worktree was preserved, " +
-                "so retry will reuse it instead of creating a second worktree."
-        } catch {
-            state.lastTurnError =
-                "Initial setup failed, rollback cleanup failed, and preserved thread metadata " +
-                "could not be saved: \(error.localizedDescription)"
-        }
-    }
 }
