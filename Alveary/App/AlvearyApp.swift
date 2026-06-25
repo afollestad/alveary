@@ -60,11 +60,22 @@ struct AlvearyApp: App {
                     appState.presentUnexpectedError(message: "Developer test error toast")
                 }
 
+                ViewRawTranscriptCommandButton()
                 TriggerSessionHandoffCommandButton()
             }
             #endif
         }
         .modelContainer(AppDI.component.modelContainer)
+
+        #if DEBUG
+        WindowGroup("Raw Transcript", id: RawTranscriptWindowRequest.sceneID, for: RawTranscriptWindowRequest.self) { request in
+            if let request = request.wrappedValue {
+                RawTranscriptWindow(request: request)
+            }
+        }
+        .defaultSize(width: 760, height: 640)
+        .modelContainer(AppDI.component.modelContainer)
+        #endif
     }
 
     @MainActor
@@ -152,6 +163,21 @@ private struct ToggleTerminalPaneCommandButton: View {
 }
 
 #if DEBUG
+private struct ViewRawTranscriptCommandButton: View {
+    @Environment(\.openWindow) private var openWindow
+    @FocusedValue(\.rawTranscriptWindowRequest) private var rawTranscriptWindowRequest
+
+    var body: some View {
+        Button("View raw transcript") {
+            guard let request = rawTranscriptWindowRequest?() else {
+                return
+            }
+            openWindow(id: RawTranscriptWindowRequest.sceneID, value: request)
+        }
+        .disabled(rawTranscriptWindowRequest == nil)
+    }
+}
+
 private struct TriggerSessionHandoffCommandButton: View {
     @FocusedValue(\.triggerSessionHandoffAction) private var triggerSessionHandoffAction
 

@@ -26,6 +26,14 @@ struct TriggerSessionHandoffActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }
 
+#if DEBUG
+/// Published by `ThreadDetailView` so the debug-only Developer menu can open a
+/// raw transcript window for the currently selected conversation.
+struct RawTranscriptWindowRequestKey: FocusedValueKey {
+    typealias Value = @MainActor () -> RawTranscriptWindowRequest
+}
+#endif
+
 extension FocusedValues {
     var newConversationAction: NewConversationActionKey.Value? {
         get { self[NewConversationActionKey.self] }
@@ -41,4 +49,11 @@ extension FocusedValues {
         get { self[TriggerSessionHandoffActionKey.self] }
         set { self[TriggerSessionHandoffActionKey.self] = newValue }
     }
+
+    #if DEBUG
+    var rawTranscriptWindowRequest: RawTranscriptWindowRequestKey.Value? {
+        get { self[RawTranscriptWindowRequestKey.self] }
+        set { self[RawTranscriptWindowRequestKey.self] = newValue }
+    }
+    #endif
 }

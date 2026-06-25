@@ -241,6 +241,9 @@ struct ThreadDetailView: View {
         // when no thread is mounted (the focused value resolves to nil
         // outside this view, so the menu button reads `action == nil`).
         .focusedSceneValue(\.newConversationAction, newConversationAction(isDisabled: isProjectTrustBlocked))
+        #if DEBUG
+        .focusedSceneValue(\.rawTranscriptWindowRequest, rawTranscriptWindowRequest(for: selectedConversation))
+        #endif
     }
 }
 
@@ -254,6 +257,21 @@ private extension ThreadDetailView {
             Task { await createConversation() }
         }
     }
+
+    #if DEBUG
+    func rawTranscriptWindowRequest(for conversation: Conversation?) -> RawTranscriptWindowRequestKey.Value? {
+        guard let conversation else {
+            return nil
+        }
+
+        let request = RawTranscriptWindowRequest(
+            conversationID: conversation.id,
+            threadName: thread.displayName(),
+            conversationTitle: conversation.displayName()
+        )
+        return { request }
+    }
+    #endif
 
     func renameConversation(_ conversation: Conversation, to newName: String) {
         guard let dbConversation = uiModelContext.resolveConversation(id: conversation.persistentModelID) else {
