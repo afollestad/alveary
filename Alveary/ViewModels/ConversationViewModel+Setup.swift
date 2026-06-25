@@ -66,6 +66,8 @@ extension ConversationViewModel {
             stagedContext: appliedContext,
             transportText: outbound.transportText,
             attachments: outbound.attachments,
+            appShots: outbound.appShots,
+            providerMetadata: outbound.providerMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             insertedMessage: true,
             metadata: metadata
@@ -84,6 +86,8 @@ extension ConversationViewModel {
                 stagedContext: stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil),
                 transportText: outbound.transportText,
                 attachments: outbound.attachments,
+                appShots: outbound.appShots,
+                providerMetadata: outbound.providerMetadata,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
                 insertedMessage: false,
                 metadata: nil
@@ -110,7 +114,9 @@ extension ConversationViewModel {
             id: attempt.id,
             stagedContext: stagedContextOverride ?? attempt.stagedContext,
             transportText: attempt.transportText,
-            attachments: attempt.attachments
+            attachments: attempt.attachments,
+            appShots: attempt.appShots,
+            providerMetadata: attempt.providerMetadata
         )
         if state.lastTurnError == nil {
             state.lastTurnError = error.localizedDescription
@@ -166,7 +172,10 @@ extension ConversationViewModel {
         transportTextOverride: String? = nil,
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedAttachments: [LocalImageAttachment] = [],
+        consumedAppShots: [AppShotAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
@@ -187,7 +196,10 @@ extension ConversationViewModel {
                 visibleText: message,
                 transportText: transportTextOverride,
                 attachments: attachments,
+                appShots: appShots,
+                providerMetadata: providerMetadata,
                 consumedAttachments: consumedAttachments,
+                consumedAppShots: consumedAppShots,
                 consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
             ),
             stagedContextOverride: resolvedStagedContext.stagedContext,
@@ -196,6 +208,7 @@ extension ConversationViewModel {
         )
         var retryStagedContext = attempt.stagedContext
         clearStagedImageAttachmentsIfTheyMatch(consumedAttachments)
+        clearStagedAppShotsIfTheyMatch(consumedAppShots)
 
         do {
             if needsSetup {
@@ -203,18 +216,27 @@ extension ConversationViewModel {
                     message,
                     transportText: transportTextOverride,
                     attachments: attachments,
+                    appShots: appShots,
                     initialGoal: initialGoal,
+                    providerMetadata: providerMetadata,
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
                     snapshotStagedContext: attempt.stagedContext
                 )
                 state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
+                state.markTranscriptAppShots(id: attempt.id, appShots: attempt.appShots)
                 return
             }
 
             try await sendAttemptWithSingleRespawnRecovery(
-                OutboundMessageText(visibleText: message, transportText: transportTextOverride, attachments: attachments),
+                OutboundMessageText(
+                    visibleText: message,
+                    transportText: transportTextOverride,
+                    attachments: attachments,
+                    appShots: appShots,
+                    providerMetadata: providerMetadata
+                ),
                 stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
@@ -225,6 +247,7 @@ extension ConversationViewModel {
             )
             clearConsumedPendingRestoreContext(resolvedStagedContext)
             state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
+            state.markTranscriptAppShots(id: attempt.id, appShots: attempt.appShots)
         } catch is CancellationError {
             cancelLocalUserMessageAttemptIfNeeded(attempt)
             throw CancellationError()
@@ -270,7 +293,9 @@ extension ConversationViewModel {
         _ message: String,
         transportText: String?,
         attachments: [LocalImageAttachment],
+        appShots: [AppShotAttachment],
         initialGoal: String? = nil,
+        providerMetadata: [String: AgentCLIKit.JSONValue],
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -291,7 +316,8 @@ extension ConversationViewModel {
             draft: message,
             draftSource: state.inputDraftSource,
             stagedContext: resolvedStagedContext,
-            stagedImageAttachments: attachments
+            stagedImageAttachments: attachments,
+            stagedAppShots: appShots
         )
 
         do {
@@ -309,6 +335,8 @@ extension ConversationViewModel {
                 workingDirectory: workingDirectory,
                 initialPrompt: transportMessage,
                 initialPromptAttachments: attachments,
+                initialPromptMetadata: providerMetadata,
+                allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: appShots),
                 initialGoal: initialGoal,
                 settingsSource: .nextTurn
             ))

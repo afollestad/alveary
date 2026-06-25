@@ -366,7 +366,8 @@ private struct ThreadDetailStatusFixture {
             threadActivityRecorder: NoopThreadActivityRecorder(),
             deleteThread: { _ in },
             loadSkillCompletions: { [] },
-            diffViewModel: diffViewModel
+            diffViewModel: diffViewModel,
+            appShotCoordinator: AppShotCoordinator()
         )
         .environment(\.modelContext, context)
     }

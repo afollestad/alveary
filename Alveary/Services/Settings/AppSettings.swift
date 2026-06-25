@@ -28,6 +28,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultTerminalPaneHeight = 320.0
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
+    static let defaultAppShotShortcut = AppShotKeyboardShortcut.bothCommand
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var lastSettingsPage = SettingsPage.agents
     var defaultProvider = "claude"
@@ -52,6 +53,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
+    var appShotsEnabled = true
+    var appShotShortcut = Self.defaultAppShotShortcut
     var contextManagementEnabled = false
     var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
     var handoffSteeringEnabled = true
@@ -77,6 +80,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.turnAwake = copy.turnAwake.normalized()
         copy.normalizeAppearanceDefaults()
         copy.normalizeLayoutDefaults()
+        copy.normalizeAppShotDefaults()
         copy.normalizeContextManagement()
         copy.normalizeNotificationDefaults()
         copy.normalizeProviderConfigs()
@@ -201,6 +205,10 @@ struct AppSettings: Codable, Sendable, Equatable {
         )
     }
 
+    private mutating func normalizeAppShotDefaults() {
+        appShotShortcut = appShotShortcut.normalized ?? Self.defaultAppShotShortcut
+    }
+
     private mutating func normalizeContextManagement() {
         sessionHandoffWindowPercentage = Self.normalizedSessionHandoffWindowPercentage(sessionHandoffWindowPercentage)
         handoffSteeringCountdownSeconds = Self.normalizedHandoffSteeringCountdownSeconds(handoffSteeringCountdownSeconds)
@@ -250,6 +258,7 @@ struct AppSettings: Codable, Sendable, Equatable {
 extension AppSettings {
     enum SettingsPage: String, Codable, CaseIterable, Identifiable, Sendable, Equatable {
         case agents
+        case appShots
         case interface
         case git
         case notifications
@@ -283,6 +292,8 @@ extension AppSettings {
         case terminalPaneHeight
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
+        case appShotsEnabled
+        case appShotShortcut
         case contextManagementEnabled
         case sessionHandoffWindowPercentage
         case handoffSteeringEnabled
@@ -384,6 +395,8 @@ extension AppSettings {
             forKey: .expandTerminalWhenActionsRun
         ) ?? expandTerminalWhenActionsRun
         maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? maxTerminalSessions
+        appShotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .appShotsEnabled) ?? appShotsEnabled
+        appShotShortcut = Self.normalizedAppShotShortcut(from: container)
     }
 
     private mutating func decodeContextManagement(from container: KeyedDecodingContainer<CodingKeys>) throws {
@@ -458,5 +471,17 @@ extension AppSettings {
             return defaultEnterBehavior
         }
         return behavior
+    }
+
+    private static func normalizedAppShotShortcut(
+        from container: KeyedDecodingContainer<CodingKeys>
+    ) -> AppShotKeyboardShortcut {
+        guard let shortcut = try? container.decodeIfPresent(
+            AppShotKeyboardShortcut.self,
+            forKey: .appShotShortcut
+        )?.normalized else {
+            return defaultAppShotShortcut
+        }
+        return shortcut
     }
 }

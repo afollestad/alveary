@@ -248,6 +248,21 @@ extension SnapshotTests {
         )
     }
 
+    func testAppShotsSettingsTab() {
+        assertMacSnapshot(
+            AppShotsSettingsTabView(
+                appShotsEnabled: .constant(true),
+                appShotShortcut: .constant(.bothCommand),
+                accessibilityAllowed: true,
+                keyboardMonitoringAllowed: false,
+                screenRecordingAllowed: false
+            )
+            .padding(24),
+            size: CGSize(width: 620, height: 420),
+            named: "settings_app_shots_tab"
+        )
+    }
+
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"

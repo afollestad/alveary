@@ -142,6 +142,16 @@ final class SettingsViewModel {
         set { settingsService.update { $0.maxTerminalSessions = newValue } }
     }
 
+    var appShotsEnabled: Bool {
+        get { settingsService.current.appShotsEnabled }
+        set { settingsService.update { $0.appShotsEnabled = newValue } }
+    }
+
+    var appShotShortcut: AppShotKeyboardShortcut {
+        get { settingsService.current.appShotShortcut }
+        set { settingsService.update { $0.appShotShortcut = newValue } }
+    }
+
     var contextManagementEnabled: Bool {
         get { settingsService.current.contextManagementEnabled }
         set { settingsService.update { $0.contextManagementEnabled = newValue } }

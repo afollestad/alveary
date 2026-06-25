@@ -98,17 +98,18 @@ extension DefaultAgentsManager {
         initialGoal: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment] = []
+        attachments: [LocalImageAttachment] = [],
+        metadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
             attachments: attachments,
-            metadata: [
+            metadata: metadata.merging([
                 AgentCLIKit.AgentGoalMetadata.isInitialGoalTransport: .bool(true),
                 AgentCLIKit.AgentGoalMetadata.objective: .string(initialGoal)
-            ]
+            ]) { _, new in new }
         )
     }
 
@@ -334,13 +335,54 @@ extension DefaultAgentsManager {
             throw AgentError.cliNotInstalled(config.providerId)
         }
 
-        let arguments = try parseExtraArgs(customConfig?.extraArgs ?? "")
+        let arguments = try mergedArguments(
+            providerId: config.providerId,
+            customArguments: parseExtraArgs(customConfig?.extraArgs ?? ""),
+            allowedDirectories: config.allowedDirectories
+        )
         return try services.hostAdapter.spawnConfig(
             from: config,
             arguments: arguments,
             environment: agentCLIKitEnvironment(detectedPath: detectedPath),
             forkSession: forkSession
         )
+    }
+
+    private func mergedArguments(
+        providerId: String,
+        customArguments: [String],
+        allowedDirectories: [String]
+    ) -> [String] {
+        guard providerId == "claude", !allowedDirectories.isEmpty else {
+            return customArguments
+        }
+
+        var arguments = customArguments
+        let existingAddDirs = existingClaudeAddDirectories(in: customArguments)
+        for directory in allowedDirectories where !existingAddDirs.contains(CanonicalPath.normalize(directory)) {
+            arguments.append("--add-dir")
+            arguments.append(directory)
+        }
+        return arguments
+    }
+
+    private func existingClaudeAddDirectories(in arguments: [String]) -> Set<String> {
+        var directories = Set<String>()
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            if argument == "--add-dir", index + 1 < arguments.count {
+                directories.insert(CanonicalPath.normalize(arguments[index + 1]))
+                index += 2
+                continue
+            }
+            if argument.hasPrefix("--add-dir=") {
+                let value = String(argument.dropFirst("--add-dir=".count))
+                directories.insert(CanonicalPath.normalize(value))
+            }
+            index += 1
+        }
+        return directories
     }
 
     private func agentCLIKitEnvironment(detectedPath: String) -> [String: String] {

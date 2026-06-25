@@ -1,3 +1,4 @@
+import enum AgentCLIKit.JSONValue
 import AppKit
 import Foundation
 import SwiftData
@@ -220,7 +221,8 @@ actor AppDelegateMockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {

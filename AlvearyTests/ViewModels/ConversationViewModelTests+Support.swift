@@ -1,6 +1,7 @@
 // swiftlint:disable file_length
 
 import enum AgentCLIKit.AgentGoalAction
+import enum AgentCLIKit.JSONValue
 import Foundation
 
 @testable import Alveary
@@ -37,17 +38,20 @@ actor MockAgentsManager: AgentsManager {
         let conversationId: String
         let steeringInputID: String
         let attachments: [LocalImageAttachment]
+        let metadata: [String: JSONValue]
 
         init(
             message: String,
             conversationId: String,
             steeringInputID: String,
-            attachments: [LocalImageAttachment] = []
+            attachments: [LocalImageAttachment] = [],
+            metadata: [String: JSONValue] = [:]
         ) {
             self.message = message
             self.conversationId = conversationId
             self.steeringInputID = steeringInputID
             self.attachments = attachments
+            self.metadata = metadata
         }
     }
 
@@ -57,19 +61,22 @@ actor MockAgentsManager: AgentsManager {
         let conversationId: String
         let activityVisibility: AgentTurnActivityVisibility
         let attachments: [LocalImageAttachment]
+        let metadata: [String: JSONValue]
 
         init(
             message: String,
             initialGoal: String,
             conversationId: String,
             activityVisibility: AgentTurnActivityVisibility,
-            attachments: [LocalImageAttachment] = []
+            attachments: [LocalImageAttachment] = [],
+            metadata: [String: JSONValue] = [:]
         ) {
             self.message = message
             self.initialGoal = initialGoal
             self.conversationId = conversationId
             self.activityVisibility = activityVisibility
             self.attachments = attachments
+            self.metadata = metadata
         }
     }
 
@@ -115,6 +122,7 @@ actor MockAgentsManager: AgentsManager {
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
     private var recordedSentAttachments: [[LocalImageAttachment]] = []
+    private var recordedSentMetadata: [[String: JSONValue]] = []
     private var recordedSendVisibilities: [AgentTurnActivityVisibility] = []
     private var recordedGoalStartCalls: [GoalStartCall] = []
     private var recordedExistingGoalStartCalls: [ExistingGoalStartCall] = []
@@ -184,7 +192,8 @@ actor MockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {
         if failsSendWhenCurrentTaskIsCancelled, Task.isCancelled { throw CancellationError() }
         if !queuedSendResults.isEmpty {
@@ -193,6 +202,7 @@ actor MockAgentsManager: AgentsManager {
             case .success:
                 recordedSentMessages.append(message)
                 recordedSentAttachments.append(attachments)
+                recordedSentMetadata.append(metadata)
                 recordedSendVisibilities.append(activityVisibility)
                 return
             case .failure(let error):
@@ -208,6 +218,7 @@ actor MockAgentsManager: AgentsManager {
         }
         recordedSentMessages.append(message)
         recordedSentAttachments.append(attachments)
+        recordedSentMetadata.append(metadata)
         recordedSendVisibilities.append(activityVisibility)
     }
 
@@ -216,20 +227,23 @@ actor MockAgentsManager: AgentsManager {
         initialGoal: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {
         try await sendMessage(
             message,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         )
         recordedGoalStartCalls.append(GoalStartCall(
             message: message,
             initialGoal: initialGoal,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         ))
     }
 
@@ -237,19 +251,22 @@ actor MockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         steeringInputID: String,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {
         try await sendMessage(
             message,
             conversationId: conversationId,
             activityVisibility: .visible,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         )
         recordedSteeringCalls.append(SteeringCall(
             message: message,
             conversationId: conversationId,
             steeringInputID: steeringInputID,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         ))
     }
 
@@ -474,6 +491,7 @@ actor MockAgentsManager: AgentsManager {
 
     func sentMessages() -> [String] { recordedSentMessages }
     func sentAttachments() -> [[LocalImageAttachment]] { recordedSentAttachments }
+    func sentMetadata() -> [[String: JSONValue]] { recordedSentMetadata }
     func sendVisibilities() -> [AgentTurnActivityVisibility] { recordedSendVisibilities }
     func goalStartCalls() -> [GoalStartCall] { recordedGoalStartCalls }
     func existingGoalStartCalls() -> [ExistingGoalStartCall] { recordedExistingGoalStartCalls }

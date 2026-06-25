@@ -43,6 +43,7 @@ struct ContentView: View {
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State var terminalManager: TerminalManager
+    @State var appShotCoordinator: AppShotCoordinator
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
     @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
     @State var diffViewerSwitchGeneration = 0
@@ -95,6 +96,7 @@ struct ContentView: View {
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _terminalManager = State(initialValue: TerminalManager())
+        _appShotCoordinator = State(initialValue: AppShotCoordinator())
         _toolbarProjectActions = State(initialValue: [])
         _toolbarProjectActionsThreadID = State(initialValue: nil)
     }
@@ -160,7 +162,8 @@ struct ContentView: View {
             diffViewModel: diffViewModel,
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
-            settingsViewModel: settingsViewModel
+            settingsViewModel: settingsViewModel,
+            appShotCoordinator: appShotCoordinator
         )
 
         NavigationSplitView(columnVisibility: $splitVisibility) {
@@ -222,6 +225,9 @@ struct ContentView: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
         .environment(terminalManager)
+        .task {
+            appShotCoordinator.start(settingsService: settingsService)
+        }
         .overlay(alignment: .bottom, content: errorToastOverlay)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

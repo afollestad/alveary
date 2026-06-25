@@ -20,6 +20,7 @@ struct ChatView: View {
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let transcriptTypography: TranscriptTypography
+    let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
     @Query private var events: [ConversationEventRecord]
@@ -103,6 +104,7 @@ struct ChatView: View {
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         transcriptTypography: TranscriptTypography,
+        appShotCoordinator: AppShotCoordinator,
         appState: AppState,
         initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     ) {
@@ -122,6 +124,7 @@ struct ChatView: View {
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.transcriptTypography = transcriptTypography
+        self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
 
@@ -166,6 +169,11 @@ struct ChatView: View {
         .focusedSceneValue(\.triggerSessionHandoffAction) {
             viewModel.triggerAutomaticSessionHandoffFromDebugMenu()
         }
+        #if DEBUG
+        .focusedSceneValue(\.copyAppShotPreviewAction) {
+            copyAppShotDebugPreview()
+        }
+        #endif
         .focusedSceneValue(\.chatComposerFocus, ChatComposerFocusHandle(
             claim: {
                 appState.requestComposerFocus()
@@ -198,6 +206,9 @@ struct ChatView: View {
             if viewModel.hasVisibleUserMessageHistory, !supportsExistingSessionGoalStart {
                 viewModel.disarmGoalModeIfNeeded()
             }
+        }
+        .onChange(of: appShotCoordinator.triggerID) { _, _ in
+            handleAppShotShortcut()
         }
         .onDisappear {
             viewModel.disarmGoalModeIfNeeded()
@@ -256,6 +267,7 @@ extension ChatView {
         let draft = viewModel.flushDraftFromEditor()
         let message = draft.text
         let attachments = draft.attachments
+        let appShots = draft.appShots
         if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
             return
         }
@@ -294,6 +306,10 @@ extension ChatView {
                     viewModel.replaceInputDraft(message, source: draft.source)
                     if viewModel.state.stagedImageAttachments.isEmpty {
                         viewModel.state.stagedImageAttachments = attachments
+                        viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                    }
+                    if viewModel.state.stagedAppShots.isEmpty {
+                        viewModel.state.stagedAppShots = appShots
                         viewModel.refreshInputDraftEffectiveEmptyForAttachments()
                     }
                 }
@@ -346,6 +362,7 @@ extension ChatView {
         let message = draft.text
         let outboundMessage = draft.messageText
         let attachments = draft.attachments
+        let appShots = draft.appShots
 
         requestScrollToBottom()
         clearSubmittedDraftAndRequestFocus(source: draft.source)
@@ -361,6 +378,10 @@ extension ChatView {
                     viewModel.state.stagedImageAttachments = attachments
                     viewModel.refreshInputDraftEffectiveEmptyForAttachments()
                 }
+                if viewModel.state.stagedAppShots.isEmpty {
+                    viewModel.state.stagedAppShots = appShots
+                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+                }
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = "Steer failed: \(error.localizedDescription)"
                 }
@@ -372,6 +393,36 @@ extension ChatView {
         isFollowing = true
         scrollToBottomRequest += 1
     }
+
+    func handleAppShotShortcut() {
+        Task {
+            do {
+                let appShot = try await appShotCoordinator.captureAppShot(
+                    conversationId: conversation.id,
+                    attachmentStore: viewModel.attachmentStore
+                )
+                viewModel.stageAppShot(appShot)
+            } catch {
+                viewModel.lastTurnError = error.localizedDescription
+            }
+        }
+    }
+
+    #if DEBUG
+    func copyAppShotDebugPreview() {
+        let draft = viewModel.flushDraftFromEditor()
+        do {
+            guard !viewModel.state.stagedAppShots.isEmpty else {
+                throw AgentError.spawnFailed("No staged app shots to preview.")
+            }
+            let preview = try viewModel.appShotDebugPreview(providerID: providerID, userInput: draft.messageText)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(preview, forType: .string)
+        } catch {
+            viewModel.lastTurnError = error.localizedDescription
+        }
+    }
+    #endif
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {
         AppKitChatComposerPanelConfiguration(

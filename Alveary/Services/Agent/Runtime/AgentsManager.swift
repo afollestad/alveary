@@ -34,20 +34,23 @@ protocol AgentsManager: Actor {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws
     func sendGoalStartMessage(
         _ message: String,
         initialGoal: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws
     func sendSteeringMessage(
         _ message: String,
         conversationId: String,
         steeringInputID: String,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool
     func toolApprovalSelection(providerId: String, conversationId: String, sessionId: String) async -> ToolApprovalSelection?
@@ -79,8 +82,23 @@ protocol AgentsManager: Actor {
 }
 
 extension AgentsManager {
+    func sendMessage(
+        _ message: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
+    ) async throws {
+        try await sendMessage(
+            message,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility,
+            attachments: attachments,
+            metadata: [:]
+        )
+    }
+
     func sendMessage(_ message: String, conversationId: String, activityVisibility: AgentTurnActivityVisibility) async throws {
-        try await sendMessage(message, conversationId: conversationId, activityVisibility: activityVisibility, attachments: [])
+        try await sendMessage(message, conversationId: conversationId, activityVisibility: activityVisibility, attachments: [], metadata: [:])
     }
 
     func sendMessage(_ message: String, conversationId: String) async throws {
@@ -92,7 +110,8 @@ extension AgentsManager {
         initialGoal: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws {
         throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
     }
@@ -108,7 +127,51 @@ extension AgentsManager {
             initialGoal: initialGoal,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
-            attachments: []
+            attachments: [],
+            metadata: [:]
+        )
+    }
+
+    func sendGoalStartMessage(
+        _ message: String,
+        initialGoal: String,
+        conversationId: String,
+        activityVisibility: AgentTurnActivityVisibility,
+        attachments: [LocalImageAttachment]
+    ) async throws {
+        try await sendGoalStartMessage(
+            message,
+            initialGoal: initialGoal,
+            conversationId: conversationId,
+            activityVisibility: activityVisibility,
+            attachments: attachments,
+            metadata: [:]
+        )
+    }
+
+    func sendSteeringMessage(
+        _ message: String,
+        conversationId: String,
+        steeringInputID: String,
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
+    ) async throws {
+        try await sendMessage(
+            message,
+            conversationId: conversationId,
+            activityVisibility: .visible,
+            attachments: attachments,
+            metadata: metadata
+        )
+    }
+
+    func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws {
+        try await sendSteeringMessage(
+            message,
+            conversationId: conversationId,
+            steeringInputID: steeringInputID,
+            attachments: [],
+            metadata: [:]
         )
     }
 
@@ -118,11 +181,13 @@ extension AgentsManager {
         steeringInputID: String,
         attachments: [LocalImageAttachment]
     ) async throws {
-        try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible, attachments: attachments)
-    }
-
-    func sendSteeringMessage(_ message: String, conversationId: String, steeringInputID: String) async throws {
-        try await sendSteeringMessage(message, conversationId: conversationId, steeringInputID: steeringInputID, attachments: [])
+        try await sendSteeringMessage(
+            message,
+            conversationId: conversationId,
+            steeringInputID: steeringInputID,
+            attachments: attachments,
+            metadata: [:]
+        )
     }
 
     func spawn(id: String, config: AgentSpawnConfig) async throws {

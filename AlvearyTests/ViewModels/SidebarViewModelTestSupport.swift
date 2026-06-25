@@ -1,4 +1,5 @@
-import AgentCLIKit
+import enum AgentCLIKit.JSONValue
+import protocol AgentCLIKit.AgentProviderDiscoveryService
 import Foundation
 import SwiftData
 
@@ -23,7 +24,7 @@ struct SidebarTestFixture {
         gitHubAuthenticated: Bool = false,
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
-        createWorktreeByDefault: Bool = false, providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
+        createWorktreeByDefault: Bool = false, providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
@@ -213,7 +214,8 @@ actor SidebarMockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {

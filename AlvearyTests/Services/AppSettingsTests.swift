@@ -20,6 +20,13 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().lastSettingsPage, .agents)
     }
 
+    func testSettingsPagesAreInVisibleAlphabeticalOrder() {
+        XCTAssertEqual(
+            AppSettings.SettingsPage.allCases.map(\.rawValue),
+            ["agents", "appShots", "interface", "git", "notifications", "terminal", "threads"]
+        )
+    }
+
     func testDefaultEnterBehaviorIsQueue() {
         XCTAssertEqual(AppSettings().defaultEnterBehavior, .queue)
     }

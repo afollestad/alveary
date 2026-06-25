@@ -463,6 +463,7 @@ extension ChatComposerGoalModeTests {
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             transcriptTypography: TranscriptTypography(),
+            appShotCoordinator: AppShotCoordinator(),
             appState: appState
         )
     }

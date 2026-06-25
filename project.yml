@@ -30,7 +30,9 @@ targets:
         product: BlockInputKit
       - package: AgentCLIKit
         product: AgentCLIKit
+      - sdk: Carbon.framework
       - sdk: IOKit.framework
+      - sdk: ScreenCaptureKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary

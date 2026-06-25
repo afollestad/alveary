@@ -32,6 +32,7 @@ extension ConversationViewModel {
             replaceInputDraft(snapshot.draft, source: snapshot.draftSource)
             state.stagedContext = snapshot.stagedContext
             state.stagedImageAttachments = snapshot.stagedImageAttachments
+            state.stagedAppShots = snapshot.stagedAppShots
             refreshInputDraftEffectiveEmptyForAttachments()
         }
         thread.hasCompletedInitialSetup = false

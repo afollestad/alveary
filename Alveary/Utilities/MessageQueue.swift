@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import Observation
 
@@ -10,6 +11,8 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     /// Provider-facing text for delivery; local UI and transcript must keep using `text`.
     let transportText: String?
     let attachments: [LocalImageAttachment]
+    let appShots: [AppShotAttachment]
+    let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
 
     init(
@@ -20,6 +23,8 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         self.id = id
@@ -29,6 +34,8 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         self.requiredSpeedMode = requiredSpeedMode
         self.transportText = transportText
         self.attachments = attachments
+        self.appShots = appShots
+        self.providerMetadata = providerMetadata
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
     }
 }
@@ -45,6 +52,8 @@ final class MessageQueue {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.append(QueuedMessage(
@@ -54,6 +63,8 @@ final class MessageQueue {
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
             attachments: attachments,
+            appShots: appShots,
+            providerMetadata: providerMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ))
     }
@@ -65,6 +76,8 @@ final class MessageQueue {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
         pending.insert(QueuedMessage(
@@ -74,6 +87,8 @@ final class MessageQueue {
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
             attachments: attachments,
+            appShots: appShots,
+            providerMetadata: providerMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         ), at: 0)
     }
@@ -96,7 +111,7 @@ final class MessageQueue {
 
     func clearExitPlanModeRevisionGuidance() {
         pending = pending.map { message in
-            guard message.transportText != nil || message.consumedExitPlanModeRevisionGuidance != nil else {
+            guard message.consumedExitPlanModeRevisionGuidance != nil else {
                 return message
             }
             return QueuedMessage(
@@ -105,7 +120,9 @@ final class MessageQueue {
                 stagedContext: message.stagedContext,
                 requiredPlanModeEnabled: nil,
                 requiredSpeedMode: message.requiredSpeedMode,
-                attachments: message.attachments
+                attachments: message.attachments,
+                appShots: message.appShots,
+                providerMetadata: message.providerMetadata
             )
         }
     }

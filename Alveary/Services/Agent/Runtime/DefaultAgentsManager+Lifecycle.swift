@@ -6,13 +6,15 @@ extension DefaultAgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         )
     }
 
@@ -21,14 +23,16 @@ extension DefaultAgentsManager {
         initialGoal: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws {
         try await sendGoalStartMessageWithAgentCLIKit(
             message,
             initialGoal: initialGoal,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
-            attachments: attachments
+            attachments: attachments,
+            metadata: metadata
         )
     }
 
@@ -36,17 +40,18 @@ extension DefaultAgentsManager {
         _ message: String,
         conversationId: String,
         steeringInputID: String,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: AgentCLIKit.JSONValue]
     ) async throws {
         try await sendMessageWithAgentCLIKit(
             message,
             conversationId: conversationId,
             activityVisibility: .visible,
             attachments: attachments,
-            metadata: [
+            metadata: metadata.merging([
                 AgentCLIKit.AgentSteeringMetadata.isSteering: .bool(true),
                 AgentCLIKit.AgentSteeringMetadata.inputId: .string(steeringInputID)
-            ]
+            ]) { _, new in new }
         )
     }
 

@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 extension ConversationViewModel {
@@ -11,6 +12,8 @@ extension ConversationViewModel {
         transportText: String? = nil,
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -31,7 +34,12 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
-        try await sendVisibleAgentMessage(transportMessage, initialGoal: initialGoal, attachments: attachments)
+        try await sendVisibleAgentMessage(
+            transportMessage,
+            initialGoal: initialGoal,
+            attachments: attachments,
+            providerMetadata: providerMetadata
+        )
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil
         }
@@ -58,7 +66,8 @@ extension ConversationViewModel {
     func sendVisibleAgentMessage(
         _ message: String,
         initialGoal: String? = nil,
-        attachments: [LocalImageAttachment] = []
+        attachments: [LocalImageAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
@@ -69,14 +78,16 @@ extension ConversationViewModel {
                     initialGoal: initialGoal,
                     conversationId: conversation.id,
                     activityVisibility: .visible,
-                    attachments: attachments
+                    attachments: attachments,
+                    metadata: providerMetadata
                 )
             } else {
                 try await agentsManager.sendMessage(
                     message,
                     conversationId: conversation.id,
                     activityVisibility: .visible,
-                    attachments: attachments
+                    attachments: attachments,
+                    metadata: providerMetadata
                 )
             }
         } catch {
@@ -88,7 +99,8 @@ extension ConversationViewModel {
     func sendVisibleSteeringMessage(
         _ message: String,
         steeringInputID: String,
-        attachments: [LocalImageAttachment] = []
+        attachments: [LocalImageAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) async throws {
         let markedPromptDismissalReplacement = markPromptDismissalNewOutboundTurnStarted()
         do {
@@ -96,7 +108,8 @@ extension ConversationViewModel {
                 message,
                 conversationId: conversation.id,
                 steeringInputID: steeringInputID,
-                attachments: attachments
+                attachments: attachments,
+                metadata: providerMetadata
             )
         } catch {
             restorePromptDismissalNewOutboundTurnStartedIfNeeded(markedPromptDismissalReplacement)
@@ -132,7 +145,9 @@ extension ConversationViewModel {
                     id: localMessageID,
                     stagedContext: queuedMessage.stagedContext,
                     transportText: queuedMessage.transportText,
-                    attachments: queuedMessage.attachments
+                    attachments: queuedMessage.attachments,
+                    appShots: queuedMessage.appShots,
+                    providerMetadata: queuedMessage.providerMetadata
                 )
             }
             state.lastTurnError = "Steer failed: \(error.localizedDescription)"
@@ -161,13 +176,15 @@ extension ConversationViewModel {
             try await sendVisibleSteeringMessage(
                 transportMessage,
                 steeringInputID: localMessage.id,
-                attachments: queuedMessage.attachments
+                attachments: queuedMessage.attachments,
+                providerMetadata: queuedMessage.providerMetadata
             )
             markVisibleTurnStarted()
             state.turnState.beginTurn()
             clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
             state.clearRetryableFailedMessage(id: localMessage.id)
             state.markTranscriptImageAttachments(id: localMessage.id, attachments: queuedMessage.attachments)
+            state.markTranscriptAppShots(id: localMessage.id, appShots: queuedMessage.appShots)
             state.respawnAttempts = 0
         }
     }
@@ -309,6 +326,11 @@ private extension ConversationViewModel {
         guard queuedMessage.transportText == nil || queuedMessage.consumedExitPlanModeRevisionGuidance == nil else {
             throw AgentError.spawnFailed("Plan feedback queued messages send on the next turn")
         }
+        if !queuedMessage.appShots.isEmpty,
+           queuedMessage.providerMetadata[AgentCLIKit.CodexInputMetadata.isAppshot] != .bool(true),
+           !hasClaudeAppShotDirectoryGrant(for: queuedMessage.appShots) {
+            throw AgentError.spawnFailed("App-shot queued messages send on the next turn until Claude can read the screenshot directory")
+        }
         return queuedMessage
     }
 
@@ -324,6 +346,7 @@ private extension ConversationViewModel {
             try await ensureSpeedModeForOutbound(requiredSpeedMode)
         }
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await ensureAppShotProviderPrerequisites(appShots: next.appShots)
         try await withOutboundReservation {
             let sessionRecoveryContext = try await prepareRuntimeForQueuedMessage()
             guard sessionRecoveryContext.shouldContinue else {
@@ -361,7 +384,9 @@ private extension ConversationViewModel {
                         id: localMessageID,
                         stagedContext: resolvedStagedContext.stagedContext,
                         transportText: transportText,
-                        attachments: queuedMessage.attachments
+                        attachments: queuedMessage.attachments,
+                        appShots: queuedMessage.appShots,
+                        providerMetadata: queuedMessage.providerMetadata
                     )
                 }
                 throw error
@@ -379,6 +404,8 @@ private extension ConversationViewModel {
             queuedMessage.text,
             transportTextOverride: transportText,
             attachments: queuedMessage.attachments,
+            appShots: queuedMessage.appShots,
+            providerMetadata: queuedMessage.providerMetadata,
             consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContext,
             useCurrentStagedContextWhenOverrideNil: false,

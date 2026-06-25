@@ -1,3 +1,5 @@
+import AgentCLIKit
+
 struct LocalUserMessageAttemptMetadata {
     let restoresConversationTitle: Bool
     let conversationTitle: String?
@@ -8,6 +10,8 @@ struct LocalUserMessageAttempt {
     let stagedContext: String?
     let transportText: String?
     let attachments: [LocalImageAttachment]
+    let appShots: [AppShotAttachment]
+    let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     let insertedMessage: Bool
     let metadata: LocalUserMessageAttemptMetadata?

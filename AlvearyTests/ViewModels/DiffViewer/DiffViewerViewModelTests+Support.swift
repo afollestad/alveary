@@ -1,3 +1,4 @@
+import enum AgentCLIKit.JSONValue
 import Foundation
 
 @testable import Alveary
@@ -352,7 +353,8 @@ actor DiffViewerMockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {

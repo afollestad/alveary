@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 enum SessionSettingsConfigSource {
@@ -15,6 +16,8 @@ extension ConversationViewModel {
         workingDirectory overrideWorkingDirectory: String? = nil,
         initialPrompt: String? = nil,
         initialPromptAttachments: [LocalImageAttachment] = [],
+        initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        allowedDirectories: [String] = [],
         initialGoal: String? = nil,
         settingsSource: SessionSettingsConfigSource = .nextTurn
     ) throws -> AgentSpawnConfig {
@@ -49,6 +52,11 @@ extension ConversationViewModel {
             speedMode: speedModeOverride ?? dbConversation.thread?.normalizedSpeedMode ?? .standard,
             initialPrompt: initialPrompt,
             initialPromptAttachments: initialPromptAttachments,
+            initialPromptMetadata: initialPromptMetadata,
+            allowedDirectories: mergedAllowedDirectories(
+                configured: settingsContext.liveConfig?.allowedDirectories ?? [],
+                additional: allowedDirectories
+            ),
             initialGoal: initialGoal
         )
     }
@@ -415,5 +423,18 @@ extension ConversationViewModel {
             context.currentContinuationSnapshot?.model ?? thread?.model,
             AppSettings.normalizedEffortLevel(context.currentContinuationSnapshot?.effort ?? thread?.effort)
         )
+    }
+
+    private func mergedAllowedDirectories(configured: [String], additional: [String]) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        for directory in configured + additional {
+            let normalized = CanonicalPath.normalize(directory)
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else {
+                continue
+            }
+            result.append(normalized)
+        }
+        return result
     }
 }

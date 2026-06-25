@@ -24,7 +24,9 @@ struct LocalImageAttachment: Codable, Equatable, Identifiable, Sendable {
 }
 
 protocol ConversationAttachmentStore: Sendable {
+    func conversationRootDirectory(conversationId: String) -> URL
     func copyLocalImages(_ urls: [URL], conversationId: String) async throws -> [LocalImageAttachment]
+    func storeAppShotScreenshot(_ data: Data, conversationId: String, label: String) async throws -> LocalImageAttachment
     func cleanupUnreferenced(keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async
 }
 
@@ -43,6 +45,10 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
     init(rootDirectory: URL, fileManager: FileManager = .default) {
         self.rootDirectory = rootDirectory
         self.fileManager = fileManager
+    }
+
+    nonisolated func conversationRootDirectory(conversationId: String) -> URL {
+        directory(for: conversationId)
     }
 
     func copyLocalImages(_ urls: [URL], conversationId: String) async throws -> [LocalImageAttachment] {
@@ -69,6 +75,22 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
                 createdAt: Date()
             )
         }
+    }
+
+    func storeAppShotScreenshot(_ data: Data, conversationId: String, label: String) async throws -> LocalImageAttachment {
+        let appShotDirectory = directory(for: conversationId)
+            .appendingPathComponent("appshots", isDirectory: true)
+        try fileManager.createDirectory(at: appShotDirectory, withIntermediateDirectories: true, attributes: nil)
+
+        let id = UUID().uuidString
+        let destinationURL = appShotDirectory.appendingPathComponent("\(id).png", isDirectory: false)
+        try data.write(to: destinationURL, options: [.atomic])
+        return LocalImageAttachment(
+            id: id,
+            fileURL: destinationURL,
+            label: label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Appshot screenshot.png" : label,
+            createdAt: Date()
+        )
     }
 
     func cleanupUnreferenced(keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {
@@ -102,7 +124,7 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
         return UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) ?? false
     }
 
-    private func directory(for conversationId: String) -> URL {
+    nonisolated private func directory(for conversationId: String) -> URL {
         rootDirectory
             .appendingPathComponent("conversations", isDirectory: true)
             .appendingPathComponent(conversationId, isDirectory: true)

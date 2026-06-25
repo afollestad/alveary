@@ -4,7 +4,7 @@ import Foundation
 
 extension ChatView {
     var stagedImagePreviewAttachments: [BlockInputImagePreviewAttachment] {
-        viewModel.stagedImageAttachments.map { attachment in
+        let imagePreviews = viewModel.stagedImageAttachments.map { attachment in
             BlockInputImagePreviewAttachment(
                 id: attachment.id,
                 fileURL: attachment.fileURL,
@@ -17,6 +17,20 @@ extension ChatView {
                 }
             )
         }
+        let appShotPreviews = viewModel.stagedAppShots.map { appShot in
+            BlockInputImagePreviewAttachment(
+                id: appShot.id,
+                fileURL: appShot.screenshot.fileURL,
+                label: "App shot: \(appShot.appName)",
+                open: { preview in
+                    NSWorkspace.shared.open(preview.fileURL)
+                },
+                remove: { preview in
+                    viewModel.removeStagedAppShot(id: preview.id)
+                }
+            )
+        }
+        return imagePreviews + appShotPreviews
     }
 
     var blockInputFileDropHandler: BlockInputFileDropHandler? {

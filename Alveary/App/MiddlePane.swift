@@ -24,6 +24,7 @@ struct MiddlePane: View {
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
     let settingsViewModel: SettingsViewModel
+    let appShotCoordinator: AppShotCoordinator
 
     @Environment(\.modelContext) private var uiModelContext
     @Query private var projects: [Project]
@@ -62,7 +63,8 @@ struct MiddlePane: View {
                     try await sidebarViewModel.deleteThread(thread)
                 },
                 loadSkillCompletions: loadInstalledSkills,
-                diffViewModel: diffViewModel
+                diffViewModel: diffViewModel,
+                appShotCoordinator: appShotCoordinator
             )
                 .id(thread.persistentModelID)
         case .settings:

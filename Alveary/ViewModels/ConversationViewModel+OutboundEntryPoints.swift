@@ -3,6 +3,7 @@ import Foundation
 extension ConversationViewModel {
     func setupAndStart(_ message: String, supportsLocalImageInput: Bool = true) async throws {
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
         try await withOutboundReservation {
             try await deliverNormalUserMessage(message, supportsLocalImageInput: supportsLocalImageInput)
         }
@@ -18,6 +19,7 @@ extension ConversationViewModel {
         }
 
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
         try await withOutboundReservation {
             try await deliverNormalUserMessage(
                 message,
@@ -34,7 +36,7 @@ extension ConversationViewModel {
         supportsLocalImageInput: Bool = true
     ) async throws {
         try validateQueueOrSendAvailability()
-        let outbound = outboundText(
+        let outbound = try outboundText(
             for: message,
             requiredPlanModeEnabled: requiredPlanModeEnabled,
             requiredSpeedMode: requiredSpeedMode,
@@ -79,11 +81,15 @@ extension ConversationViewModel {
 
         do {
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+            let appShots = state.retryableFailedMessageAppShots[id] ?? []
+            try await ensureAppShotProviderPrerequisites(appShots: appShots)
             try await withOutboundReservation {
                 try await deliverMessageReserved(
                     message,
                     transportTextOverride: state.retryableFailedMessageTransportTexts[id],
                     attachments: state.retryableFailedMessageAttachments[id] ?? [],
+                    appShots: appShots,
+                    providerMetadata: state.retryableFailedMessageProviderMetadata[id] ?? [:],
                     stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
                     existingLocalUserMessageID: id
                 )
@@ -114,17 +120,20 @@ private extension ConversationViewModel {
         requiredPlanModeEnabled: Bool?,
         requiredSpeedMode: AgentSpeedMode?,
         supportsLocalImageInput: Bool
-    ) -> OutboundMessageText {
+    ) throws -> OutboundMessageText {
         let base: OutboundMessageText
         if requiredPlanModeEnabled != nil || requiredSpeedMode != nil {
             base = OutboundMessageText(visibleText: message)
         } else {
             base = preparedNormalUserOutboundText(message)
         }
-        return base.resolvingImageAttachments(
+        return try base.resolvingImageAttachments(
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
             fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingAppShots(
+            state.stagedAppShots,
+            providerID: conversation.provider ?? settingsService.current.defaultProvider
         )
     }
 
@@ -133,16 +142,22 @@ private extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         supportsLocalImageInput: Bool = true
     ) async throws {
-        let outbound = preparedNormalUserOutboundText(message).resolvingImageAttachments(
+        let outbound = try preparedNormalUserOutboundText(message).resolvingImageAttachments(
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
             fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingAppShots(
+            state.stagedAppShots,
+            providerID: conversation.provider ?? settingsService.current.defaultProvider
         )
         try await deliverMessageReserved(
             outbound.visibleText,
             transportTextOverride: outbound.transportText,
             attachments: outbound.attachments,
+            appShots: outbound.appShots,
+            providerMetadata: outbound.providerMetadata,
             consumedAttachments: outbound.consumedAttachments,
+            consumedAppShots: outbound.consumedAppShots,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContextOverride
         )
@@ -160,10 +175,13 @@ private extension ConversationViewModel {
             requiredSpeedMode: requiredSpeedMode,
             transportText: outbound.transportText,
             attachments: outbound.attachments,
+            appShots: outbound.appShots,
+            providerMetadata: outbound.providerMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
         )
         state.stagedContext = nil
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
+        clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
         scheduleQueueDrainIfNeeded()
     }
 
@@ -178,6 +196,7 @@ private extension ConversationViewModel {
                 requiredSpeedMode: requiredSpeedMode
             )
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+            try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
         } catch {
             restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
             throw error
@@ -187,7 +206,10 @@ private extension ConversationViewModel {
                 outbound.visibleText,
                 transportTextOverride: outbound.transportText,
                 attachments: outbound.attachments,
+                appShots: outbound.appShots,
+                providerMetadata: outbound.providerMetadata,
                 consumedAttachments: outbound.consumedAttachments,
+                consumedAppShots: outbound.consumedAppShots,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
             )
         }
@@ -227,7 +249,7 @@ private extension ConversationViewModel {
         _ outbound: OutboundMessageText,
         fallback: Bool?
     ) -> Bool? {
-        outbound.transportText == nil ? fallback : true
+        outbound.consumedExitPlanModeRevisionGuidance == nil ? fallback : true
     }
 
     func retryableVisibleMessage(id: String) -> String? {
@@ -236,7 +258,10 @@ private extension ConversationViewModel {
             return nil
         }
         let hasRetryableAttachments = !(state.retryableFailedMessageAttachments[id]?.isEmpty ?? true)
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || hasRetryableAttachments else {
+        let hasRetryableAppShots = !(state.retryableFailedMessageAppShots[id]?.isEmpty ?? true)
+        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            hasRetryableAttachments ||
+            hasRetryableAppShots else {
             return nil
         }
         return message

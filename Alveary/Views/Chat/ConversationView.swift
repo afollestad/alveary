@@ -23,6 +23,7 @@ struct ConversationView: View {
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     let threadActivityRecorder: any ThreadActivityRecording
+    let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
     @State var viewModel: ConversationViewModel
@@ -77,6 +78,7 @@ struct ConversationView: View {
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
+        appShotCoordinator: AppShotCoordinator,
         appState: AppState
     ) {
         self.conversation = conversation
@@ -99,6 +101,7 @@ struct ConversationView: View {
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
         self.threadActivityRecorder = threadActivityRecorder
+        self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
             projectURL: conversation.thread?.project.map {
@@ -149,6 +152,7 @@ struct ConversationView: View {
             ),
             loadSkillCompletions: loadSkillCompletions,
             transcriptTypography: transcriptTypography,
+            appShotCoordinator: appShotCoordinator,
             appState: appState
         )
         .task {

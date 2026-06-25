@@ -118,12 +118,10 @@ struct SettingsScreen: View {
                 handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
-        case .git:
-            GitSettingsTabView(
-                gitHubCLI: gitHubCLI,
-                branchPrefix: binding(for: \.branchPrefix),
-                commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
-                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory)
+        case .appShots:
+            AppShotsSettingsTabView(
+                appShotsEnabled: binding(for: \.appShotsEnabled),
+                appShotShortcut: binding(for: \.appShotShortcut)
             )
         case .interface:
             InterfaceSettingsTabView(
@@ -132,6 +130,13 @@ struct SettingsScreen: View {
                 codeFontFamily: binding(for: \.codeFontFamily),
                 codeFontSize: binding(for: \.codeFontSize),
                 chatFontSize: binding(for: \.chatFontSize)
+            )
+        case .git:
+            GitSettingsTabView(
+                gitHubCLI: gitHubCLI,
+                branchPrefix: binding(for: \.branchPrefix),
+                commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
+                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory)
             )
         case .notifications:
             NotificationsSettingsTabView(
@@ -215,10 +220,12 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "Agents"
-        case .git:
-            return "Git"
+        case .appShots:
+            return "App Shots"
         case .interface:
             return "Appearance"
+        case .git:
+            return "Git"
         case .notifications:
             return "Notifications"
         case .terminal:
@@ -232,10 +239,12 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "brain"
-        case .git:
-            return "arrow.triangle.branch"
+        case .appShots:
+            return "camera.viewfinder"
         case .interface:
             return "paintbrush"
+        case .git:
+            return "arrow.triangle.branch"
         case .notifications:
             return "bell"
         case .terminal:
@@ -249,10 +258,12 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
-        case .git:
-            return "Configure Git defaults and GitHub authentication for new worktrees."
+        case .appShots:
+            return "Configure app-shot capture, shortcuts, and local context permissions."
         case .interface:
             return "Adjust theme and typography for the app shell."
+        case .git:
+            return "Configure Git defaults and GitHub authentication for new worktrees."
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:

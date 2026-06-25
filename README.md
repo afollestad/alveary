@@ -78,6 +78,8 @@ Project trust state and provider MCP config reads/writes flow through `AgentCLIK
 
 Local images picked from the composer or dropped onto it are copied into Alveary-owned Application Support storage. Providers that report local image input receive those copies as attachments; providers without that capability keep the existing Markdown image-link fallback.
 
+App shots use Accessibility APIs plus ScreenCaptureKit to capture the last focused non-Alveary window for the selected conversation. Codex receives the screenshot through local image transport plus hidden AX tree text, while Claude receives hidden AX text with an absolute Markdown screenshot reference because Claude transport is text-only.
+
 ## Snapshot Tests
 
 Verify the full snapshot suite:

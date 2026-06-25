@@ -1,3 +1,4 @@
+import enum AgentCLIKit.JSONValue
 import XCTest
 
 @testable import Alveary
@@ -188,7 +189,8 @@ actor SnapshotMockAgentsManager: AgentsManager {
         _ message: String,
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment]
+        attachments: [LocalImageAttachment],
+        metadata: [String: JSONValue]
     ) async throws {}
 
     func resolveToolApproval(_ request: AgentToolApprovalResolutionRequest) async throws -> Bool {

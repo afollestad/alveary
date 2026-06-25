@@ -62,6 +62,7 @@ struct AlvearyApp: App {
 
                 ViewRawTranscriptCommandButton()
                 TriggerSessionHandoffCommandButton()
+                CopyAppShotPreviewCommandButton()
             }
             #endif
         }
@@ -186,6 +187,17 @@ private struct TriggerSessionHandoffCommandButton: View {
             triggerSessionHandoffAction?()
         }
         .disabled(triggerSessionHandoffAction == nil)
+    }
+}
+
+private struct CopyAppShotPreviewCommandButton: View {
+    @FocusedValue(\.copyAppShotPreviewAction) private var copyAppShotPreviewAction
+
+    var body: some View {
+        Button("Copy app-shot transport preview") {
+            copyAppShotPreviewAction?()
+        }
+        .disabled(copyAppShotPreviewAction == nil)
     }
 }
 #endif

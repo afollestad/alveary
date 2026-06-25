@@ -152,18 +152,24 @@ final class ConversationViewModel {
             throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
         }
 
+        let outbound = try OutboundMessageText(visibleText: message).resolvingImageAttachments(
+            state.stagedImageAttachments,
+            supportsLocalImageInput: supportsLocalImageInput,
+            fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingAppShots(
+            state.stagedAppShots,
+            providerID: conversation.provider ?? settingsService.current.defaultProvider
+        )
+        try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
+
         try await withOutboundReservation {
             guard let dbConversation = dbConversation() else {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
-            let outbound = OutboundMessageText(visibleText: message).resolvingImageAttachments(
-                state.stagedImageAttachments,
-                supportsLocalImageInput: supportsLocalImageInput,
-                fallbackText: fallbackText(visibleText:attachments:)
-            )
             let localMessage = insertLocalUserMessage(outbound.visibleText, into: dbConversation)
             clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
+            clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
             state.lastTurnInterrupted = false
             state.isCancellingTurn = false
             state.lastTurnError = nil
@@ -172,18 +178,22 @@ final class ConversationViewModel {
                 try await sendVisibleSteeringMessage(
                     outbound.transportText ?? outbound.visibleText,
                     steeringInputID: localMessage.id,
-                    attachments: outbound.attachments
+                    attachments: outbound.attachments,
+                    providerMetadata: outbound.providerMetadata
                 )
                 markVisibleTurnStarted()
                 state.turnState.beginTurn()
                 state.clearRetryableFailedMessage(id: localMessage.id)
                 state.markTranscriptImageAttachments(id: localMessage.id, attachments: outbound.attachments)
+                state.markTranscriptAppShots(id: localMessage.id, appShots: outbound.appShots)
             } catch {
                 state.markRetryableFailedMessage(
                     id: localMessage.id,
                     stagedContext: nil,
                     transportText: outbound.transportText,
-                    attachments: outbound.attachments
+                    attachments: outbound.attachments,
+                    appShots: outbound.appShots,
+                    providerMetadata: outbound.providerMetadata
                 )
                 state.lastTurnError = "Steer failed: \(error.localizedDescription)"
                 throw error

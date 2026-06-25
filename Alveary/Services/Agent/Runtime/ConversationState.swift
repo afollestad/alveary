@@ -110,6 +110,7 @@ final class ConversationState {
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
     var stagedImageAttachments: [LocalImageAttachment] = []
+    var stagedAppShots: [AppShotAttachment] = []
     var inputDraftRevision = 0
     var inputDraftDirtyRevision = 0
     var inputDraftIsEffectivelyEmpty = true
@@ -151,7 +152,10 @@ final class ConversationState {
     var retryableFailedMessageStagedContexts: [String: String] = [:]
     var retryableFailedMessageTransportTexts: [String: String] = [:]
     var retryableFailedMessageAttachments: [String: [LocalImageAttachment]] = [:]
+    var retryableFailedMessageAppShots: [String: [AppShotAttachment]] = [:]
+    var retryableFailedMessageProviderMetadata: [String: [String: AgentCLIKit.JSONValue]] = [:]
     var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
+    var transcriptAppShots: [String: [AppShotAttachment]] = [:]
     var pendingSyntheticAssistantDuplicateText: String?
     var isGoalModeArmed = false
     var goalSnapshot: AgentGoalSnapshot?
@@ -241,7 +245,9 @@ final class ConversationState {
         id: String,
         stagedContext: String?,
         transportText: String? = nil,
-        attachments: [LocalImageAttachment] = []
+        attachments: [LocalImageAttachment] = [],
+        appShots: [AppShotAttachment] = [],
+        providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) {
         retryableFailedMessageIDs.insert(id)
         if let stagedContext {
@@ -259,6 +265,16 @@ final class ConversationState {
         } else {
             retryableFailedMessageAttachments[id] = attachments
         }
+        if appShots.isEmpty {
+            retryableFailedMessageAppShots.removeValue(forKey: id)
+        } else {
+            retryableFailedMessageAppShots[id] = appShots
+        }
+        if providerMetadata.isEmpty {
+            retryableFailedMessageProviderMetadata.removeValue(forKey: id)
+        } else {
+            retryableFailedMessageProviderMetadata[id] = providerMetadata
+        }
     }
 
     func clearRetryableFailedMessage(id: String) {
@@ -266,6 +282,8 @@ final class ConversationState {
         retryableFailedMessageStagedContexts.removeValue(forKey: id)
         retryableFailedMessageTransportTexts.removeValue(forKey: id)
         retryableFailedMessageAttachments.removeValue(forKey: id)
+        retryableFailedMessageAppShots.removeValue(forKey: id)
+        retryableFailedMessageProviderMetadata.removeValue(forKey: id)
     }
 
     func markTranscriptImageAttachments(id: String, attachments: [LocalImageAttachment]) {
@@ -273,6 +291,14 @@ final class ConversationState {
             transcriptImageAttachments.removeValue(forKey: id)
         } else {
             transcriptImageAttachments[id] = attachments
+        }
+    }
+
+    func markTranscriptAppShots(id: String, appShots: [AppShotAttachment]) {
+        if appShots.isEmpty {
+            transcriptAppShots.removeValue(forKey: id)
+        } else {
+            transcriptAppShots[id] = appShots
         }
     }
 

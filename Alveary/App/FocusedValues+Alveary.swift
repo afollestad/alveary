@@ -27,6 +27,12 @@ struct TriggerSessionHandoffActionKey: FocusedValueKey {
 }
 
 #if DEBUG
+/// Published by `ChatView` so the debug-only Developer menu can copy the
+/// generated provider transport body for staged app shots without sending.
+struct CopyAppShotPreviewActionKey: FocusedValueKey {
+    typealias Value = @MainActor () -> Void
+}
+
 /// Published by `ThreadDetailView` so the debug-only Developer menu can open a
 /// raw transcript window for the currently selected conversation.
 struct RawTranscriptWindowRequestKey: FocusedValueKey {
@@ -51,6 +57,11 @@ extension FocusedValues {
     }
 
     #if DEBUG
+    var copyAppShotPreviewAction: CopyAppShotPreviewActionKey.Value? {
+        get { self[CopyAppShotPreviewActionKey.self] }
+        set { self[CopyAppShotPreviewActionKey.self] = newValue }
+    }
+
     var rawTranscriptWindowRequest: RawTranscriptWindowRequestKey.Value? {
         get { self[RawTranscriptWindowRequestKey.self] }
         set { self[RawTranscriptWindowRequestKey.self] = newValue }

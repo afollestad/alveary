@@ -1,3 +1,5 @@
+import AgentCLIKit
+
 /// Provider-neutral app request for starting or reconfiguring an agent runtime.
 ///
 /// `AgentCLIKitHostAdapter` converts this Alveary model into `AgentCLIKit.AgentSpawnConfig`.
@@ -15,6 +17,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let sessionFork: AgentSessionForkRequest?
     let initialPrompt: String?
     let initialPromptAttachments: [LocalImageAttachment]
+    let initialPromptMetadata: [String: AgentCLIKit.JSONValue]
+    let allowedDirectories: [String]
     let initialGoal: String?
 
     init(
@@ -29,6 +33,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         sessionFork: AgentSessionForkRequest? = nil,
         initialPrompt: String? = nil,
         initialPromptAttachments: [LocalImageAttachment] = [],
+        initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        allowedDirectories: [String] = [],
         initialGoal: String? = nil
     ) {
         self.providerId = providerId
@@ -42,6 +48,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.sessionFork = sessionFork
         self.initialPrompt = initialPrompt
         self.initialPromptAttachments = initialPromptAttachments
+        self.initialPromptMetadata = initialPromptMetadata
+        self.allowedDirectories = allowedDirectories.map(CanonicalPath.normalize)
         self.initialGoal = initialGoal
     }
 }
