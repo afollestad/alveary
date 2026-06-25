@@ -99,6 +99,29 @@ extension SidebarView {
         }
     }
 
+    func setThreadPinned(_ thread: AgentThread, isPinned: Bool) {
+        let threadID = thread.persistentModelID
+        let sourceProjectPath = thread.project?.path
+        let shouldRevealUnpinnedSelection: Bool
+        if case .thread(let selectedThread) = appState.selectedSidebarItem,
+           selectedThread.persistentModelID == threadID,
+           !isPinned {
+            shouldRevealUnpinnedSelection = true
+        } else {
+            shouldRevealUnpinnedSelection = false
+        }
+
+        do {
+            try viewModel.setThreadPinned(thread, isPinned: isPinned)
+            if shouldRevealUnpinnedSelection,
+               let projectPath = uiModelContext.resolveThread(id: threadID)?.project?.path ?? sourceProjectPath {
+                expandedProjects.insert(projectPath)
+            }
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+    }
+
     func confirmDeleteThread(_ thread: AgentThread) async {
         pendingDeleteThread = nil
 
@@ -177,6 +200,22 @@ extension SidebarView {
     }
 
     func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {
+        if thread.isPinned {
+            let threads = pinnedThreads()
+            if let deletedIndex = threads.firstIndex(where: { $0.persistentModelID == thread.persistentModelID }) {
+                if deletedIndex > 0 {
+                    return .thread(threads[deletedIndex - 1])
+                }
+
+                let nextIndex = deletedIndex + 1
+                if threads.indices.contains(nextIndex) {
+                    return .thread(threads[nextIndex])
+                }
+            }
+
+            return thread.project.map(SidebarItem.project)
+        }
+
         guard let project = thread.project else {
             return nil
         }

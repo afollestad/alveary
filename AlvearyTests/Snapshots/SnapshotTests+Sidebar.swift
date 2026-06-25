@@ -416,6 +416,35 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarViewPinnedThread() async throws {
+        let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
+
+        let appState = AppState()
+        appState.selectedSidebarItem = .project(sidebar.project)
+
+        assertMacSnapshot(
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+                .modelContainer(sidebar.fixture.container),
+            size: CGSize(width: 320, height: 720),
+            named: "sidebar_pinned_thread"
+        )
+    }
+
+    func testSidebarViewSelectedPinnedThread() async throws {
+        let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
+        let pinnedThread = try XCTUnwrap(sidebar.pinnedThread)
+
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(pinnedThread)
+
+        assertMacSnapshot(
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+                .modelContainer(sidebar.fixture.container),
+            size: CGSize(width: 320, height: 720),
+            named: "sidebar_selected_pinned_thread"
+        )
+    }
+
     func testSidebarViewExpandedProjectWithoutThreads() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
 

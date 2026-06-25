@@ -11,11 +11,20 @@ enum SidebarRowMetrics {
     static let topLevelAndThreadContentHeight: CGFloat = labelHeight + topLevelAndThreadVerticalPadding * 2
     static let topLevelRowSpacing: CGFloat = 4
     static let interThreadRowSpacing: CGFloat = 2
+    static let pinnedThreadBoundarySpacing: CGFloat = 12
 }
 
 extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
         viewModel.activeThreads(for: project)
+    }
+
+    func pinnedThreads() -> [AgentThread] {
+        viewModel.pinnedThreads()
+    }
+
+    func hasAnyActiveThreads(for project: Project) -> Bool {
+        viewModel.hasAnyActiveThreads(for: project)
     }
 
     func topLevelRow(
@@ -78,7 +87,9 @@ extension SidebarView {
         case .project(let project):
             expandedProjects.insert(project.path)
         case .thread(let thread):
-            if let projectPath = uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path {
+            if let resolvedThread = uiModelContext.resolveThread(id: thread.persistentModelID),
+               !resolvedThread.isPinned,
+               let projectPath = resolvedThread.project?.path {
                 expandedProjects.insert(projectPath)
             }
         default:

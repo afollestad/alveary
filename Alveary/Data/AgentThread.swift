@@ -15,6 +15,7 @@ final class AgentThread {
     var model: String?
     var speedMode: String?
     var useWorktree: Bool
+    var isPinned: Bool = false
     var modifiedAt: Date?
     var archivedAt: Date?
     var project: Project?
@@ -33,6 +34,7 @@ final class AgentThread {
         model: String? = nil,
         speedMode: String? = AgentSpeedMode.standard.rawValue,
         useWorktree: Bool = false,
+        isPinned: Bool = false,
         modifiedAt: Date? = nil,
         archivedAt: Date? = nil,
         project: Project? = nil,
@@ -50,6 +52,7 @@ final class AgentThread {
         self.model = model
         self.speedMode = speedMode
         self.useWorktree = useWorktree
+        self.isPinned = isPinned
         self.modifiedAt = modifiedAt
         self.archivedAt = archivedAt
         self.project = project
@@ -66,6 +69,7 @@ extension AgentThread {
         for conversation in conversations {
             conversation.refreshPendingRestoreContextFromHistory()
         }
+        isPinned = false
         archivedAt = nil
     }
 }

@@ -114,6 +114,7 @@ final class SidebarViewModel {
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
+            dbThread.isPinned = false
             dbThread.archivedAt = Date()
             try modelContext.save()
         }

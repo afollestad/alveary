@@ -33,6 +33,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedThread.permissionMode, "acceptEdits")
         XCTAssertEqual(savedThread.effort, "max")
         XCTAssertTrue(savedThread.useWorktree)
+        XCTAssertFalse(savedThread.isPinned)
         XCTAssertEqual(savedThread.project?.path, project.path)
         XCTAssertEqual(savedThread.conversations.count, 1)
         XCTAssertEqual(savedThread.conversations.first?.provider, "claude")

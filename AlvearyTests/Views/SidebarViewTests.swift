@@ -137,19 +137,42 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertNil(threadCleanupConfirmation(for: nil, action: .archive))
     }
 
-    func testThreadContextMenuItemsUseForkDividerRenameArchiveDeleteOrder() {
-        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: true), [
+    func testThreadContextMenuItemsUseForkDividerPinRenameArchiveDeleteOrder() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: true), [
             .forkLocal,
             .forkWorktree,
             .divider,
+            .pin,
             .rename,
             .archive,
             .delete
         ])
-        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: true).map(\.title), [
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: true).map(\.title), [
             "Fork into local",
             "Fork into worktree",
             nil,
+            "Pin",
+            "Rename...",
+            "Archive...",
+            "Delete..."
+        ])
+    }
+
+    func testThreadContextMenuItemsUseUnpinForPinnedThreads() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: true, canRename: true), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .unpin,
+            .rename,
+            .archive,
+            .delete
+        ])
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: true, canRename: true).map(\.title), [
+            "Fork into local",
+            "Fork into worktree",
+            nil,
+            "Unpin",
             "Rename...",
             "Archive...",
             "Delete..."
@@ -157,13 +180,73 @@ final class SidebarViewTests: XCTestCase {
     }
 
     func testThreadContextMenuHidesRenameWhileAnotherRowIsEditing() {
-        XCTAssertEqual(sidebarThreadContextMenuItems(canRename: false), [
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: false), [
             .forkLocal,
             .forkWorktree,
             .divider,
+            .pin,
             .archive,
             .delete
         ])
+    }
+
+    func testThreadContextMenuKeepsUnpinWhileAnotherRowIsEditing() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: true, canRename: false), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .unpin,
+            .archive,
+            .delete
+        ])
+    }
+
+    func testSelectionAfterDeletingPinnedThreadPrefersPreviousPinnedThread() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let alpha = makeThread(name: "Alpha", project: project, isPinned: true)
+        let beta = makeThread(name: "Beta", project: project, isPinned: true)
+        _ = makeThread(name: "Gamma", project: project, isPinned: true)
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(view.selectionAfterDeletingThread(beta), .thread(alpha))
+    }
+
+    func testSelectionAfterDeletingPinnedThreadPrefersNextPinnedThreadWhenNoPreviousThreadExists() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let alpha = makeThread(name: "Alpha", project: project, isPinned: true)
+        let beta = makeThread(name: "Beta", project: project, isPinned: true)
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(view.selectionAfterDeletingThread(alpha), .thread(beta))
+    }
+
+    func testSelectionAfterDeletingLastPinnedThreadFallsBackToProject() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let thread = makeThread(name: "Alpha", project: project, isPinned: true)
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(view.selectionAfterDeletingThread(thread), .project(project))
+    }
+
+    func testNoThreadsPlaceholderHiddenWhenAllActiveThreadsArePinned() throws {
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let pinnedThread = makeThread(name: "Pinned", project: project, isPinned: true)
+
+        XCTAssertFalse(shouldShowNoThreadsPlaceholder(activeProjectThreads: [], hasAnyActiveThreads: true))
+        XCTAssertTrue(shouldShowNoThreadsPlaceholder(activeProjectThreads: [], hasAnyActiveThreads: false))
+        XCTAssertFalse(shouldShowNoThreadsPlaceholder(activeProjectThreads: [pinnedThread], hasAnyActiveThreads: true))
     }
 
     func testWorktreeTooltipTextUsesCanonicalWorktreePath() {
@@ -194,8 +277,8 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertEqual(sidebarThreadWorktreeTooltipText(for: thread), "Worktree path not created yet")
     }
 
-    private func makeThread(name: String, project: Project) -> AgentThread {
-        let thread = AgentThread(name: name, project: project)
+    private func makeThread(name: String, project: Project, isPinned: Bool = false) -> AgentThread {
+        let thread = AgentThread(name: name, isPinned: isPinned, project: project)
         let conversation = Conversation(
             id: UUID().uuidString,
             title: "Main",

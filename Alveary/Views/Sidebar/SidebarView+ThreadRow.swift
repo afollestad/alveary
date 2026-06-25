@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+enum SidebarThreadRowLayout {
+    case project
+    case topLevel
+}
+
 struct SidebarThreadRow: View {
     private static let statusIndicatorSize: CGFloat = 8
     private static let cleanupButtonSize: CGFloat = 24
@@ -22,6 +27,7 @@ struct SidebarThreadRow: View {
     let thread: AgentThread
     let status: ThreadStatus
     let isSelected: Bool
+    let layout: SidebarThreadRowLayout
     @Binding var editingThreadID: PersistentIdentifier?
     let cleanupAction: ThreadCleanupAction
     let onCommitRename: (String) -> Void
@@ -46,6 +52,7 @@ struct SidebarThreadRow: View {
         thread: AgentThread,
         status: ThreadStatus,
         isSelected: Bool,
+        layout: SidebarThreadRowLayout = .project,
         editingThreadID: Binding<PersistentIdentifier?>,
         cleanupAction: ThreadCleanupAction = .archive,
         initialRowHover: Bool = false,
@@ -56,6 +63,7 @@ struct SidebarThreadRow: View {
         self.thread = thread
         self.status = status
         self.isSelected = isSelected
+        self.layout = layout
         _editingThreadID = editingThreadID
         self.cleanupAction = cleanupAction
         self.onCommitRename = onCommitRename
@@ -64,21 +72,19 @@ struct SidebarThreadRow: View {
         _isCleanupConfirmationArmed = State(initialValue: initialCleanupConfirmationArmed)
     }
 
-    private var isEditing: Bool {
-        editingThreadID == thread.persistentModelID
-    }
+    private var isEditing: Bool { editingThreadID == thread.persistentModelID }
 
-    private var displayName: String {
-        thread.displayName()
-    }
+    private var displayName: String { thread.displayName() }
 
     var body: some View {
         HStack(spacing: 0) {
-            Color.clear
-                .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
+            if layout == .project {
+                Color.clear
+                    .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
 
-            Color.clear
-                .frame(width: 10)
+                Color.clear
+                    .frame(width: 10)
+            }
 
             if isEditing {
                 TextField("Thread name", text: $editText)

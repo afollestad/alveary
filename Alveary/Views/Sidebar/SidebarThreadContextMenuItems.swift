@@ -2,6 +2,8 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
     case forkLocal
     case forkWorktree
     case divider
+    case pin
+    case unpin
     case rename
     case archive
     case delete
@@ -14,6 +16,10 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
             "Fork into worktree"
         case .divider:
             nil
+        case .pin:
+            "Pin"
+        case .unpin:
+            "Unpin"
         case .rename:
             "Rename..."
         case .archive:
@@ -24,11 +30,12 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
     }
 }
 
-func sidebarThreadContextMenuItems(canRename: Bool) -> [SidebarThreadContextMenuItem] {
+func sidebarThreadContextMenuItems(isPinned: Bool, canRename: Bool) -> [SidebarThreadContextMenuItem] {
     var items: [SidebarThreadContextMenuItem] = [
         .forkLocal,
         .forkWorktree,
-        .divider
+        .divider,
+        isPinned ? .unpin : .pin
     ]
     if canRename {
         items.append(.rename)

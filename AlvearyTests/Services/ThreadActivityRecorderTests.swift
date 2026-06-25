@@ -70,6 +70,42 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, false)
     }
 
+    func testPinnedVisibleTurnEndPostsOrderChange() async throws {
+        let baseDate = Date(timeIntervalSince1970: 300)
+        let clock = ManualDateProvider(now: baseDate)
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        let pinned = fixture.insertThread(
+            name: "Pinned",
+            modifiedAt: baseDate,
+            conversationIDs: ["pinned-main"],
+            isPinned: true
+        )
+        _ = fixture.insertThread(name: "Unpinned", modifiedAt: Date(timeIntervalSince1970: 200), conversationIDs: ["unpinned-main"])
+        try fixture.save()
+
+        let expectation = expectation(description: "thread activity notification")
+        let notificationPayload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .threadActivityChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "pinned-main" else {
+                return
+            }
+            notificationPayload.record(notification.userInfo)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleTurnEnded(conversationId: "pinned-main")
+
+        await fulfillment(of: [expectation], timeout: 1)
+        let modifiedAt = try XCTUnwrap(pinned.modifiedAt)
+        XCTAssertGreaterThan(modifiedAt, baseDate)
+        XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
+    }
+
     func testHistoricalActivityIgnoresStaleTimestamp() throws {
         let fixture = try ThreadActivityRecorderFixture()
         let current = Date(timeIntervalSince1970: 300)
@@ -147,8 +183,13 @@ private final class ThreadActivityRecorderFixture {
         context.insert(project)
     }
 
-    func insertThread(name: String, modifiedAt: Date?, conversationIDs: [String]) -> AgentThread {
-        let thread = AgentThread(name: name, modifiedAt: modifiedAt, project: project)
+    func insertThread(
+        name: String,
+        modifiedAt: Date?,
+        conversationIDs: [String],
+        isPinned: Bool = false
+    ) -> AgentThread {
+        let thread = AgentThread(name: name, isPinned: isPinned, modifiedAt: modifiedAt, project: project)
         thread.conversations = conversationIDs.enumerated().map { index, id in
             Conversation(
                 id: id,

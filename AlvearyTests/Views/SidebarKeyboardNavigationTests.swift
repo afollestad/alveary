@@ -45,6 +45,21 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(items, [.skills, .mcp, .project(projectA), .project(projectB)])
     }
 
+    func testBuildNavigableItemsPlacesPinnedThreadsAfterMCPBeforeProjects() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let pinned = makeThread(name: "Pinned", project: project, isPinned: true)
+        try context.save()
+
+        let items = buildNavigableItems(
+            projects: [project],
+            pinnedThreads: [pinned],
+            expandedProjects: [],
+            activeThreads: { _ in [] }
+        )
+
+        XCTAssertEqual(items, [.skills, .mcp, .thread(pinned), .project(project)])
+    }
+
     func testBuildNavigableItemsWithExpandedProject() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
@@ -59,6 +74,24 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         )
 
         XCTAssertEqual(items, [.skills, .mcp, .project(project), .thread(thread)])
+    }
+
+    func testBuildNavigableItemsDoesNotDuplicatePinnedThreadsUnderExpandedProject() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        let pinned = makeThread(name: "Pinned", project: project, isPinned: true)
+        let unpinned = makeThread(name: "Unpinned", project: project)
+        try context.save()
+
+        let items = buildNavigableItems(
+            projects: [project],
+            pinnedThreads: [pinned],
+            expandedProjects: ["/tmp/alpha"],
+            activeThreads: { project in
+                project.threads.filter { $0.archivedAt == nil && !$0.isPinned }
+            }
+        )
+
+        XCTAssertEqual(items, [.skills, .mcp, .thread(pinned), .project(project), .thread(unpinned)])
     }
 
     func testBuildNavigableItemsExcludesArchivedThreads() throws {
@@ -392,8 +425,8 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     @discardableResult
-    private func makeThread(name: String, project: Project, archivedAt: Date? = nil) -> AgentThread {
-        let thread = AgentThread(name: name, archivedAt: archivedAt, project: project)
+    private func makeThread(name: String, project: Project, archivedAt: Date? = nil, isPinned: Bool = false) -> AgentThread {
+        let thread = AgentThread(name: name, isPinned: isPinned, archivedAt: archivedAt, project: project)
         let conversation = Conversation(
             id: UUID().uuidString,
             title: "Main",

@@ -41,7 +41,7 @@ struct SidebarProjectsHeaderRow: View {
         }
         .padding(.leading, Self.contentLeadingPadding)
         .padding(.trailing, Self.trailingPadding)
-        .padding(.top, 12)
+        .padding(.top, SidebarRowMetrics.pinnedThreadBoundarySpacing)
         .padding(.bottom, 8)
     }
 }

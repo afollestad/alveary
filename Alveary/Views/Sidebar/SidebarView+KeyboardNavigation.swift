@@ -7,6 +7,7 @@ extension SidebarView {
     var navigableItems: [SidebarItem] {
         buildNavigableItems(
             projects: projects,
+            pinnedThreads: pinnedThreads(),
             expandedProjects: expandedProjects,
             activeThreads: activeThreads
         )
@@ -193,10 +194,14 @@ func renameThreadID(
 
 func buildNavigableItems(
     projects: [Project],
+    pinnedThreads: [AgentThread] = [],
     expandedProjects: Set<String>,
     activeThreads: (Project) -> [AgentThread]
 ) -> [SidebarItem] {
     var items: [SidebarItem] = [.skills, .mcp]
+    for thread in pinnedThreads {
+        items.append(.thread(thread))
+    }
     for project in projects {
         items.append(.project(project))
         if expandedProjects.contains(project.path) {

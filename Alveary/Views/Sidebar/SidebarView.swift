@@ -34,7 +34,7 @@ struct SidebarView: View {
     }
 
     private var expandedThreadCount: Int {
-        projects.reduce(0) { count, project in
+        pinnedThreads().count + projects.reduce(0) { count, project in
             guard expandedProjects.contains(project.path) else {
                 return count
             }
@@ -42,9 +42,94 @@ struct SidebarView: View {
         }
     }
 
+    private var projectsHeader: some View {
+        SidebarProjectsHeaderRow {
+            appState.openNewProjectFlow()
+        }
+    }
+
+    @ViewBuilder
+    private var projectsRows: some View {
+        if projects.isEmpty {
+            Text("No projects yet")
+                .foregroundStyle(.secondary)
+                .padding(.leading, 8)
+        }
+
+        ForEach(projects.indices, id: \.self) { index in
+            let project = projects[index]
+            let isExpanded = expandedProjects.contains(project.path)
+            let activeProjectThreads = activeThreads(for: project)
+            let firstThreadID = activeProjectThreads.first?.persistentModelID
+            let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
+
+            SidebarProjectRow(
+                project: project,
+                isExpanded: isExpanded,
+                isSelected: appState.selectedSidebarItem == .project(project),
+                onToggleExpanded: {
+                    toggleExpansion(for: project.path, in: &expandedProjects)
+                    claimSidebarFocus()
+                },
+                onActivate: {
+                    activateProject(project)
+                },
+                onCreateThread: {
+                    Task { await createThread(in: project) }
+                }
+            )
+            .padding(.top, topSpacing)
+            .appSelectionRowBackground(
+                isSelected: appState.selectedSidebarItem == .project(project),
+                topInset: topSpacing
+            )
+            .contextMenu {
+                Button("New Thread") {
+                    Task { await createThread(in: project) }
+                }
+
+                Button("Remove Project...", role: .destructive) {
+                    pendingDeleteProject = project
+                }
+            }
+
+            if isExpanded {
+                if shouldShowNoThreadsPlaceholder(
+                    activeProjectThreads: activeProjectThreads,
+                    hasAnyActiveThreads: hasAnyActiveThreads(for: project)
+                ) {
+                    Text("No threads")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 6.75)
+                        .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
+                        .allowsHitTesting(false)
+                }
+
+                ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
+                    let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
+                        ? 0
+                        : SidebarRowMetrics.interThreadRowSpacing
+                    sidebarThreadRow(
+                        thread,
+                        layout: .project,
+                        topSpacing: threadTopSpacing
+                    )
+                }
+                .transaction { transaction in
+                    if threadOrderAnimation == nil {
+                        transaction.disablesAnimations = true
+                        transaction.animation = nil
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         let statusVersion = viewModel.statusVersion
         let threadOrderVersion = viewModel.threadOrderVersion
+        let pinnedThreads = self.pinnedThreads()
 
         return VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
@@ -67,135 +152,34 @@ struct SidebarView: View {
                         systemImage: "server.rack",
                         item: .mcp
                     )
+
+                    ForEach(pinnedThreads, id: \.persistentModelID) { thread in
+                        sidebarThreadRow(
+                            thread,
+                            layout: .topLevel,
+                            topSpacing: thread.persistentModelID == pinnedThreads.first?.persistentModelID
+                                ? SidebarRowMetrics.pinnedThreadBoundarySpacing
+                                : SidebarRowMetrics.interThreadRowSpacing
+                        )
+                    }
+                    .transaction { transaction in
+                        if threadOrderAnimation == nil {
+                            transaction.disablesAnimations = true
+                            transaction.animation = nil
+                        }
+                    }
+
+                    if !pinnedThreads.isEmpty {
+                        projectsHeader
+                        projectsRows
+                    }
                 }
 
-                Section {
-                    if projects.isEmpty {
-                        Text("No projects yet")
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 8)
-                    }
-
-                    ForEach(projects.indices, id: \.self) { index in
-                        let project = projects[index]
-                        let isExpanded = expandedProjects.contains(project.path)
-                        let activeProjectThreads = activeThreads(for: project)
-                        let firstThreadID = activeProjectThreads.first?.persistentModelID
-                        let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
-
-                        SidebarProjectRow(
-                            project: project,
-                            isExpanded: isExpanded,
-                            isSelected: appState.selectedSidebarItem == .project(project),
-                            onToggleExpanded: {
-                                toggleExpansion(for: project.path, in: &expandedProjects)
-                                claimSidebarFocus()
-                            },
-                            onActivate: {
-                                activateProject(project)
-                            },
-                            onCreateThread: {
-                                Task { await createThread(in: project) }
-                            }
-                        )
-                        .padding(.top, topSpacing)
-                        .appSelectionRowBackground(
-                            isSelected: appState.selectedSidebarItem == .project(project),
-                            topInset: topSpacing
-                        )
-                        .contextMenu {
-                            Button("New Thread") {
-                                Task { await createThread(in: project) }
-                            }
-
-                            Button("Remove Project...", role: .destructive) {
-                                pendingDeleteProject = project
-                            }
-                        }
-
-                        if isExpanded {
-                            if activeProjectThreads.isEmpty {
-                                Text("No threads")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 6.75)
-                                    .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
-                                    .allowsHitTesting(false)
-                            }
-
-                            ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
-                                let isSelected = appState.selectedSidebarItem == .thread(thread)
-                                let cleanupAction = viewModel.defaultThreadCleanupAction
-                                let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
-                                    ? 0
-                                    : SidebarRowMetrics.interThreadRowSpacing
-                                SidebarThreadRow(
-                                    thread: thread,
-                                    status: viewModel.threadStatus(for: thread),
-                                    isSelected: isSelected,
-                                    editingThreadID: $editingThreadID,
-                                    cleanupAction: cleanupAction,
-                                    onCommitRename: { newName in
-                                        renameThread(thread, to: newName)
-                                    },
-                                    onConfirmCleanup: {
-                                        Task {
-                                            switch cleanupAction {
-                                            case .archive:
-                                                await archive(thread)
-                                            case .delete:
-                                                await confirmDeleteThread(thread)
-                                            }
-                                        }
-                                    }
-                                )
-                                    .padding(.leading, 14)
-                                    .padding(.top, threadTopSpacing)
-                                    .appSelectableRow(
-                                        isSelected: isSelected,
-                                        selectionBackgroundTopInset: threadTopSpacing,
-                                        action: { activateThread(thread) }
-                                    )
-                                    .contextMenu {
-                                        ForEach(sidebarThreadContextMenuItems(canRename: editingThreadID == nil), id: \.self) { item in
-                                            switch item {
-                                            case .forkLocal:
-                                                Button("Fork into local") {
-                                                    Task { await forkThread(thread, mode: .local) }
-                                                }
-                                            case .forkWorktree:
-                                                Button("Fork into worktree") {
-                                                    Task { await forkThread(thread, mode: .worktree) }
-                                                }
-                                            case .divider:
-                                                Divider()
-                                            case .rename:
-                                                Button("Rename...") {
-                                                    editingThreadID = thread.persistentModelID
-                                                }
-                                            case .archive:
-                                                Button("Archive...") {
-                                                    pendingArchiveThread = thread
-                                                }
-                                            case .delete:
-                                                Button("Delete...", role: .destructive) {
-                                                    pendingDeleteThread = thread
-                                                }
-                                            }
-                                        }
-                                    }
-                            }
-                            .transaction { transaction in
-                                if threadOrderAnimation == nil {
-                                    transaction.disablesAnimations = true
-                                    transaction.animation = nil
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    SidebarProjectsHeaderRow {
-                        appState.openNewProjectFlow()
+                if pinnedThreads.isEmpty {
+                    Section {
+                        projectsRows
+                    } header: {
+                        projectsHeader
                     }
                 }
             }
@@ -309,6 +293,86 @@ struct SidebarView: View {
         threadDeleteConfirmationMessage(for: thread)
     }
 
+    func sidebarThreadRow(
+        _ thread: AgentThread,
+        layout: SidebarThreadRowLayout,
+        topSpacing: CGFloat
+    ) -> some View {
+        let isSelected = appState.selectedSidebarItem == .thread(thread)
+        let cleanupAction = viewModel.defaultThreadCleanupAction
+        let leadingPadding: CGFloat = layout == .topLevel ? SidebarProjectsHeaderRow.contentLeadingPadding : 14
+
+        return SidebarThreadRow(
+            thread: thread,
+            status: viewModel.threadStatus(for: thread),
+            isSelected: isSelected,
+            layout: layout,
+            editingThreadID: $editingThreadID,
+            cleanupAction: cleanupAction,
+            onCommitRename: { newName in
+                renameThread(thread, to: newName)
+            },
+            onConfirmCleanup: {
+                Task {
+                    switch cleanupAction {
+                    case .archive:
+                        await archive(thread)
+                    case .delete:
+                        await confirmDeleteThread(thread)
+                    }
+                }
+            }
+        )
+        .padding(.leading, leadingPadding)
+        .padding(.top, topSpacing)
+        .appSelectableRow(
+            isSelected: isSelected,
+            selectionBackgroundTopInset: topSpacing,
+            action: { activateThread(thread) }
+        )
+        .contextMenu {
+            sidebarThreadContextMenu(for: thread)
+        }
+    }
+
+    @ViewBuilder
+    func sidebarThreadContextMenu(for thread: AgentThread) -> some View {
+        ForEach(sidebarThreadContextMenuItems(isPinned: thread.isPinned, canRename: editingThreadID == nil), id: \.self) { item in
+            switch item {
+            case .forkLocal:
+                Button("Fork into local") {
+                    Task { await forkThread(thread, mode: .local) }
+                }
+            case .forkWorktree:
+                Button("Fork into worktree") {
+                    Task { await forkThread(thread, mode: .worktree) }
+                }
+            case .divider:
+                Divider()
+            case .pin:
+                Button("Pin") {
+                    setThreadPinned(thread, isPinned: true)
+                }
+            case .unpin:
+                Button("Unpin") {
+                    setThreadPinned(thread, isPinned: false)
+                }
+            case .rename:
+                Button("Rename...") {
+                    editingThreadID = thread.persistentModelID
+                }
+            case .archive:
+                Button("Archive...") {
+                    pendingArchiveThread = thread
+                }
+            case .delete:
+                Button("Delete...", role: .destructive) {
+                    pendingDeleteThread = thread
+                }
+            }
+        }
+    }
+
     // Driven by explicit user actions (row tap, selection change, expansion toggle),
     // not by `.onChange(of: isKeyboardFocused)`. The reactive change handler also fires
     // when SwiftUI's `.focused($isKeyboardFocused)` re-claims the List after another
@@ -330,4 +394,11 @@ struct SidebarView: View {
         chatComposerFocus?.release()
         isKeyboardFocused = true
     }
+}
+
+func shouldShowNoThreadsPlaceholder(
+    activeProjectThreads: [AgentThread],
+    hasAnyActiveThreads: Bool
+) -> Bool {
+    activeProjectThreads.isEmpty && !hasAnyActiveThreads
 }

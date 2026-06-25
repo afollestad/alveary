@@ -54,6 +54,7 @@ extension SidebarViewModelTests {
 
         assertForkWorktreePreparation(createCalls: createCalls, prepareCalls: prepareCalls)
         XCTAssertTrue(forkedThread.useWorktree)
+        XCTAssertFalse(forkedThread.isPinned)
         XCTAssertEqual(forkedThread.branch, "alveary/forked-thread")
         XCTAssertEqual(forkedThread.worktreePath, "/tmp/new-worktree")
         XCTAssertEqual(spawnCall.config.workingDirectory, "/tmp/new-worktree")
@@ -265,6 +266,7 @@ private func assertLocalForkThread(
     XCTAssertEqual(forkedThread.name, "Thread")
     XCTAssertFalse(forkedThread.hasCustomName)
     XCTAssertFalse(forkedThread.useWorktree)
+    XCTAssertFalse(forkedThread.isPinned)
     XCTAssertTrue(forkedThread.hasCompletedInitialSetup)
     XCTAssertEqual(conversation.title, "Thread")
     XCTAssertEqual(conversation.provider, "codex")
