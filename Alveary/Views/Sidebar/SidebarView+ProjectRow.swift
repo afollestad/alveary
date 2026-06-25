@@ -5,6 +5,10 @@ struct SidebarProjectRow: View {
     static let leadingIconWidth: CGFloat = 16
     static let leadingIconFontSize: CGFloat = 11
     static let leadingSpacing: CGFloat = 10
+    private static let disclosureCaretSpacing: CGFloat = 4
+    private static let disclosureCaretWidth: CGFloat = 12
+    private static let disclosureCaretFontSize: CGFloat = 9
+    private static let titleClusterVerticalOffset: CGFloat = 0.5
     static let trailingActionHorizontalOffset: CGFloat = 4
     static let projectNameLeadingInset: CGFloat = horizontalPadding + leadingIconWidth + leadingSpacing
 
@@ -16,7 +20,6 @@ struct SidebarProjectRow: View {
     let onCreateThread: () -> Void
 
     @State private var isHovering = false
-    @State private var isHoveringToggleIcon = false
     @State private var isHoveringCreateThread = false
 
     init(
@@ -24,7 +27,6 @@ struct SidebarProjectRow: View {
         isExpanded: Bool,
         isSelected: Bool,
         initialRowHover: Bool = false,
-        initialToggleIconHover: Bool = false,
         onToggleExpanded: @escaping () -> Void,
         onActivate: @escaping () -> Void,
         onCreateThread: @escaping () -> Void
@@ -36,7 +38,6 @@ struct SidebarProjectRow: View {
         self.onActivate = onActivate
         self.onCreateThread = onCreateThread
         _isHovering = State(initialValue: initialRowHover)
-        _isHoveringToggleIcon = State(initialValue: initialToggleIconHover)
     }
 
     var body: some View {
@@ -46,42 +47,28 @@ struct SidebarProjectRow: View {
                     onToggleExpanded()
                 }
             } label: {
-                ZStack {
-                    toggleIcon(systemName: "folder")
-                        .opacity(showsExpansionIcon ? 0 : 1)
-                        .scaleEffect(showsExpansionIcon ? 0.86 : 1)
-
-                    toggleIcon(systemName: "chevron.right")
-                        .opacity(showsExpansionIcon && !isExpanded ? 1 : 0)
-                        .scaleEffect(showsExpansionIcon && !isExpanded ? 1 : 0.86)
-
-                    toggleIcon(systemName: "chevron.down")
-                        .opacity(showsExpansionIcon && isExpanded ? 1 : 0)
-                        .scaleEffect(showsExpansionIcon && isExpanded ? 1 : 0.86)
-                }
-                .frame(width: Self.leadingIconWidth, height: Self.leadingIconWidth)
-                .contentShape(Rectangle())
+                sidebarIcon(systemName: "folder")
+                    .frame(width: Self.leadingIconWidth, height: Self.leadingIconWidth)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(toggleAccessibilityLabel)
-            .onHover { isHovering in
-                withAnimation(.easeInOut(duration: 0.12)) {
-                    isHoveringToggleIcon = isHovering
-                }
-            }
-            .animation(.easeInOut(duration: 0.12), value: isExpanded)
 
             ZStack(alignment: .trailing) {
                 Button(action: onActivate) {
-                    HStack {
+                    HStack(spacing: Self.disclosureCaretSpacing) {
                         Text(project.name)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(projectForegroundColor)
                             .lineLimit(1)
 
+                        disclosureCaret
+
                         Spacer(minLength: 0)
                     }
+                    .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .offset(y: Self.titleClusterVerticalOffset)
                     .padding(.trailing, 28)
                     .contentShape(Rectangle())
                 }
@@ -138,15 +125,23 @@ struct SidebarProjectRow: View {
 
     private var projectForegroundColor: Color { .primary }
 
-    private var showsExpansionIcon: Bool {
-        isHoveringToggleIcon
-    }
-
     private var showsCreateThreadButton: Bool {
         isHovering || isSelected
     }
 
-    private func toggleIcon(systemName: String) -> some View {
+    private var disclosureCaret: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: Self.disclosureCaretFontSize, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(width: Self.disclosureCaretWidth, height: Self.disclosureCaretWidth)
+            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            .opacity(isHovering ? 1 : 0)
+            .scaleEffect(isHovering ? 1 : 0.86)
+            .accessibilityHidden(true)
+            .animation(.easeInOut(duration: 0.12), value: isExpanded)
+    }
+
+    private func sidebarIcon(systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: Self.leadingIconFontSize, weight: .medium))
             .foregroundStyle(projectForegroundColor)

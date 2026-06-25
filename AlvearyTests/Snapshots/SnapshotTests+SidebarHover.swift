@@ -4,6 +4,24 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testSidebarProjectRowLongTitleHoverKeepsCaretAndNewThreadButtonSeparated() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary Extremely Long Project Name That Should Truncate")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                project: project,
+                isExpanded: false,
+                isSelected: false,
+                initialRowHover: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            ),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_hover_long_title_inline_caret"
+        )
+    }
+
     func testSidebarRowHoverBackgroundSeparateFromSelection() {
         let project = Project(path: "/tmp/alveary", name: "Alveary")
         let thread = AgentThread(name: "Hovered thread")

@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testSidebarProjectRowHoverCollapsedShowsRightChevron() {
+    func testSidebarProjectRowHoverCollapsedShowsInlineRightCaret() {
         let project = Project(path: "/tmp/alveary", name: "Alveary")
 
         assertMacSnapshot(
@@ -13,17 +13,16 @@ extension SnapshotTests {
                 isExpanded: false,
                 isSelected: false,
                 initialRowHover: true,
-                initialToggleIconHover: true,
                 onToggleExpanded: {},
                 onActivate: {},
                 onCreateThread: {}
             ),
             size: CGSize(width: 280, height: 52),
-            named: "project_row_hover_collapsed_chevron"
+            named: "project_row_hover_collapsed_inline_caret"
         )
     }
 
-    func testSidebarProjectRowHoverExpandedShowsDownChevron() {
+    func testSidebarProjectRowHoverExpandedShowsInlineRotatedCaret() {
         let project = Project(path: "/tmp/alveary", name: "Alveary")
 
         assertMacSnapshot(
@@ -32,13 +31,12 @@ extension SnapshotTests {
                 isExpanded: true,
                 isSelected: false,
                 initialRowHover: true,
-                initialToggleIconHover: true,
                 onToggleExpanded: {},
                 onActivate: {},
                 onCreateThread: {}
             ),
             size: CGSize(width: 280, height: 52),
-            named: "project_row_hover_expanded_chevron"
+            named: "project_row_hover_expanded_inline_caret"
         )
     }
 

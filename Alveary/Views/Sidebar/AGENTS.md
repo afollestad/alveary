@@ -6,9 +6,9 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 
 - `SidebarProjectRow`'s leading icon `Button` is load-bearing for click-to-expand:
     - **Action:** Toggles expansion, never project activation. `onToggleExpanded` must remain the sole action; project activation lives on the sibling content affordance plus the row's transparent background tap target so dead space inside the selected-row chrome still opens the project.
-    - **Default icon:** Render the folder glyph when the icon is not hovered.
-    - **Hovered icon:** Transition the icon to `chevron.right` for collapsed projects and `chevron.down` for expanded projects while the pointer is over the icon button.
-    - **Toggle feedback:** Keep the icon in the hovered chevron state after clicks and switch it to the opposite chevron as `isExpanded` changes; return to the folder glyph when hover ends.
+    - **Fixed icon:** Always render the folder glyph. Do not swap this leading icon to a disclosure chevron on hover or expansion changes.
+    - **Inline disclosure:** On row hover, show a small, secondary-colored visual `chevron.right` immediately after the project title and rotate it for expanded state. Reserve its fixed slot even while hidden so hover does not shift title truncation.
+    - **Caret hit testing:** Keep the inline disclosure visual-only. Row/text/caret-area clicks still route through `onActivate`; only the leading icon button routes through `onToggleExpanded`.
     - **Hit region:** Keep the fixed 16×16 frame paired with `.contentShape(Rectangle())` so the folder button stays easy to hit even though the glyph is smaller than the nominal box. A `.plain` `Button` without `.contentShape` hit-tests against the SF Symbol's intrinsic outline, which makes clicks near the frame edges miss the toggle.
     - **Accessibility:** Provide an explicit `.accessibilityLabel` that reflects the current toggle action (`Expand <project>` / `Collapse <project>`). Without it, VoiceOver falls back to the SF Symbol's raw name (`"folder, button"`).
 - `SidebarProjectRow`'s trailing new-thread button mirrors row emphasis:
