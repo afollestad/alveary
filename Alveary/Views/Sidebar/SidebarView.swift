@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -91,6 +92,10 @@ struct SidebarView: View {
             .contextMenu {
                 Button("New Thread") {
                     Task { await createThread(in: project) }
+                }
+
+                Button("Reveal in Finder...") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path, isDirectory: true)])
                 }
 
                 Button("Remove Project...", role: .destructive) {
