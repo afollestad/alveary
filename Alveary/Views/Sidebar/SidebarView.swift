@@ -85,6 +85,7 @@ struct SidebarView: View {
             .padding(.top, topSpacing)
             .appSelectionRowBackground(
                 isSelected: appState.selectedSidebarItem == .project(project),
+                showsHoverBackground: true,
                 topInset: topSpacing
             )
             .contextMenu {
@@ -334,6 +335,7 @@ struct SidebarView: View {
         .appSelectableRow(
             isSelected: isSelected,
             selectionBackgroundTopInset: topSpacing,
+            showsHoverBackground: true,
             action: { activateThread(thread) }
         )
         .contextMenu {

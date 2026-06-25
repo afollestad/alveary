@@ -14,6 +14,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 - `SidebarProjectRow`'s trailing new-thread button mirrors row emphasis:
     - **Selected visibility:** Keep the button visible and hit-testable while the project row is selected.
     - **Hover visibility:** For unselected rows, keep the existing row-hover fade-in behavior and hide the button again when hover ends.
+    - **Control hover:** Row hover makes the trailing button visible, but only pointer hover over the button itself should show the circular button background.
     - **Column alignment:** Keep `SidebarSectionHeaderRow`'s add-project button center aligned with this row's new-thread button center.
 - Sidebar project rows are single-line. Do not reintroduce branch/path/local subtitles under the project name; expanded thread lists and the project settings surface already carry that metadata.
 - Sidebar project rows share `SidebarRowMetrics.topLevelAndThreadContentHeight` with thread rows. Do not add extra vertical padding around project row content; selected and hovered project rows should match thread row height.
@@ -34,6 +35,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Reserve trailing controls:** Keep the title gap, worktree glyph, and status/cleanup frame in a fixed-width trailing cluster so long thread names ellipsize before the glyph instead of overlapping or shifting it.
 - `SidebarThreadRow` cleanup action overlays the status dot:
     - **Keep hidden by default:** Show the archive/delete icon button only while the row is hovered or confirmation is armed.
+    - **Control hover:** Row hover makes the cleanup button visible, but only pointer hover over the button itself should show the circular button background. The selected-row background and the shared row-hover background are separate states.
     - **Anchor confirmation right:** Keep the red `Confirm` pill icon-height.
       It expands left from the status column, and the whole rounded pill is the hit target.
       If confirmation times out after hover leaves, collapse the pill width to zero without a fade.

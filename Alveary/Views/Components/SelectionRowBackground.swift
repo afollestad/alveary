@@ -4,6 +4,7 @@ import SwiftUI
 struct AppSelectionRowBackground: View {
     let isSelected: Bool
     let isPressed: Bool
+    let isHovered: Bool
     let leadingInset: CGFloat
     let trailingInset: CGFloat
     let topInset: CGFloat
@@ -25,6 +26,8 @@ struct AppSelectionRowBackground: View {
             return AppSelectionRowFill.pressed
         } else if isSelected {
             return AppAccentFill.primary
+        } else if isHovered {
+            return AppSelectionRowFill.hovered
         } else {
             return .clear
         }
@@ -32,6 +35,8 @@ struct AppSelectionRowBackground: View {
 }
 
 private enum AppSelectionRowFill {
+    static let hovered: Color = Color.secondary.opacity(0.08)
+
     static let pressed: Color = Color(nsColor: .accentDerived { accent, appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
@@ -49,6 +54,7 @@ private struct SelectableRowModifier: ViewModifier {
     let selectionBackgroundTrailingInset: CGFloat
     let selectionBackgroundTopInset: CGFloat
     let selectionBackgroundBottomInset: CGFloat
+    let showsHoverBackground: Bool
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -58,47 +64,27 @@ private struct SelectableRowModifier: ViewModifier {
     // `DragGesture.onEnded` fires on mouse-up regardless of hold duration, and we gate the
     // action on a small translation so it still reads as a click, not a drag-release.
     @State private var isPressed = false
+    @State private var isHovered = false
     @State private var isSelectionPending = false
     @State private var wasSelectedOnPress = false
 
     func body(content: Content) -> some View {
         content
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !isPressed {
-                            wasSelectedOnPress = isSelected
-                            isSelectionPending = false
-                            isPressed = true
-                        }
-                    }
-                    .onEnded { value in
-                        let isClick = abs(value.translation.width) < 10
-                            && abs(value.translation.height) < 10
-                        if isClick {
-                            // Optimistically keep the released row selected until the
-                            // owning model publishes, avoiding a pressed -> clear flash.
-                            isSelectionPending = !wasSelectedOnPress
-                            action()
-                        }
-                        isPressed = false
-                    }
-            )
+            .gesture(rowPressGesture)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityAction { action() }
-            .listRowBackground(
-                AppSelectionRowBackground(
-                    isSelected: isSelected || isSelectionPending,
-                    isPressed: isPressed,
-                    leadingInset: selectionBackgroundLeadingInset,
-                    trailingInset: selectionBackgroundTrailingInset,
-                    topInset: selectionBackgroundTopInset,
-                    bottomInset: selectionBackgroundBottomInset
-                )
-            )
+            .listRowBackground(selectionRowBackground)
             .onDisappear {
                 resetTransientState()
+            }
+            .onHover { isHovered in
+                guard showsHoverBackground else {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    self.isHovered = isHovered
+                }
             }
             .onChange(of: isSelected) { _, selected in
                 if selected {
@@ -112,31 +98,105 @@ private struct SelectableRowModifier: ViewModifier {
             }
     }
 
+    private var rowPressGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                if !isPressed {
+                    wasSelectedOnPress = isSelected
+                    isSelectionPending = false
+                    isPressed = true
+                }
+            }
+            .onEnded { value in
+                let isClick = abs(value.translation.width) < 10
+                    && abs(value.translation.height) < 10
+                if isClick {
+                    // Optimistically keep the released row selected until the
+                    // owning model publishes, avoiding a pressed -> clear flash.
+                    isSelectionPending = !wasSelectedOnPress
+                    action()
+                }
+                isPressed = false
+            }
+    }
+
+    private var selectionRowBackground: some View {
+        AppSelectionRowBackground(
+            isSelected: isSelected || isSelectionPending,
+            isPressed: isPressed,
+            isHovered: showsHoverBackground && isHovered,
+            leadingInset: selectionBackgroundLeadingInset,
+            trailingInset: selectionBackgroundTrailingInset,
+            topInset: selectionBackgroundTopInset,
+            bottomInset: selectionBackgroundBottomInset
+        )
+    }
+
     private func resetTransientState() {
         isPressed = false
+        isHovered = false
         isSelectionPending = false
         wasSelectedOnPress = false
+    }
+}
+
+private struct SelectionRowBackgroundModifier: ViewModifier {
+    let isSelected: Bool
+    let isHovered: Bool
+    let showsHoverBackground: Bool
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
+    let topInset: CGFloat
+    let bottomInset: CGFloat
+
+    @State private var isPointerInside = false
+
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(
+                AppSelectionRowBackground(
+                    isSelected: isSelected,
+                    isPressed: false,
+                    isHovered: isHovered || (showsHoverBackground && isPointerInside),
+                    leadingInset: leadingInset,
+                    trailingInset: trailingInset,
+                    topInset: topInset,
+                    bottomInset: bottomInset
+                )
+            )
+            .onHover { hovering in
+                guard showsHoverBackground else {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isPointerInside = hovering
+                }
+            }
+            .onDisappear {
+                isPointerInside = false
+            }
     }
 }
 
 extension View {
     func appSelectionRowBackground(
         isSelected: Bool,
+        isHovered: Bool = false,
+        showsHoverBackground: Bool = false,
         leadingInset: CGFloat = 10,
         trailingInset: CGFloat = 10,
         topInset: CGFloat = 0,
         bottomInset: CGFloat = 0
     ) -> some View {
-        listRowBackground(
-            AppSelectionRowBackground(
-                isSelected: isSelected,
-                isPressed: false,
-                leadingInset: leadingInset,
-                trailingInset: trailingInset,
-                topInset: topInset,
-                bottomInset: bottomInset
-            )
-        )
+        modifier(SelectionRowBackgroundModifier(
+            isSelected: isSelected,
+            isHovered: isHovered,
+            showsHoverBackground: showsHoverBackground,
+            leadingInset: leadingInset,
+            trailingInset: trailingInset,
+            topInset: topInset,
+            bottomInset: bottomInset
+        ))
     }
 
     /// Combines `contentShape`, tap gesture with press feedback, accessibility
@@ -149,6 +209,7 @@ extension View {
         selectionBackgroundTrailingInset: CGFloat = 10,
         selectionBackgroundTopInset: CGFloat = 0,
         selectionBackgroundBottomInset: CGFloat = 0,
+        showsHoverBackground: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         modifier(SelectableRowModifier(
@@ -158,6 +219,7 @@ extension View {
             selectionBackgroundTrailingInset: selectionBackgroundTrailingInset,
             selectionBackgroundTopInset: selectionBackgroundTopInset,
             selectionBackgroundBottomInset: selectionBackgroundBottomInset,
+            showsHoverBackground: showsHoverBackground,
             action: action
         ))
     }

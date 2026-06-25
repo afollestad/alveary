@@ -51,6 +51,7 @@ extension SidebarView {
             .appSelectableRow(
                 isSelected: isSelected,
                 selectionBackgroundBottomInset: bottomSpacing,
+                showsHoverBackground: true,
                 action: {
                     appState.selectedSidebarItem = item
                     claimSidebarFocus()

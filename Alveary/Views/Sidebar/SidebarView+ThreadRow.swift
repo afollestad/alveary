@@ -306,6 +306,10 @@ struct SidebarThreadRow: View {
             return isCleanupButtonPressed ? Self.cleanupDestructivePressedTint : Self.cleanupDestructiveTint
         }
 
+        guard isHoveringCleanupButton || isCleanupButtonPressed else {
+            return .clear
+        }
+
         return Color.primary.opacity(isCleanupButtonPressed ? 0.24 : 0.12)
     }
 
