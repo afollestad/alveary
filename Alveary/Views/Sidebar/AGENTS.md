@@ -14,8 +14,11 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 - `SidebarProjectRow`'s trailing new-thread button mirrors row emphasis:
     - **Selected visibility:** Keep the button visible and hit-testable while the project row is selected.
     - **Hover visibility:** For unselected rows, keep the existing row-hover fade-in behavior and hide the button again when hover ends.
+    - **Column alignment:** Keep `SidebarSectionHeaderRow`'s add-project button center aligned with this row's new-thread button center.
 - Sidebar project rows are single-line. Do not reintroduce branch/path/local subtitles under the project name; expanded thread lists and the project settings surface already carry that metadata.
-- Pinned threads render as top-level sidebar rows directly under `MCP` and above `Projects`:
+- Sidebar project rows share `SidebarRowMetrics.topLevelAndThreadContentHeight` with thread rows. Do not add extra vertical padding around project row content; selected and hovered project rows should match thread row height.
+- Pinned threads render as a top-level sidebar group directly under `MCP` and above `Projects`:
+    - **Show the conditional header.** Render the `Pinned` header only when pinned threads exist, and keep it visually matched with the `Projects` header styling and insets.
     - **Keep project ownership.** Pinning changes only sidebar placement. The `AgentThread.project` relationship still owns cleanup, diff actions, project deletion, and restore behavior.
     - **Hide from project lists.** Pinned active threads must not also render under their expanded project.
     - **Use existing activity ordering.** Pinned rows sort with `AgentThreadOrdering`, so outbound or turn-ended activity updates their order just like project thread rows.

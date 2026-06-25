@@ -43,9 +43,13 @@ struct SidebarView: View {
     }
 
     private var projectsHeader: some View {
-        SidebarProjectsHeaderRow {
+        SidebarSectionHeaderRow(title: "Projects") {
             appState.openNewProjectFlow()
         }
+    }
+
+    private var pinnedHeader: some View {
+        SidebarSectionHeaderRow(title: "Pinned")
     }
 
     @ViewBuilder
@@ -153,23 +157,25 @@ struct SidebarView: View {
                         item: .mcp
                     )
 
-                    ForEach(pinnedThreads, id: \.persistentModelID) { thread in
-                        sidebarThreadRow(
-                            thread,
-                            layout: .topLevel,
-                            topSpacing: thread.persistentModelID == pinnedThreads.first?.persistentModelID
-                                ? SidebarRowMetrics.pinnedThreadBoundarySpacing
-                                : SidebarRowMetrics.interThreadRowSpacing
-                        )
-                    }
-                    .transaction { transaction in
-                        if threadOrderAnimation == nil {
-                            transaction.disablesAnimations = true
-                            transaction.animation = nil
-                        }
-                    }
-
                     if !pinnedThreads.isEmpty {
+                        pinnedHeader
+
+                        ForEach(pinnedThreads, id: \.persistentModelID) { thread in
+                            sidebarThreadRow(
+                                thread,
+                                layout: .topLevel,
+                                topSpacing: thread.persistentModelID == pinnedThreads.first?.persistentModelID
+                                    ? 0
+                                    : SidebarRowMetrics.interThreadRowSpacing
+                            )
+                        }
+                        .transaction { transaction in
+                            if threadOrderAnimation == nil {
+                                transaction.disablesAnimations = true
+                                transaction.animation = nil
+                            }
+                        }
+
                         projectsHeader
                         projectsRows
                     }
@@ -300,7 +306,7 @@ struct SidebarView: View {
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == .thread(thread)
         let cleanupAction = viewModel.defaultThreadCleanupAction
-        let leadingPadding: CGFloat = layout == .topLevel ? SidebarProjectsHeaderRow.contentLeadingPadding : 14
+        let leadingPadding: CGFloat = layout == .topLevel ? SidebarSectionHeaderRow.contentLeadingPadding : 14
 
         return SidebarThreadRow(
             thread: thread,

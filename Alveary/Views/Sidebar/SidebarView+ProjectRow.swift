@@ -5,6 +5,7 @@ struct SidebarProjectRow: View {
     static let leadingIconWidth: CGFloat = 16
     static let leadingIconFontSize: CGFloat = 11
     static let leadingSpacing: CGFloat = 10
+    static let trailingActionHorizontalOffset: CGFloat = 4
     static let projectNameLeadingInset: CGFloat = horizontalPadding + leadingIconWidth + leadingSpacing
 
     let project: Project
@@ -75,7 +76,7 @@ struct SidebarProjectRow: View {
                     HStack {
                         Text(project.name)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(subtleForegroundColor)
+                            .foregroundStyle(projectForegroundColor)
                             .lineLimit(1)
 
                         Spacer(minLength: 0)
@@ -99,7 +100,7 @@ struct SidebarProjectRow: View {
                 }
                 .buttonStyle(.plain)
                 .contentShape(Circle())
-                .offset(x: 4)
+                .offset(x: Self.trailingActionHorizontalOffset)
                 .opacity(showsCreateThreadButton ? 1 : 0)
                 .allowsHitTesting(showsCreateThreadButton)
                 .onHover { isHovering in
@@ -114,7 +115,7 @@ struct SidebarProjectRow: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.vertical, 2)
+        .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
         .padding(.horizontal, Self.horizontalPadding)
         .background {
             Rectangle()
@@ -135,9 +136,7 @@ struct SidebarProjectRow: View {
         .animation(.easeInOut(duration: 0.12), value: isSelected)
     }
 
-    private var subtleForegroundColor: Color {
-        Color.primary.opacity(isSelected ? 0.76 : 0.62)
-    }
+    private var projectForegroundColor: Color { .primary }
 
     private var showsExpansionIcon: Bool {
         isHoveringToggleIcon
@@ -150,7 +149,7 @@ struct SidebarProjectRow: View {
     private func toggleIcon(systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: Self.leadingIconFontSize, weight: .medium))
-            .foregroundStyle(subtleForegroundColor)
+            .foregroundStyle(projectForegroundColor)
     }
 
     private var toggleAccessibilityLabel: String {

@@ -47,7 +47,7 @@ extension SidebarView {
         }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
-            .padding(.leading, SidebarProjectsHeaderRow.contentLeadingPadding - topIconOpticalInset)
+            .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding - topIconOpticalInset)
             .appSelectableRow(
                 isSelected: isSelected,
                 selectionBackgroundBottomInset: bottomSpacing,

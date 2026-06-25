@@ -388,6 +388,18 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarProjectAndThreadRowsShareHeight() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+        let thread = AgentThread(name: "New thread")
+        let stack = VStack(spacing: 0) {
+            SidebarProjectRow(project: project, isExpanded: false, isSelected: false, onToggleExpanded: {}, onActivate: {}, onCreateThread: {})
+            SidebarThreadRow(thread: thread, status: .unread, isSelected: false, editingThreadID: .constant(nil), onCommitRename: { _ in })
+                .padding(.leading, 14)
+        }
+
+        assertMacSnapshot(stack, size: CGSize(width: 320, height: 64), named: "project_thread_rows_share_height")
+    }
+
     func testSidebarViewPopulated() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
 
