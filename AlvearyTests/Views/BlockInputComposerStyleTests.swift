@@ -36,7 +36,7 @@ final class BlockInputComposerStyleTests: XCTestCase {
                 matches: DynamicLabelExpectation(
                     appearanceName: appearanceName,
                     baseColor: .secondaryLabelColor,
-                    opacity: 0.18
+                    opacity: 0.10
                 )
             )
         }
@@ -66,6 +66,11 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(strip.interItemSpacing, BlockInputComposerStyle.imagePreviewInterItemSpacing)
         XCTAssertEqual(strip.backgroundColor, BlockInputComposerStyle.imagePreviewStripBackgroundColor)
         let stripBackgroundColor = try XCTUnwrap(strip.backgroundColor)
+        try assertColor(
+            stripBackgroundColor,
+            appearanceName: .aqua,
+            matches: NSColor(calibratedWhite: 0.965, alpha: 1)
+        )
         try assertColor(
             stripBackgroundColor,
             appearanceName: .darkAqua,

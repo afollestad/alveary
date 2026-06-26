@@ -14,11 +14,7 @@ extension AppKitTranscriptRowFactory {
     ) -> [AppKitTranscriptMarkdownPrepRequest] {
         switch item {
         case .userMessage(let id, let text):
-            return [markdownPreparationRequest(
-                id: id,
-                role: .user,
-                markdown: userMessageMarkdown(id: id, text: text, configuration: configuration)
-            )]
+            return [markdownPreparationRequest(id: id, role: .user, markdown: text)]
         case .assistantMessage(let id, let text):
             return [markdownPreparationRequest(id: id, role: .assistant, markdown: text)]
         case .toolApproval(let id, let approval, _):

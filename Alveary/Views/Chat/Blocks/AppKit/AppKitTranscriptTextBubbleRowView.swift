@@ -2,18 +2,32 @@
 import Foundation
 import QuartzCore
 
-private let collapsedMaxHeight: CGFloat = 260
+let collapsedMaxHeight: CGFloat = 260
 private let collapseFadeHeight: CGFloat = 56
 let textBubbleControlClearance: CGFloat = 8
 let textBubbleControlSpacing: CGFloat = 4
 let textBubbleToggleMinHeight: CGFloat = 24
+let textBubbleImageStripBubbleSpacing: CGFloat = 6
 
 struct TextBubbleLayoutMetrics {
+    let imageStripFrame: NSRect?
     let bubbleFrame: NSRect
+    let hasBubble: Bool
     let markdownClipFrame: NSRect
     let markdownFrame: NSRect
     let overflows: Bool
     let isCollapsed: Bool
+
+    var contentHeight: CGFloat {
+        max(imageStripFrame?.maxY ?? 0, hasBubble ? bubbleFrame.maxY : 0)
+    }
+
+    var retryFooterAnchorFrame: NSRect {
+        if hasBubble {
+            return bubbleFrame
+        }
+        return imageStripFrame ?? .zero
+    }
 }
 
 /// Native transcript bubble row that owns markdown layout, expansion, retry
@@ -25,6 +39,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let id: String?
         let role: Role
         let markdown: String
+        let imageAttachments: [LocalImageAttachment]
         let bubbleMaxWidth: CGFloat
         let typography: AppKitMarkdownTypography
         let markdownBaseURL: URL?
@@ -35,6 +50,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             id: String? = nil,
             role: Role,
             markdown: String,
+            imageAttachments: [LocalImageAttachment] = [],
             bubbleMaxWidth: CGFloat = .infinity,
             typography: AppKitMarkdownTypography = .default,
             markdownBaseURL: URL? = nil,
@@ -44,6 +60,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             self.id = id
             self.role = role
             self.markdown = markdown
+            self.imageAttachments = imageAttachments
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
             self.markdownBaseURL = markdownBaseURL
@@ -70,10 +87,11 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     private(set) var bubbleView = AppKitFlippedDynamicColorView()
     private(set) var markdownClipView = AppKitFlippedDynamicColorView()
+    private(set) var imageAttachmentStripView = AppKitTranscriptImageAttachmentStripView()
     private(set) var collapsedFadeMask = CAGradientLayer()
     private(set) var expansionButton = AppKitTranscriptHeaderToggleButton()
-    private let retryStatusField = NSTextField(labelWithString: "Not sent")
-    private let retryButton = NSButton(title: "Retry", target: nil, action: nil)
+    private(set) var retryStatusField = NSTextField(labelWithString: "Not sent")
+    private(set) var retryButton = NSButton(title: "Retry", target: nil, action: nil)
     var markdownView: AppKitMarkdownView?
     private(set) var configuration: Configuration?
     private(set) var isExpanded = false
@@ -141,6 +159,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         if shouldResetExpansion {
             isExpanded = configuration.initiallyExpanded
         }
+        imageAttachmentStripView.configure(configuration.imageAttachments)
         resetMarkdownView()
         updateBubbleAppearance()
         retryStatusField.font = retryStatusFont(for: configuration.typography)
@@ -170,6 +189,8 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
     private func setup() {
         translatesAutoresizingMaskIntoConstraints = false
+        addSubview(imageAttachmentStripView)
+
         bubbleView.wantsLayer = true
         bubbleView.layer?.cornerRadius = chatBubbleCornerRadius
         addSubview(bubbleView)
@@ -215,124 +236,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         lastLayoutMetrics = metrics
         expansionButton.isHidden = !metrics.overflows
         applyBubbleLayout(metrics)
-        layoutRetryFooter(bubbleFrame: metrics.bubbleFrame, configuration: configuration)
-    }
-
-    private func layoutMetrics(for configuration: Configuration) -> TextBubbleLayoutMetrics {
-        let width = bubbleWidth(for: configuration)
-        let markdownWidth = max(width - (chatBubbleHorizontalPadding * 2), 0)
-        let fullMarkdownHeight = preparedMarkdownMeasurement(for: markdownWidth)?.contentHeight
-            ?? measuredMarkdownHeight(for: markdownWidth)
-        let overflows = isOverflowing(markdownHeight: fullMarkdownHeight)
-        let visibleMarkdownHeight = overflows && !isExpanded ? min(fullMarkdownHeight, collapsedMaxHeight) : fullMarkdownHeight
-        let toggleHeight = overflows ? max(textBubbleToggleMinHeight, ceil(expansionButton.fittingSize.height)) : 0
-        let height = visibleMarkdownHeight + (chatBubbleVerticalPadding * 2) +
-            (overflows ? textBubbleControlClearance + textBubbleControlSpacing + toggleHeight : 0)
-        let originX = configuration.role == .user ? max(bounds.width - width, 0) : 0
-        return TextBubbleLayoutMetrics(
-            bubbleFrame: NSRect(x: originX, y: 0, width: width, height: height),
-            markdownClipFrame: NSRect(
-                x: chatBubbleHorizontalPadding,
-                y: chatBubbleVerticalPadding,
-                width: markdownWidth,
-                height: visibleMarkdownHeight
-            ),
-            markdownFrame: NSRect(x: 0, y: 0, width: markdownWidth, height: fullMarkdownHeight),
-            overflows: overflows,
-            isCollapsed: overflows && !isExpanded
-        )
-    }
-
-    private func applyBubbleLayout(_ metrics: TextBubbleLayoutMetrics) {
-        if !metrics.overflows {
-            expansionButton.frame = .zero
-        }
-        applyFrameUpdates(frameUpdates(for: metrics), animated: false)
-        if let markdownView {
-            markdownView.maximumImageDisplayWidth = metrics.markdownFrame.width
-            validateHydratedMarkdownHeight(markdownView, metrics: metrics)
-        }
-        updateCollapsedFadeMask(isCollapsed: metrics.isCollapsed)
-    }
-
-    func expansionButtonFrame(markdownClipFrame: NSRect) -> NSRect {
-        let buttonSize = expansionButton.fittingSize
-        return NSRect(
-            x: chatBubbleHorizontalPadding,
-            // SwiftUI stacked the 8pt content clearance and 4pt VStack spacing
-            // above Show more/less, leaving only the normal bubble padding below it.
-            y: markdownClipFrame.maxY + textBubbleControlClearance + textBubbleControlSpacing,
-            width: ceil(buttonSize.width),
-            height: max(textBubbleToggleMinHeight, ceil(buttonSize.height))
-        )
-    }
-
-    private func measuredMarkdownHeight(for markdownWidth: CGFloat) -> CGFloat {
-        hydrateMarkdownIfNeeded()
-        // Measure against the current content height rather than an arbitrary
-        // giant probe frame. Some AppKit markdown children pin to their container
-        // for width/layout, and a huge temporary height can leak into the rendered
-        // bubble before the transcript container caches the row height.
-        let measurementHeight = max(markdownView?.intrinsicContentSize.height ?? 0, 120)
-        markdownView?.maximumImageDisplayWidth = markdownWidth
-        markdownView?.frame = NSRect(x: 0, y: 0, width: markdownWidth, height: measurementHeight)
-        markdownView?.layoutSubtreeIfNeeded()
-        return markdownView?.intrinsicContentSize.height ?? 0
-    }
-
-    private func bubbleWidth(for configuration: Configuration) -> CGFloat {
-        let availableWidth = max(bounds.width, 0)
-        let maxWidth = maxBubbleWidth(for: configuration, availableWidth: availableWidth)
-
-        // SwiftUI used `.frame(maxWidth:)`, so short bubbles hugged their
-        // rendered markdown and only grew to the cap when text needed to wrap.
-        let maxContentWidth = max(maxWidth - (chatBubbleHorizontalPadding * 2), 0)
-        let naturalContentWidth = preparedMarkdownMeasurement(for: maxContentWidth)?.naturalContentWidth
-            ?? naturalMarkdownWidth(constrainedTo: maxContentWidth)
-        let naturalBubbleWidth = naturalContentWidth + (chatBubbleHorizontalPadding * 2)
-        return min(max(naturalBubbleWidth, 0), maxWidth)
-    }
-
-    private func maxBubbleWidth(for configuration: Configuration, availableWidth: CGFloat) -> CGFloat {
-        switch configuration.role {
-        case .user:
-            return min(userBubbleMaxWidth, max(availableWidth - userBubbleLeadingClearance, 0))
-        case .assistant:
-            return min(max(configuration.bubbleMaxWidth.isFinite ? configuration.bubbleMaxWidth : availableWidth, 0), availableWidth)
-        }
-    }
-
-    private func preparedMarkdownMeasurement(for markdownWidth: CGFloat) -> AppKitMarkdownLayoutMeasurement? {
-        guard let configuration, !forceHydratedMarkdownMeasurement else {
-            return nil
-        }
-        let context = preparedMeasurementContext(for: markdownWidth, configuration: configuration)
-        if let cached = TextBubblePreparedMeasurement.cachedMeasurement(for: context.key) {
-            return cached
-        }
-        scheduleAsyncMarkdownPreparation(for: context)
-        if asyncPreparedMarkdown?.key == context.key, let document = asyncPreparedMarkdown?.document {
-            return TextBubblePreparedMeasurement.measurement(context, document: document)
-        }
-        return TextBubblePreparedMeasurement.measurement(context, document: document(for: configuration))
-    }
-
-    private func naturalMarkdownWidth(constrainedTo maxContentWidth: CGFloat) -> CGFloat {
-        hydrateMarkdownIfNeeded()
-        guard let markdownView else {
-            return 0
-        }
-
-        let textWidths = markdownView.transcriptMarkdownTextViews.map { textView in
-            textView.transcriptNaturalTextWidth(constrainedTo: maxContentWidth)
-        }
-        let viewWidths = markdownView.transcriptNonTextMarkdownViews.map { view in
-            if let tableView = view as? AppKitMarkdownTableView {
-                return tableView.naturalViewportWidth(constrainedTo: maxContentWidth)
-            }
-            return view.fittingSize.width
-        }
-        return ceil(max((textWidths + viewWidths).max() ?? 0, 0))
+        layoutRetryFooter(anchorFrame: metrics.retryFooterAnchorFrame, configuration: configuration)
     }
 
     private func updateBubbleAppearance() {
@@ -361,13 +265,13 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         expansionButton.setAccessibilityLabel(title)
     }
 
-    private func isOverflowing(markdownHeight: CGFloat) -> Bool {
+    func isOverflowing(markdownHeight: CGFloat) -> Bool {
         // AppKit has an exact rendered height here; the SwiftUI raw-markdown
         // heuristic can falsely collapse short lists with several source lines.
         markdownHeight > collapsedMaxHeight + 1
     }
 
-    private func layoutRetryFooter(bubbleFrame: NSRect, configuration: Configuration) {
+    private func layoutRetryFooter(anchorFrame: NSRect, configuration: Configuration) {
         guard configuration.showsRetry,
               configuration.role == .user,
               onRetry != nil else {
@@ -380,7 +284,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         retryButton.sizeToFit()
         let spacing: CGFloat = 8
         let topSpacing: CGFloat = 6
-        let footerY = bubbleFrame.maxY + topSpacing
+        let footerY = anchorFrame.maxY + topSpacing
         let footerHeight = max(retryStatusField.frame.height, retryButton.frame.height)
         let buttonX = bounds.width - retryButton.frame.width
         retryButton.frame.origin = NSPoint(x: buttonX, y: footerY)
@@ -427,16 +331,40 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     }
 
     private func measuredHeight() -> CGFloat {
-        let bubbleHeight: CGFloat
+        let contentHeight: CGFloat
         if let lastLayoutMetrics {
-            bubbleHeight = lastLayoutMetrics.bubbleFrame.height
+            contentHeight = lastLayoutMetrics.contentHeight
+        } else if let configuration {
+            contentHeight = estimatedContentHeight(for: configuration)
         } else if bubbleView.frame.height > 0 {
-            bubbleHeight = bubbleView.frame.height
+            contentHeight = bubbleView.frame.height
         } else {
-            bubbleHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatBubbleVerticalPadding * 2)
+            contentHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatBubbleVerticalPadding * 2)
         }
-        let retryHeight = retryButton.isHidden ? 0 : 6 + max(retryStatusField.frame.height, retryButton.frame.height)
-        return ceil(bubbleHeight + retryHeight)
+        let retryHeight = retryButton.isHidden ? 0 : 6 + max(
+            retryStatusField.frame.height,
+            retryStatusField.fittingSize.height,
+            retryButton.frame.height,
+            retryButton.fittingSize.height
+        )
+        return ceil(contentHeight + retryHeight)
+    }
+
+    private func estimatedContentHeight(for configuration: Configuration) -> CGFloat {
+        let maxWidth = maxBubbleWidth(for: configuration, availableWidth: max(bounds.width, 0))
+        let imageStripHeight = imageAttachmentStripView.measuredSize(constrainedTo: maxWidth).height
+        let bubbleHeight: CGFloat
+        if configuration.hasBubbleContent {
+            if bubbleView.frame.height > 0 {
+                bubbleHeight = bubbleView.frame.height
+            } else {
+                bubbleHeight = (markdownView?.intrinsicContentSize.height ?? 0) + (chatBubbleVerticalPadding * 2)
+            }
+        } else {
+            bubbleHeight = 0
+        }
+        let stripBubbleSpacing = imageStripHeight > 0 && bubbleHeight > 0 ? textBubbleImageStripBubbleSpacing : 0
+        return imageStripHeight + stripBubbleSpacing + bubbleHeight
     }
 
     private func expansionToggleFont() -> NSFont {
@@ -476,10 +404,14 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
 }
 
-private extension AppKitTranscriptTextBubbleRowView.Configuration {
+extension AppKitTranscriptTextBubbleRowView.Configuration {
+    var hasBubbleContent: Bool {
+        !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func hasSameRenderedContent(as other: Self) -> Bool {
         let sameMaxWidth = bubbleMaxWidth == other.bubbleMaxWidth || abs(bubbleMaxWidth - other.bubbleMaxWidth) <= 0.5
-        return id == other.id && role == other.role && markdown == other.markdown &&
+        return id == other.id && role == other.role && markdown == other.markdown && imageAttachments == other.imageAttachments &&
             sameMaxWidth && typography == other.typography && markdownBaseURL == other.markdownBaseURL &&
             showsRetry == other.showsRetry
     }

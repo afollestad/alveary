@@ -138,6 +138,7 @@ extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptFrameAnimatable {
 
     func frameUpdates(for metrics: TextBubbleLayoutMetrics) -> [(view: NSView, frame: NSRect)] {
         var frameUpdates: [(view: NSView, frame: NSRect)] = [
+            (imageAttachmentStripView, metrics.imageStripFrame ?? .zero),
             (bubbleView, metrics.bubbleFrame),
             (markdownClipView, metrics.markdownClipFrame)
         ]
@@ -160,12 +161,14 @@ extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptFrameAnimatable {
             bubbleHeight - (chatBubbleVerticalPadding * 2) - textBubbleControlClearance - textBubbleControlSpacing - toggleHeight
         )
         return TextBubbleLayoutMetrics(
+            imageStripFrame: metrics.imageStripFrame,
             bubbleFrame: NSRect(
                 x: metrics.bubbleFrame.minX,
                 y: metrics.bubbleFrame.minY,
                 width: metrics.bubbleFrame.width,
                 height: bubbleHeight
             ),
+            hasBubble: metrics.hasBubble,
             markdownClipFrame: NSRect(
                 x: metrics.markdownClipFrame.minX,
                 y: metrics.markdownClipFrame.minY,

@@ -20,13 +20,13 @@ enum BlockInputComposerStyle {
     static let completionPopupBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
     static let completionPopupHighlightColor = dynamicLabelColor(.labelColor, opacity: 0.1)
     static let editorFillColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.08)
-    static let editorBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.18)
+    static let editorBorderColor = dynamicLabelColor(.secondaryLabelColor, opacity: 0.10)
     static let imagePreviewStripBackgroundColor = NSColor(name: nil) { appearance in
         switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
         case .darkAqua:
             return NSColor(calibratedWhite: 0.1176470588, alpha: 1)
         default:
-            return NSColor.underPageBackgroundColor.resolved(for: appearance)
+            return NSColor(calibratedWhite: 0.965, alpha: 1)
         }
     }
     static let imagePreviewBorderColor = dynamicLabelColor(.separatorColor, opacity: 0.85)

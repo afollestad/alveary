@@ -5,6 +5,132 @@ import XCTest
 
 @MainActor
 extension AppKitTranscriptTextBubbleRowTests {
+    func testUserMessageAttachmentsRenderAsRightAlignedStripAboveBubble() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: localImageAttachments(count: 2)
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let stripFrame = row.imageAttachmentStripFrameForTesting
+        let tileFrames = row.imageAttachmentTileFramesForTesting
+        XCTAssertEqual(stripFrame.width, expectedImageStripWidth(columns: 2), accuracy: 0.5)
+        XCTAssertEqual(stripFrame.height, BlockInputComposerStyle.imagePreviewThumbnailSize.height, accuracy: 0.5)
+        XCTAssertEqual(stripFrame.maxX, row.bounds.maxX, accuracy: 0.5)
+        XCTAssertEqual(row.bubbleFrameForTesting.maxX, row.bounds.maxX, accuracy: 0.5)
+        XCTAssertGreaterThan(row.bubbleFrameForTesting.minY, stripFrame.maxY)
+        XCTAssertEqual(tileFrames.count, 2)
+        XCTAssertEqual(tileFrames[1].minX - tileFrames[0].maxX, BlockInputComposerStyle.imagePreviewInterItemSpacing, accuracy: 0.5)
+    }
+
+    func testAttachmentStripBorderUsesLocalSubtleToken() throws {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.appearance = NSAppearance(named: .darkAqua)
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: localImageAttachments(count: 1)
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let appearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let resolved = NSColor.secondaryLabelColor.resolved(for: appearance)
+        let expectedColor = resolved.withAlphaComponent(resolved.alphaComponent * 0.10).cgColor
+        XCTAssertEqual(row.attachmentTileBorderColorsForTesting.first ?? nil, expectedColor)
+    }
+
+    func testAttachmentStripUsesLightSurfaceFillInLightMode() throws {
+        let appearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.appearance = appearance
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: localImageAttachments(count: 1)
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(
+            row.attachmentTileFillColorsForTesting.first ?? nil,
+            NSColor(calibratedWhite: 0.965, alpha: 1).resolved(for: appearance).cgColor
+        )
+    }
+
+    func testAssistantMessageAttachmentsRenderAsLeftAlignedWrappingStrip() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 600)
+        row.configure(
+            .init(
+                role: .assistant,
+                markdown: "Generated these images",
+                imageAttachments: localImageAttachments(count: 5),
+                bubbleMaxWidth: expectedImageStripWidth(columns: 2)
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let stripFrame = row.imageAttachmentStripFrameForTesting
+        let tileFrames = row.imageAttachmentTileFramesForTesting
+        XCTAssertEqual(stripFrame.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(stripFrame.width, expectedImageStripWidth(columns: 2), accuracy: 0.5)
+        XCTAssertEqual(stripFrame.height, expectedImageStripHeight(rows: 3), accuracy: 0.5)
+        XCTAssertEqual(tileFrames[2].minX, 0, accuracy: 0.5)
+        XCTAssertEqual(tileFrames[2].minY - tileFrames[0].maxY, BlockInputComposerStyle.imagePreviewInterItemSpacing, accuracy: 0.5)
+        XCTAssertGreaterThan(row.bubbleFrameForTesting.minY, stripFrame.maxY)
+    }
+
+    func testAttachmentOnlyMessageRendersStripWithoutBubble() {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+        row.configure(
+            .init(
+                role: .assistant,
+                markdown: "",
+                imageAttachments: localImageAttachments(count: 3),
+                bubbleMaxWidth: expectedImageStripWidth(columns: 2)
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.isBubbleHiddenForTesting)
+        XCTAssertEqual(row.bubbleFrameForTesting, .zero)
+        XCTAssertEqual(row.imageAttachmentStripFrameForTesting.height, expectedImageStripHeight(rows: 2), accuracy: 0.5)
+        XCTAssertEqual(row.intrinsicContentSize.height, expectedImageStripHeight(rows: 2), accuracy: 0.5)
+    }
+
+    func testAttachmentOnlyUserMessagePlacesRetryFooterBelowStrip() throws {
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.onRetry = {}
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 400)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "",
+                imageAttachments: localImageAttachments(count: 1),
+                showsRetry: true
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let button = try XCTUnwrap(row.descendants(of: NSButton.self).first { $0.title == "Retry" })
+        let status = try XCTUnwrap(row.descendants(of: NSTextField.self).first { $0.stringValue == "Not sent" })
+        XCTAssertFalse(button.isHidden)
+        XCTAssertFalse(status.isHidden)
+        XCTAssertGreaterThan(button.frame.minY, row.imageAttachmentStripFrameForTesting.maxY)
+        XCTAssertGreaterThanOrEqual(row.intrinsicContentSize.height, button.frame.maxY)
+    }
+
     func testAssistantBubbleRendersHTMLImageTagAsImageBlock() throws {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 600)
@@ -93,6 +219,27 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertNil(link.scheme)
         XCTAssertEqual(link.relativeString, "#section")
     }
+}
+
+private func localImageAttachments(count: Int) -> [LocalImageAttachment] {
+    (0..<count).map { index in
+        LocalImageAttachment(
+            id: "attachment-\(index)",
+            fileURL: URL(fileURLWithPath: "/tmp/attachment-\(index).png"),
+            label: "attachment-\(index).png",
+            createdAt: Date(timeIntervalSince1970: TimeInterval(index))
+        )
+    }
+}
+
+private func expectedImageStripWidth(columns: Int) -> CGFloat {
+    CGFloat(columns) * BlockInputComposerStyle.imagePreviewThumbnailSize.width +
+        CGFloat(max(columns - 1, 0)) * BlockInputComposerStyle.imagePreviewInterItemSpacing
+}
+
+private func expectedImageStripHeight(rows: Int) -> CGFloat {
+    CGFloat(rows) * BlockInputComposerStyle.imagePreviewThumbnailSize.height +
+        CGFloat(max(rows - 1, 0)) * BlockInputComposerStyle.imagePreviewInterItemSpacing
 }
 
 private extension NSView {

@@ -6,6 +6,26 @@ extension AppKitTranscriptTextBubbleRowView {
         bubbleView.frame
     }
 
+    var isBubbleHiddenForTesting: Bool {
+        bubbleView.isHidden
+    }
+
+    var imageAttachmentStripFrameForTesting: CGRect {
+        imageAttachmentStripView.frame
+    }
+
+    var imageAttachmentTileFramesForTesting: [CGRect] {
+        imageAttachmentStripView.tileFramesForTesting
+    }
+
+    var attachmentTileBorderColorsForTesting: [CGColor?] {
+        imageAttachmentStripView.tileBorderColorsForTesting
+    }
+
+    var attachmentTileFillColorsForTesting: [CGColor?] {
+        imageAttachmentStripView.tileFillColorsForTesting
+    }
+
     var expansionButtonFrameForTesting: CGRect {
         expansionButton.frame
     }

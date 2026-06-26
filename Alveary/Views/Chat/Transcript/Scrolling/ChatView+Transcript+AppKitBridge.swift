@@ -85,7 +85,7 @@ extension ChatTranscriptView {
         configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
-        configuration.imageAttachmentsByUserMessageID = appKitImageAttachmentsByUserMessageID
+        configuration.imageAttachmentsByMessageID = appKitImageAttachmentsByMessageID
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
@@ -107,21 +107,21 @@ extension ChatTranscriptView {
         return configuration
     }
 
-    var appKitImageAttachmentsByUserMessageID: [String: [LocalImageAttachment]] {
-        Self.imageAttachmentsByUserMessageID(
+    var appKitImageAttachmentsByMessageID: [String: [LocalImageAttachment]] {
+        Self.imageAttachmentsByMessageID(
             events: events,
             runtimeImageAttachments: viewModel.state.transcriptImageAttachments,
             runtimeAppShots: viewModel.state.transcriptAppShots
         )
     }
 
-    static func imageAttachmentsByUserMessageID(
+    static func imageAttachmentsByMessageID(
         events: [ConversationEventRecord],
         runtimeImageAttachments: [String: [LocalImageAttachment]],
         runtimeAppShots: [String: [AppShotAttachment]]
     ) -> [String: [LocalImageAttachment]] {
         var attachmentsByID: [String: [LocalImageAttachment]] = [:]
-        for event in events where event.type == "message" && event.role == "user" {
+        for event in events where event.type == "message" {
             appendImageAttachments(event.persistedImageAttachments, to: event.id, in: &attachmentsByID)
         }
         for (messageID, attachments) in runtimeImageAttachments {

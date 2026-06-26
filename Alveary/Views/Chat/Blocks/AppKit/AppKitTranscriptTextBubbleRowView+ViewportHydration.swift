@@ -24,6 +24,9 @@ extension AppKitTranscriptTextBubbleRowView {
         guard let configuration else {
             return
         }
+        guard configuration.hasBubbleContent else {
+            return
+        }
 
         let markdownView = AppKitMarkdownView(
             document: document(for: configuration),
@@ -78,7 +81,10 @@ extension AppKitTranscriptTextBubbleRowView {
 
 extension AppKitTranscriptTextBubbleRowView: AppKitTranscriptViewportHydratable {
     var isTranscriptViewportHydrated: Bool {
-        markdownView != nil
+        if configuration?.hasBubbleContent == false {
+            return true
+        }
+        return markdownView != nil
     }
 
     func hydrateForTranscriptViewport() {

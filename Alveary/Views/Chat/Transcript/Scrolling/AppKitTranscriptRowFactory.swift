@@ -16,7 +16,7 @@ final class AppKitTranscriptRowFactory {
         var expandedRowIDs: Set<String> = []
         var pendingToolApproval: PendingToolApproval?
         var retryableFailedMessageIDs: Set<String> = []
-        var imageAttachmentsByUserMessageID: [String: [LocalImageAttachment]] = [:]
+        var imageAttachmentsByMessageID: [String: [LocalImageAttachment]] = [:]
         var hasUnansweredPrompt = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
@@ -60,11 +60,18 @@ final class AppKitTranscriptRowFactory {
             return [textBubbleRow(
                 id: id,
                 role: .user,
-                markdown: userMessageMarkdown(id: id, text: text, configuration: configuration),
+                markdown: text,
+                imageAttachments: imageAttachments(for: id, configuration: configuration),
                 configuration: configuration
             )]
         case .assistantMessage(let id, let text):
-            return [textBubbleRow(id: id, role: .assistant, markdown: text, configuration: configuration)]
+            return [textBubbleRow(
+                id: id,
+                role: .assistant,
+                markdown: text,
+                imageAttachments: imageAttachments(for: id, configuration: configuration),
+                configuration: configuration
+            )]
         case .toolGroup(let id, let tools):
             return [toolGroupRow(id: id, tools: tools, configuration: configuration)]
         case .standaloneTool(let id, let tool):
@@ -296,6 +303,7 @@ final class AppKitTranscriptRowFactory {
         id: String,
         role: AppKitTranscriptTextBubbleRowView.Role,
         markdown: String,
+        imageAttachments: [LocalImageAttachment] = [],
         markdownBaseURL: URL? = nil,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
@@ -315,6 +323,7 @@ final class AppKitTranscriptRowFactory {
                 id: id,
                 role: role,
                 markdown: markdown,
+                imageAttachments: imageAttachments,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography.appKitMarkdownTypography,
                 markdownBaseURL: markdownBaseURL ?? configuration.markdownBaseURL,
@@ -436,20 +445,10 @@ final class AppKitTranscriptRowFactory {
 }
 
 extension AppKitTranscriptRowFactory {
-    func userMessageMarkdown(
-        id: String,
-        text: String,
+    func imageAttachments(
+        for id: String,
         configuration: Configuration
-    ) -> String {
-        guard let attachments = configuration.imageAttachmentsByUserMessageID[id],
-              !attachments.isEmpty else {
-            return text
-        }
-
-        let attachmentMarkdown = attachments.map(\.markdownImageLink).joined(separator: "\n")
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return attachmentMarkdown
-        }
-        return attachmentMarkdown + "\n\n" + text
+    ) -> [LocalImageAttachment] {
+        configuration.imageAttachmentsByMessageID[id] ?? []
     }
 }
