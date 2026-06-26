@@ -67,6 +67,28 @@ extension AppKitTranscriptTextBubbleRowTests {
         )
     }
 
+    func testAttachmentStripImagesAspectFillWideImages() throws {
+        let imageURL = try temporaryPNGURL(named: "wide-transcript-attachment.png", size: NSSize(width: 240, height: 120))
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: [localImageAttachment(fileURL: imageURL)]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let thumbnailSize = BlockInputComposerStyle.imagePreviewThumbnailSize
+        let imageFrame = try XCTUnwrap(row.imageAttachmentTileImageFramesForTesting.first ?? nil)
+        XCTAssertEqual(imageFrame.height, thumbnailSize.height, accuracy: 0.5)
+        XCTAssertGreaterThan(imageFrame.width, thumbnailSize.width)
+        XCTAssertLessThan(imageFrame.minX, 0)
+        XCTAssertGreaterThan(imageFrame.maxX, thumbnailSize.width)
+        XCTAssertEqual(row.imageAttachmentTileHitTargetsForTesting.first, true)
+    }
+
     func testAttachmentStripOpenCallbackReceivesAttachment() {
         let attachments = localImageAttachments(count: 2)
         let row = AppKitTranscriptTextBubbleRowView()
@@ -249,6 +271,30 @@ private func localImageAttachments(count: Int) -> [LocalImageAttachment] {
             createdAt: Date(timeIntervalSince1970: TimeInterval(index))
         )
     }
+}
+
+private func localImageAttachment(fileURL: URL) -> LocalImageAttachment {
+    LocalImageAttachment(
+        id: fileURL.lastPathComponent,
+        fileURL: fileURL,
+        label: fileURL.lastPathComponent,
+        createdAt: Date(timeIntervalSince1970: 0)
+    )
+}
+
+private func temporaryPNGURL(named filename: String, size: NSSize) throws -> URL {
+    let image = NSImage(size: size)
+    image.lockFocus()
+    NSColor.systemBlue.setFill()
+    NSRect(origin: .zero, size: size).fill()
+    image.unlockFocus()
+
+    let tiffData = try XCTUnwrap(image.tiffRepresentation)
+    let representation = try XCTUnwrap(NSBitmapImageRep(data: tiffData))
+    let pngData = try XCTUnwrap(representation.representation(using: .png, properties: [:]))
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+    try pngData.write(to: url, options: [.atomic])
+    return url
 }
 
 private func expectedImageStripWidth(columns: Int) -> CGFloat {

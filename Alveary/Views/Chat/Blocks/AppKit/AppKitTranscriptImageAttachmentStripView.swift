@@ -102,7 +102,7 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
 
 @MainActor
 private final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorView {
-    private let imageView = NSImageView()
+    private let imageView = AppKitTranscriptAspectFillImageView()
     private var attachment: LocalImageAttachment?
     var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
         didSet {
@@ -175,8 +175,7 @@ private final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorV
             transcriptImageAttachmentBorderColor
         }
 
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.imageAlignment = .alignCenter
+        imageView.cornerRadius = BlockInputComposerStyle.imagePreviewCornerRadius
         addSubview(imageView)
 
         setAccessibilityElement(true)
@@ -203,6 +202,78 @@ private let transcriptImageAttachmentBorderColor = NSColor(name: nil) { appearan
     return resolved.withAlphaComponent(resolved.alphaComponent * 0.10)
 }
 
+private final class AppKitTranscriptAspectFillImageView: NSView {
+    var image: NSImage? {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    var cornerRadius: CGFloat = 0 {
+        didSet {
+            layer?.cornerRadius = cornerRadius
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard let image,
+              let imageFrame = aspectFillImageFrame else {
+            return
+        }
+        image.draw(
+            in: imageFrame,
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .sourceOver,
+            fraction: 1,
+            respectFlipped: true,
+            hints: [.interpolation: NSImageInterpolation.high]
+        )
+    }
+
+    private var aspectFillImageFrame: NSRect? {
+        guard let image,
+              image.size.width > 0,
+              image.size.height > 0,
+              bounds.width > 0,
+              bounds.height > 0 else {
+            return nil
+        }
+        let scale = max(bounds.width / image.size.width, bounds.height / image.size.height)
+        let drawSize = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        return NSRect(
+            x: bounds.midX - (drawSize.width / 2),
+            y: bounds.midY - (drawSize.height / 2),
+            width: drawSize.width,
+            height: drawSize.height
+        )
+    }
+
+    private func setup() {
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.cornerRadius = cornerRadius
+    }
+}
+
 #if DEBUG
 extension AppKitTranscriptImageAttachmentStripView {
     var tileFramesForTesting: [CGRect] {
@@ -217,12 +288,35 @@ extension AppKitTranscriptImageAttachmentStripView {
         tileViews.prefix(attachments.count).map { $0.layer?.backgroundColor }
     }
 
+    var tileImageFramesForTesting: [CGRect?] {
+        tileViews.prefix(attachments.count).map(\.imageFrameForTesting)
+    }
+
+    var tileHitTargetsForTesting: [Bool] {
+        tileViews.prefix(attachments.count).map { tileView in
+            let center = NSPoint(x: tileView.bounds.midX, y: tileView.bounds.midY)
+            return tileView.hitTest(center) === tileView
+        }
+    }
+
     @discardableResult
     func performOpenForTesting(at index: Int = 0) -> Bool {
         guard tileViews.indices.contains(index) else {
             return false
         }
         return tileViews[index].accessibilityPerformPress()
+    }
+}
+
+extension AppKitTranscriptImageAttachmentTileView {
+    var imageFrameForTesting: CGRect? {
+        imageView.aspectFillImageFrameForTesting
+    }
+}
+
+extension AppKitTranscriptAspectFillImageView {
+    var aspectFillImageFrameForTesting: CGRect? {
+        aspectFillImageFrame
     }
 }
 #endif

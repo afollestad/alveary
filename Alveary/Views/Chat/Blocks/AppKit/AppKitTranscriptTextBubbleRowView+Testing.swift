@@ -18,6 +18,14 @@ extension AppKitTranscriptTextBubbleRowView {
         imageAttachmentStripView.tileFramesForTesting
     }
 
+    var imageAttachmentTileImageFramesForTesting: [CGRect?] {
+        imageAttachmentStripView.tileImageFramesForTesting
+    }
+
+    var imageAttachmentTileHitTargetsForTesting: [Bool] {
+        imageAttachmentStripView.tileHitTargetsForTesting
+    }
+
     var attachmentTileBorderColorsForTesting: [CGColor?] {
         imageAttachmentStripView.tileBorderColorsForTesting
     }
