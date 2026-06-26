@@ -72,14 +72,86 @@ final class AppImagePreviewTests: XCTestCase {
 
     func testZoomViewCommandsUpdateMagnification() {
         let view = AppImagePreviewScrollView()
-        view.perform(.actualSize)
-        XCTAssertEqual(view.magnification, 1, accuracy: 0.01)
 
         view.perform(.zoomIn)
         XCTAssertEqual(view.magnification, 1.2, accuracy: 0.01)
 
         view.perform(.zoomOut)
         XCTAssertEqual(view.magnification, 1, accuracy: 0.01)
+    }
+
+    func testZoomViewFitCommandDefersUntilVisibleBoundsExist() {
+        let view = AppImagePreviewScrollView()
+        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
+
+        view.perform(.fit)
+
+        XCTAssertTrue(view.hasPendingFitAfterLayoutForTesting)
+    }
+
+    func testZoomViewInitialLayoutFitsImageToVisibleBounds() {
+        let view = AppImagePreviewScrollView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
+
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertFalse(view.hasPendingFitAfterLayoutForTesting)
+        XCTAssertEqual(view.magnification, 0.5, accuracy: 0.01)
+    }
+
+    func testZoomViewFitCommandUsesViewportFrameAfterZooming() {
+        let view = AppImagePreviewScrollView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
+        view.layoutSubtreeIfNeeded()
+
+        view.perform(.zoomIn)
+        view.perform(.fit)
+
+        XCTAssertFalse(view.hasPendingFitAfterLayoutForTesting)
+        XCTAssertEqual(view.magnification, 0.5, accuracy: 0.01)
+    }
+
+    func testZoomViewFitCentersImageInViewport() {
+        let view = AppImagePreviewScrollView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.x, 100, accuracy: 0.01)
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.y, 50, accuracy: 0.01)
+    }
+
+    func testZoomViewZoomOutKeepsImageCenteredWhenSmallerThanViewport() {
+        let view = AppImagePreviewScrollView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
+        view.layoutSubtreeIfNeeded()
+
+        view.perform(.zoomOut)
+
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.x, 100, accuracy: 0.01)
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.y, 50, accuracy: 0.01)
+    }
+
+    func testZoomViewSizesDocumentUsingImageDisplaySize() throws {
+        let image = NSImage(size: NSSize(width: 100, height: 50))
+        let representation = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 200,
+            pixelsHigh: 100,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ))
+        representation.size = image.size
+        image.addRepresentation(representation)
+        let view = AppImagePreviewScrollView()
+
+        view.configure(image: image)
+
+        XCTAssertEqual(view.documentViewSizeForTesting, image.size)
     }
 
     private static let tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lC6x4wAAAABJRU5ErkJggg=="

@@ -7,7 +7,6 @@ struct AppImagePreviewZoomCommand: Equatable {
 
     enum Action: Equatable {
         case fit
-        case actualSize
         case zoomIn
         case zoomOut
     }
@@ -58,9 +57,8 @@ final class AppImagePreviewScrollView: NSScrollView {
 
     override func layout() {
         super.layout()
-        if shouldFitAfterNextLayout, bounds.width > 0, bounds.height > 0 {
-            shouldFitAfterNextLayout = false
-            fitToVisibleBounds()
+        if shouldFitAfterNextLayout {
+            shouldFitAfterNextLayout = !fitToVisibleBounds()
         }
     }
 
@@ -70,7 +68,7 @@ final class AppImagePreviewScrollView: NSScrollView {
         }
         currentImage = image
         imageView.image = image
-        imageView.frame = NSRect(origin: .zero, size: image.pixelBackedSize)
+        imageView.frame = NSRect(origin: .zero, size: image.previewDisplaySize)
         documentView = imageView
         shouldFitAfterNextLayout = true
         needsLayout = true
@@ -79,17 +77,21 @@ final class AppImagePreviewScrollView: NSScrollView {
     func perform(_ action: AppImagePreviewZoomCommand.Action) {
         switch action {
         case .fit:
-            fitToVisibleBounds()
-        case .actualSize:
-            setMagnification(1, centeredAt: visibleCenter)
+            shouldFitAfterNextLayout = !fitToVisibleBounds()
         case .zoomIn:
+            shouldFitAfterNextLayout = false
             setMagnification(magnification * 1.2, centeredAt: visibleCenter)
         case .zoomOut:
+            shouldFitAfterNextLayout = false
             setMagnification(magnification / 1.2, centeredAt: visibleCenter)
         }
     }
 
     private func setup() {
+        let clipView = AppImagePreviewClipView()
+        clipView.drawsBackground = false
+        contentView = clipView
+
         drawsBackground = false
         borderType = .noBorder
         hasHorizontalScroller = true
@@ -106,17 +108,18 @@ final class AppImagePreviewScrollView: NSScrollView {
         documentView = imageView
     }
 
-    private func fitToVisibleBounds() {
+    private func fitToVisibleBounds() -> Bool {
         let imageSize = imageView.frame.size
         guard let scale = Self.fittedMagnification(
             imageSize: imageSize,
-            visibleSize: contentView.bounds.size,
+            visibleSize: contentView.frame.size,
             minMagnification: minMagnification,
             maxMagnification: maxMagnification
         ) else {
-            return
+            return false
         }
         setMagnification(scale, centeredAt: imageCenter)
+        return true
     }
 
     private static func fittedMagnification(
@@ -140,13 +143,37 @@ final class AppImagePreviewScrollView: NSScrollView {
     }
 
     private var visibleCenter: NSPoint {
-        NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+        let visibleRect = contentView.documentVisibleRect
+        return NSPoint(x: visibleRect.midX, y: visibleRect.midY)
+    }
+}
+
+private final class AppImagePreviewClipView: NSClipView {
+    override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+        var constrained = super.constrainBoundsRect(proposedBounds)
+        guard let documentView else {
+            return constrained
+        }
+        let documentFrame = documentView.frame
+        // Negative origins keep the scaled document centered when it is smaller than the viewport.
+        if documentFrame.width < proposedBounds.width {
+            constrained.origin.x = (documentFrame.width - proposedBounds.width) / 2
+        }
+        if documentFrame.height < proposedBounds.height {
+            constrained.origin.y = (documentFrame.height - proposedBounds.height) / 2
+        }
+        return constrained
     }
 }
 
 private extension NSImage {
-    var pixelBackedSize: NSSize {
-        if let representation = representations.first {
+    var previewDisplaySize: NSSize {
+        if size.width > 0, size.height > 0 {
+            return size
+        }
+        if let representation = representations.first,
+           representation.pixelsWide > 0,
+           representation.pixelsHigh > 0 {
             return NSSize(width: representation.pixelsWide, height: representation.pixelsHigh)
         }
         return size
@@ -155,6 +182,18 @@ private extension NSImage {
 
 #if DEBUG
 extension AppImagePreviewScrollView {
+    var hasPendingFitAfterLayoutForTesting: Bool {
+        shouldFitAfterNextLayout
+    }
+
+    var documentViewSizeForTesting: NSSize? {
+        documentView?.frame.size
+    }
+
+    var visibleDocumentCenterForTesting: NSPoint {
+        NSPoint(x: contentView.documentVisibleRect.midX, y: contentView.documentVisibleRect.midY)
+    }
+
     func fittedMagnificationForTesting(imageSize: NSSize, visibleSize: NSSize) -> CGFloat? {
         Self.fittedMagnification(
             imageSize: imageSize,

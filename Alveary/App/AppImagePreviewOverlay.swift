@@ -21,7 +21,6 @@ struct AppImagePreviewOverlay: View {
         }
         .zIndex(1000)
         .background(AppImagePreviewEscapeKeyCatcher(onEscape: onDismiss).frame(width: 0, height: 0))
-        .focusable()
         .onExitCommand(perform: onDismiss)
         .task(id: request.id) {
             await loadImage()
@@ -54,11 +53,6 @@ struct AppImagePreviewOverlay: View {
 
             PreviewIconButton(systemName: "arrow.down.right.and.arrow.up.left", accessibilityLabel: "Fit image") {
                 zoomCommand = AppImagePreviewZoomCommand(action: .fit)
-            }
-            .disabled(!loadState.isLoaded)
-
-            PreviewIconButton(systemName: "1.magnifyingglass", accessibilityLabel: "Actual size") {
-                zoomCommand = AppImagePreviewZoomCommand(action: .actualSize)
             }
             .disabled(!loadState.isLoaded)
 
@@ -163,6 +157,7 @@ private struct AppImagePreviewEscapeKeyCatcher: NSViewRepresentable {
     func makeNSView(context: Context) -> EscapeKeyCatcherView {
         let view = EscapeKeyCatcherView()
         view.onEscape = onEscape
+        view.focusRingType = .none
         DispatchQueue.main.async {
             view.window?.makeFirstResponder(view)
         }
