@@ -33,7 +33,7 @@ enum AppShotAXTreeFormatter {
 
     static func elementSummary(_ element: AXUIElement) -> String {
         let presentation = presentation(for: element)
-        return line(for: presentation)
+        return renderedLine(for: presentation) ?? presentation.role
     }
 
     private static func renderElement(
@@ -51,26 +51,33 @@ enum AppShotAXTreeFormatter {
         }
         renderedCount += 1
 
-        let indent = String(repeating: " ", count: depth)
-        var lines = [indent + line(for: presentation(for: element))]
-        guard let children = children(for: element), !children.isEmpty else {
-            return lines.joined(separator: "\n")
-        }
+        let presentation = presentation(for: element)
+        let children = children(for: element) ?? []
+        let isTransparentWrapper = presentation.isTransparentWrapper(childCount: children.count)
+        let childDepth = isTransparentWrapper ? depth : depth + 1
+        var childLines: [String] = []
         for child in children {
             guard let rendered = renderElement(
                 child,
-                depth: depth + 1,
+                depth: childDepth,
                 visited: &visited,
                 renderedCount: &renderedCount
             ) else {
                 continue
             }
-            lines.append(rendered)
+            childLines.append(rendered)
         }
+
+        guard !isTransparentWrapper, let currentLine = renderedLine(for: presentation) else {
+            return childLines.isEmpty ? nil : childLines.joined(separator: "\n")
+        }
+        let indent = String(repeating: "\t", count: depth)
+        var lines = [indent + currentLine]
+        lines.append(contentsOf: childLines)
         return lines.joined(separator: "\n")
     }
 
-    private static func presentation(for element: AXUIElement) -> AXElementPresentation {
+    private static func presentation(for element: AXUIElement) -> AppShotAXElementPresentation {
         let role = (copyAttribute(kAXRoleAttribute, from: element) as String?) ?? "AXUnknown"
         let subrole = copyAttribute(kAXSubroleAttribute, from: element) as String?
         let title = normalizedText(copyAttribute(kAXTitleAttribute, from: element) as String?)
@@ -78,50 +85,71 @@ enum AppShotAXTreeFormatter {
         let description = normalizedText(copyAttribute(kAXDescriptionAttribute, from: element) as String?)
         let help = normalizedText(copyAttribute(kAXHelpAttribute, from: element) as String?)
         let identifier = normalizedText(copyAttribute(kAXIdentifierAttribute, from: element) as String?)
+        let placeholder = normalizedText(copyAttribute(kAXPlaceholderValueAttribute, from: element) as String?)
         let selected = (copyAttribute(kAXSelectedAttribute, from: element) as Bool?) == true
         let settable = isValueSettable(element)
 
-        return AXElementPresentation(
+        return AppShotAXElementPresentation(
+            rawRole: role,
+            subrole: subrole,
             role: displayRole(role: role, subrole: subrole),
-            title: preferredTitle(role: role, title: title, value: value, description: description),
-            value: valueForDetails(role: role, title: title, value: value),
-            description: descriptionForDetails(role: role, title: title, description: description),
+            inlineText: inlineText(for: AppShotAXRawAttributes(
+                role: role,
+                subrole: subrole,
+                title: title,
+                value: value?.text,
+                description: description,
+                identifier: identifier,
+                placeholder: placeholder
+            )),
+            title: title,
+            value: value,
+            description: description,
             help: help,
             identifier: identifier,
+            placeholder: placeholder,
             selected: selected,
             settable: settable
         )
     }
 
-    private static func line(for presentation: AXElementPresentation) -> String {
+    static func renderedLine(for presentation: AppShotAXElementPresentation) -> String? {
+        if shouldSuppressLine(for: presentation) {
+            return nil
+        }
+
         var head = presentation.role
+        if let valueMarker = valueMarker(for: presentation) {
+            head += " (\(valueMarker))"
+        }
         if presentation.selected {
             head += " (selected)"
         }
-        if let title = presentation.title {
-            head += " \(title)"
+        if let inlineText = presentation.inlineText?.text {
+            head += " \(inlineText)"
         }
 
         var details: [String] = []
-        if presentation.settable {
-            details.append("settable")
-        }
-        if let description = presentation.description {
+        if let description = descriptionForDetails(presentation) {
             details.append("Description: \(description)")
         }
-        if let value = presentation.value {
+        if let value = valueForDetails(presentation) {
             details.append("Value: \(value)")
         }
         if let help = presentation.help {
             details.append("Help: \(help)")
         }
-        if let identifier = presentation.identifier {
+        if let placeholder = presentation.placeholder {
+            details.append("Placeholder: \(placeholder)")
+        }
+        if let identifier = identifierForDetails(presentation) {
             details.append("ID: \(identifier)")
         }
         guard !details.isEmpty else {
             return head
         }
-        return head + ", " + details.joined(separator: ", ")
+        let detailsPrefix = presentation.inlineText == nil ? " " : ", "
+        return head + detailsPrefix + details.joined(separator: ", ")
     }
 
     private static func children(for element: AXUIElement) -> [AXUIElement]? {
@@ -152,43 +180,128 @@ enum AppShotAXTreeFormatter {
         if role == kAXWindowRole as String, subrole == kAXStandardWindowSubrole as String {
             return "standard window"
         }
+        if role == kAXGroupRole as String {
+            return "container"
+        }
+        if role == kAXStaticTextRole as String {
+            return "text"
+        }
+        if role == kAXTextAreaRole as String {
+            return "text entry area"
+        }
+        if role == kAXTextFieldRole as String, subrole == kAXSearchFieldSubrole as String {
+            return "search text field"
+        }
         let roleName = role.removingAXPrefix
         return roleName.splitCamelCase.lowercased()
     }
 
-    private static func preferredTitle(role: String, title: String?, value: String?, description: String?) -> String? {
-        if role == kAXStaticTextRole as String || role == kAXTextAreaRole as String || role == kAXTextFieldRole as String {
-            return title ?? value ?? description
+    private static func shouldSuppressLine(for presentation: AppShotAXElementPresentation) -> Bool {
+        if presentation.rawRole == kAXStaticTextRole as String, presentation.inlineText == nil {
+            return true
         }
-        return title
+        return false
     }
 
-    private static func valueForDetails(role: String, title: String?, value: String?) -> String? {
-        guard role != kAXStaticTextRole as String,
-              role != kAXTextAreaRole as String,
-              role != kAXTextFieldRole as String,
-              value != title else {
+    private static func inlineText(for attributes: AppShotAXRawAttributes) -> AppShotAXInlineText? {
+        if attributes.role == kAXStaticTextRole as String {
+            return inlineText(attributes.title ?? attributes.value ?? attributes.description, source: .staticText)
+        }
+        if attributes.role == kAXTextAreaRole as String {
             return nil
         }
-        return value
+        if attributes.role == kAXTextFieldRole as String {
+            guard attributes.subrole == kAXSearchFieldSubrole as String else {
+                return nil
+            }
+            return inlineText(attributes.title ?? attributes.value ?? attributes.description ?? attributes.placeholder, source: .title)
+        }
+        if attributes.role == kAXGroupRole as String {
+            if let title = attributes.title {
+                return inlineText(title, source: .title)
+            }
+            if attributes.identifier == nil, let description = attributes.description {
+                return inlineText(description, source: .description)
+            }
+            if attributes.description == nil, let identifier = attributes.identifier {
+                return inlineText(identifier, source: .identifier)
+            }
+            return nil
+        }
+        if attributes.role == kAXWindowRole as String {
+            return inlineText(attributes.title, source: .title)
+        }
+        return inlineText(attributes.title, source: .title)
     }
 
-    private static func descriptionForDetails(role: String, title: String?, description: String?) -> String? {
-        guard description != title else {
+    private static func inlineText(_ text: String?, source: AppShotAXInlineText.Source) -> AppShotAXInlineText? {
+        guard let text else {
             return nil
         }
-        if role == kAXStaticTextRole as String, title != nil {
+        return AppShotAXInlineText(text: text, source: source)
+    }
+
+    private static func valueMarker(for presentation: AppShotAXElementPresentation) -> String? {
+        guard presentation.settable, shouldShowSettableMarker(for: presentation) else {
+            return nil
+        }
+        guard let valueType = presentation.value?.typeName else {
+            return "settable"
+        }
+        return "settable, \(valueType)"
+    }
+
+    private static func shouldShowSettableMarker(for presentation: AppShotAXElementPresentation) -> Bool {
+        if presentation.rawRole == kAXTextFieldRole as String,
+           presentation.subrole != kAXSearchFieldSubrole as String,
+           presentation.value?.text == nil {
+            return false
+        }
+        return true
+    }
+
+    private static func descriptionForDetails(_ presentation: AppShotAXElementPresentation) -> String? {
+        guard let description = presentation.description else {
+            if presentation.rawRole == kAXTextFieldRole as String {
+                let title = presentation.title ?? ""
+                return title.isEmpty ? nil : title
+            }
+            return nil
+        }
+        if presentation.rawRole == kAXButtonRole as String || presentation.role == "menu button" {
+            return nil
+        }
+        if presentation.inlineText?.source == .description || presentation.inlineText?.text == description {
+            return nil
+        }
+        if presentation.rawRole == kAXStaticTextRole as String || description == presentation.value?.text || description == presentation.title {
             return nil
         }
         return description
     }
 
-    private static func normalizedValue(_ value: Any?) -> String? {
+    private static func valueForDetails(_ presentation: AppShotAXElementPresentation) -> String? {
+        guard let value = presentation.value?.text,
+              presentation.rawRole != kAXStaticTextRole as String,
+              presentation.inlineText?.text != value else {
+            return nil
+        }
+        return value
+    }
+
+    private static func identifierForDetails(_ presentation: AppShotAXElementPresentation) -> String? {
+        guard presentation.inlineText?.source != .identifier else {
+            return nil
+        }
+        return presentation.identifier
+    }
+
+    private static func normalizedValue(_ value: Any?) -> AppShotAXValue? {
         switch value {
         case let string as String:
-            return normalizedText(string)
+            return AppShotAXValue(text: normalizedText(string), typeName: "string")
         case let number as NSNumber:
-            return number.stringValue
+            return AppShotAXValue(text: number.stringValue, typeName: "float")
         default:
             return nil
         }
@@ -198,22 +311,66 @@ enum AppShotAXTreeFormatter {
         guard let text else {
             return nil
         }
-        let collapsed = text
-            .replacingOccurrences(of: "\n", with: " ")
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return collapsed.isEmpty ? nil : collapsed
+        return normalized.isEmpty ? nil : normalized
     }
 }
 
-private struct AXElementPresentation {
+struct AppShotAXElementPresentation {
+    let rawRole: String
+    let subrole: String?
     let role: String
+    let inlineText: AppShotAXInlineText?
     let title: String?
-    let value: String?
+    let value: AppShotAXValue?
     let description: String?
     let help: String?
     let identifier: String?
+    let placeholder: String?
     let selected: Bool
     let settable: Bool
+
+    func isTransparentWrapper(childCount: Int) -> Bool {
+        guard role == "container",
+              inlineText == nil,
+              description == nil,
+              value?.text == nil,
+              help == nil,
+              placeholder == nil else {
+            return false
+        }
+        return childCount <= 1
+    }
+}
+
+struct AppShotAXInlineText: Equatable {
+    let text: String
+    let source: Source
+
+    enum Source: Equatable {
+        case title
+        case staticText
+        case description
+        case identifier
+    }
+}
+
+struct AppShotAXValue: Equatable {
+    let text: String?
+    let typeName: String
+}
+
+private struct AppShotAXRawAttributes {
+    let role: String
+    let subrole: String?
+    let title: String?
+    let value: String?
+    let description: String?
+    let identifier: String?
+    let placeholder: String?
 }
 
 private extension String {
