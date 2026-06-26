@@ -15,6 +15,15 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
     let config: AgentSpawnConfig
 }
 
+struct AgentGoalStartMessageRequest: Sendable, Equatable {
+    let message: String
+    let initialGoal: String
+    let conversationId: String
+    let activityVisibility: AgentTurnActivityVisibility
+    let attachments: [LocalImageAttachment]
+    let metadata: [String: AgentCLIKit.JSONValue]
+}
+
 enum AgentSessionReconfigureResult: Sendable, Equatable {
     case restarted
     case appliedInPlace
@@ -37,14 +46,7 @@ protocol AgentsManager: Actor {
         attachments: [LocalImageAttachment],
         metadata: [String: AgentCLIKit.JSONValue]
     ) async throws
-    func sendGoalStartMessage(
-        _ message: String,
-        initialGoal: String,
-        conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment],
-        metadata: [String: AgentCLIKit.JSONValue]
-    ) async throws
+    func sendGoalStartMessage(_ request: AgentGoalStartMessageRequest) async throws
     func sendSteeringMessage(
         _ message: String,
         conversationId: String,
@@ -105,14 +107,7 @@ extension AgentsManager {
         try await sendMessage(message, conversationId: conversationId, activityVisibility: .visible, attachments: [])
     }
 
-    func sendGoalStartMessage(
-        _ message: String,
-        initialGoal: String,
-        conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment],
-        metadata: [String: AgentCLIKit.JSONValue]
-    ) async throws {
+    func sendGoalStartMessage(_ request: AgentGoalStartMessageRequest) async throws {
         throw AgentError.spawnFailed("Goal mode is not supported by this agent.")
     }
 
@@ -122,14 +117,14 @@ extension AgentsManager {
         conversationId: String,
         activityVisibility: AgentTurnActivityVisibility
     ) async throws {
-        try await sendGoalStartMessage(
-            message,
+        try await sendGoalStartMessage(.init(
+            message: message,
             initialGoal: initialGoal,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
             attachments: [],
             metadata: [:]
-        )
+        ))
     }
 
     func sendGoalStartMessage(
@@ -139,14 +134,14 @@ extension AgentsManager {
         activityVisibility: AgentTurnActivityVisibility,
         attachments: [LocalImageAttachment]
     ) async throws {
-        try await sendGoalStartMessage(
-            message,
+        try await sendGoalStartMessage(.init(
+            message: message,
             initialGoal: initialGoal,
             conversationId: conversationId,
             activityVisibility: activityVisibility,
             attachments: attachments,
             metadata: [:]
-        )
+        ))
     }
 
     func sendSteeringMessage(

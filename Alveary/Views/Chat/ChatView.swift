@@ -25,8 +25,8 @@ struct ChatView: View {
 
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
-    @State private var isFollowing = true
-    @State private var scrollToBottomRequest = 0
+    @State var isFollowing = true
+    @State var scrollToBottomRequest = 0
     @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
     @State private var isStopConfirmationArmed = false
@@ -257,141 +257,6 @@ extension ChatView {
             .environment(\.transcriptTypography, transcriptTypography)
             .transition(.opacity)
         }
-    }
-
-    func sendDraft() {
-        guard canUseOutboundComposerActions else {
-            return
-        }
-
-        let draft = viewModel.flushDraftFromEditor()
-        let message = draft.text
-        let attachments = draft.attachments
-        let appShots = draft.appShots
-        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
-            return
-        }
-
-        let steeringMessage = draft.isEffectivelyEmpty ? "" : message
-        if viewModel.submitSessionHandoffSteeringPrompt(steeringMessage) {
-            appState.requestComposerFocus()
-            return
-        }
-
-        guard !draft.isEffectivelyEmpty else {
-            return
-        }
-
-        let isSessionHandoffDraft = viewModel.prepareManualSessionHandoffSendIfNeeded()
-        let outboundMessage = draft.messageText
-
-        requestScrollToBottom()
-        clearSubmittedDraftAndRequestFocus(source: draft.source)
-        let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
-        Task {
-            do {
-                viewModel.normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
-                if isSessionHandoffDraft {
-                    try await viewModel.sendSessionHandoffOutput(outboundMessage)
-                } else {
-                    try await viewModel.queueOrSend(
-                        outboundMessage,
-                        supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
-                    )
-                }
-            } catch is CancellationError {
-                // User-initiated cancellation — rollback already restored the draft.
-            } catch {
-                if viewModel.state.retryableFailedMessageIDs.count == retryableMessageCount {
-                    viewModel.replaceInputDraft(message, source: draft.source)
-                    if viewModel.state.stagedImageAttachments.isEmpty {
-                        viewModel.state.stagedImageAttachments = attachments
-                        viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                    }
-                    if viewModel.state.stagedAppShots.isEmpty {
-                        viewModel.state.stagedAppShots = appShots
-                        viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                    }
-                }
-                if viewModel.lastTurnError == nil {
-                    viewModel.lastTurnError = error.localizedDescription
-                }
-            }
-        }
-    }
-
-    func steerDraft() {
-        guard canUseOutboundComposerActions, !viewModel.state.isNormalSteeringBlockedBySessionHandoff else {
-            return
-        }
-
-        let draft = viewModel.flushDraftFromEditor()
-        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
-            return
-        }
-
-        sendSteeringDraft(draft)
-    }
-
-    func alternateSteerDraft() {
-        guard canUseOutboundComposerActions, !viewModel.state.isNormalSteeringBlockedBySessionHandoff else {
-            return
-        }
-
-        let draft = viewModel.flushDraftFromEditor()
-        if handleComposerGoalOrLocalControlIfNeeded(draft: draft) {
-            return
-        }
-
-        if draft.isEffectivelyEmpty {
-            guard viewModel.messageQueue.peekNext() != nil else {
-                return
-            }
-            Task { try? await viewModel.steerNextQueuedMessage() }
-            return
-        }
-
-        sendSteeringDraft(draft)
-    }
-
-    func sendSteeringDraft(_ draft: ComposerDraft) {
-        guard !viewModel.state.isNormalSteeringBlockedBySessionHandoff, !draft.isEffectivelyEmpty else {
-            return
-        }
-
-        let message = draft.text
-        let outboundMessage = draft.messageText
-        let attachments = draft.attachments
-        let appShots = draft.appShots
-
-        requestScrollToBottom()
-        clearSubmittedDraftAndRequestFocus(source: draft.source)
-        Task {
-            do {
-                try await viewModel.steer(
-                    outboundMessage,
-                    supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
-                )
-            } catch {
-                viewModel.replaceInputDraft(message, source: draft.source)
-                if viewModel.state.stagedImageAttachments.isEmpty {
-                    viewModel.state.stagedImageAttachments = attachments
-                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                }
-                if viewModel.state.stagedAppShots.isEmpty {
-                    viewModel.state.stagedAppShots = appShots
-                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                }
-                if viewModel.lastTurnError == nil {
-                    viewModel.lastTurnError = "Steer failed: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-
-    func requestScrollToBottom() {
-        isFollowing = true
-        scrollToBottomRequest += 1
     }
 
     var composerPanelConfiguration: AppKitChatComposerPanelConfiguration {

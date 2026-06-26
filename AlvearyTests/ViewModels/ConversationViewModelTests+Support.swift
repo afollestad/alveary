@@ -222,28 +222,21 @@ actor MockAgentsManager: AgentsManager {
         recordedSendVisibilities.append(activityVisibility)
     }
 
-    func sendGoalStartMessage(
-        _ message: String,
-        initialGoal: String,
-        conversationId: String,
-        activityVisibility: AgentTurnActivityVisibility,
-        attachments: [LocalImageAttachment],
-        metadata: [String: JSONValue]
-    ) async throws {
+    func sendGoalStartMessage(_ request: AgentGoalStartMessageRequest) async throws {
         try await sendMessage(
-            message,
-            conversationId: conversationId,
-            activityVisibility: activityVisibility,
-            attachments: attachments,
-            metadata: metadata
+            request.message,
+            conversationId: request.conversationId,
+            activityVisibility: request.activityVisibility,
+            attachments: request.attachments,
+            metadata: request.metadata
         )
         recordedGoalStartCalls.append(GoalStartCall(
-            message: message,
-            initialGoal: initialGoal,
-            conversationId: conversationId,
-            activityVisibility: activityVisibility,
-            attachments: attachments,
-            metadata: metadata
+            message: request.message,
+            initialGoal: request.initialGoal,
+            conversationId: request.conversationId,
+            activityVisibility: request.activityVisibility,
+            attachments: request.attachments,
+            metadata: request.metadata
         ))
     }
 

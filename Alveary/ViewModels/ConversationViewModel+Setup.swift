@@ -303,9 +303,7 @@ extension ConversationViewModel {
         existingLocalUserMessageID: String? = nil,
         snapshotStagedContext: String? = nil
     ) async throws {
-        state.lastTurnInterrupted = false
-        state.isCancellingTurn = false
-        state.lastTurnError = nil
+        prepareInitialSetupStart()
 
         guard let dbConversation = dbConversation(),
               let thread = dbConversation.thread,
@@ -359,6 +357,12 @@ extension ConversationViewModel {
         }
 
         setupPhase = nil
+    }
+
+    private func prepareInitialSetupStart() {
+        state.lastTurnInterrupted = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
     }
 
     private func completeInitialPromptSetup(

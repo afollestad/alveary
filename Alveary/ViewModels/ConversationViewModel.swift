@@ -168,18 +168,7 @@ final class ConversationViewModel {
                 throw AgentError.spawnFailed("Conversation no longer exists")
             }
 
-            let localMessage = insertLocalUserMessage(
-                outbound.visibleText,
-                into: dbConversation,
-                imageAttachments: outbound.attachments,
-                appShots: outbound.appShots
-            )
-            clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
-            clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
-            state.lastTurnInterrupted = false
-            state.isCancellingTurn = false
-            state.lastTurnError = nil
-            state.activeRuntimeActivityTurnId = nil
+            let localMessage = prepareVisibleSteeringAttempt(outbound, in: dbConversation)
             do {
                 try await sendVisibleSteeringMessage(
                     outbound.transportText ?? outbound.visibleText,
@@ -205,6 +194,25 @@ final class ConversationViewModel {
                 throw error
             }
         }
+    }
+
+    private func prepareVisibleSteeringAttempt(
+        _ outbound: OutboundMessageText,
+        in dbConversation: Conversation
+    ) -> ConversationEventRecord {
+        let localMessage = insertLocalUserMessage(
+            outbound.visibleText,
+            into: dbConversation,
+            imageAttachments: outbound.attachments,
+            appShots: outbound.appShots
+        )
+        clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
+        clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
+        state.lastTurnInterrupted = false
+        state.isCancellingTurn = false
+        state.lastTurnError = nil
+        state.activeRuntimeActivityTurnId = nil
+        return localMessage
     }
 
     func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {

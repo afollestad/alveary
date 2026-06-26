@@ -78,14 +78,14 @@ extension ConversationViewModel {
         do {
             if let initialGoal = initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
                !initialGoal.isEmpty {
-                try await agentsManager.sendGoalStartMessage(
-                    message,
+                try await agentsManager.sendGoalStartMessage(.init(
+                    message: message,
                     initialGoal: initialGoal,
                     conversationId: conversation.id,
                     activityVisibility: .visible,
                     attachments: attachments,
                     metadata: providerMetadata
-                )
+                ))
             } else {
                 try await agentsManager.sendMessage(
                     message,
@@ -346,17 +346,7 @@ private extension ConversationViewModel {
 
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
-        let preflightTransportText = revisionTransportTextForQueuedMessage(next)
-        let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(next, transportText: preflightTransportText)
-
-        if let requiredPlanModeEnabled {
-            try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
-        }
-        if let requiredSpeedMode = next.requiredSpeedMode {
-            try await ensureSpeedModeForOutbound(requiredSpeedMode)
-        }
-        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await ensureAppShotProviderPrerequisites(appShots: next.appShots)
+        try await prepareQueuedMessageRequirements(next)
         try await withOutboundReservation {
             let sessionRecoveryContext = try await prepareRuntimeForQueuedMessage()
             guard sessionRecoveryContext.shouldContinue else {
@@ -404,6 +394,20 @@ private extension ConversationViewModel {
                 throw error
             }
         }
+    }
+
+    func prepareQueuedMessageRequirements(_ queuedMessage: QueuedMessage) async throws {
+        let preflightTransportText = revisionTransportTextForQueuedMessage(queuedMessage)
+        let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(queuedMessage, transportText: preflightTransportText)
+
+        if let requiredPlanModeEnabled {
+            try await ensurePlanModeForOutbound(requiredPlanModeEnabled)
+        }
+        if let requiredSpeedMode = queuedMessage.requiredSpeedMode {
+            try await ensureSpeedModeForOutbound(requiredSpeedMode)
+        }
+        try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+        try await ensureAppShotProviderPrerequisites(appShots: queuedMessage.appShots)
     }
 
     func deliverPreparedQueuedMessage(
