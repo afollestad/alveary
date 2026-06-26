@@ -1,4 +1,5 @@
 #if DEBUG
+import Foundation
 import SwiftData
 import SwiftUI
 
@@ -6,6 +7,7 @@ private let rawTranscriptCollapsedLineLimit = 10
 private let rawTranscriptBottomID = "raw-transcript-bottom"
 private let rawTranscriptNearBottomThreshold: CGFloat = 16
 private let rawTranscriptProgrammaticScrollTimeout: TimeInterval = 0.4
+private let rawTranscriptPollIntervalNanoseconds: UInt64 = 500_000_000
 
 struct RawTranscriptWindowRequest: Codable, Hashable {
     static let sceneID = "raw-transcript"
@@ -13,6 +15,9 @@ struct RawTranscriptWindowRequest: Codable, Hashable {
     let conversationID: String
     let threadName: String
     let conversationTitle: String
+    let providerID: String?
+    let providerSessionID: String?
+    let providerSessionWorkingDirectory: String?
 
     var windowTitle: String {
         "\(threadName) (\(conversationTitle))"
@@ -22,8 +27,9 @@ struct RawTranscriptWindowRequest: Codable, Hashable {
 struct RawTranscriptWindow: View {
     let request: RawTranscriptWindowRequest
 
-    @Query private var records: [ConversationEventRecord]
-    @State private var expandedRecordIDs: Set<String> = []
+    @Query private var conversations: [Conversation]
+    @State private var entries: [RawTranscriptLogEntry] = []
+    @State private var expandedEntryIDs: Set<String> = []
     @State private var isFollowing = true
     @State private var latestContentFrame: CGRect?
     @State private var latestContainerHeight: CGFloat = 0
@@ -32,13 +38,7 @@ struct RawTranscriptWindow: View {
     init(request: RawTranscriptWindowRequest) {
         self.request = request
         let conversationID = request.conversationID
-        _records = Query(
-            filter: #Predicate { $0.conversationId == conversationID },
-            sort: [
-                SortDescriptor(\.timestamp),
-                SortDescriptor(\.id)
-            ]
-        )
+        _conversations = Query(filter: #Predicate { $0.id == conversationID })
     }
 
     var body: some View {
@@ -46,11 +46,11 @@ struct RawTranscriptWindow: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(records, id: \.id) { record in
+                        ForEach(entries) { entry in
                             RawTranscriptRow(
-                                record: record,
-                                isExpanded: expandedRecordIDs.contains(record.id),
-                                onToggleExpanded: { toggleExpandedRecord(id: record.id) }
+                                entry: entry,
+                                isExpanded: expandedEntryIDs.contains(entry.id),
+                                onToggleExpanded: { toggleExpandedEntry(id: entry.id) }
                             )
                             Divider()
                         }
@@ -62,8 +62,8 @@ struct RawTranscriptWindow: View {
                 .onAppear {
                     scrollToBottom(proxy: proxy, forceFollow: true)
                 }
-                .onChange(of: records.count) { oldCount, newCount in
-                    handleRecordCountChange(oldCount: oldCount, newCount: newCount, proxy: proxy)
+                .onChange(of: entries.count) { oldCount, newCount in
+                    handleEntryCountChange(oldCount: oldCount, newCount: newCount, proxy: proxy)
                 }
                 .onPreferenceChange(RawTranscriptContentFramePreferenceKey.self) { contentFrame in
                     guard let contentFrame else {
@@ -83,7 +83,31 @@ struct RawTranscriptWindow: View {
                 }
             }
         }
-        .navigationTitle(request.windowTitle)
+        .task(id: transcriptSource) {
+            await followRawTranscript(source: transcriptSource)
+        }
+        .navigationTitle(windowTitle)
+    }
+
+    private var transcriptSource: RawTranscriptSource? {
+        let conversation = conversations.first
+        let providerID = conversation?.providerSessionProviderId ?? request.providerID ?? conversation?.provider
+        let providerSessionID = conversation?.providerSessionId ?? request.providerSessionID
+        let workingDirectory = conversation?.providerSessionWorkingDirectory ?? request.providerSessionWorkingDirectory
+        return RawTranscriptSource(
+            providerID: providerID,
+            providerSessionID: providerSessionID,
+            workingDirectory: workingDirectory
+        )
+    }
+
+    private var windowTitle: String {
+        guard let conversation = conversations.first else {
+            return request.windowTitle
+        }
+
+        let threadName = conversation.thread?.displayName() ?? request.threadName
+        return "\(threadName) (\(conversation.displayName()))"
     }
 
     private var bottomAnchor: some View {
@@ -101,12 +125,12 @@ struct RawTranscriptWindow: View {
         }
     }
 
-    private func handleRecordCountChange(oldCount: Int, newCount: Int, proxy: ScrollViewProxy) {
+    private func handleEntryCountChange(oldCount: Int, newCount: Int, proxy: ScrollViewProxy) {
         guard newCount > oldCount else {
             return
         }
 
-        if shouldForceBottomScrollForLatestRecord() {
+        if shouldForceBottomScrollForLatestEntry() {
             scrollToBottom(proxy: proxy, forceFollow: true)
         } else if isFollowing {
             scrollToBottom(proxy: proxy, forceFollow: false)
@@ -127,11 +151,11 @@ struct RawTranscriptWindow: View {
         isFollowing = false
     }
 
-    private func toggleExpandedRecord(id: String) {
-        if expandedRecordIDs.contains(id) {
-            expandedRecordIDs.remove(id)
+    private func toggleExpandedEntry(id: String) {
+        if expandedEntryIDs.contains(id) {
+            expandedEntryIDs.remove(id)
         } else {
-            expandedRecordIDs.insert(id)
+            expandedEntryIDs.insert(id)
         }
     }
 
@@ -167,15 +191,45 @@ struct RawTranscriptWindow: View {
         }
     }
 
-    private func shouldForceBottomScrollForLatestRecord() -> Bool {
-        guard let latestRecord = records.last else {
-            return false
-        }
-        return latestRecord.type == "message" && latestRecord.role == "user"
+    private func shouldForceBottomScrollForLatestEntry() -> Bool {
+        entries.last?.isUserMessage == true
     }
 
     private func isNearBottom(_ contentFrame: CGRect, containerHeight: CGFloat) -> Bool {
         contentFrame.maxY <= containerHeight + rawTranscriptNearBottomThreshold
+    }
+
+    @MainActor
+    private func followRawTranscript(source: RawTranscriptSource?) async {
+        entries = []
+        expandedEntryIDs = []
+        guard let source else {
+            return
+        }
+
+        var reader = RawTranscriptJSONLineReader(sourceID: source.id)
+        var currentFileURL: URL?
+
+        while !Task.isCancelled {
+            guard let fileURL = currentFileURL ?? source.fileURL() else {
+                try? await Task.sleep(nanoseconds: rawTranscriptPollIntervalNanoseconds)
+                continue
+            }
+
+            if currentFileURL != fileURL {
+                currentFileURL = fileURL
+                reader = RawTranscriptJSONLineReader(sourceID: source.id)
+                entries = []
+                expandedEntryIDs = []
+            }
+
+            let newEntries = reader.readAvailableEntries(from: fileURL)
+            if !newEntries.isEmpty {
+                entries.append(contentsOf: newEntries)
+            }
+
+            try? await Task.sleep(nanoseconds: rawTranscriptPollIntervalNanoseconds)
+        }
     }
 }
 
@@ -192,12 +246,14 @@ private struct RawTranscriptContentFramePreferenceKey: PreferenceKey {
 }
 
 private struct RawTranscriptRow: View {
-    let record: ConversationEventRecord
+    let entry: RawTranscriptLogEntry
     let isExpanded: Bool
     let onToggleExpanded: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var text: String {
-        RawTranscriptRecordFormatter.text(for: record)
+        entry.text
     }
 
     private var lines: [Substring] {
@@ -215,12 +271,16 @@ private struct RawTranscriptRow: View {
         return lines.prefix(rawTranscriptCollapsedLineLimit).joined(separator: "\n")
     }
 
+    private var highlightedText: AttributedString {
+        SyntaxHighlighter.highlighted(displayedText, language: "json", colorScheme: colorScheme)
+    }
+
     private var toggleTitle: String {
         isExpanded ? "Show less" : "Show \(lines.count - rawTranscriptCollapsedLineLimit) more lines"
     }
 
     private var isUserMessage: Bool {
-        record.role == "user"
+        entry.isUserMessage
     }
 
     private var alignment: Alignment {
@@ -237,7 +297,7 @@ private struct RawTranscriptRow: View {
 
     var body: some View {
         VStack(alignment: horizontalAlignment, spacing: 6) {
-            Text(verbatim: displayedText)
+            Text(highlightedText)
                 .font(.system(size: 12, design: .monospaced))
                 .multilineTextAlignment(textAlignment)
                 .textSelection(.enabled)
@@ -253,76 +313,6 @@ private struct RawTranscriptRow: View {
         .frame(maxWidth: .infinity, alignment: alignment)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-    }
-}
-
-private enum RawTranscriptRecordFormatter {
-    static func text(for record: ConversationEventRecord) -> String {
-        var lines: [String] = []
-        append("id", record.id, to: &lines)
-        append("conversationId", record.conversationId, to: &lines)
-        append("timestamp", "\(record.timestamp)", to: &lines)
-        append("type", record.type, to: &lines)
-        append("role", record.role, to: &lines)
-        append("content", record.content, to: &lines)
-        append("toolId", record.toolId, to: &lines)
-        append("toolName", record.toolName, to: &lines)
-        append("toolInput", record.toolInput, to: &lines)
-        append("toolApprovalStatus", record.toolApprovalStatus, to: &lines)
-        append("toolOutput", record.toolOutput, to: &lines)
-        append("toolOutputStderr", record.toolOutputStderr, to: &lines)
-        append("parentToolUseId", record.parentToolUseId, to: &lines)
-        append("callerAgent", record.callerAgent, to: &lines)
-        appendIfTrue("toolOutputInterrupted", record.toolOutputInterrupted, to: &lines)
-        appendIfTrue("toolOutputIsImage", record.toolOutputIsImage, to: &lines)
-        appendIfTrue("toolOutputNoOutputExpected", record.toolOutputNoOutputExpected, to: &lines)
-        appendIfTrue("isError", record.isError, to: &lines)
-        appendIfNonZero("tokenInput", record.tokenInput, to: &lines)
-        appendIfNonZero("tokenOutput", record.tokenOutput, to: &lines)
-        appendIfNonZero("tokenCacheRead", record.tokenCacheRead, to: &lines)
-        appendIfNonZero("tokenCacheCreation", record.tokenCacheCreation, to: &lines)
-        appendIfNonZero("durationMs", record.durationMs, to: &lines)
-        appendIfNonZero("costUsd", record.costUsd, to: &lines)
-        appendIfTrue("costUsdReported", record.costUsdReported, to: &lines)
-        append("providerModelId", record.providerModelId, to: &lines)
-        appendIfNonZero("contextWindowSize", record.contextWindowSize ?? 0, to: &lines)
-        append("notificationType", record.notificationType, to: &lines)
-        append("stopReason", record.stopReason, to: &lines)
-        return lines.joined(separator: "\n")
-    }
-
-    private static func append(_ label: String, _ value: String?, to lines: inout [String]) {
-        guard let value, !value.isEmpty else {
-            return
-        }
-
-        if value.contains("\n") {
-            lines.append("\(label):")
-            lines.append(value)
-        } else {
-            lines.append("\(label): \(value)")
-        }
-    }
-
-    private static func appendIfTrue(_ label: String, _ value: Bool, to lines: inout [String]) {
-        guard value else {
-            return
-        }
-        lines.append("\(label): true")
-    }
-
-    private static func appendIfNonZero(_ label: String, _ value: Int, to lines: inout [String]) {
-        guard value != 0 else {
-            return
-        }
-        lines.append("\(label): \(value)")
-    }
-
-    private static func appendIfNonZero(_ label: String, _ value: Double, to lines: inout [String]) {
-        guard value != 0 else {
-            return
-        }
-        lines.append("\(label): \(value)")
     }
 }
 #endif

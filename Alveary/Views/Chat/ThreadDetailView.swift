@@ -269,7 +269,10 @@ private extension ThreadDetailView {
         let request = RawTranscriptWindowRequest(
             conversationID: conversation.id,
             threadName: thread.displayName(),
-            conversationTitle: conversation.displayName()
+            conversationTitle: conversation.displayName(),
+            providerID: conversation.providerSessionProviderId ?? conversation.provider,
+            providerSessionID: conversation.providerSessionId,
+            providerSessionWorkingDirectory: conversation.providerSessionWorkingDirectory
         )
         return { request }
     }
