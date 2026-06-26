@@ -10,7 +10,7 @@ extension ChatView {
                 fileURL: attachment.fileURL,
                 label: attachment.label,
                 open: { preview in
-                    NSWorkspace.shared.open(preview.fileURL)
+                    appState.presentImagePreview(.fileURL(preview.fileURL, title: preview.label))
                 },
                 remove: { preview in
                     viewModel.removeStagedImageAttachment(id: preview.id)
@@ -23,7 +23,7 @@ extension ChatView {
                 fileURL: appShot.screenshot.fileURL,
                 label: "App shot: \(appShot.appName)",
                 open: { preview in
-                    NSWorkspace.shared.open(preview.fileURL)
+                    appState.presentImagePreview(.fileURL(preview.fileURL, title: preview.label))
                 },
                 remove: { preview in
                     viewModel.removeStagedAppShot(id: preview.id)
@@ -79,5 +79,15 @@ extension ChatView {
             .filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0.url) }
             .map(\.defaultReference)
         return remainingReferences.isEmpty ? .cancel : .insert(remainingReferences)
+    }
+
+    @discardableResult
+    func openComposerEditorURL(_ url: URL) -> Bool {
+        let resolved = ChatTranscriptView.resolveMarkdownLinkURL(url, workingDirectory: workingDirectory)
+        if let request = AppImagePreviewRequest.supportedURL(resolved) {
+            appState.presentImagePreview(request)
+            return true
+        }
+        return NSWorkspace.shared.open(resolved)
     }
 }

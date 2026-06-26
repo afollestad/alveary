@@ -15,6 +15,7 @@ private enum ScrollToBottomRetries {
 
 struct ChatTranscriptView: View {
     let viewModel: ConversationViewModel
+    let appState: AppState
     let events: [ConversationEventRecord]
     let workingDirectory: String?
 

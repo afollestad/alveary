@@ -21,6 +21,11 @@ final class AppKitMarkdownImageBlockView: NSView {
     private var configuration: Configuration?
     private var loadedCacheKey: String?
     private var loadTask: Task<Void, Never>?
+    var onOpen: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            updateOpenState()
+        }
+    }
     var maximumDisplayWidth = defaultInitialWidth {
         didSet {
             if abs(oldValue - maximumDisplayWidth) > 0.5 {
@@ -30,10 +35,15 @@ final class AppKitMarkdownImageBlockView: NSView {
         }
     }
 
-    init(configuration: Configuration) {
+    init(
+        configuration: Configuration,
+        onOpen: ((BlockInputImage, URL?) -> Void)? = nil
+    ) {
+        self.onOpen = onOpen
         super.init(frame: .zero)
         setup()
         configure(configuration)
+        updateOpenState()
     }
 
     @available(*, unavailable)
@@ -75,6 +85,25 @@ final class AppKitMarkdownImageBlockView: NSView {
         )
     }
 
+    override func mouseUp(with event: NSEvent) {
+        guard bounds.contains(convert(event.locationInWindow, from: nil)),
+              performOpen() else {
+            super.mouseUp(with: event)
+            return
+        }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if onOpen != nil {
+            addCursorRect(bounds, cursor: .pointingHand)
+        }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        performOpen()
+    }
+
     func configure(_ configuration: Configuration) {
         guard self.configuration != configuration else {
             return
@@ -112,6 +141,16 @@ final class AppKitMarkdownImageBlockView: NSView {
         contentView.addSubview(statusLabel)
 
         applyPlaceholderStyle()
+    }
+
+    @discardableResult
+    private func performOpen() -> Bool {
+        guard let configuration,
+              let onOpen else {
+            return false
+        }
+        onOpen(configuration.image, configuration.baseURL)
+        return true
     }
 
     private func startLoadIfPossible() {
@@ -201,6 +240,11 @@ final class AppKitMarkdownImageBlockView: NSView {
         contentView.setLayerStrokeColor(.separatorColor, alpha: 0.35)
     }
 
+    private func updateOpenState() {
+        setAccessibilityRole(onOpen == nil ? .image : .button)
+        window?.invalidateCursorRects(for: self)
+    }
+
     private var displaySize: CGSize {
         let constrainedWidth = bounds.width > 0 ? min(bounds.width, maximumDisplayWidth) : maximumDisplayWidth
         guard let configuration else {
@@ -222,6 +266,11 @@ extension AppKitMarkdownImageBlockView {
 
     var displaySizeForTesting: CGSize {
         displaySize
+    }
+
+    @discardableResult
+    func performOpenForTesting() -> Bool {
+        performOpen()
     }
 }
 #endif

@@ -192,6 +192,21 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertEqual(Array(events.prefix(2)), ["user", "height"])
     }
 
+    func testImageToolOutputRendersPreviewButton() throws {
+        let tool = imageOutputTool(output: "data:image/png;base64,abc")
+        let view = AppKitTranscriptToolDetailsView()
+        var openedTool: ToolEntry?
+        view.onOpenToolImage = { openedTool = $0 }
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 1_000)
+        view.configure(.init(tool: tool))
+        view.layoutSubtreeIfNeeded()
+
+        let button = try XCTUnwrap(view.descendants(of: NSButton.self).first { $0.title == "Preview image" })
+        XCTAssertTrue(button.isEnabled)
+        button.performClick(nil)
+        XCTAssertEqual(openedTool, tool)
+    }
+
     func testHighlightedCodeBlockForwardsVerticalScrollToAncestor() throws {
         let block = AppKitTranscriptHighlightedCodeBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 180, height: 400)
@@ -414,6 +429,23 @@ private func fileChangeDetailTool(input: String, output: String? = nil, isError:
         isImage: false,
         noOutputExpected: false,
         isError: isError
+    )
+}
+
+@MainActor
+private func imageOutputTool(output: String) -> ToolEntry {
+    ToolEntry(
+        id: "image-output-1",
+        name: "ViewImage",
+        summary: "Image output",
+        input: "{}",
+        output: output,
+        stderr: nil,
+        isComplete: true,
+        isInterrupted: false,
+        isImage: true,
+        noOutputExpected: false,
+        isError: false
     )
 }
 

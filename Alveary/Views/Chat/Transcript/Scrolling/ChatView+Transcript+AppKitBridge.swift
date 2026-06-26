@@ -1,3 +1,5 @@
+@preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 import SwiftUI
 
@@ -81,7 +83,7 @@ extension ChatTranscriptView {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth)
         configuration.typography = transcriptTypography
-        configuration.markdownBaseURL = workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        configuration.markdownBaseURL = appKitMarkdownBaseURL
         configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
@@ -93,6 +95,9 @@ extension ChatTranscriptView {
             cancelPendingScrollForUserLocalHeightChange()
         }
         configuration.onOpenMarkdownLink = openAppKitMarkdownLink(_:)
+        configuration.onOpenMarkdownImage = openAppKitMarkdownImage(_:baseURL:)
+        configuration.onOpenImageAttachment = openAppKitImageAttachment(_:)
+        configuration.onOpenToolImage = openAppKitToolImage(_:)
         configuration.onRetryFailedUserMessage = { id in
             retryAction(for: id, isRetryable: true)?()
         }
@@ -203,7 +208,30 @@ extension ChatTranscriptView {
 
     func openAppKitMarkdownLink(_ url: URL) {
         let resolved = Self.resolveMarkdownLinkURL(url, workingDirectory: workingDirectory)
+        if let request = AppImagePreviewRequest.supportedURL(resolved) {
+            appState.presentImagePreview(request)
+            return
+        }
         NSWorkspace.shared.open(resolved)
+    }
+
+    func openAppKitMarkdownImage(_ image: BlockInputImage, baseURL: URL?) {
+        appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
+    }
+
+    func openAppKitImageAttachment(_ attachment: LocalImageAttachment) {
+        appState.presentImagePreview(.fileURL(attachment.fileURL, title: attachment.label))
+    }
+
+    func openAppKitToolImage(_ tool: ToolEntry) {
+        guard let request = AppImagePreviewRequest.toolImageOutput(tool: tool, baseURL: appKitMarkdownBaseURL) else {
+            return
+        }
+        appState.presentImagePreview(request)
+    }
+
+    var appKitMarkdownBaseURL: URL? {
+        workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
     }
 
     func resolveAppKitToolApproval(_ approval: ToolApprovalRequest, approve: Bool) {

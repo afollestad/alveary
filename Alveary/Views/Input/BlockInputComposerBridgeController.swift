@@ -16,6 +16,7 @@ struct BlockInputComposerBridgeConfiguration {
     var editorRoundedCorners: BlockInputEditorChromeCorners
     var location: BlockInputComposerLocation
     var imagePreviewAttachments: [BlockInputImagePreviewAttachment]
+    var urlOpener: BlockInputURLOpener
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     var loadFileCompletions: @Sendable () async -> [String]
@@ -40,6 +41,7 @@ struct BlockInputComposerBridgeConfiguration {
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
         location: BlockInputComposerLocation,
         imagePreviewAttachments: [BlockInputImagePreviewAttachment] = [],
+        urlOpener: @escaping BlockInputURLOpener = { NSWorkspace.shared.open($0) },
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         loadFileCompletions: @escaping @Sendable () async -> [String],
@@ -63,6 +65,7 @@ struct BlockInputComposerBridgeConfiguration {
         self.editorRoundedCorners = editorRoundedCorners
         self.location = location
         self.imagePreviewAttachments = imagePreviewAttachments
+        self.urlOpener = urlOpener
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
         self.loadFileCompletions = loadFileCompletions
@@ -182,18 +185,14 @@ final class BlockInputComposerBridgeController {
             dropIndicatorColor: .controlAccentColor,
             style: BlockInputComposerStyle.make(roundedCorners: configuration.editorRoundedCorners),
             selectAllBehavior: .document,
-            heightSizing: BlockInputEditorHeightSizing(
-                defaultVisibleLineCount: Self.minVisibleLineCount,
-                maximumVisibleLineCount: Self.maxVisibleLineCount,
-                animation: .default,
-                onPreferredHeightTransition: { [weak self] transition in
-                    self?.currentConfiguration.onPreferredHeightTransition(transition)
-                }
-            ),
+            heightSizing: heightSizing(),
             imagePresentation: configuration.imagePresentation,
             imagePreviewAttachments: configuration.imagePreviewAttachments,
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,
+            urlOpener: { [weak self] url in
+                self?.currentConfiguration.urlOpener(url) ?? false
+            },
             undoController: undoController,
             commandDispatcher: commandDispatcher,
             keyboardShortcuts: keyboardShortcuts(for: configuration),
@@ -213,6 +212,17 @@ final class BlockInputComposerBridgeController {
             },
             onDocumentChange: { [weak self] document in
                 self?.currentConfiguration.onDocumentChange(document)
+            }
+        )
+    }
+
+    private func heightSizing() -> BlockInputEditorHeightSizing {
+        BlockInputEditorHeightSizing(
+            defaultVisibleLineCount: Self.minVisibleLineCount,
+            maximumVisibleLineCount: Self.maxVisibleLineCount,
+            animation: .default,
+            onPreferredHeightTransition: { [weak self] transition in
+                self?.currentConfiguration.onPreferredHeightTransition(transition)
             }
         )
     }

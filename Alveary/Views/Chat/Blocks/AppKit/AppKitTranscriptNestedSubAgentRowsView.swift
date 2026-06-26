@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 import QuartzCore
 
@@ -18,6 +19,16 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             rowViews.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onOpenMarkdownImage = onOpenMarkdownImage }
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onOpenToolImage = onOpenToolImage }
         }
     }
 
@@ -67,6 +78,8 @@ final class AppKitTranscriptNestedSubAgentRowsView: NSView {
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
+            row.onOpenMarkdownImage = onOpenMarkdownImage
+            row.onOpenToolImage = onOpenToolImage
             row.configure(
                 .init(
                     agent: agent,
@@ -169,6 +182,16 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
         }
     }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            contentView.onOpenMarkdownImage = onOpenMarkdownImage
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            contentView.onOpenToolImage = onOpenToolImage
+        }
+    }
 
     private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
@@ -190,6 +213,8 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
         contentView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         contentView.onOpenMarkdownLink = onOpenMarkdownLink
+        contentView.onOpenMarkdownImage = onOpenMarkdownImage
+        contentView.onOpenToolImage = onOpenToolImage
         addSubview(clipView)
         clipView.addSubview(headerView)
     }
@@ -297,6 +322,8 @@ final class AppKitTranscriptSubAgentInlineRowView: NSView {
                 clipView.addSubview(contentView)
             }
             contentView.onOpenMarkdownLink = onOpenMarkdownLink
+            contentView.onOpenMarkdownImage = onOpenMarkdownImage
+            contentView.onOpenToolImage = onOpenToolImage
             contentView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
             contentView.configure(

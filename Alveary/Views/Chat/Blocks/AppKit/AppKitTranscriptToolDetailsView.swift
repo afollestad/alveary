@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -22,6 +23,16 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             applyMarkdownLinkHandler()
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            applyMarkdownImageHandler()
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            applyToolImageHandler()
         }
     }
 
@@ -103,7 +114,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         if let output = tool.output {
             let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
             if tool.isImage {
-                views.append(messageLabel("Image output isn't previewed yet.", typography: typography))
+                views.append(imagePreviewButton(for: tool, typography: typography))
             } else if trimmed.isEmpty {
                 if !tool.noOutputExpected {
                     views.append(messageLabel("No output", typography: typography))
@@ -159,7 +170,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         }
 
         if tool.isImage {
-            return [messageLabel("Image output isn't previewed yet.", typography: typography)]
+            return [imagePreviewButton(for: tool, typography: typography)]
         }
 
         guard let content = snapshot.content,
@@ -177,7 +188,8 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
                     markdown: markdown,
                     baseURL: snapshot.baseURL,
                     typography: typography,
-                    onOpenMarkdownLink: onOpenMarkdownLink
+                    onOpenMarkdownLink: onOpenMarkdownLink,
+                    onOpenMarkdownImage: onOpenMarkdownImage
                 )
             ]
         }
@@ -202,6 +214,13 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         return label
     }
 
+    private func imagePreviewButton(for tool: ToolEntry, typography: TranscriptTypography) -> NSButton {
+        let button = AppKitTranscriptToolImagePreviewButton()
+        button.configure(tool: tool, typography: typography)
+        button.onOpenToolImage = onOpenToolImage
+        return button
+    }
+
     private func attachInvalidationHandler(to view: NSView) {
         if let view = view as? AppKitTranscriptDetailCodeBlockView {
             view.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
@@ -220,6 +239,16 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     private func applyMarkdownLinkHandler() {
         contentViews.compactMap { $0 as? AppKitTranscriptMarkdownToolContentView }
             .forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
+    }
+
+    private func applyMarkdownImageHandler() {
+        contentViews.compactMap { $0 as? AppKitTranscriptMarkdownToolContentView }
+            .forEach { $0.onOpenMarkdownImage = onOpenMarkdownImage }
+    }
+
+    private func applyToolImageHandler() {
+        contentViews.compactMap { $0 as? AppKitTranscriptToolImagePreviewButton }
+            .forEach { $0.onOpenToolImage = onOpenToolImage }
     }
 
     private func applyUserInitiatedHeightChangeHandler() {
@@ -279,13 +308,19 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
             markdownView.onOpenLink = onOpenMarkdownLink
         }
     }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            markdownView.onOpenImage = onOpenMarkdownImage
+        }
+    }
 
     init(
         taskStateScope: String,
         markdown: String,
         baseURL: URL?,
         typography: TranscriptTypography,
-        onOpenMarkdownLink: ((URL) -> Void)? = nil
+        onOpenMarkdownLink: ((URL) -> Void)? = nil,
+        onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? = nil
     ) {
         let document = AppMarkdownDocumentCache.document(
             markdown: markdown,
@@ -305,9 +340,11 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
             inlineCodeStyle: .standard,
             typography: typography.appKitMarkdownTypography,
             imageBaseURL: baseURL,
-            onOpenLink: onOpenMarkdownLink
+            onOpenLink: onOpenMarkdownLink,
+            onOpenImage: onOpenMarkdownImage
         )
         self.onOpenMarkdownLink = onOpenMarkdownLink
+        self.onOpenMarkdownImage = onOpenMarkdownImage
         super.init(frame: .zero)
         setup()
     }
@@ -386,5 +423,52 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
         lastMeasuredHeight = newHeight
         invalidateIntrinsicContentSize()
         onHeightInvalidated?()
+    }
+}
+
+@MainActor
+private final class AppKitTranscriptToolImagePreviewButton: NSButton {
+    private var tool: ToolEntry?
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            updateEnabledState()
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(tool: ToolEntry, typography: TranscriptTypography) {
+        self.tool = tool
+        title = "Preview image"
+        font = typography.nsFont(.caption, weight: .semibold)
+        updateEnabledState()
+    }
+
+    private func setup() {
+        controlSize = .small
+        bezelStyle = .rounded
+        target = self
+        action = #selector(openImage)
+        setAccessibilityLabel("Preview image output")
+    }
+
+    @objc private func openImage() {
+        guard let tool else {
+            return
+        }
+        onOpenToolImage?(tool)
+    }
+
+    private func updateEnabledState() {
+        let hasPayload = tool?.output?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        isEnabled = hasPayload && onOpenToolImage != nil
     }
 }

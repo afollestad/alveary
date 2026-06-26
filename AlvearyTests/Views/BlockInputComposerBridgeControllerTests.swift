@@ -6,17 +6,6 @@ import XCTest
 
 @MainActor
 final class BlockInputComposerBridgeControllerTests: XCTestCase {
-    func testLocationUsesWorktreeBeforeProjectPath() {
-        let location = BlockInputComposerLocation(
-            projectPath: "/tmp/alveary-project",
-            worktreePath: "/tmp/alveary-worktree"
-        )
-
-        XCTAssertEqual(location.effectiveProjectDirectory, CanonicalPath.normalize("/tmp/alveary-worktree"))
-        XCTAssertEqual(location.fileBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-worktree"))
-        XCTAssertEqual(location.imageBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-worktree"))
-    }
-
     func testBridgeConfiguresBlockInputComposerDefaults() {
         let controller = BlockInputComposerBridgeController(configuration: makeConfiguration(markdown: "Hello"))
         let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Hello"))
@@ -167,7 +156,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
     func testDocumentMutationReportsEffectiveEmptyWithoutMarkdownSerialization() {
         var reportedIsEmpty: Bool?
-        let configuration = makeConfiguration(markdown: "Hello") { reportedIsEmpty = $1 }
+        let configuration = makeConfiguration(markdown: "Hello", onDocumentMutation: { reportedIsEmpty = $1 })
         let controller = BlockInputComposerBridgeController(configuration: configuration)
         let blockInputConfiguration = controller.blockInputConfiguration(for: configuration)
 
@@ -431,6 +420,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         markdownRevision: Int = 0,
         imagePresentation: BlockInputImagePresentation = .inlineBlocks,
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
+        urlOpener: @escaping BlockInputURLOpener = { NSWorkspace.shared.open($0) },
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         location: BlockInputComposerLocation = BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/alveary-project"),
         loadFileCompletions: @escaping @Sendable () async -> [String] = { [] },
@@ -441,6 +431,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
             markdownRevision: markdownRevision,
             imagePresentation: imagePresentation,
             location: location,
+            urlOpener: urlOpener,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,
             keyboardShortcuts: keyboardShortcuts,
@@ -463,5 +454,38 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
             rawQuery: rawQuery,
             fileQuery: fileQuery
         )
+    }
+}
+
+@MainActor
+extension BlockInputComposerBridgeControllerTests {
+    func testLocationUsesWorktreeBeforeProjectPath() {
+        let location = BlockInputComposerLocation(
+            projectPath: "/tmp/alveary-project",
+            worktreePath: "/tmp/alveary-worktree"
+        )
+
+        XCTAssertEqual(location.effectiveProjectDirectory, CanonicalPath.normalize("/tmp/alveary-worktree"))
+        XCTAssertEqual(location.fileBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-worktree"))
+        XCTAssertEqual(location.imageBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-worktree"))
+    }
+
+    func testBridgeForwardsURLOpenerThroughCurrentConfiguration() throws {
+        var openedURL: URL?
+        let initialConfiguration = makeConfiguration(markdown: "Hello")
+        let controller = BlockInputComposerBridgeController(configuration: initialConfiguration)
+        let updatedConfiguration = makeConfiguration(
+            markdown: "Hello",
+            urlOpener: { url in
+                openedURL = url
+                return true
+            }
+        )
+        controller.configure(updatedConfiguration)
+        let blockInputConfiguration = controller.blockInputConfiguration(for: updatedConfiguration)
+        let url = try XCTUnwrap(URL(string: "https://example.com/image.png"))
+
+        XCTAssertTrue(blockInputConfiguration.urlOpener(url))
+        XCTAssertEqual(openedURL, url)
     }
 }

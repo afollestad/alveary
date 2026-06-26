@@ -90,6 +90,37 @@ extension AppKitChatSurfaceViewTests {
         }
     }
 
+    func testNativeQueuedMessagesForwardMarkdownImageOpens() throws {
+        let message = QueuedMessage(text: "![Queued image](images/queued.png)", stagedContext: nil)
+        let baseURL = URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 140))
+        var openedSource: String?
+        var openedBaseURL: URL?
+        view.configure(
+            AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [message],
+                supportsMidTurnSteering: true,
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                markdownBaseURL: baseURL,
+                onOpenMarkdownImage: { image, baseURL in
+                    openedSource = image.source
+                    openedBaseURL = baseURL
+                },
+                onSteer: { _ in },
+                onEdit: { _ in },
+                onDismiss: { _ in }
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        let imageView = try XCTUnwrap(firstDescendant(of: view) { $0 is AppKitMarkdownImageBlockView } as? AppKitMarkdownImageBlockView)
+        XCTAssertTrue(imageView.performOpenForTesting())
+        XCTAssertEqual(openedSource, "images/queued.png")
+        XCTAssertEqual(openedBaseURL, baseURL)
+    }
+
     func testNativeQueuedMessagesDisableSteerWhenTurnIsNotSteerable() throws {
         let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
         let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))

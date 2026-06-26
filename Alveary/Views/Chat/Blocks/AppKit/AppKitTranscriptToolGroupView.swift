@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -38,6 +39,18 @@ final class AppKitTranscriptToolGroupView: NSView {
         didSet {
             singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
             nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            singleToolRow.onOpenMarkdownImage = onOpenMarkdownImage
+            nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            singleToolRow.onOpenToolImage = onOpenToolImage
+            nestedRowsView.onOpenToolImage = onOpenToolImage
         }
     }
 
@@ -118,11 +131,9 @@ final class AppKitTranscriptToolGroupView: NSView {
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         singleToolRow.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedRowsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
-        singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
-        singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        applySingleToolRowHandlers()
         singleToolRow.onExpansionChanged = onExpansionChanged
-        nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
-        nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+        applyNestedRowsHandlers()
         addSubview(clipView)
     }
 
@@ -137,8 +148,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         }
         if configuration.tools.count <= 1, let only = configuration.tools.first {
             clipView.addSubview(singleToolRow)
-            singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
-            singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+            applySingleToolRowHandlers()
             singleToolRow.onExpansionChanged = onExpansionChanged
             singleToolRow.configure(
                 .init(
@@ -173,10 +183,23 @@ final class AppKitTranscriptToolGroupView: NSView {
 
         if isExpanded {
             clipView.addSubview(nestedRowsView)
-            nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
-            nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+            applyNestedRowsHandlers()
             nestedRowsView.configure(.init(tools: configuration.tools, typography: configuration.typography))
         }
+    }
+
+    private func applySingleToolRowHandlers() {
+        singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
+        singleToolRow.onOpenMarkdownImage = onOpenMarkdownImage
+        singleToolRow.onOpenToolImage = onOpenToolImage
+        singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
+    }
+
+    private func applyNestedRowsHandlers() {
+        nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
+        nestedRowsView.onOpenToolImage = onOpenToolImage
+        nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
     }
 
     private func layoutContent() {

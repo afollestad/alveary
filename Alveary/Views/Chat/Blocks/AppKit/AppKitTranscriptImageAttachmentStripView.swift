@@ -12,6 +12,11 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
 
     private var attachments: [LocalImageAttachment] = []
     private var tileViews: [AppKitTranscriptImageAttachmentTileView] = []
+    var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
+        didSet {
+            tileViews.forEach { $0.onOpenAttachment = onOpenAttachment }
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -35,6 +40,7 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
         if tileViews.count < attachments.count {
             for _ in tileViews.count..<attachments.count {
                 let tileView = AppKitTranscriptImageAttachmentTileView()
+                tileView.onOpenAttachment = onOpenAttachment
                 tileViews.append(tileView)
                 addSubview(tileView)
             }
@@ -97,6 +103,12 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
 @MainActor
 private final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorView {
     private let imageView = NSImageView()
+    private var attachment: LocalImageAttachment?
+    var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
+        didSet {
+            updateOpenState()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -117,10 +129,40 @@ private final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorV
         imageView.frame = bounds
     }
 
+    override func mouseUp(with event: NSEvent) {
+        guard bounds.contains(convert(event.locationInWindow, from: nil)),
+              performOpen() else {
+            super.mouseUp(with: event)
+            return
+        }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if onOpenAttachment != nil {
+            addCursorRect(bounds, cursor: .pointingHand)
+        }
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        performOpen()
+    }
+
     func configure(_ attachment: LocalImageAttachment) {
+        self.attachment = attachment
         imageView.image = NSImage(contentsOf: attachment.fileURL)
         toolTip = attachment.label
         setAccessibilityLabel(attachment.label)
+    }
+
+    @discardableResult
+    private func performOpen() -> Bool {
+        guard let attachment,
+              let onOpenAttachment else {
+            return false
+        }
+        onOpenAttachment(attachment)
+        return true
     }
 
     private func setup() {
@@ -138,7 +180,12 @@ private final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorV
         addSubview(imageView)
 
         setAccessibilityElement(true)
-        setAccessibilityRole(.image)
+        updateOpenState()
+    }
+
+    private func updateOpenState() {
+        setAccessibilityRole(onOpenAttachment == nil ? .image : .button)
+        window?.invalidateCursorRects(for: self)
     }
 }
 
@@ -168,6 +215,14 @@ extension AppKitTranscriptImageAttachmentStripView {
 
     var tileFillColorsForTesting: [CGColor?] {
         tileViews.prefix(attachments.count).map { $0.layer?.backgroundColor }
+    }
+
+    @discardableResult
+    func performOpenForTesting(at index: Int = 0) -> Bool {
+        guard tileViews.indices.contains(index) else {
+            return false
+        }
+        return tileViews[index].accessibilityPerformPress()
     }
 }
 #endif

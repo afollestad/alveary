@@ -22,6 +22,8 @@ extension AppKitTranscriptRowFactory {
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        view.onOpenMarkdownImage = configuration.onOpenMarkdownImage
+        view.onOpenToolImage = configuration.onOpenToolImage
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }

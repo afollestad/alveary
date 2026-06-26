@@ -29,6 +29,7 @@ extension AppKitChatComposerEditorController {
             editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
             imagePreviewAttachments: configuration.imagePreviewAttachments,
+            urlOpener: configuration.urlOpener,
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,
             loadFileCompletions: configuration.loadFileCompletions,

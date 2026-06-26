@@ -1,4 +1,5 @@
 import AppKit
+import BlockInputKit
 
 @MainActor
 /// Builds and caches AppKit transcript row views from `ChatItem` values.
@@ -29,6 +30,9 @@ final class AppKitTranscriptRowFactory {
         var onRowHeightInvalidated: (String, Bool) -> Void = { _, _ in }
         var onUserInitiatedHeightChange: () -> Void = {}
         var onOpenMarkdownLink: (URL) -> Void = { _ in }
+        var onOpenMarkdownImage: (BlockInputImage, URL?) -> Void = { _, _ in }
+        var onOpenImageAttachment: (LocalImageAttachment) -> Void = { _ in }
+        var onOpenToolImage: (ToolEntry) -> Void = { _ in }
         var onRetryFailedUserMessage: (String) -> Void = { _ in }
         var onRowExpansionChanged: (String, Bool) -> Void = { _, _ in }
         var onApprove: (ToolApprovalRequest) -> Void = { _ in }
@@ -141,7 +145,7 @@ final class AppKitTranscriptRowFactory {
         let view = cachedView(for: id, as: AppKitTranscriptToolGroupView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
-        view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        view.applyOpenHandlers(configuration)
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }
@@ -174,7 +178,7 @@ final class AppKitTranscriptRowFactory {
         let view = cachedView(for: id, as: AppKitTranscriptInlineToolRowView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
-        view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        view.applyOpenHandlers(configuration)
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }
@@ -216,7 +220,7 @@ final class AppKitTranscriptRowFactory {
         let view = cachedView(for: id, as: AppKitTranscriptSubAgentBlockView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
-        view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        view.applyOpenHandlers(configuration)
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }
@@ -311,7 +315,7 @@ final class AppKitTranscriptRowFactory {
         view.hydratesMarkdownImmediately = false
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
         view.onUserInitiatedHeightChange = configuration.onUserInitiatedHeightChange
-        view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        view.applyOpenHandlers(configuration)
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }
@@ -450,5 +454,37 @@ extension AppKitTranscriptRowFactory {
         configuration: Configuration
     ) -> [LocalImageAttachment] {
         configuration.imageAttachmentsByMessageID[id] ?? []
+    }
+}
+
+private extension AppKitTranscriptToolGroupView {
+    func applyOpenHandlers(_ configuration: AppKitTranscriptRowFactory.Configuration) {
+        onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        onOpenMarkdownImage = configuration.onOpenMarkdownImage
+        onOpenToolImage = configuration.onOpenToolImage
+    }
+}
+
+private extension AppKitTranscriptInlineToolRowView {
+    func applyOpenHandlers(_ configuration: AppKitTranscriptRowFactory.Configuration) {
+        onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        onOpenMarkdownImage = configuration.onOpenMarkdownImage
+        onOpenToolImage = configuration.onOpenToolImage
+    }
+}
+
+private extension AppKitTranscriptSubAgentBlockView {
+    func applyOpenHandlers(_ configuration: AppKitTranscriptRowFactory.Configuration) {
+        onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        onOpenMarkdownImage = configuration.onOpenMarkdownImage
+        onOpenToolImage = configuration.onOpenToolImage
+    }
+}
+
+private extension AppKitTranscriptTextBubbleRowView {
+    func applyOpenHandlers(_ configuration: AppKitTranscriptRowFactory.Configuration) {
+        onOpenMarkdownLink = configuration.onOpenMarkdownLink
+        onOpenMarkdownImage = configuration.onOpenMarkdownImage
+        onOpenImageAttachment = configuration.onOpenImageAttachment
     }
 }

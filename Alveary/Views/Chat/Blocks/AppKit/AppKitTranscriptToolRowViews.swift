@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 import QuartzCore
 
@@ -40,6 +41,16 @@ final class AppKitTranscriptInlineToolRowView: NSView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             detailsView.onOpenMarkdownLink = onOpenMarkdownLink
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            detailsView.onOpenMarkdownImage = onOpenMarkdownImage
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            detailsView.onOpenToolImage = onOpenToolImage
         }
     }
 
@@ -149,6 +160,8 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             self.childHeightInvalidated()
         }
         detailsView.onOpenMarkdownLink = onOpenMarkdownLink
+        detailsView.onOpenMarkdownImage = onOpenMarkdownImage
+        detailsView.onOpenToolImage = onOpenToolImage
         addSubview(clipView)
         clipView.addSubview(headerView)
     }

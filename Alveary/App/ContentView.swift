@@ -229,6 +229,11 @@ struct ContentView: View {
             appShotCoordinator.start(settingsService: settingsService)
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
+        .overlay {
+            if let imagePreviewRequest = appState.imagePreviewRequest {
+                AppImagePreviewOverlay(request: imagePreviewRequest, onDismiss: appState.dismissImagePreview)
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 PrimaryToolbarButtonGroup(

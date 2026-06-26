@@ -26,6 +26,11 @@ extension AppKitTranscriptTextBubbleRowView {
         imageAttachmentStripView.tileFillColorsForTesting
     }
 
+    @discardableResult
+    func openImageAttachmentForTesting(at index: Int = 0) -> Bool {
+        imageAttachmentStripView.performOpenForTesting(at: index)
+    }
+
     var expansionButtonFrameForTesting: CGRect {
         expansionButton.frame
     }

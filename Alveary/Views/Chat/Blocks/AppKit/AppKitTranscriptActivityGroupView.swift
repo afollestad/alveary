@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -34,6 +35,16 @@ final class AppKitTranscriptActivityGroupView: NSView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            nestedRowsView.onOpenToolImage = onOpenToolImage
         }
     }
     var onExpansionChanged: ((Bool) -> Void)?
@@ -123,6 +134,8 @@ final class AppKitTranscriptActivityGroupView: NSView {
         headerView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedRowsView.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
+        nestedRowsView.onOpenToolImage = onOpenToolImage
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         addSubview(clipView)
@@ -159,6 +172,8 @@ final class AppKitTranscriptActivityGroupView: NSView {
 
         clipView.addSubview(nestedRowsView)
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
+        nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
+        nestedRowsView.onOpenToolImage = onOpenToolImage
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         nestedRowsView.configure(

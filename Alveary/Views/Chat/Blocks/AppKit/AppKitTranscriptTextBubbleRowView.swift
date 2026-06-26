@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 import QuartzCore
 
@@ -83,6 +84,16 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             markdownView?.onOpenLink = onOpenMarkdownLink
         }
     }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            markdownView?.onOpenImage = onOpenMarkdownImage
+        }
+    }
+    var onOpenImageAttachment: ((LocalImageAttachment) -> Void)? {
+        didSet {
+            imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
+        }
+    }
     var hydratesMarkdownImmediately = true
 
     private(set) var bubbleView = AppKitFlippedDynamicColorView()
@@ -159,6 +170,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         if shouldResetExpansion {
             isExpanded = configuration.initiallyExpanded
         }
+        imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
         imageAttachmentStripView.configure(configuration.imageAttachments)
         resetMarkdownView()
         updateBubbleAppearance()

@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -8,6 +9,7 @@ struct AppKitMarkdownBlockRenderer {
     let typography: AppKitMarkdownTypography
     let imageBaseURL: URL?
     let onOpenLink: ((URL) -> Void)?
+    let onOpenImage: ((BlockInputImage, URL?) -> Void)?
     let heightInvalidationHandler: () -> Void
 
     func views(for blocks: [AppMarkdownDocumentBlock]) -> [NSView] {
@@ -41,7 +43,8 @@ struct AppKitMarkdownBlockRenderer {
             configuration: .init(
                 image: imageBlock.image,
                 baseURL: imageBaseURL
-            )
+            ),
+            onOpen: onOpenImage
         )
     }
 

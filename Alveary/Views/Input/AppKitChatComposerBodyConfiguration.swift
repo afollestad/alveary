@@ -1,3 +1,4 @@
+import AppKit
 import BlockInputKit
 import Foundation
 
@@ -32,6 +33,7 @@ struct AppKitChatComposerBodyConfiguration {
     let hasTopContent: Bool
     let workingDirectory: String?
     let imagePreviewAttachments: [BlockInputImagePreviewAttachment]
+    let urlOpener: BlockInputURLOpener
     let localCommands: ComposerLocalCommandAvailability
     let passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     let requestFirstResponder: UUID?
@@ -69,6 +71,7 @@ struct AppKitChatComposerBodyConfiguration {
         hasTopContent: Bool,
         workingDirectory: String?,
         imagePreviewAttachments: [BlockInputImagePreviewAttachment] = [],
+        urlOpener: @escaping BlockInputURLOpener = { NSWorkspace.shared.open($0) },
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         requestFirstResponder: UUID?,
@@ -105,6 +108,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory
         self.imagePreviewAttachments = imagePreviewAttachments
+        self.urlOpener = urlOpener
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
         self.requestFirstResponder = requestFirstResponder

@@ -32,39 +32,6 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertFalse(draft.isEffectivelyEmpty)
     }
 
-    func testLocalImageSelectionStagesImagesWhenProviderSupportsAttachments() async throws {
-        let root = temporaryDirectory()
-        let sourceDirectory = temporaryDirectory()
-        defer {
-            try? FileManager.default.removeItem(at: root)
-            try? FileManager.default.removeItem(at: sourceDirectory)
-        }
-        let imageURL = sourceDirectory.appendingPathComponent("picked.png")
-        try Self.pngHeaderData.write(to: imageURL)
-
-        let store = DefaultConversationAttachmentStore(rootDirectory: root)
-        let fixture = try ConversationViewModelTestFixture(attachmentStore: store)
-        let chatView = makeChatView(fixture: fixture, appState: AppState(), supportsLocalImageInput: true)
-
-        let result = await chatView.handleLocalFileURLsSelected([imageURL])
-
-        XCTAssertEqual(result, .handled)
-        let attachment = try XCTUnwrap(fixture.viewModel.stagedImageAttachments.first)
-        XCTAssertEqual(attachment.label, "picked.png")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: attachment.fileURL.path))
-    }
-
-    func testLocalImageSelectionUsesMarkdownPathWhenProviderDoesNotSupportAttachments() async throws {
-        let imageURL = FileManager.default.temporaryDirectory.appendingPathComponent("picked.png")
-        let fixture = try ConversationViewModelTestFixture()
-        let chatView = makeChatView(fixture: fixture, appState: AppState(), supportsLocalImageInput: false)
-
-        let result = await chatView.handleLocalFileURLsSelected([imageURL])
-
-        XCTAssertEqual(result, .useDefault)
-        XCTAssertTrue(fixture.viewModel.stagedImageAttachments.isEmpty)
-    }
-
     func testSendDraftClearsDraftAndRequestsComposerFocus() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()
@@ -422,7 +389,7 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertNil(appState.pendingComposerFocusToken)
     }
 
-    private func makeChatView(
+    func makeChatView(
         fixture: ConversationViewModelTestFixture,
         appState: AppState,
         isProjectTrustBlocked: Bool = false,
@@ -472,11 +439,11 @@ final class ChatComposerDraftTests: XCTestCase {
         )
     }
 
-    private func temporaryDirectory() -> URL {
+    func temporaryDirectory() -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
 
-    private static let pngHeaderData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    static let pngHeaderData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
 }

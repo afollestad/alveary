@@ -14,6 +14,7 @@ final class AppState {
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
     var pendingCommand: CommandRequest?
     var pendingCommitMessageGenerationRequest: CommitMessageGenerationRequest?
+    var imagePreviewRequest: AppImagePreviewRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
     var previousSelection: SidebarBookmark?
     // Set by commands that want the BlockInput composer to grab focus once a
@@ -43,6 +44,14 @@ final class AppState {
 
     func dismissUnexpectedErrorToast(id: UnexpectedErrorToast.ID) {
         unexpectedErrorToasts.removeAll { $0.id == id }
+    }
+
+    func presentImagePreview(_ request: AppImagePreviewRequest) {
+        imagePreviewRequest = request
+    }
+
+    func dismissImagePreview() {
+        imagePreviewRequest = nil
     }
 
     func openNewProjectFlow() {

@@ -51,6 +51,28 @@ extension AppKitMarkdownRendererTests {
         XCTAssertEqual(invalidationCount, 0)
     }
 
+    func testImageBlockOpenCallbackReceivesImageAndBaseURL() throws {
+        let baseURL = URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        let document = AppMarkdownParser().documentPreservingSource(for: "![Diagram](images/diagram.png)")
+        var openedSource: String?
+        var openedBaseURL: URL?
+        let view = AppKitMarkdownView(
+            document: document,
+            imageBaseURL: baseURL,
+            onOpenImage: { image, baseURL in
+                openedSource = image.source
+                openedBaseURL = baseURL
+            }
+        )
+        view.frame = NSRect(x: 0, y: 0, width: 420, height: 300)
+        view.layoutSubtreeIfNeeded()
+
+        let imageView = try XCTUnwrap(view.descendants(of: AppKitMarkdownImageBlockView.self).first)
+        XCTAssertTrue(imageView.performOpenForTesting())
+        XCTAssertEqual(openedSource, "images/diagram.png")
+        XCTAssertEqual(openedBaseURL, baseURL)
+    }
+
     private func temporaryPNGURL(named filename: String) throws -> URL {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

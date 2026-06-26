@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 // AppKit transcript rows use this renderer to make markdown height changes
@@ -18,6 +19,11 @@ final class AppKitMarkdownView: NSView {
             applyLinkHandler(to: self)
         }
     }
+    var onOpenImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            applyImageOpenHandler(to: self)
+        }
+    }
 
     private let stackView = NSStackView()
     private var document: AppMarkdownDocument
@@ -30,13 +36,15 @@ final class AppKitMarkdownView: NSView {
         inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
         typography: AppKitMarkdownTypography = .default,
         imageBaseURL: URL? = nil,
-        onOpenLink: ((URL) -> Void)? = nil
+        onOpenLink: ((URL) -> Void)? = nil,
+        onOpenImage: ((BlockInputImage, URL?) -> Void)? = nil
     ) {
         self.document = document
         self.inlineCodeStyle = inlineCodeStyle
         self.typography = typography
         self.imageBaseURL = imageBaseURL
         self.onOpenLink = onOpenLink
+        self.onOpenImage = onOpenImage
         super.init(frame: .zero)
         setup()
         rebuild()
@@ -120,6 +128,7 @@ final class AppKitMarkdownView: NSView {
             typography: typography,
             imageBaseURL: imageBaseURL,
             onOpenLink: onOpenLink,
+            onOpenImage: onOpenImage,
             heightInvalidationHandler: { [weak self] in
                 self?.invalidateMarkdownHeight()
             }
@@ -142,6 +151,13 @@ final class AppKitMarkdownView: NSView {
             textView.onOpenLink = onOpenLink
         }
         view.subviews.forEach(applyLinkHandler(to:))
+    }
+
+    private func applyImageOpenHandler(to view: NSView) {
+        if let imageView = view as? AppKitMarkdownImageBlockView {
+            imageView.onOpen = onOpenImage
+        }
+        view.subviews.forEach(applyImageOpenHandler(to:))
     }
 
     private func updateImageDisplayWidths() {

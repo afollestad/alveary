@@ -33,7 +33,8 @@ extension AppKitTranscriptTextBubbleRowView {
             inlineCodeStyle: inlineCodeStyle(for: configuration.role),
             typography: configuration.typography,
             imageBaseURL: configuration.markdownBaseURL,
-            onOpenLink: onOpenMarkdownLink
+            onOpenLink: onOpenMarkdownLink,
+            onOpenImage: onOpenMarkdownImage
         )
         markdownView.translatesAutoresizingMaskIntoConstraints = true
         markdownClipView.addSubview(markdownView)

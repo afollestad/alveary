@@ -67,6 +67,25 @@ extension AppKitTranscriptTextBubbleRowTests {
         )
     }
 
+    func testAttachmentStripOpenCallbackReceivesAttachment() {
+        let attachments = localImageAttachments(count: 2)
+        let row = AppKitTranscriptTextBubbleRowView()
+        var openedAttachment: LocalImageAttachment?
+        row.onOpenImageAttachment = { openedAttachment = $0 }
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: attachments
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.openImageAttachmentForTesting(at: 0))
+        XCTAssertEqual(openedAttachment, attachments[0])
+    }
+
     func testAssistantMessageAttachmentsRenderAsLeftAlignedWrappingStrip() {
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 600)

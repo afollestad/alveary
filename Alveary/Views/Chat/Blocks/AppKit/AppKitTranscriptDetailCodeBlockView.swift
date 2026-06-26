@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -173,6 +174,11 @@ final class AppKitTranscriptDetailMarkdownView: NSView {
             markdownView?.onOpenLink = onOpenMarkdownLink
         }
     }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            markdownView?.onOpenImage = onOpenMarkdownImage
+        }
+    }
 
     private let titleField = NSTextField(labelWithString: "")
     private let chromeView = AppKitFlippedDynamicColorView()
@@ -225,7 +231,8 @@ final class AppKitTranscriptDetailMarkdownView: NSView {
             document: document,
             inlineCodeStyle: .standard,
             typography: configuration.typography.appKitMarkdownTypography,
-            onOpenLink: onOpenMarkdownLink
+            onOpenLink: onOpenMarkdownLink,
+            onOpenImage: onOpenMarkdownImage
         )
         markdownView.translatesAutoresizingMaskIntoConstraints = true
         markdownView.onHeightInvalidated = { [weak self] in

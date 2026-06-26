@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -17,6 +18,16 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
     var onOpenMarkdownLink: ((URL) -> Void)? {
         didSet {
             rowViews.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onOpenMarkdownImage = onOpenMarkdownImage }
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            rowViews.forEach { $0.onOpenToolImage = onOpenToolImage }
         }
     }
 
@@ -67,6 +78,8 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
             row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
             row.onOpenMarkdownLink = onOpenMarkdownLink
+            row.onOpenMarkdownImage = onOpenMarkdownImage
+            row.onOpenToolImage = onOpenToolImage
             row.configure(.init(tool: tool, showsLeadingIcon: false, typography: configuration.typography))
             if row.superview == nil {
                 addSubview(row)

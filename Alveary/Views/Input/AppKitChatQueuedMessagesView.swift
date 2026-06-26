@@ -1,4 +1,5 @@
 import AppKit
+import BlockInputKit
 import SwiftUI
 
 @MainActor
@@ -8,6 +9,9 @@ struct AppKitChatQueuedMessagesConfiguration {
     let isTurnActive: Bool
     let inFlightQueuedMessageID: UUID?
     let borderWidth: CGFloat
+    let markdownBaseURL: URL?
+    let onOpenMarkdownLink: (URL) -> Void
+    let onOpenMarkdownImage: (BlockInputImage, URL?) -> Void
     let onSteer: (UUID) -> Void
     let onEdit: (UUID) -> Void
     let onDismiss: (UUID) -> Void
@@ -22,6 +26,32 @@ struct AppKitChatQueuedMessagesConfiguration {
         onEdit: { _ in },
         onDismiss: { _ in }
     )
+
+    init(
+        queuedMessages: [QueuedMessage],
+        supportsMidTurnSteering: Bool,
+        isTurnActive: Bool,
+        inFlightQueuedMessageID: UUID?,
+        borderWidth: CGFloat,
+        markdownBaseURL: URL? = nil,
+        onOpenMarkdownLink: @escaping (URL) -> Void = { _ in },
+        onOpenMarkdownImage: @escaping (BlockInputImage, URL?) -> Void = { _, _ in },
+        onSteer: @escaping (UUID) -> Void,
+        onEdit: @escaping (UUID) -> Void,
+        onDismiss: @escaping (UUID) -> Void
+    ) {
+        self.queuedMessages = queuedMessages
+        self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.isTurnActive = isTurnActive
+        self.inFlightQueuedMessageID = inFlightQueuedMessageID
+        self.borderWidth = borderWidth
+        self.markdownBaseURL = markdownBaseURL
+        self.onOpenMarkdownLink = onOpenMarkdownLink
+        self.onOpenMarkdownImage = onOpenMarkdownImage
+        self.onSteer = onSteer
+        self.onEdit = onEdit
+        self.onDismiss = onDismiss
+    }
 }
 
 /// Native queued-message list rendered above the composer editor.
@@ -58,6 +88,9 @@ final class AppKitChatQueuedMessagesView: NSView {
                         !configuration.isTurnActive ||
                         configuration.inFlightQueuedMessageID != nil,
                     areActionsDisabled: configuration.inFlightQueuedMessageID != nil,
+                    markdownBaseURL: configuration.markdownBaseURL,
+                    onOpenMarkdownLink: configuration.onOpenMarkdownLink,
+                    onOpenMarkdownImage: configuration.onOpenMarkdownImage,
                     onSteer: { [configuration] in configuration.onSteer(message.id) },
                     onEdit: { [configuration] in configuration.onEdit(message.id) },
                     onDismiss: { [configuration] in configuration.onDismiss(message.id) }
@@ -135,6 +168,9 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         let showsDivider: Bool
         let isSteerDisabled: Bool
         let areActionsDisabled: Bool
+        let markdownBaseURL: URL?
+        let onOpenMarkdownLink: (URL) -> Void
+        let onOpenMarkdownImage: (BlockInputImage, URL?) -> Void
         let onSteer: () -> Void
         let onEdit: () -> Void
         let onDismiss: () -> Void
@@ -182,8 +218,11 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         ).documentPreservingSource(for: message.text)
         markdownView.configure(
             document: messageDocument,
-            inlineCodeStyle: .composer
+            inlineCodeStyle: .composer,
+            imageBaseURL: configuration.markdownBaseURL
         )
+        markdownView.onOpenLink = configuration.onOpenMarkdownLink
+        markdownView.onOpenImage = configuration.onOpenMarkdownImage
         contextIconView.isHidden = message.stagedContext == nil
         contextField.isHidden = message.stagedContext == nil
         steerButton.configure(isEnabled: !configuration.isSteerDisabled)

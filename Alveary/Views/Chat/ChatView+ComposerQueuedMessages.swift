@@ -1,3 +1,4 @@
+import BlockInputKit
 import Foundation
 
 extension ChatView {
@@ -11,6 +12,13 @@ extension ChatView {
             isTurnActive: viewModel.canSteerCurrentTurn,
             inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
             borderWidth: 1,
+            markdownBaseURL: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) },
+            onOpenMarkdownLink: { url in
+                _ = openComposerEditorURL(url)
+            },
+            onOpenMarkdownImage: { image, baseURL in
+                appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
+            },
             onSteer: { messageID in
                 Task { try? await viewModel.steerQueuedMessage(id: messageID) }
             },

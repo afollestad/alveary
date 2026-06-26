@@ -248,6 +248,7 @@ extension ChatView {
         case .transcript:
             ChatTranscriptView(
                 viewModel: viewModel,
+                appState: appState,
                 events: events,
                 workingDirectory: workingDirectory,
                 lastScrollTime: $lastScrollTime,
@@ -297,6 +298,7 @@ extension ChatView {
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
             imagePreviewAttachments: stagedImagePreviewAttachments,
+            urlOpener: openComposerEditorURL(_:),
             localCommands: localCommandAvailability,
             passthroughSlashCommands: passthroughSlashCommands,
             requestFirstResponder: appState.pendingComposerFocusToken,

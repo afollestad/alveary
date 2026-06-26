@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 @MainActor
@@ -21,6 +22,18 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         didSet {
             toolRowsByID.values.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
             subAgentRowsByID.values.forEach { $0.onOpenMarkdownLink = onOpenMarkdownLink }
+        }
+    }
+    var onOpenMarkdownImage: ((BlockInputImage, URL?) -> Void)? {
+        didSet {
+            toolRowsByID.values.forEach { $0.onOpenMarkdownImage = onOpenMarkdownImage }
+            subAgentRowsByID.values.forEach { $0.onOpenMarkdownImage = onOpenMarkdownImage }
+        }
+    }
+    var onOpenToolImage: ((ToolEntry) -> Void)? {
+        didSet {
+            toolRowsByID.values.forEach { $0.onOpenToolImage = onOpenToolImage }
+            subAgentRowsByID.values.forEach { $0.onOpenToolImage = onOpenToolImage }
         }
     }
     var onChildExpansionChanged: ((String, Bool) -> Void)?
@@ -136,6 +149,8 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         row.onOpenMarkdownLink = onOpenMarkdownLink
+        row.onOpenMarkdownImage = onOpenMarkdownImage
+        row.onOpenToolImage = onOpenToolImage
         row.onExpansionChanged = expansionHandler(for: expansionID)
         row.configure(
             .init(
@@ -162,6 +177,8 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         row.onHeightInvalidated = { [weak self] in self?.childHeightInvalidated() }
         row.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         row.onOpenMarkdownLink = onOpenMarkdownLink
+        row.onOpenMarkdownImage = onOpenMarkdownImage
+        row.onOpenToolImage = onOpenToolImage
         row.onExpansionChanged = expansionHandler(for: expansionID)
         row.configure(
             .init(
