@@ -15,8 +15,8 @@ extension ConversationViewModel {
             content: message,
             conversation: dbConversation
         )
-        record.persistedImageAttachments = persistedTranscriptImageAttachments(
-            imageAttachments: imageAttachments,
+        record.setPersistedTranscriptAttachments(
+            images: imageAttachments,
             appShots: appShots
         )
         if !appShots.isEmpty {
@@ -42,15 +42,4 @@ extension ConversationViewModel {
         return AgentSessionPreviewGenerator.preview(fromInitialPrompt: message)
     }
 
-    func persistedTranscriptImageAttachments(
-        imageAttachments: [LocalImageAttachment],
-        appShots: [AppShotAttachment]
-    ) -> [LocalImageAttachment] {
-        var attachments = imageAttachments
-        var seenIDs = Set(attachments.map(\.id))
-        for screenshot in appShots.map(\.screenshot) where seenIDs.insert(screenshot.id).inserted {
-            attachments.append(screenshot)
-        }
-        return attachments
-    }
 }

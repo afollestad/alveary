@@ -87,7 +87,7 @@ extension ChatTranscriptView {
         configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
-        configuration.imageAttachmentsByMessageID = appKitImageAttachmentsByMessageID
+        configuration.transcriptImageAttachmentsByMessageID = appKitTranscriptAttachmentsByMessageID
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
@@ -112,43 +112,72 @@ extension ChatTranscriptView {
         return configuration
     }
 
-    var appKitImageAttachmentsByMessageID: [String: [LocalImageAttachment]] {
-        Self.imageAttachmentsByMessageID(
+    var appKitTranscriptAttachmentsByMessageID: [String: [TranscriptImageAttachment]] {
+        Self.transcriptImageAttachmentsByMessageID(
             events: events,
             runtimeImageAttachments: viewModel.state.transcriptImageAttachments,
             runtimeAppShots: viewModel.state.transcriptAppShots
         )
     }
 
-    static func imageAttachmentsByMessageID(
+    static func transcriptImageAttachmentsByMessageID(
         events: [ConversationEventRecord],
         runtimeImageAttachments: [String: [LocalImageAttachment]],
         runtimeAppShots: [String: [AppShotAttachment]]
-    ) -> [String: [LocalImageAttachment]] {
-        var attachmentsByID: [String: [LocalImageAttachment]] = [:]
+    ) -> [String: [TranscriptImageAttachment]] {
+        var attachmentsByID: [String: [TranscriptImageAttachment]] = [:]
         for event in events where event.type == "message" {
-            appendImageAttachments(event.persistedImageAttachments, to: event.id, in: &attachmentsByID)
+            appendTranscriptImageAttachments(
+                event.persistedPlainImageAttachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
+                to: event.id,
+                in: &attachmentsByID
+            )
+            appendTranscriptImageAttachments(
+                event.persistedAppShotAttachments.map(TranscriptImageAttachment.init(appShot:)),
+                to: event.id,
+                in: &attachmentsByID
+            )
         }
         for (messageID, attachments) in runtimeImageAttachments {
-            appendImageAttachments(attachments, to: messageID, in: &attachmentsByID)
+            appendTranscriptImageAttachments(
+                attachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
+                to: messageID,
+                in: &attachmentsByID
+            )
         }
         for (messageID, appShots) in runtimeAppShots {
-            appendImageAttachments(appShots.map(\.screenshot), to: messageID, in: &attachmentsByID)
+            appendTranscriptImageAttachments(
+                appShots
+                    .map(PersistedAppShotAttachment.init(appShot:))
+                    .map(TranscriptImageAttachment.init(appShot:)),
+                to: messageID,
+                in: &attachmentsByID
+            )
         }
         return attachmentsByID
     }
 
-    static func appendImageAttachments(
-        _ newAttachments: [LocalImageAttachment],
+    static func appendTranscriptImageAttachments(
+        _ newAttachments: [TranscriptImageAttachment],
         to messageID: String,
-        in attachmentsByID: inout [String: [LocalImageAttachment]]
+        in attachmentsByID: inout [String: [TranscriptImageAttachment]]
     ) {
         guard !newAttachments.isEmpty else {
             return
         }
         var attachments = attachmentsByID[messageID] ?? []
-        var seenAttachmentIDs = Set(attachments.map(\.id))
-        for attachment in newAttachments where seenAttachmentIDs.insert(attachment.id).inserted {
+        var attachmentIndicesByID: [String: Int] = [:]
+        for (index, attachment) in attachments.enumerated() where attachmentIndicesByID[attachment.image.id] == nil {
+            attachmentIndicesByID[attachment.image.id] = index
+        }
+        for attachment in newAttachments {
+            if let existingIndex = attachmentIndicesByID[attachment.image.id] {
+                if attachment.appShot != nil {
+                    attachments[existingIndex] = attachment
+                }
+                continue
+            }
+            attachmentIndicesByID[attachment.image.id] = attachments.count
             attachments.append(attachment)
         }
         attachmentsByID[messageID] = attachments

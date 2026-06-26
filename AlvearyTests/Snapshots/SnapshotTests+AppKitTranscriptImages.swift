@@ -20,7 +20,7 @@ extension SnapshotTests {
                     .init(
                         role: .user,
                         markdown: "Use these screenshots as context.",
-                        imageAttachments: attachments,
+                        imageAttachments: attachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
                         bubbleMaxWidth: 560
                     )
                 )
@@ -28,6 +28,53 @@ extension SnapshotTests {
             },
             size: CGSize(width: 640, height: 300),
             named: "appkit_transcript_user_attachment_strip"
+        )
+    }
+
+    func testAppKitTranscriptUserAppShotAttachment() {
+        let appShot = Self.makeSnapshotAppShotAttachment()
+        let icon = Self.makeSnapshotIcon()
+
+        assertMacSnapshot(
+            TranscriptImageSnapshotHost {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.setAppShotIconResolverForTesting(StaticAppIconResolver(icon: icon))
+                view.configure(
+                    .init(
+                        role: .user,
+                        markdown: "What changed in this window?",
+                        imageAttachments: [TranscriptImageAttachment(appShot: appShot)],
+                        bubbleMaxWidth: 560
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 640, height: 320),
+            named: "appkit_transcript_user_appshot_attachment"
+        )
+    }
+
+    func testAppKitTranscriptUserAppShotAttachmentDark() {
+        let appShot = Self.makeSnapshotAppShotAttachment()
+        let icon = Self.makeSnapshotIcon()
+
+        assertMacSnapshot(
+            TranscriptImageSnapshotHost {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.setAppShotIconResolverForTesting(StaticAppIconResolver(icon: icon))
+                view.configure(
+                    .init(
+                        role: .user,
+                        markdown: "What changed in this window?",
+                        imageAttachments: [TranscriptImageAttachment(appShot: appShot)],
+                        bubbleMaxWidth: 560
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 640, height: 320),
+            named: "appkit_transcript_user_appshot_attachment_dark",
+            colorScheme: .dark
         )
     }
 
@@ -82,6 +129,50 @@ extension SnapshotTests {
         } catch {
             return false
         }
+    }
+
+    private static func makeSnapshotAppShotAttachment() -> PersistedAppShotAttachment {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("AlvearySnapshotAppShotAttachments", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("preview-window.png", isDirectory: false)
+        _ = writeSnapshotImage(to: url, color: NSColor(calibratedRed: 0.17, green: 0.31, blue: 0.38, alpha: 1))
+        let screenshot = LocalImageAttachment(
+            id: "snapshot-appshot",
+            fileURL: url,
+            label: "preview-window.png",
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+        return PersistedAppShotAttachment(
+            screenshot: screenshot,
+            appName: "Preview",
+            bundleIdentifier: "com.apple.Preview",
+            windowTitle: "Preview - Document.pdf"
+        )
+    }
+
+    private static func makeSnapshotIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 20, height: 20))
+        image.lockFocus()
+        NSColor(calibratedRed: 0.95, green: 0.95, blue: 0.98, alpha: 1).setFill()
+        NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: 20, height: 20), xRadius: 5, yRadius: 5).fill()
+        NSColor(calibratedRed: 0.22, green: 0.48, blue: 0.82, alpha: 1).setFill()
+        NSBezierPath(roundedRect: NSRect(x: 5, y: 4, width: 10, height: 12), xRadius: 2, yRadius: 2).fill()
+        image.unlockFocus()
+        return image
+    }
+}
+
+@MainActor
+private final class StaticAppIconResolver: AppKitTranscriptAppIconResolving {
+    private let icon: NSImage
+
+    init(icon: NSImage) {
+        self.icon = icon
+    }
+
+    func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
+        icon
     }
 }
 

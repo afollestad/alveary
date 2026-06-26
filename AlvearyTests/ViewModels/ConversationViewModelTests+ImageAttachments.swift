@@ -185,6 +185,7 @@ extension ConversationViewModelTests {
         let userMessage = try XCTUnwrap(try fixture.userMessages().first)
         XCTAssertEqual(userMessage.content, "Describe this window")
         XCTAssertEqual(userMessage.persistedImageAttachments, [appShot.screenshot])
+        XCTAssertEqual(userMessage.persistedAppShotAttachments, [PersistedAppShotAttachment(appShot: appShot)])
         XCTAssertEqual(fixture.viewModel.state.transcriptAppShots[userMessage.id], [appShot])
     }
 
@@ -301,9 +302,14 @@ extension ConversationViewModelTests {
         )
         let removedImage = LocalImageAttachment(
             id: UUID().uuidString,
-            fileURL: root.appendingPathComponent("removed.png"),
+            fileURL: store.conversationRootDirectory(conversationId: fixture.conversation.id)
+                .appendingPathComponent("removed.png"),
             label: "removed.png",
             createdAt: Date()
+        )
+        try FileManager.default.createDirectory(
+            at: removedImage.fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
         )
         try Self.pngHeaderData.write(to: removedImage.fileURL)
         fixture.viewModel.state.stagedAppShots = [appShot]
@@ -374,7 +380,7 @@ extension ConversationViewModelTests {
             content: "Persisted image",
             conversation: fixture.conversation
         )
-        userMessage.persistedImageAttachments = [retainedAttachment]
+        userMessage.setPersistedPlainImageAttachments([retainedAttachment])
         fixture.context.insert(userMessage)
         try fixture.context.save()
 

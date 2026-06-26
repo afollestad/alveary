@@ -17,7 +17,7 @@ final class AppKitTranscriptRowFactory {
         var expandedRowIDs: Set<String> = []
         var pendingToolApproval: PendingToolApproval?
         var retryableFailedMessageIDs: Set<String> = []
-        var imageAttachmentsByMessageID: [String: [LocalImageAttachment]] = [:]
+        var transcriptImageAttachmentsByMessageID: [String: [TranscriptImageAttachment]] = [:]
         var hasUnansweredPrompt = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
@@ -307,7 +307,7 @@ final class AppKitTranscriptRowFactory {
         id: String,
         role: AppKitTranscriptTextBubbleRowView.Role,
         markdown: String,
-        imageAttachments: [LocalImageAttachment] = [],
+        imageAttachments: [TranscriptImageAttachment] = [],
         markdownBaseURL: URL? = nil,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
@@ -452,8 +452,8 @@ extension AppKitTranscriptRowFactory {
     func imageAttachments(
         for id: String,
         configuration: Configuration
-    ) -> [LocalImageAttachment] {
-        configuration.imageAttachmentsByMessageID[id] ?? []
+    ) -> [TranscriptImageAttachment] {
+        configuration.transcriptImageAttachmentsByMessageID[id] ?? []
     }
 }
 

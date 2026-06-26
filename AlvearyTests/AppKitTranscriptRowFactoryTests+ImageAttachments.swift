@@ -9,20 +9,27 @@ extension AppKitTranscriptRowFactoryTests {
         let factory = AppKitTranscriptRowFactory()
         let attachment = localImageAttachment(label: "diagram] one.png", path: "/tmp/diagram>one.png")
         var configuration = AppKitTranscriptRowFactory.Configuration()
-        configuration.imageAttachmentsByMessageID = ["user": [attachment]]
+        configuration.transcriptImageAttachmentsByMessageID = [
+            "user": [TranscriptImageAttachment(localImageAttachment: attachment)]
+        ]
 
         let rows = factory.makeRows(for: [.userMessage(id: "user", text: "Describe this")], configuration: configuration)
 
         let bubble = try XCTUnwrap(rows[0].view as? AppKitTranscriptTextBubbleRowView)
         XCTAssertEqual(bubble.configuration?.markdown, "Describe this")
-        XCTAssertEqual(bubble.configuration?.imageAttachments, [attachment])
+        XCTAssertEqual(
+            bubble.configuration?.imageAttachments,
+            [TranscriptImageAttachment(localImageAttachment: attachment)]
+        )
     }
 
     func testUserMessageMarkdownPreparationExcludesConfiguredImageAttachments() {
         let factory = AppKitTranscriptRowFactory()
         let attachment = localImageAttachment(label: "screen.png", path: "/tmp/screen.png")
         var configuration = AppKitTranscriptRowFactory.Configuration()
-        configuration.imageAttachmentsByMessageID = ["user": [attachment]]
+        configuration.transcriptImageAttachmentsByMessageID = [
+            "user": [TranscriptImageAttachment(localImageAttachment: attachment)]
+        ]
 
         let requests = factory.markdownPreparationRequests(
             for: [.userMessage(id: "user", text: "Describe this")],
@@ -38,14 +45,14 @@ extension AppKitTranscriptRowFactoryTests {
         let runtime = localImageAttachment(label: "runtime.png", path: "/tmp/runtime.png")
         let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
         let message = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Describe")
-        message.persistedImageAttachments = [persisted, runtime]
+        message.setPersistedPlainImageAttachments([persisted, runtime])
         let assistantMessage = ConversationEventRecord(
             conversationId: "conversation",
             type: "message",
             role: "assistant",
             content: "Generated image"
         )
-        assistantMessage.persistedImageAttachments = [assistantPersisted]
+        assistantMessage.setPersistedPlainImageAttachments([assistantPersisted])
         let appShot = AppShotAttachment(
             appName: "Preview",
             bundleIdentifier: "com.apple.Preview",
@@ -56,14 +63,70 @@ extension AppKitTranscriptRowFactoryTests {
             attachmentStoreRoot: URL(fileURLWithPath: "/tmp", isDirectory: true)
         )
 
-        let attachmentsByID = ChatTranscriptView.imageAttachmentsByMessageID(
+        let attachmentsByID = ChatTranscriptView.transcriptImageAttachmentsByMessageID(
             events: [message, assistantMessage],
             runtimeImageAttachments: [message.id: [runtime]],
             runtimeAppShots: [message.id: [appShot]]
         )
 
-        XCTAssertEqual(attachmentsByID[message.id], [persisted, runtime, screenshot])
-        XCTAssertEqual(attachmentsByID[assistantMessage.id], [assistantPersisted])
+        XCTAssertEqual(attachmentsByID[message.id]?.map(\.image), [persisted, runtime, screenshot])
+        XCTAssertEqual(attachmentsByID[message.id]?.last?.appShot, PersistedAppShotAttachment(appShot: appShot))
+        XCTAssertEqual(attachmentsByID[assistantMessage.id]?.map(\.image), [assistantPersisted])
+    }
+
+    func testTranscriptImageAttachmentIndexUpgradesDuplicatePlainScreenshotWithAppShotMetadata() {
+        let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
+        let message = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Describe")
+        message.setPersistedPlainImageAttachments([screenshot])
+        let appShot = AppShotAttachment(
+            appName: "Preview",
+            bundleIdentifier: "com.apple.Preview",
+            windowTitle: "Window title",
+            screenshot: screenshot,
+            axTreeText: "standard window Preview",
+            focusedElementSummary: "standard window Preview",
+            attachmentStoreRoot: URL(fileURLWithPath: "/tmp", isDirectory: true)
+        )
+
+        let attachmentsByID = ChatTranscriptView.transcriptImageAttachmentsByMessageID(
+            events: [message],
+            runtimeImageAttachments: [:],
+            runtimeAppShots: [message.id: [appShot]]
+        )
+
+        XCTAssertEqual(attachmentsByID[message.id], [TranscriptImageAttachment(appShot: PersistedAppShotAttachment(appShot: appShot))])
+    }
+
+    func testTextBubbleRenderedContentChangesWhenAppShotMetadataChanges() {
+        let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
+        let first = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Describe",
+            imageAttachments: [
+                TranscriptImageAttachment(appShot: PersistedAppShotAttachment(
+                    screenshot: screenshot,
+                    appName: "Preview",
+                    bundleIdentifier: "com.apple.Preview",
+                    windowTitle: "First"
+                ))
+            ]
+        )
+        let second = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Describe",
+            imageAttachments: [
+                TranscriptImageAttachment(appShot: PersistedAppShotAttachment(
+                    screenshot: screenshot,
+                    appName: "Preview",
+                    bundleIdentifier: "com.apple.Preview",
+                    windowTitle: "Second"
+                ))
+            ]
+        )
+
+        XCTAssertFalse(first.hasSameRenderedContent(as: second))
     }
 
     private func localImageAttachment(label: String, path: String) -> LocalImageAttachment {

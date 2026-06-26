@@ -12,7 +12,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "Describe this",
-                imageAttachments: localImageAttachments(count: 2)
+                imageAttachments: transcriptImageAttachments(count: 2)
             )
         )
         row.layoutSubtreeIfNeeded()
@@ -36,7 +36,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "Describe this",
-                imageAttachments: localImageAttachments(count: 1)
+                imageAttachments: transcriptImageAttachments(count: 1)
             )
         )
         row.layoutSubtreeIfNeeded()
@@ -56,7 +56,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "Describe this",
-                imageAttachments: localImageAttachments(count: 1)
+                imageAttachments: transcriptImageAttachments(count: 1)
             )
         )
         row.layoutSubtreeIfNeeded()
@@ -75,7 +75,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "Describe this",
-                imageAttachments: [localImageAttachment(fileURL: imageURL)]
+                imageAttachments: [TranscriptImageAttachment(localImageAttachment: localImageAttachment(fileURL: imageURL))]
             )
         )
         row.layoutSubtreeIfNeeded()
@@ -99,7 +99,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "Describe this",
-                imageAttachments: attachments
+                imageAttachments: attachments.map(TranscriptImageAttachment.init(localImageAttachment:))
             )
         )
         row.layoutSubtreeIfNeeded()
@@ -115,7 +115,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .assistant,
                 markdown: "Generated these images",
-                imageAttachments: localImageAttachments(count: 5),
+                imageAttachments: transcriptImageAttachments(count: 5),
                 bubbleMaxWidth: expectedImageStripWidth(columns: 2)
             )
         )
@@ -138,7 +138,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .assistant,
                 markdown: "",
-                imageAttachments: localImageAttachments(count: 3),
+                imageAttachments: transcriptImageAttachments(count: 3),
                 bubbleMaxWidth: expectedImageStripWidth(columns: 2)
             )
         )
@@ -158,7 +158,7 @@ extension AppKitTranscriptTextBubbleRowTests {
             .init(
                 role: .user,
                 markdown: "",
-                imageAttachments: localImageAttachments(count: 1),
+                imageAttachments: transcriptImageAttachments(count: 1),
                 showsRetry: true
             )
         )
@@ -170,6 +170,112 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertFalse(status.isHidden)
         XCTAssertGreaterThan(button.frame.minY, row.imageAttachmentStripFrameForTesting.maxY)
         XCTAssertGreaterThanOrEqual(row.intrinsicContentSize.height, button.frame.maxY)
+    }
+
+    func testUserMessageAppShotRendersAspectRatioCardAboveBubble() throws {
+        let imageURL = try temporaryPNGURL(named: "wide-appshot.png", size: NSSize(width: 400, height: 200))
+        let appShot = persistedAppShotAttachment(fileURL: imageURL, windowTitle: "Preview - Document.pdf")
+        let icon = NSImage(size: NSSize(width: 20, height: 20))
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.setAppShotIconResolverForTesting(StaticTranscriptAppIconResolver(icon: icon))
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: [TranscriptImageAttachment(appShot: appShot)]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let stripFrame = row.imageAttachmentStripFrameForTesting
+        let cardFrame = try XCTUnwrap(row.appShotCardFramesForTesting.first)
+        XCTAssertEqual(stripFrame.maxX, row.bounds.maxX, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.width, 220, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.height, 110, accuracy: 0.5)
+        let iconFrame = try XCTUnwrap(row.appShotCardIconFramesForTesting.first)
+        let titleFrame = try XCTUnwrap(row.appShotCardTitleFramesForTesting.first)
+        let imageViewFrame = try XCTUnwrap(row.appShotCardImageViewFramesForTesting.first)
+        XCTAssertEqual(imageViewFrame, CGRect(origin: .zero, size: cardFrame.size))
+        XCTAssertEqual(iconFrame.midX, cardFrame.width / 2, accuracy: 0.5)
+        XCTAssertEqual(titleFrame.midX, cardFrame.width / 2, accuracy: 0.5)
+        XCTAssertEqual(titleFrame.minY - iconFrame.maxY, 3, accuracy: 0.5)
+        XCTAssertEqual(row.appShotCardLabelsForTesting.first ?? nil, "App shot, Preview, Preview - Document.pdf")
+        let resolvedIcon = try XCTUnwrap(row.appShotCardIconsForTesting.first ?? nil)
+        XCTAssertTrue(resolvedIcon === icon)
+        XCTAssertEqual(row.appShotCardHitTargetsForTesting.first, true)
+        XCTAssertGreaterThan(row.bubbleFrameForTesting.minY, stripFrame.maxY)
+    }
+
+    func testAssistantAppShotRendersLeftAlignedAndUsesUnreadableFallbackSize() throws {
+        let appShot = persistedAppShotAttachment(
+            fileURL: URL(fileURLWithPath: "/tmp/missing-appshot.png"),
+            windowTitle: "Missing"
+        )
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .assistant,
+                markdown: "Generated",
+                imageAttachments: [TranscriptImageAttachment(appShot: appShot)]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let stripFrame = row.imageAttachmentStripFrameForTesting
+        let cardFrame = try XCTUnwrap(row.appShotCardFramesForTesting.first)
+        XCTAssertEqual(stripFrame.minX, 0, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.width, 220, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.height, 140, accuracy: 0.5)
+    }
+
+    func testMixedPlainAndAppShotAttachmentsRenderPlainGridBeforeCards() throws {
+        let imageURL = try temporaryPNGURL(named: "mixed-appshot.png", size: NSSize(width: 320, height: 180))
+        let appShot = persistedAppShotAttachment(fileURL: imageURL)
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: [
+                    TranscriptImageAttachment(localImageAttachment: localImageAttachments(count: 1)[0]),
+                    TranscriptImageAttachment(appShot: appShot)
+                ]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let tileFrame = try XCTUnwrap(row.imageAttachmentTileFramesForTesting.first)
+        let cardFrame = try XCTUnwrap(row.appShotCardFramesForTesting.first)
+        XCTAssertEqual(tileFrame.minY, 0, accuracy: 0.5)
+        XCTAssertEqual(
+            cardFrame.minY - tileFrame.maxY,
+            AppKitTranscriptImageAttachmentStripView.appShotSectionSpacing,
+            accuracy: 0.5
+        )
+        XCTAssertEqual(tileFrame.maxX, row.imageAttachmentStripFrameForTesting.width, accuracy: 0.5)
+    }
+
+    func testAppShotCardOpenCallbackReceivesScreenshotAttachment() throws {
+        let imageURL = try temporaryPNGURL(named: "open-appshot.png", size: NSSize(width: 320, height: 180))
+        let appShot = persistedAppShotAttachment(fileURL: imageURL)
+        let row = AppKitTranscriptTextBubbleRowView()
+        var openedAttachment: LocalImageAttachment?
+        row.onOpenImageAttachment = { openedAttachment = $0 }
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: [TranscriptImageAttachment(appShot: appShot)]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(row.openImageAttachmentForTesting(at: 0))
+        XCTAssertEqual(openedAttachment, appShot.screenshot)
     }
 
     func testAssistantBubbleRendersHTMLImageTagAsImageBlock() throws {
@@ -273,6 +379,10 @@ private func localImageAttachments(count: Int) -> [LocalImageAttachment] {
     }
 }
 
+private func transcriptImageAttachments(count: Int) -> [TranscriptImageAttachment] {
+    localImageAttachments(count: count).map(TranscriptImageAttachment.init(localImageAttachment:))
+}
+
 private func localImageAttachment(fileURL: URL) -> LocalImageAttachment {
     LocalImageAttachment(
         id: fileURL.lastPathComponent,
@@ -280,6 +390,33 @@ private func localImageAttachment(fileURL: URL) -> LocalImageAttachment {
         label: fileURL.lastPathComponent,
         createdAt: Date(timeIntervalSince1970: 0)
     )
+}
+
+private func persistedAppShotAttachment(
+    fileURL: URL,
+    appName: String = "Preview",
+    bundleIdentifier: String = "com.apple.Preview",
+    windowTitle: String = "Preview"
+) -> PersistedAppShotAttachment {
+    PersistedAppShotAttachment(
+        screenshot: localImageAttachment(fileURL: fileURL),
+        appName: appName,
+        bundleIdentifier: bundleIdentifier,
+        windowTitle: windowTitle
+    )
+}
+
+@MainActor
+private final class StaticTranscriptAppIconResolver: AppKitTranscriptAppIconResolving {
+    private let icon: NSImage
+
+    init(icon: NSImage) {
+        self.icon = icon
+    }
+
+    func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
+        icon
+    }
 }
 
 private func temporaryPNGURL(named filename: String, size: NSSize) throws -> URL {

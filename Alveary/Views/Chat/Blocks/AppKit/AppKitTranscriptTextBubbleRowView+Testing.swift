@@ -26,6 +26,38 @@ extension AppKitTranscriptTextBubbleRowView {
         imageAttachmentStripView.tileHitTargetsForTesting
     }
 
+    var appShotCardFramesForTesting: [CGRect] {
+        imageAttachmentStripView.appShotCardFramesForTesting
+    }
+
+    var appShotCardImageFramesForTesting: [CGRect?] {
+        imageAttachmentStripView.appShotCardImageFramesForTesting
+    }
+
+    var appShotCardImageViewFramesForTesting: [CGRect] {
+        imageAttachmentStripView.appShotCardImageViewFramesForTesting
+    }
+
+    var appShotCardLabelsForTesting: [String?] {
+        imageAttachmentStripView.appShotCardAccessibilityLabelsForTesting
+    }
+
+    var appShotCardIconsForTesting: [NSImage?] {
+        imageAttachmentStripView.appShotCardIconImagesForTesting
+    }
+
+    var appShotCardIconFramesForTesting: [CGRect] {
+        imageAttachmentStripView.appShotCardIconFramesForTesting
+    }
+
+    var appShotCardTitleFramesForTesting: [CGRect] {
+        imageAttachmentStripView.appShotCardTitleFramesForTesting
+    }
+
+    var appShotCardHitTargetsForTesting: [Bool] {
+        imageAttachmentStripView.appShotCardHitTargetsForTesting
+    }
+
     var attachmentTileBorderColorsForTesting: [CGColor?] {
         imageAttachmentStripView.tileBorderColorsForTesting
     }
@@ -37,6 +69,10 @@ extension AppKitTranscriptTextBubbleRowView {
     @discardableResult
     func openImageAttachmentForTesting(at index: Int = 0) -> Bool {
         imageAttachmentStripView.performOpenForTesting(at: index)
+    }
+
+    func setAppShotIconResolverForTesting(_ resolver: AppKitTranscriptAppIconResolving) {
+        imageAttachmentStripView.setAppIconResolverForTesting(resolver)
     }
 
     var expansionButtonFrameForTesting: CGRect {

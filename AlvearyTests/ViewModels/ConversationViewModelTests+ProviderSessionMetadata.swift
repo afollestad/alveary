@@ -81,6 +81,28 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbConversation().title, "Explain the selected window state")
     }
 
+    func testProviderSessionMetadataUsesPersistedAppShotMetadataWhenScreenshotIsNotInLegacyDirectory() async throws {
+        let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
+        let appShot = providerMetadataAppShotAttachment(isStoredInAppShotDirectory: false)
+        _ = fixture.viewModel.insertLocalUserMessage(
+            "Explain the selected window state",
+            into: try fixture.dbConversation(),
+            appShots: [appShot]
+        )
+        fixture.viewModel.state.appShotProviderSessionTitleFallback = nil
+
+        fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
+            sessionId: "codex-thread",
+            name: nil,
+            preview: "# Applications mentioned by the user:..."
+        ))
+        await fixture.viewModel.flushPendingSaveIfNeeded()
+
+        XCTAssertEqual(try fixture.dbThread().name, "Explain the selected window state")
+        XCTAssertFalse(try fixture.dbThread().hasCustomName)
+        XCTAssertEqual(try fixture.dbConversation().title, "Explain the selected window state")
+    }
+
     func testProviderSessionMetadataUsesAppShotFallbackForEmptyVisibleMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
         let appShot = providerMetadataAppShotAttachment()

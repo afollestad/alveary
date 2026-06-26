@@ -40,7 +40,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let id: String?
         let role: Role
         let markdown: String
-        let imageAttachments: [LocalImageAttachment]
+        let imageAttachments: [TranscriptImageAttachment]
         let bubbleMaxWidth: CGFloat
         let typography: AppKitMarkdownTypography
         let markdownBaseURL: URL?
@@ -51,7 +51,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             id: String? = nil,
             role: Role,
             markdown: String,
-            imageAttachments: [LocalImageAttachment] = [],
+            imageAttachments: [TranscriptImageAttachment] = [],
             bubbleMaxWidth: CGFloat = .infinity,
             typography: AppKitMarkdownTypography = .default,
             markdownBaseURL: URL? = nil,
@@ -171,7 +171,10 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             isExpanded = configuration.initiallyExpanded
         }
         imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
-        imageAttachmentStripView.configure(configuration.imageAttachments)
+        imageAttachmentStripView.configure(
+            configuration.imageAttachments,
+            alignment: configuration.role == .user ? .trailing : .leading
+        )
         resetMarkdownView()
         updateBubbleAppearance()
         retryStatusField.font = retryStatusFont(for: configuration.typography)

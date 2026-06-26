@@ -133,7 +133,8 @@ private extension ConversationViewModel {
         conversationEventRecords().reversed().first { record in
             record.type == "message" &&
                 record.role == "user" &&
-                record.persistedImageAttachments.contains(where: \.isStoredAppShotScreenshot)
+                (!record.persistedAppShotAttachments.isEmpty ||
+                    record.persistedImageAttachments.contains(where: \.isStoredAppShotScreenshot))
         }.map {
             Self.appShotThreadPreviewTitle(fromVisibleUserInput: $0.content ?? "")
         }

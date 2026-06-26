@@ -31,6 +31,61 @@ struct AppShotAttachment: Equatable, Identifiable, Sendable {
     }
 }
 
+struct PersistedAppShotAttachment: Codable, Equatable, Sendable {
+    let screenshot: LocalImageAttachment
+    let appName: String
+    let bundleIdentifier: String
+    let windowTitle: String
+
+    init(
+        screenshot: LocalImageAttachment,
+        appName: String,
+        bundleIdentifier: String,
+        windowTitle: String
+    ) {
+        self.screenshot = screenshot
+        self.appName = appName
+        self.bundleIdentifier = bundleIdentifier
+        self.windowTitle = windowTitle
+    }
+
+    init(appShot: AppShotAttachment) {
+        self.init(
+            screenshot: appShot.screenshot,
+            appName: appShot.appName,
+            bundleIdentifier: appShot.bundleIdentifier,
+            windowTitle: appShot.windowTitle
+        )
+    }
+
+    var displayTitle: String {
+        let candidates = [windowTitle, appName, "App shot"]
+        return candidates.first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? "App shot"
+    }
+}
+
+struct TranscriptImageAttachment: Equatable, Sendable {
+    let image: LocalImageAttachment
+    let appShot: PersistedAppShotAttachment?
+
+    init(image: LocalImageAttachment, appShot: PersistedAppShotAttachment? = nil) {
+        self.image = image
+        self.appShot = appShot
+    }
+
+    init(localImageAttachment: LocalImageAttachment) {
+        self.init(image: localImageAttachment)
+    }
+
+    init(appShot: PersistedAppShotAttachment) {
+        self.init(image: appShot.screenshot, appShot: appShot)
+    }
+
+    var isAppShot: Bool {
+        appShot != nil
+    }
+}
+
 enum AppShotProviderStrategy: Equatable, Sendable {
     case codex
     case claude

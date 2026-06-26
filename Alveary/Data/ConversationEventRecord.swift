@@ -118,23 +118,66 @@ final class ConversationEventRecord {
 }
 
 extension ConversationEventRecord {
+    var persistedTranscriptAttachments: PersistedTranscriptAttachments {
+        guard let imageAttachmentsJSON,
+              let data = imageAttachmentsJSON.data(using: .utf8) else {
+            return .empty
+        }
+        let decoder = JSONDecoder()
+        if let envelope = try? decoder.decode(PersistedTranscriptAttachmentsEnvelope.self, from: data) {
+            return PersistedTranscriptAttachments(
+                images: envelope.images,
+                appShots: envelope.appShots
+            )
+        }
+        if let legacyImages = try? decoder.decode([LocalImageAttachment].self, from: data) {
+            return PersistedTranscriptAttachments(images: legacyImages, appShots: [])
+        }
+        return .empty
+    }
+
+    var persistedPlainImageAttachments: [LocalImageAttachment] {
+        persistedTranscriptAttachments.images
+    }
+
+    var persistedAppShotAttachments: [PersistedAppShotAttachment] {
+        persistedTranscriptAttachments.appShots
+    }
+
     var persistedImageAttachments: [LocalImageAttachment] {
-        get {
-            guard let imageAttachmentsJSON,
-                  let data = imageAttachmentsJSON.data(using: .utf8),
-                  let attachments = try? JSONDecoder().decode([LocalImageAttachment].self, from: data) else {
-                return []
-            }
-            return attachments
+        persistedTranscriptAttachments.combinedImageAttachments
+    }
+
+    func setPersistedPlainImageAttachments(_ attachments: [LocalImageAttachment]) {
+        setPersistedTranscriptAttachments(images: attachments, persistedAppShots: [])
+    }
+
+    func setPersistedTranscriptAttachments(images: [LocalImageAttachment], appShots: [AppShotAttachment]) {
+        setPersistedTranscriptAttachments(
+            images: images,
+            persistedAppShots: appShots.map(PersistedAppShotAttachment.init(appShot:))
+        )
+    }
+
+    func setPersistedTranscriptAttachments(images: [LocalImageAttachment], persistedAppShots: [PersistedAppShotAttachment]) {
+        let transcriptAttachments = PersistedTranscriptAttachments(
+            images: images,
+            appShots: persistedAppShots
+        )
+        guard !transcriptAttachments.isEmpty else {
+            imageAttachmentsJSON = nil
+            return
         }
-        set {
-            guard !newValue.isEmpty,
-                  let data = try? JSONEncoder().encode(newValue) else {
-                imageAttachmentsJSON = nil
-                return
-            }
-            imageAttachmentsJSON = String(data: data, encoding: .utf8)
+        let envelope = PersistedTranscriptAttachmentsEnvelope(
+            version: PersistedTranscriptAttachmentsEnvelope.currentVersion,
+            images: transcriptAttachments.images,
+            appShots: transcriptAttachments.appShots
+        )
+        guard let data = try? JSONEncoder().encode(envelope) else {
+            imageAttachmentsJSON = nil
+            return
         }
+        imageAttachmentsJSON = String(data: data, encoding: .utf8)
     }
 
     var isHiddenGoalRecord: Bool {
@@ -152,4 +195,32 @@ extension ConversationEventRecord {
             return true
         }
     }
+}
+
+struct PersistedTranscriptAttachments: Equatable {
+    static let empty = PersistedTranscriptAttachments(images: [], appShots: [])
+
+    let images: [LocalImageAttachment]
+    let appShots: [PersistedAppShotAttachment]
+
+    var isEmpty: Bool {
+        images.isEmpty && appShots.isEmpty
+    }
+
+    var combinedImageAttachments: [LocalImageAttachment] {
+        var combined = images
+        var seenIDs = Set(images.map(\.id))
+        for appShot in appShots where seenIDs.insert(appShot.screenshot.id).inserted {
+            combined.append(appShot.screenshot)
+        }
+        return combined
+    }
+}
+
+private struct PersistedTranscriptAttachmentsEnvelope: Codable {
+    static let currentVersion = 1
+
+    let version: Int
+    let images: [LocalImageAttachment]
+    let appShots: [PersistedAppShotAttachment]
 }
