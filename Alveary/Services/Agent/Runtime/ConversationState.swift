@@ -85,6 +85,7 @@ final class ConversationState {
     let turnState = TurnState()
 
     var streamingText: String?
+    var streamingTextIsSnapshot = false
     var thoughtText: String?
     var thoughtSequence = 0
     var completedThoughtText: String?
@@ -186,11 +187,21 @@ final class ConversationState {
 
     func appendStreamingChunk(_ text: String) {
         completeThoughtText()
+        if streamingTextIsSnapshot {
+            streamingText = nil
+            streamingTextIsSnapshot = false
+        }
         if streamingText == nil {
             streamingText = text
         } else {
             streamingText?.append(text)
         }
+    }
+
+    func replaceStreamingText(_ text: String) {
+        completeThoughtText()
+        streamingText = text
+        streamingTextIsSnapshot = true
     }
 
     func appendThoughtChunk(_ text: String) {
@@ -229,6 +240,7 @@ final class ConversationState {
 
     func clearAssistantStreamingText() {
         streamingText = nil
+        streamingTextIsSnapshot = false
     }
 
     func clearStreamingText() {

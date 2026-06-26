@@ -108,6 +108,30 @@ extension AgentCLIKitEventMapperTests {
         XCTAssertEqual(events, [.message(role: "user", content: "Implement plan", parentToolUseId: nil)])
     }
 
+    func testMapsCodexCommentaryAssistantMessageAsTransient() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
+            .message(AgentMessageEvent(
+                role: .assistant,
+                text: "Intermediate response",
+                metadata: ["codex_message_phase": .string("commentary")]
+            ))
+        ))
+
+        XCTAssertEqual(events, [.transientAssistantMessage(content: "Intermediate response", parentToolUseId: nil)])
+    }
+
+    func testKeepsCodexFinalAssistantMessage() {
+        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(
+            .message(AgentMessageEvent(
+                role: .assistant,
+                text: "Final response",
+                metadata: ["codex_message_phase": .string("final_answer")]
+            ))
+        ))
+
+        XCTAssertEqual(events, [.message(role: "assistant", content: "Final response", parentToolUseId: nil)])
+    }
+
     private func firstQuestionText(from json: String) -> String? {
         guard let data = json.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {

@@ -401,6 +401,8 @@ private extension ConversationEvent {
         switch self {
         case .message(_, _, let parentToolUseId):
             return parentToolUseId == nil
+        case .transientAssistantMessage(_, let parentToolUseId):
+            return parentToolUseId == nil
         case .toolCall,
              .toolResult,
              .toolApprovalRequested,

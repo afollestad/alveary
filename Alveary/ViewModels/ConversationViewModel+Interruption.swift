@@ -357,6 +357,7 @@ private extension ConversationEvent {
         case .toolApprovalRequested(let approval):
             return approval.toolName == "ExitPlanMode"
         case .message(_, let content, _),
+             .transientAssistantMessage(let content, _),
              .messageChunk(let content, _):
             return content.localizedCaseInsensitiveContains("permission denied")
         case .stop(let message):
@@ -374,6 +375,7 @@ private extension ConversationEvent {
     var isPromptDismissalFallout: Bool {
         switch self {
         case .message,
+             .transientAssistantMessage,
              .messageChunk,
              .thinking,
              .toolCall,

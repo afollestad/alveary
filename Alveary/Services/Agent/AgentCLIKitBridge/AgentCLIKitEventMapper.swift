@@ -53,6 +53,12 @@ struct AgentCLIKitEventMapper: Sendable {
     }
 
     private func messageEvents(from event: AgentCLIKit.AgentMessageEvent) -> [ConversationEvent] {
+        if isCodexCommentaryAssistantMessage(event) {
+            return [.transientAssistantMessage(
+                content: event.text,
+                parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
+            )]
+        }
         if let steeredConversation = steeredConversationEvent(from: event) {
             return [steeredConversation]
         }
@@ -65,6 +71,15 @@ struct AgentCLIKitEventMapper: Sendable {
             content: event.text,
             parentToolUseId: event.metadata.stringValue("parent_tool_use_id")
         )]
+    }
+
+    private func isCodexCommentaryAssistantMessage(_ event: AgentCLIKit.AgentMessageEvent) -> Bool {
+        guard event.role == .assistant else {
+            return false
+        }
+        let phase = event.metadata.stringValue("codex_message_phase")
+            ?? event.metadata.stringValue("codex_response_phase")
+        return phase?.lowercased() == "commentary"
     }
 
     private func steeredConversationEvent(from event: AgentCLIKit.AgentMessageEvent) -> ConversationEvent? {

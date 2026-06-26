@@ -113,6 +113,7 @@ enum ConversationEvent: Sendable, Equatable {
     case permissionModeChanged(String)
     case collaborationModeChanged(Bool)
     case message(role: String, content: String, parentToolUseId: String?)
+    case transientAssistantMessage(content: String, parentToolUseId: String?)
     case runtimeUserMessage(content: String)
     case steeredConversation(inputID: String)
     case messageChunk(text: String, parentToolUseId: String?)
@@ -190,6 +191,7 @@ enum ConversationEvent: Sendable, Equatable {
         case .contextCompactionFailed:
             return contextCompactionFailedRecord(conversation: conversation)
         case .messageChunk,
+             .transientAssistantMessage,
              .thinking,
              .subAgentStarted,
              .subAgentProgress,

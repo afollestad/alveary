@@ -51,6 +51,7 @@ private extension ConversationViewModel {
         case .thinking(let content, let parentToolUseId):
             return handleThinking(content, parentToolUseId: parentToolUseId)
 
+        case .transientAssistantMessage(let content, let parentToolUseId): return handleTransientMessage(content, parentToolUseId: parentToolUseId)
         case .message(let role, let content, _):
             return shouldPersistMessageEvent(role: role, content: content)
 
@@ -197,6 +198,7 @@ private extension ConversationViewModel {
         handleSuppressedPromptApproval(from: event, deferResolution: false)
         switch event {
         case .messageChunk,
+             .transientAssistantMessage,
              .thinking,
              .message,
              .toolCall,
@@ -223,6 +225,13 @@ private extension ConversationViewModel {
     func handleMessageChunk(_ text: String, parentToolUseId: String?) -> Bool {
         if parentToolUseId == nil {
             state.appendStreamingChunk(text)
+        }
+        return false
+    }
+
+    func handleTransientMessage(_ content: String, parentToolUseId: String?) -> Bool {
+        if parentToolUseId == nil {
+            state.replaceStreamingText(content)
         }
         return false
     }

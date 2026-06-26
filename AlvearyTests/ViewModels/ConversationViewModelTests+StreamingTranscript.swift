@@ -214,6 +214,15 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.completedThoughtSequence, 1)
     }
 
+    func testStreamingChunkReplacesTransientAssistantSnapshot() throws {
+        let fixture = try ConversationViewModelTestFixture()
+
+        fixture.viewModel.handleEvent(.transientAssistantMessage(content: "Commentary", parentToolUseId: nil))
+        fixture.viewModel.handleEvent(.messageChunk(text: "Final", parentToolUseId: nil))
+
+        XCTAssertEqual(fixture.viewModel.streamingText, "Final")
+    }
+
     func testSubscriptionFlushesBufferedRootChunksAfterDelay() async throws {
         let fixture = try ConversationViewModelTestFixture()
         await fixture.agentsManager.enableSubscription()

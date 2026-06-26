@@ -207,6 +207,7 @@ final class ConversationEventTests: XCTestCase {
         let conversation = Conversation(provider: "claude")
 
         XCTAssertNil(ConversationEvent.messageChunk(text: "chunk", parentToolUseId: nil).toRecord(conversation: conversation))
+        XCTAssertNil(ConversationEvent.transientAssistantMessage(content: "snapshot", parentToolUseId: nil).toRecord(conversation: conversation))
         XCTAssertNil(ConversationEvent.thinking(content: "thinking", parentToolUseId: nil).toRecord(conversation: conversation))
         XCTAssertNil(
             ConversationEvent.subAgentStarted(toolUseId: "tool-1", description: "Plan", taskType: nil)
