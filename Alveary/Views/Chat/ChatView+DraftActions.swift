@@ -124,6 +124,10 @@ extension ChatView {
             viewModel.state.stagedImageAttachments = draft.attachments
             viewModel.refreshInputDraftEffectiveEmptyForAttachments()
         }
+        if viewModel.state.stagedFileAttachments.isEmpty {
+            viewModel.state.stagedFileAttachments = draft.fileAttachments
+            viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+        }
         if viewModel.state.stagedAppShots.isEmpty {
             viewModel.state.stagedAppShots = draft.appShots
             viewModel.refreshInputDraftEffectiveEmptyForAttachments()

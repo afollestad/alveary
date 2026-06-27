@@ -101,7 +101,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         ))
         panel.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let samples = try renderedEditorCornerSamples(editor)
 
         assertFilled(samples.topLeft, "top-left")
@@ -195,7 +195,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         ))
         panel.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let context = BlockInputCompletionPopupOverlayContext(
             editorView: editor,
             defaultContainer: editor,
@@ -227,7 +227,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         ))
         panel.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let anchorWindowRect = surface.convert(NSRect(x: 560, y: 440, width: 72, height: 22), to: nil)
         let context = BlockInputModalOverlayContext(
             editorView: editor,
@@ -279,7 +279,7 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         ))
         panel.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let anchorWindowRect = surface.convert(NSRect(x: 220, y: 440, width: 72, height: 22), to: nil)
         let context = BlockInputModalOverlayContext(
             editorView: editor,

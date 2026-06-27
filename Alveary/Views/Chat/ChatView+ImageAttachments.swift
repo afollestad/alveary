@@ -1,90 +1,54 @@
 import AppKit
-import BlockInputKit
 import Foundation
 
 extension ChatView {
-    var stagedImagePreviewAttachments: [BlockInputImagePreviewAttachment] {
-        let imagePreviews = viewModel.stagedImageAttachments.map { attachment in
-            BlockInputImagePreviewAttachment(
-                id: attachment.id,
-                fileURL: attachment.fileURL,
-                label: attachment.label,
-                open: { preview in
-                    appState.presentImagePreview(.fileURL(preview.fileURL, title: preview.label))
-                },
-                remove: { preview in
-                    viewModel.removeStagedImageAttachment(id: preview.id)
-                }
-            )
-        }
-        let appShotPreviews = viewModel.stagedAppShots.map { appShot in
-            BlockInputImagePreviewAttachment(
-                id: appShot.id,
-                fileURL: appShot.screenshot.fileURL,
-                label: "App shot: \(appShot.appName)",
-                open: { preview in
-                    appState.presentImagePreview(
-                        .appShotFileURL(
-                            preview.fileURL,
-                            title: preview.label,
-                            axTreeText: appShot.axTreeText
-                        )
-                    )
-                },
-                remove: { preview in
-                    viewModel.removeStagedAppShot(id: preview.id)
-                }
-            )
-        }
-        return imagePreviews + appShotPreviews
+    var stagedComposerAttachments: [ComposerAttachment] {
+        viewModel.stagedImageAttachments.map(ComposerAttachment.image) +
+            viewModel.stagedFileAttachments.map(ComposerAttachment.file) +
+            viewModel.stagedAppShots.map(ComposerAttachment.appShot)
     }
 
-    var blockInputFileDropHandler: BlockInputFileDropHandler? {
-        guard composerCapabilities.supportsLocalImageInput else {
-            return nil
+    func openComposerAttachment(_ attachment: ComposerAttachment) {
+        switch attachment {
+        case .image(let image):
+            appState.presentImagePreview(.fileURL(image.fileURL, title: image.label))
+        case .file(let file):
+            NSWorkspace.shared.open(file.fileURL)
+        case .appShot(let appShot):
+            appState.presentImagePreview(
+                .appShotFileURL(
+                    appShot.screenshot.fileURL,
+                    title: "App shot: \(appShot.appName)",
+                    axTreeText: appShot.axTreeText
+                )
+            )
         }
-        return { context in
-            await handleBlockInputFileDrop(context)
+    }
+
+    func removeComposerAttachment(_ attachment: ComposerAttachment) {
+        switch attachment {
+        case .image(let image):
+            viewModel.removeStagedImageAttachment(id: image.id)
+        case .file(let file):
+            viewModel.removeStagedFileAttachment(id: file.id)
+        case .appShot(let appShot):
+            viewModel.removeStagedAppShot(id: appShot.id)
         }
     }
 
     func handleLocalFileURLsSelected(_ urls: [URL]) async -> LocalFileSelectionResult {
-        guard composerCapabilities.supportsLocalImageInput else {
-            return .useDefault
-        }
         let imageURLs = urls.filter(DefaultConversationAttachmentStore.isSupportedImageURL(_:))
-        guard !imageURLs.isEmpty else {
-            return .useDefault
-        }
+        let fileURLs = urls.filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0) }
 
         do {
             try await viewModel.stageLocalImageAttachments(from: imageURLs)
         } catch {
             viewModel.lastTurnError = "Could not attach image: \(error.localizedDescription)"
-            return .useDefault
+            return .handled
         }
 
-        let remainingURLs = urls.filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0) }
-        return remainingURLs.isEmpty ? .handled : .insertDefault(remainingURLs)
-    }
-
-    func handleBlockInputFileDrop(_ context: BlockInputFileDropContext) async -> BlockInputFileDropResult {
-        let imageFiles = context.files.filter { DefaultConversationAttachmentStore.isSupportedImageURL($0.url) }
-        guard !imageFiles.isEmpty else {
-            return .useDefault
-        }
-
-        do {
-            try await viewModel.stageLocalImageAttachments(from: imageFiles.map(\.url))
-        } catch {
-            viewModel.lastTurnError = "Could not attach dropped image: \(error.localizedDescription)"
-            return .useDefault
-        }
-
-        let remainingReferences = context.files
-            .filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0.url) }
-            .map(\.defaultReference)
-        return remainingReferences.isEmpty ? .cancel : .insert(remainingReferences)
+        viewModel.stageLocalFileAttachments(from: fileURLs)
+        return .handled
     }
 
     @discardableResult

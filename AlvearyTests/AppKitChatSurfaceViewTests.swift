@@ -362,13 +362,14 @@ final class AppKitChatSurfaceViewTests: XCTestCase {
         coordinator.composerPanelView.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(coordinator.composerPanelView.fittingSize.height, 0)
-        XCTAssertTrue(coordinator.composerPanelView.subviews.contains { $0 is BlockInputView })
+        let editorView = coordinator.composerPanelView.editorControllerForTesting.view
+        XCTAssertTrue(editorView?.superview === coordinator.composerPanelView)
     }
 }
 
 @MainActor
 private func composerEditorView(in panel: AppKitChatComposerPanelView) throws -> BlockInputView {
-    try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+    try XCTUnwrap(panel.editorControllerForTesting.view)
 }
 
 @MainActor

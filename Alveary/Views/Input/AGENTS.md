@@ -12,8 +12,8 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep `BlockInputComposerCompletionProvider` identity stable across ordinary composer updates. BlockInputKit treats provider replacement as a semantic completion reset and dismisses the active popup.
 - Keyboard behavior for Enter, Shift+Enter, Cmd+Enter, and Escape must use `BlockInputConfiguration.keyboardShortcuts`. Do not add composer key interception outside BlockInputKit APIs.
 - Composer visible height must use BlockInputKit visible-line sizing. Keep Alveary-side layout as preferred-height invalidation only; do not reintroduce custom grow/shrink min/max-height logic.
-- File and image drops should stay BlockInputKit-owned. When the active provider supports local image input, Alveary stages picked/dropped image files as `LocalImageAttachment`s and passes host preview items into BlockInputKit without mutating Markdown. Unsupported providers keep using `insertLocalFileURLs(_:)`, so images remain Markdown text with BlockInputKit's preview strip.
-- App-shot preview chips are host-provided BlockInputKit previews too, but their AX tree and provider transport wrapper are hidden from the editor and transcript. Removing the preview should only unstage the app shot; it must not mutate composer Markdown.
+- File and image drops are composer-panel owned. Keep BlockInputKit editor drops disabled in production, route picked/dropped URLs through Alveary staging, and render the attachment strip outside BlockInputKit so the editor never owns the top preview row.
+- App-shot preview chips are host-owned composer attachments, but their AX tree and provider transport wrapper are hidden from the editor and transcript. Removing the preview should only unstage the app shot; it must not mutate composer Markdown.
 - Slash-command argument hints are BlockInputKit inline hints backed by `Skill.argumentHint`; never insert them as draft text.
 - Composer selection background must stay visually distinct from composer chip fill; use a neutral non-accent token for selection chrome and keep chip fill/foreground tokens unchanged.
 

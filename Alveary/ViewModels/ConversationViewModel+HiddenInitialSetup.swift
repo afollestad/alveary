@@ -27,6 +27,7 @@ private extension ConversationViewModel {
             draftSource: state.inputDraftSource,
             stagedContext: state.stagedContext,
             stagedImageAttachments: state.stagedImageAttachments,
+            stagedFileAttachments: state.stagedFileAttachments,
             stagedAppShots: state.stagedAppShots
         )
 

@@ -11,6 +11,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(markdown: "Hello"))
 
         XCTAssertFalse(blockInputConfiguration.allowsBlockReordering)
+        XCTAssertFalse(blockInputConfiguration.allowsDrops)
         XCTAssertTrue(blockInputConfiguration.rawSlashCommandChips)
         XCTAssertEqual(blockInputConfiguration.completionReturnBehavior, .passthroughExactMatch)
         XCTAssertEqual(blockInputConfiguration.slashCommandAvailability, .documentStart)

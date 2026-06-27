@@ -60,7 +60,7 @@ extension AppKitTranscriptImageAttachmentStripView {
         }
     }
 
-    func setAppIconResolverForTesting(_ resolver: AppKitTranscriptAppIconResolving) {
+    func setAppIconResolverForTesting(_ resolver: AppKitAppIconResolving) {
         appIconResolver = resolver
     }
 
@@ -81,15 +81,9 @@ extension AppKitTranscriptImageAttachmentStripView {
     }
 }
 
-extension AppKitTranscriptImageAttachmentTileView {
+extension AppKitImageAttachmentTileView {
     var imageFrameForTesting: CGRect? {
         imageView.aspectFillImageFrameForTesting
-    }
-}
-
-extension AppKitTranscriptAspectFillImageView {
-    var aspectFillImageFrameForTesting: CGRect? {
-        aspectFillImageFrame
     }
 }
 #endif

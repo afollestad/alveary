@@ -288,10 +288,7 @@ extension ChatView {
             } catch {
                 let restoredText = didTogglePlanMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
-                if viewModel.state.stagedImageAttachments.isEmpty {
-                    viewModel.state.stagedImageAttachments = draft.attachments
-                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                }
+                restoreLocalCommandDraftAttachmentsIfNeeded(draft)
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
                 }
@@ -318,10 +315,7 @@ extension ChatView {
             } catch {
                 let restoredText = didEnableFastMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
-                if viewModel.state.stagedImageAttachments.isEmpty {
-                    viewModel.state.stagedImageAttachments = draft.attachments
-                    viewModel.refreshInputDraftEffectiveEmptyForAttachments()
-                }
+                restoreLocalCommandDraftAttachmentsIfNeeded(draft)
                 if viewModel.lastTurnError == nil {
                     viewModel.lastTurnError = error.localizedDescription
                 }
@@ -336,6 +330,25 @@ extension ChatView {
             return
         }
         clearSubmittedDraftAndRequestFocus(source: draft.source)
+    }
+
+    private func restoreLocalCommandDraftAttachmentsIfNeeded(_ draft: ComposerDraft) {
+        var didRestoreAttachments = false
+        if viewModel.state.stagedImageAttachments.isEmpty {
+            viewModel.state.stagedImageAttachments = draft.attachments
+            didRestoreAttachments = true
+        }
+        if viewModel.state.stagedFileAttachments.isEmpty {
+            viewModel.state.stagedFileAttachments = draft.fileAttachments
+            didRestoreAttachments = true
+        }
+        if viewModel.state.stagedAppShots.isEmpty {
+            viewModel.state.stagedAppShots = draft.appShots
+            didRestoreAttachments = true
+        }
+        if didRestoreAttachments {
+            viewModel.refreshInputDraftEffectiveEmptyForAttachments()
+        }
     }
 }
 

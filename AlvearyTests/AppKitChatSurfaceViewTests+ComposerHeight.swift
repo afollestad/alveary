@@ -57,7 +57,7 @@ extension AppKitChatSurfaceViewTests {
         surface.configure(contentView: content, composerView: panel)
         surface.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(heightTestViews(in: panel, ofType: BlockInputView.self).first)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
         let initialMetrics = PinnedComposerMetrics(
             editorBottom: surfaceBottomY(of: editor, in: surface),
@@ -112,7 +112,7 @@ extension AppKitChatSurfaceViewTests {
         surface.configure(contentView: content, composerView: panel)
         surface.layoutSubtreeIfNeeded()
 
-        let editor = try XCTUnwrap(heightTestViews(in: panel, ofType: BlockInputView.self).first)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
         let actionRow = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
         let initialMetrics = PinnedComposerMetrics(
             editorBottom: surfaceBottomY(of: editor, in: surface),
@@ -147,6 +147,84 @@ extension AppKitChatSurfaceViewTests {
             initialMetrics: initialMetrics
         )
     }
+
+    func testAttachmentStripSitsAboveEditorAndDropOverlayCoversStripAndEditor() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 420, height: 260))
+        let attachment = LocalFileAttachment(
+            id: "report",
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("report.pdf"),
+            label: "report.pdf",
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeHeightTestComposerBodyConfiguration(attachments: [.file(attachment)]),
+            actionRowConfiguration: makeActionRowConfiguration(),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsetsZero,
+                topContentSpacing: 0,
+                actionRowSpacing: 14,
+                bottomPadding: 16
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
+        let strip = panel.attachmentStripViewForTesting
+        let expectedDropFrame = strip.frame.union(editor.frame)
+        XCTAssertFalse(strip.isHidden)
+        XCTAssertEqual(strip.frame.maxY, editor.frame.minY, accuracy: 0.5)
+        XCTAssertEqual(panel.fileDropOverlayViewForTesting.frame, expectedDropFrame)
+    }
+
+    func testAttachmentStripRenderedBackgroundMatchesEditorSurface() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 420, height: 180))
+        panel.appearance = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let attachment = LocalFileAttachment(
+            id: "report",
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("report.pdf"),
+            label: "report.pdf",
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeHeightTestComposerBodyConfiguration(attachments: [.file(attachment)]),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsetsZero,
+                topContentSpacing: 0,
+                actionRowSpacing: 14,
+                bottomPadding: 0
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
+        let strip = panel.attachmentStripViewForTesting
+        let bitmap = try renderedComposerPanelBitmap(panel)
+        let stripColor = try composerPanelColor(
+            at: NSPoint(x: strip.frame.maxX - 24, y: strip.frame.midY),
+            in: bitmap
+        )
+        let editorColor = try composerPanelColor(
+            at: NSPoint(x: editor.frame.maxX - 24, y: editor.frame.midY),
+            in: bitmap
+        )
+
+        assertMatchingRGBColors(stripColor, editorColor, accuracy: 0.01)
+        assertMatchingRGBColors(
+            stripColor,
+            NSColor(deviceRed: 30.0 / 255.0, green: 30.0 / 255.0, blue: 30.0 / 255.0, alpha: 1),
+            accuracy: 0.01
+        )
+    }
+
+    func testChatSurfaceRegistersAsLightweightFileDragDestination() {
+        let surface = AppKitChatSurfaceView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
+
+        XCTAssertEqual(Set(surface.registeredDraggedTypes), [.fileURL])
+    }
 }
 
 private struct PinnedComposerMetrics {
@@ -179,7 +257,10 @@ private func surfaceBottomY(of view: NSView, in surface: NSView) -> CGFloat {
     return surface.convert(view.frame, from: superview).maxY
 }
 
-private func makeHeightTestComposerBodyConfiguration(hasQueuedMessages: Bool = false) -> AppKitChatComposerBodyConfiguration {
+private func makeHeightTestComposerBodyConfiguration(
+    hasQueuedMessages: Bool = false,
+    attachments: [ComposerAttachment] = []
+) -> AppKitChatComposerBodyConfiguration {
     AppKitChatComposerBodyConfiguration(
         text: "Panel body",
         mode: .idle,
@@ -194,6 +275,7 @@ private func makeHeightTestComposerBodyConfiguration(hasQueuedMessages: Bool = f
         hasQueuedMessages: hasQueuedMessages,
         hasTopContent: false,
         workingDirectory: "/tmp/alveary",
+        attachments: attachments,
         requestFirstResponder: nil,
         loadFileCompletions: { [] },
         loadSkillCompletions: { [] },
@@ -275,4 +357,67 @@ private final class SurfaceLayoutCountingView: NSView {
         super.layout()
         layoutCount += 1
     }
+}
+
+@MainActor
+private func renderedComposerPanelBitmap(
+    _ panel: AppKitChatComposerPanelView,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws -> NSBitmapImageRep {
+    panel.displayIfNeeded()
+    panel.layoutSubtreeIfNeeded()
+
+    let size = panel.bounds.size
+    let bitmap = try XCTUnwrap(
+        NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width),
+            pixelsHigh: Int(size.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ),
+        file: file,
+        line: line
+    )
+    bitmap.size = size
+    let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap), file: file, line: line)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    NSColor(calibratedWhite: 0.10, alpha: 1).setFill()
+    NSRect(origin: .zero, size: size).fill()
+    NSGraphicsContext.restoreGraphicsState()
+    panel.cacheDisplay(in: panel.bounds, to: bitmap)
+    return bitmap
+}
+
+private func composerPanelColor(
+    at point: NSPoint,
+    in bitmap: NSBitmapImageRep,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws -> NSColor {
+    let pixelX = min(max(Int(point.x.rounded()), 0), bitmap.pixelsWide - 1)
+    let pixelY = min(max(Int(point.y.rounded()), 0), bitmap.pixelsHigh - 1)
+    return try XCTUnwrap(bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB), file: file, line: line)
+}
+
+private func assertMatchingRGBColors(
+    _ first: NSColor,
+    _ second: NSColor,
+    accuracy: CGFloat,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    let first = first.usingColorSpace(.deviceRGB) ?? first
+    let second = second.usingColorSpace(.deviceRGB) ?? second
+    XCTAssertEqual(first.redComponent, second.redComponent, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(first.greenComponent, second.greenComponent, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(first.blueComponent, second.blueComponent, accuracy: accuracy, file: file, line: line)
+    XCTAssertEqual(first.alphaComponent, second.alphaComponent, accuracy: accuracy, file: file, line: line)
 }

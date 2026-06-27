@@ -164,7 +164,7 @@ extension SnapshotTests {
 }
 
 @MainActor
-private final class StaticAppIconResolver: AppKitTranscriptAppIconResolving {
+private final class StaticAppIconResolver: AppKitAppIconResolving {
     private let icon: NSImage
 
     init(icon: NSImage) {

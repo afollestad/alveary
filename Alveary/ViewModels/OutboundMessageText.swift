@@ -8,6 +8,7 @@ struct OutboundMessageText: Equatable, Sendable {
     let appShots: [AppShotAttachment]
     let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedAttachments: [LocalImageAttachment]
+    let consumedFileAttachments: [LocalFileAttachment]
     let consumedAppShots: [AppShotAttachment]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
 
@@ -18,6 +19,7 @@ struct OutboundMessageText: Equatable, Sendable {
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedAttachments: [LocalImageAttachment] = [],
+        consumedFileAttachments: [LocalFileAttachment] = [],
         consumedAppShots: [AppShotAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
     ) {
@@ -27,6 +29,7 @@ struct OutboundMessageText: Equatable, Sendable {
         self.appShots = appShots
         self.providerMetadata = providerMetadata
         self.consumedAttachments = consumedAttachments
+        self.consumedFileAttachments = consumedFileAttachments
         self.consumedAppShots = consumedAppShots
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
     }
@@ -47,6 +50,7 @@ struct OutboundMessageText: Equatable, Sendable {
                 appShots: appShots,
                 providerMetadata: providerMetadata,
                 consumedAttachments: stagedAttachments,
+                consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
                 consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
             )
@@ -58,6 +62,27 @@ struct OutboundMessageText: Equatable, Sendable {
             appShots: appShots,
             providerMetadata: providerMetadata,
             consumedAttachments: stagedAttachments,
+            consumedFileAttachments: consumedFileAttachments,
+            consumedAppShots: consumedAppShots,
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+        )
+    }
+
+    func resolvingFileAttachments(
+        _ stagedAttachments: [LocalFileAttachment],
+        fallbackText: (String, [LocalFileAttachment]) -> String
+    ) -> OutboundMessageText {
+        guard !stagedAttachments.isEmpty else {
+            return self
+        }
+        return OutboundMessageText(
+            visibleText: fallbackText(visibleText, stagedAttachments),
+            transportText: transportText.map { fallbackText($0, stagedAttachments) },
+            attachments: attachments,
+            appShots: appShots,
+            providerMetadata: providerMetadata,
+            consumedAttachments: consumedAttachments,
+            consumedFileAttachments: stagedAttachments,
             consumedAppShots: consumedAppShots,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         )
@@ -95,6 +120,7 @@ struct OutboundMessageText: Equatable, Sendable {
             appShots: stagedAppShots,
             providerMetadata: nextMetadata,
             consumedAttachments: consumedAttachments,
+            consumedFileAttachments: consumedFileAttachments,
             consumedAppShots: stagedAppShots,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
         )

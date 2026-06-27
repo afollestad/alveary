@@ -14,39 +14,15 @@ extension AppKitChatComposerEditorControllerTests {
         let bridgeController = BlockInputComposerBridgeController(configuration: bridgeConfiguration)
         let blockInputConfiguration = bridgeController.blockInputConfiguration(for: bridgeConfiguration)
 
-        XCTAssertEqual(bridgeConfiguration.imagePresentation, .textLinksWithPreviewStrip)
+        XCTAssertEqual(bridgeConfiguration.imagePresentation, .textLinks)
         XCTAssertFalse(bridgeController.documentStore.document.containsImageBlock)
-        XCTAssertEqual(blockInputConfiguration.imagePresentation, .textLinksWithPreviewStrip)
+        XCTAssertEqual(blockInputConfiguration.imagePresentation, .textLinks)
+        XCTAssertFalse(blockInputConfiguration.allowsDrops)
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, AppKitChatComposerEditorController.editorHorizontalPadding)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, 10)
     }
 
-    func testFirstTextualImagePreviewHeightRevealAppliesImmediately() throws {
-        let controller = AppKitChatComposerEditorController()
-        controller.configure(makeImageConfiguration(text: "Ask"))
-        controller.measuredEditorHeight = 80
-        var invalidationAnimationFlags: [Bool] = []
-        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
-            invalidationAnimationFlags.append(animateSurfaceHeight)
-        }
-        let bridgeController = try XCTUnwrap(controller.bridgeController)
-        bridgeController.documentStore.replaceDocument(BlockInputDocument(
-            markdown: "Ask ![Cat](cat.png) ",
-            imageParsingMode: .preserveSourceText
-        ))
-
-        controller.handlePreferredHeightTransition(BlockInputEditorHeightTransition(
-            previousHeight: 80,
-            targetHeight: 164,
-            animation: BlockInputEditorHeightAnimation(duration: 1, curve: .linear),
-            isInitial: false
-        ))
-
-        XCTAssertEqual(controller.measuredEditorHeight, 164)
-        XCTAssertEqual(invalidationAnimationFlags, [false])
-    }
-
-    func testExistingTextualImagePreviewHeightChangesStillInterpolate() async throws {
+    func testTextualImageHeightChangesInterpolate() async throws {
         let controller = AppKitChatComposerEditorController()
         controller.configure(makeImageConfiguration(text: "![Cat](cat.png) "))
         controller.measuredEditorHeight = 80

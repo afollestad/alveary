@@ -54,6 +54,26 @@ final class AppKitChatSurfaceView: NSView {
         forwardScrollWheelOutsideComposer(event)
     }
 
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        composerDragDestination(for: sender)?.draggingEntered(sender) ?? []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        composerDragDestination(for: sender)?.draggingUpdated(sender) ?? []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        (composerView as? AppKitChatComposerPanelView)?.draggingExited(sender)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        (composerView as? AppKitChatComposerPanelView)?.draggingEnded(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        composerDragDestination(for: sender)?.performDragOperation(sender) ?? false
+    }
+
     override func layout() {
         super.layout()
 
@@ -267,6 +287,16 @@ final class AppKitChatSurfaceView: NSView {
         // states and transcript content cannot bleed under thread tabs.
         wantsLayer = true
         layer?.masksToBounds = true
+        // Cheaply answer file drags over SwiftUI-hosted transcript content; the composer panel still handles real drops.
+        registerForDraggedTypes([.fileURL])
+    }
+
+    private func composerDragDestination(for sender: NSDraggingInfo) -> AppKitChatComposerPanelView? {
+        guard let composerPanel = composerView as? AppKitChatComposerPanelView else {
+            return nil
+        }
+        let surfacePoint = convert(sender.draggingLocation, from: nil)
+        return composerPanel.frame.contains(surfacePoint) ? composerPanel : nil
     }
 }
 

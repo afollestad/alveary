@@ -131,6 +131,9 @@ private extension ConversationViewModel {
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
             fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingFileAttachments(
+            state.stagedFileAttachments,
+            fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
             providerID: conversation.provider ?? settingsService.current.defaultProvider
@@ -146,6 +149,9 @@ private extension ConversationViewModel {
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
             fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingFileAttachments(
+            state.stagedFileAttachments,
+            fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
             providerID: conversation.provider ?? settingsService.current.defaultProvider
@@ -157,6 +163,7 @@ private extension ConversationViewModel {
             appShots: outbound.appShots,
             providerMetadata: outbound.providerMetadata,
             consumedAttachments: outbound.consumedAttachments,
+            consumedFileAttachments: outbound.consumedFileAttachments,
             consumedAppShots: outbound.consumedAppShots,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContextOverride
@@ -181,6 +188,7 @@ private extension ConversationViewModel {
         )
         state.stagedContext = nil
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
+        clearStagedFileAttachmentsIfTheyMatch(outbound.consumedFileAttachments)
         clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
         scheduleQueueDrainIfNeeded()
     }
@@ -209,6 +217,7 @@ private extension ConversationViewModel {
                 appShots: outbound.appShots,
                 providerMetadata: outbound.providerMetadata,
                 consumedAttachments: outbound.consumedAttachments,
+                consumedFileAttachments: outbound.consumedFileAttachments,
                 consumedAppShots: outbound.consumedAppShots,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
             )

@@ -199,7 +199,9 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertEqual(imageViewFrame, CGRect(origin: .zero, size: cardFrame.size))
         XCTAssertEqual(iconFrame.midX, cardFrame.width / 2, accuracy: 0.5)
         XCTAssertEqual(titleFrame.midX, cardFrame.width / 2, accuracy: 0.5)
-        XCTAssertEqual(titleFrame.minY - iconFrame.maxY, 3, accuracy: 0.5)
+        XCTAssertEqual(iconFrame.size.width, 28, accuracy: 0.5)
+        XCTAssertEqual(iconFrame.size.height, 28, accuracy: 0.5)
+        XCTAssertEqual(titleFrame.minY - iconFrame.maxY, 4, accuracy: 0.5)
         XCTAssertEqual(row.appShotCardLabelsForTesting.first ?? nil, "App shot, Preview, Preview - Document.pdf")
         let resolvedIcon = try XCTUnwrap(row.appShotCardIconsForTesting.first ?? nil)
         XCTAssertTrue(resolvedIcon === icon)
@@ -409,7 +411,7 @@ private func persistedAppShotAttachment(
 }
 
 @MainActor
-private final class StaticTranscriptAppIconResolver: AppKitTranscriptAppIconResolving {
+private final class StaticTranscriptAppIconResolver: AppKitAppIconResolving {
     private let icon: NSImage
 
     init(icon: NSImage) {

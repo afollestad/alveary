@@ -24,7 +24,7 @@ extension AppKitComposerOverlayViewTests {
             )
         )
         panel.layoutSubtreeIfNeeded()
-        let editorView = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView })
+        let editorView = try XCTUnwrap(panel.editorControllerForTesting.view)
         let actionRowView = try XCTUnwrap(panel.subviews.first { $0 is ChatComposerActionRowView })
 
         XCTAssertFalse(editorView.isHidden)

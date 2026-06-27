@@ -62,9 +62,13 @@ final class AppKitChatComposerPanelView: NSView {
     let editorController = AppKitChatComposerEditorController()
     private let topContentView = AppKitChatComposerTopContentView()
     private let queuedMessagesView = AppKitChatQueuedMessagesView()
+    let attachmentStripView = AppKitComposerAttachmentStripView()
     private let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
+    let fileDropOverlayView = AppKitComposerFileDropOverlayView()
     private let interactionOverlayView = AppKitComposerOverlayView()
+    var cachedFileDropSequenceNumber: Int?
+    var cachedFileDropHasReadableFileURLs = false
 
     var configuration: AppKitChatComposerPanelConfiguration?
     private var showsTopDivider = false
@@ -114,6 +118,7 @@ final class AppKitChatComposerPanelView: NSView {
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
         configureQueuedMessages(configuration.queuedMessagesConfiguration)
+        configureAttachmentStrip(configuration.bodyConfiguration)
         configureEditor(configuration.bodyConfiguration)
         configureActionRow(configuration.actionRowConfiguration)
         configureInteractionOverlay(configuration.interactionOverlayConfiguration)
@@ -142,6 +147,7 @@ final class AppKitChatComposerPanelView: NSView {
         var currentY = topPadding(for: configuration)
         currentY = layoutTopContent(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         currentY = layoutQueuedMessages(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
+        currentY = layoutAttachmentStrip(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         currentY = layoutEditor(configuration: configuration, contentWidth: contentWidth, currentY: currentY)
         if configuration.actionRowConfiguration != nil {
             actionRow.frame = NSRect(
@@ -151,6 +157,7 @@ final class AppKitChatComposerPanelView: NSView {
                 height: actionRow.intrinsicContentSize.height
             )
         }
+        layoutFileDropOverlay(configuration: configuration)
         layoutInteractionOverlay(configuration: configuration)
         dividerView.frame = NSRect(x: 0, y: 0, width: bounds.width, height: 1)
     }
@@ -158,14 +165,18 @@ final class AppKitChatComposerPanelView: NSView {
     private func setupViews() {
         wantsLayer = true
         layer?.masksToBounds = true
+        registerForDraggedTypes([.fileURL])
 
         addSubview(topContentView)
         addSubview(queuedMessagesView)
+        addSubview(attachmentStripView)
         editorController.onPreferredSizeInvalidated = { [weak self] animateSurfaceHeight in
             self?.handlePreferredSizeInvalidated(animateSurfaceHeight: animateSurfaceHeight)
         }
         actionRow.isHidden = true
         addSubview(actionRow)
+
+        addSubview(fileDropOverlayView)
 
         interactionOverlayView.isHidden = true
         interactionOverlayView.onPreferredSizeInvalidated = { [weak self] in
@@ -310,13 +321,17 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     private func setNormalComposerOverlayHidden(_ isHidden: Bool) {
-        [topContentView, queuedMessagesView, editorController.view, actionRow].forEach {
+        [topContentView, queuedMessagesView, attachmentStripView, editorController.view, actionRow].forEach {
             $0?.setAccessibilityHidden(isHidden)
         }
         topContentView.isHidden = isHidden || !topContentView.hasContent
         queuedMessagesView.isHidden = isHidden || (configuration?.queuedMessagesConfiguration?.queuedMessages.isEmpty ?? true)
+        attachmentStripView.isHidden = isHidden || (configuration?.bodyConfiguration.attachments.isEmpty ?? true)
         editorController.view?.isHidden = isHidden
         actionRow.isHidden = isHidden || configuration?.actionRowConfiguration == nil
+        if isHidden {
+            setFileDropOverlayActive(false)
+        }
     }
 
     private func configureDividerVisibility(_ isVisible: Bool) {
@@ -353,7 +368,14 @@ final class AppKitChatComposerPanelView: NSView {
     }
 
     private func topPadding(for configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
-        topContentView.hasContent ? configuration.layout.topContentSpacing : 0
+        if topContentView.hasContent {
+            return configuration.layout.topContentSpacing
+        }
+        if !configuration.bodyConfiguration.attachments.isEmpty,
+           configuration.queuedMessagesConfiguration?.queuedMessages.isEmpty != false {
+            return ChatComposerPanelLayout.nativeInputTopPadding
+        }
+        return 0
     }
 
     private func currentEditorTopOffset() -> CGFloat? {
@@ -375,6 +397,9 @@ final class AppKitChatComposerPanelView: NSView {
                 offset += configuration.layout.queuedMessagesTopPadding
             }
             offset += queuedMessagesView.measuredHeight(width: contentWidth)
+        }
+        if !configuration.bodyConfiguration.attachments.isEmpty {
+            offset += attachmentStripView.measuredHeight(width: contentWidth)
         }
         return offset + editorController.topPadding
     }
@@ -415,6 +440,9 @@ final class AppKitChatComposerPanelView: NSView {
             }
             height += queuedMessagesView.measuredHeight(width: contentWidth)
         }
+        if !configuration.bodyConfiguration.attachments.isEmpty {
+            height += attachmentStripView.measuredHeight(width: contentWidth)
+        }
         height += editorController.measuredHeight(width: contentWidth)
         if configuration.actionRowConfiguration != nil {
             height += configuration.layout.actionRowSpacing + actionRow.intrinsicContentSize.height + configuration.layout.bottomPadding
@@ -451,11 +479,14 @@ final class AppKitChatComposerPanelView: NSView {
             superview?.needsLayout = true
         }
     }
+
 }
 
 #if DEBUG
 extension AppKitChatComposerPanelView {
     var editorControllerForTesting: AppKitChatComposerEditorController { editorController }
+    var attachmentStripViewForTesting: AppKitComposerAttachmentStripView { attachmentStripView }
+    var fileDropOverlayViewForTesting: AppKitComposerFileDropOverlayView { fileDropOverlayView }
     var interactionOverlayViewForTesting: AppKitComposerOverlayView { interactionOverlayView }
 }
 #endif

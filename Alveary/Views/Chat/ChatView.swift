@@ -297,20 +297,21 @@ extension ChatView {
             hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
-            imagePreviewAttachments: stagedImagePreviewAttachments,
+            attachments: stagedComposerAttachments,
             urlOpener: openComposerEditorURL(_:),
             localCommands: localCommandAvailability,
             passthroughSlashCommands: passthroughSlashCommands,
             requestFirstResponder: appState.pendingComposerFocusToken,
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,
+            onOpenAttachment: openComposerAttachment(_:),
+            onRemoveAttachment: removeComposerAttachment(_:),
             onBlockInputMutation: { isEffectivelyEmpty in
                 viewModel.recordBlockInputDraftMutation(isEffectivelyEmpty: isEffectivelyEmpty)
             },
             onBlockInputDocumentChange: { document in
                 viewModel.scheduleBlockInputDraftPublish(document)
             },
-            fileDropHandler: blockInputFileDropHandler,
             onLocalFileURLsSelected: handleLocalFileURLsSelected(_:),
             onDraftSnapshotProviderChange: { provider in
                 viewModel.composerDraftSnapshotProvider = provider

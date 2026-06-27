@@ -111,6 +111,7 @@ final class ConversationState {
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
     var stagedImageAttachments: [LocalImageAttachment] = []
+    var stagedFileAttachments: [LocalFileAttachment] = []
     var stagedAppShots: [AppShotAttachment] = []
     var inputDraftRevision = 0
     var inputDraftDirtyRevision = 0

@@ -106,7 +106,7 @@ packages:
     revision: "79520e2bf4f7d78375684cf663fa28a894006b81"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
-    revision: "aa53c0c8c499a81c48e57e511e1660c65d34acf1"
+    revision: "d96d9a7e48e4733ea078005f136f977f2960aed7"
   needle:
     url: https://github.com/uber/needle.git
     revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"

@@ -14,8 +14,8 @@ struct BlockInputComposerBridgeConfiguration {
     var editorHorizontalInset: CGFloat
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: BlockInputEditorChromeCorners
+    var editorStrokedEdges: BlockInputEditorChromeEdges
     var location: BlockInputComposerLocation
-    var imagePreviewAttachments: [BlockInputImagePreviewAttachment]
     var urlOpener: BlockInputURLOpener
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
@@ -24,7 +24,6 @@ struct BlockInputComposerBridgeConfiguration {
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
     var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
     var modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)?
-    var fileDropHandler: BlockInputFileDropHandler?
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightTransition: @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void
@@ -39,8 +38,8 @@ struct BlockInputComposerBridgeConfiguration {
         editorHorizontalInset: CGFloat = BlockInputConfiguration.defaultEditorHorizontalInset,
         editorVerticalInset: CGFloat = BlockInputConfiguration.defaultEditorVerticalInset,
         editorRoundedCorners: BlockInputEditorChromeCorners = .all,
+        editorStrokedEdges: BlockInputEditorChromeEdges = .all,
         location: BlockInputComposerLocation,
-        imagePreviewAttachments: [BlockInputImagePreviewAttachment] = [],
         urlOpener: @escaping BlockInputURLOpener = { NSWorkspace.shared.open($0) },
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
@@ -49,7 +48,6 @@ struct BlockInputComposerBridgeConfiguration {
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
-        fileDropHandler: BlockInputFileDropHandler? = nil,
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onPreferredHeightTransition: @escaping @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void = { _ in }
@@ -63,8 +61,8 @@ struct BlockInputComposerBridgeConfiguration {
         self.editorHorizontalInset = editorHorizontalInset
         self.editorVerticalInset = editorVerticalInset
         self.editorRoundedCorners = editorRoundedCorners
+        self.editorStrokedEdges = editorStrokedEdges
         self.location = location
-        self.imagePreviewAttachments = imagePreviewAttachments
         self.urlOpener = urlOpener
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
@@ -73,7 +71,6 @@ struct BlockInputComposerBridgeConfiguration {
         self.keyboardShortcuts = keyboardShortcuts
         self.completionPopupOverlayProvider = completionPopupOverlayProvider
         self.modalOverlayProvider = modalOverlayProvider
-        self.fileDropHandler = fileDropHandler
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightTransition = onPreferredHeightTransition
@@ -156,15 +153,6 @@ final class BlockInputComposerBridgeController {
         view.focus(blockID: lastBlock.id, utf16Offset: lastBlock.cursorUTF16Length)
     }
 
-    var containsTextualImagePreviewSource: Bool {
-        guard currentConfiguration.imagePresentation == .textLinksWithPreviewStrip else {
-            return false
-        }
-        return documentStore.document.blocks.contains { block in
-            Self.containsTextualImageSource(in: block.text)
-        }
-    }
-
     func blockInputConfiguration(
         for configuration: BlockInputComposerBridgeConfiguration
     ) -> BlockInputConfiguration {
@@ -172,6 +160,7 @@ final class BlockInputComposerBridgeController {
         return BlockInputConfiguration(
             documentStore: documentStore,
             allowsBlockReordering: false,
+            allowsDrops: false,
             editorHorizontalInset: configuration.editorHorizontalInset,
             editorVerticalInset: configuration.editorVerticalInset,
             blockVerticalInsetMultiplier: Self.blockVerticalInsetMultiplier,
@@ -183,11 +172,13 @@ final class BlockInputComposerBridgeController {
             },
             rawSlashCommandChips: true,
             dropIndicatorColor: .controlAccentColor,
-            style: BlockInputComposerStyle.make(roundedCorners: configuration.editorRoundedCorners),
+            style: BlockInputComposerStyle.make(
+                roundedCorners: configuration.editorRoundedCorners,
+                strokedEdges: configuration.editorStrokedEdges
+            ),
             selectAllBehavior: .document,
             heightSizing: heightSizing(),
             imagePresentation: configuration.imagePresentation,
-            imagePreviewAttachments: configuration.imagePreviewAttachments,
             imageBaseURL: configuration.location.imageBaseURL,
             fileBaseURL: configuration.location.fileBaseURL,
             urlOpener: { [weak self] url in
@@ -197,7 +188,6 @@ final class BlockInputComposerBridgeController {
             commandDispatcher: commandDispatcher,
             keyboardShortcuts: keyboardShortcuts(for: configuration),
             completionProvider: completionProvider,
-            fileDropHandler: configuration.fileDropHandler,
             completionReturnBehavior: .passthroughExactMatch,
             slashCommandAvailability: .documentStart,
             modalOverlayProvider: { [weak self] context in
@@ -259,17 +249,7 @@ final class BlockInputComposerBridgeController {
     private static func imageParsingMode(
         for imagePresentation: BlockInputImagePresentation
     ) -> BlockInputMarkdownImageParsingMode {
-        switch imagePresentation {
-        case .inlineBlocks:
-            return .imageBlocks
-        case .textLinksWithPreviewStrip:
-            return .preserveSourceText
-        }
-    }
-
-    private static func containsTextualImageSource(in text: String) -> Bool {
-        // This is an animation hint only. Exact preview parsing remains BlockInputKit-owned.
-        text.contains("![") || text.range(of: "<img", options: [.caseInsensitive]) != nil
+        imagePresentation == .inlineBlocks ? .imageBlocks : .preserveSourceText
     }
 
     private static func makeCompletionProvider(
@@ -309,11 +289,10 @@ final class BlockInputComposerBridgeController {
             editorHorizontalInset: configuration.editorHorizontalInset,
             editorVerticalInset: configuration.editorVerticalInset,
             editorRoundedCorners: configuration.editorRoundedCorners.rawValue,
+            editorStrokedEdges: configuration.editorStrokedEdges.rawValue,
             location: configuration.location,
-            imagePreviewAttachments: configuration.imagePreviewAttachments.map(ImagePreviewAttachmentKey.init),
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,
-            hasFileDropHandler: configuration.fileDropHandler != nil,
             keyboardShortcuts: Set(configuration.keyboardShortcuts.keys)
         )
     }
@@ -327,22 +306,9 @@ private struct BridgeViewConfigKey: Equatable {
     var editorHorizontalInset: CGFloat
     var editorVerticalInset: CGFloat
     var editorRoundedCorners: Int
+    var editorStrokedEdges: Int
     var location: BlockInputComposerLocation
-    var imagePreviewAttachments: [ImagePreviewAttachmentKey]
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
-    var hasFileDropHandler: Bool
     var keyboardShortcuts: Set<BlockInputKeyboardShortcut>
-}
-
-private struct ImagePreviewAttachmentKey: Equatable {
-    var id: String
-    var fileURL: URL
-    var label: String
-
-    init(_ attachment: BlockInputImagePreviewAttachment) {
-        id = attachment.id
-        fileURL = attachment.fileURL
-        label = attachment.label
-    }
 }

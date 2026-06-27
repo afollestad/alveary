@@ -71,7 +71,7 @@ extension AppKitTranscriptTextBubbleRowView {
         imageAttachmentStripView.performOpenForTesting(at: index)
     }
 
-    func setAppShotIconResolverForTesting(_ resolver: AppKitTranscriptAppIconResolving) {
+    func setAppShotIconResolverForTesting(_ resolver: AppKitAppIconResolving) {
         imageAttachmentStripView.setAppIconResolverForTesting(resolver)
     }
 

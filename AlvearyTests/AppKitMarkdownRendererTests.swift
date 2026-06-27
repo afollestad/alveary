@@ -272,6 +272,20 @@ final class AppKitMarkdownRendererTests: XCTestCase {
         XCTAssertNil(textView.cursorURLForTesting(at: NSPoint(x: linkRect.maxX + 24, y: linkRect.midY)))
     }
 
+    func testMarkdownTextViewDoesNotRegisterAsDragDestination() {
+        let textView = AppKitMarkdownTextView(
+            content: NSAttributedString(string: "Display only"),
+            heightInvalidationHandler: { }
+        )
+        XCTAssertTrue(textView.registeredDraggedTypes.isEmpty)
+
+        textView.registerForDraggedTypes([.string, .fileURL])
+
+        textView.updateDragTypeRegistration()
+
+        XCTAssertTrue(textView.registeredDraggedTypes.isEmpty)
+    }
+
     func testTableChromeHugsRowsWithoutTrailingBlankArea() throws {
         let table = try markdownTable(
             """

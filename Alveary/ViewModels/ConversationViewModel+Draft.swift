@@ -7,6 +7,7 @@ struct ComposerDraft: Equatable, Sendable {
     let text: String
     let source: ComposerDraftSource
     let attachments: [LocalImageAttachment]
+    let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
     private let cachedTextIsEffectivelyEmpty: Bool?
 
@@ -14,18 +15,20 @@ struct ComposerDraft: Equatable, Sendable {
         text: String,
         source: ComposerDraftSource,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         isEffectivelyEmpty: Bool? = nil
     ) {
         self.text = text
         self.source = source
         self.attachments = attachments
+        self.fileAttachments = fileAttachments
         self.appShots = appShots
         cachedTextIsEffectivelyEmpty = isEffectivelyEmpty
     }
 
     var isEffectivelyEmpty: Bool {
-        attachments.isEmpty && appShots.isEmpty && textIsEffectivelyEmpty
+        attachments.isEmpty && fileAttachments.isEmpty && appShots.isEmpty && textIsEffectivelyEmpty
     }
 
     var textIsEffectivelyEmpty: Bool {
@@ -49,6 +52,18 @@ struct ComposerDraft: Equatable, Sendable {
             text: text,
             source: source,
             attachments: attachments,
+            fileAttachments: fileAttachments,
+            appShots: appShots,
+            isEffectivelyEmpty: textIsEffectivelyEmpty
+        )
+    }
+
+    func withFileAttachments(_ fileAttachments: [LocalFileAttachment]) -> ComposerDraft {
+        ComposerDraft(
+            text: text,
+            source: source,
+            attachments: attachments,
+            fileAttachments: fileAttachments,
             appShots: appShots,
             isEffectivelyEmpty: textIsEffectivelyEmpty
         )
@@ -59,6 +74,7 @@ struct ComposerDraft: Equatable, Sendable {
             text: text,
             source: source,
             attachments: attachments,
+            fileAttachments: fileAttachments,
             appShots: appShots,
             isEffectivelyEmpty: textIsEffectivelyEmpty
         )
@@ -69,6 +85,7 @@ struct ComposerDraft: Equatable, Sendable {
 extension ConversationViewModel {
     func flushDraftFromEditor() -> ComposerDraft {
         let stagedAttachments = state.stagedImageAttachments
+        let stagedFileAttachments = state.stagedFileAttachments
         let stagedAppShots = state.stagedAppShots
         if let draft = composerDraftSnapshotProvider?() {
             state.inputDraftPublishTask?.cancel()
@@ -82,6 +99,7 @@ extension ConversationViewModel {
             )
             return draft
                 .withAttachments(stagedAttachments)
+                .withFileAttachments(stagedFileAttachments)
                 .withAppShots(stagedAppShots)
         }
 
@@ -89,6 +107,7 @@ extension ConversationViewModel {
             text: state.inputDraft,
             source: state.inputDraftSource,
             attachments: stagedAttachments,
+            fileAttachments: stagedFileAttachments,
             appShots: stagedAppShots
         )
     }
@@ -103,7 +122,10 @@ extension ConversationViewModel {
         state.hasPendingBlockInputDocumentChange = true
         state.inputDraftSource = .blockInputMarkdown
         state.inputDraftDirtyRevision += 1
-        state.inputDraftIsEffectivelyEmpty = isEffectivelyEmpty && state.stagedImageAttachments.isEmpty && state.stagedAppShots.isEmpty
+        state.inputDraftIsEffectivelyEmpty = isEffectivelyEmpty &&
+            state.stagedImageAttachments.isEmpty &&
+            state.stagedFileAttachments.isEmpty &&
+            state.stagedAppShots.isEmpty
         cancelSessionHandoffSteeringCountdownForEditorMutation()
         cancelSessionHandoffCountdownForEditorMutation()
     }
@@ -180,7 +202,10 @@ extension ConversationViewModel {
             text: text,
             source: source
         ).textIsEffectivelyEmpty
-        let nextIsEffectivelyEmpty = nextTextIsEffectivelyEmpty && state.stagedImageAttachments.isEmpty && state.stagedAppShots.isEmpty
+        let nextIsEffectivelyEmpty = nextTextIsEffectivelyEmpty &&
+            state.stagedImageAttachments.isEmpty &&
+            state.stagedFileAttachments.isEmpty &&
+            state.stagedAppShots.isEmpty
 
         guard state.inputDraft != text ||
             state.inputDraftSource != source ||

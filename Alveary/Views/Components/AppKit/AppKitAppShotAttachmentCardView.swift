@@ -1,17 +1,21 @@
 @preconcurrency import AppKit
 import UniformTypeIdentifiers
 
+/// Resolves app icons for app-shot attachment previews.
 @MainActor
-protocol AppKitTranscriptAppIconResolving: AnyObject {
+protocol AppKitAppIconResolving: AnyObject {
+    /// Returns an icon for a bundle identifier, or a generic app icon when the bundle cannot be resolved.
     func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage
 }
 
+/// `NSWorkspace`-backed app icon resolver shared by transcript and composer app-shot previews.
 @MainActor
-final class AppKitTranscriptWorkspaceAppIconResolver: AppKitTranscriptAppIconResolving {
-    static let shared = AppKitTranscriptWorkspaceAppIconResolver()
+final class AppKitWorkspaceAppIconResolver: AppKitAppIconResolving {
+    static let shared = AppKitWorkspaceAppIconResolver()
 
     private var iconCache: [String: NSImage] = [:]
 
+    /// Returns the installed app icon for a bundle identifier, caching repeated lookups.
     func icon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         let cacheKey = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         if let cached = iconCache[cacheKey] {
@@ -29,29 +33,43 @@ final class AppKitTranscriptWorkspaceAppIconResolver: AppKitTranscriptAppIconRes
     }
 }
 
+/// Preview card for an app-shot screenshot with the captured app icon and window title overlaid.
+///
+/// The component is model-agnostic: transcript and composer callers configure
+/// the visible app-shot values, then attach open/remove callbacks that route
+/// back to their own attachment models.
 @MainActor
-final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
+final class AppKitAppShotAttachmentCardView: AppKitDynamicColorView {
     private static let cornerRadius: CGFloat = 8
-    private static let gradientClearanceAboveIcon: CGFloat = 12
-    private static let iconSize = NSSize(width: 20, height: 20)
-    private static let overlayHorizontalPadding: CGFloat = 12
-    private static let overlayBottomPadding: CGFloat = 8
-    private static let iconTitleSpacing: CGFloat = 3
+    private static let gradientClearanceAboveIcon: CGFloat = 16
+    private static let iconSize = NSSize(width: 28, height: 28)
+    private static let overlayHorizontalPadding: CGFloat = 14
+    private static let overlayBottomPadding: CGFloat = 10
+    private static let iconTitleSpacing: CGFloat = 4
 
-    let imageView = AppKitTranscriptAspectFillImageView()
+    let imageView = AppKitAspectFillImageView()
     let iconImageView = NSImageView()
     private let gradientView = NSView()
     private let gradientLayer = CAGradientLayer()
     private let titleField = NSTextField(labelWithString: "")
-    private var appShot: PersistedAppShotAttachment?
-    var appIconResolver: AppKitTranscriptAppIconResolving = AppKitTranscriptWorkspaceAppIconResolver.shared {
+    private let removeButton = AppKitAttachmentRemoveButton()
+    private var bundleIdentifier = ""
+    private var appName = ""
+    private var displayTitle = ""
+
+    var appIconResolver: AppKitAppIconResolving = AppKitWorkspaceAppIconResolver.shared {
         didSet {
             updateResolvedIcon()
         }
     }
-    var onOpenAttachment: ((PersistedAppShotAttachment) -> Void)? {
+    var onOpenAttachment: (() -> Void)? {
         didSet {
             updateOpenState()
+        }
+    }
+    var onRemoveAttachment: (() -> Void)? {
+        didSet {
+            updateRemoveState()
         }
     }
 
@@ -77,6 +95,16 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateThemeColors()
+        invalidateCursorRectsIfPossible()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldSize = frame.size
+        super.setFrameSize(newSize)
+        if oldSize != newSize {
+            updateRemoveButtonFrame()
+            invalidateCursorRectsIfPossible()
+        }
     }
 
     override func layout() {
@@ -112,10 +140,15 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
             width: titleWidth,
             height: titleHeight
         )
+        updateRemoveButtonFrame()
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard bounds.contains(convert(event.locationInWindow, from: nil)),
+        let point = convert(event.locationInWindow, from: nil)
+        if removeButtonConsumesClick(at: point) {
+            return
+        }
+        guard bounds.contains(point),
               performOpen() else {
             super.mouseUp(with: event)
             return
@@ -123,11 +156,25 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
+        guard bounds.contains(point) else {
+            return nil
+        }
+        if !removeButton.isHidden,
+           removeButtonFrame.contains(point) {
+            updateRemoveButtonFrame()
+            let removePoint = convert(point, to: removeButton)
+            if let hit = removeButton.hitTest(removePoint) {
+                return hit
+            }
+        }
+        return self
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
+        if !removeButton.isHidden {
+            addCursorRect(removeButtonFrame, cursor: .pointingHand)
+        }
         if onOpenAttachment != nil {
             addCursorRect(bounds, cursor: .pointingHand)
         }
@@ -137,23 +184,51 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
         performOpen()
     }
 
+    /// Updates the card from a persisted transcript app-shot attachment.
     func configure(_ appShot: PersistedAppShotAttachment) {
-        self.appShot = appShot
-        imageView.image = NSImage(contentsOf: appShot.screenshot.fileURL)
+        configure(
+            screenshot: appShot.screenshot,
+            appName: appShot.appName,
+            bundleIdentifier: appShot.bundleIdentifier,
+            displayTitle: appShot.displayTitle
+        )
+    }
+
+    /// Updates the card from a staged composer app-shot attachment.
+    func configure(_ appShot: AppShotAttachment) {
+        configure(
+            screenshot: appShot.screenshot,
+            appName: appShot.appName,
+            bundleIdentifier: appShot.bundleIdentifier,
+            displayTitle: appShot.displayTitle
+        )
+    }
+
+    /// Updates the card image, icon, title, tooltip, and accessibility label.
+    func configure(
+        screenshot: LocalImageAttachment,
+        appName: String,
+        bundleIdentifier: String,
+        displayTitle: String
+    ) {
+        imageView.image = NSImage(contentsOf: screenshot.fileURL)
+        self.appName = appName
+        self.bundleIdentifier = bundleIdentifier
+        self.displayTitle = displayTitle
         updateResolvedIcon()
-        titleField.stringValue = appShot.displayTitle
-        toolTip = appShot.displayTitle
-        setAccessibilityLabel(accessibilityLabel(for: appShot))
+        titleField.stringValue = displayTitle
+        toolTip = displayTitle
+        setAccessibilityLabel(accessibilityLabel(appName: appName, displayTitle: displayTitle))
+        removeButton.toolTip = "Remove \(displayTitle)"
         needsLayout = true
     }
 
     @discardableResult
     private func performOpen() -> Bool {
-        guard let appShot,
-              let onOpenAttachment else {
+        guard let onOpenAttachment else {
             return false
         }
-        onOpenAttachment(appShot)
+        onOpenAttachment()
         return true
     }
 
@@ -181,11 +256,11 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
 
         iconImageView.imageScaling = .scaleProportionallyDown
         iconImageView.wantsLayer = true
-        iconImageView.layer?.cornerRadius = 4
+        iconImageView.layer?.cornerRadius = 6
         iconImageView.layer?.masksToBounds = true
         addSubview(iconImageView)
 
-        titleField.font = TranscriptTypography().nsFont(.caption, weight: .medium)
+        titleField.font = .systemFont(ofSize: 15, weight: .semibold)
         titleField.alignment = .center
         titleField.lineBreakMode = .byTruncatingTail
         titleField.maximumNumberOfLines = 1
@@ -196,9 +271,15 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
         titleField.isSelectable = false
         addSubview(titleField)
 
+        removeButton.onPress = { [weak self] in
+            self?.onRemoveAttachment?()
+        }
+        addSubview(removeButton)
+
         setAccessibilityElement(true)
         updateThemeColors()
         updateOpenState()
+        updateRemoveState()
     }
 
     private func updateThemeColors() {
@@ -214,28 +295,54 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
 
     private func updateOpenState() {
         setAccessibilityRole(onOpenAttachment == nil ? .image : .button)
+        invalidateCursorRectsIfPossible()
+    }
+
+    private func updateRemoveState() {
+        removeButton.isHidden = onRemoveAttachment == nil
+        invalidateCursorRectsIfPossible()
+    }
+
+    private func removeButtonConsumesClick(at point: NSPoint) -> Bool {
+        guard !removeButton.isHidden,
+              removeButtonFrame.contains(point) else {
+            return false
+        }
+        return removeButton.performPress()
+    }
+
+    private var removeButtonFrame: NSRect {
+        NSRect(
+            x: max(bounds.maxX - BlockInputComposerStyle.imagePreviewRemoveButtonSize.width - 6, 0),
+            y: 6,
+            width: BlockInputComposerStyle.imagePreviewRemoveButtonSize.width,
+            height: BlockInputComposerStyle.imagePreviewRemoveButtonSize.height
+        )
+    }
+
+    private func updateRemoveButtonFrame() {
+        removeButton.frame = removeButtonFrame
+    }
+
+    private func invalidateCursorRectsIfPossible() {
         window?.invalidateCursorRects(for: self)
     }
 
     private func updateResolvedIcon() {
-        guard let appShot else {
-            return
-        }
-        iconImageView.image = appIconResolver.icon(forBundleIdentifier: appShot.bundleIdentifier)
+        iconImageView.image = appIconResolver.icon(forBundleIdentifier: bundleIdentifier)
     }
 
-    private func accessibilityLabel(for appShot: PersistedAppShotAttachment) -> String {
-        let appName = appShot.appName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let title = appShot.displayTitle
-        if appName.isEmpty || appName == title {
-            return "App shot, \(title)"
+    private func accessibilityLabel(appName: String, displayTitle: String) -> String {
+        let appName = appName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if appName.isEmpty || appName == displayTitle {
+            return "App shot, \(displayTitle)"
         }
-        return "App shot, \(appName), \(title)"
+        return "App shot, \(appName), \(displayTitle)"
     }
 }
 
 #if DEBUG
-extension AppKitTranscriptAppShotCardView {
+extension AppKitAppShotAttachmentCardView {
     var imageViewFrameForTesting: CGRect {
         imageView.frame
     }
@@ -257,3 +364,10 @@ extension AppKitTranscriptAppShotCardView {
     }
 }
 #endif
+
+private extension AppShotAttachment {
+    var displayTitle: String {
+        let candidates = [windowTitle, appName, "App shot"]
+        return candidates.first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? "App shot"
+    }
+}

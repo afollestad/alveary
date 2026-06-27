@@ -232,13 +232,13 @@ final class BlockInputComposerBridgeReconfigureTests: XCTestCase {
         let initialConfigureCount = controller.viewConfigureCountForTesting
         #endif
 
-        controller.configure(makeConfiguration(markdown: markdown, imagePresentation: .textLinksWithPreviewStrip))
+        controller.configure(makeConfiguration(markdown: markdown, imagePresentation: .textLinks))
         let blockInputConfiguration = controller.blockInputConfiguration(for: makeConfiguration(
             markdown: markdown,
-            imagePresentation: .textLinksWithPreviewStrip
+            imagePresentation: .textLinks
         ))
 
-        XCTAssertEqual(blockInputConfiguration.imagePresentation, .textLinksWithPreviewStrip)
+        XCTAssertEqual(blockInputConfiguration.imagePresentation, .textLinks)
         XCTAssertEqual(controller.currentMarkdown(), markdown)
         #if DEBUG
         XCTAssertEqual(controller.viewConfigureCountForTesting, initialConfigureCount + 1)

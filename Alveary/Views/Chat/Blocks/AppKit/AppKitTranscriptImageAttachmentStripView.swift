@@ -19,15 +19,15 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
     static let appShotCardFallbackSize = NSSize(width: 220, height: 140)
     static let appShotSectionSpacing: CGFloat = 8
 
-    var appIconResolver: AppKitTranscriptAppIconResolving = AppKitTranscriptWorkspaceAppIconResolver.shared {
+    var appIconResolver: AppKitAppIconResolving = AppKitWorkspaceAppIconResolver.shared {
         didSet {
             appShotCardViews.forEach { $0.appIconResolver = appIconResolver }
         }
     }
 
     private var attachments: [TranscriptImageAttachment] = []
-    private(set) var tileViews: [AppKitTranscriptImageAttachmentTileView] = []
-    private(set) var appShotCardViews: [AppKitTranscriptAppShotCardView] = []
+    private(set) var tileViews: [AppKitImageAttachmentTileView] = []
+    private(set) var appShotCardViews: [AppKitAppShotAttachmentCardView] = []
     private var alignment: Alignment = .leading
     private var imageSizeCache: [String: NSSize] = [:]
     var onOpenAttachment: ((TranscriptImageAttachment) -> Void)? {
@@ -61,14 +61,14 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
 
         if tileViews.count < plainAttachments.count {
             for _ in tileViews.count..<plainAttachments.count {
-                let tileView = AppKitTranscriptImageAttachmentTileView()
+                let tileView = AppKitImageAttachmentTileView()
                 tileViews.append(tileView)
                 addSubview(tileView)
             }
         }
         if appShotCardViews.count < appShotAttachments.count {
             for _ in appShotCardViews.count..<appShotAttachments.count {
-                let cardView = AppKitTranscriptAppShotCardView()
+                let cardView = AppKitAppShotAttachmentCardView()
                 cardView.appIconResolver = appIconResolver
                 appShotCardViews.append(cardView)
                 addSubview(cardView)
@@ -271,8 +271,14 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
             }
         }
         appShotCardViews.forEach { cardView in
-            cardView.onOpenAttachment = { [weak self] appShot in
-                self?.onOpenAttachment?(TranscriptImageAttachment(appShot: appShot))
+            cardView.onOpenAttachment = { [weak self, weak cardView] in
+                guard let self,
+                      let cardView,
+                      let index = self.appShotCardViews.firstIndex(where: { $0 === cardView }),
+                      self.appShotAttachments.indices.contains(index) else {
+                    return
+                }
+                self.onOpenAttachment?(TranscriptImageAttachment(appShot: self.appShotAttachments[index]))
             }
         }
     }
@@ -292,178 +298,4 @@ private struct AppShotLayoutRow {
 
 private struct AppShotLayoutCard {
     let frame: NSRect
-}
-
-@MainActor
-final class AppKitTranscriptImageAttachmentTileView: AppKitDynamicColorView {
-    let imageView = AppKitTranscriptAspectFillImageView()
-    private var attachment: LocalImageAttachment?
-    var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
-        didSet {
-            updateOpenState()
-        }
-    }
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override func layout() {
-        super.layout()
-        imageView.frame = bounds
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        guard bounds.contains(convert(event.locationInWindow, from: nil)),
-              performOpen() else {
-            super.mouseUp(with: event)
-            return
-        }
-    }
-
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        if onOpenAttachment != nil {
-            addCursorRect(bounds, cursor: .pointingHand)
-        }
-    }
-
-    override func accessibilityPerformPress() -> Bool {
-        performOpen()
-    }
-
-    func configure(_ attachment: LocalImageAttachment) {
-        self.attachment = attachment
-        imageView.image = NSImage(contentsOf: attachment.fileURL)
-        toolTip = attachment.label
-        setAccessibilityLabel(attachment.label)
-    }
-
-    @discardableResult
-    private func performOpen() -> Bool {
-        guard let attachment,
-              let onOpenAttachment else {
-            return false
-        }
-        onOpenAttachment(attachment)
-        return true
-    }
-
-    private func setup() {
-        wantsLayer = true
-        layer?.cornerRadius = BlockInputComposerStyle.imagePreviewCornerRadius
-        layer?.borderWidth = BlockInputComposerStyle.imagePreviewBorderWidth
-        layer?.masksToBounds = true
-        setLayerFillColor(transcriptImageAttachmentFillColor)
-        setLayerStrokeColorPreservingResolvedAlpha { _ in
-            transcriptImageAttachmentBorderColor
-        }
-
-        imageView.cornerRadius = BlockInputComposerStyle.imagePreviewCornerRadius
-        addSubview(imageView)
-
-        setAccessibilityElement(true)
-        updateOpenState()
-    }
-
-    private func updateOpenState() {
-        setAccessibilityRole(onOpenAttachment == nil ? .image : .button)
-        window?.invalidateCursorRects(for: self)
-    }
-}
-
-let transcriptImageAttachmentFillColor = NSColor(name: nil) { appearance in
-    switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
-    case .darkAqua:
-        return NSColor(calibratedWhite: 0.1176470588, alpha: 1)
-    default:
-        return NSColor(calibratedWhite: 0.965, alpha: 1)
-    }
-}
-
-let transcriptImageAttachmentBorderColor = NSColor(name: nil) { appearance in
-    let resolved = NSColor.secondaryLabelColor.resolved(for: appearance)
-    return resolved.withAlphaComponent(resolved.alphaComponent * 0.10)
-}
-
-final class AppKitTranscriptAspectFillImageView: NSView {
-    var image: NSImage? {
-        didSet {
-            needsDisplay = true
-        }
-    }
-
-    var cornerRadius: CGFloat = 0 {
-        didSet {
-            layer?.cornerRadius = cornerRadius
-        }
-    }
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard let image,
-              let imageFrame = aspectFillImageFrame else {
-            return
-        }
-        image.draw(
-            in: imageFrame,
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1,
-            respectFlipped: true,
-            hints: [.interpolation: NSImageInterpolation.high]
-        )
-    }
-
-    var aspectFillImageFrame: NSRect? {
-        guard let image,
-              image.size.width > 0,
-              image.size.height > 0,
-              bounds.width > 0,
-              bounds.height > 0 else {
-            return nil
-        }
-        let scale = max(bounds.width / image.size.width, bounds.height / image.size.height)
-        let drawSize = NSSize(width: image.size.width * scale, height: image.size.height * scale)
-        return NSRect(
-            x: bounds.midX - (drawSize.width / 2),
-            y: bounds.midY - (drawSize.height / 2),
-            width: drawSize.width,
-            height: drawSize.height
-        )
-    }
-
-    private func setup() {
-        wantsLayer = true
-        layer?.masksToBounds = true
-        layer?.cornerRadius = cornerRadius
-    }
 }

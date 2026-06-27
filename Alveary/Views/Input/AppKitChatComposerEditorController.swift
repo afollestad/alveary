@@ -12,15 +12,11 @@ final class AppKitChatComposerEditorController {
     var onPreferredSizeInvalidated: ((Bool) -> Void)?
     private var lastConsumedFocusRequestToken: UUID?
     private var hasSeededInitialBlockInputHeight = false
-    private var lastTextualImagePreviewPresence = false
     private var preferredHeightAnimationTimer: Timer?
     private var preferredHeightAnimationState: PreferredHeightAnimationState?
 
     func configure(_ configuration: AppKitChatComposerBodyConfiguration) {
         let previousConfiguration = self.configuration
-        let shouldRefreshImagePreviewPresence = previousConfiguration == nil
-            || previousConfiguration?.draftIdentity != configuration.draftIdentity
-            || previousConfiguration?.inputDraftRevision != configuration.inputDraftRevision
         previousConfiguration?.onDraftSnapshotProviderChange(nil)
         if let previousConfiguration,
            previousConfiguration.draftIdentity != configuration.draftIdentity {
@@ -28,15 +24,11 @@ final class AppKitChatComposerEditorController {
             bridgeController = nil
             lastConsumedFocusRequestToken = nil
             hasSeededInitialBlockInputHeight = false
-            lastTextualImagePreviewPresence = false
             cancelPreferredHeightAnimation()
         }
         self.configuration = configuration
 
         let replacedDocument = configureBlockInput(configuration)
-        if shouldRefreshImagePreviewPresence {
-            lastTextualImagePreviewPresence = currentTextualImagePreviewPresence()
-        }
         installDraftSnapshotProvider(configuration)
         consumeFocusRequestIfNeeded(
             configuration.requestFirstResponder,
@@ -77,7 +69,9 @@ extension AppKitChatComposerEditorController {
         guard let configuration else {
             return 0
         }
-        return configuration.hasQueuedMessages || configuration.hasTopContent ? 0 : ChatComposerPanelLayout.nativeInputTopPadding
+        return configuration.hasQueuedMessages || configuration.hasTopContent || !configuration.attachments.isEmpty ?
+            0 :
+            ChatComposerPanelLayout.nativeInputTopPadding
     }
 
     var resolvedEditorHeight: CGFloat {
@@ -120,17 +114,13 @@ extension AppKitChatComposerEditorController {
 extension AppKitChatComposerEditorController {
     func handlePreferredHeightTransition(_ transition: BlockInputEditorHeightTransition) {
         hasSeededInitialBlockInputHeight = true
-        let hasTextualImagePreview = currentTextualImagePreviewPresence()
-        let isFirstTextualImagePreviewReveal = hasTextualImagePreview && !lastTextualImagePreviewPresence
-        lastTextualImagePreviewPresence = hasTextualImagePreview
         let nextHeight = max(0, ceil(transition.targetHeight))
         guard abs(measuredEditorHeight - nextHeight) > 0.5 else {
             cancelPreferredHeightAnimation()
             return
         }
         guard let animation = transition.animation,
-              !transition.isInitial,
-              !isFirstTextualImagePreviewReveal else {
+              !transition.isInitial else {
             cancelPreferredHeightAnimation()
             applyPreferredEditorHeight(nextHeight)
             return
@@ -231,10 +221,6 @@ extension AppKitChatComposerEditorController {
         view?.needsLayout = true
         view?.superview?.needsLayout = true
         onPreferredSizeInvalidated?(animateSurfaceHeight)
-    }
-
-    private func currentTextualImagePreviewPresence() -> Bool {
-        bridgeController?.containsTextualImagePreviewSource == true
     }
 
     func consumeFocusRequest(_ token: UUID?) {

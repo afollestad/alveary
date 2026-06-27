@@ -6,6 +6,10 @@ extension ConversationViewModel {
         state.stagedImageAttachments
     }
 
+    var stagedFileAttachments: [LocalFileAttachment] {
+        state.stagedFileAttachments
+    }
+
     var stagedAppShots: [AppShotAttachment] {
         state.stagedAppShots
     }
@@ -31,14 +35,37 @@ extension ConversationViewModel {
         refreshInputDraftEffectiveEmptyForAttachments()
     }
 
+    func stageLocalFileAttachments(from urls: [URL]) {
+        let fileURLs = urls
+            .map(\.standardizedFileURL)
+            .filter { url in
+                url.isFileURL && !DefaultConversationAttachmentStore.isSupportedImageURL(url)
+            }
+        guard !fileURLs.isEmpty else {
+            return
+        }
+        state.stagedFileAttachments.append(contentsOf: fileURLs.map { LocalFileAttachment(fileURL: $0) })
+        refreshInputDraftEffectiveEmptyForAttachments()
+    }
+
     func removeStagedImageAttachment(id: String) {
         state.stagedImageAttachments.removeAll { $0.id == id }
         refreshInputDraftEffectiveEmptyForAttachments()
         cleanupUnreferencedImageAttachments(olderThan: 0)
     }
 
+    func removeStagedFileAttachment(id: String) {
+        state.stagedFileAttachments.removeAll { $0.id == id }
+        refreshInputDraftEffectiveEmptyForAttachments()
+    }
+
     func clearStagedImageAttachments() {
         state.stagedImageAttachments.removeAll()
+        refreshInputDraftEffectiveEmptyForAttachments()
+    }
+
+    func clearStagedFileAttachments() {
+        state.stagedFileAttachments.removeAll()
         refreshInputDraftEffectiveEmptyForAttachments()
     }
 
@@ -55,6 +82,20 @@ extension ConversationViewModel {
             return visibleText
         }
         let attachmentMarkdown = attachments.map(\.markdownImageLink).joined(separator: "\n")
+        guard !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return attachmentMarkdown
+        }
+        return visibleText + "\n\n" + attachmentMarkdown
+    }
+
+    func fallbackText(
+        visibleText: String,
+        fileAttachments: [LocalFileAttachment]
+    ) -> String {
+        guard !fileAttachments.isEmpty else {
+            return visibleText
+        }
+        let attachmentMarkdown = fileAttachments.map(\.markdownLink).joined(separator: "\n")
         guard !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return attachmentMarkdown
         }
@@ -80,6 +121,15 @@ extension ConversationViewModel {
         refreshInputDraftEffectiveEmptyForAttachments()
     }
 
+    func clearStagedFileAttachmentsIfTheyMatch(_ attachments: [LocalFileAttachment]) {
+        guard !attachments.isEmpty else {
+            return
+        }
+        let attachmentIDs = Set(attachments.map(\.id))
+        state.stagedFileAttachments.removeAll { attachmentIDs.contains($0.id) }
+        refreshInputDraftEffectiveEmptyForAttachments()
+    }
+
     func clearStagedAppShotsIfTheyMatch(_ appShots: [AppShotAttachment]) {
         guard !appShots.isEmpty else {
             return
@@ -96,6 +146,7 @@ extension ConversationViewModel {
         ).textIsEffectivelyEmpty
         state.inputDraftIsEffectivelyEmpty = textIsEffectivelyEmpty &&
             state.stagedImageAttachments.isEmpty &&
+            state.stagedFileAttachments.isEmpty &&
             state.stagedAppShots.isEmpty
     }
 }

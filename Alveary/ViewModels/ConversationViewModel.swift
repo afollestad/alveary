@@ -157,6 +157,9 @@ final class ConversationViewModel {
             state.stagedImageAttachments,
             supportsLocalImageInput: supportsLocalImageInput,
             fallbackText: fallbackText(visibleText:attachments:)
+        ).resolvingFileAttachments(
+            state.stagedFileAttachments,
+            fallbackText: fallbackText(visibleText:fileAttachments:)
         ).resolvingAppShots(
             state.stagedAppShots,
             providerID: conversation.provider ?? settingsService.current.defaultProvider
@@ -207,6 +210,7 @@ final class ConversationViewModel {
             appShots: outbound.appShots
         )
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
+        clearStagedFileAttachmentsIfTheyMatch(outbound.consumedFileAttachments)
         clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false

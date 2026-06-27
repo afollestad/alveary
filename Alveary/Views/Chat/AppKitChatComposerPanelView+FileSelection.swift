@@ -36,17 +36,13 @@ extension AppKitChatComposerPanelView {
         guard !urls.isEmpty else {
             return
         }
-        let urlsToInsert: [URL]
-        switch await configuration?.bodyConfiguration.onLocalFileURLsSelected(urls) ?? .useDefault {
+        switch await configuration?.bodyConfiguration.onLocalFileURLsSelected(urls) ?? .handled {
         case .useDefault:
-            urlsToInsert = urls
+            break
         case .handled:
-            urlsToInsert = []
+            break
         case .insertDefault(let remainingURLs):
-            urlsToInsert = remainingURLs
-        }
-        if !urlsToInsert.isEmpty {
-            _ = editorController.view?.insertLocalFileURLs(urlsToInsert)
+            _ = remainingURLs
         }
         editorController.view?.focusEditor()
     }

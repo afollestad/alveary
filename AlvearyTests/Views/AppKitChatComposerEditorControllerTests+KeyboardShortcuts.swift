@@ -123,7 +123,7 @@ extension AppKitChatComposerEditorControllerTests {
             )
         ))
         panel.layoutSubtreeIfNeeded()
-        let editor = try XCTUnwrap(panel.subviews.first { $0 is BlockInputView } as? BlockInputView)
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
 
         XCTAssertTrue(editor.performKeyEquivalent(with: try commandReturnEvent()))
         XCTAssertEqual(alternateSteerCount, 1)

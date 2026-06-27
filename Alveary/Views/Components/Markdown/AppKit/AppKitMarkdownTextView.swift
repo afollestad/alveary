@@ -47,6 +47,11 @@ final class AppKitMarkdownTextView: NSTextView, NSTextViewDelegate {
         translatesAutoresizingMaskIntoConstraints = false
         setContentHuggingPriority(.defaultLow, for: .horizontal)
         setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        unregisterDraggedTypes()
+    }
+
+    override func updateDragTypeRegistration() {
+        unregisterDraggedTypes()
     }
 
     @available(*, unavailable)

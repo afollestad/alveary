@@ -15,12 +15,13 @@ final class BlockInputComposerStyleTests: XCTestCase {
     }
 
     func testComposerStyleUsesBlockInputChromeTokens() throws {
-        let style = BlockInputComposerStyle.make(roundedCorners: .bottom)
+        let style = BlockInputComposerStyle.make(roundedCorners: .bottom, strokedEdges: [.left, .bottom, .right])
         let chrome = try XCTUnwrap(style.editorSurface.chrome)
 
         XCTAssertEqual(chrome.borderWidth, AppKitChatComposerEditorController.borderWidth)
         XCTAssertEqual(chrome.cornerRadius, AppKitChatComposerEditorController.editorCornerRadius)
         XCTAssertEqual(chrome.roundedCorners, .bottom)
+        XCTAssertEqual(chrome.strokedEdges, [.left, .bottom, .right])
         XCTAssertTrue(chrome.clipsContentToShape)
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
             try assertDynamicColor(
@@ -52,43 +53,22 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(style.inlineCode.foregroundColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)
     }
 
-    func testComposerStyleUsesImagePreviewStripTokens() throws {
-        let style = BlockInputComposerStyle.make()
-        let strip = style.imagePreviewStrip
-        let removeButton = strip.removeButton
-        let defaultRemoveButton = BlockInputImagePreviewRemoveButtonStyle()
-
-        XCTAssertEqual(strip.thumbnailSize, BlockInputComposerStyle.imagePreviewThumbnailSize)
-        XCTAssertEqual(strip.contentInsets.top, BlockInputComposerStyle.imagePreviewVerticalPadding)
-        XCTAssertEqual(strip.contentInsets.bottom, BlockInputComposerStyle.imagePreviewVerticalPadding)
-        XCTAssertEqual(strip.contentInsets.left, BlockInputComposerStyle.imagePreviewHorizontalPadding)
-        XCTAssertEqual(strip.contentInsets.right, BlockInputComposerStyle.imagePreviewHorizontalPadding)
-        XCTAssertEqual(strip.interItemSpacing, BlockInputComposerStyle.imagePreviewInterItemSpacing)
-        XCTAssertEqual(strip.backgroundColor, BlockInputComposerStyle.imagePreviewStripBackgroundColor)
-        let stripBackgroundColor = try XCTUnwrap(strip.backgroundColor)
-        try assertColor(
-            stripBackgroundColor,
-            appearanceName: .aqua,
-            matches: NSColor(calibratedWhite: 0.965, alpha: 1)
+    func testComposerStyleKeepsHostAttachmentPreviewTokens() throws {
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewStripBackgroundColor, .windowBackgroundColor)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewThumbnailSize, NSSize(width: 76, height: 76))
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewVerticalPadding, 8)
+        XCTAssertEqual(
+            BlockInputComposerStyle.imagePreviewHorizontalPadding,
+            AppKitChatComposerEditorController.editorHorizontalPadding
         )
-        try assertColor(
-            stripBackgroundColor,
-            appearanceName: .darkAqua,
-            matches: NSColor(calibratedWhite: 0.1176470588, alpha: 1)
-        )
-        XCTAssertEqual(strip.borderColor, BlockInputComposerStyle.imagePreviewBorderColor)
-        XCTAssertEqual(strip.borderWidth, BlockInputComposerStyle.imagePreviewBorderWidth)
-        XCTAssertEqual(strip.cornerRadius, BlockInputComposerStyle.imagePreviewCornerRadius)
-        XCTAssertTrue(removeButton.isVisible)
-        XCTAssertEqual(removeButton.size, defaultRemoveButton.size)
-        XCTAssertEqual(removeButton.edgeInset, defaultRemoveButton.edgeInset)
-        XCTAssertEqual(removeButton.cornerRadius, defaultRemoveButton.cornerRadius)
-        XCTAssertEqual(removeButton.symbolPointSize, defaultRemoveButton.symbolPointSize)
-        XCTAssertEqual(removeButton.backgroundColor, BlockInputComposerStyle.imagePreviewRemoveButtonBackgroundColor)
-        XCTAssertEqual(removeButton.borderColor, BlockInputComposerStyle.imagePreviewRemoveButtonBorderColor)
-        XCTAssertEqual(removeButton.shadowColor, BlockInputComposerStyle.imagePreviewRemoveButtonShadowColor)
-        XCTAssertEqual(removeButton.shadowOpacity, BlockInputComposerStyle.imagePreviewRemoveButtonShadowOpacity)
-        XCTAssertEqual(removeButton.shadowRadius, BlockInputComposerStyle.imagePreviewRemoveButtonShadowRadius)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewInterItemSpacing, 12)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewCornerRadius, AppCornerRadius.standard)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewBorderWidth, 1)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonSize, NSSize(width: 20, height: 20))
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonBorderWidth, 1)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowColor, .black)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowOpacity, 0.22)
+        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowRadius, 4)
     }
 
     func testComposerStyleUsesNeutralSelectionTokenDistinctFromChipFill() throws {

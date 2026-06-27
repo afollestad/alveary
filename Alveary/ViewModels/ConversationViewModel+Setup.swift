@@ -177,6 +177,7 @@ extension ConversationViewModel {
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedAttachments: [LocalImageAttachment] = [],
+        consumedFileAttachments: [LocalFileAttachment] = [],
         consumedAppShots: [AppShotAttachment] = [],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
         stagedContextOverride: String? = nil,
@@ -201,6 +202,7 @@ extension ConversationViewModel {
                 appShots: appShots,
                 providerMetadata: providerMetadata,
                 consumedAttachments: consumedAttachments,
+                consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
                 consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
             ),
@@ -210,6 +212,7 @@ extension ConversationViewModel {
         )
         var retryStagedContext = attempt.stagedContext
         clearStagedImageAttachmentsIfTheyMatch(consumedAttachments)
+        clearStagedFileAttachmentsIfTheyMatch(consumedFileAttachments)
         clearStagedAppShotsIfTheyMatch(consumedAppShots)
 
         do {

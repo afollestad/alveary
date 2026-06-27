@@ -17,18 +17,19 @@ extension AppKitChatComposerEditorController {
         for configuration: AppKitChatComposerBodyConfiguration
     ) -> BlockInputComposerBridgeConfiguration {
         let presentation = presentation(for: configuration)
+        let hasAttachmentStrip = !configuration.attachments.isEmpty
         return BlockInputComposerBridgeConfiguration(
             markdown: configuration.text,
             markdownRevision: configuration.inputDraftRevision,
             placeholder: presentation.placeholder,
             isEditable: !presentation.isTextEditorDisabled,
             disabledCursor: configuration.isProjectTrustBlocked ? .operationNotAllowed : nil,
-            imagePresentation: .textLinksWithPreviewStrip,
+            imagePresentation: .textLinks,
             editorHorizontalInset: Self.editorHorizontalPadding,
             editorVerticalInset: Self.editorVerticalPadding,
-            editorRoundedCorners: configuration.hasQueuedMessages ? .bottom : .all,
+            editorRoundedCorners: (configuration.hasQueuedMessages || hasAttachmentStrip) ? .bottom : .all,
+            editorStrokedEdges: hasAttachmentStrip ? [.left, .bottom, .right] : .all,
             location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
-            imagePreviewAttachments: configuration.imagePreviewAttachments,
             urlOpener: configuration.urlOpener,
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,
@@ -41,7 +42,6 @@ extension AppKitChatComposerEditorController {
             modalOverlayProvider: { [weak self] context in
                 self?.blockInputModalOverlay(context: context)
             },
-            fileDropHandler: configuration.fileDropHandler,
             onDocumentMutation: { _, isEffectivelyEmpty in
                 configuration.onBlockInputMutation(isEffectivelyEmpty)
             },
