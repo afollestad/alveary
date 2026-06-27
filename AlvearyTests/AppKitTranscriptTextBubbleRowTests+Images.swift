@@ -209,6 +209,29 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertGreaterThan(row.bubbleFrameForTesting.minY, stripFrame.maxY)
     }
 
+    func testUserMessageTallAppShotCapsHeightAndPreservesAspectRatio() throws {
+        let imageURL = try temporaryPNGURL(named: "tall-appshot.png", size: NSSize(width: 200, height: 400))
+        let appShot = persistedAppShotAttachment(fileURL: imageURL, windowTitle: "Tall Window")
+        let row = AppKitTranscriptTextBubbleRowView()
+        row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
+        row.configure(
+            .init(
+                role: .user,
+                markdown: "Describe this",
+                imageAttachments: [TranscriptImageAttachment(appShot: appShot)]
+            )
+        )
+        row.layoutSubtreeIfNeeded()
+
+        let stripFrame = row.imageAttachmentStripFrameForTesting
+        let cardFrame = try XCTUnwrap(row.appShotCardFramesForTesting.first)
+        XCTAssertEqual(stripFrame.maxX, row.bounds.maxX, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.width / cardFrame.height, 0.5, accuracy: 0.01)
+        XCTAssertEqual(cardFrame.width, 80, accuracy: 0.5)
+        XCTAssertEqual(cardFrame.height, AppKitAppShotAttachmentCardView.transcriptMaximumSize.height, accuracy: 0.5)
+        XCTAssertGreaterThan(row.bubbleFrameForTesting.minY, stripFrame.maxY)
+    }
+
     func testAssistantAppShotRendersLeftAlignedAndUsesUnreadableFallbackSize() throws {
         let appShot = persistedAppShotAttachment(
             fileURL: URL(fileURLWithPath: "/tmp/missing-appshot.png"),

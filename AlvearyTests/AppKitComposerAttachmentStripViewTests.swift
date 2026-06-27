@@ -44,8 +44,8 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         let imageFrame = try XCTUnwrap(strip.imageTileFramesForTesting.first)
         let fileFrame = try XCTUnwrap(strip.fileChipFramesForTesting.first)
         let appShotFrame = try XCTUnwrap(strip.appShotCardFramesForTesting.first)
-        XCTAssertEqual(appShotFrame.width, 420, accuracy: 0.5)
-        XCTAssertEqual(appShotFrame.height, 210, accuracy: 0.5)
+        XCTAssertEqual(appShotFrame.width, 320, accuracy: 0.5)
+        XCTAssertEqual(appShotFrame.height, AppKitAppShotAttachmentCardView.composerMaximumSize.height, accuracy: 0.5)
         XCTAssertEqual(imageFrame.maxY, appShotFrame.maxY, accuracy: 0.5)
         XCTAssertEqual(fileFrame.maxY, appShotFrame.maxY, accuracy: 0.5)
         XCTAssertGreaterThan(imageFrame.minY, appShotFrame.minY)
@@ -65,8 +65,26 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
 
         let appShotFrame = try XCTUnwrap(strip.appShotCardFramesForTesting.first)
         XCTAssertEqual(appShotFrame.width / appShotFrame.height, 2, accuracy: 0.01)
-        XCTAssertEqual(appShotFrame.width, 420, accuracy: 0.5)
-        XCTAssertEqual(appShotFrame.height, 210, accuracy: 0.5)
+        XCTAssertEqual(appShotFrame.width, 320, accuracy: 0.5)
+        XCTAssertEqual(appShotFrame.height, AppKitAppShotAttachmentCardView.composerMaximumSize.height, accuracy: 0.5)
+    }
+
+    func testTallAppShotCardCapsHeightAndPreservesAspectRatioWhenMeasuring() throws {
+        let appShot = try appShotAttachment(
+            id: "tall-app-shot",
+            filename: "tall-app-shot.png",
+            size: NSSize(width: 200, height: 400)
+        )
+        let strip = AppKitComposerAttachmentStripView(frame: NSRect(x: 0, y: 0, width: 500, height: 300))
+
+        strip.configure([.appShot(appShot)])
+        strip.frame.size.height = strip.measuredHeight(width: 500)
+        strip.layoutSubtreeIfNeeded()
+
+        let appShotFrame = try XCTUnwrap(strip.appShotCardFramesForTesting.first)
+        XCTAssertEqual(appShotFrame.width / appShotFrame.height, 0.5, accuracy: 0.01)
+        XCTAssertEqual(appShotFrame.width, 80, accuracy: 0.5)
+        XCTAssertEqual(appShotFrame.height, AppKitAppShotAttachmentCardView.composerMaximumSize.height, accuracy: 0.5)
     }
 
     func testNarrowStripWrapsAttachmentsIntoRows() throws {

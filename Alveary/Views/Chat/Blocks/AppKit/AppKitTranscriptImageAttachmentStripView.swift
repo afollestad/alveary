@@ -15,8 +15,6 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
         BlockInputComposerStyle.imagePreviewInterItemSpacing
     }
 
-    static let appShotCardMaxSize = NSSize(width: 220, height: 160)
-    static let appShotCardFallbackSize = NSSize(width: 220, height: 140)
     static let appShotSectionSpacing: CGFloat = 8
 
     var appIconResolver: AppKitAppIconResolving = AppKitWorkspaceAppIconResolver.shared {
@@ -224,16 +222,12 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
     }
 
     private func appShotCardSize(for appShot: PersistedAppShotAttachment, constrainedTo maxWidth: CGFloat) -> NSSize {
-        let sourceSize = imageSize(for: appShot.screenshot) ?? Self.appShotCardFallbackSize
-        let maxWidth = min(Self.appShotCardMaxSize.width, max(maxWidth, 1))
-        let maxHeight = Self.appShotCardMaxSize.height
-        guard sourceSize.width > 0, sourceSize.height > 0 else {
-            return Self.appShotCardFallbackSize
-        }
-        let scale = min(maxWidth / sourceSize.width, maxHeight / sourceSize.height)
-        return NSSize(
-            width: max(floor(sourceSize.width * scale), 1),
-            height: max(floor(sourceSize.height * scale), 1)
+        AppKitAppShotAttachmentCardView.fittingSize(
+            for: imageSize(for: appShot.screenshot),
+            maximumSize: NSSize(
+                width: min(AppKitAppShotAttachmentCardView.transcriptMaximumSize.width, max(maxWidth, 1)),
+                height: AppKitAppShotAttachmentCardView.transcriptMaximumSize.height
+            )
         )
     }
 

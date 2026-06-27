@@ -40,6 +40,18 @@ final class AppKitWorkspaceAppIconResolver: AppKitAppIconResolving {
 /// back to their own attachment models.
 @MainActor
 final class AppKitAppShotAttachmentCardView: AppKitDynamicColorView {
+    /// Maximum app-shot preview size used by transcript attachment strips.
+    static let transcriptMaximumSize = NSSize(width: 220, height: 160)
+
+    /// Maximum app-shot preview size used by composer attachment strips.
+    ///
+    /// Composer cards can be wider than transcript cards, but share the
+    /// transcript max height so the composer strip stays compact.
+    static let composerMaximumSize = NSSize(width: 420, height: transcriptMaximumSize.height)
+
+    /// Aspect-ratio fallback used when screenshot dimensions are unavailable.
+    static let fallbackSize = NSSize(width: 220, height: 140)
+
     private static let cornerRadius: CGFloat = 8
     private static let gradientClearanceAboveIcon: CGFloat = 16
     private static let iconSize = NSSize(width: 28, height: 28)
@@ -182,6 +194,22 @@ final class AppKitAppShotAttachmentCardView: AppKitDynamicColorView {
 
     override func accessibilityPerformPress() -> Bool {
         performOpen()
+    }
+
+    /// Returns an app-shot card size that preserves the screenshot aspect ratio inside a fixed maximum size.
+    static func fittingSize(
+        for sourceSize: NSSize?,
+        maximumSize: NSSize,
+        fallbackSize: NSSize = fallbackSize
+    ) -> NSSize {
+        let maxWidth = max(maximumSize.width, 1)
+        let maxHeight = max(maximumSize.height, 1)
+        let sourceSize = validSize(sourceSize) ?? validSize(fallbackSize) ?? NSSize(width: maxWidth, height: maxHeight)
+        let scale = min(maxWidth / sourceSize.width, maxHeight / sourceSize.height)
+        return NSSize(
+            width: max(floor(sourceSize.width * scale), 1),
+            height: max(floor(sourceSize.height * scale), 1)
+        )
     }
 
     /// Updates the card from a persisted transcript app-shot attachment.
@@ -338,6 +366,15 @@ final class AppKitAppShotAttachmentCardView: AppKitDynamicColorView {
             return "App shot, \(displayTitle)"
         }
         return "App shot, \(appName), \(displayTitle)"
+    }
+
+    private static func validSize(_ size: NSSize?) -> NSSize? {
+        guard let size,
+              size.width > 0,
+              size.height > 0 else {
+            return nil
+        }
+        return size
     }
 }
 

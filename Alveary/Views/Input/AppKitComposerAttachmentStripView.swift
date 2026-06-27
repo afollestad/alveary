@@ -14,8 +14,6 @@ final class AppKitComposerAttachmentStripView: NSView {
         bottom: BlockInputComposerStyle.imagePreviewVerticalPadding,
         right: BlockInputComposerStyle.imagePreviewHorizontalPadding
     )
-    private static let appShotCardMaxSize = NSSize(width: 420, height: 260)
-    private static let appShotCardFallbackSize = NSSize(width: 320, height: 200)
 
     private var attachments: [ComposerAttachment] = []
     private(set) var imageTileViews: [AppKitImageAttachmentTileView] = []
@@ -365,20 +363,12 @@ final class AppKitComposerAttachmentStripView: NSView {
     }
 
     private func appShotCardSize(for appShot: AppShotAttachment, constrainedTo maxWidth: CGFloat) -> NSSize {
-        let sourceSize = imageSize(for: appShot.screenshot) ?? Self.appShotCardFallbackSize
-        return scaledAppShotCardSize(sourceSize, constrainedTo: maxWidth)
-    }
-
-    private func scaledAppShotCardSize(_ sourceSize: NSSize, constrainedTo maxWidth: CGFloat) -> NSSize {
-        let maxWidth = min(Self.appShotCardMaxSize.width, max(maxWidth, 1))
-        let maxHeight = Self.appShotCardMaxSize.height
-        guard sourceSize.width > 0, sourceSize.height > 0 else {
-            return NSSize(width: maxWidth, height: min(Self.appShotCardFallbackSize.height, maxHeight))
-        }
-        let scale = min(maxWidth / sourceSize.width, maxHeight / sourceSize.height)
-        return NSSize(
-            width: max(floor(sourceSize.width * scale), 1),
-            height: max(floor(sourceSize.height * scale), 1)
+        AppKitAppShotAttachmentCardView.fittingSize(
+            for: imageSize(for: appShot.screenshot),
+            maximumSize: NSSize(
+                width: min(AppKitAppShotAttachmentCardView.composerMaximumSize.width, max(maxWidth, 1)),
+                height: AppKitAppShotAttachmentCardView.composerMaximumSize.height
+            )
         )
     }
 
