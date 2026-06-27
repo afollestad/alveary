@@ -160,27 +160,8 @@ extension AppComponent {
         return shared { AgentCLIKitLiveHookDecisionProvider() }
     }
 
-    var agentCLIKitProviderAdapterSet: AgentCLIKit.AgentProviderAdapterSet {
-        return shared {
-            AgentCLIKit.AgentProviderAdapterSet.default(
-                claude: AgentCLIKit.ClaudeProviderAdapter.Configuration(
-                    interactionStore: agentCLIKitInteractionStore,
-                    approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
-                    hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
-                        "ClaudeHooks",
-                        isDirectory: true
-                    ),
-                    hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
-                ),
-                codex: AgentCLIKit.CodexProviderAdapter.Configuration(
-                    sessionApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore
-                )
-            )
-        }
-    }
-
-    var agentCLIKitSessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
-        let claudeConfiguration = AgentCLIKit.ClaudeProviderAdapter.Configuration(
+    var agentCLIKitClaudeProviderConfiguration: AgentCLIKit.ClaudeProviderAdapter.Configuration {
+        AgentCLIKit.ClaudeProviderAdapter.Configuration(
             interactionStore: agentCLIKitInteractionStore,
             approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
             hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
@@ -189,9 +170,26 @@ extension AppComponent {
             ),
             hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
         )
-        let codexConfiguration = AgentCLIKit.CodexProviderAdapter.Configuration(
+    }
+
+    var agentCLIKitCodexProviderConfiguration: AgentCLIKit.CodexProviderAdapter.Configuration {
+        AgentCLIKit.CodexProviderAdapter.Configuration(
             sessionApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore
         )
+    }
+
+    var agentCLIKitProviderAdapterSet: AgentCLIKit.AgentProviderAdapterSet {
+        return shared {
+            AgentCLIKit.AgentProviderAdapterSet.default(
+                claude: agentCLIKitClaudeProviderConfiguration,
+                codex: agentCLIKitCodexProviderConfiguration
+            )
+        }
+    }
+
+    var agentCLIKitSessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
+        let claudeConfiguration = agentCLIKitClaudeProviderConfiguration
+        let codexConfiguration = agentCLIKitCodexProviderConfiguration
         return AgentCLIKit.AgentProviderSessionActionRouter {
             AgentCLIKit.AgentProviderAdapterSet.default(
                 claude: claudeConfiguration,

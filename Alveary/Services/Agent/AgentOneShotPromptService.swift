@@ -82,6 +82,9 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
             if Task.isCancelled {
                 throw AgentOneShotPromptError.cancelled
             }
+            if let mappedError = Self.mappedDiagnosticError(error.localizedDescription) {
+                throw mappedError
+            }
             throw AgentOneShotPromptError.failed(error.localizedDescription)
         }
     }
@@ -204,5 +207,31 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
              .providerReportedError:
             return .failed(error.localizedDescription)
         }
+    }
+
+    private static func mappedDiagnosticError(_ message: String) -> AgentOneShotPromptError? {
+        // Some AgentCLIKit one-shot failures can cross actor boundaries as generic localized errors.
+        let normalized = message.lowercased()
+        guard normalized.contains("one-shot prompt") else {
+            return nil
+        }
+        if normalized.contains("cancelled") {
+            return .cancelled
+        }
+        if normalized.contains("timed out") {
+            return .timedOut
+        }
+        if normalized.contains("requested user approval") ||
+            normalized.contains("requested approval") {
+            return .approvalRequested
+        }
+        if normalized.contains("requested user input") ||
+            normalized.contains("user input during a one-shot prompt") {
+            return .promptRequired
+        }
+        if normalized.contains("completed without final output") {
+            return .emptyOutput
+        }
+        return nil
     }
 }
