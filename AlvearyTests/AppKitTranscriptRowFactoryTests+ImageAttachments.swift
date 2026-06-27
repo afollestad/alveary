@@ -97,6 +97,39 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertEqual(attachmentsByID[message.id], [TranscriptImageAttachment(appShot: PersistedAppShotAttachment(appShot: appShot))])
     }
 
+    func testTranscriptImageAttachmentIndexKeepsDuplicateAppShotMetadataWithAXTreeText() {
+        let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
+        let message = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Describe")
+        message.setPersistedTranscriptAttachments(
+            images: [],
+            persistedAppShots: [
+                PersistedAppShotAttachment(
+                    screenshot: screenshot,
+                    appName: "Preview",
+                    bundleIdentifier: "com.apple.Preview",
+                    windowTitle: "Window title"
+                )
+            ]
+        )
+        let runtimeAppShot = AppShotAttachment(
+            appName: "Preview",
+            bundleIdentifier: "com.apple.Preview",
+            windowTitle: "Window title",
+            screenshot: screenshot,
+            axTreeText: "AX window tree",
+            focusedElementSummary: "focused button",
+            attachmentStoreRoot: URL(fileURLWithPath: "/tmp", isDirectory: true)
+        )
+
+        let attachmentsByID = ChatTranscriptView.transcriptImageAttachmentsByMessageID(
+            events: [message],
+            runtimeImageAttachments: [:],
+            runtimeAppShots: [message.id: [runtimeAppShot]]
+        )
+
+        XCTAssertEqual(attachmentsByID[message.id]?.first?.appShot?.axTreeText, "AX window tree")
+    }
+
     func testTextBubbleRenderedContentChangesWhenAppShotMetadataChanges() {
         let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
         let first = AppKitTranscriptTextBubbleRowView.Configuration(
@@ -127,6 +160,62 @@ extension AppKitTranscriptRowFactoryTests {
         )
 
         XCTAssertFalse(first.hasSameRenderedContent(as: second))
+    }
+
+    func testTextBubbleRenderedContentChangesWhenAppShotAXTreeTextChanges() {
+        let screenshot = localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png")
+        let first = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Describe",
+            imageAttachments: [
+                TranscriptImageAttachment(appShot: PersistedAppShotAttachment(
+                    screenshot: screenshot,
+                    appName: "Preview",
+                    bundleIdentifier: "com.apple.Preview",
+                    windowTitle: "Window",
+                    axTreeText: "First AX tree"
+                ))
+            ]
+        )
+        let second = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Describe",
+            imageAttachments: [
+                TranscriptImageAttachment(appShot: PersistedAppShotAttachment(
+                    screenshot: screenshot,
+                    appName: "Preview",
+                    bundleIdentifier: "com.apple.Preview",
+                    windowTitle: "Window",
+                    axTreeText: "Second AX tree"
+                ))
+            ]
+        )
+
+        XCTAssertFalse(first.hasSameRenderedContent(as: second))
+    }
+
+    func testTranscriptImageAttachmentPreviewRequestIncludesOnlyAppShotAXTreeText() throws {
+        let plain = localImageAttachment(label: "plain.png", path: "/tmp/plain.png")
+        let appShot = PersistedAppShotAttachment(
+            screenshot: localImageAttachment(label: "appshot.png", path: "/tmp/appshot.png"),
+            appName: "Preview",
+            bundleIdentifier: "com.apple.Preview",
+            windowTitle: "Window title",
+            axTreeText: "AX window tree"
+        )
+
+        let plainRequest = AppImagePreviewRequest.transcriptImageAttachment(
+            TranscriptImageAttachment(localImageAttachment: plain)
+        )
+        let appShotRequest = AppImagePreviewRequest.transcriptImageAttachment(
+            TranscriptImageAttachment(appShot: appShot)
+        )
+
+        XCTAssertNil(plainRequest.textPayload)
+        XCTAssertEqual(appShotRequest.title, "Window title")
+        XCTAssertEqual(try XCTUnwrap(appShotRequest.textPayload).text, "AX window tree")
     }
 
     private func localImageAttachment(label: String, path: String) -> LocalImageAttachment {

@@ -89,7 +89,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             markdownView?.onOpenImage = onOpenMarkdownImage
         }
     }
-    var onOpenImageAttachment: ((LocalImageAttachment) -> Void)? {
+    var onOpenImageAttachment: ((TranscriptImageAttachment) -> Void)? {
         didSet {
             imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
         }

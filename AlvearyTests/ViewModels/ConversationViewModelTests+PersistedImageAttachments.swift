@@ -26,9 +26,35 @@ extension ConversationViewModelTests {
         XCTAssertEqual(record.persistedPlainImageAttachments, [image, appShot.screenshot])
         XCTAssertEqual(record.persistedAppShotAttachments, [PersistedAppShotAttachment(appShot: appShot)])
         XCTAssertEqual(record.persistedImageAttachments, [image, appShot.screenshot])
-        XCTAssertFalse(try XCTUnwrap(record.imageAttachmentsJSON).contains(appShot.axTreeText))
+        XCTAssertTrue(try XCTUnwrap(record.imageAttachmentsJSON).contains(appShot.axTreeText))
         XCTAssertFalse(try XCTUnwrap(record.imageAttachmentsJSON).contains(appShot.focusedElementSummary))
         XCTAssertFalse(try XCTUnwrap(record.imageAttachmentsJSON).contains("attachmentStoreRoot"))
+    }
+
+    func testPersistedTranscriptAttachmentsDecodeLegacyAppShotMetadataWithoutAXTreeText() {
+        let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Legacy")
+        record.imageAttachmentsJSON = """
+        {
+          "version": 1,
+          "images": [],
+          "appShots": [
+            {
+              "screenshot": {
+                "id": "legacy-appshot",
+                "fileURL": "file:///tmp/legacy-appshot.png",
+                "label": "legacy-appshot.png",
+                "createdAt": 0
+              },
+              "appName": "Preview",
+              "bundleIdentifier": "com.apple.Preview",
+              "windowTitle": "Preview - Document.pdf"
+            }
+          ]
+        }
+        """
+
+        XCTAssertEqual(record.persistedAppShotAttachments.count, 1)
+        XCTAssertNil(record.persistedAppShotAttachments.first?.axTreeText)
     }
 
     func testEmptyPersistedTranscriptAttachmentsClearJSON() {
@@ -109,7 +135,7 @@ private func persistedTestAppShotAttachment(
         windowTitle: "A <Window>",
         screenshot: screenshot,
         axTreeText: "standard window A <Window>, ID: main",
-        focusedElementSummary: "standard window A <Window>, ID: main",
+        focusedElementSummary: "focused button Done, ID: done",
         attachmentStoreRoot: attachmentStoreRoot
     )
 }

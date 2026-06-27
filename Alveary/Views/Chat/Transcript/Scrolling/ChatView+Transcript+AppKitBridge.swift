@@ -172,15 +172,37 @@ extension ChatTranscriptView {
         }
         for attachment in newAttachments {
             if let existingIndex = attachmentIndicesByID[attachment.image.id] {
-                if attachment.appShot != nil {
-                    attachments[existingIndex] = attachment
-                }
+                attachments[existingIndex] = mergedTranscriptImageAttachment(
+                    existing: attachments[existingIndex],
+                    incoming: attachment
+                )
                 continue
             }
             attachmentIndicesByID[attachment.image.id] = attachments.count
             attachments.append(attachment)
         }
         attachmentsByID[messageID] = attachments
+    }
+
+    private static func mergedTranscriptImageAttachment(
+        existing: TranscriptImageAttachment,
+        incoming: TranscriptImageAttachment
+    ) -> TranscriptImageAttachment {
+        guard let incomingAppShot = incoming.appShot else {
+            return existing
+        }
+        guard let existingAppShot = existing.appShot else {
+            return incoming
+        }
+        if existingAppShot.nonEmptyAXTreeText == nil,
+           incomingAppShot.nonEmptyAXTreeText != nil {
+            return incoming
+        }
+        if incomingAppShot.nonEmptyAXTreeText == nil,
+           existingAppShot.nonEmptyAXTreeText != nil {
+            return existing
+        }
+        return incoming
     }
 
     func configureAppKitApprovalRows(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {
@@ -248,8 +270,8 @@ extension ChatTranscriptView {
         appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
     }
 
-    func openAppKitImageAttachment(_ attachment: LocalImageAttachment) {
-        appState.presentImagePreview(.fileURL(attachment.fileURL, title: attachment.label))
+    func openAppKitImageAttachment(_ attachment: TranscriptImageAttachment) {
+        appState.presentImagePreview(.transcriptImageAttachment(attachment))
     }
 
     func openAppKitToolImage(_ tool: ToolEntry) {

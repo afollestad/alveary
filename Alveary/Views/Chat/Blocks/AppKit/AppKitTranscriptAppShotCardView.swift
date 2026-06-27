@@ -49,7 +49,7 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
             updateResolvedIcon()
         }
     }
-    var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
+    var onOpenAttachment: ((PersistedAppShotAttachment) -> Void)? {
         didSet {
             updateOpenState()
         }
@@ -153,7 +153,7 @@ final class AppKitTranscriptAppShotCardView: AppKitDynamicColorView {
               let onOpenAttachment else {
             return false
         }
-        onOpenAttachment(appShot.screenshot)
+        onOpenAttachment(appShot)
         return true
     }
 

@@ -36,17 +36,28 @@ struct PersistedAppShotAttachment: Codable, Equatable, Sendable {
     let appName: String
     let bundleIdentifier: String
     let windowTitle: String
+    let axTreeText: String?
+
+    enum CodingKeys: String, CodingKey {
+        case screenshot
+        case appName
+        case bundleIdentifier
+        case windowTitle
+        case axTreeText
+    }
 
     init(
         screenshot: LocalImageAttachment,
         appName: String,
         bundleIdentifier: String,
-        windowTitle: String
+        windowTitle: String,
+        axTreeText: String? = nil
     ) {
         self.screenshot = screenshot
         self.appName = appName
         self.bundleIdentifier = bundleIdentifier
         self.windowTitle = windowTitle
+        self.axTreeText = axTreeText
     }
 
     init(appShot: AppShotAttachment) {
@@ -54,13 +65,27 @@ struct PersistedAppShotAttachment: Codable, Equatable, Sendable {
             screenshot: appShot.screenshot,
             appName: appShot.appName,
             bundleIdentifier: appShot.bundleIdentifier,
-            windowTitle: appShot.windowTitle
+            windowTitle: appShot.windowTitle,
+            axTreeText: appShot.axTreeText
         )
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        screenshot = try container.decode(LocalImageAttachment.self, forKey: .screenshot)
+        appName = try container.decode(String.self, forKey: .appName)
+        bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
+        windowTitle = try container.decode(String.self, forKey: .windowTitle)
+        axTreeText = try container.decodeIfPresent(String.self, forKey: .axTreeText)
     }
 
     var displayTitle: String {
         let candidates = [windowTitle, appName, "App shot"]
         return candidates.first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? "App shot"
+    }
+
+    var nonEmptyAXTreeText: String? {
+        axTreeText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? axTreeText : nil
     }
 }
 

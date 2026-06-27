@@ -229,10 +229,12 @@ struct ContentView: View {
             appShotCoordinator.start(settingsService: settingsService)
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
-        .overlay {
-            if let imagePreviewRequest = appState.imagePreviewRequest {
-                AppImagePreviewOverlay(request: imagePreviewRequest, onDismiss: appState.dismissImagePreview)
-            }
+        .background {
+            AppImagePreviewWindowPresenter(
+                request: appState.imagePreviewRequest,
+                onDismiss: appState.dismissImagePreview
+            )
+            .frame(width: 0, height: 0)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

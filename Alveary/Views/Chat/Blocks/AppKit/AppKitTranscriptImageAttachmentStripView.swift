@@ -30,10 +30,9 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
     private(set) var appShotCardViews: [AppKitTranscriptAppShotCardView] = []
     private var alignment: Alignment = .leading
     private var imageSizeCache: [String: NSSize] = [:]
-    var onOpenAttachment: ((LocalImageAttachment) -> Void)? {
+    var onOpenAttachment: ((TranscriptImageAttachment) -> Void)? {
         didSet {
-            tileViews.forEach { $0.onOpenAttachment = onOpenAttachment }
-            appShotCardViews.forEach { $0.onOpenAttachment = onOpenAttachment }
+            updateOpenHandlers()
         }
     }
 
@@ -63,7 +62,6 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
         if tileViews.count < plainAttachments.count {
             for _ in tileViews.count..<plainAttachments.count {
                 let tileView = AppKitTranscriptImageAttachmentTileView()
-                tileView.onOpenAttachment = onOpenAttachment
                 tileViews.append(tileView)
                 addSubview(tileView)
             }
@@ -72,11 +70,11 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
             for _ in appShotCardViews.count..<appShotAttachments.count {
                 let cardView = AppKitTranscriptAppShotCardView()
                 cardView.appIconResolver = appIconResolver
-                cardView.onOpenAttachment = onOpenAttachment
                 appShotCardViews.append(cardView)
                 addSubview(cardView)
             }
         }
+        updateOpenHandlers()
 
         for (index, tileView) in tileViews.enumerated() {
             if plainAttachments.indices.contains(index) {
@@ -259,6 +257,24 @@ final class AppKitTranscriptImageAttachmentStripView: NSView {
             1,
             Int(floor((effectiveMaxWidth + Self.interItemSpacing) / (Self.thumbnailSize.width + Self.interItemSpacing)))
         )
+    }
+
+    private func updateOpenHandlers() {
+        guard onOpenAttachment != nil else {
+            tileViews.forEach { $0.onOpenAttachment = nil }
+            appShotCardViews.forEach { $0.onOpenAttachment = nil }
+            return
+        }
+        tileViews.forEach { tileView in
+            tileView.onOpenAttachment = { [weak self] attachment in
+                self?.onOpenAttachment?(TranscriptImageAttachment(localImageAttachment: attachment))
+            }
+        }
+        appShotCardViews.forEach { cardView in
+            cardView.onOpenAttachment = { [weak self] appShot in
+                self?.onOpenAttachment?(TranscriptImageAttachment(appShot: appShot))
+            }
+        }
     }
 }
 

@@ -217,8 +217,9 @@ private final class AppShotPermissionFrameView: NSView {
     }
 }
 
-private enum AppShotsSettingsHelp {
-    static let enabled = "When enabled, Alveary can capture the last focused non-Alveary window and stage it in the selected conversation."
+enum AppShotsSettingsHelp {
+    static let enabled = "When enabled, Alveary can capture the last focused non-Alveary window and stage it in the selected " +
+        "conversation. Transcript previews can store the app-shot screenshot and captured accessibility text."
     static let shortcut = "Click the shortcut button to record a regular key chord, or restore the default shortcut. " +
         "Alveary rejects known conflicting shortcuts when macOS exposes the conflict."
 }

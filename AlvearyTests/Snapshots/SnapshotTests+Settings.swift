@@ -263,6 +263,10 @@ extension SnapshotTests {
         )
     }
 
+    func testAppShotsSettingsHelpDisclosesStoredAccessibilityText() {
+        XCTAssertTrue(AppShotsSettingsHelp.enabled.contains("captured accessibility text"))
+    }
+
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"

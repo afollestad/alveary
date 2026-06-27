@@ -31,7 +31,7 @@ final class AppKitTranscriptRowFactory {
         var onUserInitiatedHeightChange: () -> Void = {}
         var onOpenMarkdownLink: (URL) -> Void = { _ in }
         var onOpenMarkdownImage: (BlockInputImage, URL?) -> Void = { _, _ in }
-        var onOpenImageAttachment: (LocalImageAttachment) -> Void = { _ in }
+        var onOpenImageAttachment: (TranscriptImageAttachment) -> Void = { _ in }
         var onOpenToolImage: (ToolEntry) -> Void = { _ in }
         var onRetryFailedUserMessage: (String) -> Void = { _ in }
         var onRowExpansionChanged: (String, Bool) -> Void = { _, _ in }

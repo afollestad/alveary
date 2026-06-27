@@ -23,7 +23,13 @@ extension ChatView {
                 fileURL: appShot.screenshot.fileURL,
                 label: "App shot: \(appShot.appName)",
                 open: { preview in
-                    appState.presentImagePreview(.fileURL(preview.fileURL, title: preview.label))
+                    appState.presentImagePreview(
+                        .appShotFileURL(
+                            preview.fileURL,
+                            title: preview.label,
+                            axTreeText: appShot.axTreeText
+                        )
+                    )
                 },
                 remove: { preview in
                     viewModel.removeStagedAppShot(id: preview.id)

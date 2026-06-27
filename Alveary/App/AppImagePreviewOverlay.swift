@@ -2,21 +2,76 @@
 import SwiftUI
 
 struct AppImagePreviewOverlay: View {
+    typealias ImageLoader = @MainActor (AppImagePreviewRequest) async throws -> AppImagePreviewLoadedImage
+    typealias ImageSaver = @MainActor (AppImagePreviewRequest, AppImagePreviewLoadedImage) async throws -> Bool
+
     let request: AppImagePreviewRequest
     let onDismiss: () -> Void
 
-    @State private var loadState = LoadState.loading
+    private let imageLoader: ImageLoader
+    private let imageSaver: ImageSaver
+    private let initialLoadedImage: AppImagePreviewLoadedImage?
+    private let initialTextMode: Bool
+
+    @State private var loadState: LoadState
     @State private var zoomCommand: AppImagePreviewZoomCommand?
+    @State private var zoomState = AppImagePreviewZoomState.identity
+    @State private var isViewingText = false
+    @State private var isSaving = false
+    @State private var saveError: String?
+    @State private var currentRequestID: UUID
+
+    init(
+        request: AppImagePreviewRequest,
+        onDismiss: @escaping () -> Void,
+        imageLoader: @escaping ImageLoader = { request in
+            try await AppImagePreviewLoader().load(request)
+        },
+        imageSaver: @escaping ImageSaver = { request, loadedImage in
+            try await AppImagePreviewSaver().save(request: request, loadedImage: loadedImage)
+        },
+        initialLoadedImage: AppImagePreviewLoadedImage? = nil,
+        initialTextMode: Bool = false
+    ) {
+        self.request = request
+        self.onDismiss = onDismiss
+        self.imageLoader = imageLoader
+        self.imageSaver = imageSaver
+        self.initialLoadedImage = initialLoadedImage
+        self.initialTextMode = initialTextMode
+        _loadState = State(initialValue: initialLoadedImage.map(LoadState.loaded) ?? .loading)
+        _isViewingText = State(initialValue: initialTextMode && request.textPayload != nil)
+        _currentRequestID = State(initialValue: request.id)
+    }
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color.black.opacity(0.54)
+                Color.black.opacity(0.78)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
 
-                panel(availableSize: proxy.size)
+                previewLayer(availableSize: proxy.size)
+                topControlsContrastGradient
+                    .frame(height: 168)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                if showsBottomControlsContrastGradient {
+                    bottomControlsContrastGradient
+                        .frame(height: 132)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                topRightControls
+                    .padding(.top, 14)
+                    .padding(.trailing, 18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                footerControls
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
         .zIndex(1000)
@@ -27,84 +82,225 @@ struct AppImagePreviewOverlay: View {
         }
     }
 
-    private func panel(availableSize: CGSize) -> some View {
-        let width = min(max(availableSize.width - 80, 320), 1_120)
-        let height = min(max(availableSize.height - 80, 260), 820)
-        return VStack(spacing: 0) {
-            header
-            Divider()
-            content
+    @ViewBuilder
+    private func previewLayer(availableSize: CGSize) -> some View {
+        if case .loaded(let loaded) = loadState, !isViewingText {
+            AppImagePreviewZoomView(
+                image: loaded.image,
+                command: zoomCommand,
+                onZoomStateChanged: { zoomState = $0 },
+                onBackgroundClick: { onDismiss() }
+            )
+            .frame(width: availableSize.width, height: availableSize.height)
+            .background(Color.black.opacity(0.10))
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(request.textPayload != nil ? "App shot preview" : "Image preview")
+            .accessibilityValue(request.title)
+        } else {
+            framedViewport(availableSize: availableSize)
         }
-        .frame(width: width, height: height)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.24), radius: 28, x: 0, y: 18)
-        .padding(20)
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text(request.title)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
+    private func framedViewport(availableSize: CGSize) -> some View {
+        let size = AppImagePreviewLayout.viewportSize(for: availableSize)
+        return viewport(size: size)
+        .padding(20)
+        .contentShape(Rectangle())
+        .onTapGesture {}
+    }
 
-            Spacer(minLength: 12)
+    private var topControlsContrastGradient: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .black.opacity(0.84), location: 0),
+                .init(color: .black.opacity(0.70), location: 0.34),
+                .init(color: .black.opacity(0.38), location: 0.66),
+                .init(color: .black.opacity(0), location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 
-            PreviewIconButton(systemName: "arrow.down.right.and.arrow.up.left", accessibilityLabel: "Fit image") {
-                zoomCommand = AppImagePreviewZoomCommand(action: .fit)
-            }
-            .disabled(!loadState.isLoaded)
+    private var bottomControlsContrastGradient: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .black.opacity(0), location: 0),
+                .init(color: .black.opacity(0.46), location: 0.58),
+                .init(color: .black.opacity(0.70), location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 
-            PreviewIconButton(systemName: "minus.magnifyingglass", accessibilityLabel: "Zoom out") {
-                zoomCommand = AppImagePreviewZoomCommand(action: .zoomOut)
-            }
-            .disabled(!loadState.isLoaded)
+    private var showsBottomControlsContrastGradient: Bool {
+        saveError != nil || (loadState.isLoaded && !isViewingText)
+    }
 
-            PreviewIconButton(systemName: "plus.magnifyingglass", accessibilityLabel: "Zoom in") {
-                zoomCommand = AppImagePreviewZoomCommand(action: .zoomIn)
-            }
-            .disabled(!loadState.isLoaded)
-
-            PreviewIconButton(systemName: "xmark", accessibilityLabel: "Close image preview", action: onDismiss)
+    private func viewport(size: CGSize) -> some View {
+        ZStack {
+            content
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .frame(width: size.width, height: size.height)
+        .background(Color.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(request.textPayload != nil ? "App shot preview" : "Image preview")
+        .accessibilityValue(request.title)
+    }
+
+    @ViewBuilder
+    private var topRightControls: some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                if request.textPayload != nil {
+                    Button {
+                        saveError = nil
+                        isViewingText.toggle()
+                    } label: {
+                        Text(isViewingText ? "View image" : "View text")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.94))
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 42)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .accessibilityLabel(isViewingText ? "View image" : "View text")
+                    .accessibilityHint("Switches between the app shot image and captured accessibility tree.")
+                }
+
+                if loadState.loadedImage != nil {
+                    Button {
+                        saveLoadedImage()
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 18, height: 18)
+                        } else {
+                            Image(systemName: "arrow.down")
+                                .font(.system(size: 14, weight: .semibold))
+                                .frame(width: 18, height: 18)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.94))
+                    .frame(width: 42, height: 42)
+                    .contentShape(Circle())
+                    .glassEffect(.regular.interactive(), in: Circle())
+                    .disabled(isSaving)
+                    .accessibilityLabel("Download image")
+                    .accessibilityHint("Choose a location to save a copy of the image.")
+                }
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.94))
+                .frame(width: 42, height: 42)
+                .contentShape(Circle())
+                .glassEffect(.regular.interactive(), in: Circle())
+                .accessibilityLabel("Close image preview")
+                .accessibilityHint("Closes the image preview.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var footerControls: some View {
+        if let saveError {
+            Text(saveError)
+                .font(.callout)
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.red.opacity(0.78), in: Capsule())
+                .accessibilityLabel("Image save failed")
+                .accessibilityValue(saveError)
+        } else if loadState.isLoaded && !isViewingText {
+            HStack(spacing: 4) {
+                PreviewIconButton(systemName: "minus", accessibilityLabel: "Zoom out") {
+                    zoomCommand = AppImagePreviewZoomCommand(action: .zoomOut)
+                }
+                .accessibilityHint("Zooms the preview image out.")
+
+                Button(zoomPercentageText) {
+                    zoomCommand = AppImagePreviewZoomCommand(action: .fit)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(minWidth: 62, minHeight: 34)
+                .accessibilityLabel("Reset zoom")
+                .accessibilityValue(zoomPercentageText)
+                .accessibilityHint("Resets the image zoom to the fitted 100 percent size.")
+
+                PreviewIconButton(systemName: "plus", accessibilityLabel: "Zoom in") {
+                    zoomCommand = AppImagePreviewZoomCommand(action: .zoomIn)
+                }
+                .accessibilityHint("Zooms the preview image in.")
+            }
+            .padding(4)
+            .glassEffect(.regular.interactive(), in: Capsule())
+        }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch loadState {
-        case .loading:
-            ProgressView()
-                .controlSize(.large)
+        if isViewingText, let textPayload = request.textPayload {
+            AppImagePreviewTextView(
+                text: textPayload.text,
+                accessibilityLabel: textPayload.title,
+                onEscape: onDismiss
+            )
+        } else {
+            switch loadState {
+            case .loading:
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .loaded:
+                EmptyView()
+            case .failed(let message):
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                    Text("Image unavailable")
+                        .font(.headline)
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(4)
+                }
+                .foregroundStyle(.white)
+                .padding(28)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .loaded(let loaded):
-            AppImagePreviewZoomView(image: loaded.image, command: zoomCommand)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(0.06))
-        case .failed(let message):
-            VStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("Image unavailable")
-                    .font(.headline)
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(4)
             }
-            .padding(28)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     private func loadImage() async {
+        resetTransientStateForRequest()
+        if let initialLoadedImage {
+            loadState = .loaded(initialLoadedImage)
+            zoomCommand = AppImagePreviewZoomCommand(action: .fit)
+            return
+        }
         loadState = .loading
         do {
-            let loaded = try await AppImagePreviewLoader().load(request)
+            let loaded = try await imageLoader(request)
             guard !Task.isCancelled else {
                 return
             }
@@ -118,6 +314,45 @@ struct AppImagePreviewOverlay: View {
         }
     }
 
+    private func resetTransientStateForRequest() {
+        zoomCommand = nil
+        zoomState = .identity
+        saveError = nil
+        isSaving = false
+        isViewingText = initialTextMode && request.textPayload != nil
+        currentRequestID = request.id
+    }
+
+    private func saveLoadedImage() {
+        guard let loadedImage = loadState.loadedImage,
+              !isSaving else {
+            return
+        }
+        let savingRequest = request
+        let savingRequestID = currentRequestID
+        isSaving = true
+        saveError = nil
+        Task { @MainActor in
+            do {
+                _ = try await imageSaver(savingRequest, loadedImage)
+                guard currentRequestID == savingRequestID else {
+                    return
+                }
+                isSaving = false
+            } catch {
+                guard currentRequestID == savingRequestID else {
+                    return
+                }
+                saveError = error.localizedDescription
+                isSaving = false
+            }
+        }
+    }
+
+    private var zoomPercentageText: String {
+        "\(Int((zoomState.displayScale * 100).rounded()))%"
+    }
+
     private enum LoadState {
         case loading
         case loaded(AppImagePreviewLoadedImage)
@@ -128,6 +363,13 @@ struct AppImagePreviewOverlay: View {
                 return true
             }
             return false
+        }
+
+        var loadedImage: AppImagePreviewLoadedImage? {
+            guard case .loaded(let image) = self else {
+                return nil
+            }
+            return image
         }
     }
 }
@@ -145,9 +387,19 @@ private struct PreviewIconButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .foregroundStyle(.white.opacity(0.92))
+        .frame(width: 34, height: 34)
+        .contentShape(Rectangle())
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+struct AppImagePreviewLayout {
+    static func viewportSize(for availableSize: CGSize) -> CGSize {
+        CGSize(
+            width: min(max(availableSize.width - 80, 320), 1_120),
+            height: min(max(availableSize.height - 80, 260), 820)
+        )
     }
 }
 
@@ -159,16 +411,15 @@ private struct AppImagePreviewEscapeKeyCatcher: NSViewRepresentable {
         view.onEscape = onEscape
         view.focusRingType = .none
         DispatchQueue.main.async {
-            view.window?.makeFirstResponder(view)
+            if view.window?.firstResponder == nil {
+                view.window?.makeFirstResponder(view)
+            }
         }
         return view
     }
 
     func updateNSView(_ nsView: EscapeKeyCatcherView, context: Context) {
         nsView.onEscape = onEscape
-        DispatchQueue.main.async {
-            nsView.window?.makeFirstResponder(nsView)
-        }
     }
 }
 

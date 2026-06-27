@@ -92,7 +92,7 @@ extension AppKitTranscriptTextBubbleRowTests {
     func testAttachmentStripOpenCallbackReceivesAttachment() {
         let attachments = localImageAttachments(count: 2)
         let row = AppKitTranscriptTextBubbleRowView()
-        var openedAttachment: LocalImageAttachment?
+        var openedAttachment: TranscriptImageAttachment?
         row.onOpenImageAttachment = { openedAttachment = $0 }
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
         row.configure(
@@ -105,7 +105,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         row.layoutSubtreeIfNeeded()
 
         XCTAssertTrue(row.openImageAttachmentForTesting(at: 0))
-        XCTAssertEqual(openedAttachment, attachments[0])
+        XCTAssertEqual(openedAttachment, TranscriptImageAttachment(localImageAttachment: attachments[0]))
     }
 
     func testAssistantMessageAttachmentsRenderAsLeftAlignedWrappingStrip() {
@@ -262,7 +262,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let imageURL = try temporaryPNGURL(named: "open-appshot.png", size: NSSize(width: 320, height: 180))
         let appShot = persistedAppShotAttachment(fileURL: imageURL)
         let row = AppKitTranscriptTextBubbleRowView()
-        var openedAttachment: LocalImageAttachment?
+        var openedAttachment: TranscriptImageAttachment?
         row.onOpenImageAttachment = { openedAttachment = $0 }
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
         row.configure(
@@ -275,7 +275,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         row.layoutSubtreeIfNeeded()
 
         XCTAssertTrue(row.openImageAttachmentForTesting(at: 0))
-        XCTAssertEqual(openedAttachment, appShot.screenshot)
+        XCTAssertEqual(openedAttachment, TranscriptImageAttachment(appShot: appShot))
     }
 
     func testAssistantBubbleRendersHTMLImageTagAsImageBlock() throws {
@@ -396,13 +396,15 @@ private func persistedAppShotAttachment(
     fileURL: URL,
     appName: String = "Preview",
     bundleIdentifier: String = "com.apple.Preview",
-    windowTitle: String = "Preview"
+    windowTitle: String = "Preview",
+    axTreeText: String? = nil
 ) -> PersistedAppShotAttachment {
     PersistedAppShotAttachment(
         screenshot: localImageAttachment(fileURL: fileURL),
         appName: appName,
         bundleIdentifier: bundleIdentifier,
-        windowTitle: windowTitle
+        windowTitle: windowTitle,
+        axTreeText: axTreeText
     )
 }
 
