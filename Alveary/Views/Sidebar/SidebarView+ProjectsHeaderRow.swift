@@ -3,9 +3,11 @@ import SwiftUI
 struct SidebarSectionHeaderRow: View {
     static let contentLeadingPadding: CGFloat = 8
 
-    private static let actionButtonSize: CGFloat = 24
+    static let actionButtonSize: CGFloat = SidebarProjectRow.trailingActionButtonSize
+    static let actionButtonCenterTrailingInset = SidebarProjectRow.trailingActionCenterTrailingInset
+
     private static let actionIconSize: CGFloat = 11
-    private static let trailingPadding: CGFloat = 16
+    private static let trailingPadding = actionButtonCenterTrailingInset - actionButtonSize / 2
 
     @State private var isHoveringAddProject = false
 

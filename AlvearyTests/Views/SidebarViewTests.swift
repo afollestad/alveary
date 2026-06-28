@@ -224,6 +224,13 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertEqual(sidebarProjectPinContextMenuTitle(isPinned: true), "Unpin Project")
     }
 
+    func testSectionHeaderActionCenterAlignsWithProjectRowActionCenter() {
+        XCTAssertEqual(
+            SidebarSectionHeaderRow.actionButtonCenterTrailingInset,
+            SidebarProjectRow.trailingActionCenterTrailingInset
+        )
+    }
+
     func testSelectionAfterDeletingPinnedThreadPrefersPreviousPinnedThread() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")

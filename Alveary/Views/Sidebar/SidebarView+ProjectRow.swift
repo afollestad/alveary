@@ -9,7 +9,9 @@ struct SidebarProjectRow: View {
     private static let disclosureCaretWidth: CGFloat = 12
     private static let disclosureCaretFontSize: CGFloat = 9
     private static let titleClusterVerticalOffset: CGFloat = 0.5
+    static let trailingActionButtonSize: CGFloat = 24
     static let trailingActionHorizontalOffset: CGFloat = 4
+    static let trailingActionCenterTrailingInset = horizontalPadding + trailingActionButtonSize / 2 - trailingActionHorizontalOffset
     static let projectNameLeadingInset: CGFloat = horizontalPadding + leadingIconWidth + leadingSpacing
 
     let project: Project
@@ -79,7 +81,7 @@ struct SidebarProjectRow: View {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.primary.opacity(isHoveringCreateThread ? 0.95 : 0.8))
-                        .frame(width: 24, height: 24)
+                        .frame(width: Self.trailingActionButtonSize, height: Self.trailingActionButtonSize)
                         .background(
                             Circle()
                                 .fill(Color.primary.opacity(isHoveringCreateThread ? 0.12 : 0))
