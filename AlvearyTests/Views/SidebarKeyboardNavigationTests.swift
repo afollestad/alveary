@@ -51,8 +51,8 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         try context.save()
 
         let items = buildNavigableItems(
+            pinnedItems: [SidebarPinnedItem(thread: pinned)],
             projects: [project],
-            pinnedThreads: [pinned],
             expandedProjects: [],
             activeThreads: { _ in [] }
         )
@@ -83,8 +83,8 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         try context.save()
 
         let items = buildNavigableItems(
+            pinnedItems: [SidebarPinnedItem(thread: pinned)],
             projects: [project],
-            pinnedThreads: [pinned],
             expandedProjects: ["/tmp/alpha"],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil && !$0.isPinned }
@@ -92,6 +92,32 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         )
 
         XCTAssertEqual(items, [.skills, .mcp, .thread(pinned), .project(project), .thread(unpinned)])
+    }
+
+    func testBuildNavigableItemsIncludesExpandedPinnedProjectChildrenBeforeRegularProjects() throws {
+        let pinnedProject = makeProject(name: "Pinned", path: "/tmp/pinned", isPinned: true)
+        let pinnedProjectChild = makeThread(name: "Pinned Child", project: pinnedProject)
+        let regularProject = makeProject(name: "Regular", path: "/tmp/regular")
+        let regularProjectChild = makeThread(name: "Regular Child", project: regularProject)
+        try context.save()
+
+        let items = buildNavigableItems(
+            pinnedItems: [SidebarPinnedItem(project: pinnedProject, activityDate: nil)],
+            projects: [regularProject],
+            expandedProjects: ["/tmp/pinned", "/tmp/regular"],
+            activeThreads: { project in
+                project.threads.filter { $0.archivedAt == nil && !$0.isPinned }
+            }
+        )
+
+        XCTAssertEqual(items, [
+            .skills,
+            .mcp,
+            .project(pinnedProject),
+            .thread(pinnedProjectChild),
+            .project(regularProject),
+            .thread(regularProjectChild)
+        ])
     }
 
     func testBuildNavigableItemsExcludesArchivedThreads() throws {
@@ -418,8 +444,8 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     // MARK: - Helpers
 
     @discardableResult
-    private func makeProject(name: String, path: String) -> Project {
-        let project = Project(path: path, name: name)
+    private func makeProject(name: String, path: String, isPinned: Bool = false) -> Project {
+        let project = Project(path: path, name: name, isPinned: isPinned)
         context.insert(project)
         return project
     }

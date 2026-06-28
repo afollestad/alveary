@@ -12,6 +12,15 @@ struct SnapshotSidebarFixture {
 }
 
 @MainActor
+struct SnapshotMixedPinnedSidebarFixture {
+    let fixture: SidebarTestFixture
+    let pinnedProject: Project
+    let regularProject: Project
+    let pinnedProjectThread: AgentThread
+    let standalonePinnedThread: AgentThread
+}
+
+@MainActor
 func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws -> SnapshotSidebarFixture {
     let fixture = try SidebarTestFixture()
     let project = Project(path: "/tmp/alveary", name: "Alveary")
@@ -62,5 +71,48 @@ func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws 
         emptyProject: secondaryProject,
         activeThread: activeThread,
         pinnedThread: pinnedThread
+    )
+}
+
+@MainActor
+func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinnedSidebarFixture {
+    let fixture = try SidebarTestFixture()
+    let pinnedProject = Project(path: "/tmp/alveary", name: "Alveary", isPinned: true)
+    let pinnedProjectThread = AgentThread(
+        name: "Refactor Chat Input",
+        modifiedAt: Date(timeIntervalSince1970: 1_713_000_200),
+        project: pinnedProject
+    )
+    let pinnedProjectConversation = Conversation(id: "pinned-project-main", title: "Main", provider: "claude", thread: pinnedProjectThread)
+    pinnedProjectThread.conversations = [pinnedProjectConversation]
+    pinnedProject.threads = [pinnedProjectThread]
+
+    let regularProject = Project(path: "/tmp/tools", name: "Tools")
+    let standalonePinnedThread = AgentThread(
+        name: "Use 3 tools",
+        isPinned: true,
+        modifiedAt: Date(timeIntervalSince1970: 1_713_000_100),
+        project: regularProject
+    )
+    let standalonePinnedConversation = Conversation(id: "standalone-pinned", title: "Main", provider: "claude", thread: standalonePinnedThread)
+    standalonePinnedThread.conversations = [standalonePinnedConversation]
+    regularProject.threads = [standalonePinnedThread]
+
+    fixture.context.insert(pinnedProject)
+    fixture.context.insert(pinnedProjectThread)
+    fixture.context.insert(pinnedProjectConversation)
+    fixture.context.insert(regularProject)
+    fixture.context.insert(standalonePinnedThread)
+    fixture.context.insert(standalonePinnedConversation)
+    try fixture.context.save()
+    await fixture.agentsManager.setStatus(.busy, for: pinnedProjectConversation.id)
+    await fixture.agentsManager.setStatus(.waitingForUser, for: standalonePinnedConversation.id)
+
+    return SnapshotMixedPinnedSidebarFixture(
+        fixture: fixture,
+        pinnedProject: pinnedProject,
+        regularProject: regularProject,
+        pinnedProjectThread: pinnedProjectThread,
+        standalonePinnedThread: standalonePinnedThread
     )
 }

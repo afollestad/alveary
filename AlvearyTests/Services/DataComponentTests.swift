@@ -27,6 +27,8 @@ final class DataComponentTests: XCTestCase {
             content: "Hello"
         )
 
+        XCTAssertFalse(project.isPinned)
+        project.isPinned = true
         project.threads.append(thread)
         thread.conversations.append(conversation)
         conversation.events.append(event)
@@ -38,6 +40,7 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<AgentThread>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Conversation>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ConversationEventRecord>()), 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Project>()).first?.isPinned, true)
     }
 
     func testProjectPathIsUnique() throws {

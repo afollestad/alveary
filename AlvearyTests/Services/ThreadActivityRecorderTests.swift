@@ -106,6 +106,42 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
     }
 
+    func testPinnedProjectChildVisibleTurnEndPostsOrderChange() async throws {
+        let baseDate = Date(timeIntervalSince1970: 300)
+        let clock = ManualDateProvider(now: baseDate)
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        fixture.project.isPinned = true
+        let child = fixture.insertThread(
+            name: "Child",
+            modifiedAt: baseDate,
+            conversationIDs: ["child-main"]
+        )
+        _ = fixture.insertThread(name: "Sibling", modifiedAt: Date(timeIntervalSince1970: 200), conversationIDs: ["sibling-main"])
+        try fixture.save()
+
+        let expectation = expectation(description: "pinned project child activity notification")
+        let notificationPayload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .threadActivityChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "child-main" else {
+                return
+            }
+            notificationPayload.record(notification.userInfo)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleTurnEnded(conversationId: "child-main")
+
+        await fulfillment(of: [expectation], timeout: 1)
+        let modifiedAt = try XCTUnwrap(child.modifiedAt)
+        XCTAssertGreaterThan(modifiedAt, baseDate)
+        XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
+    }
+
     func testHistoricalActivityIgnoresStaleTimestamp() throws {
         let fixture = try ThreadActivityRecorderFixture()
         let current = Date(timeIntervalSince1970: 300)

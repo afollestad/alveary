@@ -11,6 +11,7 @@ final class Project {
     var baseRef: String?
     var githubRepository: String?
     var githubConnected: Bool
+    var isPinned: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \AgentThread.project) var threads: [AgentThread]
 
     init(
@@ -22,6 +23,7 @@ final class Project {
         baseRef: String? = nil,
         githubRepository: String? = nil,
         githubConnected: Bool = false,
+        isPinned: Bool = false,
         threads: [AgentThread] = []
     ) {
         self.path = CanonicalPath.normalize(path)
@@ -32,6 +34,7 @@ final class Project {
         self.baseRef = baseRef
         self.githubRepository = githubRepository
         self.githubConnected = githubConnected
+        self.isPinned = isPinned
         self.threads = threads
     }
 

@@ -455,6 +455,20 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarViewMixedPinnedProjectAndThread() async throws {
+        let sidebar = try await makeMixedPinnedSidebarSnapshotFixture()
+
+        let appState = AppState()
+        appState.selectedSidebarItem = .project(sidebar.pinnedProject)
+
+        assertMacSnapshot(
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+                .modelContainer(sidebar.fixture.container),
+            size: CGSize(width: 320, height: 720),
+            named: "sidebar_mixed_pinned_project_and_thread"
+        )
+    }
+
     func testSidebarViewExpandedProjectWithoutThreads() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
 

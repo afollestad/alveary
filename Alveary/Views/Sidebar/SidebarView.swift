@@ -25,6 +25,10 @@ struct SidebarView: View {
         queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    var regularProjects: [Project] {
+        projects.filter { !$0.isPinned }
+    }
+
     var threadOrderAnimation: Animation? {
         guard !accessibilityReduceMotion,
               editingThreadID == nil,
@@ -35,7 +39,19 @@ struct SidebarView: View {
     }
 
     private var expandedThreadCount: Int {
-        pinnedThreads().count + projects.reduce(0) { count, project in
+        let pinnedThreadCount = pinnedItems().reduce(0) { count, item in
+            switch item.kind {
+            case .thread:
+                return count + 1
+            case .project(let project):
+                guard expandedProjects.contains(project.path) else {
+                    return count
+                }
+                return count + activeThreads(for: project).count
+            }
+        }
+
+        return pinnedThreadCount + regularProjects.reduce(0) { count, project in
             guard expandedProjects.contains(project.path) else {
                 return count
             }
@@ -53,93 +69,11 @@ struct SidebarView: View {
         SidebarSectionHeaderRow(title: "Pinned")
     }
 
-    @ViewBuilder
-    private var projectsRows: some View {
-        if projects.isEmpty {
-            Text("No projects yet")
-                .foregroundStyle(.secondary)
-                .padding(.leading, 8)
-        }
-
-        ForEach(projects.indices, id: \.self) { index in
-            let project = projects[index]
-            let isExpanded = expandedProjects.contains(project.path)
-            let activeProjectThreads = activeThreads(for: project)
-            let firstThreadID = activeProjectThreads.first?.persistentModelID
-            let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
-
-            SidebarProjectRow(
-                project: project,
-                isExpanded: isExpanded,
-                isSelected: appState.selectedSidebarItem == .project(project),
-                onToggleExpanded: {
-                    toggleExpansion(for: project.path, in: &expandedProjects)
-                    claimSidebarFocus()
-                },
-                onActivate: {
-                    activateProject(project)
-                },
-                onCreateThread: {
-                    Task { await createThread(in: project) }
-                }
-            )
-            .padding(.top, topSpacing)
-            .appSelectionRowBackground(
-                isSelected: appState.selectedSidebarItem == .project(project),
-                showsHoverBackground: true,
-                topInset: topSpacing
-            )
-            .contextMenu {
-                Button("New Thread") {
-                    Task { await createThread(in: project) }
-                }
-
-                Button("Reveal in Finder...") {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path, isDirectory: true)])
-                }
-
-                Button("Remove Project...", role: .destructive) {
-                    pendingDeleteProject = project
-                }
-            }
-
-            if isExpanded {
-                if shouldShowNoThreadsPlaceholder(
-                    activeProjectThreads: activeProjectThreads,
-                    hasAnyActiveThreads: hasAnyActiveThreads(for: project)
-                ) {
-                    Text("No threads")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 6.75)
-                        .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
-                        .allowsHitTesting(false)
-                }
-
-                ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
-                    let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
-                        ? 0
-                        : SidebarRowMetrics.interThreadRowSpacing
-                    sidebarThreadRow(
-                        thread,
-                        layout: .project,
-                        topSpacing: threadTopSpacing
-                    )
-                }
-                .transaction { transaction in
-                    if threadOrderAnimation == nil {
-                        transaction.disablesAnimations = true
-                        transaction.animation = nil
-                    }
-                }
-            }
-        }
-    }
-
     var body: some View {
         let statusVersion = viewModel.statusVersion
         let threadOrderVersion = viewModel.threadOrderVersion
-        let pinnedThreads = self.pinnedThreads()
+        let pinnedItems = self.pinnedItems()
+        let regularProjects = self.regularProjects
 
         return VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
@@ -163,17 +97,23 @@ struct SidebarView: View {
                         item: .mcp
                     )
 
-                    if !pinnedThreads.isEmpty {
+                    if !pinnedItems.isEmpty {
                         pinnedHeader
 
-                        ForEach(pinnedThreads, id: \.persistentModelID) { thread in
-                            sidebarThreadRow(
-                                thread,
-                                layout: .topLevel,
-                                topSpacing: thread.persistentModelID == pinnedThreads.first?.persistentModelID
-                                    ? 0
-                                    : SidebarRowMetrics.interThreadRowSpacing
-                            )
+                        ForEach(pinnedItems) { item in
+                            let topSpacing: CGFloat = item.id == pinnedItems.first?.id
+                                ? 0
+                                : SidebarRowMetrics.interThreadRowSpacing
+                            switch item.kind {
+                            case .project(let project):
+                                projectRow(project, topSpacing: topSpacing)
+                            case .thread(let thread):
+                                sidebarThreadRow(
+                                    thread,
+                                    layout: .topLevel,
+                                    topSpacing: topSpacing
+                                )
+                            }
                         }
                         .transaction { transaction in
                             if threadOrderAnimation == nil {
@@ -183,13 +123,19 @@ struct SidebarView: View {
                         }
 
                         projectsHeader
-                        projectsRows
+                        projectRows(
+                            regularProjects,
+                            showsNoProjectsPlaceholder: projects.isEmpty
+                        )
                     }
                 }
 
-                if pinnedThreads.isEmpty {
+                if pinnedItems.isEmpty {
                     Section {
-                        projectsRows
+                        projectRows(
+                            projects,
+                            showsNoProjectsPlaceholder: projects.isEmpty
+                        )
                     } header: {
                         projectsHeader
                     }
@@ -350,7 +296,14 @@ struct SidebarView: View {
 
     @ViewBuilder
     func sidebarThreadContextMenu(for thread: AgentThread) -> some View {
-        ForEach(sidebarThreadContextMenuItems(isPinned: thread.isPinned, canRename: editingThreadID == nil), id: \.self) { item in
+        ForEach(
+            sidebarThreadContextMenuItems(
+                isPinned: thread.isPinned,
+                canRename: editingThreadID == nil,
+                allowsPinning: thread.project?.isPinned != true
+            ),
+            id: \.self
+        ) { item in
             switch item {
             case .forkLocal:
                 Button("Fork into local") {
@@ -406,6 +359,121 @@ struct SidebarView: View {
         appState.pendingComposerFocusToken = nil
         chatComposerFocus?.release()
         isKeyboardFocused = true
+    }
+}
+
+private extension SidebarView {
+    @ViewBuilder
+    func projectRows(
+        _ visibleProjects: [Project],
+        showsNoProjectsPlaceholder: Bool
+    ) -> some View {
+        if showsNoProjectsPlaceholder {
+            Text("No projects yet")
+                .foregroundStyle(.secondary)
+                .padding(.leading, 8)
+        }
+
+        ForEach(visibleProjects.indices, id: \.self) { index in
+            let project = visibleProjects[index]
+            let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
+            projectRow(project, topSpacing: topSpacing)
+        }
+    }
+
+    @ViewBuilder
+    func projectRow(_ project: Project, topSpacing: CGFloat) -> some View {
+        let isExpanded = expandedProjects.contains(project.path)
+        let activeProjectThreads = activeThreads(for: project)
+        let firstThreadID = activeProjectThreads.first?.persistentModelID
+
+        SidebarProjectRow(
+            project: project,
+            isExpanded: isExpanded,
+            isSelected: appState.selectedSidebarItem == .project(project),
+            onToggleExpanded: {
+                toggleExpansion(for: project.path, in: &expandedProjects)
+                claimSidebarFocus()
+            },
+            onActivate: {
+                activateProject(project)
+            },
+            onCreateThread: {
+                Task { await createThread(in: project) }
+            }
+        )
+        .padding(.top, topSpacing)
+        .appSelectionRowBackground(
+            isSelected: appState.selectedSidebarItem == .project(project),
+            showsHoverBackground: true,
+            topInset: topSpacing
+        )
+        .contextMenu {
+            projectContextMenu(for: project)
+        }
+
+        if isExpanded {
+            projectChildRows(
+                project: project,
+                activeProjectThreads: activeProjectThreads,
+                firstThreadID: firstThreadID
+            )
+        }
+    }
+
+    @ViewBuilder
+    func projectContextMenu(for project: Project) -> some View {
+        Button("New Thread") {
+            Task { await createThread(in: project) }
+        }
+
+        Button(sidebarProjectPinContextMenuTitle(isPinned: project.isPinned)) {
+            setProjectPinned(project, isPinned: !project.isPinned)
+        }
+
+        Button("Reveal in Finder...") {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path, isDirectory: true)])
+        }
+
+        Button("Remove Project...", role: .destructive) {
+            pendingDeleteProject = project
+        }
+    }
+
+    @ViewBuilder
+    func projectChildRows(
+        project: Project,
+        activeProjectThreads: [AgentThread],
+        firstThreadID: PersistentIdentifier?
+    ) -> some View {
+        if shouldShowNoThreadsPlaceholder(
+            activeProjectThreads: activeProjectThreads,
+            hasAnyActiveThreads: hasAnyActiveThreads(for: project)
+        ) {
+            Text("No threads")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 6.75)
+                .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
+                .allowsHitTesting(false)
+        }
+
+        ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
+            let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
+                ? 0
+                : SidebarRowMetrics.interThreadRowSpacing
+            sidebarThreadRow(
+                thread,
+                layout: .project,
+                topSpacing: threadTopSpacing
+            )
+        }
+        .transaction { transaction in
+            if threadOrderAnimation == nil {
+                transaction.disablesAnimations = true
+                transaction.animation = nil
+            }
+        }
     }
 }
 

@@ -201,6 +201,29 @@ final class SidebarViewTests: XCTestCase {
         ])
     }
 
+    func testThreadContextMenuSuppressesPinActionsWhenPinningUnavailable() {
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: true, allowsPinning: false), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .rename,
+            .archive,
+            .delete
+        ])
+        XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: true, canRename: false, allowsPinning: false), [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .archive,
+            .delete
+        ])
+    }
+
+    func testProjectPinContextMenuTitleReflectsProjectPinState() {
+        XCTAssertEqual(sidebarProjectPinContextMenuTitle(isPinned: false), "Pin Project")
+        XCTAssertEqual(sidebarProjectPinContextMenuTitle(isPinned: true), "Unpin Project")
+    }
+
     func testSelectionAfterDeletingPinnedThreadPrefersPreviousPinnedThread() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
@@ -238,6 +261,42 @@ final class SidebarViewTests: XCTestCase {
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
         XCTAssertEqual(view.selectionAfterDeletingThread(thread), .project(project))
+    }
+
+    func testSelectionAfterDeletingPinnedProjectChildPrefersVisibleSibling() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary", isPinned: true)
+        let alpha = makeThread(name: "Alpha", project: project)
+        let beta = makeThread(name: "Beta", project: project)
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(view.selectionAfterDeletingThread(beta), .thread(alpha))
+    }
+
+    func testProjectMoveExpansionPreservesSelectedChildVisibility() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let thread = makeThread(name: "Pinned Child", project: project, isPinned: true)
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(thread)
+        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
+
+        XCTAssertTrue(
+            sidebarItem(
+                appState.selectedSidebarItem,
+                belongsToProjectPath: project.path,
+                resolvedThreadProjectPath: { _ in nil }
+            )
+        )
+        XCTAssertEqual(
+            view.expandedProjectsPreservingVisibleSelection(afterMovingProject: project.path),
+            [project.path]
+        )
     }
 
     func testNoThreadsPlaceholderHiddenWhenAllActiveThreadsArePinned() throws {

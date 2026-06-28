@@ -122,6 +122,17 @@ extension SidebarView {
         }
     }
 
+    func setProjectPinned(_ project: Project, isPinned: Bool) {
+        let projectPath = project.path
+
+        do {
+            try viewModel.setProjectPinned(project, isPinned: isPinned)
+            expandedProjects = expandedProjectsPreservingVisibleSelection(afterMovingProject: projectPath)
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+    }
+
     func confirmDeleteThread(_ thread: AgentThread) async {
         pendingDeleteThread = nil
 
@@ -200,7 +211,7 @@ extension SidebarView {
     }
 
     func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {
-        if thread.isPinned {
+        if thread.isPinned && thread.project?.isPinned != true {
             let threads = pinnedThreads()
             if let deletedIndex = threads.firstIndex(where: { $0.persistentModelID == thread.persistentModelID }) {
                 if deletedIndex > 0 {
@@ -237,6 +248,24 @@ extension SidebarView {
         return .project(project)
     }
 
+    func selectedSidebarItemBelongs(toProjectPath projectPath: String) -> Bool {
+        sidebarItem(
+            appState.selectedSidebarItem,
+            belongsToProjectPath: projectPath,
+            resolvedThreadProjectPath: { threadID in
+                uiModelContext.resolveThread(id: threadID)?.project?.path
+            }
+        )
+    }
+
+    func expandedProjectsPreservingVisibleSelection(afterMovingProject projectPath: String) -> Set<String> {
+        var nextExpandedProjects = expandedProjects
+        if selectedSidebarItemBelongs(toProjectPath: projectPath) {
+            nextExpandedProjects.insert(projectPath)
+        }
+        return nextExpandedProjects
+    }
+
     func liveThreadIDs(in project: Project) -> Set<PersistentIdentifier> {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
@@ -256,5 +285,21 @@ extension SidebarView {
             }
         )
         return try? uiModelContext.fetch(descriptor).first
+    }
+}
+
+func sidebarItem(
+    _ item: SidebarItem?,
+    belongsToProjectPath projectPath: String,
+    resolvedThreadProjectPath: (PersistentIdentifier) -> String?
+) -> Bool {
+    switch item {
+    case .project(let selectedProject):
+        return selectedProject.path == projectPath
+    case .thread(let selectedThread):
+        return selectedThread.project?.path == projectPath ||
+            resolvedThreadProjectPath(selectedThread.persistentModelID) == projectPath
+    default:
+        return false
     }
 }

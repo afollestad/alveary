@@ -138,7 +138,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             resolvedTimestamp = timestamp
         }
 
-        let affectsPinnedOrder = thread.isPinned
+        let affectsPinnedOrder = thread.isPinned || thread.project?.isPinned == true
         let beforeOrder = orderedThreadIDs(projectPath: projectPath)
         thread.modifiedAt = resolvedTimestamp
         do {

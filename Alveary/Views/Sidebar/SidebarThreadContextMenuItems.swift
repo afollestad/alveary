@@ -30,16 +30,26 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
     }
 }
 
-func sidebarThreadContextMenuItems(isPinned: Bool, canRename: Bool) -> [SidebarThreadContextMenuItem] {
+func sidebarThreadContextMenuItems(
+    isPinned: Bool,
+    canRename: Bool,
+    allowsPinning: Bool = true
+) -> [SidebarThreadContextMenuItem] {
     var items: [SidebarThreadContextMenuItem] = [
         .forkLocal,
         .forkWorktree,
-        .divider,
-        isPinned ? .unpin : .pin
+        .divider
     ]
+    if allowsPinning {
+        items.append(isPinned ? .unpin : .pin)
+    }
     if canRename {
         items.append(.rename)
     }
     items.append(contentsOf: [.archive, .delete])
     return items
+}
+
+func sidebarProjectPinContextMenuTitle(isPinned: Bool) -> String {
+    isPinned ? "Unpin Project" : "Pin Project"
 }

@@ -23,6 +23,10 @@ extension SidebarView {
         viewModel.pinnedThreads()
     }
 
+    func pinnedItems() -> [SidebarPinnedItem] {
+        viewModel.pinnedItems(projects: projects)
+    }
+
     func hasAnyActiveThreads(for project: Project) -> Bool {
         viewModel.hasAnyActiveThreads(for: project)
     }
@@ -89,7 +93,7 @@ extension SidebarView {
             expandedProjects.insert(project.path)
         case .thread(let thread):
             if let resolvedThread = uiModelContext.resolveThread(id: thread.persistentModelID),
-               !resolvedThread.isPinned,
+               !resolvedThread.isPinned || resolvedThread.project?.isPinned == true,
                let projectPath = resolvedThread.project?.path {
                 expandedProjects.insert(projectPath)
             }

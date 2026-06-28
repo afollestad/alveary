@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -97,6 +98,7 @@ struct SidebarThreadRow: View {
                     .layoutPriority(0)
             } else {
                 AppMarkdownInlineLabel(text: displayName)
+                    .foregroundStyle(Color(nsColor: .labelColor))
                     .allowsHitTesting(false)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -317,9 +319,7 @@ struct SidebarThreadRow: View {
         .primary.opacity(isCleanupButtonPressed ? 0.95 : 0.82)
     }
 
-    private var trailingControlWidth: CGFloat {
-        return max(Self.cleanupButtonSize, cleanupControlWidth)
-    }
+    private var trailingControlWidth: CGFloat { max(Self.cleanupButtonSize, cleanupControlWidth) }
 
     private var trailingControlSpacing: CGFloat {
         Self.statusIndicatorSpacing

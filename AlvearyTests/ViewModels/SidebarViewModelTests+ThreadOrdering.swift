@@ -32,6 +32,28 @@ extension SidebarViewModelTests {
         ])
     }
 
+    func testPinnedThreadsExcludesChildrenOwnedByPinnedProjects() throws {
+        let fixture = try SidebarTestFixture()
+        let pinnedProject = Project(path: "/tmp/pinned-project", name: "Pinned Project", isPinned: true)
+        let pinnedChild = AgentThread(name: "Pinned Child", isPinned: true, modifiedAt: Date(timeIntervalSince1970: 300), project: pinnedProject)
+        pinnedProject.threads = [pinnedChild]
+        let regularProject = Project(path: "/tmp/regular-project", name: "Regular Project")
+        let standalonePinned = AgentThread(
+            name: "Standalone",
+            isPinned: true,
+            modifiedAt: Date(timeIntervalSince1970: 200),
+            project: regularProject
+        )
+        regularProject.threads = [standalonePinned]
+        fixture.context.insert(pinnedProject)
+        fixture.context.insert(regularProject)
+        try fixture.context.save()
+
+        let pinnedThreads = fixture.viewModel.pinnedThreads()
+
+        XCTAssertEqual(pinnedThreads.map(\.persistentModelID), [standalonePinned.persistentModelID])
+    }
+
     func testActiveThreadsSortsNewestModifiedThreadsFirstWithinProject() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
@@ -65,6 +87,115 @@ extension SidebarViewModelTests {
         XCTAssertTrue(fixture.viewModel.hasAnyActiveThreads(for: project))
     }
 
+    func testPinnedItemsMixProjectsAndStandaloneThreadsByNewestActivity() throws {
+        let fixture = try SidebarTestFixture()
+        let newestProject = Project(path: "/tmp/newest-project", name: "Newest Project", isPinned: true)
+        let newestProjectThread = AgentThread(
+            name: "Project Child",
+            modifiedAt: Date(timeIntervalSince1970: 500),
+            project: newestProject
+        )
+        newestProject.threads = [newestProjectThread]
+        let regularProject = Project(path: "/tmp/regular-project", name: "Regular Project")
+        let standaloneThread = AgentThread(
+            name: "Standalone",
+            isPinned: true,
+            modifiedAt: Date(timeIntervalSince1970: 400),
+            project: regularProject
+        )
+        regularProject.threads = [standaloneThread]
+        let olderProject = Project(path: "/tmp/older-project", name: "Older Project", isPinned: true)
+        let olderProjectThread = AgentThread(
+            name: "Older Child",
+            modifiedAt: Date(timeIntervalSince1970: 300),
+            project: olderProject
+        )
+        olderProject.threads = [olderProjectThread]
+        fixture.context.insert(newestProject)
+        fixture.context.insert(regularProject)
+        fixture.context.insert(olderProject)
+        try fixture.context.save()
+
+        let pinnedItems = fixture.viewModel.pinnedItems(projects: [olderProject, regularProject, newestProject])
+
+        XCTAssertEqual(pinnedItems.map(\.sidebarItem), [
+            .project(newestProject),
+            .thread(standaloneThread),
+            .project(olderProject)
+        ])
+    }
+
+    func testPinnedItemsFallBackToLocalizedDisplayName() throws {
+        let fixture = try SidebarTestFixture()
+        let betaProject = Project(path: "/tmp/beta", name: "Beta", isPinned: true)
+        let alphaProject = Project(path: "/tmp/alpha", name: "alpha", isPinned: true)
+        fixture.context.insert(betaProject)
+        fixture.context.insert(alphaProject)
+        try fixture.context.save()
+
+        let pinnedItems = fixture.viewModel.pinnedItems(projects: [betaProject, alphaProject])
+
+        XCTAssertEqual(pinnedItems.map(\.sidebarItem), [
+            .project(alphaProject),
+            .project(betaProject)
+        ])
+    }
+
+    func testSetProjectPinnedPersistsStateAndClearsUnarchivedChildPins() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let pinnedChild = AgentThread(name: "Pinned", isPinned: true, project: project)
+        let unpinnedChild = AgentThread(name: "Unpinned", project: project)
+        let archivedPinnedChild = AgentThread(name: "Archived", isPinned: true, archivedAt: Date(), project: project)
+        project.threads = [pinnedChild, unpinnedChild, archivedPinnedChild]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        try fixture.viewModel.setProjectPinned(project, isPinned: true)
+
+        XCTAssertTrue(project.isPinned)
+        XCTAssertFalse(pinnedChild.isPinned)
+        XCTAssertFalse(unpinnedChild.isPinned)
+        XCTAssertTrue(archivedPinnedChild.isPinned)
+        XCTAssertEqual(fixture.viewModel.threadOrderVersion, 1)
+    }
+
+    func testSetProjectPinnedMovesFormerlyPinnedChildrenIntoNormalProjectSortOrder() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let olderPinned = AgentThread(name: "Older Pinned", isPinned: true, modifiedAt: Date(timeIntervalSince1970: 100), project: project)
+        let newestUnpinned = AgentThread(name: "Newest Unpinned", modifiedAt: Date(timeIntervalSince1970: 300), project: project)
+        let unmodifiedPinned = AgentThread(name: "Unmodified Pinned", isPinned: true, modifiedAt: nil, project: project)
+        project.threads = [olderPinned, newestUnpinned, unmodifiedPinned]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        try fixture.viewModel.setProjectPinned(project, isPinned: true)
+
+        let activeThreads = fixture.viewModel.activeThreads(for: project)
+        XCTAssertEqual(activeThreads.map(\.persistentModelID), [
+            newestUnpinned.persistentModelID,
+            olderPinned.persistentModelID,
+            unmodifiedPinned.persistentModelID
+        ])
+    }
+
+    func testSetProjectUnpinnedLeavesChildPinsCleared() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let pinnedChild = AgentThread(name: "Pinned", isPinned: true, project: project)
+        project.threads = [pinnedChild]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        try fixture.viewModel.setProjectPinned(project, isPinned: true)
+        try fixture.viewModel.setProjectPinned(project, isPinned: false)
+
+        XCTAssertFalse(project.isPinned)
+        XCTAssertFalse(pinnedChild.isPinned)
+        XCTAssertEqual(fixture.viewModel.activeThreads(for: project).map(\.persistentModelID), [pinnedChild.persistentModelID])
+    }
+
     func testSetThreadPinnedPersistsStateAndRefreshesOrderVersion() throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(projectName: "Alveary", projectPath: "/tmp/alveary-project")
@@ -78,6 +209,21 @@ extension SidebarViewModelTests {
 
         XCTAssertFalse(try fixture.requireThread(thread).isPinned)
         XCTAssertEqual(fixture.viewModel.threadOrderVersion, 2)
+    }
+
+    func testSetThreadPinnedDoesNotPinChildOfPinnedProject() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary", isPinned: true)
+        let thread = AgentThread(name: "Child", project: project)
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        try fixture.viewModel.setThreadPinned(thread, isPinned: true)
+
+        XCTAssertFalse(thread.isPinned)
+        XCTAssertEqual(fixture.viewModel.activeThreads(for: project).map(\.persistentModelID), [thread.persistentModelID])
+        XCTAssertEqual(fixture.viewModel.threadOrderVersion, 0)
     }
 
     func testArchiveThreadClearsPinnedState() async throws {
@@ -139,6 +285,28 @@ extension SidebarViewModelTests {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(projectName: "Alveary", projectPath: "/tmp/alveary-project")
         try fixture.viewModel.setThreadPinned(thread, isPinned: true)
+        let initialVersion = fixture.viewModel.threadOrderVersion
+
+        NotificationCenter.default.post(
+            name: .threadActivityChanged,
+            object: nil,
+            userInfo: [
+                ThreadActivityNotificationKey.threadID: thread.persistentModelID,
+                ThreadActivityNotificationKey.didChangeOrder: false
+            ]
+        )
+        await Task.yield()
+
+        XCTAssertEqual(fixture.viewModel.threadOrderVersion, initialVersion + 1)
+    }
+
+    func testPinnedProjectChildActivityNotificationRefreshesThreadOrderVersion() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary", isPinned: true)
+        let thread = AgentThread(name: "Child", project: project)
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
         let initialVersion = fixture.viewModel.threadOrderVersion
 
         NotificationCenter.default.post(
