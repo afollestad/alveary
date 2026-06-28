@@ -162,13 +162,8 @@ struct AppImagePreviewOverlay: View {
                         isViewingText.toggle()
                     } label: {
                         Text(isViewingText ? "View image" : "View text")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.94))
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 42)
                     }
-                    .buttonStyle(.plain)
-                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .buttonStyle(PreviewTopTextButtonStyle())
                     .accessibilityLabel(isViewingText ? "View image" : "View text")
                     .accessibilityHint("Switches between the app shot image and captured accessibility tree.")
                 }
@@ -183,15 +178,10 @@ struct AppImagePreviewOverlay: View {
                                 .frame(width: 18, height: 18)
                         } else {
                             Image(systemName: "arrow.down")
-                                .font(.system(size: 14, weight: .semibold))
                                 .frame(width: 18, height: 18)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.white.opacity(0.94))
-                    .frame(width: 42, height: 42)
-                    .contentShape(Circle())
-                    .glassEffect(.regular.interactive(), in: Circle())
+                    .buttonStyle(PreviewTopIconButtonStyle())
                     .disabled(isSaving)
                     .accessibilityLabel("Download image")
                     .accessibilityHint("Choose a location to save a copy of the image.")
@@ -199,14 +189,9 @@ struct AppImagePreviewOverlay: View {
 
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
                         .frame(width: 18, height: 18)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.94))
-                .frame(width: 42, height: 42)
-                .contentShape(Circle())
-                .glassEffect(.regular.interactive(), in: Circle())
+                .buttonStyle(PreviewTopIconButtonStyle())
                 .accessibilityLabel("Close image preview")
                 .accessibilityHint("Closes the image preview.")
             }
@@ -236,10 +221,7 @@ struct AppImagePreviewOverlay: View {
                 Button(zoomPercentageText) {
                     zoomCommand = AppImagePreviewZoomCommand(action: .fit)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
-                .frame(minWidth: 62, minHeight: 34)
+                .buttonStyle(PreviewFooterTextButtonStyle())
                 .accessibilityLabel("Reset zoom")
                 .accessibilityValue(zoomPercentageText)
                 .accessibilityHint("Resets the image zoom to the fitted 100 percent size.")
@@ -382,15 +364,53 @@ private struct PreviewIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white.opacity(0.92))
-        .frame(width: 34, height: 34)
-        .contentShape(Rectangle())
+        .buttonStyle(PreviewFooterIconButtonStyle())
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct PreviewTopTextButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.94))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 42)
+            .contentShape(Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
+    }
+}
+
+private struct PreviewTopIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.94))
+            .tint(.white.opacity(0.94))
+            .frame(width: 42, height: 42)
+            .contentShape(Circle())
+            .glassEffect(.regular.interactive(), in: Circle())
+    }
+}
+
+private struct PreviewFooterIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.92))
+            .frame(width: 34, height: 34)
+            .contentShape(Rectangle())
+    }
+}
+
+private struct PreviewFooterTextButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(0.92))
+            .frame(minWidth: 62, minHeight: 34)
+            .contentShape(Rectangle())
     }
 }
 
