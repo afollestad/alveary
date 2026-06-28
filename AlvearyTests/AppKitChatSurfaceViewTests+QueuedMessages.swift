@@ -258,6 +258,35 @@ private func firstDescendant(of view: NSView, matching predicate: (NSView) -> Bo
     return nil
 }
 
+private func queuedMessageKeyEvent(characters: String, keyCode: UInt16) -> NSEvent {
+    NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: characters,
+        charactersIgnoringModifiers: characters,
+        isARepeat: false,
+        keyCode: keyCode
+    ) ?? NSEvent()
+}
+
+private func queuedMessageMouseEvent(type: NSEvent.EventType, at location: NSPoint) -> NSEvent {
+    NSEvent.mouseEvent(
+        with: type,
+        location: location,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    ) ?? NSEvent()
+}
+
 @MainActor
 private func assertQueuedMessageColor(
     _ actual: NSColor,

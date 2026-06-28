@@ -76,19 +76,41 @@ extension ConversationViewModelTests {
         XCTAssertTrue(sentMessages.isEmpty)
     }
 
+    func testClearPausedQueuedMessagesClearsQueueAndPauseOnly() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.messageQueue.enqueue("First", stagedContext: nil)
+        fixture.viewModel.state.messageQueue.enqueue("Second", stagedContext: nil)
+        fixture.viewModel.state.queuedMessagesPauseReason = .interrupted
+        fixture.viewModel.state.lastTurnInterrupted = true
+
+        fixture.viewModel.clearPausedQueuedMessages()
+
+        XCTAssertTrue(fixture.viewModel.messageQueue.pending.isEmpty)
+        XCTAssertNil(fixture.viewModel.state.queuedMessagesPauseReason)
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+    }
+
     func testQueuedPauseClearsOnlyWhenQueueEmpties() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.messageQueue.enqueue("First", stagedContext: nil)
         fixture.viewModel.state.messageQueue.enqueue("Second", stagedContext: nil)
         fixture.viewModel.state.queuedMessagesPauseReason = .interrupted
+        fixture.viewModel.state.pausedQueueSendConfirmation = PausedQueueSendConfirmationState(
+            draft: ComposerDraft(text: "Draft", source: .blockInputMarkdown),
+            queuedMessageCount: 2
+        )
 
         let firstID = try XCTUnwrap(fixture.viewModel.messageQueue.pending.first?.id)
         fixture.viewModel.removeQueuedMessage(id: firstID)
         XCTAssertEqual(fixture.viewModel.state.queuedMessagesPauseReason, .interrupted)
+        XCTAssertNotNil(fixture.viewModel.state.pausedQueueSendConfirmation)
 
         let secondID = try XCTUnwrap(fixture.viewModel.messageQueue.pending.first?.id)
         fixture.viewModel.editQueuedMessage(id: secondID)
         XCTAssertNil(fixture.viewModel.state.queuedMessagesPauseReason)
+        XCTAssertNil(fixture.viewModel.state.pausedQueueSendConfirmation)
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Second")
     }
 

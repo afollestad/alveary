@@ -7,30 +7,6 @@ extension ConversationViewModel {
         scheduleQueueDrainIfNeeded()
     }
 
-    func pauseQueuedMessagesAfterInterruptionIfNeeded() {
-        guard state.messageQueue.peekNext() != nil,
-              state.currentTurnActivityVisibility == .visible,
-              !state.isHandingOffSession,
-              state.failedSessionHandoffMessage == nil,
-              !state.isGeneratingCommitMessage,
-              !state.isDrainingCommitMessageGenerationEvents else {
-            return
-        }
-        state.queuedMessagesPauseReason = .interrupted
-    }
-
-    func clearQueuedMessagesPauseIfQueueEmpty() {
-        guard state.messageQueue.peekNext() == nil else {
-            return
-        }
-        state.queuedMessagesPauseReason = nil
-    }
-
-    func resumeQueuedMessages() {
-        state.queuedMessagesPauseReason = nil
-        scheduleQueueDrainIfNeeded()
-    }
-
     func sendReserved(
         _ message: String,
         transportText: String? = nil,

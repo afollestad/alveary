@@ -67,6 +67,31 @@ extension ConversationViewModel {
         }
     }
 
+    func sendBeforePausedQueuedMessages(
+        _ message: String,
+        supportsLocalImageInput: Bool = true
+    ) async throws {
+        guard state.queuedMessagesPauseReason != nil,
+              state.messageQueue.peekNext() != nil else {
+            try await queueOrSend(message, supportsLocalImageInput: supportsLocalImageInput)
+            return
+        }
+
+        try validateQueueOrSendAvailability()
+        try ensureCanSendBeforePausedQueuedMessages()
+        let outbound = try outboundText(
+            for: message,
+            requiredPlanModeEnabled: nil,
+            requiredSpeedMode: nil,
+            supportsLocalImageInput: supportsLocalImageInput
+        )
+        if needsSetup {
+            try await runInitialSetupBeforePausedQueueOutbound(outbound)
+        } else {
+            try await sendBeforePausedQueueNow(outbound)
+        }
+    }
+
     func retryFailedUserMessage(id: String) async throws {
         guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the message")
@@ -240,6 +265,52 @@ private extension ConversationViewModel {
         initialSetupTask = task
         defer { initialSetupTask = nil }
         try await task.value
+    }
+
+    func runInitialSetupBeforePausedQueueOutbound(_ outbound: OutboundMessageText) async throws {
+        // Initial setup predates the visible turn, so keep it cancellable through `cancel()`.
+        let task = Task { [self] in
+            try await sendBeforePausedQueueNow(outbound)
+        }
+        initialSetupTask = task
+        defer { initialSetupTask = nil }
+        try await task.value
+    }
+
+    func sendBeforePausedQueueNow(_ outbound: OutboundMessageText) async throws {
+        do {
+            try await ensureOutboundModes(
+                requiredPlanModeEnabled: nil,
+                requiredSpeedMode: nil
+            )
+            try await applyPendingSessionSettingsBeforeNextOutboundTurn()
+            try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
+            try ensureCanSendBeforePausedQueuedMessages()
+        } catch {
+            restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
+            throw error
+        }
+        try await withOutboundReservation {
+            state.queuedMessagesPauseReason = nil
+            state.pausedQueueSendConfirmation = nil
+            try await deliverMessageReserved(
+                outbound.visibleText,
+                transportTextOverride: outbound.transportText,
+                attachments: outbound.attachments,
+                appShots: outbound.appShots,
+                providerMetadata: outbound.providerMetadata,
+                consumedAttachments: outbound.consumedAttachments,
+                consumedFileAttachments: outbound.consumedFileAttachments,
+                consumedAppShots: outbound.consumedAppShots,
+                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
+            )
+        }
+    }
+
+    func ensureCanSendBeforePausedQueuedMessages() throws {
+        guard !isAgentActivelyWorking, !state.isSendingMessage else {
+            throw AgentError.spawnFailed("Wait for the current turn/send to finish before sending another message")
+        }
     }
 
     func ensureOutboundModes(

@@ -21,6 +21,10 @@ extension ChatView {
             return
         }
 
+        if presentPausedQueueSendConfirmationIfNeeded(draft: draft) {
+            return
+        }
+
         let isSessionHandoffDraft = viewModel.prepareManualSessionHandoffSendIfNeeded()
         requestScrollToBottom()
         clearSubmittedDraftAndRequestFocus(source: draft.source)
@@ -88,13 +92,22 @@ extension ChatView {
         scrollToBottomRequest += 1
     }
 
-    private func sendSubmittedDraft(_ draft: ComposerDraft, isSessionHandoffDraft: Bool) {
+    func sendSubmittedDraft(
+        _ draft: ComposerDraft,
+        isSessionHandoffDraft: Bool,
+        sendBeforePausedQueue: Bool = false
+    ) {
         let retryableMessageCount = viewModel.state.retryableFailedMessageIDs.count
         Task {
             do {
                 viewModel.normalizeUnsupportedSpeedModeIfNeeded(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
                 if isSessionHandoffDraft {
                     try await viewModel.sendSessionHandoffOutput(draft.messageText)
+                } else if sendBeforePausedQueue {
+                    try await viewModel.sendBeforePausedQueuedMessages(
+                        draft.messageText,
+                        supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
+                    )
                 } else {
                     try await viewModel.queueOrSend(
                         draft.messageText,

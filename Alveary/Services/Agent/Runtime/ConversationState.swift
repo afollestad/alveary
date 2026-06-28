@@ -82,6 +82,25 @@ enum QueuedMessagesPauseReason: Equatable, Sendable {
     case interrupted
 }
 
+struct PausedQueueSendConfirmationState: Equatable, Sendable {
+    let id: UUID
+    let draft: ComposerDraft
+    let queuedMessageCount: Int
+    var isResolving: Bool
+
+    init(
+        id: UUID = UUID(),
+        draft: ComposerDraft,
+        queuedMessageCount: Int,
+        isResolving: Bool = false
+    ) {
+        self.id = id
+        self.draft = draft
+        self.queuedMessageCount = queuedMessageCount
+        self.isResolving = isResolving
+    }
+}
+
 @MainActor
 @Observable
 final class ConversationState {
@@ -112,6 +131,7 @@ final class ConversationState {
     var activeRuntimeActivityTurnId: String?
     var currentTurnActivityVisibility: AgentTurnActivityVisibility = .hidden
     var hasRecordedLocalTurnEndActivity = false
+    var pausedQueueSendConfirmation: PausedQueueSendConfirmationState?
     var inputDraft = ""
     var inputDraftSource: ComposerDraftSource = .legacyText
     var stagedImageAttachments: [LocalImageAttachment] = []

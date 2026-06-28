@@ -183,6 +183,13 @@ struct ChatView: View {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         ))
+        .background {
+            AppWindowModalOverlayPresenter(
+                modal: pausedQueueSendModal,
+                onDismiss: dismissPausedQueueSendConfirmation
+            )
+            .frame(width: 0, height: 0)
+        }
         .onChange(of: composerInteractionOverlayID) { oldID, newID in
             guard oldID == nil, newID != nil else {
                 return

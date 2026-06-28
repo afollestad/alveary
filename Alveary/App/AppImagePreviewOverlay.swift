@@ -75,7 +75,6 @@ struct AppImagePreviewOverlay: View {
             }
         }
         .zIndex(1000)
-        .background(AppImagePreviewEscapeKeyCatcher(onEscape: onDismiss).frame(width: 0, height: 0))
         .onExitCommand(perform: onDismiss)
         .task(id: request.id) {
             await loadImage()
@@ -420,42 +419,5 @@ struct AppImagePreviewLayout {
             width: min(max(availableSize.width - 80, 320), 1_120),
             height: min(max(availableSize.height - 80, 260), 820)
         )
-    }
-}
-
-private struct AppImagePreviewEscapeKeyCatcher: NSViewRepresentable {
-    let onEscape: () -> Void
-
-    func makeNSView(context: Context) -> EscapeKeyCatcherView {
-        let view = EscapeKeyCatcherView()
-        view.onEscape = onEscape
-        view.focusRingType = .none
-        DispatchQueue.main.async {
-            if view.window?.firstResponder == nil {
-                view.window?.makeFirstResponder(view)
-            }
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: EscapeKeyCatcherView, context: Context) {
-        nsView.onEscape = onEscape
-    }
-}
-
-@MainActor
-private final class EscapeKeyCatcherView: NSView {
-    var onEscape: (() -> Void)?
-
-    override var acceptsFirstResponder: Bool {
-        true
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            onEscape?()
-            return
-        }
-        super.keyDown(with: event)
     }
 }

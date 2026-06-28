@@ -212,4 +212,77 @@ private final class AppKitChatQueuedMessagesResumeButton: NSButton {
         performClick(nil)
         return true
     }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        if superview == nil {
+            resetInteractionState()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            resetInteractionState()
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        drawBackground()
+        super.draw(dirtyRect)
+    }
+
+    private func drawBackground() {
+        let path = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            xRadius: min(bounds.height / 2, 12),
+            yRadius: min(bounds.height / 2, 12)
+        )
+        appKitComposerPrimaryColor(in: self, opacity: backgroundOpacity).setFill()
+        path.fill()
+
+        guard window?.firstResponder === self, isEnabled else {
+            return
+        }
+        AppAccentFill.primaryNSColor.appKitResolvedColor(in: self, alpha: 0.24).setStroke()
+        path.lineWidth = 1.5
+        path.stroke()
+    }
+
+    private var backgroundOpacity: CGFloat {
+        guard isEnabled else {
+            return 0
+        }
+        if isHighlighted {
+            return 0.18
+        }
+        if isPressed {
+            return 0.18
+        }
+        if isHovering || window?.firstResponder === self {
+            return 0.12
+        }
+        return 0
+    }
+
+    private func eventLocationIsInside(_ event: NSEvent) -> Bool {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) {
+            return true
+        }
+        guard window == nil else {
+            return false
+        }
+        return bounds.contains(event.locationInWindow)
+    }
+
+    private func resetInteractionState() {
+        isPressed = false
+        isHovering = false
+        needsDisplay = true
+    }
 }
