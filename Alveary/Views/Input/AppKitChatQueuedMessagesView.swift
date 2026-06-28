@@ -2,6 +2,13 @@ import AppKit
 import BlockInputKit
 import SwiftUI
 
+enum AppKitChatQueuedMessagesLayout {
+    static let rowLeadingPadding: CGFloat = 10
+    static let rowTrailingPadding: CGFloat = 10
+    static let rowActionIconButtonSize: CGFloat = 30
+    static let pauseResumeButtonHorizontalPadding: CGFloat = 12
+}
+
 @MainActor
 struct AppKitChatQueuedMessagesConfiguration {
     let queuedMessages: [QueuedMessage]
@@ -9,9 +16,12 @@ struct AppKitChatQueuedMessagesConfiguration {
     let isTurnActive: Bool
     let inFlightQueuedMessageID: UUID?
     let borderWidth: CGFloat
+    let pauseHeaderTitle: String?
+    let pauseHeaderActionTitle: String
     let markdownBaseURL: URL?
     let onOpenMarkdownLink: (URL) -> Void
     let onOpenMarkdownImage: (BlockInputImage, URL?) -> Void
+    let onResume: () -> Void
     let onSteer: (UUID) -> Void
     let onEdit: (UUID) -> Void
     let onDismiss: (UUID) -> Void
@@ -22,6 +32,9 @@ struct AppKitChatQueuedMessagesConfiguration {
         isTurnActive: false,
         inFlightQueuedMessageID: nil,
         borderWidth: 1,
+        pauseHeaderTitle: nil,
+        pauseHeaderActionTitle: "Resume",
+        onResume: {},
         onSteer: { _ in },
         onEdit: { _ in },
         onDismiss: { _ in }
@@ -33,9 +46,12 @@ struct AppKitChatQueuedMessagesConfiguration {
         isTurnActive: Bool,
         inFlightQueuedMessageID: UUID?,
         borderWidth: CGFloat,
+        pauseHeaderTitle: String? = nil,
+        pauseHeaderActionTitle: String = "Resume",
         markdownBaseURL: URL? = nil,
         onOpenMarkdownLink: @escaping (URL) -> Void = { _ in },
         onOpenMarkdownImage: @escaping (BlockInputImage, URL?) -> Void = { _, _ in },
+        onResume: @escaping () -> Void = {},
         onSteer: @escaping (UUID) -> Void,
         onEdit: @escaping (UUID) -> Void,
         onDismiss: @escaping (UUID) -> Void
@@ -45,9 +61,12 @@ struct AppKitChatQueuedMessagesConfiguration {
         self.isTurnActive = isTurnActive
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
         self.borderWidth = borderWidth
+        self.pauseHeaderTitle = pauseHeaderTitle
+        self.pauseHeaderActionTitle = pauseHeaderActionTitle
         self.markdownBaseURL = markdownBaseURL
         self.onOpenMarkdownLink = onOpenMarkdownLink
         self.onOpenMarkdownImage = onOpenMarkdownImage
+        self.onResume = onResume
         self.onSteer = onSteer
         self.onEdit = onEdit
         self.onDismiss = onDismiss
@@ -60,6 +79,7 @@ struct AppKitChatQueuedMessagesConfiguration {
 /// stretch editor/action-row spacing through SwiftUI layout.
 @MainActor
 final class AppKitChatQueuedMessagesView: NSView {
+    private var pauseHeaderView: AppKitChatQueuedMessagesPauseHeaderView?
     private var rows: [AppKitChatQueuedMessageRowView] = []
     private var configuration = AppKitChatQueuedMessagesConfiguration.empty
 
@@ -77,6 +97,7 @@ final class AppKitChatQueuedMessagesView: NSView {
 
     func configure(_ configuration: AppKitChatQueuedMessagesConfiguration) {
         self.configuration = configuration
+        updatePauseHeader()
         rebuildRowsIfNeeded()
         for (index, row) in rows.enumerated() {
             let message = configuration.queuedMessages[index]
@@ -105,6 +126,7 @@ final class AppKitChatQueuedMessagesView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        pauseHeaderView?.updateAppearance()
         rows.forEach { $0.updateImages() }
         needsDisplay = true
     }
@@ -112,6 +134,11 @@ final class AppKitChatQueuedMessagesView: NSView {
     override func layout() {
         super.layout()
         var nextY: CGFloat = 0
+        if let pauseHeaderView {
+            let height = pauseHeaderView.measuredHeight
+            pauseHeaderView.frame = NSRect(x: 0, y: nextY, width: bounds.width, height: height)
+            nextY += height
+        }
         for row in rows {
             let height = row.measuredHeight(width: bounds.width)
             row.frame = NSRect(x: 0, y: nextY, width: bounds.width, height: height)
@@ -143,9 +170,30 @@ final class AppKitChatQueuedMessagesView: NSView {
             return 0
         }
         let measuredWidth = width > 0 ? width : bounds.width
-        return rows.reduce(CGFloat(0)) { partial, row in
+        let headerHeight = pauseHeaderView?.measuredHeight ?? 0
+        return rows.reduce(headerHeight) { partial, row in
             partial + row.measuredHeight(width: measuredWidth)
         }
+    }
+
+    private func updatePauseHeader() {
+        guard let title = configuration.pauseHeaderTitle,
+              !configuration.queuedMessages.isEmpty else {
+            pauseHeaderView?.removeFromSuperview()
+            pauseHeaderView = nil
+            return
+        }
+
+        let header = pauseHeaderView ?? AppKitChatQueuedMessagesPauseHeaderView()
+        if pauseHeaderView == nil {
+            pauseHeaderView = header
+            addSubview(header)
+        }
+        header.configure(
+            title: title,
+            actionTitle: configuration.pauseHeaderActionTitle,
+            onResume: configuration.onResume
+        )
     }
 
     private func rebuildRowsIfNeeded() {
@@ -252,8 +300,8 @@ private final class AppKitChatQueuedMessageRowView: NSView {
 
     override func layout() {
         super.layout()
-        let leadingPadding: CGFloat = 10
-        let trailingPadding: CGFloat = 10
+        let leadingPadding = AppKitChatQueuedMessagesLayout.rowLeadingPadding
+        let trailingPadding = AppKitChatQueuedMessagesLayout.rowTrailingPadding
         let verticalPadding: CGFloat = 10
         let iconSize: CGFloat = 14
         let spacing: CGFloat = 12
@@ -300,9 +348,9 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         var nextX = actionsX
         steerButton.frame = NSRect(x: nextX, y: floor((bounds.height - 30) / 2), width: 82, height: 30)
         nextX += 90
-        editButton.frame = NSRect(x: nextX, y: floor((bounds.height - 30) / 2), width: 30, height: 30)
+        layoutIconActionButton(editButton, actionX: nextX)
         nextX += 38
-        dismissButton.frame = NSRect(x: nextX, y: floor((bounds.height - 30) / 2), width: 30, height: 30)
+        layoutIconActionButton(dismissButton, actionX: nextX)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -314,8 +362,8 @@ private final class AppKitChatQueuedMessageRowView: NSView {
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        let leadingPadding: CGFloat = 10
-        let trailingPadding: CGFloat = 10
+        let leadingPadding = AppKitChatQueuedMessagesLayout.rowLeadingPadding
+        let trailingPadding = AppKitChatQueuedMessagesLayout.rowTrailingPadding
         let textX = leadingPadding + 14 + 12
         let textWidth = max(0, width - textX - 16 - 158 - trailingPadding)
         let contextHeight: CGFloat = contextField.isHidden ? 0 : 21
@@ -334,6 +382,16 @@ private final class AppKitChatQueuedMessageRowView: NSView {
         contextField.textColor = .secondaryLabelColor
         editButton.setAccessibilityLabel("Edit queued message")
         dismissButton.setAccessibilityLabel("Discard queued message")
+    }
+
+    private func layoutIconActionButton(_ button: NSView, actionX: CGFloat) {
+        let size = AppKitChatQueuedMessagesLayout.rowActionIconButtonSize
+        button.frame = NSRect(
+            x: actionX,
+            y: floor((bounds.height - size) / 2),
+            width: size,
+            height: size
+        )
     }
 
     private func measuredTextHeight(width: CGFloat) -> CGFloat {

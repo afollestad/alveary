@@ -151,6 +151,84 @@ extension AppKitChatSurfaceViewTests {
         XCTAssertTrue(didEdit)
         XCTAssertTrue(didDismiss)
     }
+
+    func testNativeQueuedMessagesRenderPauseHeaderAndResumeAction() throws {
+        let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+        let view = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 120))
+        var resumeCount = 0
+        view.configure(
+            AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [message],
+                supportsMidTurnSteering: true,
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                pauseHeaderTitle: "Queue paused because you interrupted",
+                onResume: { resumeCount += 1 },
+                onSteer: { _ in },
+                onEdit: { _ in },
+                onDismiss: { _ in }
+            )
+        )
+        view.layoutSubtreeIfNeeded()
+
+        let header = try XCTUnwrap(firstDescendant(of: view) {
+            ($0 as? NSTextField)?.stringValue == "Queue paused because you interrupted"
+        } as? NSTextField)
+        let resumeButton = try XCTUnwrap(firstDescendant(of: view) { $0.accessibilityLabel() == "Resume" })
+        let rowView = try XCTUnwrap(view.subviews.first { subview in
+            firstDescendant(of: subview) {
+                ($0 as? NSTextView)?.string.contains("Queued follow-up") == true
+            } != nil
+        })
+        let headerContainer = try XCTUnwrap(header.superview)
+        let resumeControl = try XCTUnwrap(resumeButton as? NSButton)
+        let dismissButton = try XCTUnwrap(firstDescendant(of: rowView) {
+            $0.accessibilityLabel() == "Discard queued message"
+        })
+
+        XCTAssertGreaterThanOrEqual(rowView.frame.minY, headerContainer.frame.maxY)
+        XCTAssertEqual(resumeControl.frame.maxX, dismissButton.frame.maxX, accuracy: 0.5)
+        XCTAssertTrue(resumeButton.accessibilityPerformPress())
+        XCTAssertEqual(resumeCount, 1)
+        XCTAssertTrue(resumeButton.acceptsFirstResponder)
+        XCTAssertTrue(resumeButton.becomeFirstResponder())
+
+        resumeButton.keyDown(with: queuedMessageKeyEvent(characters: "\r", keyCode: 36))
+        XCTAssertEqual(resumeCount, 2)
+
+        let mouseLocation = NSPoint(x: 8, y: 8)
+        resumeControl.mouseDown(with: queuedMessageMouseEvent(type: .leftMouseDown, at: mouseLocation))
+        resumeControl.mouseUp(with: queuedMessageMouseEvent(type: .leftMouseUp, at: mouseLocation))
+        XCTAssertEqual(resumeCount, 3)
+    }
+
+    func testNativeQueuedMessagesPauseHeaderContributesMeasuredHeightOnlyWhenPresent() throws {
+        let message = QueuedMessage(text: "Queued follow-up", stagedContext: nil)
+        let unpausedView = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 80))
+        unpausedView.configure(makeNativeQueuedMessagesConfiguration([message]))
+        let unpausedHeight = unpausedView.measuredHeight(width: 480)
+
+        let pausedView = AppKitChatQueuedMessagesView(frame: NSRect(x: 0, y: 0, width: 480, height: 120))
+        pausedView.configure(
+            AppKitChatQueuedMessagesConfiguration(
+                queuedMessages: [message],
+                supportsMidTurnSteering: true,
+                isTurnActive: true,
+                inFlightQueuedMessageID: nil,
+                borderWidth: 1,
+                pauseHeaderTitle: "Queue paused because you interrupted",
+                onSteer: { _ in },
+                onEdit: { _ in },
+                onDismiss: { _ in }
+            )
+        )
+
+        XCTAssertNil(firstDescendant(of: unpausedView) {
+            ($0 as? NSTextField)?.stringValue == "Queue paused because you interrupted"
+        })
+        XCTAssertEqual(pausedView.measuredHeight(width: 480), unpausedHeight + 44, accuracy: 0.5)
+    }
 }
 
 @MainActor

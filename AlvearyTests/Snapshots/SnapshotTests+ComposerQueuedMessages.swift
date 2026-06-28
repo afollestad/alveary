@@ -38,6 +38,24 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithPausedNativeQueuedMessages() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                queuedMessages: [
+                    QueuedMessage(
+                        text: "Follow with the snapshot cleanup once the diff finishes loading.",
+                        stagedContext: "Restoring context from local history."
+                    ),
+                    QueuedMessage(text: "Run focused verification after that.", stagedContext: nil)
+                ],
+                queuedMessagesPauseHeaderTitle: "Queue paused because you interrupted"
+            ),
+            size: CGSize(width: 1000, height: 260),
+            named: "appkit_composer_panel_paused_native_queued_messages",
+            colorScheme: .dark
+        )
+    }
+
     func testAppKitComposerPanelWithNativeQueuedMessagesWithoutContext() {
         assertMacSnapshot(
             AppKitComposerPanelNativeRowSnapshot(

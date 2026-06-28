@@ -78,6 +78,10 @@ struct PendingExitPlanModeRevisionGuidance: Equatable, Sendable {
     let providerSessionId: String?
 }
 
+enum QueuedMessagesPauseReason: Equatable, Sendable {
+    case interrupted
+}
+
 @MainActor
 @Observable
 final class ConversationState {
@@ -139,6 +143,7 @@ final class ConversationState {
     var grouper = ChatItemGrouper()
     var respawnAttempts = 0
     var inFlightQueuedMessageID: UUID?
+    var queuedMessagesPauseReason: QueuedMessagesPauseReason?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?

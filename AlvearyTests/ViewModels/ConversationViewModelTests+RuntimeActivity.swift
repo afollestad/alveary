@@ -99,6 +99,17 @@ extension ConversationViewModelTests {
         XCTAssertEqual(stopRecords.first?.content, ConversationInterruption.displayMessage)
     }
 
+    func testRuntimeActivityInterruptedDoesNotPauseEmptyQueue() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.markVisibleTurnStarted()
+        fixture.viewModel.state.turnState.beginTurn()
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .interrupted))
+
+        XCTAssertTrue(fixture.viewModel.state.lastTurnInterrupted)
+        XCTAssertNil(fixture.viewModel.state.queuedMessagesPauseReason)
+    }
+
     func testRuntimeActivityInterruptedIdleTerminalizesRunningCommandTool() throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.turnState.beginTurn()

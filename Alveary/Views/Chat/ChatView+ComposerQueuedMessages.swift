@@ -12,12 +12,16 @@ extension ChatView {
             isTurnActive: viewModel.canSteerCurrentTurn,
             inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
             borderWidth: 1,
+            pauseHeaderTitle: queuedMessagesPauseHeaderTitle,
             markdownBaseURL: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) },
             onOpenMarkdownLink: { url in
                 _ = openComposerEditorURL(url)
             },
             onOpenMarkdownImage: { image, baseURL in
                 appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
+            },
+            onResume: {
+                viewModel.resumeQueuedMessages()
             },
             onSteer: { messageID in
                 Task { try? await viewModel.steerQueuedMessage(id: messageID) }
@@ -29,5 +33,14 @@ extension ChatView {
                 viewModel.removeQueuedMessage(id: messageID)
             }
         )
+    }
+
+    var queuedMessagesPauseHeaderTitle: String? {
+        switch viewModel.state.queuedMessagesPauseReason {
+        case .some(.interrupted):
+            "Queue paused because you interrupted"
+        case nil:
+            nil
+        }
     }
 }

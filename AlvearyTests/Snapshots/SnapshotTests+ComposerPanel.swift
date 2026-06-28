@@ -222,6 +222,7 @@ extension SnapshotTests {
 struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
     let queuedMessages: [QueuedMessage]
+    let queuedMessagesPauseHeaderTitle: String?
     let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
     let isGoalModeChipVisible: Bool
     let isGoalModeChipEnabled: Bool
@@ -246,12 +247,14 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
     init(
         topContentConfiguration: AppKitChatComposerTopContentView.Configuration = .empty,
         queuedMessages: [QueuedMessage] = [],
+        queuedMessagesPauseHeaderTitle: String? = nil,
         interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
         isGoalModeChipVisible: Bool = false,
         isGoalModeChipEnabled: Bool = false
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
+        self.queuedMessagesPauseHeaderTitle = queuedMessagesPauseHeaderTitle
         self.interactionOverlayConfiguration = interactionOverlayConfiguration
         self.isGoalModeChipVisible = isGoalModeChipVisible
         self.isGoalModeChipEnabled = isGoalModeChipEnabled
@@ -308,6 +311,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             isTurnActive: true,
             inFlightQueuedMessageID: nil,
             borderWidth: 1,
+            pauseHeaderTitle: queuedMessagesPauseHeaderTitle,
             onSteer: { _ in },
             onEdit: { _ in },
             onDismiss: { _ in }

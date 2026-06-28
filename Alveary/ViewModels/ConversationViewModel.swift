@@ -341,6 +341,7 @@ final class ConversationViewModel {
            !state.messageQueue.pending.contains(where: { $0.stagedContext != nil }) {
             state.stagedContext = restoredContext
         }
+        clearQueuedMessagesPauseIfQueueEmpty()
     }
 
     func editQueuedMessage(id: UUID) {
@@ -357,6 +358,7 @@ final class ConversationViewModel {
         restoreExitPlanModeRevisionGuidanceIfNeeded(removed.consumedExitPlanModeRevisionGuidance)
 
         appendToInputDraft(removed.text)
+        clearQueuedMessagesPauseIfQueueEmpty()
     }
 
     func cancel() async {

@@ -162,6 +162,27 @@ extension ConversationViewModelTests {
         }
     }
 
+    func testHiddenCommitMessageInterruptionDoesNotPauseQueuedMessages() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.markVisibleTurnStarted()
+        fixture.viewModel.state.messageQueue.enqueue("Queued follow-up", stagedContext: nil)
+        let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }
+
+        try await waitUntil("hidden commit prompt sent") {
+            await fixture.agentsManager.sentMessages() == ["Generate commit"]
+        }
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .interrupted))
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected interrupted commit message generation to fail")
+        } catch CommitMessageGenerationError.interrupted {
+            XCTAssertNil(fixture.viewModel.state.queuedMessagesPauseReason)
+            XCTAssertEqual(fixture.viewModel.state.messageQueue.pending.map(\.text), ["Queued follow-up"])
+        }
+    }
+
     func testGenerateCommitMessageDoesNotPersistVisibleTranscriptRows() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let task = Task { try await fixture.viewModel.generateCommitMessage("Generate commit") }

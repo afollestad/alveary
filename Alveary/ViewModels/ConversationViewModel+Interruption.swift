@@ -291,6 +291,7 @@ extension ConversationViewModel {
         state.lastTurnError = nil
         state.lastTurnInterrupted = true
         markTranscriptActivityInterrupted()
+        pauseQueuedMessagesAfterInterruptionIfNeeded()
         state.clearStreamingText()
         state.endTurn()
         recordLocalVisibleTurnEndedIfNeeded()

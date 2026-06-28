@@ -81,6 +81,19 @@ extension ConversationViewModelTests {
         XCTAssertEqual(recorder.visibleTurnEndedConversationIDs, [fixture.conversation.id])
     }
 
+    func testPromptDismissInterruptionPausesQueuedMessagesBeforeVisibleTurnEnds() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.markVisibleTurnStarted()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.state.messageQueue.enqueue("Queued follow-up", stagedContext: nil)
+
+        fixture.viewModel.markPromptDismissInterruption()
+
+        XCTAssertEqual(fixture.viewModel.state.queuedMessagesPauseReason, .interrupted)
+        XCTAssertEqual(fixture.viewModel.state.currentTurnActivityVisibility, .hidden)
+        XCTAssertEqual(fixture.viewModel.state.messageQueue.pending.map(\.text), ["Queued follow-up"])
+    }
+
     func testLocalHiddenTurnEndDoesNotRecordThreadActivity() throws {
         let recorder = RecordingThreadActivityRecorder()
         let fixture = try ConversationViewModelTestFixture(threadActivityRecorder: recorder)

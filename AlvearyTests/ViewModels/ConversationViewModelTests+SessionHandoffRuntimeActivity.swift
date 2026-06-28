@@ -54,6 +54,23 @@ extension ConversationViewModelTests {
         XCTAssertTrue(freshSessionCalls.isEmpty)
     }
 
+    func testHiddenSessionHandoffInterruptionDoesNotPauseQueuedMessages() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.markVisibleTurnStarted()
+        fixture.viewModel.state.messageQueue.enqueue("Queued follow-up", stagedContext: nil)
+
+        await fixture.viewModel.startSessionHandoff(trigger: .manual)
+        try await waitUntil("handoff prompt sent") {
+            await fixture.agentsManager.sentMessages() == [AppSettings.defaultSessionHandoffPrompt]
+        }
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .interrupted))
+
+        XCTAssertNil(fixture.viewModel.state.queuedMessagesPauseReason)
+        XCTAssertEqual(fixture.viewModel.state.messageQueue.pending.map(\.text), ["Queued follow-up"])
+        XCTAssertEqual(fixture.viewModel.state.failedSessionHandoffMessage, "Session handoff interrupted.")
+    }
+
     func testHiddenSessionHandoffGenericTokenFailureUsesFallbackCopy() async throws {
         let fixture = try ConversationViewModelTestFixture()
 
