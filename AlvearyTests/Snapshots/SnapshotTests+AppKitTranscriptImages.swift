@@ -78,6 +78,27 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitTranscriptUserFileAttachment() {
+        let fileAttachment = Self.makeSnapshotFileAttachment()
+
+        assertMacSnapshot(
+            TranscriptImageSnapshotHost {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.configure(
+                    .init(
+                        role: .user,
+                        markdown: "Review the report before changing the parser.",
+                        fileAttachments: [fileAttachment],
+                        bubbleMaxWidth: 560
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 640, height: 220),
+            named: "appkit_transcript_user_file_attachment"
+        )
+    }
+
     private static func makeSnapshotImageAttachments() -> [LocalImageAttachment] {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("AlvearySnapshotImageAttachments", isDirectory: true)
@@ -148,6 +169,15 @@ extension SnapshotTests {
             appName: "Preview",
             bundleIdentifier: "com.apple.Preview",
             windowTitle: "Preview - Document.pdf"
+        )
+    }
+
+    private static func makeSnapshotFileAttachment() -> LocalFileAttachment {
+        LocalFileAttachment(
+            id: "snapshot-file-attachment",
+            fileURL: URL(fileURLWithPath: "/tmp/AlvearySnapshotAttachments/project-audit.pdf"),
+            label: "project-audit.pdf",
+            createdAt: Date(timeIntervalSince1970: 0)
         )
     }
 

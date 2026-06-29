@@ -179,9 +179,11 @@ final class ConversationState {
     var retryableFailedMessageStagedContexts: [String: String] = [:]
     var retryableFailedMessageTransportTexts: [String: String] = [:]
     var retryableFailedMessageAttachments: [String: [LocalImageAttachment]] = [:]
+    var retryableFailedMessageFileAttachments: [String: [LocalFileAttachment]] = [:]
     var retryableFailedMessageAppShots: [String: [AppShotAttachment]] = [:]
     var retryableFailedMessageProviderMetadata: [String: [String: AgentCLIKit.JSONValue]] = [:]
     var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
+    var transcriptFileAttachments: [String: [LocalFileAttachment]] = [:]
     var transcriptAppShots: [String: [AppShotAttachment]] = [:]
     var appShotProviderSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
@@ -285,6 +287,7 @@ final class ConversationState {
         stagedContext: String?,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:]
     ) {
@@ -304,6 +307,11 @@ final class ConversationState {
         } else {
             retryableFailedMessageAttachments[id] = attachments
         }
+        if fileAttachments.isEmpty {
+            retryableFailedMessageFileAttachments.removeValue(forKey: id)
+        } else {
+            retryableFailedMessageFileAttachments[id] = fileAttachments
+        }
         if appShots.isEmpty {
             retryableFailedMessageAppShots.removeValue(forKey: id)
         } else {
@@ -321,6 +329,7 @@ final class ConversationState {
         retryableFailedMessageStagedContexts.removeValue(forKey: id)
         retryableFailedMessageTransportTexts.removeValue(forKey: id)
         retryableFailedMessageAttachments.removeValue(forKey: id)
+        retryableFailedMessageFileAttachments.removeValue(forKey: id)
         retryableFailedMessageAppShots.removeValue(forKey: id)
         retryableFailedMessageProviderMetadata.removeValue(forKey: id)
     }
@@ -330,6 +339,14 @@ final class ConversationState {
             transcriptImageAttachments.removeValue(forKey: id)
         } else {
             transcriptImageAttachments[id] = attachments
+        }
+    }
+
+    func markTranscriptFileAttachments(id: String, attachments: [LocalFileAttachment]) {
+        if attachments.isEmpty {
+            transcriptFileAttachments.removeValue(forKey: id)
+        } else {
+            transcriptFileAttachments[id] = attachments
         }
     }
 

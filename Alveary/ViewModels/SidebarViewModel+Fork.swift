@@ -350,6 +350,7 @@ private extension SidebarViewModel {
             type: record.type,
             role: record.role,
             content: record.content,
+            transcriptAttachmentsJSON: record.transcriptAttachmentsJSON,
             toolId: record.toolId,
             toolName: record.toolName,
             toolInput: record.toolInput,

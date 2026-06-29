@@ -271,53 +271,6 @@ final class ConversationViewModelTests: XCTestCase {
         XCTAssertNil(refreshedThread.branch)
     }
 
-    func testFirstSendSetupFailureKeepsRetryableTranscriptAttempt() async throws {
-        let worktreeInfo = WorktreeInfo(path: "/tmp/alveary-worktree", branch: "alveary/fix-auth")
-        let fixture = try ConversationViewModelTestFixture(
-            threadName: "New thread",
-            useWorktree: true,
-            hasCompletedInitialSetup: false,
-            worktreeInfo: worktreeInfo
-        )
-        await fixture.worktreeManager.enqueueCreateResult(.failure(.createFailed))
-
-        let message = "Implement the authentication retry flow"
-        fixture.viewModel.state.stagedContext = "Context block"
-        do {
-            try await fixture.viewModel.queueOrSend(message)
-            XCTFail("Expected setup to throw")
-        } catch let error as MockWorktreeManager.MockError {
-            XCTAssertEqual(error, .createFailed)
-        }
-
-        let failedMessage = try XCTUnwrap(try fixture.userMessages().first)
-        XCTAssertEqual(failedMessage.content, message)
-        XCTAssertEqual(try fixture.userMessages().count, 1)
-        XCTAssertEqual(fixture.viewModel.state.retryableFailedMessageStagedContexts[failedMessage.id], "Context block")
-        XCTAssertTrue(fixture.viewModel.state.retryableFailedMessageIDs.contains(failedMessage.id))
-        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
-        XCTAssertNil(fixture.viewModel.state.stagedContext)
-        XCTAssertFalse(try fixture.dbThread().hasCompletedInitialSetup)
-        XCTAssertNil(fixture.viewModel.setupPhase)
-
-        try await fixture.viewModel.retryFailedUserMessage(id: failedMessage.id)
-
-        let retriedMessages = try fixture.userMessages()
-        XCTAssertEqual(retriedMessages.map(\.id), [failedMessage.id])
-        XCTAssertEqual(retriedMessages.map(\.content), [message])
-        XCTAssertFalse(fixture.viewModel.state.retryableFailedMessageIDs.contains(failedMessage.id))
-        XCTAssertNil(fixture.viewModel.state.retryableFailedMessageStagedContexts[failedMessage.id])
-        XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
-
-        let createCalls = await fixture.worktreeManager.createCalls()
-        XCTAssertEqual(createCalls.count, 2)
-        let spawnCalls = await fixture.agentsManager.spawnCalls()
-        XCTAssertEqual(spawnCalls.count, 1)
-        XCTAssertEqual(spawnCalls.first?.config.initialPrompt, "Context block\n\nImplement the authentication retry flow")
-        let sentMessages = await fixture.agentsManager.sentMessages()
-        XCTAssertTrue(sentMessages.isEmpty)
-    }
-
     func testMakeSpawnConfigPreservesStoredEffortValue() throws {
         let fixture = try ConversationViewModelTestFixture()
         let thread = try fixture.dbThread()

@@ -11,6 +11,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     /// Provider-facing text for delivery; local UI and transcript must keep using `text`.
     let transportText: String?
     let attachments: [LocalImageAttachment]
+    let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
     let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
@@ -23,6 +24,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
@@ -34,6 +36,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         self.requiredSpeedMode = requiredSpeedMode
         self.transportText = transportText
         self.attachments = attachments
+        self.fileAttachments = fileAttachments
         self.appShots = appShots
         self.providerMetadata = providerMetadata
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
@@ -52,6 +55,7 @@ final class MessageQueue {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
@@ -63,6 +67,7 @@ final class MessageQueue {
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
             attachments: attachments,
+            fileAttachments: fileAttachments,
             appShots: appShots,
             providerMetadata: providerMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
@@ -76,6 +81,7 @@ final class MessageQueue {
         requiredSpeedMode: AgentSpeedMode? = nil,
         transportText: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
@@ -87,6 +93,7 @@ final class MessageQueue {
             requiredSpeedMode: requiredSpeedMode,
             transportText: transportText,
             attachments: attachments,
+            fileAttachments: fileAttachments,
             appShots: appShots,
             providerMetadata: providerMetadata,
             consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
@@ -121,6 +128,7 @@ final class MessageQueue {
                 requiredPlanModeEnabled: nil,
                 requiredSpeedMode: message.requiredSpeedMode,
                 attachments: message.attachments,
+                fileAttachments: message.fileAttachments,
                 appShots: message.appShots,
                 providerMetadata: message.providerMetadata
             )

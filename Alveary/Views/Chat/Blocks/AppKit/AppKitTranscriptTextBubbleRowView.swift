@@ -41,6 +41,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
         let role: Role
         let markdown: String
         let imageAttachments: [TranscriptImageAttachment]
+        let fileAttachments: [LocalFileAttachment]
         let bubbleMaxWidth: CGFloat
         let typography: AppKitMarkdownTypography
         let markdownBaseURL: URL?
@@ -52,6 +53,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             role: Role,
             markdown: String,
             imageAttachments: [TranscriptImageAttachment] = [],
+            fileAttachments: [LocalFileAttachment] = [],
             bubbleMaxWidth: CGFloat = .infinity,
             typography: AppKitMarkdownTypography = .default,
             markdownBaseURL: URL? = nil,
@@ -62,6 +64,7 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             self.role = role
             self.markdown = markdown
             self.imageAttachments = imageAttachments
+            self.fileAttachments = fileAttachments
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
             self.markdownBaseURL = markdownBaseURL
@@ -94,11 +97,16 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
         }
     }
+    var onOpenFileAttachment: ((LocalFileAttachment) -> Void)? {
+        didSet {
+            imageAttachmentStripView.onOpenFileAttachment = onOpenFileAttachment
+        }
+    }
     var hydratesMarkdownImmediately = true
 
     private(set) var bubbleView = AppKitFlippedDynamicColorView()
     private(set) var markdownClipView = AppKitFlippedDynamicColorView()
-    private(set) var imageAttachmentStripView = AppKitTranscriptImageAttachmentStripView()
+    private(set) var imageAttachmentStripView = AppKitTranscriptAttachmentStripView()
     private(set) var collapsedFadeMask = CAGradientLayer()
     private(set) var expansionButton = AppKitTranscriptHeaderToggleButton()
     private(set) var retryStatusField = NSTextField(labelWithString: "Not sent")
@@ -171,8 +179,10 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
             isExpanded = configuration.initiallyExpanded
         }
         imageAttachmentStripView.onOpenAttachment = onOpenImageAttachment
+        imageAttachmentStripView.onOpenFileAttachment = onOpenFileAttachment
         imageAttachmentStripView.configure(
             configuration.imageAttachments,
+            fileAttachments: configuration.fileAttachments,
             alignment: configuration.role == .user ? .trailing : .leading
         )
         resetMarkdownView()
@@ -427,6 +437,7 @@ extension AppKitTranscriptTextBubbleRowView.Configuration {
     func hasSameRenderedContent(as other: Self) -> Bool {
         let sameMaxWidth = bubbleMaxWidth == other.bubbleMaxWidth || abs(bubbleMaxWidth - other.bubbleMaxWidth) <= 0.5
         return id == other.id && role == other.role && markdown == other.markdown && imageAttachments == other.imageAttachments &&
+            fileAttachments == other.fileAttachments &&
             sameMaxWidth && typography == other.typography && markdownBaseURL == other.markdownBaseURL &&
             showsRetry == other.showsRetry
     }

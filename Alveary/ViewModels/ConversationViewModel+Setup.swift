@@ -56,6 +56,7 @@ extension ConversationViewModel {
             outbound.visibleText,
             into: dbConversation,
             imageAttachments: outbound.attachments,
+            fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots
         ).id
 
@@ -68,6 +69,7 @@ extension ConversationViewModel {
             stagedContext: appliedContext,
             transportText: outbound.transportText,
             attachments: outbound.attachments,
+            fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
             providerMetadata: outbound.providerMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
@@ -88,6 +90,7 @@ extension ConversationViewModel {
                 stagedContext: stagedContextOverride ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil),
                 transportText: outbound.transportText,
                 attachments: outbound.attachments,
+                fileAttachments: outbound.consumedFileAttachments,
                 appShots: outbound.appShots,
                 providerMetadata: outbound.providerMetadata,
                 consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
@@ -117,6 +120,7 @@ extension ConversationViewModel {
             stagedContext: stagedContextOverride ?? attempt.stagedContext,
             transportText: attempt.transportText,
             attachments: attempt.attachments,
+            fileAttachments: attempt.fileAttachments,
             appShots: attempt.appShots,
             providerMetadata: attempt.providerMetadata
         )
@@ -218,18 +222,22 @@ extension ConversationViewModel {
         do {
             if needsSetup {
                 try await setupAndStartReserved(
-                    message,
-                    transportText: transportTextOverride,
-                    attachments: attachments,
-                    appShots: appShots,
-                    initialGoal: initialGoal,
-                    providerMetadata: providerMetadata,
+                    InitialSetupReservedPayload(
+                        message: message,
+                        transportText: transportTextOverride,
+                        attachments: attachments,
+                        fileAttachments: consumedFileAttachments,
+                        appShots: appShots,
+                        initialGoal: initialGoal,
+                        providerMetadata: providerMetadata
+                    ),
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
                     snapshotStagedContext: attempt.stagedContext
                 )
                 state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
+                state.markTranscriptFileAttachments(id: attempt.id, attachments: attempt.fileAttachments)
                 state.markTranscriptAppShots(id: attempt.id, appShots: attempt.appShots)
                 return
             }
@@ -240,7 +248,8 @@ extension ConversationViewModel {
                     transportText: transportTextOverride,
                     attachments: attachments,
                     appShots: appShots,
-                    providerMetadata: providerMetadata
+                    providerMetadata: providerMetadata,
+                    consumedFileAttachments: consumedFileAttachments
                 ),
                 stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
@@ -252,6 +261,7 @@ extension ConversationViewModel {
             )
             clearConsumedPendingRestoreContext(resolvedStagedContext)
             state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
+            state.markTranscriptFileAttachments(id: attempt.id, attachments: attempt.fileAttachments)
             state.markTranscriptAppShots(id: attempt.id, appShots: attempt.appShots)
         } catch is CancellationError {
             cancelLocalUserMessageAttemptIfNeeded(attempt)
@@ -295,12 +305,7 @@ extension ConversationViewModel {
     }
 
     private func setupAndStartReserved(
-        _ message: String,
-        transportText: String?,
-        attachments: [LocalImageAttachment],
-        appShots: [AppShotAttachment],
-        initialGoal: String? = nil,
-        providerMetadata: [String: AgentCLIKit.JSONValue],
+        _ payload: InitialSetupReservedPayload,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
@@ -316,37 +321,33 @@ extension ConversationViewModel {
 
         let resolvedStagedContext = snapshotStagedContext ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let snapshot = ConversationInitialSetupSnapshot(
-            draft: message,
+            draft: payload.message,
             draftSource: state.inputDraftSource,
             stagedContext: resolvedStagedContext,
-            stagedImageAttachments: attachments,
-            stagedAppShots: appShots
+            stagedImageAttachments: payload.attachments,
+            stagedFileAttachments: payload.fileAttachments,
+            stagedAppShots: payload.appShots
         )
 
         do {
             let workingDirectory = try await createInitialWorkingDirectory(
                 for: thread,
                 project: project,
-                message: message
+                message: payload.message
             )
-            let transportMessage = buildTransportMessage(
-                message: transportText ?? message,
-                stagedContext: snapshot.stagedContext
-            )
+            let transportMessage = buildTransportMessage(message: payload.transportText ?? payload.message, stagedContext: snapshot.stagedContext)
             setupPhase = .startingAgent
             try await startAgentReserved(config: makeSpawnConfig(
                 workingDirectory: workingDirectory,
                 initialPrompt: transportMessage,
-                initialPromptAttachments: attachments,
-                initialPromptMetadata: providerMetadata,
-                allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: appShots),
-                initialGoal: initialGoal,
+                initialPromptAttachments: payload.attachments,
+                initialPromptMetadata: payload.providerMetadata,
+                allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: payload.appShots),
+                initialGoal: payload.initialGoal,
                 settingsSource: .nextTurn
             ))
             try completeInitialPromptSetup(
-                thread: thread,
-                stagedContext: snapshot.stagedContext,
-                existingLocalUserMessageID: existingLocalUserMessageID
+                thread: thread, stagedContext: snapshot.stagedContext, existingLocalUserMessageID: existingLocalUserMessageID
             )
         } catch {
             try await rollbackFailedInitialSetup(
@@ -466,4 +467,14 @@ private extension ConversationViewModel {
         }
     }
 
+}
+
+private struct InitialSetupReservedPayload {
+    let message: String
+    let transportText: String?
+    let attachments: [LocalImageAttachment]
+    let fileAttachments: [LocalFileAttachment]
+    let appShots: [AppShotAttachment]
+    let initialGoal: String?
+    let providerMetadata: [String: AgentCLIKit.JSONValue]
 }

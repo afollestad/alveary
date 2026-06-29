@@ -10,6 +10,7 @@ struct LocalUserMessageAttempt {
     let stagedContext: String?
     let transportText: String?
     let attachments: [LocalImageAttachment]
+    let fileAttachments: [LocalFileAttachment]
     let appShots: [AppShotAttachment]
     let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?

@@ -1,7 +1,7 @@
 @preconcurrency import AppKit
 
 #if DEBUG
-extension AppKitTranscriptImageAttachmentStripView {
+extension AppKitTranscriptAttachmentStripView {
     var tileFramesForTesting: [CGRect] {
         tileViews.prefix(plainAttachments.count).map(\.frame)
     }
@@ -22,6 +22,17 @@ extension AppKitTranscriptImageAttachmentStripView {
         tileViews.prefix(plainAttachments.count).map { tileView in
             let center = NSPoint(x: tileView.bounds.midX, y: tileView.bounds.midY)
             return tileView.hitTest(center) === tileView
+        }
+    }
+
+    var fileChipFramesForTesting: [CGRect] {
+        fileChipViews.prefix(fileAttachments.count).map(\.frame)
+    }
+
+    var fileChipHitTargetsForTesting: [Bool] {
+        fileChipViews.prefix(fileAttachments.count).map { chipView in
+            let center = NSPoint(x: chipView.bounds.midX, y: chipView.bounds.midY)
+            return chipView.hitTest(center) === chipView
         }
     }
 
@@ -73,7 +84,15 @@ extension AppKitTranscriptImageAttachmentStripView {
             }
             return tileViews[index].accessibilityPerformPress()
         }
-        let appShotIndex = index - visibleTileCount
+        let visibleFileCount = fileAttachments.count
+        let fileIndex = index - visibleTileCount
+        if fileIndex < visibleFileCount {
+            guard fileChipViews.indices.contains(fileIndex) else {
+                return false
+            }
+            return fileChipViews[fileIndex].accessibilityPerformPress()
+        }
+        let appShotIndex = index - visibleTileCount - visibleFileCount
         guard appShotCardViews.indices.contains(appShotIndex) else {
             return false
         }

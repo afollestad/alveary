@@ -9,31 +9,35 @@ extension ConversationViewModelTests {
         let attachment = persistedTestImageAttachment(label: "legacy.png")
         let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Legacy")
         let data = try JSONEncoder().encode([attachment])
-        record.imageAttachmentsJSON = String(data: data, encoding: .utf8)
+        record.transcriptAttachmentsJSON = String(data: data, encoding: .utf8)
 
         XCTAssertEqual(record.persistedPlainImageAttachments, [attachment])
         XCTAssertEqual(record.persistedAppShotAttachments, [])
         XCTAssertEqual(record.persistedImageAttachments, [attachment])
+        XCTAssertEqual(record.persistedFileAttachments, [])
     }
 
-    func testPersistedTranscriptAttachmentsRoundTripAppShotMetadata() throws {
+    func testPersistedTranscriptAttachmentsRoundTripImageAppShotAndFileMetadata() throws {
         let image = persistedTestImageAttachment(label: "plain.png")
+        let file = persistedTestFileAttachment(label: "report.pdf")
         let appShot = try persistedTestAppShotAttachment(label: "persisted-appshot.png")
         let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Describe")
 
-        record.setPersistedTranscriptAttachments(images: [image, appShot.screenshot], appShots: [appShot])
+        record.setPersistedTranscriptAttachments(images: [image, appShot.screenshot], appShots: [appShot], files: [file])
 
         XCTAssertEqual(record.persistedPlainImageAttachments, [image, appShot.screenshot])
         XCTAssertEqual(record.persistedAppShotAttachments, [PersistedAppShotAttachment(appShot: appShot)])
         XCTAssertEqual(record.persistedImageAttachments, [image, appShot.screenshot])
-        XCTAssertTrue(try XCTUnwrap(record.imageAttachmentsJSON).contains(appShot.axTreeText))
-        XCTAssertFalse(try XCTUnwrap(record.imageAttachmentsJSON).contains(appShot.focusedElementSummary))
-        XCTAssertFalse(try XCTUnwrap(record.imageAttachmentsJSON).contains("attachmentStoreRoot"))
+        XCTAssertEqual(record.persistedFileAttachments, [file])
+        XCTAssertTrue(try XCTUnwrap(record.transcriptAttachmentsJSON).contains(appShot.axTreeText))
+        XCTAssertTrue(try XCTUnwrap(record.transcriptAttachmentsJSON).contains(file.label))
+        XCTAssertFalse(try XCTUnwrap(record.transcriptAttachmentsJSON).contains(appShot.focusedElementSummary))
+        XCTAssertFalse(try XCTUnwrap(record.transcriptAttachmentsJSON).contains("attachmentStoreRoot"))
     }
 
     func testPersistedTranscriptAttachmentsDecodeLegacyAppShotMetadataWithoutAXTreeText() {
         let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Legacy")
-        record.imageAttachmentsJSON = """
+        record.transcriptAttachmentsJSON = """
         {
           "version": 1,
           "images": [],
@@ -55,25 +59,28 @@ extension ConversationViewModelTests {
 
         XCTAssertEqual(record.persistedAppShotAttachments.count, 1)
         XCTAssertNil(record.persistedAppShotAttachments.first?.axTreeText)
+        XCTAssertEqual(record.persistedFileAttachments, [])
     }
 
     func testEmptyPersistedTranscriptAttachmentsClearJSON() {
         let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Empty")
         record.setPersistedPlainImageAttachments([persistedTestImageAttachment(label: "plain.png")])
 
-        record.setPersistedTranscriptAttachments(images: [], appShots: [])
+        record.setPersistedTranscriptAttachments(images: [], appShots: [], files: [])
 
-        XCTAssertNil(record.imageAttachmentsJSON)
+        XCTAssertNil(record.transcriptAttachmentsJSON)
         XCTAssertEqual(record.persistedImageAttachments, [])
         XCTAssertEqual(record.persistedAppShotAttachments, [])
+        XCTAssertEqual(record.persistedFileAttachments, [])
     }
 
     func testCorruptPersistedTranscriptAttachmentsDecodeAsEmpty() {
         let record = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Corrupt")
-        record.imageAttachmentsJSON = "{not-json"
+        record.transcriptAttachmentsJSON = "{not-json"
 
         XCTAssertEqual(record.persistedImageAttachments, [])
         XCTAssertEqual(record.persistedAppShotAttachments, [])
+        XCTAssertEqual(record.persistedFileAttachments, [])
     }
 
     func testCleanupRetainsPersistedAppShotScreenshotAfterRuntimeStateReset() async throws {
@@ -109,6 +116,15 @@ extension ConversationViewModelTests {
 
 private func persistedTestImageAttachment(label: String) -> LocalImageAttachment {
     LocalImageAttachment(
+        id: UUID().uuidString,
+        fileURL: FileManager.default.temporaryDirectory.appendingPathComponent(label),
+        label: label,
+        createdAt: Date()
+    )
+}
+
+private func persistedTestFileAttachment(label: String) -> LocalFileAttachment {
+    LocalFileAttachment(
         id: UUID().uuidString,
         fileURL: FileManager.default.temporaryDirectory.appendingPathComponent(label),
         label: label,

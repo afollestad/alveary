@@ -26,6 +26,14 @@ extension AppKitTranscriptTextBubbleRowView {
         imageAttachmentStripView.tileHitTargetsForTesting
     }
 
+    var fileAttachmentChipFramesForTesting: [CGRect] {
+        imageAttachmentStripView.fileChipFramesForTesting
+    }
+
+    var fileAttachmentChipHitTargetsForTesting: [Bool] {
+        imageAttachmentStripView.fileChipHitTargetsForTesting
+    }
+
     var appShotCardFramesForTesting: [CGRect] {
         imageAttachmentStripView.appShotCardFramesForTesting
     }
@@ -69,6 +77,11 @@ extension AppKitTranscriptTextBubbleRowView {
     @discardableResult
     func openImageAttachmentForTesting(at index: Int = 0) -> Bool {
         imageAttachmentStripView.performOpenForTesting(at: index)
+    }
+
+    @discardableResult
+    func openFileAttachmentForTesting(at index: Int = 0) -> Bool {
+        imageAttachmentStripView.performOpenForTesting(at: imageAttachmentStripView.tileFramesForTesting.count + index)
     }
 
     func setAppShotIconResolverForTesting(_ resolver: AppKitAppIconResolving) {

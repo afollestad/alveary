@@ -148,6 +148,7 @@ extension ConversationViewModelTests {
             requiredSpeedMode: .fast,
             transportText: "Transport [file](file:///tmp/report.txt)",
             attachments: [payload.image],
+            fileAttachments: [payload.file],
             appShots: [payload.appShot],
             providerMetadata: ["codex-test": .string("metadata")],
             consumedExitPlanModeRevisionGuidance: payload.revisionGuidance
@@ -163,6 +164,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(queued.requiredPlanModeEnabled, true)
         XCTAssertEqual(queued.requiredSpeedMode, .fast)
         XCTAssertEqual(queued.attachments, [payload.image])
+        XCTAssertEqual(queued.fileAttachments, [payload.file])
         XCTAssertEqual(queued.appShots, [payload.appShot])
         XCTAssertEqual(queued.providerMetadata["codex-test"], .string("metadata"))
         XCTAssertEqual(queued.consumedExitPlanModeRevisionGuidance, payload.revisionGuidance)
@@ -181,13 +183,16 @@ extension ConversationViewModelTests {
         XCTAssertEqual(sentMetadata, [["codex-test": .string("metadata")]])
         XCTAssertEqual(userMessage.content, "Visible [file](file:///tmp/report.txt)")
         XCTAssertEqual(userMessage.persistedImageAttachments, [payload.image])
+        XCTAssertEqual(userMessage.persistedFileAttachments, [payload.file])
         XCTAssertEqual(userMessage.persistedAppShotAttachments, [PersistedAppShotAttachment(appShot: payload.appShot)])
+        XCTAssertEqual(fixture.viewModel.state.transcriptFileAttachments[userMessage.id], [payload.file])
         XCTAssertEqual(fixture.viewModel.state.transcriptAppShots[userMessage.id], [payload.appShot])
     }
 }
 
 private struct PausedQueuePayload {
     let image: LocalImageAttachment
+    let file: LocalFileAttachment
     let appShot: AppShotAttachment
     let revisionGuidance: PendingExitPlanModeRevisionGuidance
 }
@@ -201,6 +206,12 @@ private func makePausedQueuePayload() -> PausedQueuePayload {
     )
     return PausedQueuePayload(
         image: image,
+        file: LocalFileAttachment(
+            id: "file-1",
+            fileURL: URL(fileURLWithPath: "/tmp/report.txt"),
+            label: "report.txt",
+            createdAt: Date()
+        ),
         appShot: AppShotAttachment(
             id: "app-shot-1",
             appName: "Preview",

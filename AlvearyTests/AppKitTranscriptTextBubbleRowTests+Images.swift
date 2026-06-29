@@ -255,9 +255,10 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertEqual(cardFrame.height, 140, accuracy: 0.5)
     }
 
-    func testMixedPlainAndAppShotAttachmentsRenderPlainGridBeforeCards() throws {
+    func testMixedPlainFileAndAppShotAttachmentsRenderLocalGridBeforeCards() throws {
         let imageURL = try temporaryPNGURL(named: "mixed-appshot.png", size: NSSize(width: 320, height: 180))
         let appShot = persistedAppShotAttachment(fileURL: imageURL)
+        let fileAttachment = LocalFileAttachment(id: "notes.pdf", fileURL: URL(fileURLWithPath: "/tmp/notes.pdf"))
         let row = AppKitTranscriptTextBubbleRowView()
         row.frame = NSRect(x: 0, y: 0, width: 500, height: 500)
         row.configure(
@@ -267,20 +268,24 @@ extension AppKitTranscriptTextBubbleRowTests {
                 imageAttachments: [
                     TranscriptImageAttachment(localImageAttachment: localImageAttachments(count: 1)[0]),
                     TranscriptImageAttachment(appShot: appShot)
-                ]
+                ],
+                fileAttachments: [fileAttachment]
             )
         )
         row.layoutSubtreeIfNeeded()
 
         let tileFrame = try XCTUnwrap(row.imageAttachmentTileFramesForTesting.first)
+        let fileFrame = try XCTUnwrap(row.fileAttachmentChipFramesForTesting.first)
         let cardFrame = try XCTUnwrap(row.appShotCardFramesForTesting.first)
         XCTAssertEqual(tileFrame.minY, 0, accuracy: 0.5)
+        XCTAssertEqual(fileFrame.maxY, tileFrame.maxY, accuracy: 0.5)
+        XCTAssertGreaterThan(fileFrame.minX, tileFrame.maxX)
         XCTAssertEqual(
             cardFrame.minY - tileFrame.maxY,
-            AppKitTranscriptImageAttachmentStripView.appShotSectionSpacing,
+            AppKitTranscriptAttachmentStripView.appShotSectionSpacing,
             accuracy: 0.5
         )
-        XCTAssertEqual(tileFrame.maxX, row.imageAttachmentStripFrameForTesting.width, accuracy: 0.5)
+        XCTAssertEqual(fileFrame.maxX, row.imageAttachmentStripFrameForTesting.width, accuracy: 0.5)
     }
 
     func testAppShotCardOpenCallbackReceivesScreenshotAttachment() throws {

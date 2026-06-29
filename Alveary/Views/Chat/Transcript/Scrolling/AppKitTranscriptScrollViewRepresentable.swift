@@ -253,6 +253,7 @@ private struct AppKitTranscriptPreparedUpdate {
             pendingToolApproval: rowConfiguration.pendingToolApproval,
             retryableFailedMessageIDs: rowConfiguration.retryableFailedMessageIDs,
             transcriptImageAttachmentsByMessageID: rowConfiguration.transcriptImageAttachmentsByMessageID,
+            transcriptFileAttachmentsByMessageID: rowConfiguration.transcriptFileAttachmentsByMessageID,
             hasUnansweredPrompt: rowConfiguration.hasUnansweredPrompt,
             actionContextID: rowConfiguration.actionContextID,
             approvalSelections: approvalSelections
@@ -290,6 +291,7 @@ private struct AppKitTranscriptPreparedUpdate {
         let pendingToolApproval: PendingToolApproval?
         let retryableFailedMessageIDs: Set<String>
         let transcriptImageAttachmentsByMessageID: [String: [TranscriptImageAttachment]]
+        let transcriptFileAttachmentsByMessageID: [String: [LocalFileAttachment]]
         let hasUnansweredPrompt: Bool
         let actionContextID: String
         let approvalSelections: [String: ToolApprovalSelection]

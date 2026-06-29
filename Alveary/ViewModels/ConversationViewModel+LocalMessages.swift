@@ -6,6 +6,7 @@ extension ConversationViewModel {
         _ message: String,
         into dbConversation: Conversation,
         imageAttachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = []
     ) -> ConversationEventRecord {
         let record = ConversationEventRecord(
@@ -17,7 +18,8 @@ extension ConversationViewModel {
         )
         record.setPersistedTranscriptAttachments(
             images: imageAttachments,
-            appShots: appShots
+            appShots: appShots,
+            files: fileAttachments
         )
         if !appShots.isEmpty {
             state.appShotProviderSessionTitleFallback = Self.appShotThreadPreviewTitle(fromVisibleUserInput: message)

@@ -35,6 +35,9 @@ extension ConversationViewModel {
             state.stagedFileAttachments = snapshot.stagedFileAttachments
             state.stagedAppShots = snapshot.stagedAppShots
             refreshInputDraftEffectiveEmptyForAttachments()
+        } else if !snapshot.stagedFileAttachments.isEmpty {
+            state.stagedFileAttachments = snapshot.stagedFileAttachments
+            refreshInputDraftEffectiveEmptyForAttachments()
         }
         thread.hasCompletedInitialSetup = false
     }

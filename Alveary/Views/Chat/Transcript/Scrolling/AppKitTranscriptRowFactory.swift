@@ -18,6 +18,7 @@ final class AppKitTranscriptRowFactory {
         var pendingToolApproval: PendingToolApproval?
         var retryableFailedMessageIDs: Set<String> = []
         var transcriptImageAttachmentsByMessageID: [String: [TranscriptImageAttachment]] = [:]
+        var transcriptFileAttachmentsByMessageID: [String: [LocalFileAttachment]] = [:]
         var hasUnansweredPrompt = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
@@ -32,6 +33,7 @@ final class AppKitTranscriptRowFactory {
         var onOpenMarkdownLink: (URL) -> Void = { _ in }
         var onOpenMarkdownImage: (BlockInputImage, URL?) -> Void = { _, _ in }
         var onOpenImageAttachment: (TranscriptImageAttachment) -> Void = { _ in }
+        var onOpenFileAttachment: (LocalFileAttachment) -> Void = { _ in }
         var onOpenToolImage: (ToolEntry) -> Void = { _ in }
         var onRetryFailedUserMessage: (String) -> Void = { _ in }
         var onRowExpansionChanged: (String, Bool) -> Void = { _, _ in }
@@ -53,88 +55,6 @@ final class AppKitTranscriptRowFactory {
         let liveRowIDs = Set(rows.map(\.id))
         cachedViewsByRowID = cachedViewsByRowID.filter { rowID, _ in liveRowIDs.contains(rowID) }
         return rows
-    }
-
-    // `ChatItem` is the transcript sum type; keeping this dispatch here makes
-    // row coverage exhaustive while the row-specific builders stay small.
-    // swiftlint:disable:next cyclomatic_complexity
-    func layoutRows(for item: ChatItem, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
-        switch item {
-        case .userMessage(let id, let text):
-            return [textBubbleRow(
-                id: id,
-                role: .user,
-                markdown: text,
-                imageAttachments: imageAttachments(for: id, configuration: configuration),
-                configuration: configuration
-            )]
-        case .assistantMessage(let id, let text):
-            return [textBubbleRow(
-                id: id,
-                role: .assistant,
-                markdown: text,
-                imageAttachments: imageAttachments(for: id, configuration: configuration),
-                configuration: configuration
-            )]
-        case .toolGroup(let id, let tools):
-            return [toolGroupRow(id: id, tools: tools, configuration: configuration)]
-        case .standaloneTool(let id, let tool):
-            return standaloneToolRows(id: id, tool: tool, configuration: configuration)
-        case .subAgentBlock(let id, let agents):
-            return [subAgentRow(id: id, agents: agents, configuration: configuration)]
-        case .taskListBlock(let id, let tasks):
-            return [taskListRow(id: id, tasks: tasks, configuration: configuration)]
-        case .promptBlock(let id, let prompt):
-            return [promptRow(id: id, prompt: prompt, configuration: configuration)]
-        case .toolApproval(let id, let approval, let status):
-            return approvalRows(id: id, approvals: [approval], persistedStatus: status, configuration: configuration)
-        case .toolApprovalBatch(let id, let approvals, let status):
-            return approvalRows(id: id, approvals: approvals, persistedStatus: status, configuration: configuration)
-        case .transcriptNote(let id, let kind):
-            return [transcriptNoteRow(id: id, kind: kind, configuration: configuration)]
-        case .error(let id, let message):
-            return [errorRow(id: id, message: message, configuration: configuration)]
-        }
-    }
-
-    private func layoutRows(
-        for transientRows: AppKitTranscriptTransientRows,
-        configuration: Configuration
-    ) -> [AppKitTranscriptLayoutRow] {
-        if let streamingText = transientRows.streamingText {
-            var rows: [AppKitTranscriptLayoutRow] = []
-            if let completedThoughtText = transientRows.completedThoughtText {
-                rows.append(thoughtRow(
-                    text: completedThoughtText,
-                    sequence: transientRows.completedThoughtSequence,
-                    configuration: configuration
-                ))
-            }
-            rows.append(streamingBubbleRow(text: streamingText, configuration: configuration))
-            return rows
-        }
-
-        if let thoughtText = transientRows.thoughtText {
-            return [thoughtRow(text: thoughtText, sequence: transientRows.thoughtSequence, configuration: configuration)]
-        }
-
-        if let completedThoughtText = transientRows.completedThoughtText {
-            return [thoughtRow(
-                text: completedThoughtText,
-                sequence: transientRows.completedThoughtSequence,
-                configuration: configuration
-            )]
-        }
-
-        if transientRows.isTurnActive || transientRows.isAwaitingExitPlanModeFollowUp {
-            return [thinkingIndicatorRow(transientRows: transientRows, configuration: configuration)]
-        }
-
-        if transientRows.showsInterruptedNote {
-            return [transcriptNoteRow(id: AppKitTranscriptTransientRows.interruptedRowID, kind: .interrupted, configuration: configuration)]
-        }
-
-        return []
     }
 
     private func toolGroupRow(
@@ -308,6 +228,7 @@ final class AppKitTranscriptRowFactory {
         role: AppKitTranscriptTextBubbleRowView.Role,
         markdown: String,
         imageAttachments: [TranscriptImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         markdownBaseURL: URL? = nil,
         configuration: Configuration
     ) -> AppKitTranscriptLayoutRow {
@@ -326,8 +247,9 @@ final class AppKitTranscriptRowFactory {
             .init(
                 id: id,
                 role: role,
-                markdown: markdown,
+                markdown: displayMarkdown(markdown, fileAttachments: fileAttachments),
                 imageAttachments: imageAttachments,
+                fileAttachments: fileAttachments,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography.appKitMarkdownTypography,
                 markdownBaseURL: markdownBaseURL ?? configuration.markdownBaseURL,
@@ -449,11 +371,88 @@ final class AppKitTranscriptRowFactory {
 }
 
 extension AppKitTranscriptRowFactory {
-    func imageAttachments(
-        for id: String,
+    // `ChatItem` is the transcript sum type; keeping this dispatch here makes
+    // row coverage exhaustive while the row-specific builders stay small.
+    // swiftlint:disable:next cyclomatic_complexity
+    func layoutRows(for item: ChatItem, configuration: Configuration) -> [AppKitTranscriptLayoutRow] {
+        switch item {
+        case .userMessage(let id, let text):
+            return [textBubbleRow(
+                id: id,
+                role: .user,
+                markdown: text,
+                imageAttachments: imageAttachments(for: id, configuration: configuration),
+                fileAttachments: fileAttachments(for: id, role: .user, configuration: configuration),
+                configuration: configuration
+            )]
+        case .assistantMessage(let id, let text):
+            return [textBubbleRow(
+                id: id,
+                role: .assistant,
+                markdown: text,
+                imageAttachments: imageAttachments(for: id, configuration: configuration),
+                fileAttachments: fileAttachments(for: id, role: .assistant, configuration: configuration),
+                configuration: configuration
+            )]
+        case .toolGroup(let id, let tools):
+            return [toolGroupRow(id: id, tools: tools, configuration: configuration)]
+        case .standaloneTool(let id, let tool):
+            return standaloneToolRows(id: id, tool: tool, configuration: configuration)
+        case .subAgentBlock(let id, let agents):
+            return [subAgentRow(id: id, agents: agents, configuration: configuration)]
+        case .taskListBlock(let id, let tasks):
+            return [taskListRow(id: id, tasks: tasks, configuration: configuration)]
+        case .promptBlock(let id, let prompt):
+            return [promptRow(id: id, prompt: prompt, configuration: configuration)]
+        case .toolApproval(let id, let approval, let status):
+            return approvalRows(id: id, approvals: [approval], persistedStatus: status, configuration: configuration)
+        case .toolApprovalBatch(let id, let approvals, let status):
+            return approvalRows(id: id, approvals: approvals, persistedStatus: status, configuration: configuration)
+        case .transcriptNote(let id, let kind):
+            return [transcriptNoteRow(id: id, kind: kind, configuration: configuration)]
+        case .error(let id, let message):
+            return [errorRow(id: id, message: message, configuration: configuration)]
+        }
+    }
+
+    func layoutRows(
+        for transientRows: AppKitTranscriptTransientRows,
         configuration: Configuration
-    ) -> [TranscriptImageAttachment] {
-        configuration.transcriptImageAttachmentsByMessageID[id] ?? []
+    ) -> [AppKitTranscriptLayoutRow] {
+        if let streamingText = transientRows.streamingText {
+            var rows: [AppKitTranscriptLayoutRow] = []
+            if let completedThoughtText = transientRows.completedThoughtText {
+                rows.append(thoughtRow(
+                    text: completedThoughtText,
+                    sequence: transientRows.completedThoughtSequence,
+                    configuration: configuration
+                ))
+            }
+            rows.append(streamingBubbleRow(text: streamingText, configuration: configuration))
+            return rows
+        }
+
+        if let thoughtText = transientRows.thoughtText {
+            return [thoughtRow(text: thoughtText, sequence: transientRows.thoughtSequence, configuration: configuration)]
+        }
+
+        if let completedThoughtText = transientRows.completedThoughtText {
+            return [thoughtRow(
+                text: completedThoughtText,
+                sequence: transientRows.completedThoughtSequence,
+                configuration: configuration
+            )]
+        }
+
+        if transientRows.isTurnActive || transientRows.isAwaitingExitPlanModeFollowUp {
+            return [thinkingIndicatorRow(transientRows: transientRows, configuration: configuration)]
+        }
+
+        if transientRows.showsInterruptedNote {
+            return [transcriptNoteRow(id: AppKitTranscriptTransientRows.interruptedRowID, kind: .interrupted, configuration: configuration)]
+        }
+
+        return []
     }
 }
 
@@ -486,5 +485,6 @@ private extension AppKitTranscriptTextBubbleRowView {
         onOpenMarkdownLink = configuration.onOpenMarkdownLink
         onOpenMarkdownImage = configuration.onOpenMarkdownImage
         onOpenImageAttachment = configuration.onOpenImageAttachment
+        onOpenFileAttachment = configuration.onOpenFileAttachment
     }
 }

@@ -12,6 +12,7 @@ extension ConversationViewModel {
         transportText: String? = nil,
         initialGoal: String? = nil,
         attachments: [LocalImageAttachment] = [],
+        fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
         stagedContextOverride: String? = nil,
@@ -53,6 +54,7 @@ extension ConversationViewModel {
                 message,
                 into: dbConversation,
                 imageAttachments: attachments,
+                fileAttachments: fileAttachments,
                 appShots: appShots
             )
         }
@@ -151,6 +153,7 @@ extension ConversationViewModel {
                     stagedContext: queuedMessage.stagedContext,
                     transportText: queuedMessage.transportText,
                     attachments: queuedMessage.attachments,
+                    fileAttachments: queuedMessage.fileAttachments,
                     appShots: queuedMessage.appShots,
                     providerMetadata: queuedMessage.providerMetadata
                 )
@@ -176,6 +179,7 @@ extension ConversationViewModel {
                 queuedMessage.text,
                 into: dbConversation,
                 imageAttachments: queuedMessage.attachments,
+                fileAttachments: queuedMessage.fileAttachments,
                 appShots: queuedMessage.appShots
             )
             onLocalMessageInserted(localMessage.id)
@@ -195,6 +199,7 @@ extension ConversationViewModel {
             clearConsumedPendingRestoreContext(using: queuedMessage.stagedContext)
             state.clearRetryableFailedMessage(id: localMessage.id)
             state.markTranscriptImageAttachments(id: localMessage.id, attachments: queuedMessage.attachments)
+            state.markTranscriptFileAttachments(id: localMessage.id, attachments: queuedMessage.fileAttachments)
             state.markTranscriptAppShots(id: localMessage.id, appShots: queuedMessage.appShots)
             state.respawnAttempts = 0
         }
@@ -366,6 +371,7 @@ private extension ConversationViewModel {
                 queuedMessage.text,
                 into: dbConversation,
                 imageAttachments: queuedMessage.attachments,
+                fileAttachments: queuedMessage.fileAttachments,
                 appShots: queuedMessage.appShots
             )
             localMessageID = localMessage.id
@@ -390,6 +396,7 @@ private extension ConversationViewModel {
                         stagedContext: resolvedStagedContext.stagedContext,
                         transportText: transportText,
                         attachments: queuedMessage.attachments,
+                        fileAttachments: queuedMessage.fileAttachments,
                         appShots: queuedMessage.appShots,
                         providerMetadata: queuedMessage.providerMetadata
                     )
@@ -425,6 +432,7 @@ private extension ConversationViewModel {
             attachments: queuedMessage.attachments,
             appShots: queuedMessage.appShots,
             providerMetadata: queuedMessage.providerMetadata,
+            consumedFileAttachments: queuedMessage.fileAttachments,
             consumedExitPlanModeRevisionGuidance: queuedMessage.consumedExitPlanModeRevisionGuidance,
             stagedContextOverride: stagedContext,
             useCurrentStagedContextWhenOverrideNil: false,

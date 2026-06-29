@@ -39,6 +39,60 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertEqual(requests.map(\.markdown), ["Describe this"])
     }
 
+    func testUserMessagePassesConfiguredFileAttachmentsAndStripsGeneratedSuffix() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let attachment = localFileAttachment(label: "report.pdf", path: "/tmp/report.pdf")
+        let markdown = "Review this\n\n\(attachment.markdownLink)"
+        var configuration = AppKitTranscriptRowFactory.Configuration()
+        configuration.transcriptFileAttachmentsByMessageID = ["user": [attachment]]
+
+        let rows = factory.makeRows(for: [.userMessage(id: "user", text: markdown)], configuration: configuration)
+
+        let bubble = try XCTUnwrap(rows[0].view as? AppKitTranscriptTextBubbleRowView)
+        XCTAssertEqual(bubble.configuration?.markdown, "Review this")
+        XCTAssertEqual(bubble.configuration?.fileAttachments, [attachment])
+    }
+
+    func testFileOnlyUserMessageMarkdownPreparationUsesDeduplicatedDisplayText() {
+        let factory = AppKitTranscriptRowFactory()
+        let attachment = localFileAttachment(label: "report.pdf", path: "/tmp/report.pdf")
+        var configuration = AppKitTranscriptRowFactory.Configuration()
+        configuration.transcriptFileAttachmentsByMessageID = ["user": [attachment]]
+
+        let requests = factory.markdownPreparationRequests(
+            for: [.userMessage(id: "user", text: attachment.markdownLink)],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(requests.map(\.markdown), [""])
+    }
+
+    func testAssistantMessageDoesNotReceiveConfiguredFileAttachments() throws {
+        let factory = AppKitTranscriptRowFactory()
+        let attachment = localFileAttachment(label: "assistant.pdf", path: "/tmp/assistant.pdf")
+        var configuration = AppKitTranscriptRowFactory.Configuration()
+        configuration.transcriptFileAttachmentsByMessageID = ["assistant": [attachment]]
+
+        let rows = factory.makeRows(
+            for: [.assistantMessage(id: "assistant", text: attachment.markdownLink)],
+            configuration: configuration
+        )
+
+        let bubble = try XCTUnwrap(rows[0].view as? AppKitTranscriptTextBubbleRowView)
+        XCTAssertEqual(bubble.configuration?.markdown, attachment.markdownLink)
+        XCTAssertEqual(bubble.configuration?.fileAttachments, [])
+    }
+
+    func testDisplayMarkdownLeavesUserAuthoredMarkdownLinksUntouched() {
+        let factory = AppKitTranscriptRowFactory()
+        let attachment = localFileAttachment(label: "report.pdf", path: "/tmp/report.pdf")
+
+        XCTAssertEqual(
+            factory.displayMarkdown("Read [report.pdf](</tmp/report.pdf>) please", fileAttachments: [attachment]),
+            "Read [report.pdf](</tmp/report.pdf>) please"
+        )
+    }
+
     func testTranscriptImageAttachmentIndexMergesPersistedAndRuntimeAttachmentsForAnyMessageRole() {
         let persisted = localImageAttachment(label: "persisted.png", path: "/tmp/persisted.png")
         let assistantPersisted = localImageAttachment(label: "assistant.png", path: "/tmp/assistant.png")
@@ -72,6 +126,29 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertEqual(attachmentsByID[message.id]?.map(\.image), [persisted, runtime, screenshot])
         XCTAssertEqual(attachmentsByID[message.id]?.last?.appShot, PersistedAppShotAttachment(appShot: appShot))
         XCTAssertEqual(attachmentsByID[assistantMessage.id]?.map(\.image), [assistantPersisted])
+    }
+
+    func testTranscriptFileAttachmentIndexMergesPersistedAndRuntimeUserFilesOnly() {
+        let persisted = localFileAttachment(label: "persisted.pdf", path: "/tmp/persisted.pdf")
+        let runtime = localFileAttachment(id: persisted.id, label: "runtime.pdf", path: "/tmp/runtime.pdf")
+        let assistant = localFileAttachment(label: "assistant.pdf", path: "/tmp/assistant.pdf")
+        let message = ConversationEventRecord(conversationId: "conversation", type: "message", role: "user", content: "Review")
+        message.setPersistedTranscriptAttachments(images: [], appShots: [], files: [persisted])
+        let assistantMessage = ConversationEventRecord(
+            conversationId: "conversation",
+            type: "message",
+            role: "assistant",
+            content: "See this"
+        )
+        assistantMessage.setPersistedTranscriptAttachments(images: [], appShots: [], files: [assistant])
+
+        let attachmentsByID = ChatTranscriptView.transcriptFileAttachmentsByMessageID(
+            events: [message, assistantMessage],
+            runtimeFileAttachments: [message.id: [runtime]]
+        )
+
+        XCTAssertEqual(attachmentsByID[message.id], [runtime])
+        XCTAssertNil(attachmentsByID[assistantMessage.id])
     }
 
     func testTranscriptImageAttachmentIndexUpgradesDuplicatePlainScreenshotWithAppShotMetadata() {
@@ -196,6 +273,23 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertFalse(first.hasSameRenderedContent(as: second))
     }
 
+    func testTextBubbleRenderedContentChangesWhenFileAttachmentsChange() {
+        let first = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Review",
+            fileAttachments: [localFileAttachment(label: "first.pdf", path: "/tmp/first.pdf")]
+        )
+        let second = AppKitTranscriptTextBubbleRowView.Configuration(
+            id: "user",
+            role: .user,
+            markdown: "Review",
+            fileAttachments: [localFileAttachment(label: "second.pdf", path: "/tmp/second.pdf")]
+        )
+
+        XCTAssertFalse(first.hasSameRenderedContent(as: second))
+    }
+
     func testTranscriptImageAttachmentPreviewRequestIncludesOnlyAppShotAXTreeText() throws {
         let plain = localImageAttachment(label: "plain.png", path: "/tmp/plain.png")
         let appShot = PersistedAppShotAttachment(
@@ -221,6 +315,19 @@ extension AppKitTranscriptRowFactoryTests {
     private func localImageAttachment(label: String, path: String) -> LocalImageAttachment {
         LocalImageAttachment(
             id: UUID().uuidString,
+            fileURL: URL(fileURLWithPath: path),
+            label: label,
+            createdAt: Date()
+        )
+    }
+
+    private func localFileAttachment(
+        id: String = UUID().uuidString,
+        label: String,
+        path: String
+    ) -> LocalFileAttachment {
+        LocalFileAttachment(
+            id: id,
             fileURL: URL(fileURLWithPath: path),
             label: label,
             createdAt: Date()

@@ -16,7 +16,7 @@ final class ConversationEventRecord {
     var type: String
     var role: String?
     var content: String?
-    var imageAttachmentsJSON: String?
+    var transcriptAttachmentsJSON: String?
     var toolId: String?
     var toolName: String?
     var toolInput: String?
@@ -49,7 +49,7 @@ final class ConversationEventRecord {
         type: String,
         role: String? = nil,
         content: String? = nil,
-        imageAttachmentsJSON: String? = nil,
+        transcriptAttachmentsJSON: String? = nil,
         toolId: String? = nil,
         toolName: String? = nil,
         toolInput: String? = nil,
@@ -88,7 +88,7 @@ final class ConversationEventRecord {
         self.type = type
         self.role = role
         self.content = content
-        self.imageAttachmentsJSON = imageAttachmentsJSON
+        self.transcriptAttachmentsJSON = transcriptAttachmentsJSON
         self.toolId = toolId
         self.toolName = toolName
         self.toolInput = toolInput
@@ -119,19 +119,20 @@ final class ConversationEventRecord {
 
 extension ConversationEventRecord {
     var persistedTranscriptAttachments: PersistedTranscriptAttachments {
-        guard let imageAttachmentsJSON,
-              let data = imageAttachmentsJSON.data(using: .utf8) else {
+        guard let transcriptAttachmentsJSON,
+              let data = transcriptAttachmentsJSON.data(using: .utf8) else {
             return .empty
         }
         let decoder = JSONDecoder()
         if let envelope = try? decoder.decode(PersistedTranscriptAttachmentsEnvelope.self, from: data) {
             return PersistedTranscriptAttachments(
                 images: envelope.images,
-                appShots: envelope.appShots
+                appShots: envelope.appShots,
+                files: envelope.files
             )
         }
         if let legacyImages = try? decoder.decode([LocalImageAttachment].self, from: data) {
-            return PersistedTranscriptAttachments(images: legacyImages, appShots: [])
+            return PersistedTranscriptAttachments(images: legacyImages, appShots: [], files: [])
         }
         return .empty
     }
@@ -144,40 +145,55 @@ extension ConversationEventRecord {
         persistedTranscriptAttachments.appShots
     }
 
+    var persistedFileAttachments: [LocalFileAttachment] {
+        persistedTranscriptAttachments.files
+    }
+
     var persistedImageAttachments: [LocalImageAttachment] {
         persistedTranscriptAttachments.combinedImageAttachments
     }
 
     func setPersistedPlainImageAttachments(_ attachments: [LocalImageAttachment]) {
-        setPersistedTranscriptAttachments(images: attachments, persistedAppShots: [])
+        setPersistedTranscriptAttachments(images: attachments, persistedAppShots: [], files: [])
     }
 
-    func setPersistedTranscriptAttachments(images: [LocalImageAttachment], appShots: [AppShotAttachment]) {
+    func setPersistedTranscriptAttachments(
+        images: [LocalImageAttachment],
+        appShots: [AppShotAttachment],
+        files: [LocalFileAttachment] = []
+    ) {
         setPersistedTranscriptAttachments(
             images: images,
-            persistedAppShots: appShots.map(PersistedAppShotAttachment.init(appShot:))
+            persistedAppShots: appShots.map(PersistedAppShotAttachment.init(appShot:)),
+            files: files
         )
     }
 
-    func setPersistedTranscriptAttachments(images: [LocalImageAttachment], persistedAppShots: [PersistedAppShotAttachment]) {
+    func setPersistedTranscriptAttachments(
+        images: [LocalImageAttachment],
+        persistedAppShots: [PersistedAppShotAttachment],
+        files: [LocalFileAttachment] = []
+    ) {
         let transcriptAttachments = PersistedTranscriptAttachments(
             images: images,
-            appShots: persistedAppShots
+            appShots: persistedAppShots,
+            files: files
         )
         guard !transcriptAttachments.isEmpty else {
-            imageAttachmentsJSON = nil
+            transcriptAttachmentsJSON = nil
             return
         }
         let envelope = PersistedTranscriptAttachmentsEnvelope(
             version: PersistedTranscriptAttachmentsEnvelope.currentVersion,
             images: transcriptAttachments.images,
-            appShots: transcriptAttachments.appShots
+            appShots: transcriptAttachments.appShots,
+            files: transcriptAttachments.files
         )
         guard let data = try? JSONEncoder().encode(envelope) else {
-            imageAttachmentsJSON = nil
+            transcriptAttachmentsJSON = nil
             return
         }
-        imageAttachmentsJSON = String(data: data, encoding: .utf8)
+        transcriptAttachmentsJSON = String(data: data, encoding: .utf8)
     }
 
     var isHiddenGoalRecord: Bool {
@@ -198,13 +214,14 @@ extension ConversationEventRecord {
 }
 
 struct PersistedTranscriptAttachments: Equatable {
-    static let empty = PersistedTranscriptAttachments(images: [], appShots: [])
+    static let empty = PersistedTranscriptAttachments(images: [], appShots: [], files: [])
 
     let images: [LocalImageAttachment]
     let appShots: [PersistedAppShotAttachment]
+    let files: [LocalFileAttachment]
 
     var isEmpty: Bool {
-        images.isEmpty && appShots.isEmpty
+        images.isEmpty && appShots.isEmpty && files.isEmpty
     }
 
     var combinedImageAttachments: [LocalImageAttachment] {
@@ -218,9 +235,30 @@ struct PersistedTranscriptAttachments: Equatable {
 }
 
 private struct PersistedTranscriptAttachmentsEnvelope: Codable {
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     let version: Int
     let images: [LocalImageAttachment]
     let appShots: [PersistedAppShotAttachment]
+    let files: [LocalFileAttachment]
+
+    init(
+        version: Int,
+        images: [LocalImageAttachment],
+        appShots: [PersistedAppShotAttachment],
+        files: [LocalFileAttachment]
+    ) {
+        self.version = version
+        self.images = images
+        self.appShots = appShots
+        self.files = files
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        images = try container.decode([LocalImageAttachment].self, forKey: .images)
+        appShots = try container.decode([PersistedAppShotAttachment].self, forKey: .appShots)
+        files = try container.decodeIfPresent([LocalFileAttachment].self, forKey: .files) ?? []
+    }
 }

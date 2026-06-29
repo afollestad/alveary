@@ -183,6 +183,7 @@ final class ConversationViewModel {
                 state.turnState.beginTurn()
                 state.clearRetryableFailedMessage(id: localMessage.id)
                 state.markTranscriptImageAttachments(id: localMessage.id, attachments: outbound.attachments)
+                state.markTranscriptFileAttachments(id: localMessage.id, attachments: outbound.consumedFileAttachments)
                 state.markTranscriptAppShots(id: localMessage.id, appShots: outbound.appShots)
             } catch {
                 state.markRetryableFailedMessage(
@@ -190,6 +191,7 @@ final class ConversationViewModel {
                     stagedContext: nil,
                     transportText: outbound.transportText,
                     attachments: outbound.attachments,
+                    fileAttachments: outbound.consumedFileAttachments,
                     appShots: outbound.appShots,
                     providerMetadata: outbound.providerMetadata
                 )
@@ -207,6 +209,7 @@ final class ConversationViewModel {
             outbound.visibleText,
             into: dbConversation,
             imageAttachments: outbound.attachments,
+            fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots
         )
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)

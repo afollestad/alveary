@@ -88,6 +88,7 @@ extension ChatTranscriptView {
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
         configuration.transcriptImageAttachmentsByMessageID = appKitTranscriptAttachmentsByMessageID
+        configuration.transcriptFileAttachmentsByMessageID = appKitTranscriptFilesByMessageID
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
@@ -97,6 +98,7 @@ extension ChatTranscriptView {
         configuration.onOpenMarkdownLink = openAppKitMarkdownLink(_:)
         configuration.onOpenMarkdownImage = openAppKitMarkdownImage(_:baseURL:)
         configuration.onOpenImageAttachment = openAppKitImageAttachment(_:)
+        configuration.onOpenFileAttachment = openAppKitFileAttachment(_:)
         configuration.onOpenToolImage = openAppKitToolImage(_:)
         configuration.onRetryFailedUserMessage = { id in
             retryAction(for: id, isRetryable: true)?()
@@ -117,6 +119,13 @@ extension ChatTranscriptView {
             events: events,
             runtimeImageAttachments: viewModel.state.transcriptImageAttachments,
             runtimeAppShots: viewModel.state.transcriptAppShots
+        )
+    }
+
+    var appKitTranscriptFilesByMessageID: [String: [LocalFileAttachment]] {
+        Self.transcriptFileAttachmentsByMessageID(
+            events: events,
+            runtimeFileAttachments: viewModel.state.transcriptFileAttachments
         )
     }
 
@@ -155,6 +164,52 @@ extension ChatTranscriptView {
             )
         }
         return attachmentsByID
+    }
+
+    static func transcriptFileAttachmentsByMessageID(
+        events: [ConversationEventRecord],
+        runtimeFileAttachments: [String: [LocalFileAttachment]]
+    ) -> [String: [LocalFileAttachment]] {
+        var attachmentsByID: [String: [LocalFileAttachment]] = [:]
+        for event in events where event.type == "message" && event.role == "user" {
+            appendTranscriptFileAttachments(
+                event.persistedFileAttachments,
+                to: event.id,
+                in: &attachmentsByID
+            )
+        }
+        for (messageID, attachments) in runtimeFileAttachments {
+            appendTranscriptFileAttachments(
+                attachments,
+                to: messageID,
+                in: &attachmentsByID
+            )
+        }
+        return attachmentsByID
+    }
+
+    static func appendTranscriptFileAttachments(
+        _ newAttachments: [LocalFileAttachment],
+        to messageID: String,
+        in attachmentsByID: inout [String: [LocalFileAttachment]]
+    ) {
+        guard !newAttachments.isEmpty else {
+            return
+        }
+        var attachments = attachmentsByID[messageID] ?? []
+        var attachmentIndicesByID: [String: Int] = [:]
+        for (index, attachment) in attachments.enumerated() where attachmentIndicesByID[attachment.id] == nil {
+            attachmentIndicesByID[attachment.id] = index
+        }
+        for attachment in newAttachments {
+            if let existingIndex = attachmentIndicesByID[attachment.id] {
+                attachments[existingIndex] = attachment
+                continue
+            }
+            attachmentIndicesByID[attachment.id] = attachments.count
+            attachments.append(attachment)
+        }
+        attachmentsByID[messageID] = attachments
     }
 
     static func appendTranscriptImageAttachments(
@@ -272,6 +327,10 @@ extension ChatTranscriptView {
 
     func openAppKitImageAttachment(_ attachment: TranscriptImageAttachment) {
         appState.presentImagePreview(.transcriptImageAttachment(attachment))
+    }
+
+    func openAppKitFileAttachment(_ attachment: LocalFileAttachment) {
+        NSWorkspace.shared.open(attachment.fileURL)
     }
 
     func openAppKitToolImage(_ tool: ToolEntry) {

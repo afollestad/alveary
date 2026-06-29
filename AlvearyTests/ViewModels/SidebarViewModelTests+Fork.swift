@@ -296,6 +296,10 @@ private func assertCopiedForkEvents(in fixture: SidebarTestFixture, conversation
     XCTAssertEqual(copiedEvents.first(where: { $0.type == "tool_approval" })?.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
     XCTAssertEqual(copiedEvents.first(where: { $0.type == "tokens" })?.costUsd, 0)
     XCTAssertEqual(copiedEvents.first(where: { $0.type == "tokens" })?.costUsdReported, false)
+    XCTAssertEqual(
+        copiedEvents.first(where: { $0.type == "message" })?.persistedFileAttachments,
+        [forkSourceFileAttachment()]
+    )
 }
 
 private func assertForkWorktreePreparation(
@@ -343,13 +347,24 @@ private func forkSourceEvent(
 }
 
 private func forkSourceMessage(conversation: Conversation) -> ConversationEventRecord {
-    ConversationEventRecord(
+    let record = ConversationEventRecord(
         id: "message",
         conversationId: conversation.id,
         type: "message",
         role: "user",
         content: "Keep this context",
         conversation: conversation
+    )
+    record.setPersistedTranscriptAttachments(images: [], appShots: [], files: [forkSourceFileAttachment()])
+    return record
+}
+
+private func forkSourceFileAttachment() -> LocalFileAttachment {
+    LocalFileAttachment(
+        id: "fork-source-file",
+        fileURL: URL(fileURLWithPath: "/tmp/fork-source-file.pdf"),
+        label: "fork-source-file.pdf",
+        createdAt: Date(timeIntervalSince1970: 0)
     )
 }
 

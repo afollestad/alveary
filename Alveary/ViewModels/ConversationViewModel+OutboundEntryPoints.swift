@@ -107,6 +107,7 @@ extension ConversationViewModel {
         do {
             try await applyPendingSessionSettingsBeforeNextOutboundTurn()
             let appShots = state.retryableFailedMessageAppShots[id] ?? []
+            let fileAttachments = state.retryableFailedMessageFileAttachments[id] ?? []
             try await ensureAppShotProviderPrerequisites(appShots: appShots)
             try await withOutboundReservation {
                 try await deliverMessageReserved(
@@ -115,6 +116,7 @@ extension ConversationViewModel {
                     attachments: state.retryableFailedMessageAttachments[id] ?? [],
                     appShots: appShots,
                     providerMetadata: state.retryableFailedMessageProviderMetadata[id] ?? [:],
+                    consumedFileAttachments: fileAttachments,
                     stagedContextOverride: state.retryableFailedMessageStagedContexts[id],
                     existingLocalUserMessageID: id
                 )
@@ -207,6 +209,7 @@ private extension ConversationViewModel {
             requiredSpeedMode: requiredSpeedMode,
             transportText: outbound.transportText,
             attachments: outbound.attachments,
+            fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
             providerMetadata: outbound.providerMetadata,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
@@ -338,9 +341,11 @@ private extension ConversationViewModel {
             return nil
         }
         let hasRetryableAttachments = !(state.retryableFailedMessageAttachments[id]?.isEmpty ?? true)
+        let hasRetryableFileAttachments = !(state.retryableFailedMessageFileAttachments[id]?.isEmpty ?? true)
         let hasRetryableAppShots = !(state.retryableFailedMessageAppShots[id]?.isEmpty ?? true)
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
             hasRetryableAttachments ||
+            hasRetryableFileAttachments ||
             hasRetryableAppShots else {
             return nil
         }
