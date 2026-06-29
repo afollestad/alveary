@@ -4,6 +4,11 @@ import SwiftUI
 
 private enum SidebarProjectListMetrics {
     static let subsequentProjectTopSpacing: CGFloat = 4
+
+    // SwiftUI `List` section headers omit the real project row's trailing action column inset.
+    @MainActor static var listSectionHeaderTrailingCorrection: CGFloat {
+        SidebarSectionHeaderRow.actionButtonCenterTrailingInset
+    }
 }
 
 struct SidebarView: View {
@@ -59,10 +64,14 @@ struct SidebarView: View {
         }
     }
 
-    private var projectsHeader: some View {
+    private func projectsHeader(isListSectionHeader: Bool) -> some View {
         SidebarSectionHeaderRow(title: "Projects") {
             appState.openNewProjectFlow()
         }
+        .padding(
+            .trailing,
+            isListSectionHeader ? SidebarProjectListMetrics.listSectionHeaderTrailingCorrection : 0
+        )
     }
 
     private var pinnedHeader: some View {
@@ -74,6 +83,7 @@ struct SidebarView: View {
         let threadOrderVersion = viewModel.threadOrderVersion
         let pinnedItems = self.pinnedItems()
         let regularProjects = self.regularProjects
+        let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 
         return VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
@@ -122,7 +132,7 @@ struct SidebarView: View {
                             }
                         }
 
-                        projectsHeader
+                        projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
                         projectRows(
                             regularProjects,
                             showsNoProjectsPlaceholder: projects.isEmpty
@@ -137,7 +147,7 @@ struct SidebarView: View {
                             showsNoProjectsPlaceholder: projects.isEmpty
                         )
                     } header: {
-                        projectsHeader
+                        projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
                     }
                 }
             }
