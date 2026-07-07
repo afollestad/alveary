@@ -22,6 +22,7 @@ struct ContentViewDependencies {
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
+    let appUpdateManager: AppUpdateManager
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
     let diffWorkspaceStore: DiffWorkspaceStore
@@ -50,6 +51,7 @@ struct ContentViewDependencies {
             fileListManager: component.fileListManager,
             notificationManager: component.notificationManager,
             notificationRouter: component.notificationRouter,
+            appUpdateManager: component.appUpdateManager,
             threadActivityRecorder: component.threadActivityRecorder,
             gitService: component.gitService,
             diffWorkspaceStore: component.diffWorkspaceStore,

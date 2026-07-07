@@ -15,6 +15,7 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.sessionManager, component.sessionManager)
         XCTAssertTrue(component.notificationRouter === component.notificationRouter)
         assertSameInstance(component.notificationManager, component.notificationManager)
+        assertSameInstance(component.appUpdateManager, component.appUpdateManager)
         assertSameInstance(component.agentRegistry, component.agentRegistry)
         assertSameInstance(component.providerRegistry, component.providerRegistry)
         assertSameInstance(component.providerDetectionService, component.providerDetectionService)
@@ -55,6 +56,9 @@ final class AppComponentTests: XCTestCase {
         _ = component.sessionManager
         _ = component.notificationRouter
         _ = component.notificationManager
+        _ = component.appUpdateReleaseClient
+        _ = component.appVersionProvider
+        _ = component.appUpdateManager
         _ = component.agentRegistry
         _ = component.providerRegistry
         _ = component.providerDetectionService

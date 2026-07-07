@@ -27,6 +27,7 @@ struct ContentView: View {
     let notificationRouter: NotificationRouter
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
+    @State var appUpdateManager: AppUpdateManager
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State var isAddProjectSheetPresented = false
@@ -81,6 +82,7 @@ struct ContentView: View {
         self.notificationRouter = dependencies.notificationRouter
         self.threadActivityRecorder = dependencies.threadActivityRecorder
         self.gitService = dependencies.gitService
+        _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the container's main context so sidebar `@Query` reads
         // and imperative view-model saves stay in sync without requiring a relaunch.
@@ -227,6 +229,9 @@ struct ContentView: View {
         .environment(terminalManager)
         .task {
             appShotCoordinator.start(settingsService: settingsService)
+        }
+        .task {
+            appUpdateManager.startAutomaticChecks()
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
         .background {
