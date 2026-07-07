@@ -5,13 +5,27 @@ import Foundation
 class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
     struct StubResponse: Sendable {
         let statusCode: Int
-        let data: Data
+        let chunks: [Data]
         let headers: [String: String]
+        let chunkDelayNanoseconds: UInt64?
 
         init(statusCode: Int, data: Data, headers: [String: String] = [:]) {
             self.statusCode = statusCode
-            self.data = data
+            chunks = [data]
             self.headers = headers
+            chunkDelayNanoseconds = nil
+        }
+
+        init(
+            statusCode: Int,
+            chunks: [Data],
+            headers: [String: String] = [:],
+            chunkDelayNanoseconds: UInt64? = nil
+        ) {
+            self.statusCode = statusCode
+            self.chunks = chunks
+            self.headers = headers
+            self.chunkDelayNanoseconds = chunkDelayNanoseconds
         }
     }
 
@@ -75,8 +89,20 @@ class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
         )
 
         client?.urlProtocol(self, didReceive: httpResponse ?? URLResponse(), cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: response.data)
-        client?.urlProtocolDidFinishLoading(self)
+        if let chunkDelayNanoseconds = response.chunkDelayNanoseconds {
+            for (index, chunk) in response.chunks.enumerated() {
+                client?.urlProtocol(self, didLoad: chunk)
+                if index + 1 < response.chunks.count {
+                    Thread.sleep(forTimeInterval: Double(chunkDelayNanoseconds) / 1_000_000_000)
+                }
+            }
+            client?.urlProtocolDidFinishLoading(self)
+        } else {
+            for chunk in response.chunks {
+                client?.urlProtocol(self, didLoad: chunk)
+            }
+            client?.urlProtocolDidFinishLoading(self)
+        }
     }
 
     override func stopLoading() {}

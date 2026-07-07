@@ -2,7 +2,9 @@
 
 These instructions cover update-checking, release metadata, download, staging, and install helpers under `Alveary/Services/Updates/`.
 
-- Runtime update checks and downloads use the GitHub CLI so private GitHub Releases work through the user's existing `gh` auth.
+- Runtime update checks use the GitHub CLI so private GitHub Releases work through the user's existing `gh` auth.
+- Downloads use `gh auth token`, then stream the GitHub release asset API URL with authenticated `URLSession` requests so progress can be reported while private repositories still work.
+- Keep update ZIP downloads non-cached so progress reflects the current GitHub asset instead of a reused local response.
 - Keep missing or unauthenticated `gh` states explicit in Settings; do not silently fall back to unauthenticated release HTTP.
 - Keep the release artifact contract aligned with CI: GitHub Releases publish `Alveary.app.zip`, which contains `Alveary.app`.
 - Read the running app version from bundle metadata at runtime. `project.yml` is the build-time source only.

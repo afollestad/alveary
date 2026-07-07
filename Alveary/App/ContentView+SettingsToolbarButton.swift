@@ -50,7 +50,7 @@ extension AppUpdateManager {
 
         return AppUpdateToolbarBadgeState(
             updateAvailable: updateAvailable,
-            readyToInstall: false
+            readyToInstall: stagedUpdate != nil
         )
     }
 }

@@ -5,7 +5,7 @@ struct AppUpdatesSettingsTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
-            SettingsFormSection("Update check") {
+            SettingsFormSection {
                 AppUpdateInfoRow(
                     title: "Current version",
                     value: currentVersionText
@@ -16,7 +16,10 @@ struct AppUpdatesSettingsTabView: View {
                     value: latestVersionText
                 )
 
-                AppUpdateStatusRow(presentation: statusPresentation)
+                AppUpdateStatusRow(
+                    presentation: statusPresentation,
+                    action: statusRowAction
+                )
 
                 AppUpdateInfoRow(
                     title: "Last checked",
@@ -87,7 +90,91 @@ private extension AppUpdatesSettingsTabView {
         }
     }
 
+    var hasDownloadableUpdate: Bool {
+        switch updateManager.status {
+        case .updateAvailable:
+            return true
+        case .idle,
+             .upToDate,
+             .unavailable:
+            return false
+        }
+    }
+
+    var canStartDownload: Bool {
+        guard !updateManager.isChecking,
+              case .idle = updateManager.downloadState else {
+            return false
+        }
+        return hasDownloadableUpdate
+    }
+
+    var canRetryDownload: Bool {
+        guard !updateManager.isChecking,
+              case .failed = updateManager.downloadState else {
+            return false
+        }
+        return hasDownloadableUpdate
+    }
+
+    var statusRowAction: (() -> Void)? {
+        if canStartDownload || canRetryDownload {
+            return downloadUpdate
+        }
+        if case .readyToInstall = updateManager.downloadState {
+            return promptForRestart
+        }
+        return nil
+    }
+
     var statusPresentation: AppUpdateStatusPresentation {
+        switch updateManager.downloadState {
+        case .checkingLatestRelease:
+            return AppUpdateStatusPresentation(
+                icon: .spinner,
+                text: "Checking latest release",
+                color: .secondary
+            )
+        case .downloading(let release, let progress):
+            return AppUpdateStatusPresentation(
+                icon: .spinner,
+                text: "Downloading \(release.version.description)",
+                color: .secondary,
+                accessory: .progress(progress)
+            )
+        case .staging(let release):
+            return AppUpdateStatusPresentation(
+                icon: .spinner,
+                text: "Preparing \(release.version.description)",
+                color: .secondary
+            )
+        case .readyToInstall(let stagedUpdate):
+            return AppUpdateStatusPresentation(
+                icon: .system("checkmark.circle.fill"),
+                text: "\(stagedUpdate.release.version.description) ready to install",
+                actionText: "Click to restart",
+                color: .green,
+                accessibilityHint: "Shows the restart prompt."
+            )
+        case .installing(let stagedUpdate):
+            return AppUpdateStatusPresentation(
+                icon: .spinner,
+                text: "Restarting to install \(stagedUpdate.release.version.description)",
+                color: .secondary
+            )
+        case .failed(let failure):
+            return AppUpdateStatusPresentation(
+                icon: .system("exclamationmark.triangle.fill"),
+                text: "Download failed",
+                detail: failure.message,
+                actionText: canRetryDownload ? "Click to retry" : nil,
+                color: .orange,
+                accessibilityHint: canRetryDownload ? "Retries the update download." : nil
+            )
+        case .idle:
+            break
+        }
+
         if updateManager.isChecking {
             return AppUpdateStatusPresentation(
                 icon: .spinner,
@@ -107,7 +194,9 @@ private extension AppUpdatesSettingsTabView {
             return AppUpdateStatusPresentation(
                 icon: .system("arrow.down.circle.fill"),
                 text: "Update available",
-                color: .blue
+                actionText: canStartDownload ? "Click to download" : nil,
+                color: .blue,
+                accessibilityHint: canStartDownload ? "Downloads the latest Alveary update." : nil
             )
         case .upToDate:
             return AppUpdateStatusPresentation(
@@ -153,6 +242,16 @@ private extension AppUpdatesSettingsTabView {
             await updateManager.forceCheck()
         }
     }
+
+    func downloadUpdate() {
+        Task {
+            await updateManager.downloadLatestUpdate()
+        }
+    }
+
+    func promptForRestart() {
+        updateManager.promptForRestartIfUpdateIsReady()
+    }
 }
 
 private struct AppUpdateInfoRow: View {
@@ -177,24 +276,36 @@ private struct AppUpdateInfoRow: View {
 
 private struct AppUpdateStatusRow: View {
     let presentation: AppUpdateStatusPresentation
+    let action: (() -> Void)?
 
     var body: some View {
-        SettingsFormRow {
-            HStack(spacing: 16) {
-                Text("Status")
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 24)
-
-                Label {
-                    Text(presentation.text)
-                } icon: {
-                    presentation.icon
-                        .view(color: presentation.color)
-                }
-                .foregroundStyle(presentation.color)
-                .multilineTextAlignment(.trailing)
+        if let action {
+            Button(action: action) {
+                rowContent
             }
+            .buttonStyle(AppUpdateStatusRowButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Status")
+            .accessibilityValue(presentation.accessibilityValue)
+            .accessibilityHint(presentation.accessibilityHint ?? "")
+            .accessibilityAddTraits(.isButton)
+        } else {
+            rowContent
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Status")
+                .accessibilityValue(presentation.accessibilityValue)
+        }
+    }
+
+    private var rowContent: some View {
+        SettingsFormRow {
+            SettingsResponsiveControlRow(
+                "Status",
+                horizontalControlSizing: .fillsAvailableWidthFraction(0.72)
+            ) {
+                AppUpdateStatusValue(presentation: presentation)
+            }
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -202,7 +313,95 @@ private struct AppUpdateStatusRow: View {
 private struct AppUpdateStatusPresentation {
     let icon: AppUpdateStatusIcon
     let text: String
+    let detail: String?
+    let actionText: String?
     let color: Color
+    let accessory: AppUpdateStatusAccessory?
+    let accessibilityHint: String?
+
+    init(
+        icon: AppUpdateStatusIcon,
+        text: String,
+        detail: String? = nil,
+        actionText: String? = nil,
+        color: Color,
+        accessory: AppUpdateStatusAccessory? = nil,
+        accessibilityHint: String? = nil
+    ) {
+        self.icon = icon
+        self.text = text
+        self.detail = detail
+        self.actionText = actionText
+        self.color = color
+        self.accessory = accessory
+        self.accessibilityHint = accessibilityHint
+    }
+
+    var accessibilityValue: String {
+        [text, detail, actionText]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+}
+
+private struct AppUpdateStatusValue: View {
+    let presentation: AppUpdateStatusPresentation
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    statusLabel
+                    accessory
+                }
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    statusLabel
+                    accessory
+                }
+            }
+
+            if let detail = presentation.detail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(presentation.color)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .help(detail)
+            }
+
+            if let actionText = presentation.actionText {
+                Text(actionText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .multilineTextAlignment(.trailing)
+        .padding(.vertical, 2)
+    }
+
+    @MainActor
+    private var statusLabel: some View {
+        HStack(spacing: 8) {
+            presentation.icon
+                .view(color: presentation.color)
+
+            Text(presentation.text)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(presentation.color)
+    }
+
+    @ViewBuilder
+    @MainActor
+    private var accessory: some View {
+        if let accessory = presentation.accessory {
+            accessory.view()
+        }
+    }
 }
 
 private enum AppUpdateStatusIcon {
@@ -222,6 +421,33 @@ private enum AppUpdateStatusIcon {
                 lineWidth: 2
             )
         }
+    }
+}
+
+private enum AppUpdateStatusAccessory {
+    case progress(Double)
+
+    @MainActor
+    @ViewBuilder
+    func view() -> some View {
+        switch self {
+        case .progress(let progress):
+            AppUpdateDownloadProgressAccessory(progress: progress)
+        }
+    }
+}
+
+private struct AppUpdateStatusRowButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .background {
+                if configuration.isPressed && isEnabled {
+                    Color.primary.opacity(SettingsScreenLayout.settingsRowPressedOpacity)
+                }
+            }
     }
 }
 

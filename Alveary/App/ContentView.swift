@@ -239,6 +239,7 @@ struct ContentView: View {
             appUpdateManager.startAutomaticChecks()
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
+        .appUpdateRestartAlert(updateManager: appUpdateManager)
         .background {
             AppImagePreviewWindowPresenter(
                 request: appState.imagePreviewRequest,

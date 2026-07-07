@@ -95,23 +95,6 @@ extension AppComponent {
         }
     }
 
-    var appUpdateReleaseClient: any AppUpdateReleaseClient {
-        return shared { GitHubCLIAppUpdateReleaseClient(shellRunner: shellRunner) }
-    }
-
-    var appVersionProvider: any AppVersionProviding {
-        return shared { BundleAppVersionProvider() }
-    }
-
-    var appUpdateManager: AppUpdateManager {
-        return shared {
-            AppUpdateManager(
-                releaseClient: appUpdateReleaseClient,
-                versionProvider: appVersionProvider
-            )
-        }
-    }
-
     var threadActivityRecorder: any ThreadActivityRecording {
         return shared { ThreadActivityRecorder(modelContext: modelContext) }
     }

@@ -286,8 +286,45 @@ extension SnapshotTests {
         assertMacSnapshot(
             AppUpdatesSettingsTabView(updateManager: manager)
                 .padding(24),
-            size: CGSize(width: 720, height: 520),
+            size: CGSize(width: 720, height: 560),
             named: "settings_app_updates_tab"
+        )
+    }
+
+    func testAppUpdatesSettingsTabDownloadingNarrow() async throws {
+        let release = try snapshotAppUpdateRelease()
+        let manager = snapshotDownloadingAppUpdateManager(release: release)
+        let downloadTask = Task { @MainActor in
+            await manager.downloadLatestUpdate()
+        }
+        try await waitUntil("expected snapshot update download to start") {
+            if case .downloading = manager.downloadState {
+                return true
+            }
+            return false
+        }
+
+        assertMacSnapshot(
+            AppUpdatesSettingsTabView(updateManager: manager)
+                .padding(24),
+            size: CGSize(width: 440, height: 620),
+            named: "settings_app_updates_tab_downloading_narrow"
+        )
+
+        manager.cancelDownload()
+        _ = await downloadTask.value
+    }
+
+    func testAppUpdatesSettingsTabDownloadFailureNarrow() async throws {
+        let release = try snapshotAppUpdateRelease()
+        let manager = snapshotFailedDownloadAppUpdateManager(release: release)
+        await manager.downloadLatestUpdate()
+
+        assertMacSnapshot(
+            AppUpdatesSettingsTabView(updateManager: manager)
+                .padding(24),
+            size: CGSize(width: 440, height: 620),
+            named: "settings_app_updates_tab_download_failure_narrow"
         )
     }
 

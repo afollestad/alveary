@@ -148,9 +148,10 @@ final class AppUpdateManagerTests: XCTestCase {
         XCTAssertEqual(callCount, 2)
         XCTAssertEqual(manager.latestRelease, manualRelease)
     }
+
 }
 
-private actor AppUpdateReleaseClientFake: AppUpdateReleaseClient {
+actor AppUpdateReleaseClientFake: AppUpdateReleaseClient {
     private var results: [AppUpdateReleaseLookupResult]
     private var pendingContinuations: [CheckedContinuation<AppUpdateReleaseLookupResult, Never>] = []
     private var latestReleaseCallCount = 0
@@ -184,7 +185,7 @@ private actor AppUpdateReleaseClientFake: AppUpdateReleaseClient {
     }
 }
 
-private struct AppUpdateVersionProviderFake: AppVersionProviding {
+struct AppUpdateVersionProviderFake: AppVersionProviding {
     let versionString: String?
 
     var currentVersionString: String? {
@@ -317,7 +318,7 @@ private struct SleepRequest {
     var isCompleted = false
 }
 
-private func makeManagerTestRelease(tagName: String) throws -> AppUpdateRelease {
+func makeManagerTestRelease(tagName: String) throws -> AppUpdateRelease {
     let downloadURL = "https://github.com/afollestad/alveary/releases/download/\(tagName)/Alveary.app.zip"
     return AppUpdateRelease(
         tagName: tagName,
