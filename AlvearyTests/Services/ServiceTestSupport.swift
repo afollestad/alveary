@@ -18,11 +18,13 @@ class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var responses: [String: [StubResponse]] = [:]
     nonisolated(unsafe) private static var requests: [String] = []
+    nonisolated(unsafe) private static var urlRequests: [URLRequest] = []
 
     static func configure(responses: [String: [StubResponse]]) {
         lock.lock()
         self.responses = responses
         requests = []
+        urlRequests = []
         lock.unlock()
     }
 
@@ -33,6 +35,13 @@ class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
     static func recordedRequests() -> [String] {
         lock.lock()
         let snapshot = requests
+        lock.unlock()
+        return snapshot
+    }
+
+    static func recordedURLRequests() -> [URLRequest] {
+        lock.lock()
+        let snapshot = urlRequests
         lock.unlock()
         return snapshot
     }
@@ -57,7 +66,7 @@ class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
             return
         }
 
-        let response = Self.dequeueResponse(for: url.absoluteString)
+        let response = Self.dequeueResponse(for: request, url: url.absoluteString)
         let httpResponse = HTTPURLResponse(
             url: url,
             statusCode: response.statusCode,
@@ -74,9 +83,10 @@ class ServiceURLProtocolStub: URLProtocol, @unchecked Sendable {
 }
 
 private extension ServiceURLProtocolStub {
-    static func dequeueResponse(for url: String) -> StubResponse {
+    static func dequeueResponse(for request: URLRequest, url: String) -> StubResponse {
         lock.lock()
         requests.append(url)
+        urlRequests.append(request)
         defer { lock.unlock() }
 
         guard var queuedResponses = responses[url], !queuedResponses.isEmpty else {
