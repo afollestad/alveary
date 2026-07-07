@@ -435,6 +435,11 @@ private struct LocalAttachmentLayoutAccumulator {
     private var currentWidth: CGFloat = 0
     private var currentHeight: CGFloat = 0
 
+    init(effectiveMaxWidth: CGFloat, spacing: CGFloat) {
+        self.effectiveMaxWidth = effectiveMaxWidth
+        self.spacing = spacing
+    }
+
     mutating func append(_ kind: LocalAttachmentLayoutKind, size: NSSize) {
         let nextWidth = currentItems.isEmpty ? size.width : currentWidth + spacing + size.width
         if !currentItems.isEmpty && nextWidth > effectiveMaxWidth {
