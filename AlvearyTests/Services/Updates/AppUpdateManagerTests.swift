@@ -23,6 +23,7 @@ final class AppUpdateManagerTests: XCTestCase {
         XCTAssertEqual(manager.lastCheckedAt, Date(timeIntervalSince1970: 100))
         XCTAssertFalse(manager.isChecking)
         XCTAssertNil(manager.lastManualFailure)
+        XCTAssertEqual(manager.toolbarBadgeState, .updateAvailable)
     }
 
     func testAutomaticUnavailableResultStaysQuiet() async {
@@ -49,6 +50,7 @@ final class AppUpdateManagerTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.rateLimited(resetDate: nil)))
         XCTAssertEqual(manager.status, .unavailable(.rateLimited(resetDate: nil)))
         XCTAssertEqual(manager.lastManualFailure, .rateLimited(resetDate: nil))
+        XCTAssertEqual(manager.toolbarBadgeState, .none)
     }
 
     func testForceCheckCoalescesOverlappingChecks() async throws {

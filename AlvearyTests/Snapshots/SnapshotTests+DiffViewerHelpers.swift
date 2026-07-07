@@ -7,6 +7,7 @@ extension SnapshotTests {
         selectedThread: AgentThread? = nil,
         projectActions: [AlvearyProjectConfig.ProjectAction] = [],
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
+        settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         diffDisplayState: DiffViewerToolbarDisplayState
     ) -> some View {
         let selectedThreadID = selectedThread?.persistentModelID
@@ -21,6 +22,7 @@ extension SnapshotTests {
             diffHelpText: "Show Diff Viewer (\(KeyboardShortcut.toggleDiffViewer.displayString))",
             diffAccessibilityLabel: "Show Diff Viewer",
             diffAccessibilityValue: "",
+            settingsBadgeState: settingsBadgeState,
             onProjectAction: { _, _ in },
             onToggleTerminal: {},
             onToggleDiffViewer: {},

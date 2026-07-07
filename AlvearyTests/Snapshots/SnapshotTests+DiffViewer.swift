@@ -40,6 +40,30 @@ extension SnapshotTests {
         )
     }
 
+    func testPrimaryToolbarButtonGroupUpdateAvailableBadge() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                settingsBadgeState: .updateAvailable,
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 180, height: 64),
+            named: "primary_toolbar_button_group_update_available_badge"
+        )
+    }
+
+    func testPrimaryToolbarButtonGroupReadyToInstallBadge() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                settingsBadgeState: .readyToInstall,
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 180, height: 64),
+            named: "primary_toolbar_button_group_ready_to_install_badge"
+        )
+    }
+
     func testPrimaryToolbarButtonGroupLoadingDiff() {
         assertMacSnapshot(
             primaryToolbarButtonGroup(

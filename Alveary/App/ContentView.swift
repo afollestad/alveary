@@ -166,7 +166,11 @@ struct ContentView: View {
             mcpViewModel: mcpViewModel,
             settingsViewModel: settingsViewModel,
             appShotCoordinator: appShotCoordinator,
-            appUpdateManager: appUpdateManager
+            appUpdateManager: appUpdateManager,
+            targetSettingsPage: appState.pendingSettingsTargetPage,
+            onTargetSettingsPageHandled: { page in
+                appState.clearPendingSettingsTargetPage(page)
+            }
         )
 
         NavigationSplitView(columnVisibility: $splitVisibility) {
@@ -256,6 +260,7 @@ struct ContentView: View {
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
                     diffAccessibilityLabel: appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
                     diffAccessibilityValue: diffViewerToggleAccessibilityValue,
+                    settingsBadgeState: appUpdateManager.toolbarBadgeState,
                     onProjectAction: { threadID, action in
                         runProjectAction(threadID: threadID, action: action)
                     },
@@ -264,7 +269,7 @@ struct ContentView: View {
                         appState.toggleRightPane()
                     },
                     onOpenSettings: {
-                        appState.openSettings()
+                        appState.openSettings(targetPage: appUpdateManager.toolbarBadgeState.settingsTargetPage)
                     }
                 )
             }

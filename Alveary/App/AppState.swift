@@ -14,6 +14,7 @@ final class AppState {
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
     var pendingCommand: CommandRequest?
     var pendingCommitMessageGenerationRequest: CommitMessageGenerationRequest?
+    private(set) var pendingSettingsTargetPage: AppSettings.SettingsPage?
     var imagePreviewRequest: AppImagePreviewRequest?
     var selectedConversationIDs: [PersistentIdentifier: PersistentIdentifier] = [:]
     var previousSelection: SidebarBookmark?
@@ -22,11 +23,19 @@ final class AppState {
     // `.onChange` hook skips its usual focus claim while this is non-nil.
     var pendingComposerFocusToken: UUID?
 
-    func openSettings() {
+    func openSettings(targetPage: AppSettings.SettingsPage? = nil) {
         if selectedSidebarItem != .settings {
             previousSelection = selectedSidebarItem.flatMap(SidebarBookmark.init)
         }
+        pendingSettingsTargetPage = targetPage
         selectedSidebarItem = .settings
+    }
+
+    func clearPendingSettingsTargetPage(_ page: AppSettings.SettingsPage) {
+        guard pendingSettingsTargetPage == page else {
+            return
+        }
+        pendingSettingsTargetPage = nil
     }
 
     func startNewThreadFlow() {

@@ -12,6 +12,7 @@ struct PrimaryToolbarButtonGroup: View {
     let diffHelpText: String
     let diffAccessibilityLabel: String
     let diffAccessibilityValue: String
+    let settingsBadgeState: AppUpdateToolbarBadgeState
     let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
     let onToggleTerminal: () -> Void
     let onToggleDiffViewer: () -> Void
@@ -32,6 +33,7 @@ struct PrimaryToolbarButtonGroup: View {
         diffHelpText: String,
         diffAccessibilityLabel: String,
         diffAccessibilityValue: String,
+        settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         onProjectAction: @escaping (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void,
         onToggleTerminal: @escaping () -> Void,
         onToggleDiffViewer: @escaping () -> Void,
@@ -47,6 +49,7 @@ struct PrimaryToolbarButtonGroup: View {
         self.diffHelpText = diffHelpText
         self.diffAccessibilityLabel = diffAccessibilityLabel
         self.diffAccessibilityValue = diffAccessibilityValue
+        self.settingsBadgeState = settingsBadgeState
         self.onProjectAction = onProjectAction
         self.onToggleTerminal = onToggleTerminal
         self.onToggleDiffViewer = onToggleDiffViewer
@@ -114,12 +117,10 @@ struct PrimaryToolbarButtonGroup: View {
             .accessibilityLabel(diffAccessibilityLabel)
             .accessibilityValue(diffAccessibilityValue)
 
-            Button(action: onOpenSettings) {
-                Label("Settings", systemImage: "gearshape")
-                    .labelStyle(.iconOnly)
-            }
-            .primaryToolbarIconButtonStyle()
-            .help("Open Settings (\(KeyboardShortcut.settings.displayString))")
+            PrimaryToolbarSettingsButton(
+                badgeState: settingsBadgeState,
+                action: onOpenSettings
+            )
         }
     }
 
@@ -209,6 +210,7 @@ enum PrimaryToolbarMetrics {
     static let diffSummarySpacing: CGFloat = 6
     static let diffSummaryTrailingPadding: CGFloat = 4
     static let progressIndicatorSize: CGFloat = 16
+    static let badgeDiameter: CGFloat = 8
     static let statusAnimation = Animation.spring(response: 0.24, dampingFraction: 0.9)
     static let interactionAnimation = Animation.easeOut(duration: 0.12)
 }

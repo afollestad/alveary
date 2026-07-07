@@ -23,6 +23,81 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.previousSelection, AppState.SidebarBookmark.threadId(fixture.primaryThread.persistentModelID))
     }
 
+    func testOpenSettingsCanTargetOneSettingsPage() throws {
+        let fixture = try makeFixture(
+            primaryConversations: [Conversation(title: "Main", provider: "claude")]
+        )
+        let state = AppState()
+
+        state.selectedSidebarItem = .thread(fixture.primaryThread)
+        state.openSettings(targetPage: .appUpdates)
+
+        XCTAssertEqual(state.previousSelection, AppState.SidebarBookmark.threadId(fixture.primaryThread.persistentModelID))
+        XCTAssertEqual(state.selectedSidebarItem, .settings)
+        XCTAssertEqual(state.pendingSettingsTargetPage, .appUpdates)
+    }
+
+    func testOpenSettingsWithoutTargetClearsStaleSettingsTarget() {
+        let state = AppState()
+
+        state.openSettings(targetPage: .appUpdates)
+        state.openSettings()
+
+        XCTAssertEqual(state.selectedSidebarItem, .settings)
+        XCTAssertNil(state.pendingSettingsTargetPage)
+    }
+
+    func testClearsOnlyMatchingPendingSettingsTargetPage() {
+        let state = AppState()
+
+        state.openSettings(targetPage: .appUpdates)
+        state.clearPendingSettingsTargetPage(.threads)
+
+        XCTAssertEqual(state.pendingSettingsTargetPage, .appUpdates)
+
+        state.clearPendingSettingsTargetPage(.appUpdates)
+
+        XCTAssertNil(state.pendingSettingsTargetPage)
+    }
+
+    func testOpenSettingsCanRetargetAfterPreviousTargetIsHandled() {
+        let state = AppState()
+
+        state.openSettings(targetPage: .appUpdates)
+        state.clearPendingSettingsTargetPage(.appUpdates)
+        state.openSettings(targetPage: .appUpdates)
+
+        XCTAssertEqual(state.selectedSidebarItem, .settings)
+        XCTAssertEqual(state.pendingSettingsTargetPage, .appUpdates)
+    }
+
+    func testUpdateToolbarBadgeStateTargetsAppUpdatesForActionableStates() {
+        XCTAssertNil(AppUpdateToolbarBadgeState.none.settingsTargetPage)
+        XCTAssertEqual(AppUpdateToolbarBadgeState.updateAvailable.settingsTargetPage, .appUpdates)
+        XCTAssertEqual(AppUpdateToolbarBadgeState.readyToInstall.settingsTargetPage, .appUpdates)
+    }
+
+    func testUpdateToolbarBadgeStateUsesReadyToInstallPrecedence() {
+        XCTAssertEqual(
+            AppUpdateToolbarBadgeState(updateAvailable: true, readyToInstall: true),
+            .readyToInstall
+        )
+        XCTAssertEqual(
+            AppUpdateToolbarBadgeState(updateAvailable: true, readyToInstall: false),
+            .updateAvailable
+        )
+        XCTAssertEqual(
+            AppUpdateToolbarBadgeState(updateAvailable: false, readyToInstall: false),
+            .none
+        )
+    }
+
+    func testUpdateToolbarBadgeStateAccessibilityValuesDescribeState() {
+        XCTAssertEqual(AppUpdateToolbarBadgeState.none.accessibilityValue, "No app update available")
+        XCTAssertEqual(AppUpdateToolbarBadgeState.updateAvailable.accessibilityValue, "App update available")
+        XCTAssertEqual(AppUpdateToolbarBadgeState.readyToInstall.accessibilityValue, "App update ready to install")
+    }
+
     func testClearsMatchingCommitMessageGenerationRequest() throws {
         let fixture = try makeFixture(
             primaryConversations: [Conversation(title: "Main", provider: "claude")]

@@ -7,6 +7,8 @@ struct SettingsScreen: View {
     let viewModel: SettingsViewModel
     let gitHubCLI: GitHubCLIService
     let appUpdateManager: AppUpdateManager
+    let targetPage: AppSettings.SettingsPage?
+    let onTargetPageHandled: ((AppSettings.SettingsPage) -> Void)?
     let onClose: (() -> Void)?
 
     @State private var selectedPage: AppSettings.SettingsPage
@@ -15,15 +17,19 @@ struct SettingsScreen: View {
         viewModel: SettingsViewModel,
         gitHubCLI: GitHubCLIService,
         appUpdateManager: AppUpdateManager,
+        targetPage: AppSettings.SettingsPage? = nil,
+        onTargetPageHandled: ((AppSettings.SettingsPage) -> Void)? = nil,
         onClose: (() -> Void)? = nil,
         initialTabRawValue: String? = nil
     ) {
         self.viewModel = viewModel
         self.gitHubCLI = gitHubCLI
         self.appUpdateManager = appUpdateManager
+        self.targetPage = targetPage
+        self.onTargetPageHandled = onTargetPageHandled
         self.onClose = onClose
         _selectedPage = State(
-            initialValue: Self.initialPage(
+            initialValue: targetPage ?? Self.initialPage(
                 rawValue: initialTabRawValue,
                 storedPage: viewModel.lastSettingsPage
             )
@@ -40,6 +46,9 @@ struct SettingsScreen: View {
         }
         .task(id: selectedPage) {
             await checkAppUpdatesIfNeeded(for: selectedPage)
+        }
+        .task(id: targetPage) {
+            await applyTargetPageIfNeeded(targetPage)
         }
     }
 
@@ -208,10 +217,28 @@ private extension SettingsScreen {
     }
 
     func checkAppUpdatesIfNeeded(for page: AppSettings.SettingsPage) async {
-        guard page == .appUpdates else {
+        guard page == .appUpdates,
+              targetPage == nil else {
             return
         }
         await appUpdateManager.forceCheck()
+    }
+
+    func applyTargetPageIfNeeded(_ page: AppSettings.SettingsPage?) async {
+        guard let page else {
+            return
+        }
+
+        if selectedPage != page {
+            selectedPage = page
+            viewModel.lastSettingsPage = page
+        }
+
+        if page == .appUpdates {
+            await appUpdateManager.forceCheck()
+        }
+
+        onTargetPageHandled?(page)
     }
 
     func binding<Value>(for keyPath: ReferenceWritableKeyPath<SettingsViewModel, Value>) -> Binding<Value> {
