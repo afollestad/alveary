@@ -268,7 +268,7 @@ private extension AppSettings.SettingsPage {
         case .interface:
             return "Appearance"
         case .appShots:
-            return "App Shots"
+            return "App shots"
         case .git:
             return "Git"
         case .notifications:
