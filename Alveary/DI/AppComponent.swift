@@ -96,7 +96,7 @@ extension AppComponent {
     }
 
     var appUpdateReleaseClient: any AppUpdateReleaseClient {
-        return shared { GitHubAppUpdateReleaseClient() }
+        return shared { GitHubCLIAppUpdateReleaseClient(shellRunner: shellRunner) }
     }
 
     var appVersionProvider: any AppVersionProviding {

@@ -6,6 +6,7 @@ struct SettingsScreen: View {
 
     let viewModel: SettingsViewModel
     let gitHubCLI: GitHubCLIService
+    let appUpdateManager: AppUpdateManager
     let onClose: (() -> Void)?
 
     @State private var selectedPage: AppSettings.SettingsPage
@@ -13,11 +14,13 @@ struct SettingsScreen: View {
     init(
         viewModel: SettingsViewModel,
         gitHubCLI: GitHubCLIService,
+        appUpdateManager: AppUpdateManager,
         onClose: (() -> Void)? = nil,
         initialTabRawValue: String? = nil
     ) {
         self.viewModel = viewModel
         self.gitHubCLI = gitHubCLI
+        self.appUpdateManager = appUpdateManager
         self.onClose = onClose
         _selectedPage = State(
             initialValue: Self.initialPage(
@@ -34,6 +37,9 @@ struct SettingsScreen: View {
             } else {
                 stackedLayout(width: proxy.size.width)
             }
+        }
+        .task(id: selectedPage) {
+            await checkAppUpdatesIfNeeded(for: selectedPage)
         }
     }
 
@@ -118,11 +124,6 @@ struct SettingsScreen: View {
                 handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
-        case .appShots:
-            AppShotsSettingsTabView(
-                appShotsEnabled: binding(for: \.appShotsEnabled),
-                appShotShortcut: binding(for: \.appShotShortcut)
-            )
         case .interface:
             InterfaceSettingsTabView(
                 viewModel: viewModel,
@@ -130,6 +131,11 @@ struct SettingsScreen: View {
                 codeFontFamily: binding(for: \.codeFontFamily),
                 codeFontSize: binding(for: \.codeFontSize),
                 chatFontSize: binding(for: \.chatFontSize)
+            )
+        case .appShots:
+            AppShotsSettingsTabView(
+                appShotsEnabled: binding(for: \.appShotsEnabled),
+                appShotShortcut: binding(for: \.appShotShortcut)
             )
         case .git:
             GitSettingsTabView(
@@ -166,6 +172,8 @@ struct SettingsScreen: View {
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 autoTrustProjects: binding(for: \.autoTrustProjects)
             )
+        case .appUpdates:
+            AppUpdatesSettingsTabView(updateManager: appUpdateManager)
         }
     }
 }
@@ -190,10 +198,20 @@ private extension SettingsScreen {
 
     func selectPage(_ page: AppSettings.SettingsPage) {
         guard selectedPage != page else {
+            if page == .appUpdates {
+                Task { await appUpdateManager.forceCheck() }
+            }
             return
         }
         selectedPage = page
         viewModel.lastSettingsPage = page
+    }
+
+    func checkAppUpdatesIfNeeded(for page: AppSettings.SettingsPage) async {
+        guard page == .appUpdates else {
+            return
+        }
+        await appUpdateManager.forceCheck()
     }
 
     func binding<Value>(for keyPath: ReferenceWritableKeyPath<SettingsViewModel, Value>) -> Binding<Value> {
@@ -220,10 +238,10 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "Agents"
-        case .appShots:
-            return "App Shots"
         case .interface:
             return "Appearance"
+        case .appShots:
+            return "App Shots"
         case .git:
             return "Git"
         case .notifications:
@@ -232,6 +250,8 @@ private extension AppSettings.SettingsPage {
             return "Terminal"
         case .threads:
             return "Threads"
+        case .appUpdates:
+            return "Updates"
         }
     }
 
@@ -239,10 +259,10 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "brain"
-        case .appShots:
-            return "camera.viewfinder"
         case .interface:
             return "paintbrush"
+        case .appShots:
+            return "camera.viewfinder"
         case .git:
             return "arrow.triangle.branch"
         case .notifications:
@@ -251,6 +271,8 @@ private extension AppSettings.SettingsPage {
             return "terminal"
         case .threads:
             return "bubble.left.and.bubble.right"
+        case .appUpdates:
+            return "arrow.down.circle"
         }
     }
 
@@ -258,10 +280,10 @@ private extension AppSettings.SettingsPage {
         switch self {
         case .agents:
             return "Manage agent installs and override CLI settings for each supported provider."
-        case .appShots:
-            return "Configure app-shot capture, shortcuts, and local context permissions."
         case .interface:
             return "Adjust theme and typography for the app shell."
+        case .appShots:
+            return "Configure app-shot capture, shortcuts, and local context permissions."
         case .git:
             return "Configure Git defaults and GitHub authentication for new worktrees."
         case .notifications:
@@ -270,6 +292,8 @@ private extension AppSettings.SettingsPage {
             return "Configure terminal pane behavior for project actions."
         case .threads:
             return "Manage thread defaults and startup behavior."
+        case .appUpdates:
+            return "Check GitHub Releases for newer Alveary versions."
         }
     }
 }

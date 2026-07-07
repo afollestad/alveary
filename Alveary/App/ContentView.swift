@@ -165,7 +165,8 @@ struct ContentView: View {
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             settingsViewModel: settingsViewModel,
-            appShotCoordinator: appShotCoordinator
+            appShotCoordinator: appShotCoordinator,
+            appUpdateManager: appUpdateManager
         )
 
         NavigationSplitView(columnVisibility: $splitVisibility) {

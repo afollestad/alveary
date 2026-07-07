@@ -263,12 +263,13 @@ struct AppSettings: Codable, Sendable, Equatable {
 extension AppSettings {
     enum SettingsPage: String, Codable, CaseIterable, Identifiable, Sendable, Equatable {
         case agents
-        case appShots
         case interface
+        case appShots
         case git
         case notifications
         case terminal
         case threads
+        case appUpdates
 
         var id: String { rawValue }
     }

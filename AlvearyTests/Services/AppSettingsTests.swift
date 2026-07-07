@@ -23,7 +23,7 @@ final class AppSettingsTests: XCTestCase {
     func testSettingsPagesAreInVisibleAlphabeticalOrder() {
         XCTAssertEqual(
             AppSettings.SettingsPage.allCases.map(\.rawValue),
-            ["agents", "appShots", "interface", "git", "notifications", "terminal", "threads"]
+            ["agents", "interface", "appShots", "git", "notifications", "terminal", "threads", "appUpdates"]
         )
     }
 

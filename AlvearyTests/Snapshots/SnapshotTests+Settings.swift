@@ -20,6 +20,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {}
             ),
             size: CGSize(width: 1100, height: 820),
@@ -42,6 +43,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "agents"
             ),
@@ -66,6 +68,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "agents"
             ),
@@ -109,6 +112,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "threads"
             ),
@@ -135,6 +139,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "threads"
             ),
@@ -162,6 +167,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "threads"
             ),
@@ -181,6 +187,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "notifications"
             ),
@@ -200,6 +207,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "notifications"
             ),
@@ -220,6 +228,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "terminal"
             ),
@@ -240,6 +249,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "terminal"
             ),
@@ -267,6 +277,20 @@ extension SnapshotTests {
         XCTAssertTrue(AppShotsSettingsHelp.enabled.contains("captured accessibility text"))
     }
 
+    func testAppUpdatesSettingsTab() async throws {
+        let release = try snapshotAppUpdateRelease()
+        let manager = snapshotAppUpdateManager(result: .installable(release))
+        await manager.forceCheck()
+        XCTAssertEqual(manager.lastCheckedAt, Date(timeIntervalSince1970: 1_783_468_800))
+
+        assertMacSnapshot(
+            AppUpdatesSettingsTabView(updateManager: manager)
+                .padding(24),
+            size: CGSize(width: 720, height: 520),
+            named: "settings_app_updates_tab"
+        )
+    }
+
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"
@@ -282,6 +306,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {}
             ),
             size: CGSize(width: 1100, height: 820),
@@ -303,6 +328,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "git"
             ),
@@ -322,6 +348,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "git"
             ),
@@ -341,6 +368,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "interface"
             ),
@@ -360,6 +388,7 @@ extension SnapshotTests {
             SettingsScreen(
                 viewModel: viewModel,
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
+                appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
                 initialTabRawValue: "interface"
             ),

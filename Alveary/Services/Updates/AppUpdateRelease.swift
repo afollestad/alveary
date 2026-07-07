@@ -5,6 +5,7 @@ struct AppUpdateRelease: Equatable, Sendable {
     let version: AppUpdateVersion
     let changelogMarkdown: String
     let htmlURL: URL
+    let repositoryHTMLURL: URL
     let asset: AppUpdateReleaseAsset
 }
 

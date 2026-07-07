@@ -25,6 +25,7 @@ struct MiddlePane: View {
     let mcpViewModel: MCPViewModel
     let settingsViewModel: SettingsViewModel
     let appShotCoordinator: AppShotCoordinator
+    let appUpdateManager: AppUpdateManager
 
     @Environment(\.modelContext) private var uiModelContext
     @Query private var projects: [Project]
@@ -68,7 +69,11 @@ struct MiddlePane: View {
             )
                 .id(thread.persistentModelID)
         case .settings:
-            SettingsScreen(viewModel: settingsViewModel, gitHubCLI: gitHubCLI) {
+            SettingsScreen(
+                viewModel: settingsViewModel,
+                gitHubCLI: gitHubCLI,
+                appUpdateManager: appUpdateManager
+            ) {
                 appState.selectedSidebarItem = appState.previousSelection.flatMap(resolveSidebarBookmark(_:))
             }
         case nil:

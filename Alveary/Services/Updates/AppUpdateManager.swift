@@ -32,6 +32,7 @@ struct AppUpdateScheduleTiming: Sendable {
 @MainActor
 @Observable
 final class AppUpdateManager {
+    @ObservationIgnored private let versionProvider: any AppVersionProviding
     private let checker: AppUpdateChecker
     private let scheduleTiming: AppUpdateScheduleTiming
     private var didStartAutomaticChecks = false
@@ -51,11 +52,13 @@ final class AppUpdateManager {
         versionProvider: any AppVersionProviding,
         scheduleTiming: AppUpdateScheduleTiming = .live
     ) {
+        self.versionProvider = versionProvider
         checker = AppUpdateChecker(
             releaseClient: releaseClient,
             versionProvider: versionProvider
         )
         self.scheduleTiming = scheduleTiming
+        currentVersion = versionProvider.currentVersion
     }
 
     func startAutomaticChecks() {
@@ -72,6 +75,10 @@ final class AppUpdateManager {
     @discardableResult
     func forceCheck() async -> AppUpdateCheckResult {
         await runCheck(trigger: .manual)
+    }
+
+    var currentVersionString: String? {
+        versionProvider.currentVersionString
     }
 
     func stopAutomaticChecks() {

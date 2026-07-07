@@ -89,6 +89,7 @@ private func makeRelease(tagName: String) throws -> AppUpdateRelease {
         version: try XCTUnwrap(AppUpdateVersion(string: tagName)),
         changelogMarkdown: "Changes",
         htmlURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary/releases/tag/\(tagName)")),
+        repositoryHTMLURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary")),
         asset: AppUpdateReleaseAsset(
             name: "Alveary.app.zip",
             apiURL: try XCTUnwrap(URL(string: "https://api.github.com/repos/afollestad/alveary/releases/assets/123")),
