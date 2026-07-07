@@ -81,7 +81,7 @@ gh run watch <run-id>
 
 - Keep releases tag-driven by CI. Do not create or push the release tag locally.
 - Use manual `workflow_dispatch` runs only for dry runs; they must upload an Actions artifact and must not create tags or GitHub Releases.
-- Keep the release ZIP as `Alveary.app` inside `Alveary.zip`; do not add DMG or PKG packaging.
+- Keep the release ZIP as `Alveary.app` inside GitHub Release asset `Alveary.app.zip`; do not add DMG or PKG packaging.
 - Keep CI implementation details in `scripts/ci/*`; keep `.github/workflows/release.yml` as orchestration.
 - Do not print, commit, or rewrite signing/notarization secrets.
 - Stop if the target release tag already exists.
