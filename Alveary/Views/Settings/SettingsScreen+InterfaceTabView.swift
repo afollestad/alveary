@@ -9,7 +9,7 @@ struct InterfaceSettingsTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
-            SettingsFormSection("Appearance") {
+            SettingsFormSection {
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Theme", horizontalControlSizing: .intrinsic) {
                         SettingsMenuPicker(
