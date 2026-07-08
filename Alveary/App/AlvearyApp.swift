@@ -41,6 +41,10 @@ struct AlvearyApp: App {
                     appState.openSettings()
                 }
                 .keyboardShortcut(.settings)
+
+                Button("Check for Updates...") {
+                    appState.openSettings(targetPage: .appUpdates)
+                }
             }
 
             CommandGroup(after: .toolbar) {
