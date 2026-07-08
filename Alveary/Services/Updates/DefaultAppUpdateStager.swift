@@ -252,6 +252,7 @@ private struct AppUpdateStagedMetadata: Codable {
     let assetAPIURL: URL?
     let assetDownloadURL: URL
     let assetSize: Int?
+    let assetDigest: String
     let appBundleURL: URL
     let stagedAt: Date
 
@@ -265,6 +266,7 @@ private struct AppUpdateStagedMetadata: Codable {
         assetAPIURL = stagedUpdate.release.asset.apiURL
         assetDownloadURL = stagedUpdate.release.asset.downloadURL
         assetSize = stagedUpdate.release.asset.size
+        assetDigest = stagedUpdate.release.asset.digest.gitHubDigest
         appBundleURL = stagedUpdate.appBundleURL
         stagedAt = stagedUpdate.stagedAt
     }
@@ -272,6 +274,9 @@ private struct AppUpdateStagedMetadata: Codable {
     func stagedUpdate(metadataURL: URL) throws -> StagedAppUpdate {
         guard let parsedVersion = AppUpdateVersion(string: version) else {
             throw AppUpdateFailure(message: "The staged update metadata has an invalid version.")
+        }
+        guard let parsedAssetDigest = AppUpdateReleaseAssetDigest(gitHubDigest: assetDigest) else {
+            throw AppUpdateFailure(message: "The staged update metadata has an invalid asset digest.")
         }
         return StagedAppUpdate(
             release: AppUpdateRelease(
@@ -284,7 +289,8 @@ private struct AppUpdateStagedMetadata: Codable {
                     name: assetName,
                     apiURL: assetAPIURL ?? assetDownloadURL,
                     downloadURL: assetDownloadURL,
-                    size: assetSize
+                    size: assetSize,
+                    digest: parsedAssetDigest
                 )
             ),
             appBundleURL: appBundleURL,

@@ -22,6 +22,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(release.asset.size, 456)
         XCTAssertEqual(release.asset.apiURL, URL(string: "https://api.github.com/repos/afollestad/alveary/releases/assets/123"))
         XCTAssertEqual(release.asset.downloadURL, URL(string: "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip"))
+        XCTAssertEqual(release.asset.digest.gitHubDigest, validGitHubAssetDigest)
 
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.map(\.executable), Array(repeating: "/opt/homebrew/bin/gh", count: 4))
@@ -129,6 +130,26 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.missingAsset(expectedName: "Alveary.app.zip")))
     }
 
+    func testMissingAssetDigestIsRejected() async throws {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(digest: nil))))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        XCTAssertEqual(result, .unavailable(.missingAssetDigest(expectedName: "Alveary.app.zip")))
+    }
+
+    func testMalformedAssetDigestIsRejected() async throws {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(digest: "sha512:abc"))))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        XCTAssertEqual(result, .unavailable(.invalidAssetDigest("sha512:abc")))
+    }
+
     func testNonHTTPSAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(try shellResult(apiURL: "http://api.github.com/repos/afollestad/alveary/releases/assets/123")))
@@ -228,7 +249,8 @@ private func releaseJSON(
     prerelease: Bool = false,
     assetName: String = "Alveary.app.zip",
     apiURL: String = "https://api.github.com/repos/afollestad/alveary/releases/assets/123",
-    downloadURL: String = "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip"
+    downloadURL: String = "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip",
+    digest: String? = validGitHubAssetDigest
 ) throws -> Data {
     let release = StubGitHubReleaseResponse(
         tagName: tagName,
@@ -241,7 +263,8 @@ private func releaseJSON(
                 name: assetName,
                 url: apiURL,
                 browserDownloadURL: downloadURL,
-                size: 456
+                size: 456,
+                digest: digest
             )
         ]
     )
@@ -271,14 +294,18 @@ private struct StubGitHubReleaseAssetResponse: Encodable {
     let url: String
     let browserDownloadURL: String
     let size: Int
+    let digest: String?
 
     enum CodingKeys: String, CodingKey {
         case name
         case url
         case browserDownloadURL = "browser_download_url"
         case size
+        case digest
     }
 }
+
+private let validGitHubAssetDigest = "sha256:\(String(repeating: "a", count: 64))"
 
 private struct AppUpdateExecutablePathResolverFake: ExecutablePathResolving {
     let path: String?

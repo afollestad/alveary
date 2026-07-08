@@ -330,7 +330,8 @@ func makeManagerTestRelease(tagName: String) throws -> AppUpdateRelease {
             name: "Alveary.app.zip",
             apiURL: try XCTUnwrap(URL(string: "https://api.github.com/repos/afollestad/alveary/releases/assets/123")),
             downloadURL: try XCTUnwrap(URL(string: downloadURL)),
-            size: 123
+            size: 123,
+            digest: try XCTUnwrap(AppUpdateReleaseAssetDigest(sha256HexDigest: String(repeating: "a", count: 64)))
         )
     )
 }

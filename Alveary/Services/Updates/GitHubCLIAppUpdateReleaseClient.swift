@@ -124,13 +124,12 @@ private extension GitHubCLIAppUpdateReleaseClient {
         guard let asset = release.assets.first(where: { $0.name == Self.expectedAssetName }) else {
             return .unavailable(.missingAsset(expectedName: Self.expectedAssetName))
         }
-        guard let assetAPIURL = URL(string: asset.url),
-              assetAPIURL.scheme == "https" else {
-            return .unavailable(.invalidAssetURL(asset.url))
-        }
-        guard let downloadURL = URL(string: asset.browserDownloadURL),
-              downloadURL.scheme == "https" else {
-            return .unavailable(.invalidAssetURL(asset.browserDownloadURL))
+        let releaseAsset: AppUpdateReleaseAsset
+        switch appUpdateReleaseAsset(from: asset) {
+        case .success(let asset):
+            releaseAsset = asset
+        case .failure(let reason):
+            return .unavailable(reason)
         }
 
         return .installable(
@@ -140,12 +139,35 @@ private extension GitHubCLIAppUpdateReleaseClient {
                 changelogMarkdown: release.body ?? "",
                 htmlURL: htmlURL,
                 repositoryHTMLURL: repositoryHTMLURL,
-                asset: AppUpdateReleaseAsset(
-                    name: asset.name,
-                    apiURL: assetAPIURL,
-                    downloadURL: downloadURL,
-                    size: asset.size
-                )
+                asset: releaseAsset
+            )
+        )
+    }
+
+    func appUpdateReleaseAsset(from asset: GitHubReleaseAssetResponse) -> AppUpdateReleaseAssetValidationResult {
+        guard let assetAPIURL = URL(string: asset.url),
+              assetAPIURL.scheme == "https" else {
+            return .failure(.invalidAssetURL(asset.url))
+        }
+        guard let downloadURL = URL(string: asset.browserDownloadURL),
+              downloadURL.scheme == "https" else {
+            return .failure(.invalidAssetURL(asset.browserDownloadURL))
+        }
+        guard let assetDigest = asset.digest,
+              !assetDigest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(.missingAssetDigest(expectedName: Self.expectedAssetName))
+        }
+        guard let digest = AppUpdateReleaseAssetDigest(gitHubDigest: assetDigest) else {
+            return .failure(.invalidAssetDigest(assetDigest))
+        }
+
+        return .success(
+            AppUpdateReleaseAsset(
+                name: asset.name,
+                apiURL: assetAPIURL,
+                downloadURL: downloadURL,
+                size: asset.size,
+                digest: digest
             )
         )
     }
@@ -219,11 +241,18 @@ private struct GitHubReleaseAssetResponse: Decodable {
     let url: String
     let browserDownloadURL: String
     let size: Int?
+    let digest: String?
 
     enum CodingKeys: String, CodingKey {
         case name
         case url
         case browserDownloadURL = "browser_download_url"
         case size
+        case digest
     }
+}
+
+private enum AppUpdateReleaseAssetValidationResult {
+    case success(AppUpdateReleaseAsset)
+    case failure(AppUpdateUnavailableReason)
 }

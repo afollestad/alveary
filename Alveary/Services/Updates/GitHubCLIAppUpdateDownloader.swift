@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct GitHubCLIAppUpdateDownloader: AppUpdateDownloading, @unchecked Sendable {
@@ -52,6 +53,10 @@ struct GitHubCLIAppUpdateDownloader: AppUpdateDownloading, @unchecked Sendable {
             try verifyDownloadedSize(
                 zipURL: zipURL,
                 expectedSize: release.asset.size
+            )
+            try verifyDownloadedDigest(
+                zipURL: zipURL,
+                expectedDigest: release.asset.digest
             )
             await progress(1)
             return zipURL
@@ -149,6 +154,33 @@ private extension GitHubCLIAppUpdateDownloader {
                 message: "Downloaded \(downloadedByteCount ?? 0) bytes, but GitHub reported \(expectedSize) bytes."
             )
         }
+    }
+
+    func verifyDownloadedDigest(
+        zipURL: URL,
+        expectedDigest: AppUpdateReleaseAssetDigest
+    ) throws {
+        let actualDigest = try sha256HexDigest(for: zipURL)
+        guard actualDigest == expectedDigest.sha256HexDigest else {
+            throw AppUpdateFailure(message: "Downloaded update failed SHA-256 verification.")
+        }
+    }
+
+    func sha256HexDigest(for url: URL) throws -> String {
+        let fileHandle = try FileHandle(forReadingFrom: url)
+        defer {
+            try? fileHandle.close()
+        }
+
+        var hasher = SHA256()
+        while let data = try fileHandle.read(upToCount: 1024 * 1024),
+              !data.isEmpty {
+            hasher.update(data: data)
+        }
+
+        return hasher.finalize()
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     static func failureMessage(from result: ShellResult) -> String {

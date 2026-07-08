@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 
 @testable import Alveary
@@ -27,7 +28,10 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         let firstChunk = Data((0..<40_000).map { UInt8($0 % 251) })
         let secondChunk = Data((0..<30_000).map { UInt8($0 % 197) })
         let assetData = firstChunk + secondChunk
-        let release = try makeRelease(expectedSize: assetData.count)
+        let release = try makeRelease(
+            expectedSize: assetData.count,
+            digest: digest(for: assetData)
+        )
         ServiceURLProtocolStub.configure(
             responses: [
                 release.asset.apiURL.absoluteString: [
@@ -61,16 +65,10 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         XCTAssertEqual(invocation.stdoutLimitBytes, 64 * 1024)
         XCTAssertEqual(invocation.stderrLimitBytes, 64 * 1024)
 
-        let requests = ServiceURLProtocolStub.recordedURLRequests()
-        let request = try XCTUnwrap(requests.first)
-        XCTAssertEqual(request.url, release.asset.apiURL)
-        XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/octet-stream")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer github-token")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-cache")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Pragma"), "no-cache")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-GitHub-Api-Version"), "2022-11-28")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Alveary")
+        try assertAuthenticatedRequest(
+            release: release,
+            token: "github-token"
+        )
 
         let progressValues = await progressRecorder.values()
         XCTAssertEqual(progressValues.first, 0)
@@ -100,6 +98,37 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
             XCTFail("Expected size mismatch failure.")
         } catch let failure as AppUpdateFailure {
             XCTAssertTrue(failure.message.contains("GitHub reported 10 bytes"))
+        }
+
+        XCTAssertTrue(try remainingDownloadItems().isEmpty)
+    }
+
+    func testRemovesDownloadDirectoryWhenDigestDoesNotMatch() async throws {
+        let assetData = Data("zip bytes".utf8)
+        let release = try makeRelease(
+            expectedSize: assetData.count,
+            digest: try XCTUnwrap(AppUpdateReleaseAssetDigest(sha256HexDigest: String(repeating: "0", count: 64)))
+        )
+        ServiceURLProtocolStub.configure(
+            responses: [
+                release.asset.apiURL.absoluteString: [
+                    .init(statusCode: 200, data: assetData, headers: ["Content-Length": "\(assetData.count)"])
+                ]
+            ]
+        )
+        let shell = AppUpdateDownloadShellRunner(mode: .token("github-token"))
+        let downloader = GitHubCLIAppUpdateDownloader(
+            shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: "/opt/homebrew/bin/gh"),
+            temporaryDirectory: temporaryDirectory,
+            sessionConfiguration: makeURLSessionConfiguration()
+        )
+
+        do {
+            _ = try await downloader.download(release: release) { _ in }
+            XCTFail("Expected digest mismatch failure.")
+        } catch let failure as AppUpdateFailure {
+            XCTAssertEqual(failure.message, "Downloaded update failed SHA-256 verification.")
         }
 
         XCTAssertTrue(try remainingDownloadItems().isEmpty)
@@ -174,7 +203,10 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         XCTAssertTrue(try remainingDownloadItems().isEmpty)
     }
 
-    private func makeRelease(expectedSize: Int) throws -> AppUpdateRelease {
+    private func makeRelease(
+        expectedSize: Int,
+        digest: AppUpdateReleaseAssetDigest? = nil
+    ) throws -> AppUpdateRelease {
         let tagName = "v0.1.1"
         return AppUpdateRelease(
             tagName: tagName,
@@ -186,9 +218,37 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
                 name: "Alveary.app.zip",
                 apiURL: try XCTUnwrap(URL(string: "https://api.github.com/repos/afollestad/alveary/releases/assets/123")),
                 downloadURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary/releases/download/\(tagName)/Alveary.app.zip")),
-                size: expectedSize
+                size: expectedSize,
+                digest: try (digest ?? testDigest())
             )
         )
+    }
+
+    private func assertAuthenticatedRequest(
+        release: AppUpdateRelease,
+        token: String
+    ) throws {
+        let requests = ServiceURLProtocolStub.recordedURLRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.url, release.asset.apiURL)
+        XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/octet-stream")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer \(token)")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Cache-Control"), "no-cache")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Pragma"), "no-cache")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-GitHub-Api-Version"), "2022-11-28")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Alveary")
+    }
+
+    private func digest(for data: Data) throws -> AppUpdateReleaseAssetDigest {
+        let digest = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return try XCTUnwrap(AppUpdateReleaseAssetDigest(sha256HexDigest: digest))
+    }
+
+    private func testDigest() throws -> AppUpdateReleaseAssetDigest {
+        try XCTUnwrap(AppUpdateReleaseAssetDigest(sha256HexDigest: String(repeating: "a", count: 64)))
     }
 
     private func makeURLSessionConfiguration() -> URLSessionConfiguration {

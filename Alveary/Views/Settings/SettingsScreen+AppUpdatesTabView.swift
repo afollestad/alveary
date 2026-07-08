@@ -468,12 +468,16 @@ private extension AppUpdateUnavailableReason {
             return "The latest GitHub release is marked as a prerelease."
         case .missingAsset(let expectedName):
             return "The latest release is missing \(expectedName)."
+        case .missingAssetDigest(let expectedName):
+            return "The latest release is missing a SHA-256 digest for \(expectedName)."
         case .malformedVersion(let version):
             return "The release version could not be read: \(version)."
         case .invalidReleaseURL:
             return "The release URL from GitHub is invalid."
         case .invalidAssetURL:
             return "The release download URL from GitHub is invalid."
+        case .invalidAssetDigest:
+            return "The release asset SHA-256 digest from GitHub is invalid."
         case .requestFailed(let statusCode):
             return "GitHub returned HTTP \(statusCode)."
         case .rateLimited(let resetDate):
