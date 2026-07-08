@@ -2,25 +2,31 @@
 
 _An alveary is a place where bees are kept, including a beehive or apiary enclosure._
 
-Alveary is a native macOS app for orchestrating AI coding agents in parallel. Inspired by Conductor and Codex, and built in Swift with help from the agents themselves.
+Alveary is a native macOS app for orchestrating AI coding agents. It's inspired by other apps like OpenAI's Codex.
 
-See the backlog/roadmap [here](https://github.com/users/afollestad/projects/3)!
+![Alveary app screenshot](docs/hero.png)
 
-# Development
+## Download
 
-## Setup
+Download the latest release from [GitHub Releases](https://github.com/afollestad/alveary/releases/latest). Releases are direct-download ZIPs named `Alveary.app.zip` and contain a signed, notarized `Alveary.app`.
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, and Needle.
+After downloading:
 
-Run the bootstrap script once per clone:
+1. Unzip `Alveary.app.zip`.
+2. Move `Alveary.app` to `/Applications`.
+3. Launch Alveary and follow the onboarding checks.
+
+## Roadmap
+
+The public backlog and roadmap are tracked in the [Alveary project board](https://github.com/users/afollestad/projects/3).
+
+## Development
+
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, and Needle. Run setup once per clone:
 
 ```sh
 ./scripts/setup.sh
 ```
-
-It installs the required CLI tools via Homebrew (including `xcsift` for agent-friendly TOON `xcodebuild` output), generates `Alveary.xcodeproj`, and configures the repo-local Git hooks so commits touching Swift files run `swiftlint` automatically.
-
-## Build, Test, and Run
 
 Generate the Xcode project after project-structure changes:
 
@@ -28,93 +34,30 @@ Generate the Xcode project after project-structure changes:
 xcodegen generate
 ```
 
-Build the app:
+To build, lint, or run the app:
 
 ```sh
+# Build the app
 ./scripts/build.sh
-```
 
-Lint the app:
-
-```sh
+# Lint the source
 ./scripts/lint.sh
-```
 
-Run the app:
-
-```sh
+ # Run the app without building
 ./scripts/run.sh
-```
 
-Force a fresh build before launching:
-
-```sh
+# Build and run the app
 ./scripts/run.sh -b
-```
 
-The wrapper scripts share the same build output path as the underlying `xcodebuild` commands.
-
-Run the full test suite:
-
-```sh
+# Run the whole test suite
 ./scripts/test.sh
-```
 
-Run a focused test class:
-
-```sh
+# Run a focused test class
 ./scripts/test.sh AlvearyTests/AppDelegateTests
 ```
 
-## Agent Provider Runtime
+Release workflow details live in [RELEASING.md](RELEASING.md).
 
-Alveary uses `AgentCLIKit` for provider runtime integration, provider-owned config access, provider status, model discovery, and provider context-compaction lifecycle events. Claude and Codex are surfaced through the same provider/model settings and thread composer controls; disabled, missing, setup-blocked, and project-untrusted providers stay visible with actionable status.
-
-Onboarding checks required runtime dependencies at launch. GitHub CLI (`gh`) is required and can be installed from the onboarding modal with Homebrew; if Homebrew is missing, onboarding installs Homebrew first, then runs `brew install gh`. Claude Code and Codex are optional installs surfaced from the same modal. Installing these CLIs only makes the executables available; provider authentication and setup remain separate runtime steps.
-
-Codex fast mode is exposed only when `AgentCLIKit` reports provider support. Speed is stored per thread, defaults to Standard, is applied through per-session runtime config, and is forced back to Standard when the selected provider does not support it.
-
-Context-window usage keeps provider cache semantics distinct: Claude cache-read tokens are additive, while Codex cached-input tokens are already included in input tokens.
-
-Project trust state and provider MCP config reads/writes flow through `AgentCLIKit`. Alveary owns app policy such as auto-trust, prompt UI, first-thread gating, and denial cleanup.
-
-Local images picked from the composer or dropped onto it are copied into Alveary-owned Application Support storage. Providers that report local image input receive those copies as attachments; providers without that capability keep the existing Markdown image-link fallback.
-
-App shots use Accessibility APIs plus ScreenCaptureKit to capture the last focused non-Alveary window for the selected conversation. Accessibility and Screen Recording are required for capture; the App Shots settings `Allow` action opens System Settings and shows a draggable Alveary app chip for privacy-list grants. If a debug build shows an enabled Alveary privacy row but app-shot permission checks still fail, remove the existing row or reset Alveary's TCC grants, then drag the rebuilt app back into the privacy list. The default shortcut is `⌃⇧S` so it avoids Codex's `⌘⌘` app-shot trigger and does not need Input Monitoring. Input Monitoring is only needed for legacy modifier-only `⌘⌘` shortcuts. Debug builds use `Config/CodeSigning/AlvearyDebugTCC.requirements` so local TCC grants survive rebuilds. Codex receives the screenshot through local image transport plus hidden AX tree text, while Claude receives hidden AX text with an absolute Markdown screenshot reference because Claude transport is text-only.
-
-## Snapshot Tests
-
-Verify the full snapshot suite:
-
-```sh
-./scripts/snapshots.sh verify
-```
-
-Verify or record a focused snapshot test:
-
-```sh
-./scripts/snapshots.sh verify AlvearyTests/SnapshotTests/testSidebarViewPopulated
-./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
-```
-
-When no test identifier is provided, `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`.
-Recording snapshots immediately verifies the same test identifiers before reporting success. Snapshot artifacts are written under `.build/snapshot-failures` by default.
-
-## Repo-Local Agent Workflows
-
-Project-local agent workflows live under `.agents`: capability skills in `.agents/skills`, and review, audit, and check workflows in `.agents/checks`. Agent-specific folders such as `.claude/skills`, `.codex/skills`, `.claude/checks`, and `.codex/checks` are symlinks to those canonical directories.
-
-## Releases
-
-Alveary releases are direct-download ZIPs containing `Alveary.app`. The app version lives in `project.yml` under the app target build settings:
-
-```yaml
-MARKETING_VERSION: 0.1.0
-CURRENT_PROJECT_VERSION: 1
-```
-
-Release automation runs from GitHub Actions on pushes to `main` when the current `MARKETING_VERSION` does not already have a matching `vX.Y.Z` tag. Normal releases should bump `MARKETING_VERSION` and increment `CURRENT_PROJECT_VERSION`; the same missing-tag path also allows an initial or retried release after version keys already exist. CI creates the tag, signs with Developer ID, notarizes and staples `Alveary.app`, creates `Alveary.app.zip`, and uploads it to GitHub Releases. Manual workflow runs are dry runs: they sign, notarize, staple, zip, and upload an Actions artifact without creating a tag or GitHub Release. The workflow orchestration lives in `.github/workflows/release.yml`; the implementation scripts live under `scripts/ci/`.
-
-# License
+## License
 
 Alveary is licensed under the [GNU General Public License v3.0](LICENSE.md).

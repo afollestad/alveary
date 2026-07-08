@@ -12,6 +12,8 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     GENERATE_INFOPLIST_FILE: YES
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+fileGroups:
+  - docs
 targets:
   Alveary:
     type: application
