@@ -31,14 +31,14 @@ jobs:
             echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db"
           } >> "$GITHUB_ENV"
 
-      - name: Detect version bump
+      - name: Detect release version
         id: version
         env:
           BEFORE_SHA: ${{ github.event.before }}
           IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
         run: scripts/ci/detect-release-version.py
 
-      - name: Stop when no version changed
+      - name: Stop when no release build requested
         if: steps.version.outputs.should_build != 'true'
         run: echo "No release build requested."
 

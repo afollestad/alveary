@@ -7,7 +7,7 @@ description: Prepare, dry-run, and trigger Alveary direct-download macOS release
 
 ## Overview
 
-Release Alveary by bumping the app version in `project.yml`, committing the bump, pushing it to `main`, and watching GitHub Actions create the tag and notarized ZIP release. CI owns tag creation, signing, notarization, stapling, packaging, and GitHub Release upload.
+Release Alveary by bumping the app version in `project.yml`, committing the bump, pushing it to `main`, and watching GitHub Actions create the tag and notarized ZIP release. For an initial or retried release where the current version is already committed, a push to `main` may publish the current version when its `vX.Y.Z` tag is missing. CI owns tag creation, signing, notarization, stapling, packaging, and GitHub Release upload.
 
 ## Workflow
 
@@ -18,14 +18,14 @@ Release Alveary by bumping the app version in `project.yml`, committing the bump
 5. Read these Alveary app version build settings from `project.yml`:
    - `MARKETING_VERSION`
    - `CURRENT_PROJECT_VERSION`
-6. Bump the version:
+6. If the requested version is not already committed and untagged, bump the version:
    - patch: `X.Y.Z` -> `X.Y.(Z + 1)`
    - minor: `X.Y.Z` -> `X.(Y + 1).0`
    - major: `X.Y.Z` -> `(X + 1).0.0`
-7. Increment `CURRENT_PROJECT_VERSION` by 1.
+7. Increment `CURRENT_PROJECT_VERSION` by 1 when bumping the version.
 8. Run `xcodegen generate`.
 9. Verify build settings and the built app metadata.
-10. Commit only the release bump and generated project changes that are meant to be tracked.
+10. Commit only the intended release changes that are meant to be tracked.
 11. Push `main`.
 12. Watch the `Release` workflow and report the run URL, tag, and release URL.
 
@@ -80,6 +80,7 @@ gh run watch <run-id>
 ## Rules
 
 - Keep releases tag-driven by CI. Do not create or push the release tag locally.
+- Push-triggered releases publish only when the target `vX.Y.Z` tag is missing; this supports initial and retry releases for an already-committed version.
 - Use manual `workflow_dispatch` runs only for dry runs; they must upload an Actions artifact and must not create tags or GitHub Releases.
 - Keep the release ZIP as `Alveary.app` inside GitHub Release asset `Alveary.app.zip`; do not add DMG or PKG packaging.
 - Keep CI implementation details in `scripts/ci/*`; keep `.github/workflows/release.yml` as orchestration.

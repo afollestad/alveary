@@ -113,7 +113,7 @@ MARKETING_VERSION: 0.1.0
 CURRENT_PROJECT_VERSION: 1
 ```
 
-Release automation runs from GitHub Actions when a push to `main` changes `MARKETING_VERSION`. CI creates the `vX.Y.Z` tag, signs with Developer ID, notarizes and staples `Alveary.app`, creates `Alveary.zip`, and uploads it to GitHub Releases. Manual workflow runs are dry runs: they sign, notarize, staple, zip, and upload an Actions artifact without creating a tag or GitHub Release. The workflow orchestration lives in `.github/workflows/release.yml`; the implementation scripts live under `scripts/ci/`.
+Release automation runs from GitHub Actions on pushes to `main` when the current `MARKETING_VERSION` does not already have a matching `vX.Y.Z` tag. Normal releases should bump `MARKETING_VERSION` and increment `CURRENT_PROJECT_VERSION`; the same missing-tag path also allows an initial or retried release after version keys already exist. CI creates the tag, signs with Developer ID, notarizes and staples `Alveary.app`, creates `Alveary.app.zip`, and uploads it to GitHub Releases. Manual workflow runs are dry runs: they sign, notarize, staple, zip, and upload an Actions artifact without creating a tag or GitHub Release. The workflow orchestration lives in `.github/workflows/release.yml`; the implementation scripts live under `scripts/ci/`.
 
 # License
 
