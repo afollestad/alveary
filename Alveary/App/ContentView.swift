@@ -1,4 +1,5 @@
 import AgentCLIKit
+@preconcurrency import AppKit
 import SwiftData
 import SwiftUI
 
@@ -43,6 +44,7 @@ struct ContentView: View {
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
+    @State var onboardingViewModel: OnboardingViewModel
     @State var terminalManager: TerminalManager
     @State var appShotCoordinator: AppShotCoordinator
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
@@ -97,6 +99,12 @@ struct ContentView: View {
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
+        _onboardingViewModel = State(
+            initialValue: OnboardingViewModel(
+                settingsService: dependencies.settingsService,
+                dependencyService: dependencies.onboardingDependencyService
+            )
+        )
         _terminalManager = State(initialValue: TerminalManager())
         _appShotCoordinator = State(initialValue: AppShotCoordinator())
         _toolbarProjectActions = State(initialValue: [])
@@ -238,12 +246,15 @@ struct ContentView: View {
         .task {
             appUpdateManager.startAutomaticChecks()
         }
+        .task {
+            onboardingViewModel.start()
+        }
         .overlay(alignment: .bottom, content: errorToastOverlay)
         .appUpdateRestartAlert(updateManager: appUpdateManager)
         .background {
-            AppImagePreviewWindowPresenter(
-                request: appState.imagePreviewRequest,
-                onDismiss: appState.dismissImagePreview
+            AppWindowModalOverlayPresenter(
+                modal: rootWindowModal,
+                onDismiss: dismissRootWindowModal
             )
             .frame(width: 0, height: 0)
         }
@@ -310,6 +321,9 @@ struct ContentView: View {
         }
         .onChange(of: terminalManager.runningSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            onboardingViewModel.handleAppDidBecomeActive()
         }
         .sheet(
             isPresented: $isAddProjectSheetPresented,

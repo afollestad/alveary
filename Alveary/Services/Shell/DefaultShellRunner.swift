@@ -21,6 +21,12 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
                 newValue
             }
         }
+        switch options.standardInput {
+        case .inherit:
+            break
+        case .nullDevice:
+            process.standardInput = FileHandle.nullDevice
+        }
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

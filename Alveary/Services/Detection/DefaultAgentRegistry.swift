@@ -45,7 +45,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
         AgentDefinition(
             id: "codex",
             name: "Codex",
-            installCommand: nil,
+            installCommand: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
             docUrl: "https://developers.openai.com/codex/app-server",
             provider: ProviderDefinition(
                 id: "codex",

@@ -30,6 +30,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let defaultMaxTerminalSessions = 10
     static let defaultAppShotShortcut = AppShotKeyboardShortcut.controlShiftS
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
+    var hasCompletedOnboarding = false
     var lastSettingsPage = SettingsPage.agents
     var defaultProvider = "claude"
     var defaultModel = Self.defaultModelValue
@@ -276,6 +277,7 @@ extension AppSettings {
 
     enum CodingKeys: String, CodingKey {
         case lastSettingsPage
+        case hasCompletedOnboarding
         case defaultProvider
         case defaultModel
         case permissionMode
@@ -329,6 +331,8 @@ extension AppSettings {
 
         let storedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .settingsSchemaVersion) ?? 0
         self = AppSettings()
+        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding)
+            ?? hasCompletedOnboarding
         decodeLastSettingsPage(from: container)
         try decodeAgentDefaults(from: container, legacyContainer: legacyContainer)
         try decodeAppearance(from: container)

@@ -11,6 +11,7 @@ actor MockShellRunner: ShellRunner {
         let timeout: Duration?
         let stdoutLimitBytes: Int?
         let stderrLimitBytes: Int?
+        let standardInput: ShellStandardInput
     }
 
     enum Response: Sendable, Equatable {
@@ -54,7 +55,8 @@ actor MockShellRunner: ShellRunner {
                 environment: options.environment,
                 timeout: options.timeout,
                 stdoutLimitBytes: options.stdoutLimitBytes,
-                stderrLimitBytes: options.stderrLimitBytes
+                stderrLimitBytes: options.stderrLimitBytes,
+                standardInput: options.standardInput
             )
         )
 

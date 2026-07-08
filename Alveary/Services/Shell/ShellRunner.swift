@@ -34,18 +34,26 @@ struct ShellRunOptions: Sendable, Equatable {
     let timeout: Duration?
     let stdoutLimitBytes: Int?
     let stderrLimitBytes: Int?
+    let standardInput: ShellStandardInput
 
     init(
         environment: [String: String]? = nil,
         timeout: Duration? = nil,
         stdoutLimitBytes: Int? = nil,
-        stderrLimitBytes: Int? = nil
+        stderrLimitBytes: Int? = nil,
+        standardInput: ShellStandardInput = .inherit
     ) {
         self.environment = environment
         self.timeout = timeout
         self.stdoutLimitBytes = stdoutLimitBytes
         self.stderrLimitBytes = stderrLimitBytes
+        self.standardInput = standardInput
     }
+}
+
+enum ShellStandardInput: Sendable, Equatable {
+    case inherit
+    case nullDevice
 }
 
 protocol ShellRunner: Sendable {
@@ -79,7 +87,8 @@ extension ShellRunner {
         environment: [String: String]? = nil,
         timeout: Duration? = nil,
         stdoutLimitBytes: Int? = nil,
-        stderrLimitBytes: Int? = nil
+        stderrLimitBytes: Int? = nil,
+        standardInput: ShellStandardInput = .inherit
     ) async throws -> ShellResult {
         try await run(
             executable: executable,
@@ -89,7 +98,8 @@ extension ShellRunner {
                 environment: environment,
                 timeout: timeout,
                 stdoutLimitBytes: stdoutLimitBytes,
-                stderrLimitBytes: stderrLimitBytes
+                stderrLimitBytes: stderrLimitBytes,
+                standardInput: standardInput
             )
         )
     }

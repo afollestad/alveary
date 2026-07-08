@@ -47,6 +47,12 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentOneShotPromptService, component.agentOneShotPromptService)
     }
 
+    func testOnboardingDependencyServiceIsAppScoped() {
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
+
+        assertSameInstance(component.onboardingDependencyService, component.onboardingDependencyService)
+    }
+
     func testRootPropertiesResolveAllServices() {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 

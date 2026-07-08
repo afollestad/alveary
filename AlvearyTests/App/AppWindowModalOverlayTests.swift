@@ -35,6 +35,38 @@ final class AppWindowModalOverlayTests: XCTestCase {
         XCTAssertEqual(dismissCount, 1)
     }
 
+    func testEscapeKeyDoesNotDismissNonDismissibleOverlayPanel() {
+        let panel = AppWindowModalOverlayPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        panel.dismissPolicy = .nonDismissible
+        var dismissCount = 0
+        panel.onDismiss = { dismissCount += 1 }
+
+        panel.sendEvent(keyEvent(keyCode: 53))
+
+        XCTAssertEqual(dismissCount, 0)
+    }
+
+    func testCancelOperationDoesNotDismissNonDismissibleOverlayPanel() {
+        let panel = AppWindowModalOverlayPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        panel.dismissPolicy = .nonDismissible
+        var dismissCount = 0
+        panel.onDismiss = { dismissCount += 1 }
+
+        panel.cancelOperation(nil)
+
+        XCTAssertEqual(dismissCount, 0)
+    }
+
     func testTrafficLightCutoutDoesNotHitOverlayContent() {
         let contentView = AppWindowModalOverlayContentView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
         contentView.trafficLightCutoutFrames = [NSRect(x: 12, y: 260, width: 14, height: 14)]

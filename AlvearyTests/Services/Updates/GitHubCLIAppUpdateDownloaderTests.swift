@@ -297,7 +297,8 @@ private actor AppUpdateDownloadShellRunner: ShellRunner {
                 environment: options.environment,
                 timeout: options.timeout,
                 stdoutLimitBytes: options.stdoutLimitBytes,
-                stderrLimitBytes: options.stderrLimitBytes
+                stderrLimitBytes: options.stderrLimitBytes,
+                standardInput: options.standardInput
             )
         )
 

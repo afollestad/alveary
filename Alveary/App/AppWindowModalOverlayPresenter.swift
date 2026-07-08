@@ -2,9 +2,25 @@
 import SwiftUI
 
 struct AppWindowModalOverlayPresenter: NSViewRepresentable {
+    enum DismissPolicy {
+        case dismissible
+        case nonDismissible
+    }
+
     struct Modal {
         let id: String
+        let dismissPolicy: DismissPolicy
         let content: AnyView
+
+        init(
+            id: String,
+            dismissPolicy: DismissPolicy = .dismissible,
+            content: AnyView
+        ) {
+            self.id = id
+            self.dismissPolicy = dismissPolicy
+            self.content = content
+        }
     }
 
     let modal: Modal?
@@ -72,6 +88,7 @@ struct AppWindowModalOverlayPresenter: NSViewRepresentable {
             } else if presentedModalID != modal.id {
                 updateOverlayRootView(modal)
             }
+            overlayWindow?.dismissPolicy = modal.dismissPolicy
             updateOverlayFrame()
         }
 
@@ -103,6 +120,7 @@ struct AppWindowModalOverlayPresenter: NSViewRepresentable {
                 defer: false
             )
             overlayWindow.parentModalWindow = parentWindow
+            overlayWindow.dismissPolicy = modal.dismissPolicy
             overlayWindow.onDismiss = { [weak self] in
                 self?.onDismiss()
             }
@@ -262,6 +280,7 @@ final class AppWindowModalOverlayContentView: NSView {
 final class AppWindowModalOverlayPanel: NSPanel {
     weak var parentModalWindow: NSWindow?
     var onDismiss: (() -> Void)?
+    var dismissPolicy = AppWindowModalOverlayPresenter.DismissPolicy.dismissible
 
     override var canBecomeKey: Bool {
         true
@@ -272,12 +291,18 @@ final class AppWindowModalOverlayPanel: NSPanel {
     }
 
     override func cancelOperation(_ sender: Any?) {
+        guard dismissPolicy == .dismissible else {
+            return
+        }
         onDismiss?()
     }
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown,
            event.keyCode == 53 {
+            guard dismissPolicy == .dismissible else {
+                return
+            }
             onDismiss?()
             return
         }

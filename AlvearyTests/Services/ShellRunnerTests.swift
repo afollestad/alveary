@@ -4,6 +4,10 @@ import XCTest
 @testable import Alveary
 
 final class ShellRunnerTests: XCTestCase {
+    func testShellRunOptionsDefaultsToInheritedStandardInput() {
+        XCTAssertEqual(ShellRunOptions().standardInput, .inherit)
+    }
+
     func testEnvironmentOverlayMergesIntoInheritedEnvironment() async throws {
         let runner = DefaultShellRunner()
 
@@ -15,6 +19,19 @@ final class ShellRunnerTests: XCTestCase {
 
         XCTAssertEqual(result.stdout, "value:present")
         XCTAssertTrue(result.succeeded)
+    }
+
+    func testNullStandardInputPresentsEOFToChildProcess() async throws {
+        let runner = DefaultShellRunner()
+
+        let result = try await runner.run(
+            executable: "/usr/bin/perl",
+            args: ["-e", "my $line = <STDIN>; print defined($line) ? 'input' : 'eof';"],
+            standardInput: .nullDevice
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdout, "eof")
     }
 
     func testNonZeroExitCapturesStderrAndExitCode() async throws {
