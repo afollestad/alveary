@@ -78,6 +78,10 @@ extension AppComponent {
         return shared { DefaultShellRunner() }
     }
 
+    var executablePathResolver: any ExecutablePathResolving {
+        return shared { DefaultExecutablePathResolver(shell: shellRunner) }
+    }
+
     var sessionManager: SessionManager {
         return shared { DefaultSessionManager(supportDirectory: SessionComponent.appSupportDirectory) }
     }
@@ -111,7 +115,8 @@ extension AppComponent {
         return shared {
             DefaultProviderDetectionService(
                 shell: shellRunner,
-                registry: providerRegistry
+                registry: providerRegistry,
+                executableResolver: executablePathResolver
             )
         }
     }
@@ -389,7 +394,12 @@ extension AppComponent {
     }
 
     var gitHubCLIService: GitHubCLIService {
-        return shared { DefaultGitHubCLIService(shell: shellRunner) }
+        return shared {
+            DefaultGitHubCLIService(
+                shell: shellRunner,
+                executableResolver: executablePathResolver
+            )
+        }
     }
 
     var skillsService: SkillsService {

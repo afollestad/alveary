@@ -44,6 +44,7 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         let progressRecorder = AppUpdateDownloadProgressRecorder()
         let downloader = GitHubCLIAppUpdateDownloader(
             shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: "/opt/homebrew/bin/gh"),
             temporaryDirectory: temporaryDirectory,
             sessionConfiguration: makeURLSessionConfiguration()
         )
@@ -55,8 +56,8 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: downloadedURL), assetData)
         let invocations = await shell.invocations()
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.executable, "/usr/bin/env")
-        XCTAssertEqual(invocation.args, ["gh", "auth", "token"])
+        XCTAssertEqual(invocation.executable, "/opt/homebrew/bin/gh")
+        XCTAssertEqual(invocation.args, ["auth", "token"])
         XCTAssertEqual(invocation.stdoutLimitBytes, 64 * 1024)
         XCTAssertEqual(invocation.stderrLimitBytes, 64 * 1024)
 
@@ -89,6 +90,7 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         let shell = AppUpdateDownloadShellRunner(mode: .token("github-token"))
         let downloader = GitHubCLIAppUpdateDownloader(
             shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: "/opt/homebrew/bin/gh"),
             temporaryDirectory: temporaryDirectory,
             sessionConfiguration: makeURLSessionConfiguration()
         )
@@ -115,6 +117,7 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         let shell = AppUpdateDownloadShellRunner(mode: .token("github-token"))
         let downloader = GitHubCLIAppUpdateDownloader(
             shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: "/opt/homebrew/bin/gh"),
             temporaryDirectory: temporaryDirectory,
             sessionConfiguration: makeURLSessionConfiguration()
         )
@@ -134,6 +137,7 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
         let shell = AppUpdateDownloadShellRunner(mode: .fail(stderr: "gh: not logged into github.com", exitCode: 1))
         let downloader = GitHubCLIAppUpdateDownloader(
             shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: "/opt/homebrew/bin/gh"),
             temporaryDirectory: temporaryDirectory,
             sessionConfiguration: makeURLSessionConfiguration()
         )
@@ -145,6 +149,28 @@ final class GitHubCLIAppUpdateDownloaderTests: XCTestCase {
             XCTAssertEqual(failure.message, "GitHub CLI is not authenticated.")
         }
 
+        XCTAssertTrue(try remainingDownloadItems().isEmpty)
+    }
+
+    func testFailureSurfacesMissingGitHubCLI() async throws {
+        let release = try makeRelease(expectedSize: 10)
+        let shell = AppUpdateDownloadShellRunner(mode: .token("github-token"))
+        let downloader = GitHubCLIAppUpdateDownloader(
+            shellRunner: shell,
+            executableResolver: AppUpdateDownloadPathResolverFake(path: nil),
+            temporaryDirectory: temporaryDirectory,
+            sessionConfiguration: makeURLSessionConfiguration()
+        )
+
+        do {
+            _ = try await downloader.download(release: release) { _ in }
+            XCTFail("Expected missing GitHub CLI failure.")
+        } catch let failure as AppUpdateFailure {
+            XCTAssertEqual(failure.message, "GitHub CLI is not installed.")
+        }
+
+        let invocations = await shell.invocations()
+        XCTAssertTrue(invocations.isEmpty)
         XCTAssertTrue(try remainingDownloadItems().isEmpty)
     }
 
@@ -237,5 +263,14 @@ private actor AppUpdateDownloadProgressRecorder {
 
     func values() -> [Double] {
         recordedValues
+    }
+}
+
+private struct AppUpdateDownloadPathResolverFake: ExecutablePathResolving {
+    let path: String?
+
+    func resolveExecutablePath(for candidate: String) async -> String? {
+        XCTAssertEqual(candidate, "gh")
+        return path
     }
 }

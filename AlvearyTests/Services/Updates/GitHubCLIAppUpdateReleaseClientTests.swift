@@ -9,7 +9,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         await shell.enqueue(.success(shellResult(stdout: "Logged in to github.com")))
         await shell.enqueue(.success(shellResult(stdout: "afollestad/alveary")))
         await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON())))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -24,32 +24,33 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(release.asset.downloadURL, URL(string: "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip"))
 
         let invocations = await shell.invocations
-        XCTAssertEqual(invocations.map(\.executable), Array(repeating: "/usr/bin/env", count: 4))
-        XCTAssertEqual(invocations[0].args, ["gh", "--version"])
-        XCTAssertEqual(invocations[1].args, ["gh", "auth", "status"])
+        XCTAssertEqual(invocations.map(\.executable), Array(repeating: "/opt/homebrew/bin/gh", count: 4))
+        XCTAssertEqual(invocations[0].args, ["--version"])
+        XCTAssertEqual(invocations[1].args, ["auth", "status"])
         XCTAssertEqual(
             invocations[2].args,
-            ["gh", "repo", "view", "afollestad/alveary", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]
+            ["repo", "view", "afollestad/alveary", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]
         )
-        XCTAssertEqual(invocations[3].args, ["gh", "api", "repos/afollestad/alveary/releases/latest"])
+        XCTAssertEqual(invocations[3].args, ["api", "repos/afollestad/alveary/releases/latest"])
         XCTAssertEqual(invocations[3].stdoutLimitBytes, 2 * 1024 * 1024)
     }
 
     func testMissingGitHubCLIReturnsExplicitState() async {
         let shell = MockShellRunner()
-        await shell.enqueue(.success(shellResult(stderr: "env: gh: No such file or directory", exitCode: 127)))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell, executablePath: nil)
 
         let result = await client.latestRelease()
 
         XCTAssertEqual(result, .unavailable(.gitHubCLINotInstalled))
+        let invocations = await shell.invocations
+        XCTAssertTrue(invocations.isEmpty)
     }
 
     func testUnauthenticatedGitHubCLIReturnsExplicitState() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(shellResult(stdout: "gh version 2.89.0")))
         await shell.enqueue(.success(shellResult(stderr: "You are not logged into any GitHub hosts", exitCode: 1)))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -61,7 +62,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         await shell.enqueue(
             .success(shellResult(stderr: "GraphQL: Could not resolve to a Repository with the name 'alveary'. (HTTP 404)", exitCode: 1))
         )
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -71,7 +72,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testNoReleaseReturnsExplicitState() async {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stderr: "gh: Not Found (HTTP 404)", exitCode: 1)))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -81,7 +82,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testRateLimitReturnsExplicitState() async {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stderr: "gh: API rate limit exceeded (HTTP 403)", exitCode: 1)))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -91,7 +92,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testDraftReleaseIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(draft: true))))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -101,7 +102,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testPrereleaseIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(prerelease: true))))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -111,7 +112,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testMalformedTagIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(tagName: "nightly"))))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -121,7 +122,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testMissingAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(assetName: "Alveary.zip"))))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -131,7 +132,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testNonHTTPSAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(try shellResult(apiURL: "http://api.github.com/repos/afollestad/alveary/releases/assets/123")))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -141,7 +142,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testNonHTTPSBrowserDownloadAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(try shellResult(downloadURL: "http://example.com/Alveary.app.zip")))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -151,7 +152,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
     func testDecodingFailureIsExplicit() async {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stdout: "{")))
-        let client = GitHubCLIAppUpdateReleaseClient(shellRunner: shell)
+        let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
@@ -170,6 +171,16 @@ private extension AppUpdateReleaseLookupResult {
         }
         return release
     }
+}
+
+private func makeClient(
+    shell: MockShellRunner,
+    executablePath: String? = "/opt/homebrew/bin/gh"
+) -> GitHubCLIAppUpdateReleaseClient {
+    GitHubCLIAppUpdateReleaseClient(
+        shellRunner: shell,
+        executableResolver: AppUpdateExecutablePathResolverFake(path: executablePath)
+    )
 }
 
 private func authenticatedShell() async -> MockShellRunner {
@@ -266,5 +277,14 @@ private struct StubGitHubReleaseAssetResponse: Encodable {
         case url
         case browserDownloadURL = "browser_download_url"
         case size
+    }
+}
+
+private struct AppUpdateExecutablePathResolverFake: ExecutablePathResolving {
+    let path: String?
+
+    func resolveExecutablePath(for candidate: String) async -> String? {
+        XCTAssertEqual(candidate, "gh")
+        return path
     }
 }

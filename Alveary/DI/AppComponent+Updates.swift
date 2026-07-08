@@ -3,7 +3,12 @@ import Foundation
 @MainActor
 extension AppComponent {
     var appUpdateReleaseClient: any AppUpdateReleaseClient {
-        return shared { GitHubCLIAppUpdateReleaseClient(shellRunner: shellRunner) }
+        return shared {
+            GitHubCLIAppUpdateReleaseClient(
+                shellRunner: shellRunner,
+                executableResolver: executablePathResolver
+            )
+        }
     }
 
     var appVersionProvider: any AppVersionProviding {
@@ -11,7 +16,12 @@ extension AppComponent {
     }
 
     var appUpdateDownloader: any AppUpdateDownloading {
-        return shared { GitHubCLIAppUpdateDownloader(shellRunner: shellRunner) }
+        return shared {
+            GitHubCLIAppUpdateDownloader(
+                shellRunner: shellRunner,
+                executableResolver: executablePathResolver
+            )
+        }
     }
 
     var appUpdateStager: any AppUpdateStaging {

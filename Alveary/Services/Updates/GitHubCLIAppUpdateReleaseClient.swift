@@ -8,24 +8,32 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
     private let owner: String
     private let repository: String
     private let shellRunner: any ShellRunner
+    private let executableResolver: any ExecutablePathResolving
     private let decoder: JSONDecoder
 
     init(
         owner: String = GitHubCLIAppUpdateReleaseClient.defaultOwner,
         repository: String = GitHubCLIAppUpdateReleaseClient.defaultRepository,
         shellRunner: any ShellRunner = DefaultShellRunner(),
+        executableResolver: (any ExecutablePathResolving)? = nil,
         decoder: JSONDecoder = JSONDecoder()
     ) {
         self.owner = owner
         self.repository = repository
         self.shellRunner = shellRunner
+        self.executableResolver = executableResolver ?? DefaultExecutablePathResolver(shell: shellRunner)
         self.decoder = decoder
     }
 
     func latestRelease() async -> AppUpdateReleaseLookupResult {
+        guard let ghExecutable = await executableResolver.resolveExecutablePath(for: "gh") else {
+            return .unavailable(.gitHubCLINotInstalled)
+        }
+
         do {
             let versionResult = try await runGitHubCLI(
-                args: ["gh", "--version"],
+                executable: ghExecutable,
+                args: ["--version"],
                 timeout: .seconds(3)
             )
             guard versionResult.succeeded else {
@@ -33,7 +41,8 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
             }
 
             let authResult = try await runGitHubCLI(
-                args: ["gh", "auth", "status"],
+                executable: ghExecutable,
+                args: ["auth", "status"],
                 timeout: .seconds(5)
             )
             guard authResult.succeeded else {
@@ -41,7 +50,8 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
             }
 
             let repositoryResult = try await runGitHubCLI(
-                args: ["gh", "repo", "view", "\(owner)/\(repository)", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+                executable: ghExecutable,
+                args: ["repo", "view", "\(owner)/\(repository)", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
                 timeout: .seconds(10)
             )
             guard repositoryResult.succeeded else {
@@ -49,7 +59,8 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
             }
 
             let releaseResult = try await runGitHubCLI(
-                args: ["gh", "api", "repos/\(owner)/\(repository)/releases/latest"],
+                executable: ghExecutable,
+                args: ["api", "repos/\(owner)/\(repository)/releases/latest"],
                 timeout: .seconds(30),
                 stdoutLimitBytes: 2 * 1024 * 1024
             )
@@ -69,12 +80,13 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
 
 private extension GitHubCLIAppUpdateReleaseClient {
     func runGitHubCLI(
+        executable: String,
         args: [String],
         timeout: Duration,
         stdoutLimitBytes: Int? = 64 * 1024
     ) async throws -> ShellResult {
         try await shellRunner.run(
-            executable: "/usr/bin/env",
+            executable: executable,
             args: args,
             timeout: timeout,
             stdoutLimitBytes: stdoutLimitBytes,

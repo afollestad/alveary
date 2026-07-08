@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 final class DefaultGitHubCLIService: GitHubCLIService {
+    private static let defaultAuthArguments = ["auth", "login", "--web", "--clipboard"]
+
     private static let defaultVerificationURL: URL = {
         guard let url = URL(string: "https://github.com/login/device") else {
             preconditionFailure("GitHub device login URL must be valid")
@@ -10,8 +12,7 @@ final class DefaultGitHubCLIService: GitHubCLIService {
     }()
 
     private let shell: ShellRunner
-    private let authExecutable: String
-    private let authArguments: [String]
+    private let executableResolver: any ExecutablePathResolving
     private let verificationURL: URL
     private let authTimeout: Duration
     private let processFactory: @MainActor () -> Process
@@ -21,24 +22,26 @@ final class DefaultGitHubCLIService: GitHubCLIService {
 
     init(
         shell: ShellRunner,
-        authExecutable: String = "/usr/bin/env",
-        authArguments: [String] = ["gh", "auth", "login", "--web", "--clipboard"],
+        executableResolver: (any ExecutablePathResolving)? = nil,
         verificationURL: URL = DefaultGitHubCLIService.defaultVerificationURL,
         authTimeout: Duration = .seconds(300),
         processFactory: @escaping @MainActor () -> Process = { Process() }
     ) {
         self.shell = shell
-        self.authExecutable = authExecutable
-        self.authArguments = authArguments
+        self.executableResolver = executableResolver ?? DefaultExecutablePathResolver(shell: shell)
         self.verificationURL = verificationURL
         self.authTimeout = authTimeout
         self.processFactory = processFactory
     }
 
     func checkInstalled() async -> String? {
+        guard let ghExecutable = await executableResolver.resolveExecutablePath(for: "gh") else {
+            return nil
+        }
+
         let result = try? await shell.run(
-            executable: "/usr/bin/env",
-            args: ["gh", "--version"],
+            executable: ghExecutable,
+            args: ["--version"],
             timeout: .seconds(3)
         )
         guard let result, result.succeeded else {
@@ -48,9 +51,13 @@ final class DefaultGitHubCLIService: GitHubCLIService {
     }
 
     func isAuthenticated() async -> Bool {
+        guard let ghExecutable = await executableResolver.resolveExecutablePath(for: "gh") else {
+            return false
+        }
+
         let result = try? await shell.run(
-            executable: "/usr/bin/env",
-            args: ["gh", "auth", "status"],
+            executable: ghExecutable,
+            args: ["auth", "status"],
             timeout: .seconds(5)
         )
         return result?.succeeded == true
@@ -59,9 +66,10 @@ final class DefaultGitHubCLIService: GitHubCLIService {
     func authenticate() async throws -> GitHubDeviceCode {
         cancelAuthentication()
 
+        let command = try await authenticationCommand()
         let process = processFactory()
-        process.executableURL = URL(fileURLWithPath: authExecutable)
-        process.arguments = authArguments
+        process.executableURL = URL(fileURLWithPath: command.executable)
+        process.arguments = command.arguments
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -166,6 +174,13 @@ final class DefaultGitHubCLIService: GitHubCLIService {
         stderrDrainTask?.cancel()
         stderrDrainTask = nil
         authProcess = nil
+    }
+
+    private func authenticationCommand() async throws -> (executable: String, arguments: [String]) {
+        guard let ghExecutable = await executableResolver.resolveExecutablePath(for: "gh") else {
+            throw GitHubError.authLaunchFailed("GitHub CLI is not installed.")
+        }
+        return (ghExecutable, Self.defaultAuthArguments)
     }
 }
 

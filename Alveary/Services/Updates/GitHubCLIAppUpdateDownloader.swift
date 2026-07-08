@@ -4,17 +4,20 @@ struct GitHubCLIAppUpdateDownloader: AppUpdateDownloading, @unchecked Sendable {
     private static let downloadTimeout: TimeInterval = 600
 
     private let shellRunner: any ShellRunner
+    private let executableResolver: any ExecutablePathResolving
     private let fileManager: FileManager
     private let temporaryDirectory: URL
     private let sessionConfiguration: URLSessionConfiguration
 
     init(
         shellRunner: any ShellRunner = DefaultShellRunner(),
+        executableResolver: (any ExecutablePathResolving)? = nil,
         fileManager: FileManager = .default,
         temporaryDirectory: URL = FileManager.default.temporaryDirectory,
         sessionConfiguration: URLSessionConfiguration = .ephemeral
     ) {
         self.shellRunner = shellRunner
+        self.executableResolver = executableResolver ?? DefaultExecutablePathResolver(shell: shellRunner)
         self.fileManager = fileManager
         self.temporaryDirectory = temporaryDirectory
         self.sessionConfiguration = sessionConfiguration
@@ -61,9 +64,13 @@ struct GitHubCLIAppUpdateDownloader: AppUpdateDownloading, @unchecked Sendable {
 
 private extension GitHubCLIAppUpdateDownloader {
     func authenticationToken() async throws -> String {
+        guard let ghExecutable = await executableResolver.resolveExecutablePath(for: "gh") else {
+            throw AppUpdateFailure(message: "GitHub CLI is not installed.")
+        }
+
         let result = try await shellRunner.run(
-            executable: "/usr/bin/env",
-            args: ["gh", "auth", "token"],
+            executable: ghExecutable,
+            args: ["auth", "token"],
             timeout: .seconds(5),
             stdoutLimitBytes: 64 * 1024,
             stderrLimitBytes: 64 * 1024

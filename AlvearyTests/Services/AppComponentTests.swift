@@ -34,6 +34,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.agentCLIKitProviderDiscoveryService
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
         assertSameInstance(component.claudeApprovalPersistenceStore, component.claudeApprovalPersistenceStore)
+        assertSameInstance(component.executablePathResolver, component.executablePathResolver)
         assertSameInstance(component.gitService, component.gitService)
         assertSameInstance(component.gitHubCLIService, component.gitHubCLIService)
         assertSameInstance(component.skillsService, component.skillsService)
@@ -53,6 +54,7 @@ final class AppComponentTests: XCTestCase {
         _ = component.modelContext
         _ = component.settingsService
         _ = component.shellRunner
+        _ = component.executablePathResolver
         _ = component.sessionManager
         _ = component.notificationRouter
         _ = component.notificationManager
