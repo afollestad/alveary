@@ -6,7 +6,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     static let maxWidth: CGFloat = 220
 
     private static let progressIndicatorSize: CGFloat = 12
-    private static let modelEffortSpacing: CGFloat = 6
+    private static let modelEffortSpacing: CGFloat = 2
     private static let effortChevronSpacing: CGFloat = ComposerIconTitleDropdownButton.iconTextSpacing
     private static let textFieldFittingReserve: CGFloat = 2
 
