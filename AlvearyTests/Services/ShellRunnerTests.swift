@@ -21,6 +21,29 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertTrue(result.succeeded)
     }
 
+    func testAdditionalPathDirectoriesAreVisibleToChildProcesses() async throws {
+        let toolsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: toolsDirectory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: toolsDirectory) }
+
+        let executableURL = toolsDirectory.appendingPathComponent("alveary-test-tool")
+        try """
+        #!/bin/sh
+        printf 'found'
+        """.write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
+
+        let runner = DefaultShellRunner(additionalPathDirectories: [toolsDirectory.path])
+        let result = try await runner.run(
+            executable: "/bin/sh",
+            args: ["-c", "alveary-test-tool"]
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdout, "found")
+    }
+
     func testNullStandardInputPresentsEOFToChildProcess() async throws {
         let runner = DefaultShellRunner()
 

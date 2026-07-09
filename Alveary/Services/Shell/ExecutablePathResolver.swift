@@ -1,6 +1,42 @@
 import Darwin
 import Foundation
 
+enum ExecutableSearchPath {
+    static let defaultPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+    static let defaultFallbackExecutableDirectories = [
+        "~/.local/bin",
+        "~/.claude/local",
+        "/opt/homebrew/bin",
+        "/usr/local/bin"
+    ]
+
+    static func augmentedPath(
+        _ path: String?,
+        fallbackDirectories: [String] = defaultFallbackExecutableDirectories
+    ) -> String {
+        var components = (path ?? defaultPath)
+            .split(separator: ":")
+            .map(String.init)
+
+        for directory in fallbackDirectories {
+            let expandedDirectory = expandHomeDirectory(in: directory)
+            guard !expandedDirectory.isEmpty, !components.contains(expandedDirectory) else {
+                continue
+            }
+            components.append(expandedDirectory)
+        }
+
+        return components.joined(separator: ":")
+    }
+
+    static func expandHomeDirectory(in path: String) -> String {
+        guard path == "~" || path.hasPrefix("~/") else {
+            return path
+        }
+        return NSHomeDirectory() + String(path.dropFirst())
+    }
+}
+
 protocol ExecutablePathResolving: Sendable {
     func resolveExecutablePath(for candidate: String) async -> String?
 }
@@ -59,12 +95,7 @@ actor DefaultExecutablePathResolver: ExecutablePathResolving {
 
 extension DefaultExecutablePathResolver {
     static var defaultFallbackExecutableDirectories: [String] {
-        [
-            "~/.local/bin",
-            "~/.claude/local",
-            "/opt/homebrew/bin",
-            "/usr/local/bin"
-        ]
+        ExecutableSearchPath.defaultFallbackExecutableDirectories
     }
 }
 
@@ -98,10 +129,7 @@ private extension DefaultExecutablePathResolver {
     }
 
     func expandHomeDirectory(in path: String) -> String {
-        guard path == "~" || path.hasPrefix("~/") else {
-            return path
-        }
-        return NSHomeDirectory() + String(path.dropFirst())
+        ExecutableSearchPath.expandHomeDirectory(in: path)
     }
 
     static var loginShellExecutablePaths: [String] {

@@ -2,6 +2,12 @@ import Darwin
 import Foundation
 
 final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
+    private let additionalPathDirectories: [String]
+
+    init(additionalPathDirectories: [String] = ExecutableSearchPath.defaultFallbackExecutableDirectories) {
+        self.additionalPathDirectories = additionalPathDirectories
+    }
+
     func run(
         executable: String,
         args: [String],
@@ -16,11 +22,8 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             process.currentDirectoryURL = URL(fileURLWithPath: directory)
         }
 
-        if let environment = options.environment {
-            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, newValue in
-                newValue
-            }
-        }
+        process.environment = processEnvironment(overriding: options.environment)
+
         switch options.standardInput {
         case .inherit:
             break
@@ -139,6 +142,18 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
 
             return (captured, wasTruncated)
         }.value
+    }
+
+    private func processEnvironment(overriding overrides: [String: String]?) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        if let overrides {
+            environment.merge(overrides) { _, newValue in newValue }
+        }
+        environment["PATH"] = ExecutableSearchPath.augmentedPath(
+            environment["PATH"],
+            fallbackDirectories: additionalPathDirectories
+        )
+        return environment
     }
 }
 

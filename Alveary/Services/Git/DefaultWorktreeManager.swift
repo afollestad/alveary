@@ -202,7 +202,22 @@ extension DefaultWorktreeManager {
             return .notARepository
         }
 
+        if isMissingGitLFSFilterError(message) {
+            return .commandFailed(missingGitLFSMessage(originalMessage: message))
+        }
+
         return .commandFailed(message)
+    }
+
+    private static func isMissingGitLFSFilterError(_ message: String) -> Bool {
+        let lowercased = message.lowercased()
+        return lowercased.contains("git-lfs") && lowercased.contains("command not found")
+    }
+
+    private static func missingGitLFSMessage(originalMessage: String) -> String {
+        "Git LFS is required to check out this repository, but git-lfs is not installed or is not available in Alveary's PATH. " +
+            "Install Git LFS (for example: brew install git-lfs), run git lfs install, then try again.\n\n" +
+            "Original Git error: \(originalMessage)"
     }
 
     func resolveBaseRef(projectPath: String, baseRef: String?, remoteName: String?) async -> String {

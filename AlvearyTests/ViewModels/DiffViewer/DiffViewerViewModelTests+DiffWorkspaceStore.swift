@@ -145,6 +145,8 @@ extension DiffViewerViewModelTests {
 
         let statusEntered = expectation(description: "status entered")
         await fixture.gitService.setOnStatus { statusEntered.fulfill() }
+        let diffStatsEntered = expectation(description: "diff stats entered")
+        await fixture.gitService.setOnDiffStats { diffStatsEntered.fulfill() }
 
         let switchTask = Task {
             await fixture.viewModel.switchToDirectory(
@@ -166,6 +168,7 @@ extension DiffViewerViewModelTests {
         await switchTask.value
         XCTAssertEqual(fixture.viewModel.files, [modifiedFile])
         XCTAssertTrue(fixture.viewModel.isDiffToolbarLoading)
+        await fulfillment(of: [diffStatsEntered], timeout: 2.0)
         let diffStatsCallCountAfterStatusCompleted = await fixture.gitService.diffStatsCallCount()
         XCTAssertEqual(diffStatsCallCountAfterStatusCompleted, 1)
 

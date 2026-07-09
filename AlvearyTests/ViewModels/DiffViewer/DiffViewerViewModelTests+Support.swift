@@ -100,6 +100,7 @@ actor DiffViewerMockGitService: GitService {
     private var recordedCommitsAheadDetailsCalls: [CommitDetailCall] = []
     private var recordedCommitDiffCalls: [CommitDiffCall] = []
     private var onStatus: (@Sendable () -> Void)?
+    private var onDiffStats: (@Sendable () -> Void)?
 
     init(
         statusResults: [Result<[FileStatus], Error>],
@@ -160,6 +161,7 @@ actor DiffViewerMockGitService: GitService {
 
     func diffStats(in directory: String, knownStatuses: [FileStatus]?) async throws -> DiffStats {
         recordedDiffStatsCallCount += 1
+        onDiffStats?()
         let result: Result<DiffStats, Error> = diffStatsResults.isEmpty ? .success(.empty) : diffStatsResults.removeFirst()
 
         if !diffStatsDelays.isEmpty {
@@ -174,6 +176,10 @@ actor DiffViewerMockGitService: GitService {
 
     func setOnStatus(_ handler: (@Sendable () -> Void)?) {
         onStatus = handler
+    }
+
+    func setOnDiffStats(_ handler: (@Sendable () -> Void)?) {
+        onDiffStats = handler
     }
 
     func diff(paths: [String], scope: DiffScope, in directory: String) async throws -> String {
