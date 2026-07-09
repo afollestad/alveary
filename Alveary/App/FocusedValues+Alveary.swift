@@ -13,9 +13,8 @@ struct NewConversationActionKey: FocusedValueKey {
 /// Published by `ContentView` so the ⇧⌘T "Show/Hide Terminal" menu item can
 /// dispatch through the same `toggleTerminalPane()` helper the toolbar button
 /// calls directly — that helper creates or selects a default shell session
-/// before flipping `isTerminalPaneVisible`, which a plain
-/// `AppState.toggleTerminalPane()` call from the menu could not do because the
-/// terminal manager is view-local `@State`.
+/// before flipping `isTerminalPaneVisible`. A direct visibility mutation from
+/// the menu cannot do that because the terminal manager is view-local `@State`.
 struct ToggleTerminalPaneActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }

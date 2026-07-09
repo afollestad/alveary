@@ -67,10 +67,6 @@ final class AppState {
         pendingCommand = .newProject(UUID())
     }
 
-    func toggleTerminalPane() {
-        isTerminalPaneVisible.toggle()
-    }
-
     func showTerminalPane() {
         isTerminalPaneVisible = true
     }

@@ -67,6 +67,7 @@ final class TerminalLaunchBuilderTests: XCTestCase {
 
         XCTAssertEqual(configuration.executable, "/bin/zsh")
         XCTAssertEqual(configuration.args, [])
+        XCTAssertNil(configuration.projectActionCommand)
         XCTAssertEqual(configuration.execName, "-zsh")
         XCTAssertEqual(configuration.currentDirectory, "/Users/alice/Project")
         XCTAssertEqual(environment["HOME"], "/Users/alice")
@@ -83,7 +84,7 @@ final class TerminalLaunchBuilderTests: XCTestCase {
         XCTAssertTrue(environment["PATH"]?.contains("/usr/local/bin") == true)
     }
 
-    func testProjectActionConfigurationUsesInteractiveCommandArgs() {
+    func testProjectActionConfigurationUsesInteractiveShellAndInjectionCommand() {
         let builder = makeBuilder(
             environment: ["SHELL": "/bin/zsh"],
             executablePaths: ["/bin/zsh"]
@@ -95,7 +96,8 @@ final class TerminalLaunchBuilderTests: XCTestCase {
         )
 
         XCTAssertEqual(configuration.executable, "/bin/zsh")
-        XCTAssertEqual(configuration.args, ["-i", "-c", "./scripts/build.sh"])
+        XCTAssertEqual(configuration.args, [])
+        XCTAssertEqual(configuration.projectActionCommand, "./scripts/build.sh")
         XCTAssertEqual(configuration.execName, "-zsh")
         XCTAssertEqual(configuration.currentDirectory, "/Users/alice/Project")
     }

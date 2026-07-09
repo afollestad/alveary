@@ -7,6 +7,23 @@ struct TerminalLaunchConfiguration: Equatable, Sendable {
     let environment: [String]
     let execName: String
     let currentDirectory: String
+    let projectActionCommand: String?
+
+    init(
+        executable: String,
+        args: [String],
+        environment: [String],
+        execName: String,
+        currentDirectory: String,
+        projectActionCommand: String? = nil
+    ) {
+        self.executable = executable
+        self.args = args
+        self.environment = environment
+        self.execName = execName
+        self.currentDirectory = currentDirectory
+        self.projectActionCommand = projectActionCommand
+    }
 }
 
 struct TerminalLaunchBuilder: Sendable {
@@ -28,7 +45,8 @@ struct TerminalLaunchBuilder: Sendable {
         return configuration(
             shellPath: shellPath,
             args: [],
-            currentDirectory: currentDirectory
+            currentDirectory: currentDirectory,
+            projectActionCommand: nil
         )
     }
 
@@ -36,8 +54,9 @@ struct TerminalLaunchBuilder: Sendable {
         let shellPath = resolvedShellPath()
         return configuration(
             shellPath: shellPath,
-            args: ["-i", "-c", command],
-            currentDirectory: currentDirectory
+            args: [],
+            currentDirectory: currentDirectory,
+            projectActionCommand: command
         )
     }
 
@@ -80,14 +99,16 @@ struct TerminalLaunchBuilder: Sendable {
     private func configuration(
         shellPath: String,
         args: [String],
-        currentDirectory: String
+        currentDirectory: String,
+        projectActionCommand: String?
     ) -> TerminalLaunchConfiguration {
         TerminalLaunchConfiguration(
             executable: shellPath,
             args: args,
             environment: serializedEnvironment(shellPath: shellPath, currentDirectory: currentDirectory),
             execName: "-" + URL(fileURLWithPath: shellPath).lastPathComponent,
-            currentDirectory: currentDirectory
+            currentDirectory: currentDirectory,
+            projectActionCommand: projectActionCommand
         )
     }
 

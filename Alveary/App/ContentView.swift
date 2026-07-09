@@ -225,7 +225,6 @@ struct ContentView: View {
                     TerminalPane(
                         height: $terminalPaneHeight,
                         onHeightCommit: persistTerminalPaneHeight,
-                        visibleThreadID: visibleThreadID,
                         canViewThread: canViewThread,
                         onViewThread: viewThread,
                         onNewShell: {

@@ -130,7 +130,6 @@ final class ContentViewProjectActionsTests: XCTestCase {
         let context = try XCTUnwrap(ProjectActionExecutionContext(thread: thread, action: action))
 
         XCTAssertEqual(context.title, "Build")
-        XCTAssertEqual(context.projectName, "Alveary")
         XCTAssertEqual(context.threadID, thread.persistentModelID)
         XCTAssertEqual(context.threadName, "Toolbar Action")
         XCTAssertEqual(context.currentDirectory, "/tmp/worktree")
@@ -299,7 +298,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
 
         XCTAssertEqual(configuration.executable, "/bin/zsh")
         XCTAssertEqual(configuration.execName, "-zsh")
-        XCTAssertEqual(configuration.args, ["-i", "-c", "./scripts/build.sh"])
+        XCTAssertEqual(configuration.args, [])
+        XCTAssertEqual(configuration.projectActionCommand, "./scripts/build.sh")
         XCTAssertEqual(configuration.currentDirectory, "/tmp/worktree")
     }
 

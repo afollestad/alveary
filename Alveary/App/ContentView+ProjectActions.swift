@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ProjectActionExecutionContext: Equatable {
     let title: String
-    let projectName: String?
     let threadID: PersistentIdentifier
     let threadName: String
     let currentDirectory: String
@@ -15,7 +14,6 @@ struct ProjectActionExecutionContext: Equatable {
         }
 
         self.title = action.name
-        self.projectName = thread.project?.name
         self.threadID = thread.persistentModelID
         self.threadName = thread.name
         self.currentDirectory = currentDirectory
@@ -51,11 +49,9 @@ extension ContentView {
         terminalManager.createSession(
             kind: .projectAction,
             title: context.title,
-            projectName: context.projectName,
             threadID: context.threadID,
             threadName: context.threadName,
             currentDirectory: context.currentDirectory,
-            command: context.command,
             maxSessions: ProjectActionTerminalPresentation.maxSessions(settings: settings),
             launchConfiguration: launchConfiguration
         )
@@ -82,7 +78,6 @@ extension ContentView {
         terminalManager.createSession(
             kind: .shell,
             title: context.title,
-            projectName: context.projectName,
             threadID: context.threadID,
             threadName: context.threadName,
             currentDirectory: context.currentDirectory,
@@ -110,7 +105,6 @@ extension ContentView {
             }
 
             return TerminalDefaultShellContext(
-                projectName: thread.project?.name,
                 threadID: thread.persistentModelID,
                 threadName: thread.name,
                 currentDirectory: builder.defaultShellDirectory(
@@ -121,7 +115,6 @@ extension ContentView {
             )
         case .project(let project):
             return TerminalDefaultShellContext(
-                projectName: project.name,
                 currentDirectory: builder.defaultShellDirectory(
                     threadWorktreePath: nil,
                     threadProjectPath: nil,
@@ -142,7 +135,6 @@ extension ContentView {
 
 private struct TerminalDefaultShellContext {
     var title = "Shell"
-    var projectName: String?
     var threadID: PersistentIdentifier?
     var threadName: String?
     var currentDirectory: String

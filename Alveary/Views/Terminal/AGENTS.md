@@ -1,14 +1,15 @@
 # Terminal Pane Guidance
 
-These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The pane has three stacked regions — drag handle, header row (icon + scrolling tab row + new-shell button + close button), and a body with the selected session's metadata strip above the embedded terminal viewport.
+These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The pane has a drag handle, a header row (icon + scrolling tab row + new-shell button + close button), and an embedded terminal viewport. Do not add a separate metadata strip above the viewport; tabs own title/status, and interactive project-action shells render their real prompt and injected command in the viewport.
 
 ## Session Chips
 
-- Terminal session chips render through the shared `SelectableTabChip` shell. Keep `.running` on `TabChipStatusIndicator.spinner(.secondary)` in the same fixed `8×8` status slot as terminal success/failure dots so a session starting or finishing does not change chip height.
+- Terminal session chips render through the shared `SelectableTabChip` shell. Running project actions use `TabChipStatusIndicator.spinner(.secondary)`; an open interactive shell keeps the same fixed `8×8` slot empty because a live prompt is not inherently busy. Exited shells and completed actions still use success/failure/cancelled dots so status changes never resize the chip.
+- Interactive shell chips use the stable label `Shell - <thread>` (or `Shell` without thread context). Keep raw OSC terminal titles as metadata; do not put `user@host:full/path` strings back into the chip. Project-action chips continue to use `<action> - <thread>`.
 
 ## Unified Pane Background
 
-- **Drive the pane chrome from a single `panelBackground`.** The drag handle, the header row, and the metadata strip must all share the same background — do not reintroduce separate `headerBackground` or `bodyBackground` computed properties, and do not add per-region `.background(...)` modifiers.
+- **Drive the pane chrome from a single `panelBackground`.** The drag handle and header row share this background — do not reintroduce separate `headerBackground` or `bodyBackground` computed properties, and do not add per-region `.background(...)` modifiers.
     - **Why:** Users explicitly asked for visual uniformity across the regions so the three palettes cannot drift apart in light or dark themes. Earlier iterations had three separately-tuned values, which desynced every time one of them was adjusted.
     - **How to apply:** Only the root `.background(panelBackground)` on the outer VStack should set a fill for pane chrome. New chrome backgrounds inside the VStack (e.g. a per-region accent) must be replaced with an overlay, a foreground-driven treatment, or a new global that still resolves to the same pane color in every region.
     - **Viewport exception:** The embedded SwiftTerm viewport owns its own background through `TerminalThemePalette`; it intentionally differs from pane chrome so terminal foreground, caret, and ANSI colors contrast in light and dark appearances.
@@ -44,5 +45,7 @@ These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The p
 ## Terminal View Hosting
 
 - **Mount controller-owned views only.** `TerminalSessionHostView` should host the `NSView` returned by the session controller. Do not construct `LocalProcessTerminalView` from SwiftUI body code or from tab-chip actions.
+- **Inset the viewport at the host boundary.** `TerminalSessionHostingView.contentInsets` reserves terminal breathing room while keeping PTY size calculations tied to the actual SwiftTerm bounds. Paint the host with `TerminalThemePalette` so the inset is visually part of the terminal, not pane chrome.
+- **Keep host teardown ownership-aware.** A terminal view can move between representable hosts while SwiftUI dismantles the old host. Clear the previous host before reparenting, and only remove a hosted view when its current superview is that host.
 - **Focus only from explicit terminal actions.** The menu/toolbar toggle and new-shell button may request terminal focus through the manager; auto-expanded project-action sessions should not steal first responder.
 - **Use fake controllers for snapshots.** Snapshot tests should inject fake controller views so baselines cover pane layout and terminal colors without launching real PTYs.

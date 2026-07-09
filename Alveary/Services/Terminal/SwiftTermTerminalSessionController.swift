@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import Darwin
 import Foundation
 import SwiftTerm
 
@@ -34,6 +35,9 @@ final class SwiftTermTerminalSessionController: NSObject, TerminalSessionControl
     private let delegateProxy: TerminalViewDelegateProxy
     private let terminationFallback: TerminalProcessTerminationFallback
     private var didStart = false
+    private var didInjectProjectAction = false
+    private var didCompleteProjectAction = false
+    private var projectActionIntegration: TerminalProjectActionShellIntegration?
 
     var view: NSView {
         terminalView
@@ -58,6 +62,9 @@ final class SwiftTermTerminalSessionController: NSObject, TerminalSessionControl
         terminalView.onAppearanceChanged = { [weak self] in
             self?.reapplyTheme()
         }
+        delegateProxy.iTermContentHandler = { [weak self] content in
+            self?.handleITermContent(content)
+        }
         terminalView.terminalDelegate = delegateProxy
         terminalView.processDelegate = self
         reapplyTheme()
@@ -69,18 +76,31 @@ final class SwiftTermTerminalSessionController: NSObject, TerminalSessionControl
         }
 
         didStart = true
+        guard Self.isUsableCurrentDirectory(configuration.currentDirectory) else {
+            delegate?.terminalSessionController(self, didTerminateSession: sessionID, exitCode: nil)
+            return
+        }
         reapplyTheme()
+        let processLaunch = prepareProcessLaunch()
         terminalView.startProcess(
             executable: configuration.executable,
-            args: configuration.args,
-            environment: configuration.environment,
+            args: processLaunch.args,
+            environment: processLaunch.environment,
             execName: configuration.execName,
             currentDirectory: configuration.currentDirectory
         )
+        // SwiftTerm returns without a delegate callback when `forkpty` itself fails.
+        // Its `running` flag is set synchronously on every successful fork, so a false
+        // value here is an immediate launch failure rather than a fast child exit.
+        if terminalView.process?.running != true {
+            projectActionIntegration?.cleanup()
+            delegate?.terminalSessionController(self, didTerminateSession: sessionID, exitCode: nil)
+        }
     }
 
     func terminate() {
         let pid = terminalView.process?.shellPid ?? 0
+        projectActionIntegration?.cleanup()
         terminalView.terminate()
         terminationFallback.schedule(pid: pid)
     }
@@ -91,6 +111,88 @@ final class SwiftTermTerminalSessionController: NSObject, TerminalSessionControl
 
     func reapplyTheme() {
         TerminalThemePalette.resolved(for: terminalView.effectiveAppearance).apply(to: terminalView)
+    }
+
+    private func prepareProcessLaunch() -> (args: [String], environment: [String]) {
+        guard let command = configuration.projectActionCommand else {
+            return (configuration.args, configuration.environment)
+        }
+
+        do {
+            if let integration = try TerminalProjectActionShellIntegration.prepare(
+                configuration: configuration,
+                sessionID: sessionID
+            ) {
+                projectActionIntegration = integration
+                return (configuration.args, integration.environment)
+            }
+        } catch {
+            projectActionIntegration = nil
+        }
+
+        // Unsupported shells and bootstrap failures still execute the action through
+        // a real PTY, but without prompt-aware command injection.
+        return (["-i", "-c", command], configuration.environment)
+    }
+
+    private func handleITermContent(_ content: ArraySlice<UInt8>) {
+        guard let integration = projectActionIntegration,
+              let marker = TerminalProjectActionMarker.parse(
+                  content: content,
+                  expectedToken: integration.markerToken
+              ) else {
+            return
+        }
+
+        switch marker {
+        case .ready:
+            guard !didInjectProjectAction else {
+                return
+            }
+            didInjectProjectAction = true
+            integration.cleanup()
+            Task { @MainActor [weak self] in
+                self?.injectProjectActionIfPossible()
+            }
+        case .completed(let exitCode):
+            guard didInjectProjectAction, !didCompleteProjectAction else {
+                return
+            }
+            didCompleteProjectAction = true
+            integration.cleanup()
+            delegate?.terminalSessionController(
+                self,
+                didCompleteProjectAction: sessionID,
+                exitCode: exitCode
+            )
+        }
+    }
+
+    private func injectProjectActionIfPossible() {
+        guard didInjectProjectAction,
+              !didCompleteProjectAction,
+              terminalView.process?.running == true,
+              let command = configuration.projectActionCommand else {
+            return
+        }
+
+        let bytes = TerminalProjectActionCommandEncoder.bytes(
+            command: command,
+            bracketedPasteEnabled: terminalView.terminal.bracketedPasteMode
+        )
+        terminalView.send(source: terminalView, data: bytes[...])
+    }
+
+    static func isUsableCurrentDirectory(
+        _ path: String,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        var isDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return false
+        }
+        return access(path, X_OK) == 0
     }
 }
 
@@ -118,6 +220,7 @@ extension SwiftTermTerminalSessionController: @preconcurrency LocalProcessTermin
     }
 
     func processTerminated(source: TerminalView, exitCode: Int32?) {
+        projectActionIntegration?.cleanup()
         delegate?.terminalSessionController(self, didTerminateSession: sessionID, exitCode: exitCode)
     }
 
@@ -183,6 +286,7 @@ final class AlvearyLocalTerminalView: LocalProcessTerminalView {
 @MainActor
 final class TerminalViewDelegateProxy: @preconcurrency TerminalViewDelegate {
     private weak var terminalView: LocalProcessTerminalView?
+    var iTermContentHandler: ((ArraySlice<UInt8>) -> Void)?
 
     init(terminalView: LocalProcessTerminalView) {
         self.terminalView = terminalView
@@ -218,7 +322,7 @@ final class TerminalViewDelegateProxy: @preconcurrency TerminalViewDelegate {
     }
 
     func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {
-        // No custom iTerm2 OSC handling in v1.
+        iTermContentHandler?(content)
     }
 
     func rangeChanged(source: TerminalView, startY: Int, endY: Int) {

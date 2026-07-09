@@ -30,6 +30,12 @@ protocol TerminalSessionControllerDelegate: AnyObject {
 
     func terminalSessionController(
         _ controller: any TerminalSessionControlling,
+        didCompleteProjectAction id: UUID,
+        exitCode: Int32
+    )
+
+    func terminalSessionController(
+        _ controller: any TerminalSessionControlling,
         didUpdateTitle title: String,
         forSession id: UUID
     )
