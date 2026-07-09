@@ -38,6 +38,7 @@ struct SidebarThreadRow: View {
     @State private var initialEditText = ""
     @State private var isHovering = false
     @State private var isCleanupConfirmationArmed = false
+    @State private var isCleanupConfirmationChromeVisible = false
     @State private var isCleanupControlCollapsing = false
     // Timeout collapse hides the affordance by shrinking to zero; hover collapse lands back on the icon.
     @State private var isCleanupControlCollapsingToHidden = false
@@ -71,6 +72,7 @@ struct SidebarThreadRow: View {
         self.onConfirmCleanup = onConfirmCleanup
         _isHovering = State(initialValue: initialRowHover)
         _isCleanupConfirmationArmed = State(initialValue: initialCleanupConfirmationArmed)
+        _isCleanupConfirmationChromeVisible = State(initialValue: initialCleanupConfirmationArmed)
     }
 
     private var isEditing: Bool { editingThreadID == thread.persistentModelID }
@@ -196,6 +198,7 @@ struct SidebarThreadRow: View {
             }
         }
         .frame(width: trailingControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
+        .clipped()
     }
 
     private var worktreeIndicator: some View {
@@ -230,9 +233,9 @@ struct SidebarThreadRow: View {
     }
 
     private var cleanupButton: some View {
-        let showsConfirm = showsCleanupConfirmation
+        let showsConfirm = isCleanupConfirmationChromeVisible
 
-        return cleanupButtonContent(showsConfirm: showsConfirm)
+        return cleanupButtonContent(showsConfirm: showsConfirm, showsIcon: !showsConfirm && !isCleanupControlCollapsingToHidden)
             .frame(width: cleanupControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
             .background(
                 RoundedRectangle(cornerRadius: Self.cleanupButtonSize / 2, style: .continuous)
@@ -260,24 +263,6 @@ struct SidebarThreadRow: View {
             .help(cleanupAction.label)
             .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
             .animation(.easeOut(duration: 0.08), value: isCleanupButtonPressed)
-            .animation(.easeInOut(duration: Self.cleanupWidthAnimationDuration), value: isCleanupConfirmationArmed)
-    }
-
-    private func cleanupButtonContent(showsConfirm: Bool) -> some View {
-        ZStack(alignment: .trailing) {
-            Text("Confirm")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(showsConfirm ? 1 : 0)
-
-            Image(systemName: cleanupAction.systemImage)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(iconForegroundColor)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(showsConfirm ? 0 : 1)
-        }
     }
 
     private var showsCleanupButton: Bool {
@@ -292,10 +277,6 @@ struct SidebarThreadRow: View {
         !showsCleanupButton || isCleanupControlCollapsingToHidden
     }
 
-    private var showsCleanupConfirmation: Bool {
-        isCleanupConfirmationArmed || isCleanupControlCollapsing
-    }
-
     private var cleanupControlWidth: CGFloat {
         if isCleanupControlCollapsingToHidden {
             return 0
@@ -304,7 +285,7 @@ struct SidebarThreadRow: View {
     }
 
     private var cleanupButtonBackgroundColor: Color {
-        if showsCleanupConfirmation {
+        if isCleanupConfirmationChromeVisible {
             return isCleanupButtonPressed ? Self.cleanupDestructivePressedTint : Self.cleanupDestructiveTint
         }
 
@@ -382,6 +363,7 @@ struct SidebarThreadRow: View {
 
         withAnimation(.easeInOut(duration: Self.cleanupWidthAnimationDuration)) {
             isCleanupConfirmationArmed = true
+            isCleanupConfirmationChromeVisible = true
         }
         scheduleCleanupConfirmationTimeout(nanoseconds: Self.cleanupConfirmationTimeoutNanoseconds)
         if isHoveringCleanupButton {
@@ -440,7 +422,9 @@ struct SidebarThreadRow: View {
         }
 
         let shouldHideAfterCollapse = !isHovering
-
+        var hideChromeTransaction = Transaction(animation: nil)
+        hideChromeTransaction.disablesAnimations = true
+        withTransaction(hideChromeTransaction) { isCleanupConfirmationChromeVisible = false }
         withAnimation(.easeInOut(duration: Self.cleanupWidthAnimationDuration)) {
             isCleanupControlCollapsing = true
             isCleanupControlCollapsingToHidden = shouldHideAfterCollapse
@@ -470,6 +454,26 @@ struct SidebarThreadRow: View {
 
     private func cancelRename() {
         editingThreadID = nil
+    }
+}
+
+private extension SidebarThreadRow {
+    func cleanupButtonContent(showsConfirm: Bool, showsIcon: Bool) -> some View {
+        ZStack(alignment: .trailing) {
+            if showsConfirm {
+                Text("Confirm")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            if showsIcon {
+                Image(systemName: cleanupAction.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(iconForegroundColor)
+                    .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize)
+            }
+        }
     }
 }
 

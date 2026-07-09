@@ -209,9 +209,7 @@ extension AgentsManagerTests {
         guard case let .toolApprovalRequested(approval) = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         let didRecordSessionApproval = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
             conversationId: conversationId,

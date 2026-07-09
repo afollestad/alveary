@@ -23,9 +23,7 @@ extension AgentsManagerTests {
         guard case .toolApprovalRequested = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         try await waitUntil("expected AgentCLIKit deferred runtime to stop before approval", timeout: .seconds(1)) {
             await fixture.runtime.status(conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId))?.isProcessRunning == false
@@ -53,9 +51,7 @@ extension AgentsManagerTests {
               case let .toolApprovalRequested(secondApproval) = secondEvent else {
             return XCTFail("Expected two approval requests, got \(firstEvent) and \(secondEvent)")
         }
-        try await waitUntil("expected parallel fallback approvals to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         // The resumed adapter stays silent unless both approved sibling rows are sent back through
         // `AgentCLIKit` stdin after respawn. Without that, the UI can show Approved while the turn spins.
@@ -110,9 +106,7 @@ extension AgentsManagerTests {
             providerId: "codex",
             scope: .exact
         ))
-        try await waitUntil("expected fallback session approvals to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
             conversationId: conversationId,
@@ -233,9 +227,7 @@ extension AgentsManagerTests {
         guard case let .toolApprovalRequested(approval) = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         // No Claude transcript holds a deferred-tool marker for this session, so the respawn cannot
         // auto-replay the approved tool; the manager must nudge it with a recovery user message.
