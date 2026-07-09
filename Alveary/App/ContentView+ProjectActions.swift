@@ -23,30 +23,6 @@ struct ProjectActionExecutionContext: Equatable {
     }
 }
 
-enum ProjectActionOutputFormatter {
-    static func format(_ result: ShellResult) -> String {
-        var sections: [String] = []
-
-        if !result.stdout.isEmpty {
-            sections.append(result.stdout)
-        }
-
-        if !result.stderr.isEmpty {
-            sections.append(result.stdout.isEmpty ? result.stderr : "stderr:\n\(result.stderr)")
-        }
-
-        if result.stdoutWasTruncated {
-            sections.append("stdout was truncated.")
-        }
-
-        if result.stderrWasTruncated {
-            sections.append("stderr was truncated.")
-        }
-
-        return sections.joined(separator: "\n\n")
-    }
-}
-
 enum ProjectActionTerminalPresentation {
     static func shouldAutoExpand(settings: AppSettings) -> Bool {
         settings.expandTerminalWhenActionsRun
@@ -67,40 +43,107 @@ extension ContentView {
             return
         }
 
-        let sessionID = terminalManager.createSession(
+        let settings = settingsService.current
+        let launchConfiguration = TerminalLaunchBuilder().projectAction(
+            command: context.command,
+            currentDirectory: context.currentDirectory
+        )
+        terminalManager.createSession(
+            kind: .projectAction,
             title: context.title,
             projectName: context.projectName,
             threadID: context.threadID,
             threadName: context.threadName,
             currentDirectory: context.currentDirectory,
             command: context.command,
-            maxSessions: ProjectActionTerminalPresentation.maxSessions(settings: settingsService.current)
+            maxSessions: ProjectActionTerminalPresentation.maxSessions(settings: settings),
+            launchConfiguration: launchConfiguration
         )
-        if ProjectActionTerminalPresentation.shouldAutoExpand(settings: settingsService.current) {
+        if ProjectActionTerminalPresentation.shouldAutoExpand(settings: settings) {
             appState.showTerminalPane()
         }
+    }
 
-        let task = Task {
-            do {
-                let result = try await shellRunner.run(
-                    executable: "/bin/sh",
-                    args: ["-c", context.command],
-                    in: context.currentDirectory
-                )
-                let output = ProjectActionOutputFormatter.format(result)
-
-                if !output.isEmpty {
-                    terminalManager.appendOutput(output, to: sessionID)
-                }
-                terminalManager.markSessionFinished(id: sessionID, exitCode: result.exitCode)
-            } catch is CancellationError {
-                terminalManager.cancelSession(id: sessionID)
-            } catch {
-                terminalManager.appendOutput(error.localizedDescription, to: sessionID)
-                terminalManager.markSessionFinished(id: sessionID, exitCode: 1)
-            }
+    func ensureDefaultShellSession(focus: Bool) {
+        if !terminalManager.sessions.contains(where: { $0.kind == .shell }) {
+            createTerminalShellSession(focus: focus)
+            return
         }
 
-        terminalManager.registerTask(task, forSessionID: sessionID)
+        terminalManager.ensureSelection()
+        if focus, let selectedSessionID = terminalManager.selectedSession?.id {
+            terminalManager.requestFocus(id: selectedSessionID)
+        }
     }
+
+    func createTerminalShellSession(focus: Bool) {
+        let context = defaultTerminalShellContext()
+        let launchConfiguration = TerminalLaunchBuilder().shell(currentDirectory: context.currentDirectory)
+        terminalManager.createSession(
+            kind: .shell,
+            title: context.title,
+            projectName: context.projectName,
+            threadID: context.threadID,
+            threadName: context.threadName,
+            currentDirectory: context.currentDirectory,
+            select: true,
+            focus: focus,
+            maxSessions: ProjectActionTerminalPresentation.maxSessions(settings: settingsService.current),
+            launchConfiguration: launchConfiguration
+        )
+    }
+
+    private func defaultTerminalShellContext() -> TerminalDefaultShellContext {
+        let builder = TerminalLaunchBuilder()
+
+        switch appState.selectedSidebarItem {
+        case .thread(let selectedThread):
+            guard let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
+                  thread.archivedAt == nil else {
+                return TerminalDefaultShellContext(
+                    currentDirectory: builder.defaultShellDirectory(
+                        threadWorktreePath: nil,
+                        threadProjectPath: nil,
+                        selectedProjectPath: nil
+                    )
+                )
+            }
+
+            return TerminalDefaultShellContext(
+                projectName: thread.project?.name,
+                threadID: thread.persistentModelID,
+                threadName: thread.name,
+                currentDirectory: builder.defaultShellDirectory(
+                    threadWorktreePath: thread.worktreePath,
+                    threadProjectPath: thread.project?.path,
+                    selectedProjectPath: nil
+                )
+            )
+        case .project(let project):
+            return TerminalDefaultShellContext(
+                projectName: project.name,
+                currentDirectory: builder.defaultShellDirectory(
+                    threadWorktreePath: nil,
+                    threadProjectPath: nil,
+                    selectedProjectPath: project.path
+                )
+            )
+        case .skills, .mcp, .settings, nil:
+            return TerminalDefaultShellContext(
+                currentDirectory: builder.defaultShellDirectory(
+                    threadWorktreePath: nil,
+                    threadProjectPath: nil,
+                    selectedProjectPath: nil
+                )
+            )
+        }
+    }
+}
+
+private struct TerminalDefaultShellContext {
+    var title = "Shell"
+    var projectName: String?
+    var threadID: PersistentIdentifier?
+    var threadName: String?
+    var currentDirectory: String
 }

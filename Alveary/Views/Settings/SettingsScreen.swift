@@ -316,7 +316,7 @@ private extension AppSettings.SettingsPage {
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:
-            return "Configure terminal pane behavior for project actions."
+            return "Configure terminal pane behavior for shells and project actions."
         case .threads:
             return "Manage thread defaults and startup behavior."
         case .appUpdates:

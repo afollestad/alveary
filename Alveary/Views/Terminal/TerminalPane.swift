@@ -7,6 +7,7 @@ struct TerminalPane: View {
     let visibleThreadID: PersistentIdentifier?
     let canViewThread: (PersistentIdentifier) -> Bool
     let onViewThread: (PersistentIdentifier) -> Void
+    let onNewShell: () -> Void
     let onClose: () -> Void
 
     @Environment(TerminalManager.self) private var terminalManager
@@ -22,6 +23,7 @@ struct TerminalPane: View {
         visibleThreadID: PersistentIdentifier? = nil,
         canViewThread: @escaping (PersistentIdentifier) -> Bool = { _ in false },
         onViewThread: @escaping (PersistentIdentifier) -> Void = { _ in },
+        onNewShell: @escaping () -> Void = {},
         onClose: @escaping () -> Void
     ) {
         _height = height
@@ -29,6 +31,7 @@ struct TerminalPane: View {
         self.visibleThreadID = visibleThreadID
         self.canViewThread = canViewThread
         self.onViewThread = onViewThread
+        self.onNewShell = onNewShell
         self.onClose = onClose
     }
 
@@ -113,6 +116,16 @@ struct TerminalPane: View {
                     Spacer(minLength: 0)
                 }
 
+                Button(action: onNewShell) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .help("New shell")
+                .accessibilityLabel("New shell")
+                .padding(.leading, 8)
+
                 ModalCloseButton("Hide terminal", action: onClose)
                     .padding(.leading, 8)
             }
@@ -122,65 +135,7 @@ struct TerminalPane: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let selectedSession {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(selectedSession.title)
-                                    .font(.headline)
-
-                                if let command = selectedSession.command, !command.isEmpty {
-                                    Text(command)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                }
-
-                                TerminalSessionContextRow(
-                                    projectName: selectedSession.projectName,
-                                    currentDirectory: selectedSession.currentDirectory
-                                )
-                            }
-
-                            Spacer()
-
-                            VStack(alignment: .trailing, spacing: 10) {
-                                TerminalSessionStatusBadge(status: selectedSession.status)
-                            }
-                        }
-
-                        if selectedSession.output.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(emptyOutputTitle(for: selectedSession))
-                                    .font(.system(.body, design: .monospaced))
-
-                                Text(emptyOutputDescription(for: selectedSession))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        } else {
-                            Text(selectedSession.output)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Terminal sessions will appear here.")
-                                .font(.system(.body, design: .monospaced))
-
-                            Text(placeholderDescription)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-            }
+            terminalBody
         }
         .frame(maxWidth: .infinity)
         .frame(height: clampedHeight)
@@ -238,14 +193,84 @@ private extension TerminalPane {
         }
 
         terminalManager.selectSession(id: session.id)
+        terminalManager.requestFocus(id: session.id)
+    }
+
+    @ViewBuilder
+    var terminalBody: some View {
+        if let selectedSession {
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(selectedSession.title)
+                            .font(.headline)
+
+                        if let command = selectedSession.command, !command.isEmpty {
+                            Text(command)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+
+                        TerminalSessionContextRow(
+                            projectName: selectedSession.projectName,
+                            currentDirectory: selectedSession.currentDirectory
+                        )
+                    }
+
+                    Spacer()
+
+                    TerminalSessionStatusBadge(status: selectedSession.status)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+
+                Divider()
+
+                if let controller = terminalManager.controller(for: selectedSession.id) {
+                    TerminalSessionHostView(controller: controller)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    unavailableTerminalBody
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("No terminal sessions.")
+                    .font(.system(.body, design: .monospaced))
+
+                Text(placeholderDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(18)
+        }
+    }
+
+    var unavailableTerminalBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Terminal view unavailable.")
+                .font(.system(.body, design: .monospaced))
+
+            Text("This session has metadata but no mounted PTY view.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
     }
 
     var panelShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    /// Single background for the whole pane — drag handle, header, and body all share
-    /// this color so the three regions can't drift apart in light or dark themes.
+    /// Single background for the pane chrome — drag handle, header, and metadata strip
+    /// share this color so the regions can't drift apart in light or dark themes. The
+    /// embedded terminal viewport applies its own `TerminalThemePalette`.
     var panelBackground: Color {
         colorScheme == .dark
             ? Color(nsColor: .textBackgroundColor)
@@ -275,28 +300,7 @@ private extension TerminalPane {
     }
 
     var placeholderDescription: String {
-        "Project actions can open their own terminal sessions here, and you can switch between concurrent runs with the session chips above."
-    }
-
-    func emptyOutputTitle(for session: TerminalSession) -> String {
-        switch session.status {
-        case .running:
-            return "Waiting for output..."
-        case .succeeded:
-            return "Command finished without captured output."
-        case .failed:
-            return "Command failed without captured output."
-        case .cancelled:
-            return "Command was cancelled before output was captured."
-        }
-    }
-
-    func emptyOutputDescription(for session: TerminalSession) -> String {
-        if let currentDirectory = session.currentDirectory, !currentDirectory.isEmpty {
-            return "This session is scoped to \(currentDirectory). Captured output will appear here as the command finishes or reports errors."
-        }
-
-        return "Captured output will appear here as the command finishes or reports errors."
+        "Open a shell with the plus button or run a project action to create a terminal tab."
     }
 }
 

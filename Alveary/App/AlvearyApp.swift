@@ -149,7 +149,7 @@ private struct NewConversationCommandButton: View {
 }
 
 /// Reads the root-scoped `toggleTerminalPaneAction` focused value so the ⇧⌘T
-/// menu item dispatches through the same `ensureSelection()`-then-flip helper
+/// menu item dispatches through the same default-shell-then-flip helper
 /// as the toolbar button. The publisher is `ContentView`, which is always the
 /// main window's content, so the button is only disabled before the window
 /// mounts.

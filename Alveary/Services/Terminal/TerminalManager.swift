@@ -4,38 +4,38 @@ import SwiftData
 
 struct TerminalSession: Identifiable, Equatable, Sendable {
     let id: UUID
+    var kind: Kind
     var title: String
     var projectName: String?
     var threadID: PersistentIdentifier?
     var threadName: String?
     var currentDirectory: String?
     var command: String?
-    var output: String
     var status: Status
     let startedAt: Date
     var endedAt: Date?
 
     init(
         id: UUID = UUID(),
+        kind: Kind = .projectAction,
         title: String,
         projectName: String? = nil,
         threadID: PersistentIdentifier? = nil,
         threadName: String? = nil,
         currentDirectory: String? = nil,
         command: String? = nil,
-        output: String = "",
         status: Status = .running,
         startedAt: Date = Date(),
         endedAt: Date? = nil
     ) {
         self.id = id
+        self.kind = kind
         self.title = title
         self.projectName = projectName
         self.threadID = threadID
         self.threadName = threadName
         self.currentDirectory = currentDirectory
         self.command = command
-        self.output = output
         self.status = status
         self.startedAt = startedAt
         self.endedAt = endedAt
@@ -110,6 +110,11 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         return String(markdown[..<cutIndex]) + closingDelimiter + "…"
     }
 
+    enum Kind: String, Sendable {
+        case shell
+        case projectAction
+    }
+
     enum Status: String, Sendable {
         case running
         case succeeded
@@ -141,8 +146,18 @@ final class TerminalManager {
     private(set) var sessions: [TerminalSession] = []
     var selectedSessionID: UUID?
 
-    private let maxRetainedOutputCharacters = 120_000
-    private var sessionTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var controllers: [UUID: any TerminalSessionControlling] = [:]
+    private let controllerFactory: any TerminalSessionControllerFactory
+
+    init(controllerFactory: any TerminalSessionControllerFactory = SwiftTermTerminalControllerFactory()) {
+        self.controllerFactory = controllerFactory
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            terminateAllSessions()
+        }
+    }
 
     var selectedSession: TerminalSession? {
         guard !sessions.isEmpty else {
@@ -160,8 +175,16 @@ final class TerminalManager {
         Set(sessions.filter(\.isRunning).map(\.id))
     }
 
+    var runningProjectActionSessionIDs: Set<UUID> {
+        Set(sessions.filter { $0.kind == .projectAction && $0.isRunning }.map(\.id))
+    }
+
     var hasRunningSession: Bool {
         !runningSessionIDs.isEmpty
+    }
+
+    func controller(for sessionID: UUID) -> (any TerminalSessionControlling)? {
+        controllers[sessionID]
     }
 
     func completionOutcome(for sessionIDs: Set<UUID>) -> TerminalSession.CompletionOutcome? {
@@ -198,31 +221,46 @@ final class TerminalManager {
 
     @discardableResult
     func createSession(
+        kind: TerminalSession.Kind = .projectAction,
         title: String,
         projectName: String? = nil,
         threadID: PersistentIdentifier? = nil,
         threadName: String? = nil,
         currentDirectory: String? = nil,
         command: String? = nil,
-        output: String = "",
         status: TerminalSession.Status = .running,
         startedAt: Date = Date(),
         select: Bool = true,
-        maxSessions: Int = AppSettings.defaultMaxTerminalSessions
+        focus: Bool = false,
+        maxSessions: Int = AppSettings.defaultMaxTerminalSessions,
+        launchConfiguration: TerminalLaunchConfiguration? = nil
     ) -> UUID {
         let session = TerminalSession(
+            kind: kind,
             title: title,
             projectName: projectName,
             threadID: threadID,
             threadName: threadName,
             currentDirectory: currentDirectory,
             command: command,
-            output: trimOutput(output),
             status: status,
             startedAt: startedAt,
             endedAt: status == .running ? nil : Date()
         )
         sessions.append(session)
+
+        if let launchConfiguration {
+            let controller = controllerFactory.makeController(
+                sessionID: session.id,
+                configuration: launchConfiguration,
+                delegate: self
+            )
+            controllers[session.id] = controller
+            controller.start()
+            if focus {
+                controller.requestFocus()
+            }
+        }
 
         if select || selectedSessionID == nil {
             selectedSessionID = session.id
@@ -240,45 +278,37 @@ final class TerminalManager {
         selectedSessionID = id
     }
 
-    func appendOutput(_ output: String, to id: UUID) {
-        guard let index = sessions.firstIndex(where: { $0.id == id }),
-              !output.isEmpty else {
-            return
-        }
-
-        sessions[index].output = trimOutput(sessions[index].output + output)
+    func requestFocus(id: UUID) {
+        controllers[id]?.requestFocus()
     }
 
-    func registerTask(_ task: Task<Void, Never>, forSessionID id: UUID) {
-        guard sessions.contains(where: { $0.id == id }) else {
-            task.cancel()
-            return
-        }
-
-        sessionTasks[id]?.cancel()
-        sessionTasks[id] = task
+    func reapplyTheme(id: UUID) {
+        controllers[id]?.reapplyTheme()
     }
 
-    func markSessionFinished(id: UUID, exitCode: Int32) {
-        sessionTasks[id] = nil
-        updateSession(id: id) { session in
+    func markSessionFinished(id: UUID, exitCode: Int32?) {
+        updateRunningSession(id: id) { session in
             session.status = exitCode == 0 ? .succeeded : .failed
             session.endedAt = Date()
         }
     }
 
     func cancelSession(id: UUID) {
-        sessionTasks[id]?.cancel()
-        sessionTasks[id] = nil
-        updateSession(id: id) { session in
+        updateRunningSession(id: id) { session in
             session.status = .cancelled
             session.endedAt = Date()
         }
+        controllers[id]?.terminate()
     }
 
     func closeSession(id: UUID) {
-        sessionTasks[id]?.cancel()
-        sessionTasks[id] = nil
+        if let index = sessions.firstIndex(where: { $0.id == id }),
+           sessions[index].isRunning {
+            sessions[index].status = .cancelled
+            sessions[index].endedAt = Date()
+        }
+        controllers[id]?.terminate()
+        controllers[id] = nil
 
         // Close-adjacent: if the closing session was selected, pick the next (same index
         // after shift) session, falling back to the previous when the last tab is
@@ -301,8 +331,16 @@ final class TerminalManager {
         }
     }
 
-    private func updateSession(id: UUID, mutation: (inout TerminalSession) -> Void) {
-        guard let index = sessions.firstIndex(where: { $0.id == id }) else {
+    func terminateAllSessions() {
+        for controller in controllers.values {
+            controller.terminate()
+        }
+        controllers.removeAll()
+    }
+
+    private func updateRunningSession(id: UUID, mutation: (inout TerminalSession) -> Void) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }),
+              sessions[index].isRunning else {
             return
         }
 
@@ -318,12 +356,45 @@ final class TerminalManager {
             closeSession(id: oldestSessionID)
         }
     }
+}
 
-    private func trimOutput(_ output: String) -> String {
-        guard output.count > maxRetainedOutputCharacters else {
-            return output
+extension TerminalManager: TerminalSessionControllerDelegate {
+    func terminalSessionController(
+        _ controller: any TerminalSessionControlling,
+        didTerminateSession id: UUID,
+        exitCode: Int32?
+    ) {
+        markSessionFinished(id: id, exitCode: exitCode)
+    }
+
+    func terminalSessionController(
+        _ controller: any TerminalSessionControlling,
+        didUpdateTitle title: String,
+        forSession id: UUID
+    ) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }),
+              sessions[index].kind == .shell else {
+            return
         }
 
-        return String(output.suffix(maxRetainedOutputCharacters))
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            return
+        }
+
+        sessions[index].title = trimmedTitle
+    }
+
+    func terminalSessionController(
+        _ controller: any TerminalSessionControlling,
+        didUpdateCurrentDirectory currentDirectory: String,
+        forSession id: UUID
+    ) {
+        guard let index = sessions.firstIndex(where: { $0.id == id }),
+              !currentDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        sessions[index].currentDirectory = currentDirectory
     }
 }

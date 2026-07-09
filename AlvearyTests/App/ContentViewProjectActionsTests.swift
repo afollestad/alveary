@@ -270,19 +270,37 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertNil(resolvedLastOpenThreadSelection(settings: missingConversationSettings, modelContext: context))
     }
 
-    func testProjectActionOutputFormatterIncludesAllCapturedSections() {
-        let result = ShellResult(
-            stdout: "build ok",
-            stderr: "warning",
-            exitCode: 0,
-            stdoutWasTruncated: true,
-            stderrWasTruncated: false
+    func testProjectActionLaunchConfigurationUsesExecutionContextDirectoryAndCommand() throws {
+        let project = Project(path: "/tmp/project", name: "Alveary")
+        let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)
+        let action = AlvearyProjectConfig.ProjectAction(name: "Build", command: "./scripts/build.sh")
+        let context = try XCTUnwrap(ProjectActionExecutionContext(thread: thread, action: action))
+        var builder = TerminalLaunchBuilder()
+        builder.environment = {
+            ["SHELL": "/bin/zsh"]
+        }
+        builder.homeDirectory = {
+            "/Users/alice"
+        }
+        builder.userName = {
+            "alice"
+        }
+        builder.passwdShell = {
+            nil
+        }
+        builder.isExecutable = { path in
+            path == "/bin/zsh"
+        }
+
+        let configuration = builder.projectAction(
+            command: context.command,
+            currentDirectory: context.currentDirectory
         )
 
-        XCTAssertEqual(
-            ProjectActionOutputFormatter.format(result),
-            "build ok\n\nstderr:\nwarning\n\nstdout was truncated."
-        )
+        XCTAssertEqual(configuration.executable, "/bin/zsh")
+        XCTAssertEqual(configuration.execName, "-zsh")
+        XCTAssertEqual(configuration.args, ["-i", "-c", "./scripts/build.sh"])
+        XCTAssertEqual(configuration.currentDirectory, "/tmp/worktree")
     }
 
     func testProjectActionTerminalPresentationDoesNotAutoExpandByDefault() {

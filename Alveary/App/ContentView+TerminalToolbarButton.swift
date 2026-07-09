@@ -12,8 +12,12 @@ enum TerminalToolbarCompletionOutcome {
         completedSessionIDs: Set<UUID>,
         terminalManager: TerminalManager
     ) -> TerminalSession.CompletionOutcome? {
-        // Keep failure visible while any failed tab remains open.
-        let failedSessionIDs = Set(terminalManager.sessions.filter { $0.status == .failed }.map(\.id))
+        // Keep project-action failure visible while any failed project-action tab remains open.
+        let failedSessionIDs = Set(
+            terminalManager.sessions
+                .filter { $0.kind == .projectAction && $0.status == .failed }
+                .map(\.id)
+        )
         return terminalManager.completionOutcome(for: completedSessionIDs.union(failedSessionIDs))
     }
 }

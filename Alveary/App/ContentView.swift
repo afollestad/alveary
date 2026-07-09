@@ -8,7 +8,6 @@ struct ContentView: View {
     @Environment(\.modelContext) var uiModelContext
 
     let settingsService: SettingsService
-    let shellRunner: ShellRunner
     private let gitHubCLI: GitHubCLIService
     private let providerDetection: any ProviderDetectionService
     private let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
@@ -64,7 +63,6 @@ struct ContentView: View {
     init(dependencies: ContentViewDependencies, appState: AppState) {
         self.appState = appState
         self.settingsService = dependencies.settingsService
-        self.shellRunner = dependencies.shellRunner
         self.gitHubCLI = dependencies.gitHubCLI
         self.providerDetection = dependencies.providerDetection
         self.providerDiscovery = dependencies.providerDiscovery
@@ -230,6 +228,9 @@ struct ContentView: View {
                         visibleThreadID: visibleThreadID,
                         canViewThread: canViewThread,
                         onViewThread: viewThread,
+                        onNewShell: {
+                            createTerminalShellSession(focus: true)
+                        },
                         onClose: appState.hideTerminalPane
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -319,11 +320,14 @@ struct ContentView: View {
             openConversation(with: newValue)
             notificationRouter.clearPendingIfMatches(newValue)
         }
-        .onChange(of: terminalManager.runningSessionIDs, initial: true) { _, runningSessionIDs in
+        .onChange(of: terminalManager.runningProjectActionSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             onboardingViewModel.handleAppDidBecomeActive()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            terminalManager.terminateAllSessions()
         }
         .sheet(
             isPresented: $isAddProjectSheetPresented,
@@ -357,9 +361,9 @@ struct ContentView: View {
             notificationManager.refreshBadgeCount()
         }
         // Publish the terminal-toggle action so the ⇧⌘T menu item in
-        // `AlvearyApp.commands` runs the same `ensureSelection()`-then-flip
-        // sequence as the toolbar button — `terminalManager` is view-local
-        // `@State`, so the menu needs a `FocusedValue` hop to reach it.
+        // `AlvearyApp.commands` runs the same default-shell-then-flip sequence
+        // as the toolbar button — `terminalManager` is view-local `@State`, so
+        // the menu needs a `FocusedValue` hop to reach it.
         .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
     }
 
@@ -394,7 +398,7 @@ private extension ContentView {
         if appState.isTerminalPaneVisible {
             appState.hideTerminalPane()
         } else {
-            terminalManager.ensureSelection()
+            ensureDefaultShellSession(focus: true)
             appState.showTerminalPane()
         }
     }

@@ -1,3 +1,4 @@
+@preconcurrency import AppKit
 import XCTest
 
 @testable import Alveary
@@ -69,6 +70,24 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(manager.selectedSession?.title, "Lint")
     }
 
+    func testCreateSessionCreatesStartsAndFocusesControllerWhenConfigured() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+
+        let sessionID = manager.createSession(
+            kind: .shell,
+            title: "Shell",
+            focus: true,
+            launchConfiguration: sampleLaunchConfiguration
+        )
+        let controller = try XCTUnwrap(factory.controllers[sessionID])
+
+        XCTAssertEqual(controller.configuration, sampleLaunchConfiguration)
+        XCTAssertEqual(controller.startCallCount, 1)
+        XCTAssertEqual(controller.focusCallCount, 1)
+        XCTAssertTrue(manager.controller(for: sessionID) === controller)
+    }
+
     func testCloseSessionFallsBackToNextAvailableSession() {
         let manager = TerminalManager()
 
@@ -107,17 +126,16 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(manager.selectedSessionID, second)
     }
 
-    func testCloseSessionCancelsRegisteredTask() {
-        let manager = TerminalManager()
-        let sessionID = manager.createSession(title: "Build")
-        let task = Task<Void, Never> {
-            try? await Task.sleep(for: .seconds(10))
-        }
+    func testCloseSessionTerminatesAndRemovesController() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let sessionID = manager.createSession(title: "Build", launchConfiguration: sampleLaunchConfiguration)
+        let controller = try XCTUnwrap(factory.controllers[sessionID])
 
-        manager.registerTask(task, forSessionID: sessionID)
         manager.closeSession(id: sessionID)
 
-        XCTAssertTrue(task.isCancelled)
+        XCTAssertEqual(controller.terminateCallCount, 1)
+        XCTAssertNil(manager.controller(for: sessionID))
         XCTAssertTrue(manager.sessions.isEmpty)
     }
 
@@ -144,30 +162,17 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(manager.selectedSessionID, third)
     }
 
-    func testCreateSessionPruningCancelsOldestRunningTask() {
-        let manager = TerminalManager()
-        let first = manager.createSession(title: "First", maxSessions: 1)
-        let task = Task<Void, Never> {
-            try? await Task.sleep(for: .seconds(10))
-        }
-        manager.registerTask(task, forSessionID: first)
+    func testCreateSessionPruningTerminatesOldestController() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let first = manager.createSession(title: "First", maxSessions: 1, launchConfiguration: sampleLaunchConfiguration)
+        let firstController = try XCTUnwrap(factory.controllers[first])
 
-        let second = manager.createSession(title: "Second", maxSessions: 1)
+        let second = manager.createSession(title: "Second", maxSessions: 1, launchConfiguration: sampleLaunchConfiguration)
 
-        XCTAssertTrue(task.isCancelled)
+        XCTAssertEqual(firstController.terminateCallCount, 1)
         XCTAssertEqual(manager.sessions.map(\.id), [second])
         XCTAssertEqual(manager.runningSessionIDs, [second])
-    }
-
-    func testAppendOutputRetainsNewestContentWithinBound() {
-        let manager = TerminalManager()
-        let sessionID = manager.createSession(title: "Build")
-        let output = String(repeating: "1234567890", count: 13_000)
-
-        manager.appendOutput(output, to: sessionID)
-
-        XCTAssertEqual(manager.selectedSession?.output.count, 120_000)
-        XCTAssertTrue(manager.selectedSession?.output.hasSuffix("1234567890") == true)
     }
 
     func testMarkSessionFinishedUpdatesStatusAndEndTime() {
@@ -184,6 +189,73 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertNotNil(manager.sessions.first(where: { $0.id == failureID })?.endedAt)
     }
 
+    func testControllerTerminationNilExitCodeMarksFailure() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let sessionID = manager.createSession(title: "Build", launchConfiguration: sampleLaunchConfiguration)
+        let controller = try XCTUnwrap(factory.controllers[sessionID])
+
+        controller.finish(exitCode: nil)
+
+        XCTAssertEqual(manager.sessions.first(where: { $0.id == sessionID })?.status, .failed)
+        XCTAssertNotNil(manager.sessions.first(where: { $0.id == sessionID })?.endedAt)
+    }
+
+    func testLateControllerTerminationForRemovedSessionIsIgnored() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let sessionID = manager.createSession(title: "Build", launchConfiguration: sampleLaunchConfiguration)
+        let controller = try XCTUnwrap(factory.controllers[sessionID])
+
+        manager.closeSession(id: sessionID)
+        controller.finish(exitCode: 1)
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+    }
+
+    func testLateControllerTerminationForCancelledSessionIsIgnored() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let sessionID = manager.createSession(title: "Build", launchConfiguration: sampleLaunchConfiguration)
+        let controller = try XCTUnwrap(factory.controllers[sessionID])
+
+        manager.cancelSession(id: sessionID)
+        controller.finish(exitCode: 0)
+
+        XCTAssertEqual(manager.sessions.first(where: { $0.id == sessionID })?.status, .cancelled)
+    }
+
+    func testControllerTitleUpdatesShellSessionsOnly() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let shellID = manager.createSession(
+            kind: .shell,
+            title: "Shell",
+            launchConfiguration: sampleLaunchConfiguration
+        )
+        let projectActionID = manager.createSession(
+            kind: .projectAction,
+            title: "Build",
+            launchConfiguration: sampleLaunchConfiguration
+        )
+
+        try XCTUnwrap(factory.controllers[shellID]).updateTitle("zsh")
+        try XCTUnwrap(factory.controllers[projectActionID]).updateTitle("npm test")
+
+        XCTAssertEqual(manager.sessions.first(where: { $0.id == shellID })?.title, "zsh")
+        XCTAssertEqual(manager.sessions.first(where: { $0.id == projectActionID })?.title, "Build")
+    }
+
+    func testControllerDirectoryUpdatesMetadata() throws {
+        let factory = FakeTerminalControllerFactory()
+        let manager = TerminalManager(controllerFactory: factory)
+        let sessionID = manager.createSession(title: "Build", launchConfiguration: sampleLaunchConfiguration)
+
+        try XCTUnwrap(factory.controllers[sessionID]).updateCurrentDirectory("/tmp/project")
+
+        XCTAssertEqual(manager.sessions.first(where: { $0.id == sessionID })?.currentDirectory, "/tmp/project")
+    }
+
     func testRunningSessionIDsTrackRunningSessionsOnly() {
         let manager = TerminalManager()
         let runningID = manager.createSession(title: "Build")
@@ -196,6 +268,14 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertFalse(manager.sessions.first(where: { $0.id == succeededID })?.isRunning == true)
         XCTAssertFalse(manager.sessions.first(where: { $0.id == failedID })?.isRunning == true)
         XCTAssertFalse(manager.sessions.first(where: { $0.id == cancelledID })?.isRunning == true)
+    }
+
+    func testRunningProjectActionSessionIDsIgnoreShellSessions() {
+        let manager = TerminalManager()
+        _ = manager.createSession(kind: .shell, title: "Shell")
+        let projectActionID = manager.createSession(kind: .projectAction, title: "Build")
+
+        XCTAssertEqual(manager.runningProjectActionSessionIDs, [projectActionID])
     }
 
     func testHasRunningSessionTurnsFalseWhenAllSessionsFinish() {
@@ -223,10 +303,10 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertEqual(manager.completionOutcome(for: [successID, failureID, cancelledID]), .failed)
     }
 
-    func testTerminalToolbarCompletionOutcomeFailsWhenAnyLiveSessionFailed() {
+    func testTerminalToolbarCompletionOutcomeFailsWhenAnyLiveProjectActionSessionFailed() {
         let manager = TerminalManager()
-        _ = manager.createSession(title: "Previous failure", status: .failed)
-        let successID = manager.createSession(title: "Current success", status: .succeeded)
+        _ = manager.createSession(kind: .projectAction, title: "Previous failure", status: .failed)
+        let successID = manager.createSession(kind: .projectAction, title: "Current success", status: .succeeded)
 
         let outcome = TerminalToolbarCompletionOutcome.outcome(
             completedSessionIDs: [successID],
@@ -234,6 +314,19 @@ final class TerminalManagerTests: XCTestCase {
         )
 
         XCTAssertEqual(outcome, .failed)
+    }
+
+    func testTerminalToolbarCompletionOutcomeIgnoresFailedShellSessions() {
+        let manager = TerminalManager()
+        _ = manager.createSession(kind: .shell, title: "Exited shell", status: .failed)
+        let successID = manager.createSession(kind: .projectAction, title: "Current success", status: .succeeded)
+
+        let outcome = TerminalToolbarCompletionOutcome.outcome(
+            completedSessionIDs: [successID],
+            terminalManager: manager
+        )
+
+        XCTAssertEqual(outcome, .succeeded)
     }
 
     func testCompletionOutcomeRequiresKnownNonRunningSessions() {
@@ -244,5 +337,87 @@ final class TerminalManagerTests: XCTestCase {
         XCTAssertNil(manager.completionOutcome(for: []))
         XCTAssertNil(manager.completionOutcome(for: [runningID]))
         XCTAssertNil(manager.completionOutcome(for: [successID, UUID()]))
+    }
+}
+
+private let sampleLaunchConfiguration = TerminalLaunchConfiguration(
+    executable: "/bin/zsh",
+    args: [],
+    environment: ["HOME=/Users/alice", "TERM=xterm-256color"],
+    execName: "-zsh",
+    currentDirectory: "/Users/alice"
+)
+
+@MainActor
+private final class FakeTerminalControllerFactory: TerminalSessionControllerFactory {
+    private(set) var controllers: [UUID: FakeTerminalController] = [:]
+
+    func makeController(
+        sessionID: UUID,
+        configuration: TerminalLaunchConfiguration,
+        delegate: any TerminalSessionControllerDelegate
+    ) -> any TerminalSessionControlling {
+        let controller = FakeTerminalController(
+            sessionID: sessionID,
+            configuration: configuration,
+            delegate: delegate
+        )
+        controllers[sessionID] = controller
+        return controller
+    }
+}
+
+@MainActor
+private final class FakeTerminalController: TerminalSessionControlling {
+    let sessionID: UUID
+    let configuration: TerminalLaunchConfiguration
+    let view = NSView()
+
+    private weak var delegate: (any TerminalSessionControllerDelegate)?
+    private(set) var startCallCount = 0
+    private(set) var terminateCallCount = 0
+    private(set) var focusCallCount = 0
+    private(set) var reapplyThemeCallCount = 0
+
+    init(
+        sessionID: UUID,
+        configuration: TerminalLaunchConfiguration,
+        delegate: any TerminalSessionControllerDelegate
+    ) {
+        self.sessionID = sessionID
+        self.configuration = configuration
+        self.delegate = delegate
+    }
+
+    func start() {
+        startCallCount += 1
+    }
+
+    func terminate() {
+        terminateCallCount += 1
+    }
+
+    func requestFocus() {
+        focusCallCount += 1
+    }
+
+    func reapplyTheme() {
+        reapplyThemeCallCount += 1
+    }
+
+    func finish(exitCode: Int32?) {
+        delegate?.terminalSessionController(self, didTerminateSession: sessionID, exitCode: exitCode)
+    }
+
+    func updateTitle(_ title: String) {
+        delegate?.terminalSessionController(self, didUpdateTitle: title, forSession: sessionID)
+    }
+
+    func updateCurrentDirectory(_ currentDirectory: String) {
+        delegate?.terminalSessionController(
+            self,
+            didUpdateCurrentDirectory: currentDirectory,
+            forSession: sessionID
+        )
     }
 }
