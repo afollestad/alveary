@@ -1,6 +1,6 @@
 # Terminal Pane Guidance
 
-These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The pane has three stacked regions — drag handle, header row (icon + scrolling tab row + close button), body ScrollView with the selected session's output.
+These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The pane has three stacked regions — drag handle, header row (icon + scrolling tab row + new-shell button + close button), and a body with the selected session's metadata strip above the embedded terminal viewport.
 
 ## Session Chips
 
@@ -8,9 +8,10 @@ These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The p
 
 ## Unified Pane Background
 
-- **Drive all three regions from a single `panelBackground`.** The drag handle, the header row, and the body ScrollView must all share the same background — do not reintroduce separate `headerBackground` or `bodyBackground` computed properties, and do not add per-region `.background(...)` modifiers.
+- **Drive the pane chrome from a single `panelBackground`.** The drag handle, the header row, and the metadata strip must all share the same background — do not reintroduce separate `headerBackground` or `bodyBackground` computed properties, and do not add per-region `.background(...)` modifiers.
     - **Why:** Users explicitly asked for visual uniformity across the regions so the three palettes cannot drift apart in light or dark themes. Earlier iterations had three separately-tuned values, which desynced every time one of them was adjusted.
-    - **How to apply:** Only the root `.background(panelBackground)` on the outer VStack should set a fill. New backgrounds inside the VStack (e.g. a per-region accent) must be replaced with an overlay, a foreground-driven treatment, or a new global that still resolves to the same pane color in every region.
+    - **How to apply:** Only the root `.background(panelBackground)` on the outer VStack should set a fill for pane chrome. New chrome backgrounds inside the VStack (e.g. a per-region accent) must be replaced with an overlay, a foreground-driven treatment, or a new global that still resolves to the same pane color in every region.
+    - **Viewport exception:** The embedded SwiftTerm viewport owns its own background through `TerminalThemePalette`; it intentionally differs from pane chrome so terminal foreground, caret, and ANSI colors contrast in light and dark appearances.
 
 - **Keep `panelBackground` noticeably lighter than the inline-code chip fill.** In light mode the chip palette is `NSColor(white: 0.88, ...)`; the pane background must stay well above that (currently ~0.97) so `@file`-mention chips inside unselected tab chips stay visible.
     - **Why:** Unselected chips fill with `Color.secondary.opacity(0.08)` — nearly transparent — so the tab's rendered color is roughly the pane background. If the pane drops near the chip's 0.88 gray, the mention chip disappears into the tab surface. This is exactly the regression that triggered the unify-and-lighten change.
@@ -39,3 +40,9 @@ These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The p
 
 - **Close-adjacent selection on `closeSession` is owned by `TerminalManager`, not the view.** When the currently-selected session is closed, `TerminalManager` picks the session that now sits at the closing session's former index (the next neighbor), falling back to `sessions.last` when the last tab was closed — mirroring the conversation-tab `selectNeighborIfClosingSelected` pattern. The view relies on this: the scroll-to-selected hook will surface whichever neighbor the manager picked, so do not re-derive a new selection from within the pane.
     - **Why in the manager:** selection is persistent state shared across pane mount cycles. Losing selection during the close-then-remount window would reset to an unrelated session; keeping the decision in the manager ensures the next time the pane mounts, the chosen neighbor is already selected.
+
+## Terminal View Hosting
+
+- **Mount controller-owned views only.** `TerminalSessionHostView` should host the `NSView` returned by the session controller. Do not construct `LocalProcessTerminalView` from SwiftUI body code or from tab-chip actions.
+- **Focus only from explicit terminal actions.** The menu/toolbar toggle and new-shell button may request terminal focus through the manager; auto-expanded project-action sessions should not steal first responder.
+- **Use fake controllers for snapshots.** Snapshot tests should inject fake controller views so baselines cover pane layout and terminal colors without launching real PTYs.

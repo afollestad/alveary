@@ -32,6 +32,8 @@ targets:
         product: BlockInputKit
       - package: AgentCLIKit
         product: AgentCLIKit
+      - package: SwiftTerm
+        product: SwiftTerm
       - sdk: Carbon.framework
       - sdk: IOKit.framework
       - sdk: ScreenCaptureKit.framework
@@ -109,6 +111,9 @@ packages:
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
     revision: "d96d9a7e48e4733ea078005f136f977f2960aed7"
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    revision: "d5ee56e1c74777120f3af688600d336de4201bd2"
   needle:
     url: https://github.com/uber/needle.git
     revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"
