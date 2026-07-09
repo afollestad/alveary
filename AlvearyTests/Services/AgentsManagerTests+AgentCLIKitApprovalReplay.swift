@@ -21,9 +21,7 @@ extension AgentsManagerTests {
         guard case let .toolApprovalRequested(approval) = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
             conversationId: conversationId,
@@ -65,9 +63,7 @@ extension AgentsManagerTests {
         guard case let .toolApprovalRequested(approval) = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         let resumedEvents = try await approveAndCollectDeltaReplayEvents(
             manager: manager,
@@ -111,9 +107,7 @@ extension AgentsManagerTests {
         guard case let .toolApprovalRequested(approval) = approvalEvent else {
             return XCTFail("Expected tool approval request, got \(approvalEvent)")
         }
-        try await waitUntil("expected fallback approval to wait for user") {
-            manager.status(for: conversationId) == .waitingForUser
-        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
 
         let resumedEvents = try await approveAndCollectDeltaReplayEvents(
             manager: manager,

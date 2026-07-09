@@ -29,6 +29,16 @@ func waitUntil(
     throw WaitTimeoutError(description: description)
 }
 
+@MainActor
+func waitForFallbackApprovalResumeReadiness(
+    manager: DefaultAgentsManager,
+    conversationId: String
+) async throws {
+    try await waitUntil("expected fallback approval to be ready for deferred resume") {
+        await manager.shouldResumeAgentCLIKitDeferredApproval(conversationId: conversationId)
+    }
+}
+
 func firstEvent(
     from stream: AsyncStream<ConversationEvent>,
     description: String,
