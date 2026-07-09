@@ -1,11 +1,12 @@
 import SwiftUI
 
 enum TabChipStatusIndicator {
+    case none
     case dot(Color)
     case spinner(Color)
 }
 
-/// Selectable capsule chip with a leading status dot, markdown-aware label, and a
+/// Selectable capsule chip with a leading status indicator slot, markdown-aware label, and a
 /// trailing `×` close button. Used as the canonical shape for conversation tabs and
 /// terminal session chips so the two surfaces stay pixel-identical — extracting the
 /// shared structure prevents the two from drifting on padding, accessibility traits,
@@ -76,6 +77,8 @@ struct TabChipStatusIndicatorView: View {
 
     var body: some View {
         switch indicator {
+        case .none:
+            Color.clear
         case .dot(let color):
             Circle()
                 .fill(color)

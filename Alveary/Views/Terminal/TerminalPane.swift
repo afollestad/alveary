@@ -4,7 +4,6 @@ import SwiftData
 struct TerminalPane: View {
     @Binding private var height: CGFloat
     let onHeightCommit: (CGFloat) -> Void
-    let visibleThreadID: PersistentIdentifier?
     let canViewThread: (PersistentIdentifier) -> Bool
     let onViewThread: (PersistentIdentifier) -> Void
     let onNewShell: () -> Void
@@ -20,7 +19,6 @@ struct TerminalPane: View {
     init(
         height: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultTerminalPaneHeight)),
         onHeightCommit: @escaping (CGFloat) -> Void = { _ in },
-        visibleThreadID: PersistentIdentifier? = nil,
         canViewThread: @escaping (PersistentIdentifier) -> Bool = { _ in false },
         onViewThread: @escaping (PersistentIdentifier) -> Void = { _ in },
         onNewShell: @escaping () -> Void = {},
@@ -28,7 +26,6 @@ struct TerminalPane: View {
     ) {
         _height = height
         self.onHeightCommit = onHeightCommit
-        self.visibleThreadID = visibleThreadID
         self.canViewThread = canViewThread
         self.onViewThread = onViewThread
         self.onNewShell = onNewShell
@@ -118,10 +115,8 @@ struct TerminalPane: View {
 
                 Button(action: onNewShell) {
                     Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 24, height: 24)
                 }
-                .buttonStyle(.plain)
+                .iconActionButtonStyle()
                 .help("New shell")
                 .accessibilityLabel("New shell")
                 .padding(.leading, 8)
@@ -199,42 +194,12 @@ private extension TerminalPane {
     @ViewBuilder
     var terminalBody: some View {
         if let selectedSession {
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(selectedSession.title)
-                            .font(.headline)
-
-                        if let command = selectedSession.command, !command.isEmpty {
-                            Text(command)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-
-                        TerminalSessionContextRow(
-                            projectName: selectedSession.projectName,
-                            currentDirectory: selectedSession.currentDirectory
-                        )
-                    }
-
-                    Spacer()
-
-                    TerminalSessionStatusBadge(status: selectedSession.status)
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-
-                Divider()
-
-                if let controller = terminalManager.controller(for: selectedSession.id) {
-                    TerminalSessionHostView(controller: controller)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    unavailableTerminalBody
-                }
+            if let controller = terminalManager.controller(for: selectedSession.id) {
+                TerminalSessionHostView(controller: controller)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                unavailableTerminalBody
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 Text("No terminal sessions.")
@@ -268,9 +233,8 @@ private extension TerminalPane {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    /// Single background for the pane chrome — drag handle, header, and metadata strip
-    /// share this color so the regions can't drift apart in light or dark themes. The
-    /// embedded terminal viewport applies its own `TerminalThemePalette`.
+    /// Single background for the pane chrome. The terminal viewport applies its own
+    /// palette so its foreground, caret, and ANSI colors retain known contrast.
     var panelBackground: Color {
         colorScheme == .dark
             ? Color(nsColor: .textBackgroundColor)

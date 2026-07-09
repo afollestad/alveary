@@ -6,11 +6,9 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
     let id: UUID
     var kind: Kind
     var title: String
-    var projectName: String?
     var threadID: PersistentIdentifier?
     var threadName: String?
     var currentDirectory: String?
-    var command: String?
     var status: Status
     let startedAt: Date
     var endedAt: Date?
@@ -19,11 +17,9 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         id: UUID = UUID(),
         kind: Kind = .projectAction,
         title: String,
-        projectName: String? = nil,
         threadID: PersistentIdentifier? = nil,
         threadName: String? = nil,
         currentDirectory: String? = nil,
-        command: String? = nil,
         status: Status = .running,
         startedAt: Date = Date(),
         endedAt: Date? = nil
@@ -31,11 +27,9 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         self.id = id
         self.kind = kind
         self.title = title
-        self.projectName = projectName
         self.threadID = threadID
         self.threadName = threadName
         self.currentDirectory = currentDirectory
-        self.command = command
         self.status = status
         self.startedAt = startedAt
         self.endedAt = endedAt
@@ -47,10 +41,10 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
 
     var chipLabel: String {
         guard let threadName = normalizedThreadName else {
-            return title
+            return chipTitle
         }
 
-        return "\(title) - \(Self.truncatePreservingInlineCode(threadName, toVisibleLength: Self.maxChipThreadNameLength))"
+        return "\(chipTitle) - \(Self.truncatePreservingInlineCode(threadName, toVisibleLength: Self.maxChipThreadNameLength))"
     }
 
     /// Truncates `markdown` so the visible (non-delimiter) grapheme-cluster count stays
@@ -137,6 +131,10 @@ struct TerminalSession: Identifiable, Equatable, Sendable {
         return trimmedThreadName
     }
 
+    private var chipTitle: String {
+        kind == .shell ? "Shell" : title
+    }
+
     private static let maxChipThreadNameLength = 20
 }
 
@@ -147,6 +145,7 @@ final class TerminalManager {
     var selectedSessionID: UUID?
 
     @ObservationIgnored private var controllers: [UUID: any TerminalSessionControlling] = [:]
+    @ObservationIgnored private var terminatedControllerSessionIDs: Set<UUID> = []
     private let controllerFactory: any TerminalSessionControllerFactory
 
     init(controllerFactory: any TerminalSessionControllerFactory = SwiftTermTerminalControllerFactory()) {
@@ -171,16 +170,8 @@ final class TerminalManager {
         return sessions.first(where: { $0.id == selectedSessionID }) ?? sessions.last
     }
 
-    var runningSessionIDs: Set<UUID> {
-        Set(sessions.filter(\.isRunning).map(\.id))
-    }
-
     var runningProjectActionSessionIDs: Set<UUID> {
         Set(sessions.filter { $0.kind == .projectAction && $0.isRunning }.map(\.id))
-    }
-
-    var hasRunningSession: Bool {
-        !runningSessionIDs.isEmpty
     }
 
     func controller(for sessionID: UUID) -> (any TerminalSessionControlling)? {
@@ -223,11 +214,9 @@ final class TerminalManager {
     func createSession(
         kind: TerminalSession.Kind = .projectAction,
         title: String,
-        projectName: String? = nil,
         threadID: PersistentIdentifier? = nil,
         threadName: String? = nil,
         currentDirectory: String? = nil,
-        command: String? = nil,
         status: TerminalSession.Status = .running,
         startedAt: Date = Date(),
         select: Bool = true,
@@ -238,11 +227,9 @@ final class TerminalManager {
         let session = TerminalSession(
             kind: kind,
             title: title,
-            projectName: projectName,
             threadID: threadID,
             threadName: threadName,
             currentDirectory: currentDirectory,
-            command: command,
             status: status,
             startedAt: startedAt,
             endedAt: status == .running ? nil : Date()
@@ -250,6 +237,7 @@ final class TerminalManager {
         sessions.append(session)
 
         if let launchConfiguration {
+            terminatedControllerSessionIDs.remove(session.id)
             let controller = controllerFactory.makeController(
                 sessionID: session.id,
                 configuration: launchConfiguration,
@@ -282,10 +270,6 @@ final class TerminalManager {
         controllers[id]?.requestFocus()
     }
 
-    func reapplyTheme(id: UUID) {
-        controllers[id]?.reapplyTheme()
-    }
-
     func markSessionFinished(id: UUID, exitCode: Int32?) {
         updateRunningSession(id: id) { session in
             session.status = exitCode == 0 ? .succeeded : .failed
@@ -298,6 +282,7 @@ final class TerminalManager {
             session.status = .cancelled
             session.endedAt = Date()
         }
+        terminatedControllerSessionIDs.insert(id)
         controllers[id]?.terminate()
     }
 
@@ -309,6 +294,7 @@ final class TerminalManager {
         }
         controllers[id]?.terminate()
         controllers[id] = nil
+        terminatedControllerSessionIDs.remove(id)
 
         // Close-adjacent: if the closing session was selected, pick the next (same index
         // after shift) session, falling back to the previous when the last tab is
@@ -364,6 +350,21 @@ extension TerminalManager: TerminalSessionControllerDelegate {
         didTerminateSession id: UUID,
         exitCode: Int32?
     ) {
+        guard sessions.contains(where: { $0.id == id }) else {
+            return
+        }
+        terminatedControllerSessionIDs.insert(id)
+        markSessionFinished(id: id, exitCode: exitCode)
+    }
+
+    func terminalSessionController(
+        _ controller: any TerminalSessionControlling,
+        didCompleteProjectAction id: UUID,
+        exitCode: Int32
+    ) {
+        guard sessions.first(where: { $0.id == id })?.kind == .projectAction else {
+            return
+        }
         markSessionFinished(id: id, exitCode: exitCode)
     }
 
@@ -373,6 +374,7 @@ extension TerminalManager: TerminalSessionControllerDelegate {
         forSession id: UUID
     ) {
         guard let index = sessions.firstIndex(where: { $0.id == id }),
+              !terminatedControllerSessionIDs.contains(id),
               sessions[index].kind == .shell else {
             return
         }
@@ -391,6 +393,7 @@ extension TerminalManager: TerminalSessionControllerDelegate {
         forSession id: UUID
     ) {
         guard let index = sessions.firstIndex(where: { $0.id == id }),
+              !terminatedControllerSessionIDs.contains(id),
               !currentDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }

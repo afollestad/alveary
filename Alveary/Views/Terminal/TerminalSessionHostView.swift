@@ -21,17 +21,24 @@ struct TerminalSessionHostView: NSViewRepresentable {
 }
 
 final class TerminalSessionHostingView: NSView {
+    static let contentInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+
     private weak var hostedView: NSView?
     private var hostedConstraints: [NSLayoutConstraint] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
+        applyPaletteBackground()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        wantsLayer = true
+        applyPaletteBackground()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyPaletteBackground()
     }
 
     func setHostedView(_ view: NSView) {
@@ -41,18 +48,27 @@ final class TerminalSessionHostingView: NSView {
 
         clearHostedView()
 
+        if let previousSuperview = view.superview,
+           previousSuperview !== self {
+            if let previousHost = previousSuperview as? TerminalSessionHostingView {
+                previousHost.clearHostedView()
+            } else {
+                view.removeFromSuperview()
+            }
+        }
+
         if view.superview !== self {
-            view.removeFromSuperview()
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
 
         hostedView = view
+        let insets = Self.contentInsets
         hostedConstraints = [
-            view.leadingAnchor.constraint(equalTo: leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: trailingAnchor),
-            view.topAnchor.constraint(equalTo: topAnchor),
-            view.bottomAnchor.constraint(equalTo: bottomAnchor)
+            view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+            view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
+            view.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+            view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom)
         ]
         NSLayoutConstraint.activate(hostedConstraints)
     }
@@ -60,7 +76,17 @@ final class TerminalSessionHostingView: NSView {
     func clearHostedView() {
         NSLayoutConstraint.deactivate(hostedConstraints)
         hostedConstraints = []
-        hostedView?.removeFromSuperview()
+        if hostedView?.superview === self {
+            hostedView?.removeFromSuperview()
+        }
         hostedView = nil
+    }
+
+    private func applyPaletteBackground() {
+        wantsLayer = true
+        layer?.backgroundColor = TerminalThemePalette
+            .resolved(for: effectiveAppearance)
+            .background
+            .cgColor
     }
 }

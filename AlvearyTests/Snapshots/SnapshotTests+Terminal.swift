@@ -29,31 +29,25 @@ extension SnapshotTests {
         let terminalManager = makeSnapshotTerminalManager([
             SnapshotTerminalSession(
                 title: "Build",
-                projectName: "Alveary",
                 threadName: "Refine Terminal Drawer Layout",
                 currentDirectory: "/Users/alice/Development/alveary",
-                command: "./scripts/build.sh",
-                viewportText: "$ ./scripts/build.sh\nBuild started...\nCompiling TerminalPane.swift\nBuild Succeeded",
+                viewportText: "alveary % ./scripts/build.sh\nBuild started...\nCompiling TerminalPane.swift\nBuild Succeeded\nalveary % ",
                 status: .succeeded,
                 select: false
             ),
             SnapshotTerminalSession(
                 title: "Seed DB",
-                projectName: "Sandbox",
                 threadName: "Seed Review",
                 currentDirectory: "/Users/alice/Development/sandbox",
-                command: "bin/seed-db",
-                viewportText: "$ bin/seed-db\nSeeding records...",
+                viewportText: "sandbox % bin/seed-db\nSeeding records...",
                 status: .running,
                 select: false
             ),
             SnapshotTerminalSession(
                 title: "Test",
-                projectName: "Website",
                 threadName: "Sidebar Cache Preservation Fix",
                 currentDirectory: "/Users/alice/Development/website",
-                command: "npm test",
-                viewportText: "$ npm test\n1 failing test\n- should preserve cached sidebar state",
+                viewportText: "website % npm test\n1 failing test\n- should preserve cached sidebar state\nwebsite % ",
                 status: .failed
             )
         ])
@@ -70,21 +64,17 @@ extension SnapshotTests {
         let terminalManager = makeSnapshotTerminalManager([
             SnapshotTerminalSession(
                 title: "Open",
-                projectName: "Alveary",
                 threadName: "Really long `code block` stuff",
                 currentDirectory: "/Users/alice/Development/alveary",
-                command: "open .",
-                viewportText: "$ open .",
+                viewportText: "alveary % open .",
                 status: .running,
                 select: false
             ),
             SnapshotTerminalSession(
                 title: "Open",
-                projectName: "Alveary",
                 threadName: "Test `code` Rendering",
                 currentDirectory: "/Users/alice/Development/alveary",
-                command: "open .",
-                viewportText: "$ open .\n.",
+                viewportText: "alveary % open .\n.",
                 status: .running
             )
         ])
@@ -105,11 +95,9 @@ extension SnapshotTests {
         let terminalManager = makeSnapshotTerminalManager((1...8).map { index in
             SnapshotTerminalSession(
                 title: "Task \(index)",
-                projectName: "Alveary",
                 threadName: "Thread \(index)",
                 currentDirectory: "/Users/alice/Development/alveary",
-                command: "./scripts/task\(index).sh",
-                viewportText: "$ ./scripts/task\(index).sh",
+                viewportText: "alveary % ./scripts/task\(index).sh",
                 status: .running,
                 select: index == 1
             )
@@ -139,7 +127,6 @@ extension SnapshotTests {
             SnapshotTerminalSession(
                 kind: .shell,
                 title: "Shell",
-                projectName: "Alveary",
                 threadName: "Investigation",
                 currentDirectory: "/Users/alice/Development/alveary",
                 viewportText: "$ exit 1\nlogout",
@@ -159,8 +146,8 @@ extension SnapshotTests {
         let terminalManager = makeSnapshotTerminalManager([
             SnapshotTerminalSession(
                 kind: .shell,
-                title: "Shell",
-                projectName: "Alveary",
+                title: "alice@MacBook-Pro:~/Documents/worktrees/alveary/new-thread-73d",
+                threadName: "New thread",
                 currentDirectory: "/Users/alice/Development/alveary",
                 viewportText: "$ printf 'dark mode'\ndark mode",
                 status: .running
@@ -187,10 +174,8 @@ private func makeSnapshotTerminalManager(_ sessions: [SnapshotTerminalSession]) 
         manager.createSession(
             kind: session.kind,
             title: session.title,
-            projectName: session.projectName,
             threadName: session.threadName,
             currentDirectory: session.currentDirectory,
-            command: session.command,
             status: session.status,
             select: session.select,
             launchConfiguration: TerminalLaunchConfiguration(
@@ -209,10 +194,8 @@ private func makeSnapshotTerminalManager(_ sessions: [SnapshotTerminalSession]) 
 private struct SnapshotTerminalSession {
     var kind: TerminalSession.Kind = .projectAction
     var title: String
-    var projectName: String?
     var threadName: String?
     var currentDirectory: String?
-    var command: String?
     var viewportText: String
     var status: TerminalSession.Status
     var select = true
@@ -302,7 +285,7 @@ private final class SnapshotTerminalFakeView: NSView {
             .paragraphStyle: paragraphStyle
         ]
         (text as NSString).draw(
-            in: bounds.insetBy(dx: 14, dy: 12),
+            in: bounds,
             withAttributes: attributes
         )
     }

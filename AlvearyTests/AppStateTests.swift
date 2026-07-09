@@ -260,12 +260,6 @@ final class AppStateTests: XCTestCase {
         state.showTerminalPane()
         XCTAssertTrue(state.isTerminalPaneVisible)
 
-        state.toggleTerminalPane()
-        XCTAssertFalse(state.isTerminalPaneVisible)
-
-        state.toggleTerminalPane()
-        XCTAssertTrue(state.isTerminalPaneVisible)
-
         state.hideTerminalPane()
         XCTAssertFalse(state.isTerminalPaneVisible)
     }

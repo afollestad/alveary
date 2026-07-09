@@ -22,7 +22,7 @@ The public backlog and roadmap are tracked in the [Alveary project board](https:
 
 ## Development
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, and SwiftTerm. The embedded terminal runs local PTYs, so the app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, and SwiftTerm. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
 
 ```sh
 ./scripts/setup.sh
