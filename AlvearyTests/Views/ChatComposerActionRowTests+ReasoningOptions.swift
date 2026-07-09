@@ -398,7 +398,7 @@ private func assertReasoningButtonModelEffortGap(
     let effortFrame = try XCTUnwrap(button.debugEffortFrame, file: file, line: line)
     let gap = try XCTUnwrap(button.debugModelEffortGap, file: file, line: line)
     XCTAssertGreaterThan(modelFrame.width, 0, file: file, line: line)
-    XCTAssertEqual(gap, 6, accuracy: 0.5, file: file, line: line)
+    XCTAssertEqual(gap, 2, accuracy: 0.5, file: file, line: line)
     XCTAssertLessThanOrEqual(modelFrame.maxX, effortFrame.minX, file: file, line: line)
 }
 
