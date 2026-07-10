@@ -40,8 +40,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary
-        MARKETING_VERSION: 0.1.0
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.1
+        CURRENT_PROJECT_VERSION: 2
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
