@@ -120,19 +120,6 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var selectedPageView: some View {
         switch selectedPage {
-        case .agents:
-            AgentsSettingsTabView(
-                viewModel: viewModel,
-                providerIDs: viewModel.availableProviderIDs,
-                providerExtraArgsBinding: providerExtraArgsBinding,
-                contextManagementEnabled: binding(for: \.contextManagementEnabled),
-                sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
-                handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
-                handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),
-                handoffPromptSendCountdownSeconds: binding(for: \.handoffPromptSendCountdownSeconds),
-                handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
-                sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
-            )
         case .interface:
             InterfaceSettingsTabView(
                 viewModel: viewModel,
@@ -151,7 +138,8 @@ struct SettingsScreen: View {
                 gitHubCLI: gitHubCLI,
                 branchPrefix: binding(for: \.branchPrefix),
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
-                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory)
+                worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
+                createWorktreeByDefault: binding(for: \.createWorktreeByDefault)
             )
         case .notifications:
             NotificationsSettingsTabView(
@@ -160,6 +148,13 @@ struct SettingsScreen: View {
                 osNotificationsEnabled: binding(for: \.osNotificationsEnabled),
                 soundEnabled: binding(for: \.soundEnabled),
                 soundName: binding(for: \.soundName)
+            )
+        case .agents:
+            AgentsSettingsTabView(
+                viewModel: viewModel,
+                providerIDs: viewModel.availableProviderIDs,
+                providerExtraArgsBinding: providerExtraArgsBinding,
+                autoTrustProjects: binding(for: \.autoTrustProjects)
             )
         case .terminal:
             TerminalSettingsTabView(
@@ -178,8 +173,13 @@ struct SettingsScreen: View {
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 turnAwakeEnabled: binding(for: \.turnAwakeEnabled),
                 turnAwakePreventDisplaySleep: binding(for: \.turnAwakePreventDisplaySleep),
-                createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                autoTrustProjects: binding(for: \.autoTrustProjects)
+                contextManagementEnabled: binding(for: \.contextManagementEnabled),
+                sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
+                handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
+                handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),
+                handoffPromptSendCountdownSeconds: binding(for: \.handoffPromptSendCountdownSeconds),
+                handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
+                sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
         case .appUpdates:
             AppUpdatesSettingsTabView(updateManager: appUpdateManager)
@@ -263,8 +263,6 @@ private extension SettingsScreen {
 private extension AppSettings.SettingsPage {
     var title: String {
         switch self {
-        case .agents:
-            return "Agents"
         case .interface:
             return "Appearance"
         case .appShots:
@@ -273,6 +271,8 @@ private extension AppSettings.SettingsPage {
             return "Git"
         case .notifications:
             return "Notifications"
+        case .agents:
+            return "Providers"
         case .terminal:
             return "Terminal"
         case .threads:
@@ -284,8 +284,6 @@ private extension AppSettings.SettingsPage {
 
     var icon: String {
         switch self {
-        case .agents:
-            return "brain"
         case .interface:
             return "paintbrush"
         case .appShots:
@@ -294,6 +292,8 @@ private extension AppSettings.SettingsPage {
             return "arrow.triangle.branch"
         case .notifications:
             return "bell"
+        case .agents:
+            return "brain"
         case .terminal:
             return "terminal"
         case .threads:
@@ -305,8 +305,6 @@ private extension AppSettings.SettingsPage {
 
     var description: String {
         switch self {
-        case .agents:
-            return "Manage agent installs and override CLI settings for each supported provider."
         case .interface:
             return "Adjust theme and typography for the app shell."
         case .appShots:
@@ -315,6 +313,8 @@ private extension AppSettings.SettingsPage {
             return "Configure Git defaults and GitHub authentication for new worktrees."
         case .notifications:
             return "Configure notification delivery and sounds."
+        case .agents:
+            return "Manage project trust, provider installs, and CLI settings."
         case .terminal:
             return "Configure terminal pane behavior for shells and project actions."
         case .threads:

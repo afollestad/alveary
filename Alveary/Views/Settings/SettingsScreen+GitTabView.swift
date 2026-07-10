@@ -6,6 +6,7 @@ struct GitSettingsTabView: View {
     @Binding var branchPrefix: String
     @Binding var commitMessageGenerationPrompt: String
     @Binding var worktreesBaseDirectory: String
+    @Binding var createWorktreeByDefault: Bool
 
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubConnected = false
@@ -47,6 +48,12 @@ struct GitSettingsTabView: View {
                 }
 
                 SettingsFormSection("Worktrees") {
+                    SettingsToggleRow(
+                        "Create worktree by default",
+                        helpText: GitSettingsHelp.createWorktreeByDefault,
+                        isOn: $createWorktreeByDefault
+                    )
+
                     SettingsFormRow(showsDivider: false) {
                         SettingsFolderPickerRow("Worktrees directory", path: $worktreesBaseDirectory)
                     }
@@ -170,4 +177,6 @@ private extension GitSettingsTabView {
 private enum GitSettingsHelp {
     static let commitMessageGenerationPrompt =
         "Prompt sent to the agent when generating a commit message from the Git commit modal."
+    static let createWorktreeByDefault =
+        "New threads default to creating a worktree instead of using the main project folder. You can override this in the composer."
 }

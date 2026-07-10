@@ -7,6 +7,7 @@ import XCTest
 extension SnapshotTests {
     func testSettingsScreenAgentsTab() {
         var settings = AppSettings()
+        settings.autoTrustProjects = true
         settings.providerConfigs["claude"] = ProviderCustomConfig(
             extraArgs: "--verbose"
         )
@@ -52,12 +53,10 @@ extension SnapshotTests {
         )
     }
 
-    func testSettingsScreenAgentsTabHandoffSteeringDisabled() {
+    func testSettingsScreenThreadsTabHandoffSteeringDisabled() {
         var settings = AppSettings()
+        settings.contextManagementEnabled = true
         settings.handoffSteeringEnabled = false
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
-            extraArgs: "--verbose"
-        )
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),
@@ -70,10 +69,10 @@ extension SnapshotTests {
                 gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
                 appUpdateManager: snapshotAppUpdateManager(),
                 onClose: {},
-                initialTabRawValue: "agents"
+                initialTabRawValue: "threads"
             ),
             size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_agents_handoff_steering_disabled"
+            named: "settings_screen_threads_handoff_steering_disabled"
         )
     }
 
@@ -98,7 +97,6 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
-        settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
 
@@ -125,7 +123,6 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
-        settings.autoTrustProjects = false
         settings.theme = "dark"
         settings.codeFontFamily = "JetBrains Mono"
 
@@ -153,7 +150,6 @@ extension SnapshotTests {
         var settings = AppSettings()
         settings.permissionMode = "acceptEdits"
         settings.effort = "high"
-        settings.autoTrustProjects = false
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
 
@@ -331,6 +327,7 @@ extension SnapshotTests {
     func testSettingsScreenGitTab() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"
+        settings.createWorktreeByDefault = true
         settings.lastSettingsPage = .git
 
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: settings))
