@@ -25,7 +25,6 @@ struct MiddlePane: View {
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
     let settingsViewModel: SettingsViewModel
-    let appShotCoordinator: AppShotCoordinator
     let appUpdateManager: AppUpdateManager
     let targetSettingsPage: AppSettings.SettingsPage?
     let onTargetSettingsPageHandled: (AppSettings.SettingsPage) -> Void
@@ -82,8 +81,7 @@ struct MiddlePane: View {
                     try await sidebarViewModel.deleteThread(thread)
                 },
                 loadSkillCompletions: loadInstalledSkills,
-                diffViewModel: diffViewModel,
-                appShotCoordinator: appShotCoordinator
+                diffViewModel: diffViewModel
             )
                 .id(thread.persistentModelID)
         case .settings:

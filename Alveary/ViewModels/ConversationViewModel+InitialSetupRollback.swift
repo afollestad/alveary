@@ -12,8 +12,9 @@ extension ConversationViewModel {
 
     func destroyRuntimeAfterFailedInitialSetup(originalError: Error) async throws {
         do {
-            try await agentsManager.destroyRuntime(conversationId: conversation.id)
+            try await agentsManager.destroyRuntimePreservingState(conversationId: conversation.id)
         } catch let cleanupError {
+            runtimeStore.bindConversationState(state, for: conversation.id)
             state.lastTurnError =
                 "Initial setup failed: \(originalError.localizedDescription). Runtime cleanup also failed: " +
                 cleanupError.localizedDescription
@@ -28,16 +29,24 @@ extension ConversationViewModel {
         restoresDraft: Bool
     ) {
         if restoresDraft {
-            replaceState(with: runtimeStore.conversationState(for: conversation.id))
+            let appShotsStagedDuringSetup = state.stagedAppShots
+            replaceState(with: ConversationState())
             replaceInputDraft(snapshot.draft, source: snapshot.draftSource)
             state.stagedContext = snapshot.stagedContext
             state.stagedImageAttachments = snapshot.stagedImageAttachments
             state.stagedFileAttachments = snapshot.stagedFileAttachments
-            state.stagedAppShots = snapshot.stagedAppShots
+            let restoredAppShotIDs = Set(snapshot.stagedAppShots.map(\.id))
+            state.stagedAppShots = snapshot.stagedAppShots + appShotsStagedDuringSetup.filter {
+                !restoredAppShotIDs.contains($0.id)
+            }
             refreshInputDraftEffectiveEmptyForAttachments()
-        } else if !snapshot.stagedFileAttachments.isEmpty {
-            state.stagedFileAttachments = snapshot.stagedFileAttachments
-            refreshInputDraftEffectiveEmptyForAttachments()
+        } else {
+            // Keep the mounted/retry state canonical for root-routed staging after teardown.
+            runtimeStore.bindConversationState(state, for: conversation.id)
+            if !snapshot.stagedFileAttachments.isEmpty {
+                state.stagedFileAttachments = snapshot.stagedFileAttachments
+                refreshInputDraftEffectiveEmptyForAttachments()
+            }
         }
         thread.hasCompletedInitialSetup = false
     }

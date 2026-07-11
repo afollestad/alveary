@@ -137,6 +137,7 @@ final class ConversationState {
     var stagedImageAttachments: [LocalImageAttachment] = []
     var stagedFileAttachments: [LocalFileAttachment] = []
     var stagedAppShots: [AppShotAttachment] = []
+    @ObservationIgnored private(set) var mountedViewCount = 0
     var inputDraftRevision = 0
     var inputDraftDirtyRevision = 0
     var inputDraftIsEffectivelyEmpty = true
@@ -211,6 +212,39 @@ final class ConversationState {
 
     var isAwaitingExitPlanModeFollowUp: Bool {
         pendingExitPlanModeFollowUp?.phase == .awaitingDeniedExitTurn
+    }
+
+    var isViewMounted: Bool {
+        mountedViewCount > 0
+    }
+
+    func registerViewMount() {
+        mountedViewCount += 1
+    }
+
+    func unregisterViewMount() {
+        mountedViewCount = max(mountedViewCount - 1, 0)
+    }
+
+    func stageAppShot(_ appShot: AppShotAttachment) {
+        stagedAppShots.append(appShot)
+        inputDraftIsEffectivelyEmpty = false
+    }
+
+    func removeStagedAppShot(id: String) {
+        stagedAppShots.removeAll { $0.id == id }
+        refreshInputDraftEffectiveEmptyForAttachments()
+    }
+
+    func refreshInputDraftEffectiveEmptyForAttachments() {
+        let textIsEffectivelyEmpty = ComposerDraft(
+            text: inputDraft,
+            source: inputDraftSource
+        ).textIsEffectivelyEmpty
+        inputDraftIsEffectivelyEmpty = textIsEffectivelyEmpty &&
+            stagedImageAttachments.isEmpty &&
+            stagedFileAttachments.isEmpty &&
+            stagedAppShots.isEmpty
     }
 
     func appendStreamingChunk(_ text: String) {

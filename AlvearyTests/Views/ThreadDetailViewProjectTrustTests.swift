@@ -407,8 +407,7 @@ private struct ThreadDetailProjectTrustFixture {
                 agentsManager: SidebarMockAgentsManager(),
                 fsEventDebounceDuration: .seconds(10),
                 idlePollInterval: .seconds(10)
-            ),
-            appShotCoordinator: AppShotCoordinator()
+            )
         )
     }
 }

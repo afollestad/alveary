@@ -14,14 +14,8 @@ extension ConversationViewModel {
         state.stagedAppShots
     }
 
-    func stageAppShot(_ appShot: AppShotAttachment) {
-        state.stagedAppShots.append(appShot)
-        refreshInputDraftEffectiveEmptyForAttachments()
-    }
-
     func removeStagedAppShot(id: String) {
-        state.stagedAppShots.removeAll { $0.id == id }
-        refreshInputDraftEffectiveEmptyForAttachments()
+        state.removeStagedAppShot(id: id)
         cleanupUnreferencedImageAttachments(olderThan: 0)
     }
 
@@ -140,14 +134,7 @@ extension ConversationViewModel {
     }
 
     func refreshInputDraftEffectiveEmptyForAttachments() {
-        let textIsEffectivelyEmpty = ComposerDraft(
-            text: state.inputDraft,
-            source: state.inputDraftSource
-        ).textIsEffectivelyEmpty
-        state.inputDraftIsEffectivelyEmpty = textIsEffectivelyEmpty &&
-            state.stagedImageAttachments.isEmpty &&
-            state.stagedFileAttachments.isEmpty &&
-            state.stagedAppShots.isEmpty
+        state.refreshInputDraftEffectiveEmptyForAttachments()
     }
 }
 

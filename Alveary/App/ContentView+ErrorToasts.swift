@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 
 private let appErrorToastAutoDismissDelay: Duration = .seconds(8)
 private let appErrorToastBackground = Color(red: 0.28, green: 0.05, blue: 0.06)
+private let appSuccessToastBackground = Color(red: 0.04, green: 0.25, blue: 0.13)
 private let appErrorToastBottomOffset: CGFloat = 30
 private let appErrorToastMaxWidth: CGFloat = 520
 private let appErrorToastSpacing: CGFloat = 8
@@ -46,7 +48,7 @@ private struct AppErrorToast: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "exclamationmark.circle.fill")
+            Image(systemName: toast.kind == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.95))
                 .accessibilityHidden(true)
@@ -57,7 +59,7 @@ private struct AppErrorToast: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .lineLimit(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel("Unexpected error: \(toast.message)")
+                .accessibilityLabel("\(toast.kind.accessibilityPrefix): \(toast.message)")
 
             Button {
                 onDismiss(toast.id)
@@ -69,21 +71,40 @@ private struct AppErrorToast: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss error toast")
+            .accessibilityLabel(toast.kind == .success ? "Dismiss success toast" : "Dismiss error toast")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(appErrorToastBackground)
+                .fill(toast.kind == .success ? appSuccessToastBackground : appErrorToastBackground)
         }
         .shadow(color: .black.opacity(0.24), radius: 18, x: 0, y: 8)
         .task(id: toast.id) {
+            NSAccessibility.post(
+                element: NSApplication.shared,
+                notification: .announcementRequested,
+                userInfo: [
+                    .announcement: "\(toast.kind.accessibilityPrefix): \(toast.message)",
+                    .priority: NSAccessibilityPriorityLevel.medium.rawValue
+                ]
+            )
             try? await Task.sleep(for: appErrorToastAutoDismissDelay)
             guard !Task.isCancelled else {
                 return
             }
             onDismiss(toast.id)
+        }
+    }
+}
+
+private extension AppState.AppToastKind {
+    var accessibilityPrefix: String {
+        switch self {
+        case .error:
+            return "Unexpected error"
+        case .success:
+            return "Success"
         }
     }
 }

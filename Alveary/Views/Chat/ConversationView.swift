@@ -26,7 +26,6 @@ struct ConversationView: View {
     let threadActivityRecorder: any ThreadActivityRecording
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
-    let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
     @State var viewModel: ConversationViewModel
@@ -84,7 +83,6 @@ struct ConversationView: View {
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         availableProjects: [Project] = [],
         onSelectDraftProject: @escaping (String) -> Void = { _ in },
-        appShotCoordinator: AppShotCoordinator,
         appState: AppState
     ) {
         self.conversation = conversation
@@ -110,7 +108,6 @@ struct ConversationView: View {
         self.threadActivityRecorder = threadActivityRecorder
         self.availableProjects = availableProjects
         self.onSelectDraftProject = onSelectDraftProject
-        self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
             projectURL: conversation.thread?.project.map {
@@ -164,7 +161,6 @@ struct ConversationView: View {
             transcriptTypography: transcriptTypography,
             availableProjects: availableProjects,
             onSelectDraftProject: onSelectDraftProject,
-            appShotCoordinator: appShotCoordinator,
             appState: appState
         )
         .task {

@@ -331,6 +331,72 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
         XCTAssertTrue(fixture.viewModel.state.inputDraftIsEffectivelyEmpty)
     }
+
+    func testStateReplacementTransfersActiveViewMountAndRuntimeBinding() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let originalState = fixture.viewModel.state
+        fixture.viewModel.activateViewLifecycle()
+        let replacementState = ConversationState()
+
+        fixture.viewModel.replaceState(with: replacementState)
+
+        XCTAssertFalse(originalState.isViewMounted)
+        XCTAssertTrue(replacementState.isViewMounted)
+        XCTAssertIdentical(
+            fixture.runtimeStore.conversationState(for: fixture.conversation.id),
+            replacementState
+        )
+
+        fixture.viewModel.deactivateViewLifecycle()
+        XCTAssertFalse(replacementState.isViewMounted)
+    }
+
+    func testFailedInitialSetupRestoreRebindsRetainedStateAfterRuntimeEviction() throws {
+        let fixture = try ConversationViewModelTestFixture(hasCompletedInitialSetup: false)
+        let retainedState = fixture.viewModel.state
+        retainedState.lastTurnError = "Retryable setup failure"
+        fixture.runtimeStore.removeState(for: fixture.conversation.id)
+
+        fixture.viewModel.restoreStateAfterFailedInitialSetup(
+            snapshot: ConversationInitialSetupSnapshot(
+                draft: "",
+                draftSource: .legacyText,
+                stagedContext: nil,
+                stagedImageAttachments: []
+            ),
+            thread: fixture.thread,
+            restoresDraft: false
+        )
+
+        XCTAssertIdentical(fixture.viewModel.state, retainedState)
+        XCTAssertIdentical(
+            fixture.runtimeStore.conversationState(for: fixture.conversation.id),
+            retainedState
+        )
+        XCTAssertEqual(fixture.viewModel.state.lastTurnError, "Retryable setup failure")
+    }
+
+    func testCancelledInitialSetupRestorePreservesAppShotsStagedDuringSetup() throws {
+        let fixture = try ConversationViewModelTestFixture(hasCompletedInitialSetup: false)
+        let restoredAppShot = draftTestAppShotAttachment(id: "restored")
+        let stagedDuringSetup = draftTestAppShotAttachment(id: "staged-during-setup")
+        fixture.viewModel.state.stageAppShot(stagedDuringSetup)
+
+        fixture.viewModel.restoreStateAfterFailedInitialSetup(
+            snapshot: ConversationInitialSetupSnapshot(
+                draft: "Original prompt",
+                draftSource: .legacyText,
+                stagedContext: nil,
+                stagedImageAttachments: [],
+                stagedAppShots: [restoredAppShot]
+            ),
+            thread: fixture.thread,
+            restoresDraft: true
+        )
+
+        XCTAssertEqual(fixture.viewModel.state.stagedAppShots, [restoredAppShot, stagedDuringSetup])
+        XCTAssertFalse(fixture.viewModel.state.inputDraftIsEffectivelyEmpty)
+    }
 }
 
 private final class DraftMaterializationRecorder: @unchecked Sendable {
@@ -389,9 +455,10 @@ private func draftTestFileAttachment(label: String) -> LocalFileAttachment {
     )
 }
 
-private func draftTestAppShotAttachment() -> AppShotAttachment {
+private func draftTestAppShotAttachment(id: String = UUID().uuidString) -> AppShotAttachment {
     let screenshot = draftTestImageAttachment(label: "app-shot.png")
     return AppShotAttachment(
+        id: id,
         appName: "Preview",
         bundleIdentifier: "com.apple.Preview",
         windowTitle: "Document",

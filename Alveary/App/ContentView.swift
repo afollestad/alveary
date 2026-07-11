@@ -45,9 +45,10 @@ struct ContentView: View {
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State var onboardingViewModel: OnboardingViewModel
-    @State var terminalManager: TerminalManager
+    @State var terminalManager = TerminalManager()
     @State var appShotCoordinator: AppShotCoordinator
-    @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction]
+    @State var appShotCaptureController: AppShotCaptureController
+    @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
     @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
     @State var diffViewerSwitchGeneration = 0
     @State var gitCommitModalModel: DiffGitCommitModalModel?
@@ -94,7 +95,9 @@ struct ContentView: View {
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
-        _sidebarViewModel = State(initialValue: Self.makeSidebarViewModel(dependencies: dependencies, appState: appState))
+        let sidebarViewModel = Self.makeSidebarViewModel(dependencies: dependencies, appState: appState)
+        let appShotCoordinator = AppShotCoordinator()
+        _sidebarViewModel = State(initialValue: sidebarViewModel)
         _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
@@ -105,10 +108,13 @@ struct ContentView: View {
                 dependencyService: dependencies.onboardingDependencyService
             )
         )
-        _terminalManager = State(initialValue: TerminalManager())
-        _appShotCoordinator = State(initialValue: AppShotCoordinator())
-        _toolbarProjectActions = State(initialValue: [])
-        _toolbarProjectActionsThreadID = State(initialValue: nil)
+        _appShotCoordinator = State(initialValue: appShotCoordinator)
+        _appShotCaptureController = State(initialValue: Self.makeAppShotCaptureController(
+            dependencies: dependencies,
+            appState: appState,
+            appShotCoordinator: appShotCoordinator,
+            sidebarViewModel: sidebarViewModel
+        ))
     }
 
     var body: some View {
@@ -137,7 +143,6 @@ struct ContentView: View {
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             settingsViewModel: settingsViewModel,
-            appShotCoordinator: appShotCoordinator,
             appUpdateManager: appUpdateManager,
             targetSettingsPage: appState.pendingSettingsTargetPage,
             onTargetSettingsPageHandled: { page in
@@ -263,6 +268,9 @@ struct ContentView: View {
             recordLastActiveProject(for: selection)
             updateDiffViewer(item: selection)
             cancelPendingCommitMessageGenerationIfNeeded()
+        }
+        .onChange(of: appShotCoordinator.triggerID) { _, _ in
+            appShotCaptureController.captureIfIdle()
         }
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged)) { _ in
             updateDiffViewer(item: appState.selectedSidebarItem)

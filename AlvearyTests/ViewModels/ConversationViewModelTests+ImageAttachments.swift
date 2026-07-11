@@ -323,6 +323,22 @@ extension ConversationViewModelTests {
         XCTAssertTrue(FileManager.default.fileExists(atPath: appShot.screenshot.fileURL.path))
     }
 
+    func testAttachmentStoreRemovesStoredAppShotScreenshot() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DefaultConversationAttachmentStore(rootDirectory: root)
+        let attachment = try await store.storeAppShotScreenshot(
+            Self.pngHeaderData,
+            conversationId: "cleanup",
+            label: "capture.png"
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: attachment.fileURL.path))
+
+        try await store.removeAttachment(at: attachment.fileURL)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: attachment.fileURL.path))
+    }
+
     func testCleanupRetainsTranscriptImageAttachments() async throws {
         let root = temporaryDirectory()
         let sourceDirectory = temporaryDirectory()

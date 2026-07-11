@@ -24,7 +24,6 @@ struct ThreadDetailView: View {
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
-    let appShotCoordinator: AppShotCoordinator
 
     @Environment(\.modelContext) var uiModelContext
     @State var conversationActionError: String?
@@ -124,7 +123,6 @@ struct ThreadDetailView: View {
                         onSelectDraftProject: { projectPath in
                             Task { await selectDraftProject(thread.persistentModelID, projectPath) }
                         },
-                        appShotCoordinator: appShotCoordinator,
                         appState: appState
                     )
                     .id(conversation.id)

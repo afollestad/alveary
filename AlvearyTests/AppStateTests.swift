@@ -308,6 +308,21 @@ final class AppStateTests: XCTestCase {
         ])
     }
 
+    func testPresentSuccessFeedbackUsesSuccessToastKind() {
+        let state = AppState()
+        let id = UUID()
+
+        state.presentSuccessFeedback(message: "App shot added to Feature work.", id: id)
+
+        XCTAssertEqual(state.unexpectedErrorToasts, [
+            AppState.UnexpectedErrorToast(
+                id: id,
+                message: "App shot added to Feature work.",
+                kind: .success
+            )
+        ])
+    }
+
     func testPresentUnexpectedErrorKeepsNewestThreeRecords() {
         let state = AppState()
         let ids = (0..<4).map { _ in UUID() }

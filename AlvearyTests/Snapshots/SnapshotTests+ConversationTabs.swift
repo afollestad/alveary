@@ -369,8 +369,7 @@ private struct ThreadDetailStatusFixture {
             selectDraftProject: { _, _ in },
             deleteThread: { _ in },
             loadSkillCompletions: { [] },
-            diffViewModel: diffViewModel,
-            appShotCoordinator: AppShotCoordinator()
+            diffViewModel: diffViewModel
         )
         .environment(\.modelContext, context)
     }

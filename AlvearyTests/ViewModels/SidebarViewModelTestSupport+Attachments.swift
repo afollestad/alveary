@@ -21,6 +21,8 @@ actor RecordingConversationAttachmentStore: ConversationAttachmentStore {
 
     func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {}
 
+    func removeAttachment(at url: URL) async throws {}
+
     func removeConversationDirectory(conversationId: String) async {
         removedConversationIDs.append(conversationId)
     }

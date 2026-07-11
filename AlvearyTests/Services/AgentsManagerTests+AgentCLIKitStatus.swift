@@ -6,6 +6,23 @@ import XCTest
 
 @MainActor
 extension AgentsManagerTests {
+    func testDestroyRuntimePreservingStateRetainsCanonicalConversationState() async throws {
+        let manager = makeAgentCLIKitFixture(
+            adapter: ResolvingAgentCLIKitAdapter(),
+            detectedPath: "/bin/sh",
+            basePath: "/usr/bin:/bin"
+        ).manager
+        let conversationID = "preserved-runtime-state"
+        let originalState = manager.conversationState(for: conversationID)
+        originalState.inputDraft = "Keep this draft"
+
+        try await manager.destroyRuntimePreservingState(conversationId: conversationID)
+
+        let retainedState = manager.conversationState(for: conversationID)
+        XCTAssertIdentical(retainedState, originalState)
+        XCTAssertEqual(retainedState.inputDraft, "Keep this draft")
+    }
+
     func testAgentCLIKitSpawnRefreshesRuntimeStatusBeforeReturning() async throws {
         let executable = try makeScript(named: "running-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }

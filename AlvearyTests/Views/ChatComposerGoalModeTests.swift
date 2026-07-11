@@ -389,7 +389,6 @@ final class ChatComposerGoalModeTests: XCTestCase {
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             transcriptTypography: TranscriptTypography(),
-            appShotCoordinator: AppShotCoordinator(),
             appState: appState
         )
     }

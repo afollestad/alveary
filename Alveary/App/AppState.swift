@@ -51,6 +51,11 @@ final class AppState {
         unexpectedErrorToasts = Array((unexpectedErrorToasts + [toast]).suffix(Self.maxUnexpectedErrorToasts))
     }
 
+    func presentSuccessFeedback(message: String, id: UUID = UUID()) {
+        let toast = UnexpectedErrorToast(id: id, message: message, kind: .success)
+        unexpectedErrorToasts = Array((unexpectedErrorToasts + [toast]).suffix(Self.maxUnexpectedErrorToasts))
+    }
+
     func dismissUnexpectedErrorToast(id: UnexpectedErrorToast.ID) {
         unexpectedErrorToasts.removeAll { $0.id == id }
     }
@@ -202,6 +207,11 @@ final class AppState {
         }
     }
 
+    enum AppToastKind: Equatable, Sendable {
+        case error
+        case success
+    }
+
     struct CommitMessageGenerationRequest {
         let id: UUID
         let conversationID: PersistentIdentifier
@@ -212,6 +222,13 @@ final class AppState {
     struct UnexpectedErrorToast: Identifiable, Equatable, Sendable {
         let id: UUID
         let message: String
+        let kind: AppToastKind
+
+        init(id: UUID, message: String, kind: AppToastKind = .error) {
+            self.id = id
+            self.message = message
+            self.kind = kind
+        }
     }
 }
 

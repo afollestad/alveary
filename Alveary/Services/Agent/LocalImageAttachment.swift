@@ -28,6 +28,7 @@ protocol ConversationAttachmentStore: Sendable {
     func copyLocalImages(_ urls: [URL], conversationId: String) async throws -> [LocalImageAttachment]
     func storeAppShotScreenshot(_ data: Data, conversationId: String, label: String) async throws -> LocalImageAttachment
     func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async
+    func removeAttachment(at url: URL) async throws
     func removeConversationDirectory(conversationId: String) async
 }
 
@@ -85,7 +86,22 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
 
         let id = UUID().uuidString
         let destinationURL = appShotDirectory.appendingPathComponent("\(id).png", isDirectory: false)
-        try data.write(to: destinationURL, options: [.atomic])
+        do {
+            try data.write(to: destinationURL, options: [.atomic])
+        } catch let writeError {
+            guard fileManager.fileExists(atPath: destinationURL.path) else {
+                throw writeError
+            }
+            do {
+                try fileManager.removeItem(at: destinationURL)
+            } catch let cleanupError {
+                throw AttachmentStoreError.appShotWriteCleanupFailed(
+                    writeError: writeError.localizedDescription,
+                    cleanupError: cleanupError.localizedDescription
+                )
+            }
+            throw writeError
+        }
         return LocalImageAttachment(
             id: id,
             fileURL: destinationURL,
@@ -96,6 +112,14 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
 
     func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {
         cleanupUnreferenced(in: directory(for: conversationId), keeping: retainedURLs, olderThan: age)
+    }
+
+    func removeAttachment(at url: URL) async throws {
+        let canonicalURL = url.standardizedFileURL
+        guard fileManager.fileExists(atPath: canonicalURL.path) else {
+            return
+        }
+        try fileManager.removeItem(at: canonicalURL)
     }
 
     func removeConversationDirectory(conversationId: String) async {
@@ -142,11 +166,14 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
 
 enum AttachmentStoreError: LocalizedError, Equatable {
     case unsupportedImage(String)
+    case appShotWriteCleanupFailed(writeError: String, cleanupError: String)
 
     var errorDescription: String? {
         switch self {
         case .unsupportedImage(let path):
             return "Unsupported image attachment: \(path)"
+        case .appShotWriteCleanupFailed(let writeError, let cleanupError):
+            return "Failed to store the app-shot screenshot: \(writeError) Partial-file cleanup also failed: \(cleanupError)"
         }
     }
 }

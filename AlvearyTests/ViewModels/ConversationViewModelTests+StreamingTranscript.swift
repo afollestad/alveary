@@ -13,6 +13,8 @@ extension ConversationViewModelTests {
 
         fixture.viewModel.activateViewLifecycle()
         fixture.viewModel.activateViewLifecycle()
+        XCTAssertTrue(fixture.viewModel.state.isViewMounted)
+        XCTAssertEqual(fixture.viewModel.state.mountedViewCount, 1)
 
         try await waitUntil("view lifecycle starts a single subscription", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             let subscribeCalls = await fixture.agentsManager.subscribeCalls()
@@ -21,6 +23,8 @@ extension ConversationViewModelTests {
         }
 
         fixture.viewModel.deactivateViewLifecycle()
+        XCTAssertFalse(fixture.viewModel.state.isViewMounted)
+        XCTAssertEqual(fixture.viewModel.state.mountedViewCount, 0)
 
         try await waitUntil("view lifecycle cancels the active subscription", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             let subscriptionTerminations = await fixture.agentsManager.subscriptionTerminations()
@@ -29,6 +33,8 @@ extension ConversationViewModelTests {
         }
 
         fixture.viewModel.activateViewLifecycle()
+        XCTAssertTrue(fixture.viewModel.state.isViewMounted)
+        XCTAssertEqual(fixture.viewModel.state.mountedViewCount, 1)
 
         try await waitUntil("view lifecycle resubscribes after reactivation", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             let subscribeCalls = await fixture.agentsManager.subscribeCalls()
@@ -37,6 +43,8 @@ extension ConversationViewModelTests {
         }
 
         fixture.viewModel.deactivateViewLifecycle()
+        XCTAssertFalse(fixture.viewModel.state.isViewMounted)
+        XCTAssertEqual(fixture.viewModel.state.mountedViewCount, 0)
 
         try await waitUntil("second deactivation cancels the resubscribed stream", timeout: .seconds(1), pollInterval: .milliseconds(10)) {
             let subscriptionTerminations = await fixture.agentsManager.subscriptionTerminations()

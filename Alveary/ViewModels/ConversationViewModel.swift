@@ -409,18 +409,27 @@ final class ConversationViewModel {
     }
 
     func replaceState(with state: ConversationState) {
-        self.state.inputDraftPublishTask?.cancel()
-        self.state.inputDraftPublishTask = nil
-        self.state.hasPendingBlockInputDocumentChange = false
-        if self.state !== state {
+        let previousState = self.state
+        previousState.inputDraftPublishTask?.cancel()
+        previousState.inputDraftPublishTask = nil
+        previousState.hasPendingBlockInputDocumentChange = false
+        if previousState !== state {
             state.inputDraftPublishTask?.cancel()
             state.inputDraftPublishTask = nil
             state.hasPendingBlockInputDocumentChange = false
+            if hasActivatedViewLifecycle {
+                previousState.unregisterViewMount()
+                state.registerViewMount()
+            }
         }
         self.state = state
+        runtimeStore.bindConversationState(state, for: conversation.id)
     }
 
     isolated deinit {
+        if hasActivatedViewLifecycle {
+            state.unregisterViewMount()
+        }
         state.inputDraftPublishTask?.cancel()
         state.inputDraftPublishTask = nil
         state.hasPendingBlockInputDocumentChange = false

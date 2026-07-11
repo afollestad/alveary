@@ -22,7 +22,6 @@ struct ChatView: View {
     let transcriptTypography: TranscriptTypography
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
-    let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
     @Query private var events: [ConversationEventRecord]
@@ -108,7 +107,6 @@ struct ChatView: View {
         transcriptTypography: TranscriptTypography,
         availableProjects: [Project] = [],
         onSelectDraftProject: @escaping (String) -> Void = { _ in },
-        appShotCoordinator: AppShotCoordinator,
         appState: AppState,
         initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     ) {
@@ -130,7 +128,6 @@ struct ChatView: View {
         self.transcriptTypography = transcriptTypography
         self.availableProjects = availableProjects
         self.onSelectDraftProject = onSelectDraftProject
-        self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
 
@@ -219,9 +216,6 @@ struct ChatView: View {
             if viewModel.hasVisibleUserMessageHistory, !supportsExistingSessionGoalStart {
                 viewModel.disarmGoalModeIfNeeded()
             }
-        }
-        .onChange(of: appShotCoordinator.triggerID) { _, _ in
-            handleAppShotShortcut()
         }
         .onDisappear {
             viewModel.disarmGoalModeIfNeeded()

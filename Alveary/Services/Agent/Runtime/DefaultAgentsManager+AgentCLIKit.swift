@@ -215,13 +215,15 @@ extension DefaultAgentsManager {
         )
     }
 
-    func killWithAgentCLIKit(conversationId: String) {
+    func killWithAgentCLIKit(conversationId: String, removesConversationState: Bool = true) {
         let services = agentCLIKitServices
         closingConversationIds.insert(conversationId)
         pendingSessionRemovalIds.insert(conversationId)
         deniedToolUseIdsByConversation.removeValue(forKey: conversationId)
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
-        _ = conversationStatesStore.withLock { $0.removeValue(forKey: conversationId) }
+        if removesConversationState {
+            _ = conversationStatesStore.withLock { $0.removeValue(forKey: conversationId) }
+        }
         clearStatus(for: conversationId)
         eventBuffers[conversationId]?.allowsReplay = false
         eventBuffers[conversationId]?.acceptsLiveEvents = false
@@ -238,9 +240,16 @@ extension DefaultAgentsManager {
         }
     }
 
-    func destroyRuntimeWithAgentCLIKit(conversationId: String, timeout: Duration) async throws {
+    func destroyRuntimeWithAgentCLIKit(
+        conversationId: String,
+        timeout: Duration,
+        removesConversationState: Bool = true
+    ) async throws {
         if !closingConversationIds.contains(conversationId) {
-            killWithAgentCLIKit(conversationId: conversationId)
+            killWithAgentCLIKit(
+                conversationId: conversationId,
+                removesConversationState: removesConversationState
+            )
         }
 
         let clock = ContinuousClock()

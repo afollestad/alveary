@@ -532,6 +532,14 @@ final class MockConversationRuntimeStore: ConversationRuntimeStore {
         states[conversationId] = state
         return state
     }
+
+    func bindConversationState(_ state: ConversationState, for conversationId: String) {
+        states[conversationId] = state
+    }
+
+    func removeState(for conversationId: String) {
+        states.removeValue(forKey: conversationId)
+    }
 }
 
 actor MockWorktreeManager: WorktreeManager {
