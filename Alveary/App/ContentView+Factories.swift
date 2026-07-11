@@ -1,6 +1,29 @@
 import Foundation
 
 extension ContentView {
+    static func makeAppShotCaptureController(
+        dependencies: ContentViewDependencies,
+        appState: AppState,
+        appShotCoordinator: AppShotCoordinator,
+        sidebarViewModel: SidebarViewModel
+    ) -> AppShotCaptureController {
+        let modelContext = dependencies.modelContainer.mainContext
+        return AppShotCaptureController(
+            appState: appState,
+            modelContext: modelContext,
+            settingsService: dependencies.settingsService,
+            runtimeStore: dependencies.runtimeStore,
+            attachmentStore: dependencies.attachmentStore,
+            prepareCapture: { try await appShotCoordinator.prepareCapture() },
+            openDraft: { projectID in
+                guard let project = modelContext.resolveProject(id: projectID) else {
+                    throw SidebarViewModelError.projectMissing
+                }
+                return try await sidebarViewModel.openDraftThread(project: project).persistentModelID
+            }
+        )
+    }
+
     static func makeSidebarViewModel(dependencies: ContentViewDependencies, appState: AppState) -> SidebarViewModel {
         SidebarViewModel(
             agentsManager: dependencies.agentsManager,

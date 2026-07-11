@@ -64,6 +64,7 @@ protocol AgentsManager: Actor {
     ) async
     func cancelTurn(conversationId: String)
     func destroyRuntime(conversationId: String) async throws
+    func destroyRuntimePreservingState(conversationId: String) async throws
     func kill(conversationId: String)
     func killAll()
     func isRunning(conversationId: String) -> Bool
@@ -84,6 +85,10 @@ protocol AgentsManager: Actor {
 }
 
 extension AgentsManager {
+    func destroyRuntimePreservingState(conversationId: String) async throws {
+        try await destroyRuntime(conversationId: conversationId)
+    }
+
     func sendMessage(
         _ message: String,
         conversationId: String,

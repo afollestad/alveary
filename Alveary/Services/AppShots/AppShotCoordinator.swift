@@ -5,6 +5,35 @@ import CoreGraphics
 import Foundation
 import Observation
 
+struct PreparedAppShotCapture: Equatable, Sendable {
+    let appName: String
+    let bundleIdentifier: String
+    let windowTitle: String
+    let screenshotPNGData: Data
+    let axTreeText: String
+    let focusedElementSummary: String
+
+    func store(
+        in attachmentStore: any ConversationAttachmentStore,
+        conversationId: String
+    ) async throws -> AppShotAttachment {
+        let screenshot = try await attachmentStore.storeAppShotScreenshot(
+            screenshotPNGData,
+            conversationId: conversationId,
+            label: "Appshot screenshot.png"
+        )
+        return AppShotAttachment(
+            appName: appName,
+            bundleIdentifier: bundleIdentifier,
+            windowTitle: windowTitle,
+            screenshot: screenshot,
+            axTreeText: axTreeText,
+            focusedElementSummary: focusedElementSummary,
+            attachmentStoreRoot: attachmentStore.conversationRootDirectory(conversationId: conversationId)
+        )
+    }
+}
+
 @MainActor
 @Observable
 final class AppShotCoordinator {
@@ -57,10 +86,7 @@ final class AppShotCoordinator {
         settingsObserver = nil
     }
 
-    func captureAppShot(
-        conversationId: String,
-        attachmentStore: any ConversationAttachmentStore
-    ) async throws -> AppShotAttachment {
+    func prepareCapture() async throws -> PreparedAppShotCapture {
         guard currentSettings.enabled else {
             throw AppShotCaptureError.disabled
         }
@@ -71,19 +97,14 @@ final class AppShotCoordinator {
             throw AppShotCaptureError.noTargetWindow
         }
         let axSnapshot = try AppShotAXTreeFormatter.snapshot(for: target)
-        let screenshot = try await AppShotScreenshotCapturer.captureScreenshot(
-            for: target,
-            store: attachmentStore,
-            conversationId: conversationId
-        )
-        return AppShotAttachment(
+        let screenshotPNGData = try await AppShotScreenshotCapturer.captureScreenshotData(for: target)
+        return PreparedAppShotCapture(
             appName: target.appName,
             bundleIdentifier: target.bundleIdentifier,
             windowTitle: target.windowTitle,
-            screenshot: screenshot,
+            screenshotPNGData: screenshotPNGData,
             axTreeText: axSnapshot.treeText,
-            focusedElementSummary: axSnapshot.focusedElementSummary,
-            attachmentStoreRoot: attachmentStore.conversationRootDirectory(conversationId: conversationId)
+            focusedElementSummary: axSnapshot.focusedElementSummary
         )
     }
 

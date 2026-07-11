@@ -4,11 +4,7 @@ import Foundation
 import ScreenCaptureKit
 
 enum AppShotScreenshotCapturer {
-    static func captureScreenshot(
-        for target: AppShotWindowTarget,
-        store: any ConversationAttachmentStore,
-        conversationId: String
-    ) async throws -> LocalImageAttachment {
+    static func captureScreenshotData(for target: AppShotWindowTarget) async throws -> Data {
         guard AppShotPermission.screenRecording.isAllowed else {
             throw AppShotCaptureError.screenRecordingPermissionMissing
         }
@@ -27,12 +23,7 @@ enum AppShotScreenshotCapturer {
         guard let data = pngData(from: image) else {
             throw AppShotCaptureError.screenshotEncodingFailed
         }
-
-        return try await store.storeAppShotScreenshot(
-            data,
-            conversationId: conversationId,
-            label: "Appshot screenshot.png"
-        )
+        return data
     }
 
     private static func bestMatchingWindow(for target: AppShotWindowTarget, in windows: [SCWindow]) -> SCWindow? {

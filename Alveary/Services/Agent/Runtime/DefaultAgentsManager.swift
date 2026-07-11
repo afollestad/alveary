@@ -75,6 +75,11 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         }
     }
 
+    @MainActor
+    func bindConversationState(_ state: ConversationState, for conversationId: String) {
+        conversationStatesStore.withLock { $0[conversationId] = state }
+    }
+
     nonisolated func beginShutdown() {
         shutdownRequested.withLock { $0 = true }
         let agentCLIKitServices = agentCLIKitServices

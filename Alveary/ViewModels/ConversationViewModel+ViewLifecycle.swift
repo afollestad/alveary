@@ -8,6 +8,7 @@ extension ConversationViewModel {
 
         hasActivatedViewLifecycle = true
         hasEverActivatedViewLifecycle = true
+        state.registerViewMount()
         hydratePendingRestoreContextIfNeeded()
         hydratePendingToolApprovalIfNeeded()
         subscribe()
@@ -21,6 +22,7 @@ extension ConversationViewModel {
         }
 
         hasActivatedViewLifecycle = false
+        state.unregisterViewMount()
         subscriptionTask?.cancel()
         subscriptionTask = nil
         queueDrainTask?.cancel()

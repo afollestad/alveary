@@ -295,7 +295,6 @@ func makeClickSubmitChatView(
         loadFileCompletions: { [] },
         loadSkillCompletions: { [] },
         transcriptTypography: TranscriptTypography(),
-        appShotCoordinator: AppShotCoordinator(),
         appState: AppState(),
         initialAskUserQuestionOverlayStates: initialAskUserQuestionOverlayStates
     )
