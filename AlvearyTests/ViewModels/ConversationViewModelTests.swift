@@ -302,6 +302,7 @@ struct ConversationViewModelTestFixture {
         threadName: String = "Thread",
         conversationTitle: String? = nil,
         threadHasCustomName: Bool = false,
+        isDraft: Bool = false,
         useWorktree: Bool = false,
         hasCompletedInitialSetup: Bool = true,
         pendingRestoreContext: String? = nil,
@@ -316,7 +317,8 @@ struct ConversationViewModelTestFixture {
         initialAgentIsRunning: Bool? = nil,
         providerId: String = "claude",
         attachmentStore: (any ConversationAttachmentStore)? = nil,
-        threadActivityRecorder: (any ThreadActivityRecording)? = nil
+        threadActivityRecorder: (any ThreadActivityRecording)? = nil,
+        draftMaterializationSaver: (() throws -> Void)? = nil
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
         let project = Self.makeProject(isGitRepository: projectIsGitRepository)
@@ -325,6 +327,7 @@ struct ConversationViewModelTestFixture {
             hasCustomName: threadHasCustomName,
             hasCompletedInitialSetup: hasCompletedInitialSetup,
             useWorktree: useWorktree,
+            isDraft: isDraft,
             project: project
         )
         let conversation = Conversation(title: conversationTitle, provider: providerId, thread: thread)
@@ -359,7 +362,8 @@ struct ConversationViewModelTestFixture {
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
             attachmentStore: attachmentStore ?? DefaultConversationAttachmentStore(),
-            threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder()
+            threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
+            draftMaterializationSaver: draftMaterializationSaver
         )
         self.container = container; self.context = context; self.project = project; self.thread = thread
         self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore

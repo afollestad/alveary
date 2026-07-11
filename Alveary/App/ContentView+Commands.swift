@@ -2,6 +2,82 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+enum NewThreadCommandPresentation {
+    static let noProjectMessage = "Add a project before starting a new thread."
+}
+
+struct NewThreadProjectResolution {
+    let project: Project?
+    let lastActiveProjectPath: String?
+
+    init(project: Project?) {
+        self.project = project
+        self.lastActiveProjectPath = project?.path
+    }
+}
+
+@MainActor
+enum NewThreadProjectResolver {
+    static func resolve(
+        selection: SidebarItem?,
+        previousSelection: AppState.SidebarBookmark?,
+        lastActiveProjectPath: String?,
+        modelContext: ModelContext
+    ) -> NewThreadProjectResolution {
+        if let current = currentProject(
+            selection: selection,
+            previousSelection: previousSelection,
+            modelContext: modelContext
+        ) {
+            return NewThreadProjectResolution(project: current)
+        }
+
+        if let lastActiveProjectPath,
+           let lastActive = project(path: lastActiveProjectPath, modelContext: modelContext) {
+            return NewThreadProjectResolution(project: lastActive)
+        }
+
+        let descriptor = FetchDescriptor<Project>()
+        let fallback = ((try? modelContext.fetch(descriptor)) ?? []).sorted(by: areProjectsOrdered).first
+        return NewThreadProjectResolution(project: fallback)
+    }
+
+    static func currentProject(
+        selection: SidebarItem?,
+        previousSelection: AppState.SidebarBookmark?,
+        modelContext: ModelContext
+    ) -> Project? {
+        switch selection {
+        case .project(let project):
+            return modelContext.resolveProject(id: project.persistentModelID)
+        case .thread(let thread):
+            return modelContext.resolveThread(id: thread.persistentModelID)?.project
+        case .settings:
+            guard let previousSelection else {
+                return nil
+            }
+
+            switch previousSelection {
+            case .projectPath(let path):
+                return project(path: path, modelContext: modelContext)
+            case .threadId(let id):
+                return modelContext.resolveThread(id: id)?.project
+            case .skills, .mcp:
+                return nil
+            }
+        case .skills, .mcp, nil:
+            return nil
+        }
+    }
+
+    private static func project(path: String, modelContext: ModelContext) -> Project? {
+        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
+            project.path == path
+        })
+        return try? modelContext.fetch(descriptor).first
+    }
+}
+
 extension ContentView {
     func handlePendingCommand(_ command: AppState.CommandRequest?) {
         guard let command else {
@@ -63,12 +139,13 @@ extension ContentView {
     }
 
     func handleNewThreadCommand(commandID: UUID) async {
-        guard let project = currentProjectContext() else {
+        guard let project = resolvedNewThreadProject() else {
+            appState.presentUnexpectedError(message: NewThreadCommandPresentation.noProjectMessage)
             return
         }
 
         do {
-            let createdThread = try await sidebarViewModel.createThread(project: project)
+            let createdThread = try await sidebarViewModel.openDraftThread(project: project)
             guard appState.pendingCommand?.id == commandID else {
                 return
             }
@@ -83,28 +160,28 @@ extension ContentView {
         }
     }
 
-    func currentProjectContext() -> Project? {
-        switch appState.selectedSidebarItem {
-        case .project(let project):
-            return project
-        case .thread(let thread):
-            return thread.project
-        case .settings:
-            guard let bookmark = appState.previousSelection else {
-                return nil
-            }
+    func resolvedNewThreadProject() -> Project? {
+        let resolution = NewThreadProjectResolver.resolve(
+            selection: appState.selectedSidebarItem,
+            previousSelection: appState.previousSelection,
+            lastActiveProjectPath: settingsService.current.lastActiveProjectPath,
+            modelContext: uiModelContext
+        )
+        settingsService.updateLastActiveProjectPath(resolution.lastActiveProjectPath)
+        return resolution.project
+    }
 
-            switch bookmark {
-            case .projectPath(let path):
-                return resolveProject(path: path)
-            case .threadId(let id):
-                return uiModelContext.resolveThread(id: id)?.project
-            case .skills, .mcp:
-                return nil
-            }
+    func recordLastActiveProject(for selection: SidebarItem?) {
+        let path: String?
+        switch selection {
+        case .project(let project):
+            path = uiModelContext.resolveProject(id: project.persistentModelID)?.path
+        case .thread(let thread):
+            path = uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path
         default:
-            return nil
+            return
         }
+        settingsService.updateLastActiveProjectPath(path)
     }
 
     func importProjectFromDisk() async {

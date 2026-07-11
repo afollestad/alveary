@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let agentsManager: any AgentsManager
         let providerDetection: any ProviderDetectionService
         let sessionManager: any SessionManager
+        let attachmentStore: any ConversationAttachmentStore
         let shellRunner: any ShellRunner
         let modelContainer: ModelContainer
         let notificationRouter: NotificationRouter
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 agentsManager: component.agentsManager,
                 providerDetection: component.providerDetectionService,
                 sessionManager: component.sessionManager,
+                attachmentStore: component.conversationAttachmentStore,
                 shellRunner: component.shellRunner,
                 modelContainer: component.modelContainer,
                 notificationRouter: component.notificationRouter,
@@ -94,11 +96,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         removeObservers()
 
         UNUserNotificationCenter.current().delegate = notificationTapDelegate
+        let staleDraftConversationIDs = removeStaleDraftThreads()
 
         startupTask?.cancel()
         startupTask = Task { [weak self] in
             guard let self else {
                 return
+            }
+
+            for conversationID in staleDraftConversationIDs {
+                await dependencies.attachmentStore.removeConversationDirectory(conversationId: conversationID)
             }
 
             await dependencies.sessionManager.load()
@@ -135,6 +142,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         updateSuddenTerminationState()
+    }
+
+    func removeStaleDraftThreads(
+        persist: (ModelContext) throws -> Void = { try $0.save() }
+    ) -> [String] {
+        let modelContext = dependencies.modelContainer.mainContext
+        let descriptor = FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
+            thread.isDraft == true
+        })
+
+        do {
+            if modelContext.hasChanges {
+                try modelContext.save()
+            }
+            let drafts = try modelContext.fetch(descriptor)
+            let conversationIDs = drafts.flatMap { draft in
+                draft.conversations.map(\.id)
+            }
+            for draft in drafts {
+                modelContext.delete(draft)
+            }
+            if !drafts.isEmpty {
+                try persist(modelContext)
+            }
+            return conversationIDs
+        } catch {
+            modelContext.rollback()
+            print("[AppDelegate] Failed to remove stale draft threads: \(error)")
+            return []
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

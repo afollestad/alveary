@@ -2,6 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func setupHiddenInitialRuntimeIfNeeded() async throws {
+        try materializeDraftWithoutMessageIfNeeded()
         guard needsSetup else {
             return
         }

@@ -13,7 +13,8 @@ func openConversationInAppState(
 
     guard let conversation = try? modelContext.fetch(descriptor).first,
           let thread = conversation.thread,
-          thread.archivedAt == nil else {
+          thread.archivedAt == nil,
+          !thread.isDraft else {
         return
     }
 
@@ -45,7 +46,11 @@ func makeActiveConversationProvider(for appState: AppState, modelContext: ModelC
         guard let appState else {
             return nil
         }
-        guard case .thread(let thread) = appState.selectedSidebarItem else {
+        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+              let thread = modelContext.resolveThread(id: selectedThread.persistentModelID) else {
+            return nil
+        }
+        guard !thread.isDraft else {
             return nil
         }
         return selectedConversation(in: thread, modelContext: modelContext, appState: appState)?.id

@@ -6,6 +6,21 @@ import XCTest
 
 @MainActor
 final class ThreadActivityRecorderTests: XCTestCase {
+    func testDraftThreadIgnoresVisibleActivity() throws {
+        let fixture = try ThreadActivityRecorderFixture()
+        let draft = fixture.insertThread(
+            name: "Draft",
+            modifiedAt: nil,
+            conversationIDs: ["draft-main"],
+            isDraft: true
+        )
+        try fixture.save()
+
+        fixture.recorder.recordVisibleOutbound(conversationId: "draft-main")
+
+        XCTAssertNil(draft.modifiedAt)
+    }
+
     func testVisibleOutboundUpdatesThreadAndPostsPayload() async throws {
         let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
         let fixture = try ThreadActivityRecorderFixture(clock: clock)
@@ -223,9 +238,10 @@ private final class ThreadActivityRecorderFixture {
         name: String,
         modifiedAt: Date?,
         conversationIDs: [String],
-        isPinned: Bool = false
+        isPinned: Bool = false,
+        isDraft: Bool = false
     ) -> AgentThread {
-        let thread = AgentThread(name: name, isPinned: isPinned, modifiedAt: modifiedAt, project: project)
+        let thread = AgentThread(name: name, isPinned: isPinned, isDraft: isDraft, modifiedAt: modifiedAt, project: project)
         thread.conversations = conversationIDs.enumerated().map { index, id in
             Conversation(
                 id: id,

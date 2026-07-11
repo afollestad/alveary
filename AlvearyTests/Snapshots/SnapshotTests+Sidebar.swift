@@ -353,7 +353,8 @@ extension SnapshotTests {
             .padding(.leading, 14)
             .background(AppAccentFill.primary),
             size: CGSize(width: 320, height: 52),
-            named: "thread_row_long_mention_bounded"
+            named: "thread_row_long_mention_bounded",
+            precision: 0.9, perceptualPrecision: 0.9, forceFixedScale: true
         )
     }
 

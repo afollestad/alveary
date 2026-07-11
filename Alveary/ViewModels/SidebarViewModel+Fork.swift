@@ -44,6 +44,9 @@ private extension SidebarViewModel {
         mode: SidebarThreadForkMode
     ) throws -> ThreadForkSourceSnapshot {
         let dbThread = try requireThread(thread)
+        guard !dbThread.isDraft else {
+            throw SidebarViewModelError.threadForkUnavailable("Start the thread before forking it")
+        }
         guard let project = dbThread.project else {
             throw SidebarViewModelError.threadMissingParentProject
         }

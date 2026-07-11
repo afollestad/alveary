@@ -46,19 +46,39 @@ extension ConversationViewModel {
         guard let dbConversation = dbConversation() else {
             throw AgentError.spawnFailed("Conversation no longer exists")
         }
+        let materializedThread = dbConversation.thread?.isDraft == true ? dbConversation.thread : nil
+        if materializedThread != nil {
+            try flushPendingChangesBeforeDraftSave()
+        }
 
         let restoresConversationTitle = !dbConversation.isMain
         let metadata = LocalUserMessageAttemptMetadata(
             restoresConversationTitle: restoresConversationTitle,
             conversationTitle: restoresConversationTitle ? dbConversation.title : nil
         )
+        let previousAppShotTitleFallback = state.appShotProviderSessionTitleFallback
         let localUserMessageID = insertLocalUserMessage(
             outbound.visibleText,
             into: dbConversation,
             imageAttachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
-            appShots: outbound.appShots
+            appShots: outbound.appShots,
+            schedulesSave: materializedThread == nil
         ).id
+
+        if let materializedThread {
+            materializedThread.isDraft = false
+            do {
+                try draftMaterializationSaver()
+            } catch {
+                materializedThread.isDraft = true // Restore the identity-map value before SwiftData discards the failed transaction.
+                modelContext.rollback()
+                state.appShotProviderSessionTitleFallback = previousAppShotTitleFallback
+                rebuildChatItemsIfNeeded(from: conversationEventRecords(), forceFullRebuild: true)
+                throw error
+            }
+            publishDraftMaterialized(thread: materializedThread, conversation: dbConversation)
+        }
 
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
             state.stagedContext = nil

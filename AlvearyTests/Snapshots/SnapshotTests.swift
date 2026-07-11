@@ -5,6 +5,52 @@ import SwiftUI
 
 @MainActor
 final class SnapshotTests: XCTestCase {
+    func testExplicitFixedScaleSnapshotKeepsCallerPrecision() {
+        XCTAssertEqual(
+            fixedScaleSnapshotComparisonPrecision(
+                precision: 0.99,
+                perceptualPrecision: 0.98,
+                relaxesForAutomaticOneXFallback: false
+            ),
+            SnapshotComparisonPrecision(pixel: 0.99, perceptual: 0.98)
+        )
+    }
+
+    func testAutomaticOneXSnapshotFallbackRelaxesPrecision() {
+        XCTAssertEqual(
+            fixedScaleSnapshotComparisonPrecision(
+                precision: 0.99,
+                perceptualPrecision: 0.98,
+                relaxesForAutomaticOneXFallback: true
+            ),
+            SnapshotComparisonPrecision(pixel: 0.9, perceptual: 0.9)
+        )
+    }
+
+    func testEnvironmentForcedSnapshotRendererUsesAutomaticFallbackTolerance() {
+        XCTAssertTrue(usesAutomaticOneXFallback(
+            forceFixedScale: false,
+            isFixedScaleRendererForced: true,
+            screenScale: 2
+        ))
+    }
+
+    func testOneXScreenUsesAutomaticFallbackTolerance() {
+        XCTAssertTrue(usesAutomaticOneXFallback(
+            forceFixedScale: false,
+            isFixedScaleRendererForced: false,
+            screenScale: 1
+        ))
+    }
+
+    func testPerCallFixedScaleSnapshotDoesNotUseAutomaticFallbackTolerance() {
+        XCTAssertFalse(usesAutomaticOneXFallback(
+            forceFixedScale: true,
+            isFixedScaleRendererForced: true,
+            screenScale: 1
+        ))
+    }
+
     func testAppTextEditorInlineHint() {
         let text = "/review-github-pr "
         let selection = TextSelection(insertionPoint: text.endIndex)

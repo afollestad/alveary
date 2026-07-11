@@ -7,15 +7,15 @@ func threadDeleteConfirmationMessage(for thread: AgentThread) -> String {
 
 extension SidebarView {
     func createThread(in project: Project) async {
-        let projectPath = project.path
-
         do {
-            let createdThread = try await viewModel.createThread(project: project)
+            let createdThread = try await viewModel.openDraftThread(project: project)
             guard let resolvedThread = uiModelContext.resolveThread(id: createdThread.persistentModelID) else {
                 return
             }
 
-            expandedProjects.insert(projectPath)
+            if let projectPath = resolvedThread.project?.path {
+                expandedProjects.insert(projectPath)
+            }
             appState.requestComposerFocus()
             appState.selectedSidebarItem = .thread(resolvedThread)
         } catch {

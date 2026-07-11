@@ -15,6 +15,7 @@ struct SidebarTestFixture {
     let worktreeManager: SidebarMockWorktreeManager
     let settingsService: InMemorySettingsService
     let providerSessionActions: RecordingProviderSessionActionService
+    let attachmentStore: RecordingConversationAttachmentStore
     let unexpectedErrors: RecordingUnexpectedErrors
     let notificationManager: RecordingNotificationManager
     let viewModel: SidebarViewModel
@@ -24,8 +25,13 @@ struct SidebarTestFixture {
         gitHubAuthenticated: Bool = false,
         defaultEffort: String = AppSettings.defaultEffortLevel,
         defaultModel: String = AppSettings.defaultModelValue,
-        createWorktreeByDefault: Bool = false, providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
+        createWorktreeByDefault: Bool = false,
+        providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
+        attachmentStore: RecordingConversationAttachmentStore = RecordingConversationAttachmentStore(),
+        saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -51,6 +57,7 @@ struct SidebarTestFixture {
         settings.createWorktreeByDefault = createWorktreeByDefault
         settingsService = InMemorySettingsService(current: settings)
         self.providerSessionActions = providerSessionActions
+        self.attachmentStore = attachmentStore
         self.unexpectedErrors = unexpectedErrors
         notificationManager = RecordingNotificationManager()
 
@@ -59,8 +66,14 @@ struct SidebarTestFixture {
             modelContext: context,
             shell: shell,
             gitHubCLI: gitHubCLI,
-            worktreeManager: worktreeManager, settingsService: settingsService, providerDiscovery: providerDiscovery,
+            worktreeManager: worktreeManager,
+            settingsService: settingsService,
+            providerDiscovery: providerDiscovery,
             providerSessionActions: providerSessionActions,
+            attachmentStore: attachmentStore,
+            saveDraftProjectMove: saveDraftProjectMove,
+            saveDeletionCommit: saveDeletionCommit,
+            saveThreadCreation: saveThreadCreation,
             presentUnexpectedError: { [unexpectedErrors] message in
                 unexpectedErrors.present(message)
             },
@@ -84,6 +97,7 @@ struct SidebarTestFixture {
         worktreePath: String? = nil,
         hasCompletedInitialSetup: Bool = false,
         useWorktree: Bool = false,
+        isDraft: Bool = false,
         archivedAt: Date? = nil,
         provider: String = "claude",
         providerSessionId: String? = nil,
@@ -99,6 +113,7 @@ struct SidebarTestFixture {
             worktreePath: worktreePath,
             hasCompletedInitialSetup: hasCompletedInitialSetup,
             useWorktree: useWorktree,
+            isDraft: isDraft,
             modifiedAt: modifiedAt,
             archivedAt: archivedAt,
             project: project
@@ -470,29 +485,4 @@ final class SidebarMockGitHubCLIService: GitHubCLIService, @unchecked Sendable {
     }
 
     func cancelAuthentication() {}
-}
-
-final class SidebarLockedStatusStore: @unchecked Sendable {
-    private let lock = NSLock()
-    private var values: [String: ActivitySignal] = [:]
-
-    func set(_ status: ActivitySignal, for conversationId: String) {
-        lock.lock()
-        values[conversationId] = status
-        lock.unlock()
-    }
-
-    func status(for conversationId: String) -> ActivitySignal {
-        lock.lock()
-        let status = values[conversationId] ?? .neutral
-        lock.unlock()
-        return status
-    }
-
-    func snapshot() -> [String: ActivitySignal] {
-        lock.lock()
-        let snapshot = values
-        lock.unlock()
-        return snapshot
-    }
 }

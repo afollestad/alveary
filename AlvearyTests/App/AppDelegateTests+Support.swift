@@ -14,9 +14,14 @@ struct AppDelegateTestFixture {
     let sessionManager = AppDelegateMockSessionManager()
     let agentsManager = AppDelegateMockAgentsManager()
     let modelContainer: ModelContainer
+    let attachmentRoot: URL
+    let attachmentStore: DefaultConversationAttachmentStore
 
     init() throws {
         modelContainer = try Self.makeModelContainer()
+        attachmentRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-app-delegate-tests-\(UUID().uuidString)", isDirectory: true)
+        attachmentStore = DefaultConversationAttachmentStore(rootDirectory: attachmentRoot)
     }
 
     func insertConversations(_ ids: [String]) throws {
@@ -53,6 +58,7 @@ struct AppDelegateTestFixture {
                 agentsManager: agentsManager,
                 providerDetection: providerDetection,
                 sessionManager: sessionManager,
+                attachmentStore: attachmentStore,
                 shellRunner: shellRunner,
                 modelContainer: modelContainer,
                 notificationRouter: NotificationRouter(),

@@ -27,8 +27,8 @@ extension ThreadDetailView {
             providerId: context.providerID,
             workingDirectory: context.canonicalProjectPath
         )
-        guard isVisibleThreadContext(context) else {
-            isCheckingProjectTrust = false
+        guard !Task.isCancelled,
+              isVisibleThreadContext(context) else {
             return
         }
 
@@ -43,12 +43,16 @@ extension ThreadDetailView {
                 providerId: context.providerID,
                 workingDirectory: context.canonicalProjectPath
             )
+            guard !Task.isCancelled,
+                  isVisibleThreadContext(context) else {
+                return
+            }
             let isTrustedAfterWrite = await providerSetup.isTrustedProject(
                 providerId: context.providerID,
                 workingDirectory: context.canonicalProjectPath
             )
-            guard isVisibleThreadContext(context) else {
-                isCheckingProjectTrust = false
+            guard !Task.isCancelled,
+                  isVisibleThreadContext(context) else {
                 return
             }
 
@@ -67,7 +71,8 @@ extension ThreadDetailView {
 
     @MainActor
     func trustProject(_ prompt: ProjectTrustPrompt) async {
-        guard isVisibleThreadContext(prompt) else {
+        guard !Task.isCancelled,
+              isVisibleThreadContext(prompt) else {
             return
         }
 
@@ -76,8 +81,8 @@ extension ThreadDetailView {
             providerId: prompt.providerID,
             workingDirectory: prompt.canonicalProjectPath
         )
-        guard isVisibleThreadContext(prompt) else {
-            isCheckingProjectTrust = false
+        guard !Task.isCancelled,
+              isVisibleThreadContext(prompt) else {
             return
         }
 
@@ -85,8 +90,8 @@ extension ThreadDetailView {
             providerId: prompt.providerID,
             workingDirectory: prompt.canonicalProjectPath
         )
-        guard isVisibleThreadContext(prompt) else {
-            isCheckingProjectTrust = false
+        guard !Task.isCancelled,
+              isVisibleThreadContext(prompt) else {
             return
         }
 
@@ -166,11 +171,23 @@ extension ThreadDetailView {
     func isVisibleThreadContext(_ prompt: ProjectTrustPrompt) -> Bool {
         guard thread.persistentModelID == prompt.threadID,
               case .thread(let selectedThread) = appState.selectedSidebarItem,
-              selectedThread.persistentModelID == prompt.threadID else {
+              selectedThread.persistentModelID == prompt.threadID,
+              let liveThread = modelContext.resolveThread(id: prompt.threadID) else {
             return false
         }
 
-        return true
+        let conversations = ThreadDetailConversationResolver.resolve(
+            thread: liveThread,
+            selectedConversationID: appState.selectedConversationIDs[prompt.threadID],
+            modelContext: modelContext
+        )
+        guard let selectedConversation = appState.selectedConversation(
+            in: liveThread,
+            conversations: conversations
+        ) else {
+            return false
+        }
+        return projectTrustContext(for: selectedConversation) == prompt
     }
 
     func cachedProjectTrustStatus(for prompt: ProjectTrustPrompt) -> Bool? {

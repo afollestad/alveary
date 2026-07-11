@@ -39,6 +39,7 @@ final class ConversationViewModel {
     @ObservationIgnored var promptDismissalSuppressedApprovals: [ToolApprovalRequest] = []
     @ObservationIgnored var promptDismissalHandledApprovalKeys: Set<ClaudeToolApprovalKey> = []
     @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?
+    @ObservationIgnored var draftMaterializationSaver: () throws -> Void
 
     var streamingText: String? { state.streamingText }
     var thoughtText: String? { state.thoughtText }
@@ -107,7 +108,8 @@ final class ConversationViewModel {
         providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
-        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
+        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
+        draftMaterializationSaver: (() throws -> Void)? = nil
     ) {
         self.conversation = conversation
         self.agentsManager = agentsManager
@@ -121,6 +123,7 @@ final class ConversationViewModel {
         self.contextWindowCache = contextWindowCache
         self.attachmentStore = attachmentStore
         self.threadActivityRecorder = threadActivityRecorder
+        self.draftMaterializationSaver = draftMaterializationSaver ?? { try modelContext.save() }
         self.state = runtimeStore.conversationState(for: conversation.id)
         if self.state.runtimePlanModeEnabled == nil {
             self.state.runtimePlanModeEnabled = conversation.thread?.planModeEnabled ?? false

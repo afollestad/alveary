@@ -18,7 +18,7 @@ extension SidebarView {
         let isDown = key == .downArrow
         guard let next = navigateVertically(
             in: items,
-            from: appState.selectedSidebarItem,
+            from: effectiveSidebarSelection(appState.selectedSidebarItem),
             forward: isDown
         ) else {
             return items.isEmpty ? .ignored : .handled
@@ -82,10 +82,11 @@ extension SidebarView {
     }
 
     func handleHorizontalArrow(_ key: KeyEquivalent) -> KeyPress.Result {
+        let selection = effectiveSidebarSelection(appState.selectedSidebarItem)
         switch key {
         case .leftArrow:
             if shouldNavigateUpOnLeftArrow(
-                selection: appState.selectedSidebarItem,
+                selection: selection,
                 expandedProjects: expandedProjects,
                 projectHasVisibleThreads: { project in
                     !activeThreads(for: project).isEmpty
@@ -94,20 +95,20 @@ extension SidebarView {
                 return handleVerticalArrow(.upArrow)
             }
 
-            guard case .project(let project) = appState.selectedSidebarItem else {
+            guard case .project(let project) = selection else {
                 return .ignored
             }
             expandedProjects.remove(project.path)
             return .handled
         case .rightArrow:
             if shouldNavigateDownOnRightArrow(
-                selection: appState.selectedSidebarItem,
+                selection: selection,
                 expandedProjects: expandedProjects
             ) {
                 return handleVerticalArrow(.downArrow)
             }
 
-            guard case .project(let project) = appState.selectedSidebarItem else {
+            guard case .project(let project) = selection else {
                 return .ignored
             }
             expandedProjects.insert(project.path)
@@ -116,6 +117,15 @@ extension SidebarView {
             return .ignored
         }
     }
+}
+
+func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
+    guard case .thread(let thread) = selection,
+          thread.isDraft,
+          let project = thread.project else {
+        return selection
+    }
+    return .project(project)
 }
 
 func shouldNavigateUpOnLeftArrow(
@@ -168,7 +178,7 @@ func threadCleanupConfirmation(
     for selection: SidebarItem?,
     action: ThreadCleanupAction
 ) -> SidebarThreadCleanupConfirmation? {
-    guard case .thread(let thread) = selection else {
+    guard case .thread(let thread) = selection, !thread.isDraft else {
         return nil
     }
 
@@ -185,7 +195,8 @@ func renameThreadID(
     editingThreadID: PersistentIdentifier?
 ) -> PersistentIdentifier? {
     guard editingThreadID == nil,
-          case .thread(let thread) = selection else {
+          case .thread(let thread) = selection,
+          !thread.isDraft else {
         return nil
     }
 

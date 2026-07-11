@@ -1,8 +1,79 @@
+import Foundation
 import SwiftUI
+
+struct EmptyThreadProjectOption {
+    let project: Project
+    let showsDisambiguatingPath: Bool
+    let isSelected: Bool
+
+    var displayPath: String {
+        (project.path as NSString).abbreviatingWithTildeInPath
+    }
+}
+
+struct EmptyThreadProjectIdentityPresentation: Equatable {
+    let helpText: String
+    let accessibilityValue: String
+}
+
+@MainActor
+func emptyThreadProjectOptions(
+    projects: [Project],
+    selectedProjectPath: String?
+) -> [EmptyThreadProjectOption] {
+    let sortedProjects = projects.sorted { lhs, rhs in
+        let comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+        if comparison != .orderedSame {
+            return comparison == .orderedAscending
+        }
+        return lhs.path < rhs.path
+    }
+
+    return sortedProjects.map { project in
+        EmptyThreadProjectOption(
+            project: project,
+            showsDisambiguatingPath: sortedProjects.contains { candidate in
+                candidate.persistentModelID != project.persistentModelID &&
+                    candidate.name.localizedCaseInsensitiveCompare(project.name) == .orderedSame
+            },
+            isSelected: project.path == selectedProjectPath
+        )
+    }
+}
+
+func emptyThreadProjectIdentityPresentation(
+    name: String,
+    path: String?
+) -> EmptyThreadProjectIdentityPresentation {
+    guard let path else {
+        return EmptyThreadProjectIdentityPresentation(helpText: name, accessibilityValue: name)
+    }
+    return EmptyThreadProjectIdentityPresentation(
+        helpText: "\(name)\n\(path)",
+        accessibilityValue: "\(name), \(path)"
+    )
+}
 
 struct EmptyThreadState: View {
     let setupPhase: SetupPhase?
     let isCancellingInitialSetup: Bool
+    let thread: AgentThread?
+    let projects: [Project]
+    let onSelectProject: (String) -> Void
+
+    init(
+        setupPhase: SetupPhase?,
+        isCancellingInitialSetup: Bool,
+        thread: AgentThread? = nil,
+        projects: [Project] = [],
+        onSelectProject: @escaping (String) -> Void = { _ in }
+    ) {
+        self.setupPhase = setupPhase
+        self.isCancellingInitialSetup = isCancellingInitialSetup
+        self.thread = thread
+        self.projects = projects
+        self.onSelectProject = onSelectProject
+    }
 
     var body: some View {
         Group {
@@ -31,15 +102,147 @@ struct EmptyThreadState: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                EmptyStateView(
-                    icon: "sparkles",
-                    heading: "Let’s build",
-                    subtext: "Ask your agent to explore the project, make changes, or explain what it finds. " +
-                        "Your first message will start the session.",
-                    actions: []
-                )
+                newThreadHero
             }
         }
+    }
+}
+
+private extension EmptyThreadState {
+    var projectOptions: [EmptyThreadProjectOption] {
+        emptyThreadProjectOptions(projects: projects, selectedProjectPath: projectPath)
+    }
+
+    var projectName: String {
+        thread?.project?.name ?? "this project"
+    }
+
+    var projectPath: String? {
+        thread?.project?.path
+    }
+
+    var projectIdentityPresentation: EmptyThreadProjectIdentityPresentation {
+        emptyThreadProjectIdentityPresentation(name: projectName, path: projectPath)
+    }
+
+    var newThreadHero: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 42, weight: .semibold))
+                .foregroundStyle(.tint)
+
+            VStack(spacing: 12) {
+                ViewThatFits(in: .horizontal) {
+                    oneLineProjectQuestion
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    twoLineProjectQuestion
+                        .fixedSize(horizontal: true, vertical: false)
+
+                    truncatedTwoLineProjectQuestion
+                }
+                .font(.title.weight(.semibold))
+                .multilineTextAlignment(.center)
+
+                Text(
+                    "Ask your agent to explore the project, make changes, or explain what it finds. " +
+                        "Your first message will start the session."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 560)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+    }
+
+    @ViewBuilder
+    var projectHeading: some View {
+        if thread?.isDraft == true, projectPath != nil {
+            Menu {
+                ForEach(projectOptions, id: \.project.persistentModelID) { option in
+                    Button {
+                        onSelectProject(option.project.path)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.project.name)
+                                if option.showsDisambiguatingPath {
+                                    Text(option.displayPath)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if option.isSelected {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                projectNameLabel(isUnderlined: true)
+            }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .help(projectIdentityPresentation.helpText)
+            .accessibilityLabel("Project")
+            .accessibilityValue(projectIdentityPresentation.accessibilityValue)
+        } else {
+            projectNameLabel(isUnderlined: false)
+                .help(projectIdentityPresentation.helpText)
+                .accessibilityLabel("Project")
+                .accessibilityValue(projectIdentityPresentation.accessibilityValue)
+        }
+    }
+
+    var oneLineProjectQuestion: some View {
+        HStack(spacing: 0) {
+            Text("What should we build in")
+            projectHeading
+                .padding(.leading, 8)
+            Text("?")
+        }
+    }
+
+    var twoLineProjectQuestion: some View {
+        VStack(spacing: 2) {
+            Text("What should we build in")
+            HStack(spacing: 0) {
+                projectHeading
+                Text("?")
+            }
+        }
+    }
+
+    var truncatedTwoLineProjectQuestion: some View {
+        VStack(spacing: 2) {
+            Text("What should we build in")
+            HStack(spacing: 0) {
+                projectHeading
+                    .frame(maxWidth: .infinity)
+                Text("?")
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            // The middle pane can be 420 points wide. Its 40-point horizontal
+            // padding leaves a 340-point proposal, so this cap must remain flexible
+            // rather than forcing the full 360-point ideal width.
+            .frame(maxWidth: 360)
+        }
+    }
+
+    func projectNameLabel(isUnderlined: Bool) -> some View {
+        Text(projectName)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .overlay(alignment: .bottom) {
+                if isUnderlined {
+                    Rectangle()
+                        .frame(height: 1)
+                        .offset(y: 2)
+                }
+            }
     }
 }
 

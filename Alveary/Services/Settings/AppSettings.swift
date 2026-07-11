@@ -70,9 +70,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
     var providerConfigs: [String: ProviderCustomConfig] = [:]
+    var lastActiveProjectPath: String?
     var lastOpenThreadID: PersistentIdentifier?
     var lastOpenConversationID: PersistentIdentifier?
-
     func normalized() -> AppSettings {
         var copy = self
 
@@ -87,6 +87,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.normalizeProviderConfigs()
         copy.normalizeGitDefaults()
         copy.normalizeWorktreesBaseDirectory()
+        copy.normalizeLastActiveProjectPath()
         return copy
     }
 
@@ -316,6 +317,7 @@ extension AppSettings {
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
         case providerConfigs
+        case lastActiveProjectPath
         case lastOpenThreadID
         case lastOpenConversationID
         case settingsSchemaVersion
@@ -462,6 +464,7 @@ extension AppSettings {
         lastAddProjectParentFolder = try container.decodeIfPresent(String.self, forKey: .lastAddProjectParentFolder)
         providerConfigs = try container.decodeIfPresent([String: ProviderCustomConfig].self, forKey: .providerConfigs)
             ?? providerConfigs
+        lastActiveProjectPath = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectPath)
         lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
         lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
     }
@@ -482,7 +485,6 @@ extension AppSettings {
         }
         return behavior
     }
-
     private static func normalizedAppShotShortcut(
         from container: KeyedDecodingContainer<CodingKeys>
     ) -> AppShotKeyboardShortcut {

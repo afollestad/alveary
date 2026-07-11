@@ -6,6 +6,7 @@ struct ConversationView: View {
     let conversation: Conversation
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let attachmentStore: any ConversationAttachmentStore
     let keepAwakeService: KeepAwakeService
     let modelContext: ModelContext
     let settingsService: SettingsService
@@ -23,6 +24,8 @@ struct ConversationView: View {
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
     let threadActivityRecorder: any ThreadActivityRecording
+    let availableProjects: [Project]
+    let onSelectDraftProject: (String) -> Void
     let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
@@ -61,6 +64,7 @@ struct ConversationView: View {
         conversation: Conversation,
         agentsManager: any AgentsManager,
         runtimeStore: any ConversationRuntimeStore,
+        attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         keepAwakeService: KeepAwakeService,
         modelContext: ModelContext,
         settingsService: SettingsService,
@@ -78,12 +82,15 @@ struct ConversationView: View {
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
+        availableProjects: [Project] = [],
+        onSelectDraftProject: @escaping (String) -> Void = { _ in },
         appShotCoordinator: AppShotCoordinator,
         appState: AppState
     ) {
         self.conversation = conversation
         self.agentsManager = agentsManager
         self.runtimeStore = runtimeStore
+        self.attachmentStore = attachmentStore
         self.keepAwakeService = keepAwakeService
         self.modelContext = modelContext
         self.settingsService = settingsService
@@ -101,6 +108,8 @@ struct ConversationView: View {
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
         self.threadActivityRecorder = threadActivityRecorder
+        self.availableProjects = availableProjects
+        self.onSelectDraftProject = onSelectDraftProject
         self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
@@ -124,6 +133,7 @@ struct ConversationView: View {
             worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
+            attachmentStore: attachmentStore,
             threadActivityRecorder: threadActivityRecorder
         ))
     }
@@ -152,6 +162,8 @@ struct ConversationView: View {
             ),
             loadSkillCompletions: loadSkillCompletions,
             transcriptTypography: transcriptTypography,
+            availableProjects: availableProjects,
+            onSelectDraftProject: onSelectDraftProject,
             appShotCoordinator: appShotCoordinator,
             appState: appState
         )
@@ -189,16 +201,28 @@ struct ConversationView: View {
             let threadID = thread.persistentModelID
             let baseRef = thread.project?.baseRef ?? "main"
             let remoteName = thread.project?.remoteName
-            let conversationIds = liveConversationIDs(for: threadID)
+            let allowsThreadScopedDiffSwitch = !thread.isDraft
+            let conversationIds = allowsThreadScopedDiffSwitch ? liveConversationIDs(for: threadID) : []
 
             Task {
-                await fileListManager.warmCache(for: newPath)
-                await diffViewModel.switchToDirectory(
-                    newPath,
-                    baseRef: baseRef,
-                    remoteName: remoteName,
-                    conversationIds: conversationIds,
-                    scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+                await ConversationAsyncRouting.warmFileCacheForDiffSwitch(
+                    request: .init(
+                        threadID: threadID,
+                        workingDirectory: newPath,
+                        allowsThreadScopedSwitch: allowsThreadScopedDiffSwitch
+                    ),
+                    fileListManager: fileListManager,
+                    selectedSidebarItem: { appState.selectedSidebarItem },
+                    currentWorkingDirectory: { activeWorkingDirectory },
+                    performSwitch: {
+                        await diffViewModel.switchToDirectory(
+                            newPath,
+                            baseRef: baseRef,
+                            remoteName: remoteName,
+                            conversationIds: conversationIds,
+                            scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+                        )
+                    }
                 )
             }
         }
@@ -219,14 +243,6 @@ struct ConversationView: View {
 
 private extension ConversationView {
     static let fallbackPlanModeProviderIDs: Set<String> = ["claude", "codex"]
-
-    var composerProviderStatusTaskID: String {
-        Self.composerProviderStatusCacheKey(
-            projectURL: providerDiscoveryProjectURL,
-            activeProviderID: activeProviderID,
-            settings: settingsService.current
-        )
-    }
 
     var composerReasoningConfiguration: ChatComposerActionRowView.ReasoningConfiguration {
         ChatComposerActionRowView.ReasoningConfiguration(
@@ -289,24 +305,6 @@ private extension ConversationView {
             }
             return reasoningModelGroup(for: providerID, providerTitle: providerDisplayName(for: providerID))
         }
-    }
-
-    func refreshComposerProviderStatuses() async {
-        hasLoadedComposerProviderStatuses = false
-        async let ordering = providerDiscovery.stableProviderOrdering()
-        async let statuses = providerDiscovery.providerStatuses(projectURL: providerDiscoveryProjectURL)
-        let resolvedOrdering = await ordering
-        let resolvedStatuses = await statuses
-        composerProviderOrdering = resolvedOrdering
-        composerProviderStatuses = resolvedStatuses
-        hasLoadedComposerProviderStatuses = true
-        // Thread switches create a fresh `ConversationView`; seed it from the
-        // last successful discovery result so model-scoped effort labels do not
-        // temporarily disappear while async provider discovery warms back up.
-        ComposerProviderStatusCache.store(
-            .init(ordering: resolvedOrdering, statuses: resolvedStatuses),
-            for: composerProviderStatusTaskID
-        )
     }
 
     func providerDisplayName(for providerId: AgentCLIKit.AgentProviderID) -> String {

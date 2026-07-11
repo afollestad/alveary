@@ -17,7 +17,7 @@ func resolvedLastOpenThreadSelection(
     }
 
     let threadDescriptor = FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
-        thread.persistentModelID == threadID && thread.archivedAt == nil
+        thread.persistentModelID == threadID && thread.archivedAt == nil && thread.isDraft == false
     })
 
     let conversationDescriptor = FetchDescriptor<Conversation>(predicate: #Predicate { conversation in

@@ -22,6 +22,10 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
     private var archiveDiagnostics: [ProviderSessionActionDiagnostic]
     private var unarchiveDiagnostics: [ProviderSessionActionDiagnostic]
     private var deleteDiagnostics: [ProviderSessionActionDiagnostic]
+    private let pausesResolution: Bool
+    private var didBeginResolution = false
+    private var resolutionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var resolutionContinuation: CheckedContinuation<Void, Never>?
 
     init(
         resolvedRecords: [AgentCLIKit.AgentSessionRecord] = [],
@@ -29,7 +33,8 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
         resolvedMissingBindings: [ProviderSessionActionMissingBinding] = [],
         archiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
         unarchiveDiagnostics: [ProviderSessionActionDiagnostic] = [],
-        deleteDiagnostics: [ProviderSessionActionDiagnostic] = []
+        deleteDiagnostics: [ProviderSessionActionDiagnostic] = [],
+        pausesResolution: Bool = false
     ) {
         self.resolvedRecords = resolvedRecords
         self.resolvedRecordsByConversationID = resolvedRecordsByConversationID
@@ -37,10 +42,17 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
         self.archiveDiagnostics = archiveDiagnostics
         self.unarchiveDiagnostics = unarchiveDiagnostics
         self.deleteDiagnostics = deleteDiagnostics
+        self.pausesResolution = pausesResolution
     }
 
     func resolveSessions(matching snapshot: ProviderSessionActionSnapshot) async -> ProviderSessionActionResolution {
         actions.append(.resolve(snapshot))
+        if pausesResolution {
+            didBeginResolution = true
+            resolutionWaiters.forEach { $0.resume() }
+            resolutionWaiters.removeAll()
+            await withCheckedContinuation { resolutionContinuation = $0 }
+        }
         if !resolvedRecordsByConversationID.isEmpty {
             let records = snapshot.conversationIDs.flatMap { resolvedRecordsByConversationID[$0] ?? [] }
             return ProviderSessionActionResolution(snapshot: snapshot, records: records, missingBindings: [])
@@ -65,6 +77,18 @@ actor RecordingProviderSessionActionService: ProviderSessionActionService {
         deletedRecords = resolution.records
         deletedMissingBindings = resolution.missingBindings
         return deleteDiagnostics
+    }
+
+    func waitUntilResolutionBegins() async {
+        guard !didBeginResolution else {
+            return
+        }
+        await withCheckedContinuation { resolutionWaiters.append($0) }
+    }
+
+    func resumeResolution() {
+        resolutionContinuation?.resume()
+        resolutionContinuation = nil
     }
 }
 

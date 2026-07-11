@@ -23,20 +23,49 @@ import XCTest
 private let defaultPixelPrecision: Float = 0.99
 private let defaultPerceptualPrecision: Float = 0.99
 private let appKitSnapshotScale: CGFloat = 2
-private let fixedScaleSnapshotPrecision: Float = 0.9
+// The environment override intentionally simulates this cross-renderer fallback.
+// Per-call `forceFixedScale` snapshots remain at their caller-provided precision.
+private let automaticOneXFallbackPrecision: Float = 0.9
+
+struct SnapshotComparisonPrecision: Equatable {
+    let pixel: Float
+    let perceptual: Float
+}
+
+func fixedScaleSnapshotComparisonPrecision(
+    precision: Float,
+    perceptualPrecision: Float,
+    relaxesForAutomaticOneXFallback: Bool
+) -> SnapshotComparisonPrecision {
+    guard relaxesForAutomaticOneXFallback else {
+        return SnapshotComparisonPrecision(pixel: precision, perceptual: perceptualPrecision)
+    }
+    return SnapshotComparisonPrecision(
+        pixel: min(precision, automaticOneXFallbackPrecision),
+        perceptual: min(perceptualPrecision, automaticOneXFallbackPrecision)
+    )
+}
 
 func macSnapshotImage(
     precision: Float = defaultPixelPrecision,
-    perceptualPrecision: Float = defaultPerceptualPrecision
+    perceptualPrecision: Float = defaultPerceptualPrecision,
+    forceFixedScale: Bool = false
 ) -> Snapshotting<NSViewController, NSImage> {
-    if usesNativeSnapshotRenderer {
+    if usesNativeSnapshotRenderer, !forceFixedScale {
         return .image(precision: precision, perceptualPrecision: perceptualPrecision)
     }
-    let fixedPrecision = min(precision, fixedScaleSnapshotPrecision)
-    let fixedPerceptualPrecision = min(perceptualPrecision, fixedScaleSnapshotPrecision)
+    let comparisonPrecision = fixedScaleSnapshotComparisonPrecision(
+        precision: precision,
+        perceptualPrecision: perceptualPrecision,
+        relaxesForAutomaticOneXFallback: usesAutomaticOneXFallback(
+            forceFixedScale: forceFixedScale,
+            isFixedScaleRendererForced: isFixedScaleSnapshotRendererForced,
+            screenScale: NSScreen.main?.backingScaleFactor ?? 1
+        )
+    )
     return Snapshotting(pathExtension: "png", diffing: .image(
-        precision: fixedPrecision,
-        perceptualPrecision: fixedPerceptualPrecision
+        precision: comparisonPrecision.pixel,
+        perceptualPrecision: comparisonPrecision.perceptual
     )) { controller in
         MainActor.assumeIsolated {
             renderFixedScaleSnapshotImage(for: controller.view)
@@ -45,8 +74,20 @@ func macSnapshotImage(
 }
 
 private var usesNativeSnapshotRenderer: Bool {
-    ProcessInfo.processInfo.environment["ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS"] != "true"
+    !isFixedScaleSnapshotRendererForced
         && (NSScreen.main?.backingScaleFactor ?? 1) >= appKitSnapshotScale
+}
+
+private var isFixedScaleSnapshotRendererForced: Bool {
+    ProcessInfo.processInfo.environment["ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS"] == "true"
+}
+
+func usesAutomaticOneXFallback(
+    forceFixedScale: Bool,
+    isFixedScaleRendererForced: Bool,
+    screenScale: CGFloat
+) -> Bool {
+    !forceFixedScale && (isFixedScaleRendererForced || screenScale < appKitSnapshotScale)
 }
 
 @MainActor
@@ -84,6 +125,7 @@ func assertMacSnapshot<V: View>(
     colorScheme: ColorScheme = .light,
     precision: Float = defaultPixelPrecision,
     perceptualPrecision: Float = defaultPerceptualPrecision,
+    forceFixedScale: Bool = false,
     file: StaticString = #filePath,
     testName: String = #function,
     line: UInt = #line
@@ -133,9 +175,21 @@ func assertMacSnapshot<V: View>(
     controller.view.layoutSubtreeIfNeeded()
     controller.view.displayIfNeeded()
 
+    XCTAssertEqual(
+        controller.view.bounds.size,
+        size,
+        "Snapshot host laid out at an unexpected size",
+        file: file,
+        line: line
+    )
+
     assertSnapshot(
         of: controller,
-        as: macSnapshotImage(precision: precision, perceptualPrecision: perceptualPrecision),
+        as: macSnapshotImage(
+            precision: precision,
+            perceptualPrecision: perceptualPrecision,
+            forceFixedScale: forceFixedScale
+        ),
         named: named,
         record: isRecordingSnapshots ? true : nil,
         file: file,

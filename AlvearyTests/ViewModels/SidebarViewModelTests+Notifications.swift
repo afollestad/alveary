@@ -73,7 +73,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.notificationManager.refreshBadgeCountCalls, initial + 1)
     }
 
-    func testDeleteThreadMarksEveryConversationReadBeforeSwiftDataDelete() async throws {
+    func testDeleteThreadMarksEveryConversationReadFromDeletionSnapshot() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "P",

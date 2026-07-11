@@ -15,6 +15,7 @@ These instructions cover the SwiftData models under `Alveary/Data/`.
 
 These are persistence contracts backed by SwiftData fields. Treat them as hard constraints unless the work explicitly includes a coordinated migration.
 
+- `AgentThread.isDraft` marks the one process-local provisional new-thread row. Its stored default must remain `false` so pre-field stores migrate existing threads as real. Drafts own one persisted main conversation, but no provider session, runtime, worktree, branch, setup completion, or visible events.
 - Archived-thread restore uses persisted per-conversation `pendingRestoreContext`, not provider resume. Restoring a thread should regenerate that summary from saved `ConversationEventRecord`s, hydrate it back into `ConversationState.stagedContext` when the conversation view model is recreated, send it only through the existing staged-context path on the next outbound message, and clear the persisted field when the user dismisses it or that send succeeds.
 - Restore summaries should carry actionable conversation history only. Exclude UI-only transcript notes such as session handoff markers so local recovery context does not tell a fresh provider session about Alveary display state.
 - Tool approval resolution belongs on the associated transcript row:

@@ -42,3 +42,8 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Keep unrelated approvals actionable.** A new approval should not blanket-supersede older unresolved approvals; resolving one approval should rehydrate the next unresolved approval so the composer stays blocked until all actionable approvals are handled.
   - **Do not reopen completed approvals.** A matching tool result terminalizes unresolved approval rows, and late approval events for that tool ID must not recreate pending approval UI.
 - Thread removal must route through `SidebarViewModel` lifecycle methods so runtime teardown, notification cleanup, provider-native Codex archive, worktree cleanup, and branch cleanup stay coordinated. Views that need to delete a thread, including project-trust denial flows, should receive a focused delete closure instead of calling `ModelContext.delete(_:)` on `AgentThread` directly.
+- Keep draft deletion atomic with its lifecycle boundary:
+  - Commit the SwiftData removal before the first `await` so concurrent New Thread requests cannot reuse or materialize the deleted row.
+  - Remove conversation attachment directories only after runtime teardown has been attempted, including teardown-failure paths.
+  - Before a targeted mutation that may call `ModelContext.rollback()`, synchronously save pre-existing shared-context changes.
+    A target failure must not discard unrelated pending work.
