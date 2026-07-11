@@ -31,6 +31,71 @@ enum ProjectActionTerminalPresentation {
     }
 }
 
+struct TerminalDefaultShellContext: Equatable {
+    var title = "Shell"
+    var threadID: PersistentIdentifier?
+    var threadName: String?
+    var currentDirectory: String
+}
+
+@MainActor
+enum TerminalDefaultShellContextResolver {
+    static func resolve(
+        selection: SidebarItem?,
+        modelContext: ModelContext,
+        builder: TerminalLaunchBuilder = TerminalLaunchBuilder()
+    ) -> TerminalDefaultShellContext {
+        switch selection {
+        case .thread(let selectedThread):
+            guard let thread = modelContext.resolveThread(id: selectedThread.persistentModelID),
+                  thread.archivedAt == nil else {
+                return fallback(builder: builder)
+            }
+
+            if thread.isDraft {
+                return TerminalDefaultShellContext(
+                    currentDirectory: builder.defaultShellDirectory(
+                        threadWorktreePath: nil,
+                        threadProjectPath: nil,
+                        selectedProjectPath: thread.project?.path
+                    )
+                )
+            }
+
+            return TerminalDefaultShellContext(
+                threadID: thread.persistentModelID,
+                threadName: thread.name,
+                currentDirectory: builder.defaultShellDirectory(
+                    threadWorktreePath: thread.worktreePath,
+                    threadProjectPath: thread.project?.path,
+                    selectedProjectPath: nil
+                )
+            )
+        case .project(let selectedProject):
+            let projectPath = modelContext.resolveProject(id: selectedProject.persistentModelID)?.path
+            return TerminalDefaultShellContext(
+                currentDirectory: builder.defaultShellDirectory(
+                    threadWorktreePath: nil,
+                    threadProjectPath: nil,
+                    selectedProjectPath: projectPath
+                )
+            )
+        case .skills, .mcp, .settings, nil:
+            return fallback(builder: builder)
+        }
+    }
+
+    private static func fallback(builder: TerminalLaunchBuilder) -> TerminalDefaultShellContext {
+        TerminalDefaultShellContext(
+            currentDirectory: builder.defaultShellDirectory(
+                threadWorktreePath: nil,
+                threadProjectPath: nil,
+                selectedProjectPath: nil
+            )
+        )
+    }
+}
+
 extension ContentView {
     func runProjectAction(threadID: PersistentIdentifier, action: AlvearyProjectConfig.ProjectAction) {
         guard let thread = uiModelContext.resolveThread(id: threadID),
@@ -73,7 +138,10 @@ extension ContentView {
     }
 
     func createTerminalShellSession(focus: Bool) {
-        let context = defaultTerminalShellContext()
+        let context = TerminalDefaultShellContextResolver.resolve(
+            selection: appState.selectedSidebarItem,
+            modelContext: uiModelContext
+        )
         let launchConfiguration = TerminalLaunchBuilder().shell(currentDirectory: context.currentDirectory)
         terminalManager.createSession(
             kind: .shell,
@@ -87,55 +155,4 @@ extension ContentView {
             launchConfiguration: launchConfiguration
         )
     }
-
-    private func defaultTerminalShellContext() -> TerminalDefaultShellContext {
-        let builder = TerminalLaunchBuilder()
-
-        switch appState.selectedSidebarItem {
-        case .thread(let selectedThread):
-            guard let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
-                  thread.archivedAt == nil else {
-                return TerminalDefaultShellContext(
-                    currentDirectory: builder.defaultShellDirectory(
-                        threadWorktreePath: nil,
-                        threadProjectPath: nil,
-                        selectedProjectPath: nil
-                    )
-                )
-            }
-
-            return TerminalDefaultShellContext(
-                threadID: thread.persistentModelID,
-                threadName: thread.name,
-                currentDirectory: builder.defaultShellDirectory(
-                    threadWorktreePath: thread.worktreePath,
-                    threadProjectPath: thread.project?.path,
-                    selectedProjectPath: nil
-                )
-            )
-        case .project(let project):
-            return TerminalDefaultShellContext(
-                currentDirectory: builder.defaultShellDirectory(
-                    threadWorktreePath: nil,
-                    threadProjectPath: nil,
-                    selectedProjectPath: project.path
-                )
-            )
-        case .skills, .mcp, .settings, nil:
-            return TerminalDefaultShellContext(
-                currentDirectory: builder.defaultShellDirectory(
-                    threadWorktreePath: nil,
-                    threadProjectPath: nil,
-                    selectedProjectPath: nil
-                )
-            )
-        }
-    }
-}
-
-private struct TerminalDefaultShellContext {
-    var title = "Shell"
-    var threadID: PersistentIdentifier?
-    var threadName: String?
-    var currentDirectory: String
 }

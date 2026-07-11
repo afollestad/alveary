@@ -20,6 +20,8 @@ struct ChatView: View {
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let transcriptTypography: TranscriptTypography
+    let availableProjects: [Project]
+    let onSelectDraftProject: (String) -> Void
     let appShotCoordinator: AppShotCoordinator
     @Bindable var appState: AppState
 
@@ -104,6 +106,8 @@ struct ChatView: View {
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         transcriptTypography: TranscriptTypography,
+        availableProjects: [Project] = [],
+        onSelectDraftProject: @escaping (String) -> Void = { _ in },
         appShotCoordinator: AppShotCoordinator,
         appState: AppState,
         initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
@@ -124,6 +128,8 @@ struct ChatView: View {
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.transcriptTypography = transcriptTypography
+        self.availableProjects = availableProjects
+        self.onSelectDraftProject = onSelectDraftProject
         self.appShotCoordinator = appShotCoordinator
         self.appState = appState
         _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
@@ -249,7 +255,10 @@ extension ChatView {
         case .emptyThread:
             EmptyThreadState(
                 setupPhase: viewModel.setupPhase,
-                isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup
+                isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
+                thread: conversation.thread,
+                projects: availableProjects,
+                onSelectProject: onSelectDraftProject
             )
             .transition(.opacity)
         case .transcript:

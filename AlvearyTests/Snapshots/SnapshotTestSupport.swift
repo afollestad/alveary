@@ -1,5 +1,5 @@
 import AppKit
-import SnapshotTesting
+@preconcurrency import SnapshotTesting
 import SwiftUI
 import XCTest
 
@@ -23,57 +23,279 @@ import XCTest
 private let defaultPixelPrecision: Float = 0.99
 private let defaultPerceptualPrecision: Float = 0.99
 private let appKitSnapshotScale: CGFloat = 2
-private let fixedScaleSnapshotPrecision: Float = 0.9
+// The environment override intentionally simulates this cross-renderer fallback.
+// Per-call `forceFixedScale` snapshots remain at their caller-provided precision.
+private let automaticOneXFallbackPrecision: Float = 0.9
+
+struct SnapshotComparisonPrecision: Equatable {
+    let pixel: Float
+    let perceptual: Float
+}
+
+func fixedScaleSnapshotComparisonPrecision(
+    precision: Float,
+    perceptualPrecision: Float,
+    relaxesForAutomaticOneXFallback: Bool
+) -> SnapshotComparisonPrecision {
+    guard relaxesForAutomaticOneXFallback else {
+        return SnapshotComparisonPrecision(pixel: precision, perceptual: perceptualPrecision)
+    }
+    return SnapshotComparisonPrecision(
+        pixel: min(precision, automaticOneXFallbackPrecision),
+        perceptual: min(perceptualPrecision, automaticOneXFallbackPrecision)
+    )
+}
 
 func macSnapshotImage(
     precision: Float = defaultPixelPrecision,
-    perceptualPrecision: Float = defaultPerceptualPrecision
+    perceptualPrecision: Float = defaultPerceptualPrecision,
+    forceFixedScale: Bool = false
 ) -> Snapshotting<NSViewController, NSImage> {
-    if usesNativeSnapshotRenderer {
+    if usesNativeSnapshotRenderer, !forceFixedScale {
         return .image(precision: precision, perceptualPrecision: perceptualPrecision)
     }
-    let fixedPrecision = min(precision, fixedScaleSnapshotPrecision)
-    let fixedPerceptualPrecision = min(perceptualPrecision, fixedScaleSnapshotPrecision)
-    return Snapshotting(pathExtension: "png", diffing: .image(
-        precision: fixedPrecision,
-        perceptualPrecision: fixedPerceptualPrecision
-    )) { controller in
+    let usesOneXFallback = usesAutomaticOneXFallback(
+        forceFixedScale: forceFixedScale,
+        isFixedScaleRendererForced: isFixedScaleSnapshotRendererForced,
+        screenScale: NSScreen.main?.backingScaleFactor ?? 1
+    )
+    let comparisonPrecision = fixedScaleSnapshotComparisonPrecision(
+        precision: precision,
+        perceptualPrecision: perceptualPrecision,
+        relaxesForAutomaticOneXFallback: usesOneXFallback
+    )
+    let diffing = snapshotImageDiffing(
+        precision: comparisonPrecision.pixel,
+        perceptualPrecision: comparisonPrecision.perceptual,
+        normalizesToOneX: usesOneXFallback
+    )
+    return Snapshotting(pathExtension: "png", diffing: diffing) { controller in
         MainActor.assumeIsolated {
-            renderFixedScaleSnapshotImage(for: controller.view)
+            renderFixedScaleSnapshotImage(
+                for: controller.view,
+                usesOneXFallback: usesOneXFallback
+            )
         }
     }
 }
 
 private var usesNativeSnapshotRenderer: Bool {
-    ProcessInfo.processInfo.environment["ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS"] != "true"
+    !isFixedScaleSnapshotRendererForced
         && (NSScreen.main?.backingScaleFactor ?? 1) >= appKitSnapshotScale
 }
 
+private var isFixedScaleSnapshotRendererForced: Bool {
+    ProcessInfo.processInfo.environment["ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS"] == "true"
+}
+
+func usesAutomaticOneXFallback(
+    forceFixedScale: Bool,
+    isFixedScaleRendererForced: Bool,
+    screenScale: CGFloat
+) -> Bool {
+    !forceFixedScale && (isFixedScaleRendererForced || screenScale < appKitSnapshotScale)
+}
+
 @MainActor
-private func renderFixedScaleSnapshotImage(for view: NSView) -> NSImage {
+private func renderFixedScaleSnapshotImage(
+    for view: NSView,
+    usesOneXFallback: Bool
+) -> NSImage {
     let bounds = view.bounds
     guard bounds.width > 0, bounds.height > 0 else {
         fatalError("View not renderable to image at size \(bounds.size)")
     }
+    // Direct higher-scale caching can drop lazy SwiftUI List subviews. Capture at the
+    // display's native scale so every visible row reaches the snapshot, then normalize
+    // the reference during comparison when the display can only produce a 1× image.
+    guard let sourceRep = view.bitmapImageRepForCachingDisplay(in: bounds) else {
+        fatalError("Unable to create native snapshot representation at size \(bounds.size)")
+    }
+    view.cacheDisplay(in: bounds, to: sourceRep)
+    let capturedImage = NSImage(size: bounds.size)
+    capturedImage.addRepresentation(sourceRep)
+
+    let targetPixelsWide = Int(bounds.width * appKitSnapshotScale)
+    let targetPixelsHigh = Int(bounds.height * appKitSnapshotScale)
+    if usesOneXFallback {
+        guard sourceRep.pixelsWide > Int(bounds.width) || sourceRep.pixelsHigh > Int(bounds.height),
+              let sourceImage = sourceRep.cgImage else {
+            return capturedImage
+        }
+        return renderSnapshotImage(sourceImage, in: bounds, scale: 1)
+    }
+    if sourceRep.pixelsWide == targetPixelsWide, sourceRep.pixelsHigh == targetPixelsHigh {
+        return capturedImage
+    }
+
+    guard let imageToScale = sourceRep.cgImage else {
+        fatalError("Unable to create native snapshot image at size \(bounds.size)")
+    }
+    return renderSnapshotImage(imageToScale, in: bounds, scale: appKitSnapshotScale)
+}
+
+private func snapshotImageDiffing(
+    precision: Float,
+    perceptualPrecision: Float,
+    normalizesToOneX: Bool
+) -> Diffing<NSImage> {
+    let imageDiffing = Diffing<NSImage>.image(
+        precision: precision,
+        perceptualPrecision: perceptualPrecision
+    )
+    guard normalizesToOneX else {
+        return imageDiffing
+    }
+    return .diff(
+        toData: imageDiffing.toData,
+        fromData: imageDiffing.fromData
+    ) { reference, failure in
+        MainActor.assumeIsolated {
+            let images = oneXSnapshotImagesNormalizingCornerBackground(
+                reference: reference,
+                failure: failure
+            )
+            return imageDiffing.diffV2(
+                images.reference,
+                images.failure
+            )
+        }
+    }
+}
+
+@MainActor
+func oneXSnapshotImagesNormalizingCornerBackground(
+    reference: NSImage,
+    failure: NSImage
+) -> (reference: NSImage, failure: NSImage) {
+    guard let referenceImage = oneXSnapshotImage(reference),
+          let failureImage = oneXSnapshotImage(failure) else {
+        return (reference, failure)
+    }
+    let referenceBackgroundPixel = snapshotCornerBackgroundPixel(in: referenceImage.bitmap)
+    let failureBackgroundPixel = snapshotCornerBackgroundPixel(in: failureImage.bitmap)
+    guard referenceImage.bitmap.pixelsWide == failureImage.bitmap.pixelsWide,
+          referenceImage.bitmap.pixelsHigh == failureImage.bitmap.pixelsHigh,
+          let referenceBackground = referenceBackgroundPixel,
+          let failureBackground = failureBackgroundPixel,
+          referenceBackground != failureBackground else {
+        return (
+            snapshotImage(from: referenceImage.bitmap, size: referenceImage.size),
+            snapshotImage(from: failureImage.bitmap, size: failureImage.size)
+        )
+    }
+    guard let normalizedReference = copySnapshotBitmap(referenceImage.bitmap),
+          let normalizedFailure = copySnapshotBitmap(failureImage.bitmap) else {
+        return (
+            snapshotImage(from: referenceImage.bitmap, size: referenceImage.size),
+            snapshotImage(from: failureImage.bitmap, size: failureImage.size)
+        )
+    }
+
+    replaceSnapshotPixels(
+        matching: referenceBackground,
+        with: .canonicalBackground,
+        in: normalizedReference
+    )
+    replaceSnapshotPixels(
+        matching: failureBackground,
+        with: .canonicalBackground,
+        in: normalizedFailure
+    )
+    guard let normalizedReferenceImage = snapshotImageCopyingBitmapData(
+        from: normalizedReference,
+        size: referenceImage.size
+    ),
+        let normalizedFailureImage = snapshotImageCopyingBitmapData(
+            from: normalizedFailure,
+            size: failureImage.size
+        ) else {
+        return (
+            snapshotImage(from: referenceImage.bitmap, size: referenceImage.size),
+            snapshotImage(from: failureImage.bitmap, size: failureImage.size)
+        )
+    }
+    return (normalizedReferenceImage, normalizedFailureImage)
+}
+
+@MainActor
+private func oneXSnapshotImage(_ image: NSImage) -> (bitmap: NSBitmapImageRep, size: CGSize)? {
+    guard let sourceImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        return nil
+    }
+    let bounds = CGRect(origin: .zero, size: image.size)
+    return (renderSnapshotRepresentation(sourceImage, in: bounds, scale: 1), bounds.size)
+}
+
+@MainActor
+private func renderSnapshotImage(
+    _ sourceImage: CGImage,
+    in bounds: CGRect,
+    scale: CGFloat
+) -> NSImage {
+    let bitmapRep = renderSnapshotRepresentation(sourceImage, in: bounds, scale: scale)
+    return snapshotImage(from: bitmapRep, size: bounds.size)
+}
+
+private func snapshotImage(from bitmap: NSBitmapImageRep, size: CGSize) -> NSImage {
+    let image = NSImage(size: size)
+    image.addRepresentation(bitmap)
+    return image
+}
+
+@MainActor
+private func configureSnapshotWindow(
+    _ window: NSWindow,
+    controller: NSViewController,
+    appearanceName: NSAppearance.Name
+) {
+    window.isReleasedWhenClosed = false
+    window.appearance = NSAppearance(named: appearanceName)
+    window.backgroundColor = .windowBackgroundColor
+    window.contentViewController = controller
+}
+
+@MainActor
+private func closeSnapshotWindow(_ window: NSWindow) {
+    // AppKit retains an open window after the helper returns. Detach the SwiftUI
+    // tree so its SwiftData observations cannot receive later context saves.
+    window.contentViewController = nil
+    window.contentView = nil
+    window.close()
+}
+
+@MainActor
+private func renderSnapshotRepresentation(
+    _ sourceImage: CGImage,
+    in bounds: CGRect,
+    scale: CGFloat
+) -> NSBitmapImageRep {
     guard let bitmapRep = NSBitmapImageRep(
         bitmapDataPlanes: nil,
-        pixelsWide: Int(bounds.width * appKitSnapshotScale),
-        pixelsHigh: Int(bounds.height * appKitSnapshotScale),
+        pixelsWide: Int(bounds.width * scale),
+        pixelsHigh: Int(bounds.height * scale),
         bitsPerSample: 8,
         samplesPerPixel: 4,
         hasAlpha: true,
         isPlanar: false,
         colorSpaceName: .deviceRGB,
+        bitmapFormat: [],
         bytesPerRow: 0,
         bitsPerPixel: 0
     ) else {
         fatalError("Unable to create snapshot bitmap representation at size \(bounds.size)")
     }
     bitmapRep.size = bounds.size
-    view.cacheDisplay(in: bounds, to: bitmapRep)
-    let image = NSImage(size: bounds.size)
-    image.addRepresentation(bitmapRep)
-    return image
+    guard let context = NSGraphicsContext(bitmapImageRep: bitmapRep) else {
+        fatalError("Unable to create snapshot graphics context at size \(bounds.size)")
+    }
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    context.cgContext.interpolationQuality = .high
+    context.cgContext.draw(sourceImage, in: bounds)
+    context.flushGraphics()
+    NSGraphicsContext.restoreGraphicsState()
+    return bitmapRep
 }
 
 @MainActor
@@ -84,64 +306,77 @@ func assertMacSnapshot<V: View>(
     colorScheme: ColorScheme = .light,
     precision: Float = defaultPixelPrecision,
     perceptualPrecision: Float = defaultPerceptualPrecision,
+    forceFixedScale: Bool = false,
     file: StaticString = #filePath,
     testName: String = #function,
     line: UInt = #line
 ) {
-    let isRecordingSnapshots = ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1"
-    let appearanceName: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+    autoreleasepool {
+        let isRecordingSnapshots = ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1"
+        let appearanceName: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
 
-    let rootView = view
-        .transaction { $0.animation = nil }
-        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
-        .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
-        .environment(\.layoutDirection, .leftToRight)
-        .environment(\.colorScheme, colorScheme)
-        // Spinner animations start from `onAppear` and would capture a
-        // time-dependent arc angle; the outer `transaction` override cannot
-        // suppress the spinner's own `.animation(_:value:)` modifier.
-        .environment(\.statusSpinnerAnimationsDisabled, true)
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
+        let rootView = view
+            .transaction { $0.animation = nil }
+            .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+            .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
+            .environment(\.layoutDirection, .leftToRight)
+            .environment(\.colorScheme, colorScheme)
+            // Spinner animations start from `onAppear` and would capture a
+            // time-dependent arc angle; the outer `transaction` override cannot
+            // suppress the spinner's own `.animation(_:value:)` modifier.
+            .environment(\.statusSpinnerAnimationsDisabled, true)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .background(Color(nsColor: .windowBackgroundColor))
 
-    let controller = NSHostingController(rootView: rootView)
-    controller.view.frame = CGRect(origin: .zero, size: size)
-    controller.view.appearance = NSAppearance(named: appearanceName)
-    // Position the snapshot window far off-screen so the real cursor position cannot
-    // land inside its bounds and trigger hover effects on controls (e.g. a Picker
-    // rendering a hovered background behind its selected label). Without this the
-    // off-screen window still sits in the primary-display coordinate space and picks
-    // up the global mouse position mid-render, producing flaky snapshots.
-    let offscreenOrigin = CGPoint(x: -size.width - 1000, y: -size.height - 1000)
-    let window = NSWindow(
-        contentRect: CGRect(origin: offscreenOrigin, size: size),
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    window.isReleasedWhenClosed = false
-    window.appearance = NSAppearance(named: appearanceName)
-    window.backgroundColor = .windowBackgroundColor
-    window.contentViewController = controller
-    // Explicitly clear first responder so no control in the hierarchy begins the
-    // render with a focus ring. NSHostingController can settle on an initial first
-    // responder during `layoutIfNeeded()`; flushing it before `displayIfNeeded()`
-    // produces a deterministic, focus-free baseline.
-    window.makeFirstResponder(nil)
-    window.layoutIfNeeded()
-    window.displayIfNeeded()
-    controller.view.layoutSubtreeIfNeeded()
-    controller.view.displayIfNeeded()
+        let controller = NSHostingController(rootView: rootView)
+        controller.view.frame = CGRect(origin: .zero, size: size)
+        controller.view.appearance = NSAppearance(named: appearanceName)
+        // Position the snapshot window far off-screen so the real cursor position cannot
+        // land inside its bounds and trigger hover effects on controls (e.g. a Picker
+        // rendering a hovered background behind its selected label). Without this the
+        // off-screen window still sits in the primary-display coordinate space and picks
+        // up the global mouse position mid-render, producing flaky snapshots.
+        let offscreenOrigin = CGPoint(x: -size.width - 1000, y: -size.height - 1000)
+        let window = NSWindow(
+            contentRect: CGRect(origin: offscreenOrigin, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        configureSnapshotWindow(window, controller: controller, appearanceName: appearanceName)
+        defer { closeSnapshotWindow(window) }
+        // Explicitly clear first responder so no control in the hierarchy begins the
+        // render with a focus ring. NSHostingController can settle on an initial first
+        // responder during `layoutIfNeeded()`; flushing it before `displayIfNeeded()`
+        // produces a deterministic, focus-free baseline.
+        window.makeFirstResponder(nil)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+        controller.view.displayIfNeeded()
 
-    assertSnapshot(
-        of: controller,
-        as: macSnapshotImage(precision: precision, perceptualPrecision: perceptualPrecision),
-        named: named,
-        record: isRecordingSnapshots ? true : nil,
-        file: file,
-        testName: testName,
-        line: line
-    )
+        XCTAssertEqual(
+            controller.view.bounds.size,
+            size,
+            "Snapshot host laid out at an unexpected size",
+            file: file,
+            line: line
+        )
+
+        assertSnapshot(
+            of: controller,
+            as: macSnapshotImage(
+                precision: precision,
+                perceptualPrecision: perceptualPrecision,
+                forceFixedScale: forceFixedScale
+            ),
+            named: named,
+            record: isRecordingSnapshots ? true : nil,
+            file: file,
+            testName: testName,
+            line: line
+        )
+    }
 }
 
 extension SnapshotTests {

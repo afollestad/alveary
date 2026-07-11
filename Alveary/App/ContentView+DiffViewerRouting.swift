@@ -9,9 +9,21 @@ extension ContentView {
         let target: DiffViewerSwitchTarget?
 
         switch item {
-        case .thread(let thread):
-            target = resolvedDiffViewerTarget(for: thread)
-        case .project(let project):
+        case .thread(let selectedThread):
+            guard let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID) else {
+                target = nil
+                break
+            }
+            if thread.isDraft, let project = thread.project {
+                target = resolvedDiffViewerTarget(for: project)
+            } else {
+                target = resolvedDiffViewerTarget(for: thread)
+            }
+        case .project(let selectedProject):
+            guard let project = uiModelContext.resolveProject(id: selectedProject.persistentModelID) else {
+                target = nil
+                break
+            }
             target = resolvedDiffViewerTarget(for: project)
         case .settings:
             target = diffViewerTargetForPreservedBookmark()
@@ -42,6 +54,9 @@ extension ContentView {
             guard let thread = uiModelContext.resolveThread(id: id),
                   thread.archivedAt == nil else {
                 return nil
+            }
+            if thread.isDraft, let project = thread.project {
+                return resolvedDiffViewerTarget(for: project)
             }
             return DiffViewerSwitchTarget.forThread(
                 thread,
@@ -82,7 +97,7 @@ extension ContentView {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
         return (try? uiModelContext.fetch(descriptor)) ?? []

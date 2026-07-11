@@ -14,6 +14,15 @@ enum SidebarRowMetrics {
     static let pinnedThreadBoundarySpacing: CGFloat = 12
 }
 
+@MainActor
+func areProjectsOrdered(_ lhs: Project, _ rhs: Project) -> Bool {
+    let comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+    if comparison != .orderedSame {
+        return comparison == .orderedAscending
+    }
+    return lhs.path < rhs.path
+}
+
 extension SidebarView {
     func activeThreads(for project: Project) -> [AgentThread] {
         viewModel.activeThreads(for: project)
@@ -29,6 +38,33 @@ extension SidebarView {
 
     func hasAnyActiveThreads(for project: Project) -> Bool {
         viewModel.hasAnyActiveThreads(for: project)
+    }
+
+    func isProjectSelected(_ project: Project) -> Bool {
+        switch appState.selectedSidebarItem {
+        case .project(let selectedProject):
+            return selectedProject.path == project.path
+        case .thread(let thread):
+            return thread.isDraft && thread.project?.path == project.path
+        default:
+            return false
+        }
+    }
+
+    func handleDraftProjectChanged(_ notification: Notification) {
+        guard let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String else {
+            return
+        }
+        expandedProjects.insert(projectPath)
+        viewModel.threadOrderVersion += 1
+    }
+
+    func handleDraftMaterialized(_ notification: Notification) {
+        guard let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String else {
+            return
+        }
+        expandedProjects.insert(projectPath)
+        viewModel.noteDraftMaterialized()
     }
 
     func topLevelRow(

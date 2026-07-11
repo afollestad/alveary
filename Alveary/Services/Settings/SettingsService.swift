@@ -5,6 +5,7 @@ import SwiftData
 protocol SettingsService: AnyObject, Sendable {
     var current: AppSettings { get }
     func update(_ transform: (inout AppSettings) -> Void)
+    func updateLastActiveProjectPath(_ path: String?)
     func updateRestoreSelection(threadID: PersistentIdentifier?, conversationID: PersistentIdentifier?)
 }
 

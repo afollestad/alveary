@@ -12,12 +12,13 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Hit region:** Keep the fixed 16×16 frame paired with `.contentShape(Rectangle())` so the folder button stays easy to hit even though the glyph is smaller than the nominal box. A `.plain` `Button` without `.contentShape` hit-tests against the SF Symbol's intrinsic outline, which makes clicks near the frame edges miss the toggle.
     - **Accessibility:** Provide an explicit `.accessibilityLabel` that reflects the current toggle action (`Expand <project>` / `Collapse <project>`). Without it, VoiceOver falls back to the SF Symbol's raw name (`"folder, button"`).
 - `SidebarProjectRow`'s trailing new-thread button mirrors row emphasis:
-    - **Selected visibility:** Keep the button visible and hit-testable while the project row is selected.
-    - **Hover visibility:** For unselected rows, keep the existing row-hover fade-in behavior and hide the button again when hover ends.
+    - **Hover-only visibility:** Keep the button hidden and non-hit-testable until the row is hovered, including while the project is selected; hide it again when hover ends.
     - **Control hover:** Row hover makes the trailing button visible, but only pointer hover over the button itself should show the circular button background.
     - **Column alignment:** Keep `SidebarSectionHeaderRow`'s add-project button center aligned with this row's new-thread button center.
+    - **Accessibility:** Hide the hover-only icon from the accessibility tree and keep `New Thread` available as a named custom action on the always-present project activation element.
 - Sidebar project rows are single-line. Do not reintroduce branch/path/local subtitles under the project name; expanded thread lists and the project settings surface already carry that metadata.
 - Sidebar project rows share `SidebarRowMetrics.topLevelAndThreadContentHeight` with thread rows. Do not add extra vertical padding around project row content; selected and hovered project rows should match thread row height.
+- Provisional draft threads never render as sidebar rows, counts, or pinned items. While a draft is mounted, its project row is the effective selection for highlighting and keyboard navigation; every New Thread entry point reuses that draft and may reassign its project in place without replacing its conversation or composer state.
 - Pinned sidebar items render as a shared top-level group directly under `MCP` and above `Projects`:
     - **Show the conditional header.** Render the `Pinned` header when pinned projects or standalone pinned threads exist, and keep it visually matched with the `Projects` header styling and insets.
     - **Keep project ownership.** Thread pinning changes only sidebar placement. The `AgentThread.project` relationship still owns cleanup, diff actions, project deletion, and restore behavior.

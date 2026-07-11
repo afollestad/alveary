@@ -28,6 +28,7 @@ protocol ConversationAttachmentStore: Sendable {
     func copyLocalImages(_ urls: [URL], conversationId: String) async throws -> [LocalImageAttachment]
     func storeAppShotScreenshot(_ data: Data, conversationId: String, label: String) async throws -> LocalImageAttachment
     func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async
+    func removeConversationDirectory(conversationId: String) async
 }
 
 actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
@@ -95,6 +96,10 @@ actor DefaultConversationAttachmentStore: ConversationAttachmentStore {
 
     func cleanupUnreferenced(conversationId: String, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) async {
         cleanupUnreferenced(in: directory(for: conversationId), keeping: retainedURLs, olderThan: age)
+    }
+
+    func removeConversationDirectory(conversationId: String) async {
+        try? fileManager.removeItem(at: directory(for: conversationId))
     }
 
     private func cleanupUnreferenced(in directory: URL, keeping retainedURLs: Set<URL>, olderThan age: TimeInterval) {

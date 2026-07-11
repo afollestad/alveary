@@ -70,4 +70,5 @@ jobs:
             .build/snapshot-failures
             **/*.xcresult
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7

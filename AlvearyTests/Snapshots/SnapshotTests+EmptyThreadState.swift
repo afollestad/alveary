@@ -5,14 +5,87 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testEmptyThreadStateHero() {
+    func testEmptyThreadProjectOptionsSortDisambiguateAndSelect() {
+        let beta = Project(path: "/tmp/beta", name: "Beta")
+        let laterDuplicate = Project(path: "/tmp/z-alveary", name: "alveary")
+        let selectedDuplicate = Project(path: "/tmp/a-alveary", name: "Alveary")
+
+        let options = emptyThreadProjectOptions(
+            projects: [beta, laterDuplicate, selectedDuplicate],
+            selectedProjectPath: selectedDuplicate.path
+        )
+
+        XCTAssertEqual(options.map(\.project.path), [selectedDuplicate.path, laterDuplicate.path, beta.path])
+        XCTAssertEqual(options.map(\.showsDisambiguatingPath), [true, true, false])
+        XCTAssertEqual(options.map(\.isSelected), [true, false, false])
+        XCTAssertEqual(options.first?.displayPath, selectedDuplicate.path)
+    }
+
+    func testEmptyThreadProjectIdentityPresentationIncludesFullNameAndPath() {
+        let presentation = emptyThreadProjectIdentityPresentation(
+            name: "Alveary",
+            path: "/Users/alice/Development/alveary"
+        )
+
+        XCTAssertEqual(presentation.helpText, "Alveary\n/Users/alice/Development/alveary")
+        XCTAssertEqual(presentation.accessibilityValue, "Alveary, /Users/alice/Development/alveary")
+    }
+
+    func testEmptyThreadStateHero() throws {
+        let fixture = try makeEmptyThreadFixture()
         assertMacSnapshot(
             EmptyThreadState(
                 setupPhase: nil,
-                isCancellingInitialSetup: false
+                isCancellingInitialSetup: false,
+                thread: fixture.thread,
+                projects: fixture.projects
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_thread_hero"
+        )
+    }
+
+    func testEmptyThreadStateHeroDark() throws {
+        let fixture = try makeEmptyThreadFixture()
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread,
+                projects: fixture.projects
+            ),
+            size: CGSize(width: 900, height: 560),
+            named: "empty_thread_hero_dark",
+            colorScheme: .dark
+        )
+    }
+
+    func testEmptyThreadStateHeroNarrowLongProjectName() throws {
+        let fixture = try makeEmptyThreadFixture(selectsLongProject: true)
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread,
+                projects: fixture.projects
+            ),
+            size: CGSize(width: 420, height: 560),
+            named: "empty_thread_hero_narrow_long_project",
+            precision: 0.9, perceptualPrecision: 0.9, forceFixedScale: true
+        )
+    }
+
+    func testEmptyThreadStateMaterializedHeroUsesStaticProjectLabel() throws {
+        let fixture = try makeEmptyThreadFixture(isDraft: false)
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread,
+                projects: fixture.projects
+            ),
+            size: CGSize(width: 900, height: 560),
+            named: "empty_thread_hero_materialized"
         )
     }
 
@@ -94,4 +167,49 @@ extension SnapshotTests {
         XCTAssertEqual(prompt.displayProjectPath, "~/Development/af.codes")
         XCTAssertEqual(prompt.canonicalProjectPath, NSHomeDirectory() + "/Development/af.codes")
     }
+}
+
+private extension SnapshotTests {
+    func makeEmptyThreadFixture(
+        selectsLongProject: Bool = false,
+        isDraft: Bool = true
+    ) throws -> EmptyThreadFixture {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            configurations: configuration
+        )
+        let context = ModelContext(container)
+        let project = Project(path: "/Users/alice/Development/alveary", name: "alveary")
+        let duplicate = Project(path: "/Users/alice/Archives/alveary", name: "alveary")
+        let longProject = Project(
+            path: "/Users/alice/Development/a-very-long-project-name-for-truncation-that-keeps-going",
+            name: "a-very-long-project-name-for-truncation-that-keeps-going"
+        )
+        let thread = AgentThread(
+            name: "New thread",
+            isDraft: isDraft,
+            project: selectsLongProject ? longProject : project
+        )
+        let conversation = Conversation(provider: "claude", thread: thread)
+        context.insert(project)
+        context.insert(duplicate)
+        context.insert(longProject)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        return EmptyThreadFixture(
+            container: container,
+            thread: thread,
+            projects: [project, duplicate, longProject]
+        )
+    }
+}
+
+private struct EmptyThreadFixture {
+    let container: ModelContainer
+    let thread: AgentThread
+    let projects: [Project]
 }

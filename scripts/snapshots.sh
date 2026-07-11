@@ -71,7 +71,82 @@ write_test_args() {
 
 write_test_args "$@"
 
+run_build_for_testing() {
+  run_and_format xargs -0 xcodebuild \
+    -project Alveary.xcodeproj \
+    -scheme Alveary \
+    -destination 'platform=macOS' \
+    -derivedDataPath .build/xcode \
+    build-for-testing < "$tmp_args"
+}
+
+prepare_patched_xctestrun() {
+  local suffix=$1
+  local records_snapshots=$2
+  local forces_fixed_scale=$3
+  local xctestrun_path
+  xctestrun_path=$(find .build/xcode/Build/Products \
+    -name '*.xctestrun' \
+    ! -name '*.record.xctestrun' \
+    ! -name '*.fixed-scale.xctestrun' \
+    | head -n 1)
+  if [ -z "$xctestrun_path" ]; then
+    echo "error: Unable to find generated .xctestrun file after build-for-testing." >&2
+    exit 1
+  fi
+
+  if [ -n "$patched_xctestrun" ]; then
+    rm -f "$patched_xctestrun"
+  fi
+  local xctestrun_dir
+  local xctestrun_name
+  xctestrun_dir=$(dirname "$xctestrun_path")
+  xctestrun_name=$(basename "$xctestrun_path" .xctestrun)
+  patched_xctestrun="$xctestrun_dir/$xctestrun_name.$suffix.xctestrun"
+  cp "$xctestrun_path" "$patched_xctestrun"
+
+  python3 - "$patched_xctestrun" "$records_snapshots" "$forces_fixed_scale" <<'PY'
+import plistlib
+import sys
+
+path = sys.argv[1]
+records_snapshots = sys.argv[2] == 'true'
+forces_fixed_scale = sys.argv[3] == 'true'
+with open(path, 'rb') as file:
+    data = plistlib.load(file)
+
+for configuration in data.get('TestConfigurations', []):
+    for target in configuration.get('TestTargets', []):
+        values = {}
+        if records_snapshots:
+            values['RECORD_SNAPSHOTS'] = '1'
+        if forces_fixed_scale:
+            values['ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS'] = 'true'
+
+        for key in ('EnvironmentVariables', 'TestingEnvironmentVariables'):
+            target.setdefault(key, {}).update(values)
+
+with open(path, 'wb') as file:
+    plistlib.dump(data, file)
+PY
+}
+
+run_patched_tests() {
+  run_and_format xargs -0 xcodebuild \
+    -xctestrun "$patched_xctestrun" \
+    -destination 'platform=macOS' \
+    -derivedDataPath .build/xcode \
+    test-without-building < "$tmp_args"
+}
+
 run_verify() {
+  if [ "${ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS:-}" = "true" ]; then
+    run_build_for_testing
+    prepare_patched_xctestrun fixed-scale false true
+    run_patched_tests
+    return
+  fi
+
   run_and_format xargs -0 xcodebuild \
     -project Alveary.xcodeproj \
     -scheme Alveary \
@@ -86,50 +161,11 @@ if [ "$mode" = "verify" ]; then
   exit 0
 fi
 
-run_and_format xargs -0 xcodebuild \
-  -project Alveary.xcodeproj \
-  -scheme Alveary \
-  -destination 'platform=macOS' \
-  -derivedDataPath .build/xcode \
-  build-for-testing < "$tmp_args"
-
-xctestrun_path=$(find .build/xcode/Build/Products -name '*.xctestrun' | head -n 1)
-if [ -z "$xctestrun_path" ]; then
-  echo "error: Unable to find generated .xctestrun file after build-for-testing." >&2
-  exit 1
-fi
-
-xctestrun_dir=$(dirname "$xctestrun_path")
-xctestrun_name=$(basename "$xctestrun_path" .xctestrun)
-patched_xctestrun="$xctestrun_dir/$xctestrun_name.record.xctestrun"
-cp "$xctestrun_path" "$patched_xctestrun"
-
-python3 - "$patched_xctestrun" <<'PY'
-import plistlib
-import sys
-
-path = sys.argv[1]
-with open(path, 'rb') as file:
-    data = plistlib.load(file)
-
-for configuration in data.get('TestConfigurations', []):
-    for target in configuration.get('TestTargets', []):
-        environment = target.setdefault('EnvironmentVariables', {})
-        environment['RECORD_SNAPSHOTS'] = '1'
-
-        testing_environment = target.setdefault('TestingEnvironmentVariables', {})
-        testing_environment['RECORD_SNAPSHOTS'] = '1'
-
-with open(path, 'wb') as file:
-    plistlib.dump(data, file)
-PY
+run_build_for_testing
+prepare_patched_xctestrun record true false
 
 set +e
-run_and_format xargs -0 xcodebuild \
-  -xctestrun "$patched_xctestrun" \
-  -destination 'platform=macOS' \
-  -derivedDataPath .build/xcode \
-  test-without-building < "$tmp_args"
+run_patched_tests
 record_status=$?
 set -e
 

@@ -123,6 +123,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
         postsNotification: Bool
     ) -> Bool {
         guard thread.archivedAt == nil,
+              !thread.isDraft,
               let projectPath = thread.project?.path else {
             return false
         }
@@ -185,7 +186,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     private func activeThreads(projectPath: String) -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isPinned == false && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
         return (try? modelContext.fetch(descriptor)) ?? []
@@ -194,7 +195,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     private func missingModifiedThreadIDs() -> [PersistentIdentifier] {
         var descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.modifiedAt == nil && thread.archivedAt == nil
+                thread.modifiedAt == nil && thread.archivedAt == nil && thread.isDraft == false
             }
         )
         descriptor.sortBy = [SortDescriptor(\.name)]

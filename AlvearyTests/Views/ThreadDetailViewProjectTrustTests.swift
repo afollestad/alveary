@@ -1,10 +1,158 @@
+import AppKit
 import SwiftData
+import SwiftUI
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 final class ThreadDetailViewProjectTrustTests: XCTestCase {
+    func testUninitializedThreadHidesConversationStrip() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+
+        XCTAssertFalse(fixture.view.shouldShowConversationStrip)
+    }
+
+    func testUninitializedThreadEmptyStateDoesNotOfferInertCreateAction() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+
+        XCTAssertFalse(fixture.view.canCreateConversationFromEmptyState)
+    }
+
+    func testInitializedRealThreadEmptyStateOffersCreateAction() throws {
+        let fixture = try ThreadDetailProjectTrustFixture(hasCompletedInitialSetup: true)
+
+        XCTAssertTrue(fixture.view.canCreateConversationFromEmptyState)
+    }
+
+    func testDraftEmptyConversationStateDoesNotPersistRestoreSelection() throws {
+        let fixture = try ThreadDetailProjectTrustFixture(isDraft: true)
+
+        XCTAssertFalse(fixture.view.canPersistEmptyConversationSelection)
+    }
+
+    func testHostedCloseShortcutWithStripAbsentConsumesSingleConversationWithoutRemovingOrClosingWindow() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+        var removedConversationIDs: [PersistentIdentifier] = []
+        let host = HostedConversationCloseShortcut(
+            conversations: [fixture.conversation],
+            selectedConversation: fixture.conversation,
+            isRenaming: false
+        ) { removedConversationIDs.append($0.persistentModelID) }
+        defer { host.close() }
+
+        XCTAssertTrue(try host.performCommandW())
+        XCTAssertTrue(removedConversationIDs.isEmpty)
+        XCTAssertEqual(host.closeRequestCount, 0)
+        XCTAssertTrue(host.isWindowVisible)
+    }
+
+    func testHostedCloseShortcutWithStripAbsentConsumesRenameWithoutRemovingOrClosingWindow() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+        let sideConversation = Conversation(
+            id: "side",
+            title: "Side",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: fixture.thread
+        )
+        var removedConversationIDs: [PersistentIdentifier] = []
+        let host = HostedConversationCloseShortcut(
+            conversations: [fixture.conversation, sideConversation],
+            selectedConversation: sideConversation,
+            isRenaming: true
+        ) { removedConversationIDs.append($0.persistentModelID) }
+        defer { host.close() }
+
+        XCTAssertTrue(try host.performCommandW())
+        XCTAssertTrue(removedConversationIDs.isEmpty)
+        XCTAssertEqual(host.closeRequestCount, 0)
+        XCTAssertTrue(host.isWindowVisible)
+    }
+
+    func testHostedCloseShortcutWithStripAbsentRemovesSelectedConversationWhenMultipleExist() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+        let sideConversation = Conversation(
+            id: "side",
+            title: "Side",
+            provider: "claude",
+            isMain: false,
+            displayOrder: 1,
+            thread: fixture.thread
+        )
+        var removedConversationIDs: [PersistentIdentifier] = []
+        let host = HostedConversationCloseShortcut(
+            conversations: [fixture.conversation, sideConversation],
+            selectedConversation: sideConversation,
+            isRenaming: false
+        ) { removedConversationIDs.append($0.persistentModelID) }
+        defer { host.close() }
+
+        XCTAssertTrue(try host.performCommandW())
+        XCTAssertEqual(removedConversationIDs, [sideConversation.persistentModelID])
+        XCTAssertEqual(host.closeRequestCount, 0)
+        XCTAssertTrue(host.isWindowVisible)
+    }
+
+    func testTransientEmptyConversationFetchPreservesSelectedConversation() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+
+        let resolved = ThreadDetailConversationResolver.resolve(
+            fetchedConversations: [],
+            thread: fixture.thread,
+            selectedConversationID: fixture.conversation.persistentModelID,
+            modelContext: fixture.context
+        )
+
+        XCTAssertEqual(resolved.map(\.persistentModelID), [fixture.conversation.persistentModelID])
+    }
+
+    func testTransientEmptyConversationFetchFallsBackToSecondaryFetch() throws {
+        let fixture = try ThreadDetailProjectTrustFixture()
+
+        let resolved = ThreadDetailConversationResolver.resolve(
+            fetchedConversations: nil,
+            thread: fixture.thread,
+            selectedConversationID: nil,
+            modelContext: fixture.context
+        )
+
+        XCTAssertEqual(resolved.map(\.persistentModelID), [fixture.conversation.persistentModelID])
+    }
+
+    func testStaleTrustCheckCannotAutoTrustPreviousDraftProjectAfterReassignment() async throws {
+        let originalPath = "/tmp/alveary-project"
+        let replacementPath = "/tmp/reassigned-project"
+        let providerSetup = PausingThreadDetailProjectTrustService(pausedProjectPath: originalPath)
+        var settings = AppSettings()
+        settings.autoTrustProjects = true
+        let fixture = try ThreadDetailProjectTrustFixture(
+            isDraft: true,
+            settings: settings,
+            providerSetup: providerSetup
+        )
+
+        let originalRefresh = Task { @MainActor in
+            await fixture.view.refreshProjectTrustPrompt(for: fixture.conversation)
+        }
+        await providerSetup.waitUntilStatusPaused()
+
+        let replacementProject = Project(path: replacementPath, name: "Reassigned")
+        fixture.context.insert(replacementProject)
+        fixture.thread.project = replacementProject
+        try fixture.context.save()
+
+        await fixture.view.refreshProjectTrustPrompt(for: fixture.conversation)
+        await providerSetup.resumePausedStatus()
+        await originalRefresh.value
+
+        let trustedProjectPaths = await providerSetup.recordedTrustedProjectPaths()
+        XCTAssertEqual(trustedProjectPaths, [CanonicalPath.normalize(replacementPath)])
+        XCTAssertNil(fixture.view.projectTrustPrompt)
+        XCTAssertFalse(fixture.view.isCheckingProjectTrust)
+    }
+
     func testDenyProjectTrustRoutesThroughInjectedThreadDelete() async throws {
         let fixture = try ThreadDetailProjectTrustFixture()
 
@@ -49,6 +197,83 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
 }
 
 @MainActor
+private final class HostedConversationCloseShortcut {
+    private let controller: NSHostingController<AnyView>
+    private let closeRecorder: ConversationCloseWindowDelegate
+    private let window: NSWindow
+
+    var closeRequestCount: Int { closeRecorder.closeRequestCount }
+    var isWindowVisible: Bool { window.isVisible }
+
+    init(
+        conversations: [Conversation],
+        selectedConversation: Conversation?,
+        isRenaming: Bool,
+        onRemove: @escaping (Conversation) -> Void
+    ) {
+        let rootView = ConversationCloseShortcutSink(
+            conversations: conversations,
+            selectedConversation: selectedConversation,
+            isRenaming: isRenaming,
+            onRemove: onRemove
+        )
+        .frame(width: 320, height: 180)
+        controller = NSHostingController(rootView: AnyView(rootView))
+        controller.view.frame = NSRect(x: 0, y: 0, width: 320, height: 180)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: -1320, y: -1180, width: 320, height: 180),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let closeRecorder = ConversationCloseWindowDelegate()
+        self.closeRecorder = closeRecorder
+        self.window = window
+        window.delegate = closeRecorder
+        window.isReleasedWhenClosed = false
+        window.contentViewController = controller
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(controller.view)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+        controller.view.displayIfNeeded()
+    }
+
+    func performCommandW() throws -> Bool {
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: .command,
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: "w",
+            charactersIgnoringModifiers: "w",
+            isARepeat: false,
+            keyCode: 13
+        ))
+        return window.performKeyEquivalent(with: event)
+    }
+
+    func close() {
+        window.delegate = nil
+        window.orderOut(nil)
+        window.close()
+    }
+}
+
+private final class ConversationCloseWindowDelegate: NSObject, NSWindowDelegate {
+    private(set) var closeRequestCount = 0
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        closeRequestCount += 1
+        return true
+    }
+}
+
+@MainActor
 private struct ThreadDetailProjectTrustFixture {
     let container: ModelContainer
     let context: ModelContext
@@ -60,8 +285,18 @@ private struct ThreadDetailProjectTrustFixture {
     let deleteRecorder: ThreadDetailDeleteRecorder
     let view: ThreadDetailView
 
-    init(deleteError: Error? = nil, deletesBeforeThrowing: Bool = true) throws {
-        let seededModel = try Self.makeSeededModel()
+    init(
+        deleteError: Error? = nil,
+        deletesBeforeThrowing: Bool = true,
+        isDraft: Bool = false,
+        hasCompletedInitialSetup: Bool = false,
+        settings: AppSettings = AppSettings(),
+        providerSetup: (any ProviderSetupService)? = nil
+    ) throws {
+        let seededModel = try Self.makeSeededModel(
+            isDraft: isDraft,
+            hasCompletedInitialSetup: hasCompletedInitialSetup
+        )
         container = seededModel.container
         context = seededModel.context
         project = seededModel.project
@@ -80,16 +315,29 @@ private struct ThreadDetailProjectTrustFixture {
             deletesBeforeThrowing: deletesBeforeThrowing
         )
         deleteRecorder = recorder
+        let resolvedProviderSetup: any ProviderSetupService
+        if let providerSetup {
+            resolvedProviderSetup = providerSetup
+        } else {
+            resolvedProviderSetup = MockProviderSetupService()
+        }
 
         view = Self.makeView(
             thread: thread,
             appState: appState,
             context: context,
-            recorder: recorder
+            recorder: recorder,
+            services: ThreadDetailProjectTrustViewServices(
+                settingsService: InMemorySettingsService(current: settings),
+                providerSetup: resolvedProviderSetup
+            )
         )
     }
 
-    private static func makeSeededModel() throws -> SeededModel {
+    private static func makeSeededModel(
+        isDraft: Bool,
+        hasCompletedInitialSetup: Bool
+    ) throws -> SeededModel {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: Project.self,
@@ -100,7 +348,12 @@ private struct ThreadDetailProjectTrustFixture {
         )
         let context = ModelContext(container)
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
-        let thread = AgentThread(name: "Needs Trust", hasCompletedInitialSetup: false, project: project)
+        let thread = AgentThread(
+            name: "Needs Trust",
+            hasCompletedInitialSetup: hasCompletedInitialSetup,
+            isDraft: isDraft,
+            project: project
+        )
         let conversation = Conversation(id: "main", title: "Main", provider: "claude", isMain: true, displayOrder: 0, thread: thread)
         thread.conversations = [conversation]
         project.threads = [thread]
@@ -121,7 +374,8 @@ private struct ThreadDetailProjectTrustFixture {
         thread: AgentThread,
         appState: AppState,
         context: ModelContext,
-        recorder: ThreadDetailDeleteRecorder
+        recorder: ThreadDetailDeleteRecorder,
+        services: ThreadDetailProjectTrustViewServices
     ) -> ThreadDetailView {
         let fileListManager = SnapshotMockFileListManager()
         return ThreadDetailView(
@@ -130,16 +384,19 @@ private struct ThreadDetailProjectTrustFixture {
             modelContext: context,
             agentsManager: SidebarMockAgentsManager(),
             runtimeStore: MockConversationRuntimeStore(),
+            attachmentStore: DefaultConversationAttachmentStore(),
             keepAwakeService: RecordingKeepAwakeService(),
-            settingsService: InMemorySettingsService(),
+            settingsService: services.settingsService,
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             providerDiscovery: SnapshotThreadProviderDiscoveryService(),
             worktreeManager: MockWorktreeManager(worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")),
-            providerSetup: MockProviderSetupService(),
+            providerSetup: services.providerSetup,
             contextWindowCache: MockContextWindowCache(),
             fileListManager: fileListManager,
             notificationManager: RecordingNotificationManager(),
             threadActivityRecorder: NoopThreadActivityRecorder(),
+            availableProjects: thread.project.map { [$0] } ?? [],
+            selectDraftProject: { _, _ in },
             deleteThread: { thread in
                 try await recorder.delete(thread)
             },
@@ -154,6 +411,11 @@ private struct ThreadDetailProjectTrustFixture {
             appShotCoordinator: AppShotCoordinator()
         )
     }
+}
+
+private struct ThreadDetailProjectTrustViewServices {
+    let settingsService: any SettingsService
+    let providerSetup: any ProviderSetupService
 }
 
 private struct SeededModel {

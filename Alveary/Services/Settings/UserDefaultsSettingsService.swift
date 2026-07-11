@@ -47,6 +47,16 @@ final class UserDefaultsSettingsService: SettingsService {
         persist(updated, notify: false)
     }
 
+    func updateLastActiveProjectPath(_ path: String?) {
+        guard current.lastActiveProjectPath != path else {
+            return
+        }
+
+        var updated = current
+        updated.lastActiveProjectPath = path
+        persist(updated.normalized(), notify: false)
+    }
+
     private func persist(_ updated: AppSettings, notify: Bool) {
         do {
             let data = try encode(updated)

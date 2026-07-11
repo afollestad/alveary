@@ -6,6 +6,35 @@ import XCTest
 
 @MainActor
 extension SettingsServiceTests {
+    func testLastActiveProjectPathPersistsWithoutSettingsNotification() throws {
+        let defaults = try makeDefaults()
+        let service = UserDefaultsSettingsService(defaults: defaults)
+        let invertedExpectation = expectation(description: "last active project update does not notify")
+        invertedExpectation.isInverted = true
+        let observer = NotificationCenter.default.addObserver(
+            forName: .appSettingsChanged,
+            object: service,
+            queue: .main
+        ) { _ in
+            invertedExpectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        service.updateLastActiveProjectPath("  /tmp/../tmp/alveary  ")
+
+        wait(for: [invertedExpectation], timeout: 0.1)
+        XCTAssertEqual(UserDefaultsSettingsService(defaults: defaults).current.lastActiveProjectPath, "/tmp/alveary")
+    }
+
+    func testInMemoryLastActiveProjectPathDoesNotUseNormalUpdateChannel() {
+        let service = InMemorySettingsService()
+
+        service.updateLastActiveProjectPath("  /tmp/../tmp/alveary  ")
+
+        XCTAssertEqual(service.current.lastActiveProjectPath, "/tmp/alveary")
+        XCTAssertEqual(service.updateCount, 0)
+    }
+
     func testUserDefaultsSettingsServiceRestoreSelectionUpdateDoesNotNotify() throws {
         let defaults = try makeDefaults()
         let service = UserDefaultsSettingsService(defaults: defaults)

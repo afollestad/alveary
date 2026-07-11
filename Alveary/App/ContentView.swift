@@ -18,6 +18,7 @@ struct ContentView: View {
     private let agentsManager: any AgentsManager
     let agentOneShotPromptService: any AgentOneShotPromptService
     private let runtimeStore: any ConversationRuntimeStore
+    private let attachmentStore: any ConversationAttachmentStore
     private let keepAwakeService: KeepAwakeService
     private let worktreeManager: WorktreeManager
     private let providerSetup: ProviderSetupService
@@ -73,6 +74,7 @@ struct ContentView: View {
         self.agentsManager = dependencies.agentsManager
         self.agentOneShotPromptService = dependencies.agentOneShotPromptService
         self.runtimeStore = dependencies.runtimeStore
+        self.attachmentStore = dependencies.attachmentStore
         self.keepAwakeService = dependencies.keepAwakeService
         self.worktreeManager = dependencies.worktreeManager
         self.providerSetup = dependencies.providerSetup
@@ -109,43 +111,6 @@ struct ContentView: View {
         _toolbarProjectActionsThreadID = State(initialValue: nil)
     }
 
-    private static func makeSidebarViewModel(dependencies: ContentViewDependencies, appState: AppState) -> SidebarViewModel {
-        SidebarViewModel(
-            agentsManager: dependencies.agentsManager,
-            modelContext: dependencies.modelContainer.mainContext,
-            shell: dependencies.shellRunner,
-            gitHubCLI: dependencies.gitHubCLI,
-            worktreeManager: dependencies.worktreeManager,
-            settingsService: dependencies.settingsService,
-            providerDiscovery: dependencies.providerDiscovery,
-            providerSessionActions: dependencies.providerSessionActions,
-            presentUnexpectedError: { message in
-                appState.presentUnexpectedError(message: message)
-            },
-            notificationManager: dependencies.notificationManager,
-            threadActivityRecorder: dependencies.threadActivityRecorder
-        )
-    }
-
-    private static func makeDiffViewModel(dependencies: ContentViewDependencies) -> DiffViewerViewModel {
-        DiffViewerViewModel(
-            gitService: dependencies.gitService,
-            diffStore: dependencies.diffWorkspaceStore,
-            fileListManager: dependencies.fileListManager,
-            agentsManager: dependencies.agentsManager
-        )
-    }
-
-    private static func makeSettingsViewModel(dependencies: ContentViewDependencies) -> SettingsViewModel {
-        let soundPreviewer = SettingsSoundPreviewer()
-        return SettingsViewModel(
-            settingsService: dependencies.settingsService,
-            providerDiscovery: dependencies.providerDiscovery,
-            agentRegistry: dependencies.agentRegistry,
-            soundPreviewer: soundPreviewer.play
-        )
-    }
-
     var body: some View {
         let middlePane = MiddlePane(
             appState: appState,
@@ -153,6 +118,7 @@ struct ContentView: View {
             gitHubCLI: gitHubCLI,
             agentsManager: agentsManager,
             runtimeStore: runtimeStore,
+            attachmentStore: attachmentStore,
             keepAwakeService: keepAwakeService,
             settingsService: settingsService,
             providerRegistry: providerRegistry,
@@ -294,8 +260,17 @@ struct ContentView: View {
             appState.setLeftPaneVisible(visibility != .detailOnly)
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
+            recordLastActiveProject(for: selection)
             updateDiffViewer(item: selection)
             cancelPendingCommitMessageGenerationIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged)) { _ in
+            updateDiffViewer(item: appState.selectedSidebarItem)
+            Task { await refreshToolbarProjectActions() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .threadDraftMaterialized)) { _ in
+            updateDiffViewer(item: appState.selectedSidebarItem)
+            Task { await refreshToolbarProjectActions() }
         }
         .onChange(of: appState.previousSelection) { _, _ in
             guard appState.selectedSidebarItem == .settings else {
@@ -370,7 +345,8 @@ struct ContentView: View {
 
 private extension ContentView {
     var selectedThreadID: PersistentIdentifier? {
-        guard case .thread(let thread) = appState.selectedSidebarItem else {
+        guard case .thread(let thread) = appState.selectedSidebarItem,
+              !thread.isDraft else {
             return nil
         }
 
@@ -448,7 +424,8 @@ private extension ContentView {
 
     func canViewThread(_ id: PersistentIdentifier) -> Bool {
         guard visibleThreadID != id,
-              let thread = uiModelContext.resolveThread(id: id) else {
+              let thread = uiModelContext.resolveThread(id: id),
+              !thread.isDraft else {
             return false
         }
 
@@ -457,7 +434,8 @@ private extension ContentView {
 
     func viewThread(_ id: PersistentIdentifier) {
         guard let thread = uiModelContext.resolveThread(id: id),
-              thread.archivedAt == nil else {
+              thread.archivedAt == nil,
+              !thread.isDraft else {
             return
         }
 
@@ -477,6 +455,7 @@ private extension ContentView {
               selectedThread.persistentModelID == threadID,
               let thread = uiModelContext.resolveThread(id: threadID),
               thread.archivedAt == nil,
+              !thread.isDraft,
               let projectPath = thread.project?.path else {
             guard selectedThreadID == threadID else { return }
             toolbarProjectActions = []

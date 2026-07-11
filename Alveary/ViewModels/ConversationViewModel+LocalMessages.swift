@@ -7,7 +7,8 @@ extension ConversationViewModel {
         into dbConversation: Conversation,
         imageAttachments: [LocalImageAttachment] = [],
         fileAttachments: [LocalFileAttachment] = [],
-        appShots: [AppShotAttachment] = []
+        appShots: [AppShotAttachment] = [],
+        schedulesSave: Bool = true
     ) -> ConversationEventRecord {
         let record = ConversationEventRecord(
             conversationId: dbConversation.id,
@@ -33,7 +34,9 @@ extension ConversationViewModel {
             dbConversation.title = name
         }
 
-        scheduleSave()
+        if schedulesSave {
+            scheduleSave()
+        }
         return record
     }
 

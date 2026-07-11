@@ -1,10 +1,67 @@
 import AppKit
+import SwiftData
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
+    func testLaunchRemovesStaleDraftRowsAndAttachmentDirectory() async throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = ModelContext(fixture.modelContainer)
+        let project = Project(path: "/tmp/stale-draft", name: "Stale")
+        let thread = AgentThread(name: "New thread", isDraft: true, project: project)
+        let conversation = Conversation(id: "stale-draft-main", provider: "claude", thread: thread)
+        context.insert(project)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        let mainContext = fixture.modelContainer.mainContext
+        let preloadedDrafts = try mainContext.fetch(FetchDescriptor<AgentThread>())
+        XCTAssertEqual(preloadedDrafts.map(\.persistentModelID), [thread.persistentModelID])
+        let attachment = try await fixture.attachmentStore.storeAppShotScreenshot(
+            Data("png".utf8),
+            conversationId: conversation.id,
+            label: "Appshot screenshot.png"
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: attachment.fileURL.path))
+
+        let appDelegate = fixture.makeAppDelegate()
+        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
+
+        XCTAssertEqual(try mainContext.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: attachment.fileURL.path))
+        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        withExtendedLifetime(preloadedDrafts) {}
+    }
+
+    func testStaleDraftCleanupSaveFailureRollsBackPendingDeletion() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let project = Project(path: "/tmp/stale-draft-save-failure", name: "Stale")
+        let thread = AgentThread(name: "New thread", isDraft: true, project: project)
+        let conversation = Conversation(id: "stale-draft-save-failure-main", provider: "claude", thread: thread)
+        context.insert(project)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        let threadID = thread.persistentModelID
+        let appDelegate = fixture.makeAppDelegate()
+
+        let removedConversationIDs = appDelegate.removeStaleDraftThreads { _ in
+            throw AppDelegateDraftCleanupTestError.saveFailed
+        }
+
+        XCTAssertTrue(removedConversationIDs.isEmpty)
+        XCTAssertFalse(context.hasChanges)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<AgentThread>()).map(\.persistentModelID),
+            [threadID]
+        )
+        XCTAssertEqual(try ModelContext(fixture.modelContainer).fetchCount(FetchDescriptor<AgentThread>()), 1)
+    }
+
     func testStartupWarmupLoadsSessionsTerminatesOnlySessionMappedOrphansAndChecksProviders() async throws {
         let fixture = try AppDelegateTestFixture()
         try fixture.insertConversations(["conversation-1", "conversation-2"])
@@ -141,4 +198,8 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(persistCount, 1)
         XCTAssertEqual(appWillTerminateNotifications.value, 1)
     }
+}
+
+private enum AppDelegateDraftCleanupTestError: Error {
+    case saveFailed
 }

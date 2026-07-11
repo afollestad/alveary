@@ -54,8 +54,13 @@ enum DiffGitCommitTargetSnapshotResolver {
         appState: AppState
     ) -> DiffGitCommitTargetSnapshot? {
         guard let thread = modelContext.resolveThread(id: selectedThread.persistentModelID),
-              let project = thread.project,
-              selectedConversation(in: thread, modelContext: modelContext, appState: appState) != nil else {
+              let project = thread.project else {
+            return nil
+        }
+        if thread.isDraft {
+            return projectSnapshot(for: project, modelContext: modelContext)
+        }
+        guard selectedConversation(in: thread, modelContext: modelContext, appState: appState) != nil else {
             return nil
         }
         let directory = thread.worktreePath ?? project.path
@@ -100,6 +105,7 @@ extension ContentView {
     func activeDiffActionTarget() -> (thread: AgentThread, conversation: Conversation)? {
         guard case .thread(let selectedThread) = appState.selectedSidebarItem,
               let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
+              !thread.isDraft,
               let conversation = selectedConversation(in: thread, modelContext: uiModelContext, appState: appState) else {
             return nil
         }

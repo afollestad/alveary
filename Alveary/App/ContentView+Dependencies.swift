@@ -14,6 +14,7 @@ struct ContentViewDependencies {
     let agentsManager: any AgentsManager
     let agentOneShotPromptService: any AgentOneShotPromptService
     let runtimeStore: any ConversationRuntimeStore
+    let attachmentStore: any ConversationAttachmentStore
     let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
     let providerSessionActions: any ProviderSessionActionService
@@ -44,6 +45,7 @@ struct ContentViewDependencies {
             agentsManager: component.agentsManager,
             agentOneShotPromptService: component.agentOneShotPromptService,
             runtimeStore: component.conversationRuntimeStore,
+            attachmentStore: component.conversationAttachmentStore,
             keepAwakeService: component.keepAwakeService,
             worktreeManager: component.worktreeManager,
             providerSessionActions: component.providerSessionActionService,

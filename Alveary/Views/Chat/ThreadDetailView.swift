@@ -8,6 +8,7 @@ struct ThreadDetailView: View {
     let modelContext: ModelContext
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let attachmentStore: any ConversationAttachmentStore
     let keepAwakeService: KeepAwakeService
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
@@ -18,6 +19,8 @@ struct ThreadDetailView: View {
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let threadActivityRecorder: any ThreadActivityRecording
+    let availableProjects: [Project]
+    let selectDraftProject: @MainActor (PersistentIdentifier, String) async -> Void
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -32,22 +35,11 @@ struct ThreadDetailView: View {
     @State var isCheckingProjectTrust = false
 
     private var conversations: [Conversation] {
-        let threadID = thread.persistentModelID
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.persistentModelID == threadID
-            }
+        ThreadDetailConversationResolver.resolve(
+            thread: thread,
+            selectedConversationID: appState.selectedConversationIDs[thread.persistentModelID],
+            modelContext: modelContext
         )
-        let conversations = (try? modelContext.fetch(descriptor)) ?? []
-        return conversations.sorted {
-            if $0.displayOrder != $1.displayOrder {
-                return $0.displayOrder < $1.displayOrder
-            }
-            if $0.isMain != $1.isMain {
-                return $0.isMain && !$1.isMain
-            }
-            return $0.id < $1.id
-        }
     }
 
     var body: some View {
@@ -84,26 +76,29 @@ struct ThreadDetailView: View {
                         .padding(.top, 20)
                     }
 
-                    ThreadDetailConversationTabs(
-                        conversations: conversations,
-                        selectedConversation: conversation,
-                        statusVersion: statusVersion,
-                        statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
-                        onSelect: { appState.selectConversation($0, in: thread) },
-                        onCommitRename: { renameConversation($0, to: $1) },
-                        onRemove: { conversation in
-                            guard conversations.count > 1 else { return }
-                            pendingDeleteConversation = conversation
-                        },
-                        onCreate: { Task { await createConversation() } },
-                        isCreateDisabled: isProjectTrustBlocked,
-                        editingConversationID: $editingConversationID
-                    )
+                    if shouldShowConversationStrip {
+                        ThreadDetailConversationTabs(
+                            conversations: conversations,
+                            selectedConversation: conversation,
+                            statusVersion: statusVersion,
+                            statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
+                            onSelect: { appState.selectConversation($0, in: thread) },
+                            onCommitRename: { renameConversation($0, to: $1) },
+                            onRemove: { conversation in
+                                guard conversations.count > 1 else { return }
+                                pendingDeleteConversation = conversation
+                            },
+                            onCreate: { Task { await createConversation() } },
+                            isCreateDisabled: isProjectTrustBlocked,
+                            editingConversationID: $editingConversationID
+                        )
+                    }
 
                     ConversationView(
                         conversation: conversation,
                         agentsManager: agentsManager,
                         runtimeStore: runtimeStore,
+                        attachmentStore: attachmentStore,
                         keepAwakeService: keepAwakeService,
                         modelContext: modelContext,
                         settingsService: settingsService,
@@ -125,6 +120,10 @@ struct ThreadDetailView: View {
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,
                         threadActivityRecorder: threadActivityRecorder,
+                        availableProjects: availableProjects,
+                        onSelectDraftProject: { projectPath in
+                            Task { await selectDraftProject(thread.persistentModelID, projectPath) }
+                        },
                         appShotCoordinator: appShotCoordinator,
                         appState: appState
                     )
@@ -152,7 +151,9 @@ struct ThreadDetailView: View {
                         return
                     }
 
-                    if thread.archivedAt == nil {
+                    if let liveThread = modelContext.resolveThread(id: threadID),
+                       liveThread.archivedAt == nil,
+                       !liveThread.isDraft {
                         settingsService.updateRestoreSelection(
                             threadID: threadID,
                             conversationID: selectedConversationID
@@ -201,30 +202,55 @@ struct ThreadDetailView: View {
                 }
 
             } else {
-                EmptyStateView(
-                    icon: "bubble.left.and.text.bubble.right.fill",
-                    heading: "Create your first conversation",
-                    subtext: "Start a main or side conversation in this thread to begin chatting with your agent.",
-                    actions: [
-                        .init(title: "New Conversation", style: .primary) {
-                            Task { await createConversation() }
-                        }
-                    ]
-                )
+                Group {
+                    if canCreateConversationFromEmptyState {
+                        EmptyStateView(
+                            icon: "bubble.left.and.text.bubble.right.fill",
+                            heading: "Create your first conversation",
+                            subtext: "Start a main or side conversation in this thread to begin chatting with your agent.",
+                            actions: [
+                                .init(title: "New Conversation", style: .primary) {
+                                    Task { await createConversation() }
+                                }
+                            ]
+                        )
+                    } else {
+                        EmptyStateView(
+                            icon: "ellipsis.bubble.fill",
+                            heading: "Preparing your conversation",
+                            subtext: "The conversation for this thread is still loading.",
+                            actions: []
+                        )
+                    }
+                }
                 .task(id: thread.persistentModelID) {
                     appState.repairSelectedConversationIfNeeded(for: thread, conversations: conversations)
                 }
                 .task(id: selectedConversationID) {
                     let threadID = thread.persistentModelID
+                    let shouldPersistRestoreSelection = canPersistEmptyConversationSelection
                     await Task.yield()
                     guard case .thread(let selectedThread) = appState.selectedSidebarItem,
                           selectedThread.persistentModelID == threadID,
-                          thread.archivedAt == nil else {
+                          shouldPersistRestoreSelection else {
                         return
                     }
                     settingsService.updateRestoreSelection(threadID: threadID, conversationID: nil)
                 }
             }
+        }
+        .background {
+            // The visual strip stays hidden until setup completes, but its ⌘W
+            // safety behavior must remain mounted for every thread state.
+            ConversationCloseShortcutSink(
+                conversations: conversations,
+                selectedConversation: selectedConversation,
+                isRenaming: editingConversationID != nil,
+                onRemove: { conversation in
+                    guard conversations.count > 1 else { return }
+                    pendingDeleteConversation = conversation
+                }
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .agentStatusChanged)) { notification in
             guard let conversationId = notification.userInfo?["conversationId"] as? String,
@@ -242,10 +268,27 @@ struct ThreadDetailView: View {
         // can render a ⌘T "New Conversation" menu item that is disabled
         // when no thread is mounted (the focused value resolves to nil
         // outside this view, so the menu button reads `action == nil`).
-        .focusedSceneValue(\.newConversationAction, newConversationAction(isDisabled: isProjectTrustBlocked))
+        .focusedSceneValue(
+            \.newConversationAction,
+            newConversationAction(isDisabled: isProjectTrustBlocked || !thread.hasCompletedInitialSetup)
+        )
         #if DEBUG
         .focusedSceneValue(\.rawTranscriptWindowRequest, rawTranscriptWindowRequest(for: selectedConversation))
         #endif
+    }
+}
+
+extension ThreadDetailView {
+    var shouldShowConversationStrip: Bool {
+        thread.hasCompletedInitialSetup
+    }
+
+    var canCreateConversationFromEmptyState: Bool {
+        !thread.isDraft && thread.hasCompletedInitialSetup
+    }
+
+    var canPersistEmptyConversationSelection: Bool {
+        !thread.isDraft && thread.archivedAt == nil
     }
 }
 
@@ -295,7 +338,7 @@ private extension ThreadDetailView {
     }
 
     func createConversation() async {
-        guard !isCurrentProjectTrustBlocked() else {
+        guard thread.hasCompletedInitialSetup, !isCurrentProjectTrustBlocked() else {
             return
         }
 

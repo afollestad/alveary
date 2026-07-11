@@ -39,6 +39,23 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         XCTAssertTrue(fixture.appState.selectedConversationIDs.isEmpty)
     }
 
+    func testOpenConversationAndActiveProviderIgnoreDraftThread() throws {
+        let fixture = try RoutingTestFixture()
+        let conversation = fixture.seedConversation(threadName: "Draft", archivedAt: nil, isDraft: true)
+        let thread = try XCTUnwrap(conversation.thread)
+
+        openConversationInAppState(
+            conversationId: conversation.id,
+            modelContext: fixture.context,
+            appState: fixture.appState
+        )
+
+        XCTAssertNil(fixture.appState.selectedSidebarItem)
+        fixture.appState.selectedConversationIDs[thread.persistentModelID] = conversation.persistentModelID
+        fixture.appState.selectedSidebarItem = .thread(thread)
+        XCTAssertNil(makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)())
+    }
+
     func testOpenConversationIgnoresMissingConversationId() throws {
         let fixture = try RoutingTestFixture()
 
@@ -106,8 +123,8 @@ private struct RoutingTestFixture {
     }
 
     @discardableResult
-    func seedConversation(threadName: String, archivedAt: Date?) -> Conversation {
-        let thread = AgentThread(name: threadName, hasCustomName: true, archivedAt: archivedAt)
+    func seedConversation(threadName: String, archivedAt: Date?, isDraft: Bool = false) -> Conversation {
+        let thread = AgentThread(name: threadName, hasCustomName: true, isDraft: isDraft, archivedAt: archivedAt)
         let conversation = Conversation(isMain: true, thread: thread)
         context.insert(thread)
         context.insert(conversation)

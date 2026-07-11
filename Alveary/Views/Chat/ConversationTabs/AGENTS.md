@@ -20,10 +20,11 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 ## Shortcuts And Removal
 
 - Attach ⌘1 through ⌘9 to each visible select button in the multi-conversation branch.
-- Handle ⌘W with one invisible enabled button in the tab bar background.
-    - Mount it unconditionally and guard internally for inline rename or one-tab states.
+- Handle ⌘W with one invisible enabled `ConversationCloseShortcutSink` in
+  `ThreadDetailView`'s background.
+    - Mount it independently of the visual tab strip and guard internally for inline rename or one-tab states.
     - Use `.background`, not a zero-sized HStack sibling.
-    - Set `.id(selectedConversation.persistentModelID)` so the closure tracks current selection.
+    - Set `.id(selectedConversation?.persistentModelID)` so the closure tracks current selection.
     - Use enabled no-op guards; disabled shortcut buttons let ⌘W fall through to Close Window.
     - Keep it out of `.commands` / `CommandGroup` because those surface in the menu bar and can lose to default close handling.
 - When closing the selected tab, select the visual neighbor first: next, then previous.

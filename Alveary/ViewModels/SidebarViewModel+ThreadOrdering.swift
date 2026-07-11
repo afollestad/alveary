@@ -125,7 +125,7 @@ extension SidebarViewModel {
     func pinnedThreads() -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == true
+                thread.archivedAt == nil && thread.isPinned == true && thread.isDraft == false
             }
         )
 
@@ -150,7 +150,7 @@ extension SidebarViewModel {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isPinned == false && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
 
@@ -162,7 +162,7 @@ extension SidebarViewModel {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
 
@@ -197,6 +197,9 @@ extension SidebarViewModel {
 
     func setThreadPinned(_ thread: AgentThread, isPinned: Bool) throws {
         let dbThread = try requireThread(thread)
+        guard !dbThread.isDraft else {
+            throw SidebarViewModelError.threadMissing
+        }
         if isPinned, dbThread.project?.isPinned == true {
             return
         }
@@ -218,7 +221,7 @@ extension SidebarViewModel {
     private func unarchivedThreads(projectPath: String) -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
 

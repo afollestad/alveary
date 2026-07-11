@@ -5,6 +5,56 @@ import XCTest
 @testable import Alveary
 
 extension SidebarViewModelTests {
+    func testArchiveThreadRejectsDraftWithoutStartingCleanup() async throws {
+        let fixture = try SidebarTestFixture()
+        let draft = try fixture.insertThread(
+            projectName: "Draft",
+            projectPath: "/tmp/archive-draft",
+            isDraft: true
+        )
+
+        do {
+            try await fixture.viewModel.archiveThread(draft)
+            XCTFail("Expected draft archive to be rejected")
+        } catch SidebarViewModelError.threadMissing {
+            // expected
+        }
+
+        XCTAssertTrue(try fixture.requireThread(draft).isDraft)
+        let destroyCalls = await fixture.agentsManager.destroyCalls()
+        XCTAssertTrue(destroyCalls.isEmpty)
+    }
+
+    func testArchiveThreadRejectsDeletedModelTokenWithoutDereferencingIt() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Deleted",
+            projectPath: "/tmp/archive-deleted-token"
+        )
+        fixture.context.delete(thread)
+        try fixture.context.save()
+
+        do {
+            try await fixture.viewModel.archiveThread(thread)
+            XCTFail("Expected deleted thread token to be rejected")
+        } catch SidebarViewModelError.threadMissing {
+            // expected
+        }
+    }
+
+    func testDraftThreadsAreExcludedFromSidebarOrderingAndCounts() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/draft-ordering", name: "Draft Ordering")
+        let draft = AgentThread(name: "Draft", isPinned: true, isDraft: true, project: project)
+        project.threads = [draft]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        XCTAssertTrue(fixture.viewModel.pinnedThreads().isEmpty)
+        XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
+        XCTAssertFalse(fixture.viewModel.hasAnyActiveThreads(for: project))
+    }
+
     func testPinnedThreadsFetchesUnarchivedPinnedThreadsSortedByActivity() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")

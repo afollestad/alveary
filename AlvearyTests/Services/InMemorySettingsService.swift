@@ -30,4 +30,12 @@ final class InMemorySettingsService: SettingsService {
         current.lastOpenConversationID = conversationID
         current = current.normalized()
     }
+
+    func updateLastActiveProjectPath(_ path: String?) {
+        guard current.lastActiveProjectPath != path else {
+            return
+        }
+        current.lastActiveProjectPath = path
+        current = current.normalized()
+    }
 }

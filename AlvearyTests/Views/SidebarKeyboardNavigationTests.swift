@@ -368,6 +368,14 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertEqual(result, thread.persistentModelID)
     }
 
+    func testDraftThreadUsesProjectAsEffectiveSidebarSelectionAndCannotRename() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/draft-alpha")
+        let thread = AgentThread(name: "Draft", isDraft: true, project: project)
+
+        XCTAssertEqual(effectiveSidebarSelection(.thread(thread)), .project(project))
+        XCTAssertNil(renameThreadID(for: .thread(thread), editingThreadID: nil))
+    }
+
     func testRenameThreadIDReturnsNilForNonThreadSelection() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 

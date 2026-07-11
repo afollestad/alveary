@@ -144,41 +144,43 @@ struct ThreadDetailConversationTabs: View {
         .padding(.trailing, 21)
         .padding(.vertical, 14)
         .background(.bar)
-        .background {
-            // Invisible ⌘W target. Per-chip bindings on the visible X buttons
-            // didn't reliably override the system "Close Window" shortcut when
-            // the first chip was selected, so ⌘W lives on one stable button
-            // attached as a `.background` (outside the HStack layout so it
-            // cannot shift spacing). Tying `.id` to the selected conversation
-            // forces SwiftUI to remount the button when the selection changes
-            // so the shortcut's bound action captures the current conversation
-            // rather than the first one that ever mounted.
-            Button("Close Conversation") {
-                // Swallow ⌘W during an inline rename or when there's only
-                // one conversation — but keep the button enabled so the key
-                // event stays absorbed here and doesn't fall through to the
-                // default "Close Window" and kill the app window.
-                guard editingConversationID == nil else {
-                    return
-                }
-                guard conversations.count > 1 else {
-                    return
-                }
-                onRemove(selectedConversation)
-            }
-            .keyboardShortcut(.closeConversation)
-            .buttonStyle(.plain)
-            .accessibilityHidden(true)
-            .opacity(0)
-            .allowsHitTesting(false)
-            .id(selectedConversation.persistentModelID)
-        }
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color(nsColor: .separatorColor))
                 .frame(height: 1)
                 .accessibilityHidden(true)
         }
+    }
+}
+
+/// A stable, invisible ⌘W target for a mounted thread. This intentionally lives
+/// outside the visual tab strip so hiding that strip before initial setup does not
+/// let the shortcut fall through to the system's Close Window command.
+struct ConversationCloseShortcutSink: View {
+    let conversations: [Conversation]
+    let selectedConversation: Conversation?
+    let isRenaming: Bool
+    let onRemove: (Conversation) -> Void
+
+    var body: some View {
+        Button("Close Conversation", action: handleShortcut)
+            .keyboardShortcut(.closeConversation)
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+            .opacity(0)
+            .allowsHitTesting(false)
+            .id(selectedConversation?.persistentModelID)
+    }
+
+    func handleShortcut() {
+        // Keep the button enabled for no-op states so ⌘W is still consumed and
+        // cannot reach the default Close Window command.
+        guard !isRenaming,
+              conversations.count > 1,
+              let selectedConversation else {
+            return
+        }
+        onRemove(selectedConversation)
     }
 }
 

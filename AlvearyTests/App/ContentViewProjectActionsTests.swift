@@ -180,6 +180,30 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertEqual(selection?.conversationID, conversation.persistentModelID)
     }
 
+    func testResolvedLastOpenThreadSelectionIgnoresDraftThread() throws {
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        let project = Project(path: "/tmp/draft-restore", name: "Draft")
+        let conversation = Conversation(title: "Main", provider: "claude")
+        let thread = AgentThread(name: "Draft", isDraft: true, project: project, conversations: [conversation])
+        project.threads.append(thread)
+        context.insert(project)
+        try context.save()
+
+        var settings = AppSettings()
+        settings.reopenLastThreadAndConversationOnLaunch = true
+        settings.lastOpenThreadID = thread.persistentModelID
+        settings.lastOpenConversationID = conversation.persistentModelID
+
+        XCTAssertNil(resolvedLastOpenThreadSelection(settings: settings, modelContext: context))
+    }
+
     func testResolvedLastOpenThreadSelectionIgnoresArchivedThreadsAndMismatchedConversations() throws {
         let container = try ModelContainer(
             for: Project.self,

@@ -27,7 +27,7 @@ struct SidebarView: View {
     @FocusedValue(\.chatComposerFocus) var chatComposerFocus
 
     var projects: [Project] {
-        queriedProjects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        queriedProjects.sorted(by: areProjectsOrdered)
     }
 
     var regularProjects: [Project] {
@@ -178,6 +178,8 @@ struct SidebarView: View {
                 isKeyboardFocused = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged), perform: handleDraftProjectChanged)
+        .onReceive(NotificationCenter.default.publisher(for: .threadDraftMaterialized), perform: handleDraftMaterialized)
         .animation(threadOrderAnimation, value: threadOrderVersion)
         .animation(nil, value: statusVersion)
         .confirmationDialog(
@@ -394,13 +396,14 @@ private extension SidebarView {
     @ViewBuilder
     func projectRow(_ project: Project, topSpacing: CGFloat) -> some View {
         let isExpanded = expandedProjects.contains(project.path)
+        let isSelected = isProjectSelected(project)
         let activeProjectThreads = activeThreads(for: project)
         let firstThreadID = activeProjectThreads.first?.persistentModelID
 
         SidebarProjectRow(
             project: project,
             isExpanded: isExpanded,
-            isSelected: appState.selectedSidebarItem == .project(project),
+            isSelected: isSelected,
             onToggleExpanded: {
                 toggleExpansion(for: project.path, in: &expandedProjects)
                 claimSidebarFocus()
@@ -414,7 +417,7 @@ private extension SidebarView {
         )
         .padding(.top, topSpacing)
         .appSelectionRowBackground(
-            isSelected: appState.selectedSidebarItem == .project(project),
+            isSelected: isSelected,
             showsHoverBackground: true,
             topInset: topSpacing
         )

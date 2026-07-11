@@ -86,6 +86,10 @@ extension AppComponent {
         return shared { DefaultSessionManager(supportDirectory: SessionComponent.appSupportDirectory) }
     }
 
+    var conversationAttachmentStore: any ConversationAttachmentStore {
+        return shared { DefaultConversationAttachmentStore() }
+    }
+
     var notificationRouter: NotificationRouter {
         return shared { NotificationRouter() }
     }

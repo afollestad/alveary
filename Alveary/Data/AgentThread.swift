@@ -16,6 +16,7 @@ final class AgentThread {
     var speedMode: String?
     var useWorktree: Bool
     var isPinned: Bool = false
+    var isDraft: Bool = false
     var modifiedAt: Date?
     var archivedAt: Date?
     var project: Project?
@@ -35,6 +36,7 @@ final class AgentThread {
         speedMode: String? = AgentSpeedMode.standard.rawValue,
         useWorktree: Bool = false,
         isPinned: Bool = false,
+        isDraft: Bool = false,
         modifiedAt: Date? = nil,
         archivedAt: Date? = nil,
         project: Project? = nil,
@@ -53,11 +55,23 @@ final class AgentThread {
         self.speedMode = speedMode
         self.useWorktree = useWorktree
         self.isPinned = isPinned
+        self.isDraft = isDraft
         self.modifiedAt = modifiedAt
         self.archivedAt = archivedAt
         self.project = project
         self.conversations = conversations
     }
+}
+
+enum ThreadDraftNotificationKey {
+    static let threadID = "threadID"
+    static let conversationID = "conversationID"
+    static let projectPath = "projectPath"
+}
+
+extension Notification.Name {
+    static let threadDraftMaterialized = Notification.Name("threadDraftMaterialized")
+    static let threadDraftProjectChanged = Notification.Name("threadDraftProjectChanged")
 }
 
 extension AgentThread {

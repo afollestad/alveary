@@ -137,6 +137,18 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertNil(threadCleanupConfirmation(for: nil, action: .archive))
     }
 
+    func testDeleteKeyDecisionIgnoresDraftThread() throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-draft",
+            isDraft: true
+        )
+
+        XCTAssertNil(threadCleanupConfirmation(for: .thread(thread), action: .archive))
+        XCTAssertNil(threadCleanupConfirmation(for: .thread(thread), action: .delete))
+    }
+
     func testThreadContextMenuItemsUseForkDividerPinRenameArchiveDeleteOrder() {
         XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: true), [
             .forkLocal,

@@ -76,6 +76,9 @@ struct SidebarProjectRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityAction(named: Text("New Thread")) {
+                    onCreateThread()
+                }
 
                 Button(action: onCreateThread) {
                     Image(systemName: "square.and.pencil")
@@ -98,8 +101,7 @@ struct SidebarProjectRow: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
-                .accessibilityLabel("New Thread")
-                .accessibilityHidden(!showsCreateThreadButton)
+                .accessibilityHidden(true)
                 .help("New Thread (\(KeyboardShortcut.newThread.displayString))")
             }
             .frame(maxWidth: .infinity)
@@ -122,13 +124,12 @@ struct SidebarProjectRow: View {
             }
         }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
-        .animation(.easeInOut(duration: 0.12), value: isSelected)
     }
 
     private var projectForegroundColor: Color { .primary }
 
     private var showsCreateThreadButton: Bool {
-        isHovering || isSelected
+        isHovering
     }
 
     private var disclosureCaret: some View {

@@ -14,6 +14,10 @@ final class SidebarViewModel {
     let settingsService: SettingsService
     let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     let providerSessionActionService: any ProviderSessionActionService
+    let attachmentStore: any ConversationAttachmentStore
+    private let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
+    private let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
+    private let saveThreadCreation: @MainActor (ModelContext) throws -> Void
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private let threadActivityRecorder: any ThreadActivityRecording
@@ -24,6 +28,10 @@ final class SidebarViewModel {
     var statusVersion = 0
     var threadOrderVersion = 0
     var activeForkSourceThreadIDs: Set<PersistentIdentifier> = []
+    var draftCreationTask: Task<PersistentIdentifier, Error>?
+    var draftCreationTaskID: UUID?
+    var pendingDraftProjectPath: String?
+    var cachedDraftThreadID: PersistentIdentifier?
 
     init(
         agentsManager: any AgentsManager,
@@ -34,6 +42,10 @@ final class SidebarViewModel {
         settingsService: SettingsService,
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
+        attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
+        saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
@@ -46,6 +58,10 @@ final class SidebarViewModel {
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
         self.providerSessionActionService = providerSessionActions
+        self.attachmentStore = attachmentStore
+        self.saveDraftProjectMove = saveDraftProjectMove
+        self.saveDeletionCommit = saveDeletionCommit
+        self.saveThreadCreation = saveThreadCreation
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
         self.threadActivityRecorder = threadActivityRecorder
@@ -107,8 +123,24 @@ final class SidebarViewModel {
         sidebarError = nil
     }
 
+    func persistDraftProjectMove() throws {
+        try saveDraftProjectMove(modelContext)
+    }
+
+    func persistDeletionCommit() throws {
+        try saveDeletionCommit(modelContext)
+    }
+
+    func persistThreadCreation() throws {
+        try saveThreadCreation(modelContext)
+    }
+
     func archiveThread(_ thread: AgentThread) async throws {
-        let snapshot = try makeThreadArchiveSnapshot(thread)
+        let dbThread = try requireThread(thread)
+        guard !dbThread.isDraft else {
+            throw SidebarViewModelError.threadMissing
+        }
+        let snapshot = try makeThreadArchiveSnapshot(dbThread)
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         try backfillProviderSessionBindings(from: providerSessionResolution.records)
         await beginConversationTeardowns(snapshot.conversationIDs)
@@ -140,15 +172,16 @@ final class SidebarViewModel {
 
     func deleteThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadCleanupSnapshot(thread)
+        // Keep this commit before the first suspension so a draft cannot be reused
+        // or materialized while its teardown continues from the immutable snapshot.
+        try commitThreadDeletion(snapshot)
+        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
+
         let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.providerSessionAction)
         await beginConversationTeardowns(snapshot.conversationIDs)
-        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
-        if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-            modelContext.delete(dbThread)
-            try modelContext.save()
-        }
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
+        await removeConversationAttachmentDirectories(snapshot.conversationIDs)
         let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)
         if let teardownError {
@@ -160,18 +193,16 @@ final class SidebarViewModel {
 
     func deleteProject(_ project: Project) async throws {
         let snapshot = try makeProjectDeletionSnapshot(project)
-        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.threadSnapshots)
         let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
-
-        await beginConversationTeardowns(snapshot.conversationIDs)
+        // Child drafts must disappear atomically before teardown yields to other UI work.
+        try commitProjectDeletion(snapshot)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
-        if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
-            modelContext.delete(dbProject)
-            try modelContext.save()
-        }
+        let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.threadSnapshots)
+        await beginConversationTeardowns(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
+        await removeConversationAttachmentDirectories(snapshot.conversationIDs)
         let diagnostics = await providerSessionActionService.deleteSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)
         if let teardownError {

@@ -8,6 +8,7 @@ struct MiddlePane: View {
     let gitHubCLI: GitHubCLIService
     let agentsManager: any AgentsManager
     let runtimeStore: any ConversationRuntimeStore
+    let attachmentStore: any ConversationAttachmentStore
     let keepAwakeService: KeepAwakeService
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
@@ -52,6 +53,7 @@ struct MiddlePane: View {
                 modelContext: modelContext,
                 agentsManager: agentsManager,
                 runtimeStore: runtimeStore,
+                attachmentStore: attachmentStore,
                 keepAwakeService: keepAwakeService,
                 settingsService: settingsService,
                 providerRegistry: providerRegistry,
@@ -62,6 +64,20 @@ struct MiddlePane: View {
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
                 threadActivityRecorder: threadActivityRecorder,
+                availableProjects: projects,
+                selectDraftProject: { threadID, projectPath in
+                    do {
+                        let draft = try sidebarViewModel.moveDraftThread(id: threadID, toProjectPath: projectPath)
+                        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+                              selectedThread.persistentModelID == threadID else {
+                            return
+                        }
+                        appState.requestComposerFocus()
+                        appState.selectedSidebarItem = .thread(draft)
+                    } catch {
+                        sidebarViewModel.presentSidebarError(error)
+                    }
+                },
                 deleteThread: { thread in
                     try await sidebarViewModel.deleteThread(thread)
                 },
