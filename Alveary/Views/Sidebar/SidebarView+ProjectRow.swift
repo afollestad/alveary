@@ -17,6 +17,8 @@ struct SidebarProjectRow: View {
     let project: Project
     let isExpanded: Bool
     let isSelected: Bool
+    let suppressHoverAffordances: Bool
+    let dragConfiguration: SidebarRowDragConfiguration?
     let onToggleExpanded: () -> Void
     let onActivate: () -> Void
     let onCreateThread: () -> Void
@@ -28,6 +30,8 @@ struct SidebarProjectRow: View {
         project: Project,
         isExpanded: Bool,
         isSelected: Bool,
+        suppressHoverAffordances: Bool = false,
+        dragConfiguration: SidebarRowDragConfiguration? = nil,
         initialRowHover: Bool = false,
         onToggleExpanded: @escaping () -> Void,
         onActivate: @escaping () -> Void,
@@ -36,6 +40,8 @@ struct SidebarProjectRow: View {
         self.project = project
         self.isExpanded = isExpanded
         self.isSelected = isSelected
+        self.suppressHoverAffordances = suppressHoverAffordances
+        self.dragConfiguration = dragConfiguration
         self.onToggleExpanded = onToggleExpanded
         self.onActivate = onActivate
         self.onCreateThread = onCreateThread
@@ -56,53 +62,9 @@ struct SidebarProjectRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(toggleAccessibilityLabel)
 
-            ZStack(alignment: .trailing) {
-                Button(action: onActivate) {
-                    HStack(spacing: Self.disclosureCaretSpacing) {
-                        Text(project.name)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(projectForegroundColor)
-                            .lineLimit(1)
-
-                        disclosureCaret
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .offset(y: Self.titleClusterVerticalOffset)
-                    .padding(.trailing, 28)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .accessibilityAction(named: Text("New Thread")) {
-                    onCreateThread()
-                }
-
-                Button(action: onCreateThread) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(isHoveringCreateThread ? 0.95 : 0.8))
-                        .frame(width: Self.trailingActionButtonSize, height: Self.trailingActionButtonSize)
-                        .background(
-                            Circle()
-                                .fill(Color.primary.opacity(isHoveringCreateThread ? 0.12 : 0))
-                        )
-                }
-                .buttonStyle(.plain)
-                .contentShape(Circle())
-                .offset(x: Self.trailingActionHorizontalOffset)
-                .opacity(showsCreateThreadButton ? 1 : 0)
-                .allowsHitTesting(showsCreateThreadButton)
-                .onHover { isHovering in
-                    withAnimation(.easeOut(duration: 0.12)) {
-                        isHoveringCreateThread = isHovering
-                    }
-                }
-                .animation(.easeInOut(duration: 0.12), value: isHovering)
-                .accessibilityHidden(true)
-                .help("New Thread (\(KeyboardShortcut.newThread.displayString))")
+            HStack(spacing: 0) {
+                activationArea
+                createThreadButton
             }
             .frame(maxWidth: .infinity)
         }
@@ -128,8 +90,60 @@ struct SidebarProjectRow: View {
 
     private var projectForegroundColor: Color { .primary }
 
+    private var activationArea: some View {
+        Button(action: onActivate) {
+            HStack(spacing: Self.disclosureCaretSpacing) {
+                Text(project.name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(projectForegroundColor)
+                    .lineLimit(1)
+
+                disclosureCaret
+
+                Spacer(minLength: 0)
+            }
+            .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .offset(y: Self.titleClusterVerticalOffset)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .sidebarDragSource(dragConfiguration)
+        .accessibilityLabel(project.name)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction(named: Text("New Thread")) {
+            onCreateThread()
+        }
+    }
+
+    private var createThreadButton: some View {
+        Button(action: onCreateThread) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.primary.opacity(isHoveringCreateThread ? 0.95 : 0.8))
+                .frame(width: Self.trailingActionButtonSize, height: Self.trailingActionButtonSize)
+                .background(
+                    Circle()
+                        .fill(Color.primary.opacity(isHoveringCreateThread ? 0.12 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .offset(x: Self.trailingActionHorizontalOffset)
+        .opacity(showsCreateThreadButton ? 1 : 0)
+        .allowsHitTesting(showsCreateThreadButton)
+        .onHover { isHovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHoveringCreateThread = isHovering
+            }
+        }
+        .animation(.easeInOut(duration: 0.12), value: isHovering)
+        .accessibilityHidden(true)
+        .help("New Thread (\(KeyboardShortcut.newThread.displayString))")
+    }
+
     private var showsCreateThreadButton: Bool {
-        isHovering
+        isHovering && !suppressHoverAffordances
     }
 
     private var disclosureCaret: some View {
@@ -138,8 +152,8 @@ struct SidebarProjectRow: View {
             .foregroundStyle(.secondary)
             .frame(width: Self.disclosureCaretWidth, height: Self.disclosureCaretWidth)
             .rotationEffect(.degrees(isExpanded ? 90 : 0))
-            .opacity(isHovering ? 1 : 0)
-            .scaleEffect(isHovering ? 1 : 0.86)
+            .opacity(isHovering && !suppressHoverAffordances ? 1 : 0)
+            .scaleEffect(isHovering && !suppressHoverAffordances ? 1 : 0.86)
             .accessibilityHidden(true)
             .animation(.easeInOut(duration: 0.12), value: isExpanded)
     }

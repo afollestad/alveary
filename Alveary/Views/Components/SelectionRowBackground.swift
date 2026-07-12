@@ -9,6 +9,7 @@ struct AppSelectionRowBackground: View {
     let trailingInset: CGFloat
     let topInset: CGFloat
     let bottomInset: CGFloat
+    var opacity: Double = 1
 
     var body: some View {
         RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
@@ -17,6 +18,7 @@ struct AppSelectionRowBackground: View {
             .padding(.trailing, trailingInset)
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
+            .opacity(opacity)
             .animation(.easeOut(duration: 0.22), value: isPressed)
             .animation(.easeOut(duration: 0.08), value: isSelected)
     }
@@ -54,7 +56,10 @@ private struct SelectableRowModifier: ViewModifier {
     let selectionBackgroundTrailingInset: CGFloat
     let selectionBackgroundTopInset: CGFloat
     let selectionBackgroundBottomInset: CGFloat
+    let selectionBackgroundOpacity: Double
     let showsHoverBackground: Bool
+    let suppressesPressFeedback: Bool
+    let suppressesAction: Bool
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -73,15 +78,16 @@ private struct SelectableRowModifier: ViewModifier {
             .contentShape(Rectangle())
             .gesture(rowPressGesture)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .accessibilityAction { action() }
+            .accessibilityAction {
+                if !suppressesAction {
+                    action()
+                }
+            }
             .listRowBackground(selectionRowBackground)
             .onDisappear {
                 resetTransientState()
             }
             .onHover { isHovered in
-                guard showsHoverBackground else {
-                    return
-                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     self.isHovered = isHovered
                 }
@@ -95,6 +101,11 @@ private struct SelectableRowModifier: ViewModifier {
             }
             .onChange(of: identity) {
                 resetTransientState()
+            }
+            .onChange(of: suppressesAction) { _, suppressed in
+                if suppressed {
+                    resetPressState()
+                }
             }
     }
 
@@ -110,7 +121,7 @@ private struct SelectableRowModifier: ViewModifier {
             .onEnded { value in
                 let isClick = abs(value.translation.width) < 10
                     && abs(value.translation.height) < 10
-                if isClick {
+                if isClick, !suppressesAction {
                     // Optimistically keep the released row selected until the
                     // owning model publishes, avoiding a pressed -> clear flash.
                     isSelectionPending = !wasSelectedOnPress
@@ -123,18 +134,23 @@ private struct SelectableRowModifier: ViewModifier {
     private var selectionRowBackground: some View {
         AppSelectionRowBackground(
             isSelected: isSelected || isSelectionPending,
-            isPressed: isPressed,
+            isPressed: !suppressesPressFeedback && isPressed,
             isHovered: showsHoverBackground && isHovered,
             leadingInset: selectionBackgroundLeadingInset,
             trailingInset: selectionBackgroundTrailingInset,
             topInset: selectionBackgroundTopInset,
-            bottomInset: selectionBackgroundBottomInset
+            bottomInset: selectionBackgroundBottomInset,
+            opacity: selectionBackgroundOpacity
         )
     }
 
     private func resetTransientState() {
-        isPressed = false
         isHovered = false
+        resetPressState()
+    }
+
+    private func resetPressState() {
+        isPressed = false
         isSelectionPending = false
         wasSelectedOnPress = false
     }
@@ -148,6 +164,7 @@ private struct SelectionRowBackgroundModifier: ViewModifier {
     let trailingInset: CGFloat
     let topInset: CGFloat
     let bottomInset: CGFloat
+    let opacity: Double
 
     @State private var isPointerInside = false
 
@@ -161,13 +178,11 @@ private struct SelectionRowBackgroundModifier: ViewModifier {
                     leadingInset: leadingInset,
                     trailingInset: trailingInset,
                     topInset: topInset,
-                    bottomInset: bottomInset
+                    bottomInset: bottomInset,
+                    opacity: opacity
                 )
             )
             .onHover { hovering in
-                guard showsHoverBackground else {
-                    return
-                }
                 withAnimation(.easeOut(duration: 0.12)) {
                     isPointerInside = hovering
                 }
@@ -186,7 +201,8 @@ extension View {
         leadingInset: CGFloat = 10,
         trailingInset: CGFloat = 10,
         topInset: CGFloat = 0,
-        bottomInset: CGFloat = 0
+        bottomInset: CGFloat = 0,
+        opacity: Double = 1
     ) -> some View {
         modifier(SelectionRowBackgroundModifier(
             isSelected: isSelected,
@@ -195,7 +211,8 @@ extension View {
             leadingInset: leadingInset,
             trailingInset: trailingInset,
             topInset: topInset,
-            bottomInset: bottomInset
+            bottomInset: bottomInset,
+            opacity: opacity
         ))
     }
 
@@ -209,7 +226,10 @@ extension View {
         selectionBackgroundTrailingInset: CGFloat = 10,
         selectionBackgroundTopInset: CGFloat = 0,
         selectionBackgroundBottomInset: CGFloat = 0,
+        selectionBackgroundOpacity: Double = 1,
         showsHoverBackground: Bool = false,
+        suppressesPressFeedback: Bool = false,
+        suppressesAction: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         modifier(SelectableRowModifier(
@@ -219,7 +239,10 @@ extension View {
             selectionBackgroundTrailingInset: selectionBackgroundTrailingInset,
             selectionBackgroundTopInset: selectionBackgroundTopInset,
             selectionBackgroundBottomInset: selectionBackgroundBottomInset,
+            selectionBackgroundOpacity: selectionBackgroundOpacity,
             showsHoverBackground: showsHoverBackground,
+            suppressesPressFeedback: suppressesPressFeedback,
+            suppressesAction: suppressesAction,
             action: action
         ))
     }

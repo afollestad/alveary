@@ -51,6 +51,8 @@ extension SidebarViewModelTests {
 
         XCTAssertEqual(project.path, destination)
         XCTAssertEqual(project.name, "repo")
+        XCTAssertEqual(project.sidebarSortOrder, 0)
+        XCTAssertNil(project.pinnedSortOrder)
 
         let invocations = await fixture.shell.invocations
         XCTAssertEqual(invocations.first?.args, ["clone", "https://github.com/owner/repo.git", destination])

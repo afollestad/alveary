@@ -26,6 +26,8 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(project.baseRef, "main")
         XCTAssertEqual(project.githubRepository, "acme/rocket")
         XCTAssertTrue(project.githubConnected)
+        XCTAssertEqual(project.sidebarSortOrder, 0)
+        XCTAssertNil(project.pinnedSortOrder)
 
         let invocations = await fixture.shell.invocations
         XCTAssertEqual(invocations.map(\.args), [
@@ -37,6 +39,32 @@ final class SidebarViewModelTests: XCTestCase {
         ])
         XCTAssertEqual(fixture.gitHubCLI.checkInstalledCallCount, 1)
         XCTAssertEqual(fixture.gitHubCLI.isAuthenticatedCallCount, 1)
+    }
+
+    func testCreateProjectAppendsToRegularProjectOrder() async throws {
+        let fixture = try SidebarTestFixture()
+        let existing = Project(path: "/tmp/existing", name: "Existing", sidebarSortOrder: 0)
+        fixture.context.insert(existing)
+        try fixture.context.save()
+        let projectURL = try makeProjectDirectory(named: "appended-project")
+
+        await fixture.shell.enqueue(
+            .success(
+                shellResult(
+                    stdout: "",
+                    stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+                    exitCode: 128
+                )
+            )
+        )
+
+        let project = try await fixture.viewModel.createProject(path: projectURL.path)
+
+        XCTAssertEqual(project.sidebarSortOrder, 1)
+        XCTAssertEqual(fixture.viewModel.regularProjects(from: [project, existing]).map(\.path), [
+            existing.path,
+            project.path
+        ])
     }
 
     func testCreateProjectAllowsLocalOnlyRepositories() async throws {

@@ -2,7 +2,7 @@ import AppKit
 import SwiftData
 import SwiftUI
 
-private enum SidebarProjectListMetrics {
+enum SidebarProjectListMetrics {
     static let subsequentProjectTopSpacing: CGFloat = 4
 
     // SwiftUI `List` section headers omit the real project row's trailing action column inset.
@@ -23,20 +23,27 @@ struct SidebarView: View {
     @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
     @State var pendingDeleteProject: Project?
+    @State var sidebarDragInteractionState = SidebarDragInteractionState.idle
+    @State var sidebarDragPointerRelay = SidebarDragPointerRelay()
+    @State var sidebarDropCandidate: SidebarDropCandidate?
+    @State var sidebarDragGeometryFrames: [SidebarDragGeometryRole: [CGRect]] = [:]
+    @State var sidebarDragGeometryRefreshRevision: UInt64 = 0
+    @State var sidebarDragGeometryMissToken: UUID?
     @FocusState var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) var chatComposerFocus
 
     var projects: [Project] {
-        queriedProjects.sorted(by: areProjectsOrdered)
+        viewModel.orderedProjects(from: queriedProjects)
     }
 
     var regularProjects: [Project] {
-        projects.filter { !$0.isPinned }
+        viewModel.regularProjects(from: projects)
     }
 
     var threadOrderAnimation: Animation? {
         guard !accessibilityReduceMotion,
               editingThreadID == nil,
+              !isSidebarDragInteractionInFlight,
               expandedThreadCount <= 200 else {
             return nil
         }
@@ -72,10 +79,12 @@ struct SidebarView: View {
             .trailing,
             isListSectionHeader ? SidebarProjectListMetrics.listSectionHeaderTrailingCorrection : 0
         )
+        .sidebarDragGeometry(.projectsHeader)
     }
 
     private var pinnedHeader: some View {
         SidebarSectionHeaderRow(title: "Pinned")
+            .sidebarDragGeometry(.pinnedHeader)
     }
 
     var body: some View {
@@ -83,6 +92,9 @@ struct SidebarView: View {
         let threadOrderVersion = viewModel.threadOrderVersion
         let pinnedItems = self.pinnedItems()
         let regularProjects = self.regularProjects
+        let visibleDragItems = Set(
+            pinnedItems.map(\.dragItem) + regularProjects.map { .project($0.persistentModelID) }
+        )
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 
         return VStack(spacing: 0) {
@@ -116,13 +128,16 @@ struct SidebarView: View {
                                 : SidebarRowMetrics.interThreadRowSpacing
                             switch item.kind {
                             case .project(let project):
-                                projectRow(project, topSpacing: topSpacing)
+                                projectRow(project, topSpacing: topSpacing, dropSection: .pinned)
                             case .thread(let thread):
                                 sidebarThreadRow(
                                     thread,
                                     layout: .topLevel,
-                                    topSpacing: topSpacing
+                                    topSpacing: topSpacing,
+                                    dragConfiguration: pinnedThreadDragConfiguration(for: thread),
+                                    opacity: activeSidebarDragItem == .pinnedThread(thread.persistentModelID) ? 0.48 : 1
                                 )
+                                .sidebarDragGeometry(.pinnedThread(thread.persistentModelID))
                             }
                         }
                         .transaction { transaction in
@@ -135,7 +150,8 @@ struct SidebarView: View {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
                         projectRows(
                             regularProjects,
-                            showsNoProjectsPlaceholder: projects.isEmpty
+                            showsNoProjectsPlaceholder: projects.isEmpty,
+                            dropSection: .projects
                         )
                     }
                 }
@@ -144,7 +160,8 @@ struct SidebarView: View {
                     Section {
                         projectRows(
                             projects,
-                            showsNoProjectsPlaceholder: projects.isEmpty
+                            showsNoProjectsPlaceholder: projects.isEmpty,
+                            dropSection: .projects
                         )
                     } header: {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
@@ -152,13 +169,42 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .coordinateSpace(name: Self.sidebarDragCoordinateSpaceName)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: SidebarDragGeometryPreferenceKey.self,
+                        value: [.viewport: [proxy.frame(in: .named(Self.sidebarDragCoordinateSpaceName))]]
+                    )
+                }
+            }
+            .overlay { sidebarDragOverlay }
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
             .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey], action: handleSidebarKeyPress)
         }
+        .onPreferenceChange(SidebarDragGeometryPreferenceKey.self) { frames in
+            scheduleSidebarDragGeometryRefresh(with: frames)
+        }
         .onAppear {
+            do {
+                try viewModel.ensureSidebarOrderingInitialized()
+            } catch {
+                viewModel.presentSidebarError(error)
+            }
             syncExpansionWithSelection(appState.selectedSidebarItem)
+        }
+        .onDisappear {
+            cancelSidebarDragForTeardown()
+        }
+        .onChange(of: visibleDragItems) { _, visibleItems in
+            cancelSidebarDragIfSourceIsMissing(visibleItems: visibleItems)
+        }
+        .onChange(of: editingThreadID) { _, editingThreadID in
+            if editingThreadID != nil {
+                cancelSidebarDragForTeardown()
+            }
         }
         .onChange(of: appState.selectedSidebarItem) { _, item in
             syncExpansionWithSelection(item)
@@ -266,7 +312,9 @@ struct SidebarView: View {
     func sidebarThreadRow(
         _ thread: AgentThread,
         layout: SidebarThreadRowLayout,
-        topSpacing: CGFloat
+        topSpacing: CGFloat,
+        dragConfiguration: SidebarRowDragConfiguration? = nil,
+        opacity: Double = 1
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == .thread(thread)
         let cleanupAction = viewModel.defaultThreadCleanupAction
@@ -279,6 +327,8 @@ struct SidebarView: View {
             layout: layout,
             editingThreadID: $editingThreadID,
             cleanupAction: cleanupAction,
+            suppressHoverAffordances: isSidebarDragInteractionInFlight,
+            dragConfiguration: dragConfiguration,
             onCommitRename: { newName in
                 renameThread(thread, to: newName)
             },
@@ -295,10 +345,16 @@ struct SidebarView: View {
         )
         .padding(.leading, leadingPadding)
         .padding(.top, topSpacing)
+        .opacity(opacity)
+        .animation(sidebarDragAnimation, value: opacity)
         .appSelectableRow(
             isSelected: isSelected,
+            identity: thread.persistentModelID,
             selectionBackgroundTopInset: topSpacing,
-            showsHoverBackground: true,
+            selectionBackgroundOpacity: opacity,
+            showsHoverBackground: !isSidebarDragInteractionInFlight,
+            suppressesPressFeedback: isSidebarDragInteractionInFlight,
+            suppressesAction: isSidebarDragInteractionInFlight,
             action: { activateThread(thread) }
         )
         .contextMenu {
@@ -371,122 +427,6 @@ struct SidebarView: View {
         appState.pendingComposerFocusToken = nil
         chatComposerFocus?.release()
         isKeyboardFocused = true
-    }
-}
-
-private extension SidebarView {
-    @ViewBuilder
-    func projectRows(
-        _ visibleProjects: [Project],
-        showsNoProjectsPlaceholder: Bool
-    ) -> some View {
-        if showsNoProjectsPlaceholder {
-            Text("No projects yet")
-                .foregroundStyle(.secondary)
-                .padding(.leading, 8)
-        }
-
-        ForEach(visibleProjects.indices, id: \.self) { index in
-            let project = visibleProjects[index]
-            let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
-            projectRow(project, topSpacing: topSpacing)
-        }
-    }
-
-    @ViewBuilder
-    func projectRow(_ project: Project, topSpacing: CGFloat) -> some View {
-        let isExpanded = expandedProjects.contains(project.path)
-        let isSelected = isProjectSelected(project)
-        let activeProjectThreads = activeThreads(for: project)
-        let firstThreadID = activeProjectThreads.first?.persistentModelID
-
-        SidebarProjectRow(
-            project: project,
-            isExpanded: isExpanded,
-            isSelected: isSelected,
-            onToggleExpanded: {
-                toggleExpansion(for: project.path, in: &expandedProjects)
-                claimSidebarFocus()
-            },
-            onActivate: {
-                activateProject(project)
-            },
-            onCreateThread: {
-                Task { await createThread(in: project) }
-            }
-        )
-        .padding(.top, topSpacing)
-        .appSelectionRowBackground(
-            isSelected: isSelected,
-            showsHoverBackground: true,
-            topInset: topSpacing
-        )
-        .contextMenu {
-            projectContextMenu(for: project)
-        }
-
-        if isExpanded {
-            projectChildRows(
-                project: project,
-                activeProjectThreads: activeProjectThreads,
-                firstThreadID: firstThreadID
-            )
-        }
-    }
-
-    @ViewBuilder
-    func projectContextMenu(for project: Project) -> some View {
-        Button("New Thread") {
-            Task { await createThread(in: project) }
-        }
-
-        Button(sidebarProjectPinContextMenuTitle(isPinned: project.isPinned)) {
-            setProjectPinned(project, isPinned: !project.isPinned)
-        }
-
-        Button("Reveal in Finder...") {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path, isDirectory: true)])
-        }
-
-        Button("Remove Project...", role: .destructive) {
-            pendingDeleteProject = project
-        }
-    }
-
-    @ViewBuilder
-    func projectChildRows(
-        project: Project,
-        activeProjectThreads: [AgentThread],
-        firstThreadID: PersistentIdentifier?
-    ) -> some View {
-        if shouldShowNoThreadsPlaceholder(
-            activeProjectThreads: activeProjectThreads,
-            hasAnyActiveThreads: hasAnyActiveThreads(for: project)
-        ) {
-            Text("No threads")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 6.75)
-                .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
-                .allowsHitTesting(false)
-        }
-
-        ForEach(activeProjectThreads, id: \.persistentModelID) { thread in
-            let threadTopSpacing: CGFloat = thread.persistentModelID == firstThreadID
-                ? 0
-                : SidebarRowMetrics.interThreadRowSpacing
-            sidebarThreadRow(
-                thread,
-                layout: .project,
-                topSpacing: threadTopSpacing
-            )
-        }
-        .transaction { transaction in
-            if threadOrderAnimation == nil {
-                transaction.disablesAnimations = true
-                transaction.animation = nil
-            }
-        }
     }
 }
 

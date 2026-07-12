@@ -32,6 +32,8 @@ struct SidebarTestFixture {
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -74,6 +76,8 @@ struct SidebarTestFixture {
             saveDraftProjectMove: saveDraftProjectMove,
             saveDeletionCommit: saveDeletionCommit,
             saveThreadCreation: saveThreadCreation,
+            savePendingSidebarChanges: savePendingSidebarChanges,
+            saveSidebarOrdering: saveSidebarOrdering,
             presentUnexpectedError: { [unexpectedErrors] message in
                 unexpectedErrors.present(message)
             },

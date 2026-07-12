@@ -12,6 +12,8 @@ final class Project {
     var githubRepository: String?
     var githubConnected: Bool
     var isPinned: Bool = false
+    var sidebarSortOrder: Int?
+    var pinnedSortOrder: Int?
     @Relationship(deleteRule: .cascade, inverse: \AgentThread.project) var threads: [AgentThread]
 
     init(
@@ -24,6 +26,8 @@ final class Project {
         githubRepository: String? = nil,
         githubConnected: Bool = false,
         isPinned: Bool = false,
+        sidebarSortOrder: Int? = nil,
+        pinnedSortOrder: Int? = nil,
         threads: [AgentThread] = []
     ) {
         self.path = CanonicalPath.normalize(path)
@@ -35,6 +39,8 @@ final class Project {
         self.githubRepository = githubRepository
         self.githubConnected = githubConnected
         self.isPinned = isPinned
+        self.sidebarSortOrder = sidebarSortOrder
+        self.pinnedSortOrder = pinnedSortOrder
         self.threads = threads
     }
 
