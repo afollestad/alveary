@@ -7,6 +7,8 @@ struct SidebarSectionHeaderRow: View {
     static let actionButtonCenterTrailingInset = SidebarProjectRow.trailingActionCenterTrailingInset
 
     private static let actionIconSize: CGFloat = 11
+    // Keep the trailing action column fixed while aligning title ink with top-level icons.
+    private static let titleLeadingOpticalOffset: CGFloat = -3
     private static let trailingPadding = actionButtonCenterTrailingInset - actionButtonSize / 2
 
     @State private var isHoveringAddProject = false
@@ -24,6 +26,7 @@ struct SidebarSectionHeaderRow: View {
             Text(title)
                 .font(.system(.subheadline, weight: .semibold))
                 .foregroundStyle(.tertiary)
+                .offset(x: Self.titleLeadingOpticalOffset)
                 .accessibilityAddTraits(.isHeader)
 
             Spacer()
